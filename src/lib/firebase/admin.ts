@@ -1,7 +1,7 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
-import type { UsageDb } from "@/lib/costs";
+import type { AppDb } from "@/lib/firestore-like";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -26,7 +26,7 @@ export function getDb(): Firestore {
   return getFirestore();
 }
 
-// Static assert: o Firestore real satisfaz a interface mínima do módulo de
-// custos. Se o firebase-admin mudar a API, isto quebra o build, não a produção.
+// Static assert: o Firestore real satisfaz a interface mínima do app.
+// Se o firebase-admin mudar a API, isto quebra o build, não a produção.
 type Satisfies<T extends U, U> = T;
-export type FirestoreSatisfiesUsageDb = Satisfies<Firestore, UsageDb>;
+export type FirestoreSatisfiesAppDb = Satisfies<Firestore, AppDb>;

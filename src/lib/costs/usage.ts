@@ -1,5 +1,5 @@
 import { QuotaExceededError } from "./errors";
-import type { UsageDb, UsageDocSnapshot } from "./firestore-like";
+import type { UsageDb, UsageDocSnapshot } from "../firestore-like";
 import { periodKey } from "./period";
 import { DEFAULT_CAPS, SKUS, ZERO_USAGE, type Sku, type UsageCounts } from "./skus";
 

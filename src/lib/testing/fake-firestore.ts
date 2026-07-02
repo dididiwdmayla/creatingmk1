@@ -1,15 +1,17 @@
 import type {
-  UsageDb,
-  UsageDocRef,
+  AppCollectionRef,
+  AppDb,
+  AppDocRef,
+  AppQueryDocSnapshot,
   UsageDocSnapshot,
   UsageTransaction,
 } from "../firestore-like";
 
 /**
- * Fake em memória do subconjunto de Firestore usado pelo módulo de custos,
- * reproduzindo a semântica de transação: leituras veem o estado
- * pré-transação, escritas ficam em buffer e só aplicam no commit;
- * se a função da transação lançar, nada é aplicado.
+ * Fake em memória do subconjunto de Firestore usado pelo app, reproduzindo
+ * a semântica de transação: leituras veem o estado pré-transação, escritas
+ * ficam em buffer e só aplicam no commit; se a função da transação lançar,
+ * nada é aplicado. Escritas fora de transação aplicam na hora.
  */
 
 class FakeSnapshot implements UsageDocSnapshot {
@@ -20,11 +22,11 @@ class FakeSnapshot implements UsageDocSnapshot {
   }
 
   data(): Record<string, unknown> | undefined {
-    return this.stored ? { ...this.stored } : undefined;
+    return this.stored ? structuredClone(this.stored) : undefined;
   }
 }
 
-class FakeDocRef implements UsageDocRef {
+class FakeDocRef implements AppDocRef {
   constructor(
     private readonly db: FakeFirestore,
     readonly path: string,
@@ -32,6 +34,10 @@ class FakeDocRef implements UsageDocRef {
 
   async get(): Promise<UsageDocSnapshot> {
     return new FakeSnapshot(this.db.readDoc(this.path));
+  }
+
+  set(data: Record<string, unknown>, options?: { merge?: boolean }): void {
+    this.db.applyWrite(this.path, data, options?.merge ?? false);
   }
 }
 
@@ -44,18 +50,18 @@ class FakeTransaction implements UsageTransaction {
 
   constructor(private readonly db: FakeFirestore) {}
 
-  async get(ref: UsageDocRef): Promise<UsageDocSnapshot> {
+  async get(ref: { get(): Promise<UsageDocSnapshot> }): Promise<UsageDocSnapshot> {
     return new FakeSnapshot(this.db.readDoc((ref as FakeDocRef).path));
   }
 
   set(
-    ref: UsageDocRef,
+    ref: { get(): Promise<UsageDocSnapshot> },
     data: Record<string, unknown>,
     options?: { merge?: boolean },
   ): void {
     this.writes.push({
       path: (ref as FakeDocRef).path,
-      data: { ...data },
+      data: structuredClone(data),
       merge: options?.merge ?? false,
     });
   }
@@ -67,12 +73,13 @@ class FakeTransaction implements UsageTransaction {
   }
 }
 
-export class FakeFirestore implements UsageDb {
+export class FakeFirestore implements AppDb {
   private readonly docs = new Map<string, Record<string, unknown>>();
 
-  collection(name: string): { doc(id: string): UsageDocRef } {
+  collection(name: string): AppCollectionRef {
     return {
       doc: (id: string) => new FakeDocRef(this, `${name}/${id}`),
+      get: async () => ({ docs: this.listDocs(name) }),
     };
   }
 
@@ -85,13 +92,13 @@ export class FakeFirestore implements UsageDb {
 
   /** Pré-carrega um doc para o teste ("dado sujo", mês anterior etc.). */
   seed(path: string, data: Record<string, unknown>): void {
-    this.docs.set(path, { ...data });
+    this.docs.set(path, structuredClone(data));
   }
 
   /** Estado persistido do doc, para asserções. */
   getDoc(path: string): Record<string, unknown> | undefined {
     const stored = this.docs.get(path);
-    return stored ? { ...stored } : undefined;
+    return stored ? structuredClone(stored) : undefined;
   }
 
   readDoc(path: string): Record<string, unknown> | undefined {
@@ -100,6 +107,21 @@ export class FakeFirestore implements UsageDb {
 
   applyWrite(path: string, data: Record<string, unknown>, merge: boolean): void {
     const current = merge ? (this.docs.get(path) ?? {}) : {};
-    this.docs.set(path, { ...current, ...data });
+    this.docs.set(path, { ...current, ...structuredClone(data) });
+  }
+
+  private listDocs(collection: string): AppQueryDocSnapshot[] {
+    const prefix = `${collection}/`;
+    const result: AppQueryDocSnapshot[] = [];
+    for (const [path, stored] of this.docs) {
+      if (!path.startsWith(prefix) || path.slice(prefix.length).includes("/")) {
+        continue;
+      }
+      result.push({
+        id: path.slice(prefix.length),
+        data: () => structuredClone(stored),
+      });
+    }
+    return result;
   }
 }

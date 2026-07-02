@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { QuotaExceededError } from "../errors";
 import { DEFAULT_CAPS, type UsageCounts } from "../skus";
 import { getUsage, reserveQuota } from "../usage";
-import { FakeFirestore } from "./fake-firestore";
+import { FakeFirestore } from "../../testing/fake-firestore";
 
 const NOW = new Date("2026-07-02T12:00:00Z");
 const DOC = "usage/2026-07";

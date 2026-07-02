@@ -15,35 +15,47 @@ Web app pessoal de prospecção de leads locais para web designer freelancer. Si
 
 ```
 src/
+  proxy.ts                          # ✅ proteção por senha (Next 16: proxy.ts, ex-middleware)
   app/
     layout.tsx
-    page.tsx                        # Dashboard: uso vs cota, custo projetado, métricas
+    page.tsx                        # placeholder; dashboard fica na sessão de UI
     config/page.tsx                 # [planejado] formulário de configuração
     leads/page.tsx                  # [planejado] lista de leads com filtros
     leads/[id]/page.tsx             # [planejado] ficha do lead
+    login/page.tsx                  # [planejado] formulário de senha → POST /api/login
     api/
-      config/route.ts               # [planejado] GET/PUT config
-      search/route.ts               # [planejado] POST busca (Text Search)
-      leads/route.ts                # [planejado] GET lista de leads
-      leads/[id]/route.ts           # [planejado] GET ficha / PATCH status
-      leads/[id]/enrich/route.ts    # [planejado] POST enriquecimento (Place Details)
-      usage/route.ts                # [planejado] GET uso do mês + custo projetado
+      login/route.ts                # ✅ POST senha → cookie de sessão
+      config/route.ts               # ✅ GET/PUT config
+      search/route.ts               # ✅ POST busca (Text Search)
+      leads/route.ts                # ✅ GET lista de leads com filtros
+      leads/[id]/route.ts           # ✅ GET ficha / PATCH status
+      leads/[id]/enrich/route.ts    # ✅ POST enriquecimento (Place Details)
+      usage/route.ts                # ✅ GET uso do mês + custo projetado
       metrics/route.ts              # [planejado] GET métricas de prospecção
+      __tests__/                    # ✅ testes das rotas (fake Firestore + fetch mockado)
   lib/
-    costs/                          # ✅ implementado nesta sessão — ver seção "Módulo de custos"
+    firestore-like.ts               # ✅ interface estrutural mínima do Firestore (UsageDb/AppDb)
+    errors.ts                       # ✅ erros de domínio (validação, 404, transição)
+    http.ts                         # ✅ formato de erro padrão + mapa erro→HTTP status
+    auth.ts                         # ✅ cookie de sessão derivado de APP_PASSWORD
+    costs/                          # ✅ ver seção "Módulo de custos"
       skus.ts                       # SKUs, field masks, cotas grátis, preços default
       period.ts                     # chave do período mensal (YYYY-MM, UTC)
       errors.ts                     # QuotaExceededError
       usage.ts                      # reserveQuota / getUsage (transação Firestore)
       cost.ts                       # projeção de custo (funções puras)
-      firestore-like.ts             # interface estrutural mínima do Firestore
       index.ts
-      __tests__/                    # testes unitários (Vitest)
+      __tests__/
+    config/                         # ✅ config efetiva: defaults + /config/app, validação de PUT
     firebase/
       admin.ts                      # ✅ init lazy do firebase-admin (env vars)
-    places/                         # [planejado] cliente HTTP da Places API (New)
-      client.ts                     #   searchText() / placeDetails(), sempre via reserveQuota
-    leads/                          # [planejado] repositório de leads (upsert, transições de status)
+    places/
+      client.ts                     # ✅ searchText() / placeDetails(), sempre via reserveQuota
+    leads/                          # ✅ repositório de leads (upsert, filtros, transições)
+      types.ts
+      repo.ts
+    testing/
+      fake-firestore.ts             # ✅ fake em memória com semântica de transação
   components/                       # [planejado] UI compartilhada
 ```
 
@@ -143,21 +155,24 @@ Formato de erro padrão em todas as rotas:
 
 | Rota | Método | Entrada | Saída | Google / SKU |
 |---|---|---|---|---|
+| `/api/login` | POST | `{ senha }` | `204` + cookie de sessão · `401 invalid_password` · `503 config_error` | — |
 | `/api/config` | GET | — | `200 { config }` (defaults se doc não existe) | — |
 | `/api/config` | PUT | config parcial ou completa | `200 { config }` · `400 validation_error` | — |
 | `/api/search` | POST | `{ nicho?, regiao? }` (default: config) | `200 { criados, existentes, leads[] }` · `429 quota_exceeded` · `502 places_error` | Text Search · **textSearch** |
-| `/api/leads` | GET | query: `status`, `temSite`, `temTelefone` | `200 { leads[] }` | — |
+| `/api/leads` | GET | query: `status`, `temSite`, `temTelefone` | `200 { leads[] }` · `400` | — |
 | `/api/leads/[id]` | GET | — | `200 { lead }` · `404` | — |
-| `/api/leads/[id]` | PATCH | `{ status }` | `200 { lead }` · `409 invalid_transition` | — |
+| `/api/leads/[id]` | PATCH | `{ status }` | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
 | `/api/leads/[id]/enrich` | POST | — | `200 { lead }` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsPro** |
 | `/api/usage` | GET | — | `200 { period, usage, caps, cotaGratis, custoProjetado: { usd, brl } }` | — |
-| `/api/metrics` | GET | — | `200 { contatosHoje, contatosSemana, taxaResposta }` | — |
+| `/api/metrics` | GET | — | `200 { contatosHoje, contatosSemana, taxaResposta }` — [planejado] | — |
+
+Todas as rotas implementadas estão em ✅ na estrutura de pastas; `/api/metrics` fica para a sessão do dashboard.
 
 Semântica fixa:
 - **`429 quota_exceeded`**: corpo `{ error: { code: "quota_exceeded", sku, used, cap, period, message } }`. Emitido **antes** de qualquer chamada ao Google (a reserva de cota falhou). Nenhum custo foi incorrido.
 - **`502 places_error`**: o Google respondeu erro. A cota **já foi consumida** (reservamos antes de chamar) — decisão deliberada: superestimar uso é seguro, subestimar não.
-- `/api/search` faz upsert em `/leads` com `status: "novo"` para novos e reporta `existentes` para os que já estavam na base.
-- `/api/leads/[id]/enrich` grava `detalhes`, marca `enriquecido: true`. Se o lead já foi enriquecido, retorna o doc sem chamar o Google (re-enriquecimento forçado fica para depois, se precisar).
+- `/api/search` faz upsert em `/leads` com `status: "novo"` para novos e reporta `existentes` para os que já estavam na base. **Busca só a 1ª página** do Text Search (até 20 resultados) — cada página seria uma request cobrada.
+- `/api/leads/[id]/enrich` grava `detalhes`, marca `enriquecido: true`. Lead já enriquecido **retorna do cache sempre** — re-enriquecimento não existe.
 - O botão WhatsApp é montado **no cliente** a partir de dados já persistidos (`wa.me/<telefoneIntl sem símbolos>?text=<mensagemPadrao com {nome} substituído>`) — não há rota nem chamada externa.
 
 ## Estratégia de field masks por SKU
@@ -196,9 +211,18 @@ projectedCostBRL(usage, usdBrl, pricing?): number
 Decisões de projeto:
 - **Reserva antes do request**: o contador incrementa antes de chamar o Google. Se o Google falhar, o contador fica 1 acima do real — erro do lado seguro. O inverso (chamar e depois contar) poderia estourar o teto em caso de falha na gravação.
 - **Teto (`cap`) = máximo de requests permitidas no mês**. `used + 1 > cap` → recusa com `QuotaExceededError` (mensagem em pt-BR com SKU, uso, teto e período). Teto `0` (ou negativo) bloqueia o SKU por completo.
-- **`firestore-like.ts`**: o módulo depende de uma interface estrutural mínima (`UsageDb`), não do `firebase-admin` — o Firestore real satisfaz a interface por tipagem estrutural (há um static assert em `admin.ts`), e os testes usam um fake em memória que reproduz a semântica de transação (leituras veem o estado pré-transação; escritas só aplicam no commit; exceção → nada aplicado).
+- **`src/lib/firestore-like.ts`**: o app inteiro depende de uma interface estrutural mínima do Firestore (`UsageDb` para custos, `AppDb` ampliada para o resto), não do `firebase-admin` — o Firestore real satisfaz a interface por tipagem estrutural (há um static assert em `admin.ts`), e os testes usam um fake em memória que reproduz a semântica de transação (leituras veem o estado pré-transação; escritas só aplicam no commit; exceção → nada aplicado).
 - Contadores malformados no doc (string, negativo, NaN) são lidos como `0` — o módulo nunca quebra por dado sujo, só fica mais conservador.
 - `atualizadoEm` gravado como ISO string (evita dependência do `FieldValue` do admin dentro do módulo puro).
+
+## Proteção por senha (src/proxy.ts)
+
+Todo o app (páginas e API) exige sessão, exceto assets estáticos e `POST /api/login`. Fluxo:
+
+1. `POST /api/login` com `{ senha }` compara com a env var `APP_PASSWORD` e grava o cookie `radar_session` (httpOnly, sameSite=lax, 30 dias, secure em produção).
+2. O valor do cookie é o **SHA-256 da senha** — trocar `APP_PASSWORD` invalida todas as sessões. Sem estado no banco.
+3. O proxy também aceita o header `x-app-password` (útil para curl e antes de existir a página `/login`); quando correto, já estabelece o cookie na resposta.
+4. **Fail-closed**: sem `APP_PASSWORD` configurada, tudo responde `503 config_error` — o app nunca sobe aberto por engano.
 
 ## Variáveis de ambiente
 
@@ -207,12 +231,13 @@ GOOGLE_PLACES_API_KEY=   # NUNCA exposta ao cliente; usada só em route handlers
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=    # com \n literais; admin.ts converte
+APP_PASSWORD=            # senha única do app; sem ela tudo responde 503
 ```
 
-Ver `.env.example`. Na Vercel, cadastrar as quatro em Project Settings → Environment Variables.
+Ver `.env.example`. Na Vercel, cadastrar as cinco em Project Settings → Environment Variables.
 
-## Decisões em aberto (perguntar antes de decidir)
+## Decisões tomadas
 
-- **Proteção de acesso ao app em produção**: o MVP não define auth, mas as rotas gastam dinheiro. Opções: Vercel Deployment Protection, senha única via middleware, ou Firebase Auth com allowlist de 1 e-mail.
-- **Paginação do Text Search** (`nextPageToken`): cada página é uma request cobrada. Buscar só a 1ª página (20 resultados) ou paginar até N com contagem por página?
-- **Re-enriquecimento** de lead já enriquecido (dados desatualizados): permitir com confirmação explícita, ou nunca?
+- **Proteção de acesso**: senha única comparada com `APP_PASSWORD` no proxy + cookie de sessão simples (ver seção acima). Sem Firebase Auth.
+- **Paginação do Text Search**: só a 1ª página (até 20 resultados). `nextPageToken` nem é lido.
+- **Re-enriquecimento**: não existe. Lead enriquecido retorna do cache sempre; um novo Place Details para o mesmo lead nunca é disparado.

@@ -1,0 +1,117 @@
+import { describe, expect, it } from "vitest";
+
+import { ValidationError } from "@/lib/errors";
+import { FakeFirestore } from "@/lib/testing/fake-firestore";
+import {
+  DEFAULT_CONFIG,
+  loadConfig,
+  pricingFromConfig,
+  saveConfig,
+} from "..";
+
+const DOC = "config/app";
+
+describe("loadConfig", () => {
+  it("retorna os defaults quando o doc não existe", async () => {
+    const db = new FakeFirestore();
+    expect(await loadConfig(db)).toEqual(DEFAULT_CONFIG);
+  });
+
+  it("mescla doc parcial/antigo sobre os defaults", async () => {
+    const db = new FakeFirestore();
+    db.seed(DOC, { nicho: "dentista", caps: { detailsPro: 100 } });
+
+    const config = await loadConfig(db);
+
+    expect(config.nicho).toBe("dentista");
+    expect(config.caps.detailsPro).toBe(100);
+    expect(config.caps.textSearch).toBe(DEFAULT_CONFIG.caps.textSearch);
+    expect(config.regiao).toBe(DEFAULT_CONFIG.regiao);
+  });
+});
+
+describe("saveConfig", () => {
+  it("aplica patch parcial e persiste o doc completo", async () => {
+    const db = new FakeFirestore();
+
+    const config = await saveConfig(db, {
+      nicho: "dentista",
+      regiao: "Sarandi PR",
+      precos: { usdBrl: 6.0 },
+    });
+
+    expect(config.nicho).toBe("dentista");
+    expect(config.precos.usdBrl).toBe(6.0);
+    expect(config.precos.usdPor1000).toEqual(DEFAULT_CONFIG.precos.usdPor1000);
+
+    const stored = db.getDoc(DOC);
+    expect(stored?.regiao).toBe("Sarandi PR");
+    expect(stored?.mensagemPadrao).toBe(DEFAULT_CONFIG.mensagemPadrao);
+    expect(typeof stored?.atualizadoEm).toBe("string");
+  });
+
+  it("preserva valores já salvos que o patch não toca", async () => {
+    const db = new FakeFirestore();
+    await saveConfig(db, { nicho: "dentista" });
+
+    const config = await saveConfig(db, { regiao: "Maringá PR" });
+
+    expect(config.nicho).toBe("dentista");
+    expect(config.regiao).toBe("Maringá PR");
+  });
+
+  it("rejeita chave desconhecida (typo)", async () => {
+    const db = new FakeFirestore();
+
+    const error = await saveConfig(db, { cap: { textSearch: 1 } }).catch(
+      (e: unknown) => e,
+    );
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).problemas).toEqual([
+      "chave desconhecida: cap",
+    ]);
+    expect(db.getDoc(DOC)).toBeUndefined();
+  });
+
+  it("acumula todos os problemas de validação", async () => {
+    const db = new FakeFirestore();
+
+    const error = await saveConfig(db, {
+      nicho: 42,
+      filtros: { temSite: "talvez" },
+      caps: { textSearch: -1, detailsPro: 1.5, inventado: 3 },
+      precos: { usdBrl: 0 },
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).problemas).toEqual([
+      "nicho deve ser string",
+      "filtros.temSite deve ser um de: qualquer, com, sem",
+      "caps.inventado não é um SKU conhecido (textSearch, detailsEssentials, detailsPro)",
+      "caps.textSearch deve ser número ≥ 0",
+      "caps.detailsPro deve ser inteiro",
+      "precos.usdBrl deve ser número > 0",
+    ]);
+  });
+
+  it("rejeita corpo que não é objeto", async () => {
+    const db = new FakeFirestore();
+    await expect(saveConfig(db, "nicho=dentista")).rejects.toThrow(
+      ValidationError,
+    );
+  });
+});
+
+describe("pricingFromConfig", () => {
+  it("monta a tabela de preços do módulo de custos", () => {
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.precos.usdPor1000.textSearch = 40;
+    config.precos.cotaGratis.textSearch = 1_000;
+
+    const pricing = pricingFromConfig(config);
+
+    expect(pricing.textSearch).toEqual({ usdPer1000: 40, freeQuota: 1_000 });
+    expect(pricing.detailsPro).toEqual({ usdPer1000: 17, freeQuota: 5_000 });
+  });
+});

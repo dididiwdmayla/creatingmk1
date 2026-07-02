@@ -5,7 +5,7 @@ export type {
   UsageDocRef,
   UsageDocSnapshot,
   UsageTransaction,
-} from "./firestore-like";
+} from "../firestore-like";
 export { periodKey } from "./period";
 export {
   DEFAULT_CAPS,
