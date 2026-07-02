@@ -17,27 +17,35 @@ Web app pessoal de prospecção de leads locais para web designer freelancer. Si
 src/
   proxy.ts                          # ✅ proteção por senha (Next 16: proxy.ts, ex-middleware)
   app/
-    layout.tsx
-    page.tsx                        # placeholder; dashboard fica na sessão de UI
-    config/page.tsx                 # [planejado] formulário de configuração
-    leads/page.tsx                  # [planejado] lista de leads com filtros
-    leads/[id]/page.tsx             # [planejado] ficha do lead
-    login/page.tsx                  # [planejado] formulário de senha → POST /api/login
+    layout.tsx                      # dark fixo (sem alternância clara/escura), fontes Geist
+    login/page.tsx                  # ✅ form de senha → POST /api/login
+    (app)/                          # route group: páginas autenticadas, com Nav
+      layout.tsx                    # ✅ header + bottom nav (Painel/Leads/Config) + Sair
+      page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas
+      leads/page.tsx                # ✅ lista de leads com filtros + nova busca
+      leads/[id]/page.tsx           # ✅ wrapper server (extrai params.id, key={id})
+      leads/[id]/LeadDetailClient.tsx # ✅ ficha: enriquecer, WhatsApp, transições de status
+      config/page.tsx               # ✅ formulário completo da config
     api/
       login/route.ts                # ✅ POST senha → cookie de sessão
+      logout/route.ts               # ✅ POST limpa o cookie de sessão
       config/route.ts               # ✅ GET/PUT config
       search/route.ts               # ✅ POST busca (Text Search)
       leads/route.ts                # ✅ GET lista de leads com filtros
       leads/[id]/route.ts           # ✅ GET ficha / PATCH status
       leads/[id]/enrich/route.ts    # ✅ POST enriquecimento (Place Details)
       usage/route.ts                # ✅ GET uso do mês + custo projetado
-      metrics/route.ts              # [planejado] GET métricas de prospecção
+      metrics/route.ts              # ✅ GET métricas de prospecção
       __tests__/                    # ✅ testes das rotas (fake Firestore + fetch mockado)
   lib/
     firestore-like.ts               # ✅ interface estrutural mínima do Firestore (UsageDb/AppDb)
     errors.ts                       # ✅ erros de domínio (validação, 404, transição)
     http.ts                         # ✅ formato de erro padrão + mapa erro→HTTP status
     auth.ts                         # ✅ cookie de sessão derivado de APP_PASSWORD
+    api-client.ts                   # ✅ fetch tipado do cliente (ApiError, um método por rota)
+    format.ts                       # ✅ formatBRL/USD/percent/int/dateTime (pt-BR)
+    wa.ts                           # ✅ monta o link wa.me a partir de dados já persistidos
+    sku-labels.ts                   # ✅ rótulos pt-BR dos SKUs (dashboard e config)
     costs/                          # ✅ ver seção "Módulo de custos"
       skus.ts                       # SKUs, field masks, cotas grátis, preços default
       period.ts                     # chave do período mensal (YYYY-MM, UTC)
@@ -54,12 +62,17 @@ src/
     leads/                          # ✅ repositório de leads (upsert, filtros, transições)
       types.ts
       repo.ts
+      metrics.ts                    # ✅ contatosHoje/contatosSemana/taxaResposta
     testing/
       fake-firestore.ts             # ✅ fake em memória com semântica de transação
-  components/                       # [planejado] UI compartilhada
+  components/                       # ✅ UI compartilhada
+    Button.tsx                      # variantes + estado de loading
+    Nav.tsx                         # bottom nav + logout (client)
+    StatusBadge.tsx                 # badge ordinal do status do lead
+    UsageMeter.tsx                  # meter de uso vs teto (accent/warning/critical)
 ```
 
-`[planejado]` = próximas sessões. Itens com ✅ existem e estão testados.
+Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
 
 ## Modelo de dados (Firestore)
 
@@ -164,9 +177,10 @@ Formato de erro padrão em todas as rotas:
 | `/api/leads/[id]` | PATCH | `{ status }` | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
 | `/api/leads/[id]/enrich` | POST | — | `200 { lead }` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsPro** |
 | `/api/usage` | GET | — | `200 { period, usage, caps, cotaGratis, custoProjetado: { usd, brl } }` | — |
-| `/api/metrics` | GET | — | `200 { contatosHoje, contatosSemana, taxaResposta }` — [planejado] | — |
+| `/api/metrics` | GET | — | `200 { contatosHoje, contatosSemana, taxaResposta }` | — |
+| `/api/logout` | POST | — | `204` (limpa o cookie de sessão) | — |
 
-Todas as rotas implementadas estão em ✅ na estrutura de pastas; `/api/metrics` fica para a sessão do dashboard.
+Todas as rotas do contrato estão implementadas e testadas.
 
 Semântica fixa:
 - **`429 quota_exceeded`**: corpo `{ error: { code: "quota_exceeded", sku, used, cap, period, message } }`. Emitido **antes** de qualquer chamada ao Google (a reserva de cota falhou). Nenhum custo foi incorrido.
@@ -174,6 +188,7 @@ Semântica fixa:
 - `/api/search` faz upsert em `/leads` com `status: "novo"` para novos e reporta `existentes` para os que já estavam na base. **Busca só a 1ª página** do Text Search (até 20 resultados) — cada página seria uma request cobrada.
 - `/api/leads/[id]/enrich` grava `detalhes`, marca `enriquecido: true`. Lead já enriquecido **retorna do cache sempre** — re-enriquecimento não existe.
 - O botão WhatsApp é montado **no cliente** a partir de dados já persistidos (`wa.me/<telefoneIntl sem símbolos>?text=<mensagemPadrao com {nome} substituído>`) — não há rota nem chamada externa.
+- `/api/metrics`: "hoje" usa o dia corrente em UTC (mesma convenção do período de custos); "semana" é uma janela rolante dos últimos 7 dias (não semana de calendário). `taxaResposta` é `leads com respondeuEm ÷ leads com primeiroContatoEm`, `0` (não `NaN`) sem contatos.
 
 ## Estratégia de field masks por SKU
 
@@ -217,12 +232,30 @@ Decisões de projeto:
 
 ## Proteção por senha (src/proxy.ts)
 
-Todo o app (páginas e API) exige sessão, exceto assets estáticos e `POST /api/login`. Fluxo:
+Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login` e `POST /api/login`. Fluxo:
 
-1. `POST /api/login` com `{ senha }` compara com a env var `APP_PASSWORD` e grava o cookie `radar_session` (httpOnly, sameSite=lax, 30 dias, secure em produção).
+1. `POST /api/login` com `{ senha }` compara com a env var `APP_PASSWORD` e grava o cookie `radar_session` (httpOnly, sameSite=lax, 30 dias, secure em produção). A página `/login` faz esse POST e redireciona para `/` no sucesso.
 2. O valor do cookie é o **SHA-256 da senha** — trocar `APP_PASSWORD` invalida todas as sessões. Sem estado no banco.
-3. O proxy também aceita o header `x-app-password` (útil para curl e antes de existir a página `/login`); quando correto, já estabelece o cookie na resposta.
-4. **Fail-closed**: sem `APP_PASSWORD` configurada, tudo responde `503 config_error` — o app nunca sobe aberto por engano.
+3. O proxy também aceita o header `x-app-password` (útil para curl); quando correto, já estabelece o cookie na resposta.
+4. `POST /api/logout` limpa o cookie (usado pelo botão "Sair" da navegação).
+5. **Fail-closed**: sem `APP_PASSWORD` configurada, tudo responde `503 config_error` — o app nunca sobe aberto por engano.
+
+## UI (implementada)
+
+Client Components (`"use client"`) que buscam dados via `fetch` no próprio cliente (não Server Components lendo o Firestore direto) — decisão deliberada: cada ação do usuário (buscar, enriquecer, mudar status, salvar config) precisa do feedback de erro específico das rotas (429/502/400/404/409), então a mesma rota HTTP serve tanto a carga inicial quanto a mutação, com um único caminho de tratamento de erro (`src/lib/api-client.ts`, classe `ApiError`).
+
+- **`/login`**: form de senha → `POST /api/login` → redireciona para `/`.
+- **`(app)/` (route group)**: layout com nav inferior fixa (Painel/Leads/Config) + botão Sair; todas as páginas autenticadas vivem aqui.
+  - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite") e um KPI row com `/api/metrics`.
+  - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error` com mensagem específica) + filtros (status/site/telefone) + lista com `StatusBadge`.
+  - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior.
+  - **`/config`**: formulário completo (busca, filtros, mensagem padrão, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
+- **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas; o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro.
+- **Padrão de fetch em `useEffect`**: o linter do React Compiler (`eslint-plugin-react-hooks` 7.x, via `eslint-config-next`) rejeita chamar, dentro de um efeito, qualquer função de escopo externo que (mesmo transitivamente) atualize estado — a regra é sobre o grafo de chamadas, não sobre ordem antes/depois de `await`. A cada tela, a busca é declarada **inline dentro do próprio `useEffect`** (ou via `.then/.catch/.finally` direto no corpo do efeito); quando a mesma busca precisa ser reaproveitada por um handler de evento (retry, refetch pós-mutação), extrai-se um fetcher **puro** (sem `setState`) chamado nos dois lugares.
+
+## Verificação da UI
+
+Sem Firebase real neste ambiente de sessão, a verificação de ponta a ponta foi feita ligando temporariamente o `FakeFirestore` (o mesmo fake dos testes) no lugar do Firestore via uma env var (`RADAR_FAKE_DB=1`), com dados de exemplo, rodando `next build && next start` e navegando o app real com Playwright (login errado/certo, dashboard com os três estados de meter, filtros de leads, ficha enriquecida/não enriquecida, botão Enriquecer com erro real de `GOOGLE_PLACES_API_KEY` ausente, transição de status, link `wa.me` com telefone e `{nome}` corretos, salvar config, logout e bloqueio pós-logout). O patch em `admin.ts` e os dados de exemplo foram revertidos antes do commit — não fazem parte do código do app.
 
 ## Variáveis de ambiente
 

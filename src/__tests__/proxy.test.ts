@@ -63,11 +63,18 @@ describe("proxy (proteção por senha)", () => {
     expect(res.status).toBe(401);
   });
 
-  it("/api/login é a única rota liberada sem sessão", async () => {
-    const res = await proxy(request("/api/login"));
+  it("/api/login e /login são liberadas sem sessão", async () => {
+    for (const path of ["/api/login", "/login"]) {
+      const res = await proxy(request(path));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-middleware-next")).toBe("1");
+    }
+  });
 
-    expect(res.status).toBe(200);
-    expect(res.headers.get("x-middleware-next")).toBe("1");
+  it("/login/outra-coisa NÃO é liberada (só o path exato)", async () => {
+    const res = await proxy(request("/login/outra-coisa"));
+
+    expect(res.status).toBe(401);
   });
 
   it("APP_PASSWORD ausente → 503 fail-closed (nada passa)", async () => {

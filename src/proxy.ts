@@ -8,15 +8,15 @@ import {
 } from "@/lib/auth";
 
 /**
- * Proteção por senha única de TODO o app (páginas e API), exceto assets e
- * /api/login. As rotas gastam dinheiro na API do Google — sem sessão
- * válida, nada passa. Aceita também o header x-app-password (útil para
- * curl e para a primeira visita antes de existir a página de login);
- * quando correto, já estabelece o cookie de sessão na resposta.
+ * Proteção por senha única de TODO o app (páginas e API), exceto assets,
+ * a página /login e /api/login. As rotas gastam dinheiro na API do Google
+ * — sem sessão válida, nada passa. Aceita também o header x-app-password
+ * (útil para curl e para a primeira visita antes de existir a página de
+ * login); quando correto, já estabelece o cookie de sessão na resposta.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = new URL(request.url);
-  if (pathname === "/api/login") {
+  if (pathname === "/api/login" || pathname === "/login") {
     return NextResponse.next();
   }
 
