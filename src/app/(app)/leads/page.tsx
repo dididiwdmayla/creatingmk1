@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/Button";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -23,6 +24,8 @@ const PRESENCA_OPTIONS: Array<{ value: FiltroPresenca; label: string }> = [
   { value: "sem", label: "Sem" },
 ];
 
+const AUTO_ENRICH_MAX = 5;
+
 function siteInfo(lead: Lead): string {
   if (!lead.enriquecido) return "site: ?";
   return lead.detalhes?.site ? "site: sim" : "site: não";
@@ -33,16 +36,67 @@ function telefoneInfo(lead: Lead): string {
   return lead.detalhes?.telefone ? "tel: sim" : "tel: não";
 }
 
+/** Placeholder do nome da busca, espelhando o default do servidor. */
+function nomeDefaultHint(nicho: string): string {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, "0");
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  return `${nicho || "nicho"} ${dd}/${mm}`;
+}
+
 /** Fetcher puro (não mexe em estado) — reaproveitado pelo efeito de filtro e pela busca. */
 function fetchLeads(filters: {
   status: LeadStatus | "";
   temSite: FiltroPresenca;
   temTelefone: FiltroPresenca;
+  buscaId?: string;
 }): Promise<Lead[]> {
   return api.listLeads(filters).then((res) => res.leads);
 }
 
+/**
+ * Enriquecimento automático em série via POST /enrich (cada chamada passa
+ * pelo reserveQuota do servidor). Para no teto ou no primeiro erro e
+ * devolve o resumo do que aconteceu.
+ */
+async function autoEnrichSerial(
+  leads: Lead[],
+  n: number,
+): Promise<{ feitos: number; alvo: number; parou?: string }> {
+  const alvos = leads.filter((lead) => !lead.enriquecido).slice(0, n);
+  let feitos = 0;
+  for (const lead of alvos) {
+    try {
+      await api.enrichLead(lead.placeId);
+      feitos += 1;
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "quota_exceeded") {
+        return { feitos, alvo: alvos.length, parou: "teto mensal atingido" };
+      }
+      return {
+        feitos,
+        alvo: alvos.length,
+        parou: error instanceof ApiError ? error.message : "erro no enriquecimento",
+      };
+    }
+  }
+  return { feitos, alvo: alvos.length };
+}
+
 export default function LeadsPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-ink-muted">Carregando…</p>}>
+      <LeadsPageInner />
+    </Suspense>
+  );
+}
+
+function LeadsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const buscaId = searchParams.get("buscaId") ?? undefined;
+  const buscaNome = searchParams.get("buscaNome") ?? undefined;
+
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [status, setStatus] = useState<LeadStatus | "">("");
   const [temSite, setTemSite] = useState<FiltroPresenca>("qualquer");
@@ -50,14 +104,18 @@ export default function LeadsPage() {
   const [erroLista, setErroLista] = useState<string | null>(null);
 
   const [nicho, setNicho] = useState("");
+  const [subNicho, setSubNicho] = useState("");
   const [regiao, setRegiao] = useState("");
+  const [nomeBusca, setNomeBusca] = useState("");
+  const [autoEnrich, setAutoEnrich] = useState(false);
+  const [autoEnrichN, setAutoEnrichN] = useState(3);
   const [buscando, setBuscando] = useState(false);
   const [buscaMsg, setBuscaMsg] = useState<string | null>(null);
   const [buscaErro, setBuscaErro] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
-    fetchLeads({ status, temSite, temTelefone })
+    fetchLeads({ status, temSite, temTelefone, buscaId })
       .then((data) => {
         if (ignore) return;
         setLeads(data);
@@ -70,7 +128,7 @@ export default function LeadsPage() {
     return () => {
       ignore = true;
     };
-  }, [status, temSite, temTelefone]);
+  }, [status, temSite, temTelefone, buscaId]);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -78,12 +136,32 @@ export default function LeadsPage() {
     setBuscaMsg(null);
     setBuscaErro(null);
     try {
-      const body: { nicho?: string; regiao?: string } = {};
+      const body: { nicho?: string; subNicho?: string; regiao?: string; nome?: string } = {};
       if (nicho.trim()) body.nicho = nicho.trim();
+      if (subNicho.trim()) body.subNicho = subNicho.trim();
       if (regiao.trim()) body.regiao = regiao.trim();
+      if (nomeBusca.trim()) body.nome = nomeBusca.trim();
       const result = await api.search(body);
-      setBuscaMsg(`${result.criados} novo(s), ${result.existentes} já existente(s).`);
-      const data = await fetchLeads({ status, temSite, temTelefone });
+
+      const partes = [
+        `Busca "${result.busca.nome}": ${result.criados} novo(s), ${result.existentes} já existente(s).`,
+      ];
+      if (autoEnrich) {
+        const n = Math.min(Math.max(autoEnrichN, 1), AUTO_ENRICH_MAX);
+        const resumo = await autoEnrichSerial(result.leads, n);
+        if (resumo.alvo === 0) {
+          partes.push("Nada a enriquecer.");
+        } else if (resumo.parou) {
+          setBuscaErro(
+            `Enriquecimento automático parou (${resumo.parou}): ${resumo.feitos} de ${resumo.alvo} feito(s).`,
+          );
+        } else {
+          partes.push(`${resumo.feitos} enriquecido(s) automaticamente.`);
+        }
+      }
+      setBuscaMsg(partes.join(" "));
+
+      const data = await fetchLeads({ status, temSite, temTelefone, buscaId });
       setLeads(data);
       setErroLista(null);
     } catch (error) {
@@ -111,18 +189,55 @@ export default function LeadsPage() {
           Nova busca
         </h2>
         <div className="mt-3 flex flex-col gap-2">
-          <input
-            value={nicho}
-            onChange={(event) => setNicho(event.target.value)}
-            placeholder="Nicho (padrão: da config)"
-            className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={nicho}
+              onChange={(event) => setNicho(event.target.value)}
+              placeholder="Nicho (padrão: da config)"
+              className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+            />
+            <input
+              value={subNicho}
+              onChange={(event) => setSubNicho(event.target.value)}
+              placeholder="Sub-nicho (opcional)"
+              className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+            />
+          </div>
           <input
             value={regiao}
             onChange={(event) => setRegiao(event.target.value)}
             placeholder="Região (padrão: da config)"
             className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
           />
+          <input
+            value={nomeBusca}
+            onChange={(event) => setNomeBusca(event.target.value)}
+            placeholder={`Nome da busca (padrão: ${nomeDefaultHint(nicho)})`}
+            className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+          />
+          <label className="flex items-center gap-2 py-1 text-sm text-ink-secondary">
+            <input
+              type="checkbox"
+              checked={autoEnrich}
+              onChange={(event) => setAutoEnrich(event.target.checked)}
+              className="h-4 w-4 accent-[var(--accent)]"
+            />
+            <span>Enriquecer os primeiros</span>
+            <input
+              type="number"
+              min={1}
+              max={AUTO_ENRICH_MAX}
+              value={autoEnrichN}
+              disabled={!autoEnrich}
+              onChange={(event) =>
+                setAutoEnrichN(
+                  Math.min(Math.max(Number(event.target.value) || 1, 1), AUTO_ENRICH_MAX),
+                )
+              }
+              className="w-14 rounded border border-line bg-surface-2 px-2 py-1 text-center text-sm text-foreground outline-none focus:border-accent disabled:opacity-50"
+            />
+            <span>automaticamente (máx. {AUTO_ENRICH_MAX})</span>
+          </label>
           <Button type="submit" loading={buscando}>
             Buscar
           </Button>
@@ -130,6 +245,22 @@ export default function LeadsPage() {
         {buscaMsg && <p className="mt-2 text-sm text-good">{buscaMsg}</p>}
         {buscaErro && <p className="mt-2 text-sm text-critical">{buscaErro}</p>}
       </form>
+
+      {buscaId && (
+        <div className="flex items-center justify-between gap-2 rounded border border-accent/40 bg-accent/10 px-3 py-2">
+          <p className="truncate text-sm text-ink-secondary">
+            Mostrando leads da busca{" "}
+            <span className="font-medium text-foreground">{buscaNome ?? buscaId}</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => router.replace("/leads")}
+            className="shrink-0 text-xs font-medium text-accent hover:underline"
+          >
+            Limpar
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         <select

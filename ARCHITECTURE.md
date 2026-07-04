@@ -20,17 +20,19 @@ src/
     layout.tsx                      # dark fixo (sem alternância clara/escura), fontes Geist
     login/page.tsx                  # ✅ form de senha → POST /api/login
     (app)/                          # route group: páginas autenticadas, com Nav
-      layout.tsx                    # ✅ header + bottom nav (Painel/Leads/Config) + Sair
+      layout.tsx                    # ✅ header + bottom nav (Painel/Leads/Buscas/Config) + Sair
       page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas
-      leads/page.tsx                # ✅ lista de leads com filtros + nova busca
+      leads/page.tsx                # ✅ lista de leads com filtros + nova busca (com auto-enriquecimento)
       leads/[id]/page.tsx           # ✅ wrapper server (extrai params.id, key={id})
       leads/[id]/LeadDetailClient.tsx # ✅ ficha: enriquecer, WhatsApp, transições de status
+      buscas/page.tsx               # ✅ buscas salvas → clique filtra os leads da busca
       config/page.tsx               # ✅ formulário completo da config
     api/
       login/route.ts                # ✅ POST senha → cookie de sessão
       logout/route.ts               # ✅ POST limpa o cookie de sessão
       config/route.ts               # ✅ GET/PUT config
-      search/route.ts               # ✅ POST busca (Text Search)
+      search/route.ts               # ✅ POST busca (Text Search) + registra em /buscas
+      buscas/route.ts               # ✅ GET buscas salvas
       leads/route.ts                # ✅ GET lista de leads com filtros
       leads/[id]/route.ts           # ✅ GET ficha / PATCH status
       leads/[id]/enrich/route.ts    # ✅ POST enriquecimento (Place Details)
@@ -63,6 +65,9 @@ src/
       types.ts
       repo.ts
       metrics.ts                    # ✅ contatosHoje/contatosSemana/taxaResposta
+    buscas/                         # ✅ registro das buscas executadas
+      types.ts
+      repo.ts
     testing/
       fake-firestore.ts             # ✅ fake em memória com semântica de transação
   components/                       # ✅ UI compartilhada
@@ -116,7 +121,10 @@ Observações:
   "endereco": "Av. Brasil, 123 - Sarandi, PR",  // formattedAddress
   "location": { "lat": -23.44, "lng": -51.87 },
   "status": "novo",                             // "novo" | "contactado" | "respondeu" | "fechado"
-  "busca": { "nicho": "dentista", "regiao": "Sarandi PR", "em": "<timestamp>" },
+  "busca": {                                    // contexto da ÚLTIMA busca que retornou o lead
+    "nicho": "dentista", "subNicho": "implante", "regiao": "Sarandi PR", "em": "<timestamp>"
+  },
+  "buscaId": ["<uuid>", "<uuid>"],              // IDs de /buscas em que apareceu — só cresce, nunca sobrescrito
   "enriquecido": false,
   "detalhes": {                                 // só existe após enriquecimento (Details Pro)
     "telefone": "(44) 3264-0000",               // nationalPhoneNumber
@@ -137,8 +145,27 @@ Observações:
 ```
 
 Regras de escrita:
-- Upsert da busca **nunca rebaixa status** nem apaga `detalhes` de um lead existente — só atualiza nome/endereço e `busca`.
+- Upsert da busca **nunca rebaixa status** nem apaga `detalhes` de um lead existente — só atualiza nome/endereço/`busca` e **anexa** o novo id ao array `buscaId` (com dedupe).
 - Transições válidas: `novo → contactado → respondeu → fechado` (e `contactado → fechado` direto). Cada transição carimba o timestamp correspondente em `contato`, que alimenta as métricas.
+
+### `/buscas/{id}` — um doc por busca executada
+
+**O ID do documento é um UUID gerado na rota de busca** (o mesmo valor anexado ao `buscaId` dos leads).
+
+```jsonc
+{
+  "id": "<uuid>",                               // igual ao ID do doc
+  "nome": "Implantes Sarandi",                  // opcional no form; default "{nicho} {DD/MM}"
+  "nicho": "dentista",
+  "subNicho": "implante",                       // opcional
+  "regiao": "Sarandi PR",
+  "criadaEm": "<ISO 8601>",
+  "totalCriados": 12,                           // leads novos que esta busca criou
+  "totalExistentes": 8                          // leads que já estavam na base
+}
+```
+
+O doc é gravado **depois** do upsert dos leads (para ter os totais). Se a busca falhar antes (teto/erro do Google), nenhum doc de busca é criado.
 
 ### `/usage/{YYYY-MM}` — um doc por mês (contadores de custo)
 
@@ -171,8 +198,9 @@ Formato de erro padrão em todas as rotas:
 | `/api/login` | POST | `{ senha }` | `204` + cookie de sessão · `401 invalid_password` · `503 config_error` | — |
 | `/api/config` | GET | — | `200 { config }` (defaults se doc não existe) | — |
 | `/api/config` | PUT | config parcial ou completa | `200 { config }` · `400 validation_error` | — |
-| `/api/search` | POST | `{ nicho?, regiao? }` (default: config) | `200 { criados, existentes, leads[] }` · `429 quota_exceeded` · `502 places_error` | Text Search · **textSearch** |
-| `/api/leads` | GET | query: `status`, `temSite`, `temTelefone` | `200 { leads[] }` · `400` | — |
+| `/api/search` | POST | `{ nicho?, subNicho?, regiao?, nome? }` (nicho/regiao default: config) | `200 { criados, existentes, leads[], busca }` · `429 quota_exceeded` · `502 places_error` | Text Search · **textSearch** |
+| `/api/buscas` | GET | — | `200 { buscas[] }` (mais recentes primeiro) | — |
+| `/api/leads` | GET | query: `status`, `temSite`, `temTelefone`, `buscaId` | `200 { leads[] }` · `400` | — |
 | `/api/leads/[id]` | GET | — | `200 { lead }` · `404` | — |
 | `/api/leads/[id]` | PATCH | `{ status }` | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
 | `/api/leads/[id]/enrich` | POST | — | `200 { lead }` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsPro** |
@@ -185,7 +213,8 @@ Todas as rotas do contrato estão implementadas e testadas.
 Semântica fixa:
 - **`429 quota_exceeded`**: corpo `{ error: { code: "quota_exceeded", sku, used, cap, period, message } }`. Emitido **antes** de qualquer chamada ao Google (a reserva de cota falhou). Nenhum custo foi incorrido.
 - **`502 places_error`**: o Google respondeu erro. A cota **já foi consumida** (reservamos antes de chamar) — decisão deliberada: superestimar uso é seguro, subestimar não.
-- `/api/search` faz upsert em `/leads` com `status: "novo"` para novos e reporta `existentes` para os que já estavam na base. **Busca só a 1ª página** do Text Search (até 20 resultados) — cada página seria uma request cobrada.
+- `/api/search` faz upsert em `/leads` com `status: "novo"` para novos e reporta `existentes` para os que já estavam na base. **Busca só a 1ª página** do Text Search (até 20 resultados) — cada página seria uma request cobrada. A query enviada ao Google é **`"{nicho} {subNicho} {regiao}"`** (partes vazias omitidas). Cada busca gera um doc em `/buscas` (nome default `"{nicho} {DD/MM}"`, data em UTC) e anexa o id ao `buscaId` dos leads retornados.
+- **Enriquecimento automático pós-busca é do cliente, não do servidor**: a página de leads, com o checkbox ligado, chama `POST /enrich` **em série** para os primeiros N resultados ainda não enriquecidos (N ≤ 5, default desligado). Cada chamada passa pelo `reserveQuota` normal do servidor; no primeiro `429` o loop para e a UI informa quantos foram feitos. Não existe rota de enriquecimento em lote — mantém o princípio "enriquecimento sob demanda" com um único caminho de cota.
 - `/api/leads/[id]/enrich` grava `detalhes`, marca `enriquecido: true`. Lead já enriquecido **retorna do cache sempre** — re-enriquecimento não existe.
 - O botão WhatsApp é montado **no cliente** a partir de dados já persistidos (`wa.me/<telefoneIntl sem símbolos>?text=<mensagemPadrao com {nome} substituído>`) — não há rota nem chamada externa.
 - `/api/metrics`: "hoje" usa o dia corrente em UTC (mesma convenção do período de custos); "semana" é uma janela rolante dos últimos 7 dias (não semana de calendário). `taxaResposta` é `leads com respondeuEm ÷ leads com primeiroContatoEm`, `0` (não `NaN`) sem contatos.
@@ -247,7 +276,8 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
 - **`/login`**: form de senha → `POST /api/login` → redireciona para `/`.
 - **`(app)/` (route group)**: layout com nav inferior fixa (Painel/Leads/Config) + botão Sair; todas as páginas autenticadas vivem aqui.
   - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite") e um KPI row com `/api/metrics`.
-  - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error` com mensagem específica) + filtros (status/site/telefone) + lista com `StatusBadge`.
+  - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error` com mensagem específica; campos nicho/sub-nicho/região/nome da busca + checkbox de auto-enriquecimento dos primeiros N ≤ 5) + filtros (status/site/telefone) + lista com `StatusBadge`. Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca, com chip de filtro e botão limpar.
+  - **`/buscas`**: buscas salvas (nome, nicho/sub-nicho, região, data, totais); clicar navega para `/leads?buscaId=…`.
   - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior.
   - **`/config`**: formulário completo (busca, filtros, mensagem padrão, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
 - **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas; o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro.

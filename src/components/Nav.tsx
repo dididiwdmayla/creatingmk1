@@ -9,6 +9,7 @@ import { api } from "@/lib/api-client";
 const TABS = [
   { href: "/", label: "Painel" },
   { href: "/leads", label: "Leads" },
+  { href: "/buscas", label: "Buscas" },
   { href: "/config", label: "Config" },
 ] as const;
 

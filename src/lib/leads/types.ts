@@ -24,7 +24,10 @@ export interface Lead {
   endereco?: string;
   location?: { lat: number; lng: number };
   status: LeadStatus;
-  busca?: { nicho: string; regiao: string; em: string };
+  /** Contexto da última busca que retornou este lead. */
+  busca?: { nicho: string; subNicho?: string; regiao: string; em: string };
+  /** IDs de /buscas em que o lead apareceu — só cresce, nunca é sobrescrito. */
+  buscaId?: string[];
   enriquecido: boolean;
   detalhes?: DetalhesLugar & { enriquecidoEm: string };
   contato?: {

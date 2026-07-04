@@ -55,12 +55,14 @@ export interface UpsertResult {
 /**
  * Upsert dos resultados da busca. Lead novo entra com status "novo";
  * lead existente só tem nome/endereco/location/busca atualizados —
- * NUNCA rebaixa status nem apaga detalhes/contato.
+ * NUNCA rebaixa status nem apaga detalhes/contato. O buscaId é ANEXADO
+ * ao array existente (um lead pode aparecer em várias buscas).
  */
 export async function upsertLeads(
   db: AppDb,
   places: PlaceBasico[],
-  busca: { nicho: string; regiao: string },
+  busca: { nicho: string; subNicho?: string; regiao: string },
+  buscaId: string,
   now: Date = new Date(),
 ): Promise<UpsertResult> {
   const em = now.toISOString();
@@ -77,6 +79,7 @@ export async function upsertLeads(
         endereco: place.endereco ?? existing.endereco,
         location: place.location ?? existing.location,
         busca: { ...busca, em },
+        buscaId: [...new Set([...(existing.buscaId ?? []), buscaId])],
         atualizadoEm: em,
       };
     } else {
@@ -88,6 +91,7 @@ export async function upsertLeads(
         location: place.location,
         status: "novo",
         busca: { ...busca, em },
+        buscaId: [buscaId],
         enriquecido: false,
         criadoEm: em,
         atualizadoEm: em,
@@ -104,6 +108,8 @@ export interface LeadFilters {
   status?: string;
   temSite?: string;
   temTelefone?: string;
+  /** Restringe aos leads que apareceram na busca dada (match no array buscaId). */
+  buscaId?: string;
 }
 
 function matchesPresenca(
@@ -131,6 +137,7 @@ export async function listLeads(db: AppDb, filters: LeadFilters = {}): Promise<L
   }
   const temSite = parsePresenca(filters.temSite, "temSite");
   const temTelefone = parsePresenca(filters.temTelefone, "temTelefone");
+  const { buscaId } = filters;
 
   const snapshot = await db.collection(LEADS_COLLECTION).get();
   return snapshot.docs
@@ -138,6 +145,7 @@ export async function listLeads(db: AppDb, filters: LeadFilters = {}): Promise<L
     .filter(
       (lead) =>
         (status === undefined || lead.status === status) &&
+        (buscaId === undefined || (lead.buscaId ?? []).includes(buscaId)) &&
         matchesPresenca(temSite, lead, "site") &&
         matchesPresenca(temTelefone, lead, "telefone"),
     )

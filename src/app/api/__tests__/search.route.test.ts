@@ -45,6 +45,13 @@ function searchRequest(body?: unknown): Request {
   });
 }
 
+function sentQuery(call = 0): string {
+  const body = JSON.parse(
+    (fetchMock.mock.calls[call][1] as RequestInit).body as string,
+  ) as { textQuery: string };
+  return body.textQuery;
+}
+
 describe("POST /api/search", () => {
   it("sem corpo usa nicho/regiao da config e cria leads com status novo", async () => {
     const res = await POST(searchRequest());
@@ -62,21 +69,68 @@ describe("POST /api/search", () => {
       busca: { nicho: "dentista", regiao: "Sarandi PR" },
     });
 
-    const query = JSON.parse(
-      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
-    );
-    expect(query.textQuery).toBe("dentista em Sarandi PR");
-
+    expect(sentQuery()).toBe("dentista Sarandi PR");
     expect(db.getDoc("leads/ChIJ001")).toMatchObject({ status: "novo" });
   });
 
   it("corpo sobrepõe a config", async () => {
     await POST(searchRequest({ nicho: "pizzaria", regiao: "Maringá PR" }));
 
-    const query = JSON.parse(
-      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    expect(sentQuery()).toBe("pizzaria Maringá PR");
+  });
+
+  it("subNicho entra na query entre nicho e região", async () => {
+    await POST(searchRequest({ subNicho: "implante" }));
+
+    expect(sentQuery()).toBe("dentista implante Sarandi PR");
+  });
+
+  it("registra a busca em /buscas com totais e devolve no corpo", async () => {
+    const res = await POST(
+      searchRequest({ subNicho: "implante", nome: "Implantes Sarandi" }),
     );
-    expect(query.textQuery).toBe("pizzaria em Maringá PR");
+
+    const { busca } = await res.json();
+    expect(busca).toMatchObject({
+      nome: "Implantes Sarandi",
+      nicho: "dentista",
+      subNicho: "implante",
+      regiao: "Sarandi PR",
+      totalCriados: 2,
+      totalExistentes: 0,
+    });
+    expect(typeof busca.id).toBe("string");
+    expect(typeof busca.criadaEm).toBe("string");
+
+    expect(db.getDoc(`buscas/${busca.id}`)).toMatchObject({
+      nome: "Implantes Sarandi",
+      totalCriados: 2,
+    });
+  });
+
+  it("nome ausente → default '{nicho} {DD/MM}'", async () => {
+    const res = await POST(searchRequest());
+
+    const { busca } = await res.json();
+    expect(busca.nome).toMatch(/^dentista \d{2}\/\d{2}$/);
+  });
+
+  it("cada lead ganha o buscaId da busca (array)", async () => {
+    const res = await POST(searchRequest());
+
+    const { busca } = await res.json();
+    expect(db.getDoc("leads/ChIJ001")).toMatchObject({ buscaId: [busca.id] });
+    expect(db.getDoc("leads/ChIJ002")).toMatchObject({ buscaId: [busca.id] });
+  });
+
+  it("busca repetida ANEXA o novo buscaId sem apagar o anterior", async () => {
+    const primeira = await (await POST(searchRequest())).json();
+    const segunda = await (await POST(searchRequest())).json();
+
+    expect(segunda.busca.id).not.toBe(primeira.busca.id);
+    expect(db.getDoc("leads/ChIJ001")).toMatchObject({
+      buscaId: [primeira.busca.id, segunda.busca.id],
+    });
   });
 
   it("busca repetida não rebaixa status nem duplica leads", async () => {
@@ -95,6 +149,8 @@ describe("POST /api/search", () => {
     const data = await res.json();
     expect(data.criados).toBe(0);
     expect(data.existentes).toBe(2);
+    expect(data.busca.totalCriados).toBe(0);
+    expect(data.busca.totalExistentes).toBe(2);
     expect(db.getDoc("leads/ChIJ001")).toMatchObject({ status: "contactado" });
   });
 
@@ -106,7 +162,7 @@ describe("POST /api/search", () => {
     expect(db.getDoc(`usage/${period}`)).toMatchObject({ textSearch: 2 });
   });
 
-  it("teto estourado → 429 quota_exceeded ANTES de chamar o Google", async () => {
+  it("teto estourado → 429 quota_exceeded ANTES de chamar o Google, sem doc de busca", async () => {
     db.seed("config/app", {
       nicho: "dentista",
       regiao: "Sarandi PR",
@@ -155,5 +211,16 @@ describe("POST /api/search", () => {
     const res = await POST(searchRequest({ nicho: 42 }));
 
     expect(res.status).toBe(400);
+  });
+
+  it("subNicho/nome não-string → 400", async () => {
+    const res = await POST(searchRequest({ subNicho: 1, nome: [] }));
+
+    expect(res.status).toBe(400);
+    const { error } = await res.json();
+    expect(error.problemas).toEqual([
+      "subNicho deve ser string",
+      "nome deve ser string",
+    ]);
   });
 });

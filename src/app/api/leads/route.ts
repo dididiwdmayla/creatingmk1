@@ -11,6 +11,7 @@ export async function GET(req: Request) {
       status: params.get("status") ?? undefined,
       temSite: params.get("temSite") ?? undefined,
       temTelefone: params.get("temTelefone") ?? undefined,
+      buscaId: params.get("buscaId") ?? undefined,
     });
     return NextResponse.json({ leads });
   } catch (error) {

@@ -1,3 +1,4 @@
+import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import type { UsageCounts } from "@/lib/costs";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
@@ -54,6 +55,7 @@ export interface SearchResponse {
   criados: number;
   existentes: number;
   leads: Lead[];
+  busca: Busca;
 }
 
 export const api = {
@@ -71,10 +73,17 @@ export const api = {
   getUsage: () => request<UsageResponse>("/api/usage"),
   getMetrics: () => request<Metrics>("/api/metrics"),
 
-  search: (body: { nicho?: string; regiao?: string }) =>
+  search: (body: { nicho?: string; subNicho?: string; regiao?: string; nome?: string }) =>
     request<SearchResponse>("/api/search", { method: "POST", body: JSON.stringify(body) }),
 
-  listLeads: (filters: { status?: string; temSite?: string; temTelefone?: string }) => {
+  listBuscas: () => request<{ buscas: Busca[] }>("/api/buscas"),
+
+  listLeads: (filters: {
+    status?: string;
+    temSite?: string;
+    temTelefone?: string;
+    buscaId?: string;
+  }) => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(filters)) {
       if (value) params.set(key, value);

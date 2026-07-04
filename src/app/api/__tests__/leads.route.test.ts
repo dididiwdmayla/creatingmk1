@@ -91,6 +91,37 @@ describe("GET /api/leads", () => {
   it("temSite inválido → 400", async () => {
     expect((await list("?temSite=sim")).status).toBe(400);
   });
+
+  it("filtra por buscaId (match no array)", async () => {
+    seedLead("D", {
+      criadoEm: "2026-07-04T10:00:00.000Z",
+      buscaId: ["busca-1", "busca-2"],
+    });
+    seedLead("E", {
+      criadoEm: "2026-07-05T10:00:00.000Z",
+      buscaId: ["busca-2"],
+    });
+
+    expect(await leadIds(await list("?buscaId=busca-1"))).toEqual(["D"]);
+    expect(await leadIds(await list("?buscaId=busca-2"))).toEqual(["E", "D"]);
+    expect(await leadIds(await list("?buscaId=inexistente"))).toEqual([]);
+  });
+
+  it("buscaId combina com os outros filtros", async () => {
+    seedLead("F", {
+      status: "contactado",
+      criadoEm: "2026-07-06T10:00:00.000Z",
+      buscaId: ["busca-3"],
+    });
+    seedLead("G", {
+      criadoEm: "2026-07-07T10:00:00.000Z",
+      buscaId: ["busca-3"],
+    });
+
+    expect(
+      await leadIds(await list("?buscaId=busca-3&status=contactado")),
+    ).toEqual(["F"]);
+  });
 });
 
 function params(id: string): { params: Promise<{ id: string }> } {
