@@ -223,4 +223,138 @@ describe("POST /api/search", () => {
       "nome deve ser string",
     ]);
   });
+
+  it("quantidade fora de 1–40 ou não-inteira → 400", async () => {
+    for (const quantidade of [0, 41, 2.5, "20"]) {
+      const res = await POST(searchRequest({ quantidade }));
+      expect(res.status).toBe(400);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("qualificada não-booleana → 400", async () => {
+    const res = await POST(searchRequest({ qualificada: "sim" }));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("resposta informa quantas páginas foram consumidas", async () => {
+    const res = await POST(searchRequest());
+
+    const data = await res.json();
+    expect(data.paginas).toBe(1);
+    expect(data.aviso).toBeUndefined();
+  });
+
+  it("quantidade > 20 pagina e o contador reflete as páginas", async () => {
+    const muitos = (inicio: number) =>
+      Array.from({ length: 20 }, (_, i) => ({
+        id: `ChIJ_pg${inicio + i}`,
+        displayName: { text: `Lugar ${inicio + i}` },
+      }));
+    fetchMock
+      .mockImplementationOnce(async () =>
+        new Response(JSON.stringify({ places: muitos(0), nextPageToken: "tok" }), {
+          status: 200,
+        }),
+      )
+      .mockImplementationOnce(async () =>
+        new Response(JSON.stringify({ places: muitos(20) }), { status: 200 }),
+      );
+
+    const res = await POST(searchRequest({ quantidade: 40 }));
+
+    const data = await res.json();
+    expect(data.paginas).toBe(2);
+    expect(data.criados).toBe(40);
+    const period = new Date().toISOString().slice(0, 7);
+    expect(db.getDoc(`usage/${period}`)).toMatchObject({ textSearch: 2 });
+  });
+
+  it("teto no meio da paginação → 200 parcial com aviso, leads da 1ª página salvos", async () => {
+    db.seed("config/app", {
+      nicho: "dentista",
+      regiao: "Sarandi PR",
+      caps: { textSearch: 1 },
+    });
+    fetchMock.mockImplementationOnce(async () =>
+      new Response(
+        JSON.stringify({ places: GOOGLE_PLACES.places, nextPageToken: "tok" }),
+        { status: 200 },
+      ),
+    );
+
+    const res = await POST(searchRequest({ quantidade: 40 }));
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.criados).toBe(2);
+    expect(data.paginas).toBe(1);
+    expect(data.aviso).toContain("teto mensal");
+  });
+
+  it("busca qualificada marca temSite/siteUrl nos leads salvos", async () => {
+    fetchMock.mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          places: [
+            {
+              id: "ChIJ_qs1",
+              displayName: { text: "Com Site" },
+              websiteUri: "https://comsite.com.br",
+            },
+            { id: "ChIJ_qs2", displayName: { text: "Sem Site" } },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const res = await POST(searchRequest({ qualificada: true }));
+
+    expect(res.status).toBe(200);
+    expect(db.getDoc("leads/ChIJ_qs1")).toMatchObject({
+      temSite: true,
+      siteUrl: "https://comsite.com.br",
+      enriquecido: false,
+    });
+    expect(db.getDoc("leads/ChIJ_qs2")).toMatchObject({ temSite: false });
+
+    const period = new Date().toISOString().slice(0, 7);
+    expect(db.getDoc(`usage/${period}`)).toMatchObject({ textSearchEnterprise: 1 });
+  });
+
+  it("busca básica repetida não apaga o temSite vindo da qualificada", async () => {
+    fetchMock.mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          places: [{ id: "ChIJ001", displayName: { text: "Clínica Sorriso" } }],
+        }),
+        { status: 200 },
+      ),
+    );
+    db.seed("leads/ChIJ001", {
+      placeId: "ChIJ001",
+      nome: "Clínica Sorriso",
+      status: "novo",
+      temSite: false,
+      enriquecido: false,
+      buscaId: ["antiga"],
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    await POST(searchRequest());
+
+    expect(db.getDoc("leads/ChIJ001")).toMatchObject({ temSite: false });
+  });
+
+  it("a busca criada ganha cor da paleta em rotação", async () => {
+    const primeira = await (await POST(searchRequest())).json();
+    const segunda = await (await POST(searchRequest())).json();
+
+    expect(typeof primeira.busca.cor).toBe("string");
+    expect(primeira.busca.cor).toMatch(/^#/);
+    expect(segunda.busca.cor).not.toBe(primeira.busca.cor);
+  });
 });

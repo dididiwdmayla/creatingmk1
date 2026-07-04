@@ -68,7 +68,7 @@ describe("POST /api/leads/[id]/enrich", () => {
     expect(lead.status).toBe("novo");
 
     expect(db.getDoc("leads/ChIJ001")).toMatchObject({ enriquecido: true });
-    expect(usageDoc()).toMatchObject({ detailsPro: 1 });
+    expect(usageDoc()).toMatchObject({ detailsEnterprise: 1 });
   });
 
   it("lead já enriquecido → retorna do cache SEM chamar o Google", async () => {
@@ -80,7 +80,7 @@ describe("POST /api/leads/[id]/enrich", () => {
     const { lead } = await res.json();
     expect(lead.detalhes.site).toBe("https://clinicasorriso.com.br");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(usageDoc()).toMatchObject({ detailsPro: 1 });
+    expect(usageDoc()).toMatchObject({ detailsEnterprise: 1 });
   });
 
   it("lead inexistente → 404 sem consumir cota", async () => {
@@ -91,14 +91,14 @@ describe("POST /api/leads/[id]/enrich", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("teto detailsPro estourado → 429 e o lead fica intacto", async () => {
-    db.seed("config/app", { caps: { detailsPro: 0 } });
+  it("teto detailsEnterprise estourado → 429 e o lead fica intacto", async () => {
+    db.seed("config/app", { caps: { detailsEnterprise: 0 } });
 
     const res = await enrich("ChIJ001");
 
     expect(res.status).toBe(429);
     const { error } = await res.json();
-    expect(error).toMatchObject({ code: "quota_exceeded", sku: "detailsPro" });
+    expect(error).toMatchObject({ code: "quota_exceeded", sku: "detailsEnterprise" });
     expect(db.getDoc("leads/ChIJ001")).toMatchObject({ enriquecido: false });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -113,6 +113,6 @@ describe("POST /api/leads/[id]/enrich", () => {
     expect(error.code).toBe("places_error");
     expect(error.detail).toBe("boom");
     expect(db.getDoc("leads/ChIJ001")).toMatchObject({ enriquecido: false });
-    expect(usageDoc()).toMatchObject({ detailsPro: 1 });
+    expect(usageDoc()).toMatchObject({ detailsEnterprise: 1 });
   });
 });

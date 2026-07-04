@@ -56,6 +56,10 @@ export interface SearchResponse {
   existentes: number;
   leads: Lead[];
   busca: Busca;
+  /** Páginas do Text Search consumidas (cada uma = 1 request de cota). */
+  paginas: number;
+  /** Presente quando a busca parou antes da quantidade pedida (teto/erro). */
+  aviso?: string;
 }
 
 export const api = {
@@ -73,16 +77,29 @@ export const api = {
   getUsage: () => request<UsageResponse>("/api/usage"),
   getMetrics: () => request<Metrics>("/api/metrics"),
 
-  search: (body: { nicho?: string; subNicho?: string; regiao?: string; nome?: string }) =>
+  search: (body: {
+    nicho?: string;
+    subNicho?: string;
+    regiao?: string;
+    nome?: string;
+    quantidade?: number;
+    qualificada?: boolean;
+  }) =>
     request<SearchResponse>("/api/search", { method: "POST", body: JSON.stringify(body) }),
 
   listBuscas: () => request<{ buscas: Busca[] }>("/api/buscas"),
+  patchBuscaCor: (id: string, cor: string) =>
+    request<{ busca: Busca }>(`/api/buscas/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ cor }),
+    }),
 
   listLeads: (filters: {
     status?: string;
     temSite?: string;
     temTelefone?: string;
     buscaId?: string;
+    favorito?: string;
   }) => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(filters)) {
@@ -93,10 +110,10 @@ export const api = {
   },
 
   getLead: (id: string) => request<{ lead: Lead }>(`/api/leads/${id}`),
-  patchLeadStatus: (id: string, status: LeadStatus) =>
+  patchLead: (id: string, patch: { status?: LeadStatus; notas?: string; favorito?: boolean }) =>
     request<{ lead: Lead }>(`/api/leads/${id}`, {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(patch),
     }),
   enrichLead: (id: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/enrich`, { method: "POST" }),

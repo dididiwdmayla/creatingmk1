@@ -28,6 +28,12 @@ export interface Lead {
   busca?: { nicho: string; subNicho?: string; regiao: string; em: string };
   /** IDs de /buscas em que o lead apareceu — só cresce, nunca é sobrescrito. */
   buscaId?: string[];
+  /** Da busca qualificada (websiteUri no Text Search). undefined = desconhecido. */
+  temSite?: boolean;
+  siteUrl?: string;
+  /** Anotação curta editável direto no card da lista. */
+  notas?: string;
+  favorito?: boolean;
   enriquecido: boolean;
   detalhes?: DetalhesLugar & { enriquecidoEm: string };
   contato?: {

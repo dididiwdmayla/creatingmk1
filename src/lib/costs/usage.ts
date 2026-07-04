@@ -1,7 +1,14 @@
 import { QuotaExceededError } from "./errors";
 import type { UsageDb, UsageDocSnapshot } from "../firestore-like";
 import { periodKey } from "./period";
-import { DEFAULT_CAPS, SKUS, ZERO_USAGE, type Sku, type UsageCounts } from "./skus";
+import {
+  DEFAULT_CAPS,
+  LEGACY_SKU_ALIASES,
+  SKUS,
+  ZERO_USAGE,
+  type Sku,
+  type UsageCounts,
+} from "./skus";
 
 export const USAGE_COLLECTION = "usage";
 
@@ -10,11 +17,17 @@ export interface UsageSnapshot {
   usage: UsageCounts;
 }
 
-/** Contadores malformados (string, negativo, NaN) viram 0 — nunca quebrar por dado sujo. */
+/**
+ * Contadores malformados (string, negativo, NaN) viram 0 — nunca quebrar
+ * por dado sujo. Nomes legados de SKU (ex.: detailsPro) valem enquanto o
+ * nome novo não existir no doc; assim que o novo é gravado, o legado é
+ * ignorado.
+ */
 function readCounts(data: Record<string, unknown> | undefined): UsageCounts {
   const counts = { ...ZERO_USAGE };
   for (const sku of SKUS) {
-    const value = data?.[sku];
+    const legacy = LEGACY_SKU_ALIASES[sku];
+    const value = data?.[sku] ?? (legacy ? data?.[legacy] : undefined);
     if (typeof value === "number" && Number.isFinite(value) && value > 0) {
       counts[sku] = Math.floor(value);
     }

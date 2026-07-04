@@ -122,6 +122,24 @@ describe("GET /api/leads", () => {
       await leadIds(await list("?buscaId=busca-3&status=contactado")),
     ).toEqual(["F"]);
   });
+
+  it("filtro favorito=1 → só favoritos", async () => {
+    seedLead("H", { criadoEm: "2026-07-08T10:00:00.000Z", favorito: true });
+
+    expect(await leadIds(await list("?favorito=1"))).toEqual(["H"]);
+  });
+
+  it("temSite da busca qualificada vale no filtro mesmo sem enriquecer", async () => {
+    seedLead("Q1", { criadoEm: "2026-07-09T10:00:00.000Z", temSite: false });
+    seedLead("Q2", {
+      criadoEm: "2026-07-10T10:00:00.000Z",
+      temSite: true,
+      siteUrl: "https://q2.com.br",
+    });
+
+    expect(await leadIds(await list("?temSite=sem"))).toEqual(["Q1", "C"]);
+    expect(await leadIds(await list("?temSite=com"))).toEqual(["Q2", "B"]);
+  });
 });
 
 function params(id: string): { params: Promise<{ id: string }> } {
@@ -230,5 +248,61 @@ describe("PATCH /api/leads/[id]", () => {
     const after = (db.getDoc("leads/A")?.contato as Record<string, string>)
       .primeiroContatoEm;
     expect(after).toBe(first);
+  });
+
+  it("edita notas e favorito sem mexer no status", async () => {
+    const res = await PATCH(
+      ...patchRequest("A", { notas: "ligar depois das 18h", favorito: true }),
+    );
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.notas).toBe("ligar depois das 18h");
+    expect(lead.favorito).toBe(true);
+    expect(lead.status).toBe("novo");
+
+    expect(db.getDoc("leads/A")).toMatchObject({
+      notas: "ligar depois das 18h",
+      favorito: true,
+      status: "novo",
+    });
+  });
+
+  it("status + notas no mesmo PATCH: transição e nota aplicadas", async () => {
+    const res = await PATCH(
+      ...patchRequest("A", { status: "contactado", notas: "mandei wpp" }),
+    );
+
+    const { lead } = await res.json();
+    expect(lead.status).toBe("contactado");
+    expect(lead.notas).toBe("mandei wpp");
+    expect(lead.contato.primeiroContatoEm).toBeDefined();
+  });
+
+  it("corpo vazio → 400 (informe status, notas ou favorito)", async () => {
+    const res = await PATCH(...patchRequest("A", {}));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("notas longa demais (>500) → 400", async () => {
+    const res = await PATCH(...patchRequest("A", { notas: "x".repeat(501) }));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("favorito não-booleano → 400", async () => {
+    const res = await PATCH(...patchRequest("A", { favorito: "sim" }));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("transição inválida no PATCH combinado não aplica as notas", async () => {
+    const res = await PATCH(
+      ...patchRequest("A", { status: "respondeu", notas: "não deve salvar" }),
+    );
+
+    expect(res.status).toBe(409);
+    expect(db.getDoc("leads/A")).not.toMatchObject({ notas: "não deve salvar" });
   });
 });

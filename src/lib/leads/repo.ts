@@ -80,6 +80,9 @@ export async function upsertLeads(
         location: place.location ?? existing.location,
         busca: { ...busca, em },
         buscaId: [...new Set([...(existing.buscaId ?? []), buscaId])],
+        // Busca qualificada traz informação fresca de site; nunca remove.
+        temSite: place.temSite ?? existing.temSite,
+        siteUrl: place.siteUrl ?? existing.siteUrl,
         atualizadoEm: em,
       };
     } else {
@@ -92,6 +95,8 @@ export async function upsertLeads(
         status: "novo",
         busca: { ...busca, em },
         buscaId: [buscaId],
+        temSite: place.temSite,
+        siteUrl: place.siteUrl,
         enriquecido: false,
         criadoEm: em,
         atualizadoEm: em,
@@ -110,6 +115,19 @@ export interface LeadFilters {
   temTelefone?: string;
   /** Restringe aos leads que apareceram na busca dada (match no array buscaId). */
   buscaId?: string;
+  /** "1"/"true" → só favoritos. */
+  favorito?: string;
+}
+
+/**
+ * Presença de site/telefone: enriquecimento é a fonte mais completa;
+ * para site, a busca qualificada (lead.temSite) também vale.
+ * undefined = desconhecido (fica fora dos filtros com/sem).
+ */
+function presenca(lead: Lead, campo: "site" | "telefone"): boolean | undefined {
+  if (lead.enriquecido) return Boolean(lead.detalhes?.[campo]);
+  if (campo === "site") return lead.temSite;
+  return undefined;
 }
 
 function matchesPresenca(
@@ -118,9 +136,8 @@ function matchesPresenca(
   campo: "site" | "telefone",
 ): boolean {
   if (filtro === "qualquer") return true;
-  // Sem enriquecimento não dá para afirmar presença nem ausência.
-  if (!lead.enriquecido) return false;
-  const presente = Boolean(lead.detalhes?.[campo]);
+  const presente = presenca(lead, campo);
+  if (presente === undefined) return false;
   return filtro === "com" ? presente : !presente;
 }
 
@@ -138,6 +155,7 @@ export async function listLeads(db: AppDb, filters: LeadFilters = {}): Promise<L
   const temSite = parsePresenca(filters.temSite, "temSite");
   const temTelefone = parsePresenca(filters.temTelefone, "temTelefone");
   const { buscaId } = filters;
+  const soFavoritos = filters.favorito === "1" || filters.favorito === "true";
 
   const snapshot = await db.collection(LEADS_COLLECTION).get();
   return snapshot.docs
@@ -146,6 +164,7 @@ export async function listLeads(db: AppDb, filters: LeadFilters = {}): Promise<L
       (lead) =>
         (status === undefined || lead.status === status) &&
         (buscaId === undefined || (lead.buscaId ?? []).includes(buscaId)) &&
+        (!soFavoritos || lead.favorito === true) &&
         matchesPresenca(temSite, lead, "site") &&
         matchesPresenca(temTelefone, lead, "telefone"),
     )
@@ -178,6 +197,24 @@ export async function changeStatus(
   }
 
   const updated: Lead = { ...lead, status: para, contato, atualizadoEm: em };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/** Notas/favorito editáveis direto no card, sem passar pela transição de status. */
+export async function updateLeadExtras(
+  db: AppDb,
+  placeId: string,
+  extras: { notas?: string; favorito?: boolean },
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  const updated: Lead = {
+    ...lead,
+    ...(extras.notas !== undefined && { notas: extras.notas }),
+    ...(extras.favorito !== undefined && { favorito: extras.favorito }),
+    atualizadoEm: now.toISOString(),
+  };
   await docRef(db, placeId).set(toDoc(updated));
   return updated;
 }

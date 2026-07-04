@@ -51,4 +51,20 @@ describe("GET /api/buscas", () => {
       totalExistentes: 3,
     });
   });
+
+  it("docs antigos sem cor ganham cor de fallback na leitura", async () => {
+    db.seed("buscas/b1", {
+      id: "b1",
+      nome: "antiga",
+      nicho: "dentista",
+      regiao: "Sarandi PR",
+      criadaEm: "2026-07-01T10:00:00.000Z",
+      totalCriados: 1,
+      totalExistentes: 0,
+    });
+
+    const { buscas } = await (await GET()).json();
+
+    expect(buscas[0].cor).toMatch(/^#/);
+  });
 });

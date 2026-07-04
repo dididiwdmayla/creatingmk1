@@ -12,6 +12,7 @@ export async function GET(req: Request) {
       temSite: params.get("temSite") ?? undefined,
       temTelefone: params.get("temTelefone") ?? undefined,
       buscaId: params.get("buscaId") ?? undefined,
+      favorito: params.get("favorito") ?? undefined,
     });
     return NextResponse.json({ leads });
   } catch (error) {

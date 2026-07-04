@@ -6,7 +6,7 @@ import { ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, readJsonBody } from "@/lib/http";
 import { upsertLeads } from "@/lib/leads/repo";
-import { searchText } from "@/lib/places/client";
+import { SEARCH_MAX_RESULTS, searchText } from "@/lib/places/client";
 
 function defaultNome(nicho: string, now: Date): string {
   const dd = String(now.getUTCDate()).padStart(2, "0");
@@ -28,6 +28,19 @@ export async function POST(req: Request) {
         problemas.push(`${key} deve ser string`);
       }
     }
+    const { quantidade, qualificada } = body;
+    if (
+      quantidade !== undefined &&
+      (typeof quantidade !== "number" ||
+        !Number.isInteger(quantidade) ||
+        quantidade < 1 ||
+        quantidade > SEARCH_MAX_RESULTS)
+    ) {
+      problemas.push(`quantidade deve ser inteiro entre 1 e ${SEARCH_MAX_RESULTS}`);
+    }
+    if (qualificada !== undefined && typeof qualificada !== "boolean") {
+      problemas.push("qualificada deve ser booleano");
+    }
     if (problemas.length > 0) {
       throw new ValidationError(problemas);
     }
@@ -47,12 +60,15 @@ export async function POST(req: Request) {
     const nome = ((body.nome as string | undefined) ?? "").trim() || defaultNome(nicho, now);
     const query = [nicho, subNicho, regiao].filter(Boolean).join(" ");
 
-    const places = await searchText(db, query, config.caps);
+    const resultado = await searchText(db, query, config.caps, {
+      quantidade: quantidade as number | undefined,
+      qualificada: qualificada as boolean | undefined,
+    });
 
     const buscaId = crypto.randomUUID();
     const { criados, existentes, leads } = await upsertLeads(
       db,
-      places,
+      resultado.places,
       { nicho, subNicho, regiao },
       buscaId,
       now,
@@ -71,7 +87,14 @@ export async function POST(req: Request) {
       now,
     );
 
-    return NextResponse.json({ criados, existentes, leads, busca });
+    return NextResponse.json({
+      criados,
+      existentes,
+      leads,
+      busca,
+      paginas: resultado.paginas,
+      ...(resultado.aviso && { aviso: resultado.aviso }),
+    });
   } catch (error) {
     return handleRouteError(error);
   }

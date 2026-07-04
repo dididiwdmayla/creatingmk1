@@ -19,14 +19,44 @@ describe("loadConfig", () => {
 
   it("mescla doc parcial/antigo sobre os defaults", async () => {
     const db = new FakeFirestore();
-    db.seed(DOC, { nicho: "dentista", caps: { detailsPro: 100 } });
+    db.seed(DOC, { nicho: "dentista", caps: { detailsEnterprise: 100 } });
 
     const config = await loadConfig(db);
 
     expect(config.nicho).toBe("dentista");
-    expect(config.caps.detailsPro).toBe(100);
+    expect(config.caps.detailsEnterprise).toBe(100);
     expect(config.caps.textSearch).toBe(DEFAULT_CONFIG.caps.textSearch);
     expect(config.regiao).toBe(DEFAULT_CONFIG.regiao);
+  });
+
+  it("migração: chave legada detailsPro em caps/precos vira detailsEnterprise", async () => {
+    const db = new FakeFirestore();
+    db.seed(DOC, {
+      caps: { detailsPro: 42 },
+      precos: {
+        usdPor1000: { detailsPro: 17 },
+        cotaGratis: { detailsPro: 5_000 },
+      },
+    });
+
+    const config = await loadConfig(db);
+
+    expect(config.caps.detailsEnterprise).toBe(42);
+    expect(config.precos.usdPor1000.detailsEnterprise).toBe(17);
+    expect(config.precos.cotaGratis.detailsEnterprise).toBe(5_000);
+    // O nome legado não vaza para a config efetiva.
+    expect("detailsPro" in config.caps).toBe(false);
+  });
+
+  it("migração: salvar depois de migrar regrava sem o nome legado", async () => {
+    const db = new FakeFirestore();
+    db.seed(DOC, { caps: { detailsPro: 42 } });
+
+    await saveConfig(db, { nicho: "dentista" });
+
+    const stored = db.getDoc(DOC) as { caps: Record<string, number> };
+    expect(stored.caps.detailsEnterprise).toBe(42);
+    expect("detailsPro" in stored.caps).toBe(false);
   });
 });
 
@@ -80,7 +110,7 @@ describe("saveConfig", () => {
     const error = await saveConfig(db, {
       nicho: 42,
       filtros: { temSite: "talvez" },
-      caps: { textSearch: -1, detailsPro: 1.5, inventado: 3 },
+      caps: { textSearch: -1, detailsEnterprise: 1.5, inventado: 3 },
       precos: { usdBrl: 0 },
     }).catch((e: unknown) => e);
 
@@ -88,9 +118,9 @@ describe("saveConfig", () => {
     expect((error as ValidationError).problemas).toEqual([
       "nicho deve ser string",
       "filtros.temSite deve ser um de: qualquer, com, sem",
-      "caps.inventado não é um SKU conhecido (textSearch, detailsEssentials, detailsPro)",
+      "caps.inventado não é um SKU conhecido (textSearch, textSearchEnterprise, detailsEssentials, detailsEnterprise)",
       "caps.textSearch deve ser número ≥ 0",
-      "caps.detailsPro deve ser inteiro",
+      "caps.detailsEnterprise deve ser inteiro",
       "precos.usdBrl deve ser número > 0",
     ]);
   });
@@ -112,6 +142,6 @@ describe("pricingFromConfig", () => {
     const pricing = pricingFromConfig(config);
 
     expect(pricing.textSearch).toEqual({ usdPer1000: 40, freeQuota: 1_000 });
-    expect(pricing.detailsPro).toEqual({ usdPer1000: 17, freeQuota: 5_000 });
+    expect(pricing.detailsEnterprise).toEqual({ usdPer1000: 20, freeQuota: 1_000 });
   });
 });

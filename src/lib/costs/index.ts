@@ -11,6 +11,7 @@ export {
   DEFAULT_CAPS,
   DEFAULT_PRICING,
   FIELD_MASKS,
+  LEGACY_SKU_ALIASES,
   SKUS,
   ZERO_USAGE,
   type PricingTable,

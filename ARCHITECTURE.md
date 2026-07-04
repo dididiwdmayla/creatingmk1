@@ -31,8 +31,9 @@ src/
       login/route.ts                # ✅ POST senha → cookie de sessão
       logout/route.ts               # ✅ POST limpa o cookie de sessão
       config/route.ts               # ✅ GET/PUT config
-      search/route.ts               # ✅ POST busca (Text Search) + registra em /buscas
+      search/route.ts               # ✅ POST busca (Text Search, paginada/qualificada) + registra em /buscas
       buscas/route.ts               # ✅ GET buscas salvas
+      buscas/[id]/route.ts          # ✅ PATCH cor da busca
       leads/route.ts                # ✅ GET lista de leads com filtros
       leads/[id]/route.ts           # ✅ GET ficha / PATCH status
       leads/[id]/enrich/route.ts    # ✅ POST enriquecimento (Place Details)
@@ -75,6 +76,7 @@ src/
     Nav.tsx                         # bottom nav + logout (client)
     StatusBadge.tsx                 # badge ordinal do status do lead
     UsageMeter.tsx                  # meter de uso vs teto (accent/warning/critical)
+    LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
@@ -93,13 +95,14 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
   },
   "mensagemPadrao": "Oi {nome}, tudo bem? ...", // variável {nome} → displayName do lead
   "caps": {                                     // teto mensal de requests por SKU
-    "textSearch": 10000,
+    "textSearch": 5000,
+    "textSearchEnterprise": 1000,
     "detailsEssentials": 10000,
-    "detailsPro": 5000
+    "detailsEnterprise": 1000
   },
   "precos": {                                   // override dos defaults de skus.ts
-    "usdPor1000": { "textSearch": 32, "detailsEssentials": 5, "detailsPro": 17 },
-    "cotaGratis": { "textSearch": 10000, "detailsEssentials": 10000, "detailsPro": 5000 },
+    "usdPor1000": { "textSearch": 32, "textSearchEnterprise": 35, "detailsEssentials": 5, "detailsEnterprise": 20 },
+    "cotaGratis": { "textSearch": 5000, "textSearchEnterprise": 1000, "detailsEssentials": 10000, "detailsEnterprise": 1000 },
     "usdBrl": 5.50                              // câmbio para custo projetado em R$
   },
   "atualizadoEm": "<timestamp>"
@@ -107,8 +110,9 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
 ```
 
 Observações:
-- Os **filtros "tem site/telefone" são filtros de listagem**, não de busca: o Text Search com field mask Essentials não retorna site/telefone, então o filtro só se aplica a leads já enriquecidos (leads não enriquecidos aparecem como "desconhecido").
+- Os **filtros "tem site/telefone" são filtros de listagem**, não de busca. O filtro de site vale para leads enriquecidos E para leads vindos da **busca qualificada** (campo `temSite`); telefone só após enriquecer. Leads sem informação aparecem como "desconhecido".
 - `caps` é o teto de segurança (hard stop). `precos.cotaGratis` é informativo (dashboard e projeção de custo). Por default o teto = cota grátis, ou seja, o app nunca gasta um centavo sem o usuário aumentar o teto conscientemente.
+- **Migração de SKU (jul/2026)**: `detailsPro` foi renomeado para `detailsEnterprise` (a tabela do Google classifica telefone/site/rating como tier Enterprise). Docs antigos com chaves `detailsPro` em `caps`/`precos` são lidos via alias e regravados com o nome novo; PUTs novos com o nome antigo são rejeitados (400).
 
 ### `/leads/{placeId}` — um doc por lead
 
@@ -125,8 +129,12 @@ Observações:
     "nicho": "dentista", "subNicho": "implante", "regiao": "Sarandi PR", "em": "<timestamp>"
   },
   "buscaId": ["<uuid>", "<uuid>"],              // IDs de /buscas em que apareceu — só cresce, nunca sobrescrito
+  "temSite": false,                             // da busca qualificada; ausente = desconhecido
+  "siteUrl": "https://...",                     // URL vinda de graça na busca qualificada (quando temSite=true)
+  "notas": "ligar depois das 18h",              // anotação curta (≤500), editável no card da lista
+  "favorito": true,                             // estrela no card; filtro próprio na lista
   "enriquecido": false,
-  "detalhes": {                                 // só existe após enriquecimento (Details Pro)
+  "detalhes": {                                 // só existe após enriquecimento (Details Enterprise)
     "telefone": "(44) 3264-0000",               // nationalPhoneNumber
     "telefoneIntl": "+55 44 3264-0000",         // internationalPhoneNumber → base do link wa.me
     "site": "https://...",                      // websiteUri (ausente = lead quente!)
@@ -145,7 +153,7 @@ Observações:
 ```
 
 Regras de escrita:
-- Upsert da busca **nunca rebaixa status** nem apaga `detalhes` de um lead existente — só atualiza nome/endereço/`busca` e **anexa** o novo id ao array `buscaId` (com dedupe).
+- Upsert da busca **nunca rebaixa status** nem apaga `detalhes`/`notas`/`favorito` de um lead existente — só atualiza nome/endereço/`busca`, **anexa** o novo id ao array `buscaId` (com dedupe) e atualiza `temSite`/`siteUrl` quando a busca qualificada trouxer informação fresca (nunca remove).
 - Transições válidas: `novo → contactado → respondeu → fechado` (e `contactado → fechado` direto). Cada transição carimba o timestamp correspondente em `contato`, que alimenta as métricas.
 
 ### `/buscas/{id}` — um doc por busca executada
@@ -159,27 +167,32 @@ Regras de escrita:
   "nicho": "dentista",
   "subNicho": "implante",                       // opcional
   "regiao": "Sarandi PR",
+  "cor": "#3987e5",                             // paleta fixa de 10 (BUSCA_CORES), rotação na criação, editável
   "criadaEm": "<ISO 8601>",
   "totalCriados": 12,                           // leads novos que esta busca criou
   "totalExistentes": 8                          // leads que já estavam na base
 }
 ```
 
-O doc é gravado **depois** do upsert dos leads (para ter os totais). Se a busca falhar antes (teto/erro do Google), nenhum doc de busca é criado.
+O doc é gravado **depois** do upsert dos leads (para ter os totais). Se a busca falhar por completo (teto/erro na 1ª página), nenhum doc de busca é criado; se parar no meio da paginação, o doc registra o parcial.
+
+Sobre a **cor**: paleta fixa de 10 (validada contra a superfície escura: banda de luminância, croma e contraste ≥3:1). Com 10 hues a separação CVD de todos os pares é matematicamente inviável — por isso a cor é sempre reforço redundante: o nome da busca acompanha o badge em texto. Docs antigos sem `cor` ganham fallback estável na leitura.
 
 ### `/usage/{YYYY-MM}` — um doc por mês (contadores de custo)
 
 ```jsonc
 {
   "textSearch": 42,
+  "textSearchEnterprise": 3,
   "detailsEssentials": 0,
-  "detailsPro": 17,
+  "detailsEnterprise": 17,
   "atualizadoEm": "<ISO 8601>"
 }
 ```
 
 - Período em **UTC** (`2026-07`). O reset da cota grátis do Google segue o fuso da conta de billing; algumas horas de deriva são irrelevantes para um teto de segurança, e UTC evita bugs de horário de verão.
 - Incremento é **transacional** (ler → verificar teto → incrementar) — ver "Módulo de custos".
+- **Migração**: docs de meses antigos podem ter o campo `detailsPro`; a leitura usa o valor legado enquanto `detailsEnterprise` não existir no doc — assim que a primeira reserva nova grava o nome atual, o legado é ignorado.
 
 ### Métricas de prospecção
 
@@ -198,12 +211,13 @@ Formato de erro padrão em todas as rotas:
 | `/api/login` | POST | `{ senha }` | `204` + cookie de sessão · `401 invalid_password` · `503 config_error` | — |
 | `/api/config` | GET | — | `200 { config }` (defaults se doc não existe) | — |
 | `/api/config` | PUT | config parcial ou completa | `200 { config }` · `400 validation_error` | — |
-| `/api/search` | POST | `{ nicho?, subNicho?, regiao?, nome? }` (nicho/regiao default: config) | `200 { criados, existentes, leads[], busca }` · `429 quota_exceeded` · `502 places_error` | Text Search · **textSearch** |
+| `/api/search` | POST | `{ nicho?, subNicho?, regiao?, nome?, quantidade? (1–40), qualificada? }` (nicho/regiao default: config) | `200 { criados, existentes, leads[], busca, paginas, aviso? }` · `429 quota_exceeded` · `502 places_error` | Text Search · **textSearch** ou **textSearchEnterprise** |
 | `/api/buscas` | GET | — | `200 { buscas[] }` (mais recentes primeiro) | — |
-| `/api/leads` | GET | query: `status`, `temSite`, `temTelefone`, `buscaId` | `200 { leads[] }` · `400` | — |
+| `/api/buscas/[id]` | PATCH | `{ cor }` (da paleta BUSCA_CORES) | `200 { busca }` · `400` · `404` | — |
+| `/api/leads` | GET | query: `status`, `temSite`, `temTelefone`, `buscaId`, `favorito` | `200 { leads[] }` · `400` | — |
 | `/api/leads/[id]` | GET | — | `200 { lead }` · `404` | — |
-| `/api/leads/[id]` | PATCH | `{ status }` | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
-| `/api/leads/[id]/enrich` | POST | — | `200 { lead }` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsPro** |
+| `/api/leads/[id]` | PATCH | `{ status?, notas? (≤500), favorito? }` (≥1 campo) | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
+| `/api/leads/[id]/enrich` | POST | — | `200 { lead }` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsEnterprise** |
 | `/api/usage` | GET | — | `200 { period, usage, caps, cotaGratis, custoProjetado: { usd, brl } }` | — |
 | `/api/metrics` | GET | — | `200 { contatosHoje, contatosSemana, taxaResposta }` | — |
 | `/api/logout` | POST | — | `204` (limpa o cookie de sessão) | — |
@@ -213,7 +227,9 @@ Todas as rotas do contrato estão implementadas e testadas.
 Semântica fixa:
 - **`429 quota_exceeded`**: corpo `{ error: { code: "quota_exceeded", sku, used, cap, period, message } }`. Emitido **antes** de qualquer chamada ao Google (a reserva de cota falhou). Nenhum custo foi incorrido.
 - **`502 places_error`**: o Google respondeu erro. A cota **já foi consumida** (reservamos antes de chamar) — decisão deliberada: superestimar uso é seguro, subestimar não.
-- `/api/search` faz upsert em `/leads` com `status: "novo"` para novos e reporta `existentes` para os que já estavam na base. **Busca só a 1ª página** do Text Search (até 20 resultados) — cada página seria uma request cobrada. A query enviada ao Google é **`"{nicho} {subNicho} {regiao}"`** (partes vazias omitidas). Cada busca gera um doc em `/buscas` (nome default `"{nicho} {DD/MM}"`, data em UTC) e anexa o id ao `buscaId` dos leads retornados.
+- `/api/search` faz upsert em `/leads` com `status: "novo"` para novos e reporta `existentes` para os que já estavam na base. A query enviada ao Google é **`"{nicho} {subNicho} {regiao}"`** (partes vazias omitidas). Cada busca gera um doc em `/buscas` (nome default `"{nicho} {DD/MM}"`, data em UTC) e anexa o id ao `buscaId` dos leads retornados.
+- **`quantidade` (1–40, default 20)**: até 20 é 1 request com `pageSize`; 21–40 pagina via `nextPageToken`, **cada página reservando 1 de cota antes do fetch** (o contador reflete páginas, não buscas). Se o teto (ou o Google) falhar da 2ª página em diante, a rota devolve **200 parcial** com os leads já obtidos e o campo `aviso` — a cota da 1ª página já foi paga, jogar o resultado fora seria pagar sem receber. Na 1ª página o comportamento clássico vale: 429 sem custo / 502 com custo.
+- **Busca qualificada (`qualificada: true`, checkbox "Só sem site")**: field mask ganha `places.websiteUri` e a chamada passa a contar no SKU **textSearchEnterprise** (tier Enterprise, cota grátis 1.000/mês). Leads voltam com `temSite`/`siteUrl` preenchidos — meio-enriquecidos de graça; os sem site são destacados na lista como lead quente. Sem o checkbox, a busca continua no mask básico (SKU textSearch) e `temSite` fica desconhecido.
 - **Enriquecimento automático pós-busca é do cliente, não do servidor**: a página de leads, com o checkbox ligado, chama `POST /enrich` **em série** para os primeiros N resultados ainda não enriquecidos (N ≤ 5, default desligado). Cada chamada passa pelo `reserveQuota` normal do servidor; no primeiro `429` o loop para e a UI informa quantos foram feitos. Não existe rota de enriquecimento em lote — mantém o princípio "enriquecimento sob demanda" com um único caminho de cota.
 - `/api/leads/[id]/enrich` grava `detalhes`, marca `enriquecido: true`. Lead já enriquecido **retorna do cache sempre** — re-enriquecimento não existe.
 - O botão WhatsApp é montado **no cliente** a partir de dados já persistidos (`wa.me/<telefoneIntl sem símbolos>?text=<mensagemPadrao com {nome} substituído>`) — não há rota nem chamada externa.
@@ -224,16 +240,17 @@ Semântica fixa:
 O Google cobra a chamada pelo **campo de tier mais alto presente no field mask**. Um campo a mais pode multiplicar o preço da request. Por isso:
 
 1. Os field masks são **constantes centralizadas em `src/lib/costs/skus.ts`** — nenhuma rota monta field mask na mão.
-2. Cada field mask está **amarrado ao SKU que ele dispara**: quem chama `searchText()` passa pelo contador `textSearch`; quem chama `placeDetails()` com o mask Pro passa pelo contador `detailsPro`.
+2. Cada field mask está **amarrado ao SKU que ele dispara**: quem chama `searchText()` passa pelo contador `textSearch` (ou `textSearchEnterprise` na qualificada); quem chama `placeDetails()` passa pelo contador `detailsEnterprise`.
 3. **Adicionar um campo a um mask exige conferir o tier dele na tabela de preços vigente do Google** e, se mudar o tier, mudar o SKU contado.
 
-| SKU (contador) | Endpoint | Field mask | Uso no app |
-|---|---|---|---|
-| `textSearch` | `POST places:searchText` | `places.id,places.displayName,places.formattedAddress,places.location,nextPageToken` | Busca de leads |
-| `detailsEssentials` | `GET places/{id}` | `id,displayName,formattedAddress,location` | Reservado (refresh de dados básicos); fora do fluxo principal do MVP |
-| `detailsPro` | `GET places/{id}` | `id,nationalPhoneNumber,internationalPhoneNumber,websiteUri,rating,userRatingCount` | Enriquecimento da ficha (sob demanda) |
+| SKU (contador) | Endpoint | Field mask | Tier / preço default | Uso no app |
+|---|---|---|---|---|
+| `textSearch` | `POST places:searchText` | `places.id,places.displayName,places.formattedAddress,places.location,nextPageToken` | Pro · US$32/1.000 · 5.000 grátis | Busca de leads |
+| `textSearchEnterprise` | `POST places:searchText` | mask do textSearch + `places.websiteUri` | Enterprise · US$35/1.000 · 1.000 grátis | Busca qualificada ("Só sem site") |
+| `detailsEssentials` | `GET places/{id}` | `id,formattedAddress,location` | Essentials · US$5/1.000 · 10.000 grátis | Reservado; fora do fluxo principal |
+| `detailsEnterprise` | `GET places/{id}` | `id,nationalPhoneNumber,internationalPhoneNumber,websiteUri,rating,userRatingCount` | Enterprise · US$20/1.000 · 1.000 grátis | Enriquecimento da ficha (sob demanda) |
 
-> ⚠️ **Conferir na tabela vigente**: o Google reestruturou os SKUs da Places API (New) em Essentials/Pro/Enterprise em março/2025 e pode reclassificar campos. Os defaults de preço e cota grátis em `skus.ts` são apenas ponto de partida e **todos são sobrescrevíveis via `/config/app`** — corrigir preço/cota é mudança de configuração, não de código.
+> ⚠️ **Tiers conferidos na tabela vigente (jul/2026)**: telefone/site/rating são tier **Enterprise** (não Pro); displayName/endereço/location no Text Search são tier **Pro** (5.000 grátis/mês — não os 10k de Essentials). O SKU antigo `detailsPro` foi renomeado para `detailsEnterprise` com migração de leitura dos contadores e da config. `displayName` foi removido do mask de `detailsEssentials` (é campo Pro em Place Details). Os defaults continuam **todos sobrescrevíveis via `/config/app`** — corrigir preço/cota é mudança de configuração, não de código.
 
 ## Módulo de custos (`src/lib/costs`) — implementado
 
@@ -276,8 +293,8 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
 - **`/login`**: form de senha → `POST /api/login` → redireciona para `/`.
 - **`(app)/` (route group)**: layout com nav inferior fixa (Painel/Leads/Config) + botão Sair; todas as páginas autenticadas vivem aqui.
   - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite") e um KPI row com `/api/metrics`.
-  - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error` com mensagem específica; campos nicho/sub-nicho/região/nome da busca + checkbox de auto-enriquecimento dos primeiros N ≤ 5) + filtros (status/site/telefone) + lista com `StatusBadge`. Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca, com chip de filtro e botão limpar.
-  - **`/buscas`**: buscas salvas (nome, nicho/sub-nicho, região, data, totais); clicar navega para `/leads?buscaId=…`.
+  - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (toggle, header com dot da cor + nome + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto). Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha — além dos dots de cor das buscas e destaque "sem site (lead quente)". Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
+  - **`/buscas`**: buscas salvas (dot de cor, nome, nicho/sub-nicho, região, data, totais); tocar no dot cicla a cor pela paleta e persiste (`PATCH /api/buscas/[id]`); clicar no card navega para `/leads?buscaId=…`.
   - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior.
   - **`/config`**: formulário completo (busca, filtros, mensagem padrão, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
 - **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas; o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro.

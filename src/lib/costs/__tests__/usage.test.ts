@@ -21,10 +21,11 @@ describe("reserveQuota", () => {
     expect(result.period).toBe("2026-07");
     expect(result.usage).toEqual({
       textSearch: 1,
+      textSearchEnterprise: 0,
       detailsEssentials: 0,
-      detailsPro: 0,
+      detailsEnterprise: 0,
     });
-    expect(db.getDoc(DOC)).toMatchObject({ textSearch: 1, detailsPro: 0 });
+    expect(db.getDoc(DOC)).toMatchObject({ textSearch: 1, detailsEnterprise: 0 });
   });
 
   it("acumula reservas sequenciais", async () => {
@@ -41,46 +42,61 @@ describe("reserveQuota", () => {
     const db = new FakeFirestore();
 
     await reserveQuota(db, "textSearch", caps(), NOW);
-    await reserveQuota(db, "detailsPro", caps(), NOW);
-    const result = await reserveQuota(db, "detailsPro", caps(), NOW);
+    await reserveQuota(db, "detailsEnterprise", caps(), NOW);
+    const result = await reserveQuota(db, "detailsEnterprise", caps(), NOW);
 
     expect(result.usage).toEqual({
       textSearch: 1,
+      textSearchEnterprise: 0,
       detailsEssentials: 0,
-      detailsPro: 2,
+      detailsEnterprise: 2,
     });
   });
 
   it("parte do uso já persistido no doc do mês", async () => {
     const db = new FakeFirestore();
-    db.seed(DOC, { textSearch: 41, detailsPro: 7 });
+    db.seed(DOC, { textSearch: 41, detailsEnterprise: 7 });
 
     const result = await reserveQuota(db, "textSearch", caps(), NOW);
 
     expect(result.usage.textSearch).toBe(42);
-    expect(result.usage.detailsPro).toBe(7);
+    expect(result.usage.detailsEnterprise).toBe(7);
+  });
+
+  it("migração: reserva continua do contador legado detailsPro e grava o nome novo", async () => {
+    const db = new FakeFirestore();
+    db.seed(DOC, { detailsPro: 17 });
+
+    const result = await reserveQuota(db, "detailsEnterprise", caps(), NOW);
+
+    expect(result.usage.detailsEnterprise).toBe(18);
+    expect(db.getDoc(DOC)).toMatchObject({ detailsEnterprise: 18, detailsPro: 17 });
+
+    // Depois que o nome novo existe, o legado é ignorado.
+    const second = await reserveQuota(db, "detailsEnterprise", caps(), NOW);
+    expect(second.usage.detailsEnterprise).toBe(19);
   });
 
   it("recusa quando o teto seria estourado e NÃO incrementa o contador", async () => {
     const db = new FakeFirestore();
-    db.seed(DOC, { detailsPro: 3 });
+    db.seed(DOC, { detailsEnterprise: 3 });
 
     await expect(
-      reserveQuota(db, "detailsPro", caps({ detailsPro: 3 }), NOW),
+      reserveQuota(db, "detailsEnterprise", caps({ detailsEnterprise: 3 }), NOW),
     ).rejects.toThrow(QuotaExceededError);
 
-    expect(db.getDoc(DOC)).toEqual({ detailsPro: 3 });
+    expect(db.getDoc(DOC)).toEqual({ detailsEnterprise: 3 });
   });
 
   it("permite exatamente até o teto", async () => {
     const db = new FakeFirestore();
-    const capped = caps({ detailsPro: 2 });
+    const capped = caps({ detailsEnterprise: 2 });
 
-    await reserveQuota(db, "detailsPro", capped, NOW);
-    const last = await reserveQuota(db, "detailsPro", capped, NOW);
-    expect(last.usage.detailsPro).toBe(2);
+    await reserveQuota(db, "detailsEnterprise", capped, NOW);
+    const last = await reserveQuota(db, "detailsEnterprise", capped, NOW);
+    expect(last.usage.detailsEnterprise).toBe(2);
 
-    await expect(reserveQuota(db, "detailsPro", capped, NOW)).rejects.toThrow(
+    await expect(reserveQuota(db, "detailsEnterprise", capped, NOW)).rejects.toThrow(
       QuotaExceededError,
     );
   });
@@ -136,14 +152,15 @@ describe("reserveQuota", () => {
 
   it("trata contadores malformados (string, negativo, NaN) como 0", async () => {
     const db = new FakeFirestore();
-    db.seed(DOC, { textSearch: "muitos", detailsPro: -12, detailsEssentials: NaN });
+    db.seed(DOC, { textSearch: "muitos", detailsEnterprise: -12, detailsEssentials: NaN });
 
     const result = await reserveQuota(db, "textSearch", caps(), NOW);
 
     expect(result.usage).toEqual({
       textSearch: 1,
+      textSearchEnterprise: 0,
       detailsEssentials: 0,
-      detailsPro: 0,
+      detailsEnterprise: 0,
     });
   });
 
@@ -164,20 +181,44 @@ describe("getUsage", () => {
 
     expect(result).toEqual({
       period: "2026-07",
-      usage: { textSearch: 0, detailsEssentials: 0, detailsPro: 0 },
+      usage: {
+        textSearch: 0,
+        textSearchEnterprise: 0,
+        detailsEssentials: 0,
+        detailsEnterprise: 0,
+      },
     });
   });
 
   it("retorna os contadores persistidos", async () => {
     const db = new FakeFirestore();
-    db.seed(DOC, { textSearch: 42, detailsEssentials: 1, detailsPro: 17 });
+    db.seed(DOC, { textSearch: 42, detailsEssentials: 1, detailsEnterprise: 17 });
 
     const result = await getUsage(db, NOW);
 
     expect(result.usage).toEqual({
       textSearch: 42,
+      textSearchEnterprise: 0,
       detailsEssentials: 1,
-      detailsPro: 17,
+      detailsEnterprise: 17,
     });
+  });
+
+  it("migração: lê o contador legado detailsPro como detailsEnterprise", async () => {
+    const db = new FakeFirestore();
+    db.seed(DOC, { textSearch: 5, detailsPro: 17 });
+
+    const result = await getUsage(db, NOW);
+
+    expect(result.usage.detailsEnterprise).toBe(17);
+  });
+
+  it("migração: o nome novo tem precedência sobre o legado (mesmo em 0)", async () => {
+    const db = new FakeFirestore();
+    db.seed(DOC, { detailsPro: 17, detailsEnterprise: 0 });
+
+    const result = await getUsage(db, NOW);
+
+    expect(result.usage.detailsEnterprise).toBe(0);
   });
 });

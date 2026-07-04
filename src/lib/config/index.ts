@@ -1,6 +1,7 @@
 import {
   DEFAULT_CAPS,
   DEFAULT_PRICING,
+  LEGACY_SKU_ALIASES,
   SKUS,
   type PricingTable,
   type Sku,
@@ -167,6 +168,24 @@ export function validateConfigPatch(patch: unknown): asserts patch is Partial<Ap
   }
 }
 
+/**
+ * Merge por SKU conhecido: além do merge, sanitiza — chaves legadas
+ * (ex.: detailsPro) migram via alias na leitura e nunca voltam a ser
+ * gravadas com o nome antigo.
+ */
+function mergeSkuMap(
+  base: Record<Sku, number>,
+  patch: Partial<Record<string, number>> | undefined,
+): Record<Sku, number> {
+  return Object.fromEntries(
+    SKUS.map((sku) => {
+      const legacy = LEGACY_SKU_ALIASES[sku];
+      const value = patch?.[sku] ?? (legacy ? patch?.[legacy] : undefined) ?? base[sku];
+      return [sku, value];
+    }),
+  ) as Record<Sku, number>;
+}
+
 /** Merge profundo de um patch validado sobre uma config completa. */
 export function mergeConfig(base: AppConfig, patch: Partial<AppConfig>): AppConfig {
   return {
@@ -174,11 +193,11 @@ export function mergeConfig(base: AppConfig, patch: Partial<AppConfig>): AppConf
     regiao: patch.regiao ?? base.regiao,
     mensagemPadrao: patch.mensagemPadrao ?? base.mensagemPadrao,
     filtros: { ...base.filtros, ...patch.filtros },
-    caps: { ...base.caps, ...patch.caps },
+    caps: mergeSkuMap(base.caps, patch.caps),
     precos: {
       usdBrl: patch.precos?.usdBrl ?? base.precos.usdBrl,
-      usdPor1000: { ...base.precos.usdPor1000, ...patch.precos?.usdPor1000 },
-      cotaGratis: { ...base.precos.cotaGratis, ...patch.precos?.cotaGratis },
+      usdPor1000: mergeSkuMap(base.precos.usdPor1000, patch.precos?.usdPor1000),
+      cotaGratis: mergeSkuMap(base.precos.cotaGratis, patch.precos?.cotaGratis),
     },
   };
 }

@@ -79,7 +79,7 @@ export function LeadDetailClient({ id }: { id: string }) {
     setChangingTo(para);
     setErro(null);
     try {
-      const { lead: updated } = await api.patchLeadStatus(id, para);
+      const { lead: updated } = await api.patchLead(id, { status: para });
       setLead(updated);
     } catch (error) {
       setErro(error instanceof ApiError ? error.message : "Falha ao trocar o status.");

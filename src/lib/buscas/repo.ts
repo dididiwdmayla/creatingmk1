@@ -1,5 +1,6 @@
+import { NotFoundError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
-import { BUSCAS_COLLECTION, type Busca } from "./types";
+import { BUSCAS_COLLECTION, BUSCA_CORES, type Busca } from "./types";
 
 // O Firestore real rejeita undefined como valor (subNicho ausente); o
 // round-trip JSON descarta essas chaves.
@@ -7,12 +8,27 @@ function toDoc(busca: Busca): Record<string, unknown> {
   return JSON.parse(JSON.stringify(busca)) as Record<string, unknown>;
 }
 
+/** Docs antigos (antes do campo cor) ganham uma cor estável pelo índice. */
+function asBusca(data: Record<string, unknown>, id: string, index: number): Busca {
+  const busca = { ...(data as unknown as Busca), id };
+  if (!busca.cor) {
+    busca.cor = BUSCA_CORES[index % BUSCA_CORES.length];
+  }
+  return busca;
+}
+
 export async function createBusca(
   db: AppDb,
-  dados: Omit<Busca, "criadaEm">,
+  dados: Omit<Busca, "criadaEm" | "cor"> & { cor?: string },
   now: Date = new Date(),
 ): Promise<Busca> {
-  const busca: Busca = { ...dados, criadaEm: now.toISOString() };
+  let cor = dados.cor;
+  if (!cor) {
+    // Rotação pela quantidade de buscas já salvas (escala pessoal).
+    const snapshot = await db.collection(BUSCAS_COLLECTION).get();
+    cor = BUSCA_CORES[snapshot.docs.length % BUSCA_CORES.length];
+  }
+  const busca: Busca = { ...dados, cor, criadaEm: now.toISOString() };
   await db.collection(BUSCAS_COLLECTION).doc(busca.id).set(toDoc(busca));
   return busca;
 }
@@ -21,6 +37,18 @@ export async function createBusca(
 export async function listBuscas(db: AppDb): Promise<Busca[]> {
   const snapshot = await db.collection(BUSCAS_COLLECTION).get();
   return snapshot.docs
-    .map((doc) => ({ ...(doc.data() as unknown as Busca), id: doc.id }))
+    .map((doc, index) => asBusca(doc.data(), doc.id, index))
     .sort((a, b) => b.criadaEm.localeCompare(a.criadaEm));
+}
+
+export async function updateBuscaCor(db: AppDb, id: string, cor: string): Promise<Busca> {
+  const ref = db.collection(BUSCAS_COLLECTION).doc(id);
+  const snap = await ref.get();
+  const data = snap.exists ? snap.data() : undefined;
+  if (!data) {
+    throw new NotFoundError(`Busca "${id}" não encontrada.`);
+  }
+  const busca: Busca = { ...(data as unknown as Busca), id, cor };
+  await ref.set(toDoc(busca));
+  return busca;
 }

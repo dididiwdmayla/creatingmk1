@@ -22,7 +22,12 @@ describe("GET /api/usage", () => {
     const data = await res.json();
     expect(data).toEqual({
       period: PERIOD,
-      usage: { textSearch: 0, detailsEssentials: 0, detailsPro: 0 },
+      usage: {
+        textSearch: 0,
+        textSearchEnterprise: 0,
+        detailsEssentials: 0,
+        detailsEnterprise: 0,
+      },
       caps: DEFAULT_CONFIG.caps,
       cotaGratis: DEFAULT_CONFIG.precos.cotaGratis,
       custoProjetado: { usd: 0, brl: 0 },
@@ -30,16 +35,24 @@ describe("GET /api/usage", () => {
   });
 
   it("projeta custo do excedente com preços e câmbio da config", async () => {
-    db.seed(`usage/${PERIOD}`, { textSearch: 11_000, detailsPro: 5_100 });
+    db.seed(`usage/${PERIOD}`, { textSearch: 6_000, detailsEnterprise: 1_100 });
     db.seed("config/app", { precos: { usdBrl: 5.0 } });
 
     const res = await GET();
 
     const data = await res.json();
-    // 1.000 × $32/1000 = $32; 100 × $17/1000 = $1,70 → $33,70 → R$168,50
-    expect(data.custoProjetado.usd).toBeCloseTo(33.7, 10);
-    expect(data.custoProjetado.brl).toBeCloseTo(168.5, 10);
-    expect(data.usage.textSearch).toBe(11_000);
+    // 1.000 × $32/1000 = $32; 100 × $20/1000 = $2 → $34 → R$170
+    expect(data.custoProjetado.usd).toBeCloseTo(34, 10);
+    expect(data.custoProjetado.brl).toBeCloseTo(170, 10);
+    expect(data.usage.textSearch).toBe(6_000);
+  });
+
+  it("migração: contador legado detailsPro entra como detailsEnterprise", async () => {
+    db.seed(`usage/${PERIOD}`, { detailsPro: 900 });
+
+    const data = await (await GET()).json();
+
+    expect(data.usage.detailsEnterprise).toBe(900);
   });
 
   it("ecoa caps customizados da config", async () => {
@@ -48,6 +61,6 @@ describe("GET /api/usage", () => {
     const data = await (await GET()).json();
 
     expect(data.caps.textSearch).toBe(500);
-    expect(data.caps.detailsPro).toBe(DEFAULT_CONFIG.caps.detailsPro);
+    expect(data.caps.detailsEnterprise).toBe(DEFAULT_CONFIG.caps.detailsEnterprise);
   });
 });

@@ -10,7 +10,7 @@ import { placeDetails } from "@/lib/places/client";
 type Params = { params: Promise<{ id: string }> };
 
 /**
- * Enriquecimento sob demanda via Place Details (SKU detailsPro).
+ * Enriquecimento sob demanda via Place Details (SKU detailsEnterprise).
  * Lead já enriquecido retorna do cache SEMPRE — nunca re-consulta o Google.
  */
 export async function POST(_req: Request, { params }: Params) {

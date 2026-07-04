@@ -1,9 +1,10 @@
 import { SKUS, type Sku } from "@/lib/costs";
 
 export const SKU_LABELS: Record<Sku, string> = {
-  textSearch: "Busca de leads (Text Search)",
+  textSearch: "Busca de leads (Text Search Pro)",
+  textSearchEnterprise: "Busca qualificada (Enterprise)",
   detailsEssentials: "Detalhes básicos (Essentials)",
-  detailsPro: "Enriquecimento (Pro)",
+  detailsEnterprise: "Enriquecimento (Enterprise)",
 };
 
 export { SKUS };
