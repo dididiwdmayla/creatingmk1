@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import { formatInt } from "@/lib/format";
 
 /**
@@ -24,6 +26,12 @@ export function UsageMeter({
   const statusClass = blocked ? "text-critical" : nearCap ? "text-warning" : "text-ink-muted";
   const freeQuotaPct = cap > 0 ? Math.min(freeQuota / cap, 1) * 100 : 0;
 
+  const [grown, setGrown] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setGrown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
@@ -34,8 +42,10 @@ export function UsageMeter({
       </div>
       <div className="relative mt-1.5 h-2 overflow-hidden rounded-full bg-white/8">
         <div
-          className={`h-full rounded-full transition-[width] ${fillClass}`}
-          style={{ width: `${pct * 100}%` }}
+          className={`h-full rounded-full transition-[width] duration-700 ease-out ${fillClass} ${
+            blocked ? "pulse-critical" : nearCap ? "pulse-warning" : ""
+          }`}
+          style={{ width: grown ? `${pct * 100}%` : "0%" }}
         />
         {freeQuota > 0 && freeQuota < cap && (
           <div

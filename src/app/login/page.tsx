@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 
+import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api } from "@/lib/api-client";
 
 export default function LoginPage() {
@@ -30,12 +31,17 @@ export default function LoginPage() {
     <main className="flex flex-1 items-center justify-center px-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-xs rounded-lg border border-line bg-surface p-6"
+        className="page-transition w-full max-w-xs rounded-lg border border-line bg-surface p-6"
       >
-        <h1 className="font-mono text-sm font-semibold tracking-[0.2em] text-ink-secondary">
-          RADAR
-        </h1>
-        <p className="mt-1 text-xs text-ink-muted">Prospecção de leads locais</p>
+        <div className="flex items-center gap-3">
+          <RadarSweep size={40} />
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-[0.05em] text-foreground">
+              RADAR
+            </h1>
+            <p className="text-xs text-ink-muted">Prospecção de leads locais</p>
+          </div>
+        </div>
 
         <label htmlFor="senha" className="mt-6 block text-sm text-ink-secondary">
           Senha
@@ -55,7 +61,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading || senha.length === 0}
-          className="mt-5 w-full rounded bg-accent px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-5 w-full rounded bg-accent px-3 py-2 text-sm font-semibold text-accent-ink transition-all hover:bg-accent/90 hover:-translate-y-px hover:shadow-[0_6px_16px_-6px_var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {loading ? "Entrando…" : "Entrar"}
         </button>

@@ -78,7 +78,7 @@ export default function BuscasPage() {
         {buscas.map((busca) => (
           <li
             key={busca.id}
-            className="rounded-lg border border-line bg-surface p-3 hover:border-accent"
+            className="card-lift rounded-lg border border-line bg-surface p-3"
           >
             <div className="flex items-start gap-2.5">
               <button

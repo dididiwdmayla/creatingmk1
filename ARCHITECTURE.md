@@ -17,8 +17,9 @@ Web app pessoal de prospecção de leads locais para web designer freelancer. Si
 src/
   proxy.ts                          # ✅ proteção por senha (Next 16: proxy.ts, ex-middleware)
   app/
-    layout.tsx                      # dark fixo (sem alternância clara/escura), fontes Geist
-    login/page.tsx                  # ✅ form de senha → POST /api/login
+    layout.tsx                      # dark fixo (sem alternância clara/escura), fontes Space Grotesk/Inter/JetBrains Mono
+    icon.tsx                        # ✅ favicon gerado (ImageResponse) — tema radar
+    login/page.tsx                  # ✅ form de senha → POST /api/login, identidade RADAR
     (app)/                          # route group: páginas autenticadas, com Nav
       layout.tsx                    # ✅ header + bottom nav (Painel/Leads/Buscas/Config) + Sair
       page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas
@@ -74,9 +75,11 @@ src/
   components/                       # ✅ UI compartilhada
     Button.tsx                      # variantes + estado de loading
     Nav.tsx                         # bottom nav + logout (client)
-    StatusBadge.tsx                 # badge ordinal do status do lead
-    UsageMeter.tsx                  # meter de uso vs teto (accent/warning/critical)
+    StatusBadge.tsx                 # badge ordinal do status do lead (cor + forma + marcador)
+    UsageMeter.tsx                  # meter de uso vs teto (accent/warning/critical), anima ao montar
     LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site
+    PageTransition.tsx              # fade-in de página por troca de rota (client)
+    RadarSweep.tsx                  # decoração de sweep de radar (CSS puro)
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
@@ -297,7 +300,10 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
   - **`/buscas`**: buscas salvas (dot de cor, nome, nicho/sub-nicho, região, data, totais); tocar no dot cicla a cor pela paleta e persiste (`PATCH /api/buscas/[id]`); clicar no card navega para `/leads?buscaId=…`.
   - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior.
   - **`/config`**: formulário completo (busca, filtros, mensagem padrão, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
-- **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas; o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro.
+- **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tema "radar/sonar": fundo em gradiente azul-profundo → quase-preto (`--background-2` → `--background`), surface com leve tingimento azul (`#121b24`), acento vibrante verde-radar (`--accent`, com `--accent-ink` preto para texto sobre ele — o verde não passa em contraste com texto branco). Tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas, reforçado por forma (quadrado→pill) e marcador (○◐◑●); o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro. A paleta das 10 cores de busca (`BUSCA_CORES`) foi revalidada (mais saturada) contra a nova surface. Textos sobre `good`/`critical`/`warning` usam preto (não branco) — o contraste do branco falha nesses tons vibrantes.
+- **Tipografia**: Space Grotesk (`font-display`, via `next/font/google`) para títulos e números grandes do dashboard; Inter (`font-sans`) para o corpo; JetBrains Mono (`font-mono`) para dados tabulares/valores.
+- **Animações** (CSS puro, sem lib): fade-in sutil de página (`.page-transition`, disparado por `PageTransition.tsx` que troca a `key` pelo pathname), barra do `UsageMeter` cresce de 0 ao montar, pulso (`.pulse-warning`/`.pulse-critical`) no preenchimento do meter perto do teto/no limite, elevação no hover dos cards clicáveis (`.card-lift`), sweep de radar rotativo (`RadarSweep.tsx` + `.radar-sweep`) no carregamento do dashboard. Tudo respeita `prefers-reduced-motion`.
+- **Favicon**: gerado via `app/icon.tsx` (`next/og`/`ImageResponse`) — círculos concêntricos + setor de varredura no verde-radar.
 - **Padrão de fetch em `useEffect`**: o linter do React Compiler (`eslint-plugin-react-hooks` 7.x, via `eslint-config-next`) rejeita chamar, dentro de um efeito, qualquer função de escopo externo que (mesmo transitivamente) atualize estado — a regra é sobre o grafo de chamadas, não sobre ordem antes/depois de `await`. A cada tela, a busca é declarada **inline dentro do próprio `useEffect`** (ou via `.then/.catch/.finally` direto no corpo do efeito); quando a mesma busca precisa ser reaproveitada por um handler de evento (retry, refetch pós-mutação), extrai-se um fetcher **puro** (sem `setState`) chamado nos dois lugares.
 
 ## Verificação da UI

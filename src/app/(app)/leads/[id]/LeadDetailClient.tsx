@@ -120,7 +120,7 @@ export function LeadDetailClient({ id }: { id: string }) {
           ← Leads
         </Link>
         <div className="mt-2 flex items-start justify-between gap-2">
-          <h1 className="text-lg font-semibold text-foreground">{lead.nome}</h1>
+          <h1 className="font-display text-xl font-bold text-foreground">{lead.nome}</h1>
           <StatusBadge status={lead.status} />
         </div>
         {lead.endereco && <p className="mt-1 text-sm text-ink-secondary">{lead.endereco}</p>}
@@ -164,7 +164,7 @@ export function LeadDetailClient({ id }: { id: string }) {
           href={waLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded bg-good px-3 py-2 text-center text-sm font-medium text-white hover:bg-good/90"
+          className="rounded bg-good px-3 py-2 text-center text-sm font-semibold text-black hover:bg-good/90"
         >
           Chamar no WhatsApp
         </a>

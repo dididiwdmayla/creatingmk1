@@ -34,8 +34,14 @@ export function Nav() {
   return (
     <>
       <header className="flex items-center justify-between border-b border-line bg-surface px-4 py-3">
-        <span className="font-mono text-sm font-semibold tracking-[0.2em] text-ink-secondary">
-          RADAR
+        <span className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+          </span>
+          <span className="font-display text-base font-bold tracking-[0.15em] text-foreground">
+            RADAR
+          </span>
         </span>
         <button
           type="button"
@@ -55,11 +61,14 @@ export function Nav() {
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`flex-1 py-3 text-center text-sm font-medium transition-colors ${
+                className={`relative flex-1 py-3 text-center text-sm font-medium transition-colors ${
                   active ? "text-accent" : "text-ink-muted hover:text-ink-secondary"
                 }`}
               >
                 {tab.label}
+                {active && (
+                  <span className="absolute inset-x-3 -top-px h-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent)]" />
+                )}
               </Link>
             );
           })}

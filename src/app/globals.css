@@ -2,23 +2,28 @@
 
 /*
  * Paleta única, sempre escura (painel de operação — sem alternância
- * clara/escura). Valores validados com a skill dataviz contra a superfície
- * #1a1a19 (contraste ≥3:1 e, para o ramp ordinal de status do lead,
- * monotonicidade de luminância). Ver ARCHITECTURE.md.
+ * clara/escura). Tema "radar/sonar": fundo em gradiente azul-profundo →
+ * quase-preto, acento vibrante verde-radar (fósforo de tela de sonar).
+ * Valores validados com a skill dataviz contra a surface #121b24
+ * (contraste ≥3:1; ramp ordinal de status do lead com monotonicidade de
+ * luminância; paleta de 10 cores das buscas com CVD adjacente ≥8ΔE). Ver
+ * ARCHITECTURE.md.
  */
 :root {
-  --background: #0d0d0d; /* page plane */
-  --foreground: #ffffff; /* ink primária */
-  --surface: #1a1a19; /* cards, inputs */
-  --surface-2: #232322; /* elevação sutil sobre a surface */
-  --line: rgba(255, 255, 255, 0.1); /* bordas em hairline */
-  --ink-secondary: #c3c2b7;
-  --ink-muted: #898781;
+  --background: #060a10; /* page plane, ponto mais escuro do gradiente */
+  --background-2: #0d141d; /* ponto médio do gradiente (azul-profundo) */
+  --foreground: #eef3f1; /* ink primária, levemente fria */
+  --surface: #121b24; /* cards, inputs */
+  --surface-2: #1a2530; /* elevação sutil sobre a surface */
+  --line: rgba(150, 190, 210, 0.14); /* bordas em hairline, tingidas de azul */
+  --ink-secondary: #b8c4c8;
+  --ink-muted: #7c8992;
 
-  --accent: #3987e5; /* ação primária, meter OK */
+  --accent: #2ee6a6; /* verde-radar — ação primária, meter OK */
+  --accent-ink: #04170f; /* texto sobre o accent (contraste 13:1) */
   --warning: #fab219; /* meter perto do teto */
-  --critical: #d03b3b; /* meter no teto / erro */
-  --good: #0ca30c;
+  --critical: #e6534f; /* meter no teto / erro */
+  --good: #1fbf5c;
 
   /* Status do lead é ordinal (posição no funil), não identidade — um hue,
      degraus monótonos de luminância: novo é o mais escuro, fechado o mais
@@ -31,6 +36,7 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-background-2: var(--background-2);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
@@ -39,6 +45,7 @@
   --color-ink-muted: var(--ink-muted);
 
   --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
   --color-warning: var(--warning);
   --color-critical: var(--critical);
   --color-good: var(--good);
@@ -48,11 +55,114 @@
   --color-status-respondeu: var(--status-respondeu);
   --color-status-fechado: var(--status-fechado);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono-data);
 }
 
 body {
+  min-height: 100%;
   background: var(--background);
+  background-image:
+    radial-gradient(ellipse 120% 60% at 50% -10%, var(--background-2) 0%, transparent 60%),
+    linear-gradient(180deg, var(--background-2) 0%, var(--background) 55%);
+  background-attachment: fixed;
   color: var(--foreground);
+}
+
+/* ── Animações ─────────────────────────────────────────────────────────── */
+
+@keyframes radar-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition {
+  animation: radar-fade-in 0.28s ease-out both;
+}
+
+@keyframes radar-sweep-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.radar-sweep {
+  position: relative;
+  border-radius: 9999px;
+  border: 1px solid var(--line);
+  background:
+    repeating-radial-gradient(circle, transparent 0, transparent 14%, var(--line) 14.5%, transparent 15%);
+  overflow: hidden;
+}
+
+.radar-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 300deg,
+    color-mix(in oklab, var(--accent) 55%, transparent) 348deg,
+    var(--accent) 360deg
+  );
+  animation: radar-sweep-spin 3.2s linear infinite;
+  mix-blend-mode: screen;
+  opacity: 0.85;
+}
+
+@keyframes radar-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 8px color-mix(in oklab, currentColor 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 0%, transparent);
+  }
+}
+
+.pulse-critical {
+  color: var(--critical);
+  animation: radar-pulse-ring 1.6s ease-out infinite;
+}
+
+.pulse-warning {
+  color: var(--warning);
+  animation: radar-pulse-ring 1.9s ease-out infinite;
+}
+
+.card-lift {
+  transition:
+    transform 0.15s ease-out,
+    box-shadow 0.15s ease-out,
+    border-color 0.15s ease-out;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+  box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition,
+  .radar-sweep::before,
+  .pulse-critical,
+  .pulse-warning,
+  .card-lift {
+    animation: none !important;
+    transition: none !important;
+  }
 }

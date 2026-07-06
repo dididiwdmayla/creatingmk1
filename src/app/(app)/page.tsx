@@ -6,6 +6,7 @@ import { ApiError, api, type UsageResponse } from "@/lib/api-client";
 import { formatBRL, formatInt, formatPercent, formatUSD } from "@/lib/format";
 import type { Metrics } from "@/lib/leads/metrics";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
+import { RadarSweep } from "@/components/RadarSweep";
 import { UsageMeter } from "@/components/UsageMeter";
 
 /** Fetcher puro (não mexe em estado) — reaproveitado pelo efeito de carga e pelo retry. */
@@ -56,7 +57,12 @@ export default function DashboardPage() {
   }
 
   if (loading) {
-    return <p className="text-sm text-ink-muted">Carregando…</p>;
+    return (
+      <div className="flex flex-col items-center gap-3 py-16">
+        <RadarSweep size={88} />
+        <p className="text-sm text-ink-muted">Varrendo o painel…</p>
+      </div>
+    );
   }
 
   if (erro || !usage || !metrics) {
@@ -66,7 +72,7 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={retry}
-          className="mt-3 rounded bg-critical px-3 py-1.5 text-xs font-medium text-white"
+          className="mt-3 rounded bg-critical px-3 py-1.5 text-xs font-medium text-black"
         >
           Tentar de novo
         </button>
@@ -77,11 +83,13 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <section>
-        <p className="text-xs text-ink-muted">Custo projetado este mês · {usage.period}</p>
-        <p className="mt-1 font-mono text-5xl font-semibold tracking-tight text-foreground">
+        <p className="text-xs uppercase tracking-[0.15em] text-ink-muted">
+          Custo projetado este mês · {usage.period}
+        </p>
+        <p className="mt-1 font-display text-6xl font-bold leading-none tracking-tight text-foreground">
           {formatBRL(usage.custoProjetado.brl)}
         </p>
-        <p className="mt-1 text-xs text-ink-muted">
+        <p className="mt-2 font-mono text-xs text-ink-muted">
           {formatUSD(usage.custoProjetado.usd)} · excedente além da cota grátis
         </p>
       </section>
@@ -119,9 +127,9 @@ export default function DashboardPage() {
 
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-line bg-surface p-3">
+    <div className="card-lift rounded-lg border border-line bg-surface p-3">
       <p className="text-xs text-ink-muted">{label}</p>
-      <p className="mt-1 font-mono text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-1 font-display text-3xl font-bold text-foreground">{value}</p>
     </div>
   );
 }

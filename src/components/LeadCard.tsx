@@ -79,7 +79,7 @@ export function LeadCard({
   }
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-3">
+    <div className="card-lift rounded-lg border border-line bg-surface p-3">
       <div className="flex items-start justify-between gap-2">
         <Link href={`/leads/${lead.placeId}`} className="min-w-0 flex-1 hover:opacity-80">
           <p className="truncate text-sm font-medium text-foreground">{lead.nome}</p>
@@ -141,7 +141,7 @@ export function LeadCard({
               type="button"
               onClick={salvarNotas}
               disabled={salvandoNotas}
-              className="rounded bg-accent px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+              className="rounded bg-accent px-2 py-1 text-xs font-semibold text-accent-ink disabled:opacity-50"
             >
               {salvandoNotas ? "Salvando…" : "Salvar"}
             </button>
