@@ -23,6 +23,13 @@ export const metadata: Metadata = {
   description: "Prospecção de leads locais",
 };
 
+/**
+ * Aplica o tema salvo ANTES da primeira pintura (evita flash). Roda inline
+ * como primeiro elemento do body; o default é o tema escuro (sem atributo).
+ * Mesma chave usada pelo ThemeToggle.
+ */
+const THEME_INIT = `try{if(localStorage.getItem("radar:tema")==="claro")document.documentElement.dataset.theme="light"}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -34,6 +41,7 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${inter.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
         {children}
       </body>
     </html>

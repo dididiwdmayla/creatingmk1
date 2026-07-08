@@ -8,6 +8,7 @@ const PRICING: PricingTable = {
   textSearchEnterprise: { usdPer1000: 35, freeQuota: 1_000 },
   detailsEssentials: { usdPer1000: 5, freeQuota: 10_000 },
   detailsEnterprise: { usdPer1000: 20, freeQuota: 1_000 },
+  geocoding: { usdPer1000: 5, freeQuota: 10_000 },
 };
 
 describe("projectedCostUSD", () => {
@@ -21,6 +22,7 @@ describe("projectedCostUSD", () => {
       textSearchEnterprise: 500,
       detailsEssentials: 500,
       detailsEnterprise: 900,
+      geocoding: 100,
     };
     expect(projectedCostUSD(usage, PRICING)).toBe(0);
   });
@@ -31,6 +33,7 @@ describe("projectedCostUSD", () => {
       textSearchEnterprise: 1_000,
       detailsEssentials: 10_000,
       detailsEnterprise: 1_000,
+      geocoding: 10_000,
     };
     expect(projectedCostUSD(usage, PRICING)).toBe(0);
   });
@@ -47,8 +50,9 @@ describe("projectedCostUSD", () => {
       textSearchEnterprise: 1_200, //   200 × $35/1000 = $7
       detailsEssentials: 12_000, // 2.000 × $5/1000  = $10
       detailsEnterprise: 1_100, //   100 × $20/1000 = $2
+      geocoding: 12_000, // 2.000 × $5/1000  = $10
     };
-    expect(projectedCostUSD(usage, PRICING)).toBeCloseTo(35, 10);
+    expect(projectedCostUSD(usage, PRICING)).toBeCloseTo(45, 10);
   });
 
   it("respeita tabela de preços customizada (override via config)", () => {
@@ -57,6 +61,7 @@ describe("projectedCostUSD", () => {
       textSearchEnterprise: { usdPer1000: 0, freeQuota: 0 },
       detailsEssentials: { usdPer1000: 0, freeQuota: 0 },
       detailsEnterprise: { usdPer1000: 0, freeQuota: 0 },
+      geocoding: { usdPer1000: 0, freeQuota: 0 },
     };
     expect(projectedCostUSD({ ...ZERO_USAGE, textSearch: 500 }, custom)).toBe(5);
   });

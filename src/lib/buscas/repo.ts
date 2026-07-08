@@ -41,14 +41,27 @@ export async function listBuscas(db: AppDb): Promise<Busca[]> {
     .sort((a, b) => b.criadaEm.localeCompare(a.criadaEm));
 }
 
-export async function updateBuscaCor(db: AppDb, id: string, cor: string): Promise<Busca> {
+export interface BuscaPatch {
+  cor?: string;
+  /** String vazia limpa a mensagem do grupo (volta ao fallback global). */
+  mensagemPadrao?: string;
+}
+
+export async function updateBusca(db: AppDb, id: string, patch: BuscaPatch): Promise<Busca> {
   const ref = db.collection(BUSCAS_COLLECTION).doc(id);
   const snap = await ref.get();
   const data = snap.exists ? snap.data() : undefined;
   if (!data) {
     throw new NotFoundError(`Busca "${id}" não encontrada.`);
   }
-  const busca: Busca = { ...(data as unknown as Busca), id, cor };
+  const busca: Busca = { ...(data as unknown as Busca), id };
+  if (patch.cor !== undefined) {
+    busca.cor = patch.cor;
+  }
+  if (patch.mensagemPadrao !== undefined) {
+    // undefined some do doc no toDoc (round-trip JSON descarta a chave)…
+    busca.mensagemPadrao = patch.mensagemPadrao.trim() || undefined;
+  }
   await ref.set(toDoc(busca));
   return busca;
 }

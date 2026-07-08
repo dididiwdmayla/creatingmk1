@@ -140,6 +140,75 @@ describe("GET /api/leads", () => {
     expect(await leadIds(await list("?temSite=sem"))).toEqual(["Q1", "C"]);
     expect(await leadIds(await list("?temSite=com"))).toEqual(["Q2", "B"]);
   });
+
+  it("temTelefone da busca qualificada vale no filtro mesmo sem enriquecer", async () => {
+    seedLead("T1", {
+      criadoEm: "2026-07-09T10:00:00.000Z",
+      temTelefone: true,
+      telefone: "(44) 3333-3333",
+      telefoneIntl: "+55 44 3333-3333",
+    });
+    seedLead("T2", { criadoEm: "2026-07-10T10:00:00.000Z", temTelefone: false });
+
+    expect(await leadIds(await list("?temTelefone=com"))).toEqual(["T1", "C", "B"]);
+    expect(await leadIds(await list("?temTelefone=sem"))).toEqual(["T2"]);
+  });
+
+  it("migração: doc antigo sem siteProprio deriva na leitura (siteUrl de rede social → false)", async () => {
+    seedLead("IG", {
+      criadoEm: "2026-07-11T10:00:00.000Z",
+      temSite: true,
+      siteUrl: "https://www.instagram.com/negocio",
+    });
+
+    expect(await leadIds(await list("?temSite=sem"))).toContain("IG");
+    expect(await leadIds(await list("?temSite=com"))).not.toContain("IG");
+
+    const { leads } = await (await list()).json();
+    const ig = (leads as Array<{ placeId: string; siteProprio?: boolean }>).find(
+      (l) => l.placeId === "IG",
+    );
+    expect(ig?.siteProprio).toBe(false);
+  });
+
+  it("siteProprio persistido manda no filtro (rede social entra em 'sem')", async () => {
+    seedLead("SP", {
+      criadoEm: "2026-07-13T10:00:00.000Z",
+      temSite: true,
+      siteUrl: "https://wa.me/5544999990000",
+      siteProprio: false,
+    });
+    seedLead("OK", {
+      criadoEm: "2026-07-14T10:00:00.000Z",
+      temSite: true,
+      siteUrl: "https://ok.com.br",
+      siteProprio: true,
+    });
+
+    expect(await leadIds(await list("?temSite=sem"))).toContain("SP");
+    expect(await leadIds(await list("?temSite=sem"))).not.toContain("OK");
+    expect(await leadIds(await list("?temSite=com"))).toContain("OK");
+  });
+
+  it("site de rede social no enriquecimento também conta como SEM site próprio", async () => {
+    seedLead("SN", {
+      criadoEm: "2026-07-12T10:00:00.000Z",
+      enriquecido: true,
+      detalhes: {
+        site: "https://linktr.ee/negocio",
+        enriquecidoEm: "2026-07-12T11:00:00.000Z",
+      },
+    });
+
+    expect(await leadIds(await list("?temSite=sem"))).toContain("SN");
+  });
+
+  it("descartados vão pro fim da lista, mas continuam aparecendo", async () => {
+    seedLead("D1", { criadoEm: "2026-07-20T10:00:00.000Z", descartado: true });
+
+    // D1 é o mais recente, mas descartado → fim da lista.
+    expect(await leadIds(await list())).toEqual(["C", "B", "A", "D1"]);
+  });
 });
 
 function params(id: string): { params: Promise<{ id: string }> } {
@@ -293,6 +362,27 @@ describe("PATCH /api/leads/[id]", () => {
 
   it("favorito não-booleano → 400", async () => {
     const res = await PATCH(...patchRequest("A", { favorito: "sim" }));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("descarta e restaura o lead sem apagar nada (descarte suave)", async () => {
+    const res = await PATCH(...patchRequest("A", { descartado: true }));
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.descartado).toBe(true);
+    expect(lead.status).toBe("novo");
+    expect(db.getDoc("leads/A")).toMatchObject({ descartado: true, nome: "Lead A" });
+
+    const volta = await PATCH(...patchRequest("A", { descartado: false }));
+    expect(((await volta.json()) as { lead: { descartado: boolean } }).lead.descartado).toBe(
+      false,
+    );
+  });
+
+  it("descartado não-booleano → 400", async () => {
+    const res = await PATCH(...patchRequest("A", { descartado: "sim" }));
 
     expect(res.status).toBe(400);
   });

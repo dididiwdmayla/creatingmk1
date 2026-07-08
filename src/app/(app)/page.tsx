@@ -72,7 +72,7 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={retry}
-          className="mt-3 rounded bg-critical px-3 py-1.5 text-xs font-medium text-black"
+          className="mt-3 rounded bg-critical px-3 py-1.5 text-xs font-medium text-critical-ink"
         >
           Tentar de novo
         </button>

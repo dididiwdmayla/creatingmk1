@@ -40,7 +40,7 @@ export function UsageMeter({
           {formatInt(used)} / {formatInt(cap)}
         </span>
       </div>
-      <div className="relative mt-1.5 h-2 overflow-hidden rounded-full bg-white/8">
+      <div className="relative mt-1.5 h-2 overflow-hidden rounded-full bg-[var(--meter-track)]">
         <div
           className={`h-full rounded-full transition-[width] duration-700 ease-out ${fillClass} ${
             blocked ? "pulse-critical" : nearCap ? "pulse-warning" : ""
@@ -49,7 +49,7 @@ export function UsageMeter({
         />
         {freeQuota > 0 && freeQuota < cap && (
           <div
-            className="absolute inset-y-0 w-px bg-white/30"
+            className="absolute inset-y-0 w-px bg-[var(--meter-mark)]"
             style={{ left: `${freeQuotaPct}%` }}
           />
         )}

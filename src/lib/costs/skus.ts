@@ -11,6 +11,8 @@
  *   (US$32/1.000, 5.000 grátis/mês).
  * - websiteUri/telefones/rating/userRatingCount → tier ENTERPRISE
  *   (Text Search US$35/1.000; Place Details US$20/1.000; 1.000 grátis/mês).
+ * - Geocoding API (resolver a região da busca) → Essentials
+ *   (US$5/1.000, 10.000 grátis/mês). Sem field mask — API própria.
  */
 
 export const SKUS = [
@@ -18,6 +20,7 @@ export const SKUS = [
   "textSearchEnterprise",
   "detailsEssentials",
   "detailsEnterprise",
+  "geocoding",
 ] as const;
 
 export type Sku = (typeof SKUS)[number];
@@ -42,14 +45,18 @@ export interface SkuPricing {
 
 export type PricingTable = Record<Sku, SkuPricing>;
 
-/** Field mask enviado em X-Goog-FieldMask, por SKU. */
-export const FIELD_MASKS: Record<Sku, string> = {
+/**
+ * Field mask enviado em X-Goog-FieldMask, por SKU da Places API.
+ * O SKU geocoding fica fora: a Geocoding API não usa field mask.
+ */
+export const FIELD_MASKS: Record<Exclude<Sku, "geocoding">, string> = {
   textSearch:
     "places.id,places.displayName,places.formattedAddress,places.location,nextPageToken",
-  // Busca qualificada: + websiteUri (campo Enterprise) para saber quem já
-  // tem site sem gastar um Place Details por lead.
+  // Busca qualificada: + websiteUri e telefones (campos Enterprise — a
+  // chamada já é cobrada no tier Enterprise pelo websiteUri, então os
+  // telefones vêm de graça no mesmo request).
   textSearchEnterprise:
-    "places.id,places.displayName,places.formattedAddress,places.location,places.websiteUri,nextPageToken",
+    "places.id,places.displayName,places.formattedAddress,places.location,places.websiteUri,places.nationalPhoneNumber,places.internationalPhoneNumber,nextPageToken",
   // displayName em Place Details é tier Pro — fora do mask para o SKU
   // continuar Essentials de verdade.
   detailsEssentials: "id,formattedAddress,location",
@@ -66,6 +73,7 @@ export const DEFAULT_PRICING: PricingTable = {
   textSearchEnterprise: { usdPer1000: 35, freeQuota: 1_000 },
   detailsEssentials: { usdPer1000: 5, freeQuota: 10_000 },
   detailsEnterprise: { usdPer1000: 20, freeQuota: 1_000 },
+  geocoding: { usdPer1000: 5, freeQuota: 10_000 },
 };
 
 /**
@@ -77,6 +85,7 @@ export const DEFAULT_CAPS: UsageCounts = {
   textSearchEnterprise: 1_000,
   detailsEssentials: 10_000,
   detailsEnterprise: 1_000,
+  geocoding: 10_000,
 };
 
 export const ZERO_USAGE: UsageCounts = {
@@ -84,4 +93,5 @@ export const ZERO_USAGE: UsageCounts = {
   textSearchEnterprise: 0,
   detailsEssentials: 0,
   detailsEnterprise: 0,
+  geocoding: 0,
 };

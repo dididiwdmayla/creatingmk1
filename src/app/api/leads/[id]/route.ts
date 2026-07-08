@@ -25,7 +25,8 @@ export async function GET(_req: Request, { params }: Params) {
 
 /**
  * Atualização parcial do lead: transição de status (novo → contactado →
- * respondeu → fechado) e/ou notas/favorito editáveis direto no card.
+ * respondeu → fechado) e/ou notas/favorito/descartado editáveis direto no
+ * card. Descartar é suave: não deleta, só marca (reversível).
  */
 export async function PATCH(req: Request, { params }: Params) {
   try {
@@ -33,9 +34,14 @@ export async function PATCH(req: Request, { params }: Params) {
     const body = await readJsonBody(req);
     const problemas: string[] = [];
 
-    const { status, notas, favorito } = body;
-    if (status === undefined && notas === undefined && favorito === undefined) {
-      problemas.push("informe ao menos um de: status, notas, favorito");
+    const { status, notas, favorito, descartado } = body;
+    if (
+      status === undefined &&
+      notas === undefined &&
+      favorito === undefined &&
+      descartado === undefined
+    ) {
+      problemas.push("informe ao menos um de: status, notas, favorito, descartado");
     }
     if (
       status !== undefined &&
@@ -51,6 +57,9 @@ export async function PATCH(req: Request, { params }: Params) {
     if (favorito !== undefined && typeof favorito !== "boolean") {
       problemas.push("favorito deve ser booleano");
     }
+    if (descartado !== undefined && typeof descartado !== "boolean") {
+      problemas.push("descartado deve ser booleano");
+    }
     if (problemas.length > 0) {
       throw new ValidationError(problemas);
     }
@@ -60,10 +69,11 @@ export async function PATCH(req: Request, { params }: Params) {
     if (status !== undefined) {
       lead = await changeStatus(db, id, status as LeadStatus);
     }
-    if (notas !== undefined || favorito !== undefined) {
+    if (notas !== undefined || favorito !== undefined || descartado !== undefined) {
       lead = await updateLeadExtras(db, id, {
         notas: notas as string | undefined,
         favorito: favorito as boolean | undefined,
+        descartado: descartado as boolean | undefined,
       });
     }
     return NextResponse.json({ lead });

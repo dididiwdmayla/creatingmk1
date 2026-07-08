@@ -1,18 +1,23 @@
 import { QuotaExceededError, reserveQuota, FIELD_MASKS, type Sku, type UsageCounts } from "@/lib/costs";
 import type { UsageDb } from "@/lib/firestore-like";
+import { isSiteProprio } from "@/lib/site-proprio";
 
 /**
  * Cliente da Google Places API (New). Único ponto do app que fala com o
- * Google: toda chamada passa por reserveQuota() ANTES do fetch (se o Google
- * falhar depois, o contador fica 1 acima do real — o lado seguro do erro) e
- * usa exclusivamente os field masks de skus.ts, amarrados ao SKU contado.
+ * endpoint places.googleapis.com: toda chamada passa por reserveQuota()
+ * ANTES do fetch (se o Google falhar depois, o contador fica 1 acima do
+ * real — o lado seguro do erro) e usa exclusivamente os field masks de
+ * skus.ts, amarrados ao SKU contado.
  */
 
 const BASE_URL = "https://places.googleapis.com/v1";
 
-/** Página máxima do Text Search (New) e limite de resultados do app (2 páginas). */
+/** Página máxima do Text Search (New). */
 const PAGE_SIZE_MAX = 20;
+/** Máximo de resultados que o usuário pode pedir por busca. */
 export const SEARCH_MAX_RESULTS = 40;
+/** O Text Search (New) devolve no máximo 60 resultados = 3 páginas. */
+export const SEARCH_MAX_PAGES = 3;
 
 /** Google respondeu erro. A cota do SKU já foi consumida. Rotas → HTTP 502. */
 export class PlacesError extends Error {
@@ -27,14 +32,30 @@ export class PlacesError extends Error {
   }
 }
 
+export interface LatLng {
+  latitude: number;
+  longitude: number;
+}
+
+/** Retângulo (viewport) usado no locationRestriction do Text Search. */
+export interface LatLngRect {
+  low: LatLng;
+  high: LatLng;
+}
+
 export interface PlaceBasico {
   placeId: string;
   nome: string;
   endereco?: string;
   location?: { lat: number; lng: number };
-  /** Só na busca qualificada: o websiteUri veio de graça no Text Search. */
+  /** Só na busca qualificada: site/telefones vieram de graça no Text Search. */
   temSite?: boolean;
   siteUrl?: string;
+  /** true = site próprio; false = sem URL ou URL de rede social/agregador. */
+  siteProprio?: boolean;
+  temTelefone?: boolean;
+  telefone?: string;
+  telefoneIntl?: string;
 }
 
 export interface DetalhesLugar {
@@ -46,21 +67,32 @@ export interface DetalhesLugar {
 }
 
 export interface SearchTextOptions {
-  /** Resultados desejados (1–40). Acima de 20 pagina, cada página custa 1 request. */
+  /** Leads NOVOS desejados (1–40). Pagina até juntar, cada página = 1 request. */
   quantidade?: number;
-  /** Busca qualificada: mask com places.websiteUri → SKU textSearchEnterprise. */
+  /** Busca qualificada: mask com websiteUri/telefones → SKU textSearchEnterprise. */
   qualificada?: boolean;
+  /** Localização dura: retângulo (viewport geocodificado) da região. */
+  locationRestriction?: LatLngRect;
+  /**
+   * Diz se o placeId é inédito na base. Só inéditos contam para a
+   * quantidade pedida ("20 = 20 novos"); sem o predicado, todo resultado
+   * conta. Os já existentes continuam no retorno (o upsert anexa a busca).
+   */
+  isNovo?: (placeId: string) => Promise<boolean>;
 }
 
 export interface SearchTextResult {
   places: PlaceBasico[];
   /** Páginas efetivamente buscadas — cada uma consumiu 1 de cota. */
   paginas: number;
-  /** Preenchido quando a busca parou antes da quantidade pedida (teto/erro). */
+  /** Resultados inéditos segundo isNovo (sem o predicado, = places.length). */
+  novos: number;
+  /** Preenchido quando a busca parou antes da quantidade pedida (teto/erro/fim). */
   aviso?: string;
 }
 
-function apiKey(): string {
+/** Chave da Google Maps Platform (Places + Geocoding), só em env var. */
+export function requireApiKey(): string {
   const key = process.env.GOOGLE_PLACES_API_KEY;
   if (!key) {
     throw new Error(
@@ -98,8 +130,16 @@ function toPlaceBasico(place: GooglePlace, qualificada: boolean): PlaceBasico | 
         ? { lat: place.location.latitude, lng: place.location.longitude }
         : undefined,
     ...(qualificada && {
+      // O mask pediu websiteUri, então a resposta é DEFINITIVA: sem URL =
+      // temSite false, nunca "desconhecido". Instagram/WhatsApp/linktr.ee
+      // não contam como site próprio — a URL fica guardada, mas o lead
+      // segue quente (siteProprio false).
       temSite: Boolean(place.websiteUri),
       siteUrl: place.websiteUri || undefined,
+      siteProprio: Boolean(place.websiteUri) && isSiteProprio(place.websiteUri ?? ""),
+      temTelefone: Boolean(place.nationalPhoneNumber || place.internationalPhoneNumber),
+      telefone: place.nationalPhoneNumber || undefined,
+      telefoneIntl: place.internationalPhoneNumber || undefined,
     }),
   };
 }
@@ -107,7 +147,8 @@ function toPlaceBasico(place: GooglePlace, qualificada: boolean): PlaceBasico | 
 /**
  * Text Search (New). SKU textSearch (tier Pro) ou, na busca qualificada,
  * textSearchEnterprise. Pagina via nextPageToken até `quantidade`
- * resultados (máx. 40 = 2 páginas), reservando cota ANTES de cada página.
+ * resultados NOVOS (com isNovo; sem ele, resultados totais), reservando
+ * cota ANTES de cada página, até o limite de 3 páginas do Google.
  * Se o teto (ou o Google) falhar a partir da 2ª página, devolve o que já
  * foi obtido com `aviso` — a cota da 1ª página já foi consumida, então
  * jogar os resultados fora seria pagar sem receber.
@@ -118,20 +159,25 @@ export async function searchText(
   caps: UsageCounts,
   options: SearchTextOptions = {},
 ): Promise<SearchTextResult> {
-  const key = apiKey();
+  const key = requireApiKey();
   const quantidade = Math.min(
     Math.max(Math.floor(options.quantidade ?? PAGE_SIZE_MAX), 1),
     SEARCH_MAX_RESULTS,
   );
   const qualificada = options.qualificada ?? false;
   const sku: Sku = qualificada ? "textSearchEnterprise" : "textSearch";
+  // pageSize constante entre as páginas: a API exige os mesmos parâmetros
+  // (fora o pageToken) nas chamadas de continuação.
+  const pageSize = Math.min(quantidade, PAGE_SIZE_MAX);
 
   const places: PlaceBasico[] = [];
+  const vistos = new Set<string>();
+  let novos = 0;
   let paginas = 0;
   let aviso: string | undefined;
   let pageToken: string | undefined;
 
-  while (places.length < quantidade) {
+  while (paginas < SEARCH_MAX_PAGES) {
     try {
       await reserveQuota(db, sku, caps);
     } catch (error) {
@@ -151,7 +197,10 @@ export async function searchText(
       body: JSON.stringify({
         textQuery,
         languageCode: "pt-BR",
-        pageSize: Math.min(quantidade - places.length, PAGE_SIZE_MAX),
+        pageSize,
+        ...(options.locationRestriction && {
+          locationRestriction: { rectangle: options.locationRestriction },
+        }),
         ...(pageToken && { pageToken }),
       }),
     });
@@ -166,14 +215,25 @@ export async function searchText(
     const data = (await res.json()) as { places?: GooglePlace[]; nextPageToken?: string };
     for (const raw of data.places ?? []) {
       const place = toPlaceBasico(raw, qualificada);
-      if (place) places.push(place);
+      if (!place || vistos.has(place.placeId)) continue;
+      vistos.add(place.placeId);
+      places.push(place);
+      if ((await options.isNovo?.(place.placeId)) ?? true) {
+        novos += 1;
+      }
     }
 
     pageToken = data.nextPageToken;
-    if (!pageToken) break;
+    if (novos >= quantidade || !pageToken) break;
   }
 
-  return { places: places.slice(0, quantidade), paginas, aviso };
+  if (!aviso && novos < quantidade) {
+    aviso = pageToken
+      ? `limite de ${SEARCH_MAX_PAGES} páginas do Google atingido: ${novos} novo(s)`
+      : `resultados esgotados: ${novos} novo(s) em ${paginas} página(s)`;
+  }
+
+  return { places, paginas, novos, aviso };
 }
 
 /** Place Details (New) com o field mask Enterprise, SKU detailsEnterprise. */
@@ -182,7 +242,7 @@ export async function placeDetails(
   placeId: string,
   caps: UsageCounts,
 ): Promise<DetalhesLugar> {
-  const key = apiKey();
+  const key = requireApiKey();
   await reserveQuota(db, "detailsEnterprise", caps);
 
   const url = `${BASE_URL}/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`;

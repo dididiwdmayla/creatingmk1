@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
+import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import { formatDateTime } from "@/lib/format";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
@@ -18,23 +19,39 @@ const TRANSITION_LABELS: Record<LeadStatus, string> = {
   fechado: "Marcar como fechado",
 };
 
+/**
+ * Mensagem do WhatsApp: a do grupo (busca) mais recente do lead que tiver
+ * mensagem própria; senão a global da config.
+ */
+function mensagemParaLead(lead: Lead, buscas: Busca[], config: AppConfig): string {
+  const porId = new Map(buscas.map((busca) => [busca.id, busca]));
+  for (const id of [...(lead.buscaId ?? [])].reverse()) {
+    const propria = porId.get(id)?.mensagemPadrao;
+    if (propria) return propria;
+  }
+  return config.mensagemPadrao;
+}
+
 export function LeadDetailClient({ id }: { id: string }) {
   const [lead, setLead] = useState<Lead | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [buscas, setBuscas] = useState<Busca[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
   const [enrichErro, setEnrichErro] = useState<string | null>(null);
   const [changingTo, setChangingTo] = useState<LeadStatus | null>(null);
+  const [descartando, setDescartando] = useState(false);
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([api.getLead(id), api.getConfig()])
-      .then(([{ lead: leadData }, { config: configData }]) => {
+    Promise.all([api.getLead(id), api.getConfig(), api.listBuscas()])
+      .then(([{ lead: leadData }, { config: configData }, { buscas: buscasData }]) => {
         if (ignore) return;
         setLead(leadData);
         setConfig(configData);
+        setBuscas(buscasData);
         setNotFound(false);
         setErro(null);
       })
@@ -88,6 +105,20 @@ export function LeadDetailClient({ id }: { id: string }) {
     }
   }
 
+  async function handleDescarte() {
+    if (!lead) return;
+    setDescartando(true);
+    setErro(null);
+    try {
+      const { lead: updated } = await api.patchLead(id, { descartado: !lead.descartado });
+      setLead(updated);
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : "Falha ao descartar.");
+    } finally {
+      setDescartando(false);
+    }
+  }
+
   if (loading) {
     return <p className="text-sm text-ink-muted">Carregando…</p>;
   }
@@ -103,27 +134,44 @@ export function LeadDetailClient({ id }: { id: string }) {
     );
   }
 
-  if (erro || !lead) {
-    return <p className="text-sm text-critical">{erro ?? "Falha ao carregar o lead."}</p>;
+  if (erro && !lead) {
+    return <p className="text-sm text-critical">{erro}</p>;
+  }
+  if (!lead) {
+    return <p className="text-sm text-critical">Falha ao carregar o lead.</p>;
   }
 
   const detalhes = lead.detalhes;
+  // Telefone da busca qualificada já sustenta o botão — sem enriquecer.
+  const telefoneIntl = detalhes?.telefoneIntl ?? lead.telefoneIntl;
   const waLink =
-    lead.enriquecido && detalhes?.telefoneIntl && config
-      ? buildWhatsAppLink(config.mensagemPadrao, lead.nome, detalhes.telefoneIntl)
+    telefoneIntl && config
+      ? buildWhatsAppLink(mensagemParaLead(lead, buscas, config), lead.nome, telefoneIntl)
       : null;
+  // Derivado no servidor (asLead): true = site próprio; false = sem site OU
+  // só rede social/agregador; undefined = desconhecido.
+  const siteEhProprio = lead.siteProprio;
 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <Link href="/leads" className="text-xs text-ink-muted hover:text-foreground">
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className="text-xs text-ink-muted hover:text-foreground"
+        >
           ← Leads
-        </Link>
+        </button>
         <div className="mt-2 flex items-start justify-between gap-2">
           <h1 className="font-display text-xl font-bold text-foreground">{lead.nome}</h1>
           <StatusBadge status={lead.status} />
         </div>
         {lead.endereco && <p className="mt-1 text-sm text-ink-secondary">{lead.endereco}</p>}
+        {lead.descartado && (
+          <p className="mt-2 inline-block rounded border border-critical/40 bg-critical/10 px-2 py-1 text-xs text-critical">
+            Lead descartado — continua na base e pode ser restaurado.
+          </p>
+        )}
       </div>
 
       <section className="rounded-lg border border-line bg-surface p-4">
@@ -135,8 +183,14 @@ export function LeadDetailClient({ id }: { id: string }) {
             <Row label="Telefone" value={detalhes.telefone ?? "—"} />
             <Row
               label="Site"
-              value={detalhes.site ?? "sem site (lead quente)"}
-              highlight={!detalhes.site}
+              value={
+                detalhes.site
+                  ? siteEhProprio
+                    ? detalhes.site
+                    : `${detalhes.site} (rede social — sem site próprio)`
+                  : "sem site (lead quente)"
+              }
+              highlight={!detalhes.site || siteEhProprio === false}
             />
             <Row
               label="Avaliação"
@@ -150,7 +204,29 @@ export function LeadDetailClient({ id }: { id: string }) {
           </dl>
         ) : (
           <div className="mt-3">
-            <p className="text-sm text-ink-muted">Ainda não enriquecido.</p>
+            {(lead.telefone !== undefined || lead.temSite !== undefined) && (
+              <dl className="mb-3 flex flex-col gap-2 text-sm">
+                {lead.telefone !== undefined && (
+                  <Row label="Telefone (da busca)" value={lead.telefone} />
+                )}
+                {lead.temSite !== undefined && (
+                  <Row
+                    label="Site (da busca)"
+                    value={
+                      siteEhProprio
+                        ? (lead.siteUrl ?? "sim")
+                        : lead.siteUrl
+                          ? `${lead.siteUrl} (rede social — sem site próprio)`
+                          : "sem site (lead quente)"
+                    }
+                    highlight={siteEhProprio === false}
+                  />
+                )}
+              </dl>
+            )}
+            <p className="text-sm text-ink-muted">
+              Ainda não enriquecido{lead.temTelefone ? " (rating e mais no enriquecimento)" : ""}.
+            </p>
             <Button onClick={handleEnrich} loading={enriching} className="mt-3">
               Enriquecer
             </Button>
@@ -164,7 +240,7 @@ export function LeadDetailClient({ id }: { id: string }) {
           href={waLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded bg-good px-3 py-2 text-center text-sm font-semibold text-black hover:bg-good/90"
+          className="rounded bg-good px-3 py-2 text-center text-sm font-semibold text-good-ink hover:bg-good/90"
         >
           Chamar no WhatsApp
         </a>
@@ -201,6 +277,16 @@ export function LeadDetailClient({ id }: { id: string }) {
           </dl>
         )}
       </section>
+
+      <Button
+        variant={lead.descartado ? "secondary" : "ghost"}
+        onClick={handleDescarte}
+        loading={descartando}
+      >
+        {lead.descartado ? "Restaurar lead" : "Descartar lead"}
+      </Button>
+
+      {erro && <p className="text-sm text-critical">{erro}</p>}
     </div>
   );
 }
@@ -219,7 +305,9 @@ function Row({
   return (
     <div className={`flex items-center justify-between gap-2 ${compact ? "" : "text-sm"}`}>
       <dt className="text-ink-muted">{label}</dt>
-      <dd className={highlight ? "font-medium text-good" : "text-foreground"}>{value}</dd>
+      <dd className={highlight ? "text-right font-medium text-good" : "text-right text-foreground"}>
+        {value}
+      </dd>
     </div>
   );
 }

@@ -4,8 +4,9 @@ import { createBusca } from "@/lib/buscas/repo";
 import { loadConfig } from "@/lib/config";
 import { ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
+import { geocodeRegion } from "@/lib/geo/geocode";
 import { handleRouteError, readJsonBody } from "@/lib/http";
-import { upsertLeads } from "@/lib/leads/repo";
+import { getLead, upsertLeads } from "@/lib/leads/repo";
 import { SEARCH_MAX_RESULTS, searchText } from "@/lib/places/client";
 
 function defaultNome(nicho: string, now: Date): string {
@@ -18,6 +19,12 @@ function defaultNome(nicho: string, now: Date): string {
  * Busca leads via Text Search (SKU textSearch), faz upsert em /leads e
  * registra a busca em /buscas. nicho/regiao vêm do corpo ou, na ausência,
  * da config; a query enviada ao Google é "{nicho} {subNicho} {regiao}".
+ *
+ * Localização dura: a região é geocodificada (cache em /geocache, 1
+ * request por região na vida) e o viewport vira locationRestriction —
+ * resultado de fora da região não entra. "20 = 20 novos": a paginação
+ * continua até juntar `quantidade` leads INÉDITOS na base (ou acabarem os
+ * resultados), cada página reservando 1 de cota.
  */
 export async function POST(req: Request) {
   try {
@@ -60,9 +67,13 @@ export async function POST(req: Request) {
     const nome = ((body.nome as string | undefined) ?? "").trim() || defaultNome(nicho, now);
     const query = [nicho, subNicho, regiao].filter(Boolean).join(" ");
 
+    const geo = await geocodeRegion(db, regiao, config.caps);
+
     const resultado = await searchText(db, query, config.caps, {
       quantidade: quantidade as number | undefined,
       qualificada: qualificada as boolean | undefined,
+      locationRestriction: geo.viewport,
+      isNovo: async (placeId) => !(await getLead(db, placeId)),
     });
 
     const buscaId = crypto.randomUUID();
@@ -93,6 +104,7 @@ export async function POST(req: Request) {
       leads,
       busca,
       paginas: resultado.paginas,
+      regiaoResolvida: geo.endereco,
       ...(resultado.aviso && { aviso: resultado.aviso }),
     });
   } catch (error) {

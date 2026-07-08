@@ -9,7 +9,7 @@ const VARIANT_CLASSES: Record<Variant, string> = {
     "bg-accent text-accent-ink hover:bg-accent/90 hover:-translate-y-px hover:shadow-[0_6px_16px_-6px_var(--accent)]",
   secondary:
     "bg-surface-2 text-foreground border border-line hover:bg-surface-2/70 hover:border-accent/40",
-  danger: "bg-critical text-black hover:bg-critical/90",
+  danger: "bg-critical text-critical-ink hover:bg-critical/90",
   ghost: "text-ink-secondary hover:text-foreground",
 };
 

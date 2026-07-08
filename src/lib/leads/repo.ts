@@ -2,6 +2,7 @@ import type { FiltroPresenca } from "@/lib/config";
 import { InvalidTransitionError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import type { DetalhesLugar, PlaceBasico } from "@/lib/places/client";
+import { isSiteProprio } from "@/lib/site-proprio";
 import {
   LEADS_COLLECTION,
   LEAD_STATUSES,
@@ -21,9 +22,32 @@ function docRef(db: AppDb, placeId: string) {
   return db.collection(LEADS_COLLECTION).doc(placeId);
 }
 
+/**
+ * Deriva siteProprio para docs gravados antes do campo existir:
+ * enriquecido → classifica detalhes.site; busca qualificada antiga →
+ * classifica temSite/siteUrl. Sem informação → undefined (desconhecido).
+ */
+function deriveSiteProprio(lead: Lead): boolean | undefined {
+  if (lead.enriquecido) {
+    const site = lead.detalhes?.site;
+    return Boolean(site) && isSiteProprio(site ?? "");
+  }
+  if (lead.temSite === false) return false; // sem URL nenhuma = sem site próprio
+  if (lead.temSite === true) {
+    return lead.siteUrl ? isSiteProprio(lead.siteUrl) : true;
+  }
+  return undefined;
+}
+
 function asLead(data: Record<string, unknown>): Lead {
   // Confiamos no que nós mesmos gravamos; validação fica na borda (rotas).
-  return data as unknown as Lead;
+  const lead = data as unknown as Lead;
+  // Migração de leitura: docs antigos não têm siteProprio — deriva.
+  if (lead.siteProprio === undefined) {
+    const derivado = deriveSiteProprio(lead);
+    if (derivado !== undefined) return { ...lead, siteProprio: derivado };
+  }
+  return lead;
 }
 
 // O Firestore real rejeita undefined como valor; o round-trip JSON descarta
@@ -80,9 +104,13 @@ export async function upsertLeads(
         location: place.location ?? existing.location,
         busca: { ...busca, em },
         buscaId: [...new Set([...(existing.buscaId ?? []), buscaId])],
-        // Busca qualificada traz informação fresca de site; nunca remove.
+        // Busca qualificada traz informação fresca de site/telefone; nunca remove.
         temSite: place.temSite ?? existing.temSite,
         siteUrl: place.siteUrl ?? existing.siteUrl,
+        siteProprio: place.siteProprio ?? existing.siteProprio,
+        temTelefone: place.temTelefone ?? existing.temTelefone,
+        telefone: place.telefone ?? existing.telefone,
+        telefoneIntl: place.telefoneIntl ?? existing.telefoneIntl,
         atualizadoEm: em,
       };
     } else {
@@ -97,6 +125,10 @@ export async function upsertLeads(
         buscaId: [buscaId],
         temSite: place.temSite,
         siteUrl: place.siteUrl,
+        siteProprio: place.siteProprio,
+        temTelefone: place.temTelefone,
+        telefone: place.telefone,
+        telefoneIntl: place.telefoneIntl,
         enriquecido: false,
         criadoEm: em,
         atualizadoEm: em,
@@ -120,14 +152,15 @@ export interface LeadFilters {
 }
 
 /**
- * Presença de site/telefone: enriquecimento é a fonte mais completa;
- * para site, a busca qualificada (lead.temSite) também vale.
- * undefined = desconhecido (fica fora dos filtros com/sem).
+ * Presença para os filtros. Site usa a classificação siteProprio (rede
+ * social/agregador conta como SEM site próprio — lead quente); telefone
+ * usa enriquecimento ou a busca qualificada. undefined = desconhecido
+ * (fica fora dos filtros com/sem).
  */
-function presenca(lead: Lead, campo: "site" | "telefone"): boolean | undefined {
-  if (lead.enriquecido) return Boolean(lead.detalhes?.[campo]);
-  if (campo === "site") return lead.temSite;
-  return undefined;
+export function presenca(lead: Lead, campo: "site" | "telefone"): boolean | undefined {
+  if (campo === "site") return lead.siteProprio ?? deriveSiteProprio(lead);
+  if (lead.enriquecido) return Boolean(lead.detalhes?.telefone);
+  return lead.temTelefone;
 }
 
 function matchesPresenca(
@@ -168,7 +201,12 @@ export async function listLeads(db: AppDb, filters: LeadFilters = {}): Promise<L
         matchesPresenca(temSite, lead, "site") &&
         matchesPresenca(temTelefone, lead, "telefone"),
     )
-    .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
+    // Descartados vão pro fim da lista (mas continuam visíveis/reversíveis).
+    .sort(
+      (a, b) =>
+        Number(a.descartado === true) - Number(b.descartado === true) ||
+        b.criadoEm.localeCompare(a.criadoEm),
+    );
 }
 
 /** Carimbo em `contato` que cada transição de status grava. */
@@ -201,11 +239,11 @@ export async function changeStatus(
   return updated;
 }
 
-/** Notas/favorito editáveis direto no card, sem passar pela transição de status. */
+/** Notas/favorito/descartado editáveis direto no card, sem transição de status. */
 export async function updateLeadExtras(
   db: AppDb,
   placeId: string,
-  extras: { notas?: string; favorito?: boolean },
+  extras: { notas?: string; favorito?: boolean; descartado?: boolean },
   now: Date = new Date(),
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
@@ -213,6 +251,7 @@ export async function updateLeadExtras(
     ...lead,
     ...(extras.notas !== undefined && { notas: extras.notas }),
     ...(extras.favorito !== undefined && { favorito: extras.favorito }),
+    ...(extras.descartado !== undefined && { descartado: extras.descartado }),
     atualizadoEm: now.toISOString(),
   };
   await docRef(db, placeId).set(toDoc(updated));
@@ -231,6 +270,10 @@ export async function saveDetails(
     ...lead,
     enriquecido: true,
     detalhes: { ...detalhes, enriquecidoEm: em },
+    // O enriquecimento também pediu websiteUri no mask → resposta definitiva.
+    temSite: Boolean(detalhes.site),
+    siteUrl: detalhes.site ?? lead.siteUrl,
+    siteProprio: Boolean(detalhes.site) && isSiteProprio(detalhes.site ?? ""),
     atualizadoEm: em,
   };
   await docRef(db, placeId).set(toDoc(updated));

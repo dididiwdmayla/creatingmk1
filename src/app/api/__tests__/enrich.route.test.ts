@@ -67,8 +67,48 @@ describe("POST /api/leads/[id]/enrich", () => {
     });
     expect(lead.status).toBe("novo");
 
-    expect(db.getDoc("leads/ChIJ001")).toMatchObject({ enriquecido: true });
+    // Enriquecimento persiste a classificação de site (definitiva).
+    expect(db.getDoc("leads/ChIJ001")).toMatchObject({
+      enriquecido: true,
+      temSite: true,
+      siteProprio: true,
+      siteUrl: "https://clinicasorriso.com.br",
+    });
     expect(usageDoc()).toMatchObject({ detailsEnterprise: 1 });
+  });
+
+  it("enriquecimento com site de rede social persiste siteProprio=false", async () => {
+    fetchMock.mockImplementation(async () =>
+      new Response(
+        JSON.stringify({ id: "ChIJ001", websiteUri: "https://wa.me/5544999990000" }),
+        { status: 200 },
+      ),
+    );
+
+    const res = await enrich("ChIJ001");
+
+    expect(res.status).toBe(200);
+    expect(db.getDoc("leads/ChIJ001")).toMatchObject({
+      enriquecido: true,
+      temSite: true,
+      siteProprio: false,
+      siteUrl: "https://wa.me/5544999990000",
+    });
+  });
+
+  it("enriquecimento sem site persiste temSite/siteProprio=false (definitivo)", async () => {
+    fetchMock.mockImplementation(async () =>
+      new Response(JSON.stringify({ id: "ChIJ001", rating: 4.0 }), { status: 200 }),
+    );
+
+    const res = await enrich("ChIJ001");
+
+    expect(res.status).toBe(200);
+    expect(db.getDoc("leads/ChIJ001")).toMatchObject({
+      enriquecido: true,
+      temSite: false,
+      siteProprio: false,
+    });
   });
 
   it("lead já enriquecido → retorna do cache SEM chamar o Google", async () => {

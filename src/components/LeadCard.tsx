@@ -9,15 +9,9 @@ import type { Lead } from "@/lib/leads/types";
 
 const NOTAS_MAX = 500; // espelha o limite da rota PATCH
 
-/** Presença de site: enriquecimento manda; senão vale a busca qualificada. */
-function sitePresenca(lead: Lead): boolean | undefined {
-  if (lead.enriquecido) return Boolean(lead.detalhes?.site);
-  return lead.temSite;
-}
-
 function telPresenca(lead: Lead): boolean | undefined {
   if (lead.enriquecido) return Boolean(lead.detalhes?.telefone);
-  return undefined;
+  return lead.temTelefone;
 }
 
 function presencaTexto(presenca: boolean | undefined): string {
@@ -38,10 +32,13 @@ export function LeadCard({
   const [notasDraft, setNotasDraft] = useState(lead.notas ?? "");
   const [salvandoNotas, setSalvandoNotas] = useState(false);
   const [salvandoFavorito, setSalvandoFavorito] = useState(false);
+  const [salvandoDescarte, setSalvandoDescarte] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const site = sitePresenca(lead);
-  const semSite = site === false;
+  // siteProprio vem derivado do servidor (asLead): true = site próprio;
+  // false = sem site OU só rede social (lead quente); undefined = desconhecido.
+  const siteProprio = lead.siteProprio;
+  const soRedeSocial = siteProprio === false && lead.temSite === true;
   const dots = (lead.buscaId ?? [])
     .map((id) => cores[id])
     .filter(Boolean)
@@ -62,6 +59,21 @@ export function LeadCard({
     }
   }
 
+  async function toggleDescarte() {
+    setSalvandoDescarte(true);
+    setErro(null);
+    try {
+      const { lead: updated } = await api.patchLead(lead.placeId, {
+        descartado: !lead.descartado,
+      });
+      onChange(updated);
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : "Falha ao descartar.");
+    } finally {
+      setSalvandoDescarte(false);
+    }
+  }
+
   async function salvarNotas() {
     setSalvandoNotas(true);
     setErro(null);
@@ -79,7 +91,11 @@ export function LeadCard({
   }
 
   return (
-    <div className="card-lift rounded-lg border border-line bg-surface p-3">
+    <div
+      className={`card-lift rounded-lg border border-line bg-surface p-3 ${
+        lead.descartado ? "lead-descartado" : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
         <Link href={`/leads/${lead.placeId}`} className="min-w-0 flex-1 hover:opacity-80">
           <p className="truncate text-sm font-medium text-foreground">{lead.nome}</p>
@@ -106,10 +122,12 @@ export function LeadCard({
       <div className="mt-2 flex items-center justify-between gap-2 text-xs">
         <span className="text-ink-secondary">
           site:{" "}
-          {semSite ? (
-            <span className="font-semibold text-good">não (lead quente)</span>
+          {siteProprio === false ? (
+            <span className="font-semibold text-good">
+              {soRedeSocial ? "só rede social (lead quente)" : "não (lead quente)"}
+            </span>
           ) : (
-            presencaTexto(site)
+            presencaTexto(siteProprio)
           )}{" "}
           · tel: {presencaTexto(telPresenca(lead))}
         </span>
@@ -164,13 +182,27 @@ export function LeadCard({
           ) : (
             <span />
           )}
-          <button
-            type="button"
-            onClick={() => setEditandoNotas(true)}
-            className="shrink-0 text-xs text-ink-muted hover:text-accent"
-          >
-            {lead.notas ? "editar notas" : "+ notas"}
-          </button>
+          <span className="flex shrink-0 gap-3">
+            <button
+              type="button"
+              onClick={() => setEditandoNotas(true)}
+              className="text-xs text-ink-muted hover:text-accent"
+            >
+              {lead.notas ? "editar notas" : "+ notas"}
+            </button>
+            <button
+              type="button"
+              onClick={toggleDescarte}
+              disabled={salvandoDescarte}
+              className={`relative z-10 text-xs disabled:opacity-50 ${
+                lead.descartado
+                  ? "text-foreground hover:text-accent"
+                  : "text-ink-muted hover:text-critical"
+              }`}
+            >
+              {lead.descartado ? "restaurar" : "descartar"}
+            </button>
+          </span>
         </div>
       )}
 

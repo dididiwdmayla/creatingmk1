@@ -58,8 +58,21 @@ export interface SearchResponse {
   busca: Busca;
   /** Páginas do Text Search consumidas (cada uma = 1 request de cota). */
   paginas: number;
-  /** Presente quando a busca parou antes da quantidade pedida (teto/erro). */
+  /** Endereço que o geocoding resolveu para a região ("Sarandi, PR, Brasil"). */
+  regiaoResolvida: string;
+  /** Presente quando a busca parou antes da quantidade pedida (teto/erro/fim). */
   aviso?: string;
+}
+
+export interface GeocodeResponse {
+  regiao: string;
+  endereco: string;
+  location: { lat: number; lng: number };
+  viewport: {
+    low: { latitude: number; longitude: number };
+    high: { latitude: number; longitude: number };
+  };
+  cached: boolean;
 }
 
 export const api = {
@@ -87,11 +100,16 @@ export const api = {
   }) =>
     request<SearchResponse>("/api/search", { method: "POST", body: JSON.stringify(body) }),
 
+  geocode: (regiao?: string) =>
+    request<GeocodeResponse>(
+      `/api/geocode${regiao ? `?regiao=${encodeURIComponent(regiao)}` : ""}`,
+    ),
+
   listBuscas: () => request<{ buscas: Busca[] }>("/api/buscas"),
-  patchBuscaCor: (id: string, cor: string) =>
+  patchBusca: (id: string, patch: { cor?: string; mensagemPadrao?: string }) =>
     request<{ busca: Busca }>(`/api/buscas/${id}`, {
       method: "PATCH",
-      body: JSON.stringify({ cor }),
+      body: JSON.stringify(patch),
     }),
 
   listLeads: (filters: {
@@ -110,7 +128,10 @@ export const api = {
   },
 
   getLead: (id: string) => request<{ lead: Lead }>(`/api/leads/${id}`),
-  patchLead: (id: string, patch: { status?: LeadStatus; notas?: string; favorito?: boolean }) =>
+  patchLead: (
+    id: string,
+    patch: { status?: LeadStatus; notas?: string; favorito?: boolean; descartado?: boolean },
+  ) =>
     request<{ lead: Lead }>(`/api/leads/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),

@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/Button";
 import { LeadCard } from "@/components/LeadCard";
+import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api } from "@/lib/api-client";
 import type { Busca } from "@/lib/buscas/types";
 import type { FiltroPresenca } from "@/lib/config";
@@ -26,6 +27,8 @@ const PRESENCA_OPTIONS: Array<{ value: FiltroPresenca; label: string }> = [
 
 const AUTO_ENRICH_MAX = 5;
 const QUANTIDADE_MAX = 40;
+/** Posição de scroll da lista, para restaurar ao voltar da ficha. */
+const SCROLL_KEY = "radar:leads:scroll";
 
 /** Placeholder do nome da busca, espelhando o default do servidor. */
 function nomeDefaultHint(nicho: string): string {
@@ -120,17 +123,37 @@ export default function LeadsPage() {
 function LeadsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // ── Estado da LISTA na URL (voltar da ficha restaura tudo) ────────────
   const buscaId = searchParams.get("buscaId") ?? undefined;
   const buscaNome = searchParams.get("buscaNome") ?? undefined;
+  const status = (searchParams.get("status") ?? "") as LeadStatus | "";
+  const temSite = (searchParams.get("site") ?? "qualquer") as FiltroPresenca;
+  const temTelefone = (searchParams.get("tel") ?? "qualquer") as FiltroPresenca;
+  const soFavoritos = searchParams.get("fav") === "1";
+  const agrupar = searchParams.get("plano") !== "1";
+  const fechados = useMemo(
+    () => new Set((searchParams.get("fechados") ?? "").split(",").filter(Boolean)),
+    [searchParams],
+  );
+
+  function updateParams(mutate: (params: URLSearchParams) => void) {
+    const params = new URLSearchParams(searchParams.toString());
+    mutate(params);
+    const qs = params.toString();
+    router.replace(qs ? `/leads?${qs}` : "/leads", { scroll: false });
+  }
+
+  /** Grava o param com o valor, ou remove quando é o default (URL limpa). */
+  function setParam(key: string, value: string | null) {
+    updateParams((params) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
+  }
 
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [buscas, setBuscas] = useState<Busca[]>([]);
-  const [status, setStatus] = useState<LeadStatus | "">("");
-  const [temSite, setTemSite] = useState<FiltroPresenca>("qualquer");
-  const [temTelefone, setTemTelefone] = useState<FiltroPresenca>("qualquer");
-  const [soFavoritos, setSoFavoritos] = useState(false);
-  const [agrupar, setAgrupar] = useState(true);
-  const [colapsados, setColapsados] = useState<Set<string>>(new Set());
   const [erroLista, setErroLista] = useState<string | null>(null);
 
   const [nicho, setNicho] = useState("");
@@ -145,6 +168,11 @@ function LeadsPageInner() {
   const [buscaMsg, setBuscaMsg] = useState<string | null>(null);
   const [buscaAviso, setBuscaAviso] = useState<string | null>(null);
   const [buscaErro, setBuscaErro] = useState<string | null>(null);
+
+  // "Buscando em: X" — região resolvida pelo geocoding (com cache no servidor).
+  const [regiaoDefault, setRegiaoDefault] = useState("");
+  const [regiaoResolvida, setRegiaoResolvida] = useState<string | null>(null);
+  const [regiaoErro, setRegiaoErro] = useState<string | null>(null);
 
   const filters: LeadFiltersState = { status, temSite, temTelefone, soFavoritos, buscaId };
 
@@ -175,8 +203,79 @@ function LeadsPageInner() {
       .catch(() => {
         // agrupamento/cores degradam para a lista plana; sem erro fatal
       });
+    api
+      .getConfig()
+      .then(({ config }) => {
+        if (!ignore) setRegiaoDefault(config.regiao);
+      })
+      .catch(() => {
+        // placeholder fica genérico; a busca ainda resolve no servidor
+      });
     return () => {
       ignore = true;
+    };
+  }, []);
+
+  // Resolve a região efetiva (campo ou default da config) para mostrar
+  // "Buscando em: X" antes de confirmar. Roda no blur do campo e quando o
+  // default carrega; o cache do servidor faz o hit custar zero.
+  function resolverRegiao(texto: string) {
+    const efetiva = texto.trim() || regiaoDefault.trim();
+    if (!efetiva) {
+      setRegiaoResolvida(null);
+      return;
+    }
+    setRegiaoErro(null);
+    api
+      .geocode(efetiva)
+      .then((geo) => setRegiaoResolvida(geo.endereco))
+      .catch((error) => {
+        setRegiaoResolvida(null);
+        setRegiaoErro(
+          error instanceof ApiError && error.code === "validation_error"
+            ? `Região não encontrada: "${efetiva}".`
+            : null, // erro transitório: some em silêncio, a busca reporta
+        );
+      });
+  }
+
+  useEffect(() => {
+    if (!regiaoDefault) return;
+    let ignore = false;
+    api
+      .geocode(regiaoDefault)
+      .then((geo) => {
+        if (!ignore) setRegiaoResolvida((atual) => atual ?? geo.endereco);
+      })
+      .catch(() => {
+        // silencioso: o campo em branco só perde o hint
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [regiaoDefault]);
+
+  // ── Scroll restoration: volta da ficha exatamente onde estava ─────────
+  const scrollRestaurado = useRef(false);
+  useEffect(() => {
+    if (leads === null || scrollRestaurado.current) return;
+    scrollRestaurado.current = true;
+    const salvo = sessionStorage.getItem(SCROLL_KEY);
+    if (salvo) window.scrollTo(0, Number(salvo));
+  }, [leads]);
+
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
     };
   }, []);
 
@@ -189,12 +288,10 @@ function LeadsPageInner() {
   }
 
   function toggleColapsado(chave: string) {
-    setColapsados((current) => {
-      const next = new Set(current);
-      if (next.has(chave)) next.delete(chave);
-      else next.add(chave);
-      return next;
-    });
+    const next = new Set(fechados);
+    if (next.has(chave)) next.delete(chave);
+    else next.add(chave);
+    setParam("fechados", [...next].join(","));
   }
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -212,10 +309,12 @@ function LeadsPageInner() {
       body.quantidade = Math.min(Math.max(quantidade, 1), QUANTIDADE_MAX);
       if (qualificada) body.qualificada = true;
       const result = await api.search(body);
+      setRegiaoResolvida(result.regiaoResolvida);
 
       const partes = [
-        `Busca "${result.busca.nome}": ${result.criados} novo(s), ` +
-          `${result.existentes} já existente(s) em ${result.paginas} página(s).`,
+        `Busca "${result.busca.nome}" em ${result.regiaoResolvida}: ` +
+          `${result.criados} novo(s), ${result.existentes} já existente(s) ` +
+          `em ${result.paginas} página(s).`,
       ];
       if (result.aviso) setBuscaAviso(`Busca parcial: ${result.aviso}.`);
       if (autoEnrich) {
@@ -244,6 +343,8 @@ function LeadsPageInner() {
         );
       } else if (error instanceof ApiError && error.code === "places_error") {
         setBuscaErro(`Erro do Google: ${error.extra.detail ?? error.message}`);
+      } else if (error instanceof ApiError && error.code === "validation_error") {
+        setBuscaErro(error.message);
       } else {
         setBuscaErro(error instanceof ApiError ? error.message : "Falha na busca.");
       }
@@ -282,9 +383,19 @@ function LeadsPageInner() {
           <input
             value={regiao}
             onChange={(event) => setRegiao(event.target.value)}
-            placeholder="Região (padrão: da config)"
+            onBlur={(event) => resolverRegiao(event.target.value)}
+            placeholder={
+              regiaoDefault ? `Região (padrão: ${regiaoDefault})` : "Região (padrão: da config)"
+            }
             className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
           />
+          {regiaoResolvida && !regiaoErro && (
+            <p className="text-xs text-ink-muted">
+              Buscando em: <span className="text-ink-secondary">{regiaoResolvida}</span>{" "}
+              <span aria-hidden>·</span> só resultados dentro da região
+            </p>
+          )}
+          {regiaoErro && <p className="text-xs text-critical">{regiaoErro}</p>}
           <input
             value={nomeBusca}
             onChange={(event) => setNomeBusca(event.target.value)}
@@ -293,7 +404,7 @@ function LeadsPageInner() {
           />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-1 text-sm text-ink-secondary">
             <label className="flex items-center gap-2">
-              <span>Resultados</span>
+              <span>Novos</span>
               <input
                 type="number"
                 min={1}
@@ -306,7 +417,9 @@ function LeadsPageInner() {
                 }
                 className="w-16 rounded border border-line bg-surface-2 px-2 py-1 text-center text-sm text-foreground outline-none focus:border-accent"
               />
-              <span className="text-xs text-ink-muted">(21–40 = 2 requests)</span>
+              <span className="text-xs text-ink-muted">
+                (pagina até juntar N inéditos; cada página = 1 request)
+              </span>
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -317,7 +430,9 @@ function LeadsPageInner() {
               />
               <span>
                 Só sem site{" "}
-                <span className="text-xs text-ink-muted">(busca qualificada, tier Enterprise)</span>
+                <span className="text-xs text-ink-muted">
+                  (qualificada: site + telefone de graça, tier Enterprise)
+                </span>
               </span>
             </label>
           </div>
@@ -348,6 +463,17 @@ function LeadsPageInner() {
             Buscar
           </Button>
         </div>
+        {buscando && (
+          <div className="mt-3 flex items-center gap-3 rounded border border-line bg-surface-2 p-3">
+            <RadarSweep size={44} />
+            <div className="min-w-0">
+              <p className="text-sm text-foreground">Varrendo a região…</p>
+              {regiaoResolvida && (
+                <p className="truncate text-xs text-ink-muted">Buscando em: {regiaoResolvida}</p>
+              )}
+            </div>
+          </div>
+        )}
         {buscaMsg && <p className="mt-2 text-sm text-good">{buscaMsg}</p>}
         {buscaAviso && <p className="mt-2 text-sm text-warning">{buscaAviso}</p>}
         {buscaErro && <p className="mt-2 text-sm text-critical">{buscaErro}</p>}
@@ -361,7 +487,12 @@ function LeadsPageInner() {
           </p>
           <button
             type="button"
-            onClick={() => router.replace("/leads")}
+            onClick={() =>
+              updateParams((params) => {
+                params.delete("buscaId");
+                params.delete("buscaNome");
+              })
+            }
             className="shrink-0 text-xs font-medium text-accent hover:underline"
           >
             Limpar
@@ -372,7 +503,7 @@ function LeadsPageInner() {
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={status}
-          onChange={(event) => setStatus(event.target.value as LeadStatus | "")}
+          onChange={(event) => setParam("status", event.target.value || null)}
           className="rounded border border-line bg-surface-2 px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
         >
           {STATUS_OPTIONS.map((opt) => (
@@ -383,18 +514,22 @@ function LeadsPageInner() {
         </select>
         <select
           value={temSite}
-          onChange={(event) => setTemSite(event.target.value as FiltroPresenca)}
+          onChange={(event) =>
+            setParam("site", event.target.value === "qualquer" ? null : event.target.value)
+          }
           className="rounded border border-line bg-surface-2 px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
         >
           {PRESENCA_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
-              Site: {opt.label}
+              Site próprio: {opt.label}
             </option>
           ))}
         </select>
         <select
           value={temTelefone}
-          onChange={(event) => setTemTelefone(event.target.value as FiltroPresenca)}
+          onChange={(event) =>
+            setParam("tel", event.target.value === "qualquer" ? null : event.target.value)
+          }
           className="rounded border border-line bg-surface-2 px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
         >
           {PRESENCA_OPTIONS.map((opt) => (
@@ -405,7 +540,7 @@ function LeadsPageInner() {
         </select>
         <button
           type="button"
-          onClick={() => setSoFavoritos((v) => !v)}
+          onClick={() => setParam("fav", soFavoritos ? null : "1")}
           aria-pressed={soFavoritos}
           className={`rounded border px-2 py-1.5 text-xs ${
             soFavoritos
@@ -420,7 +555,7 @@ function LeadsPageInner() {
             <input
               type="checkbox"
               checked={agrupar}
-              onChange={(event) => setAgrupar(event.target.checked)}
+              onChange={(event) => setParam("plano", event.target.checked ? null : "1")}
               className="h-3.5 w-3.5 accent-[var(--accent)]"
             />
             Agrupar por busca
@@ -439,7 +574,7 @@ function LeadsPageInner() {
       ) : agrupado ? (
         <div className="flex flex-col gap-3">
           {grupos.map((grupo) => {
-            const fechado = colapsados.has(grupo.chave);
+            const fechado = fechados.has(grupo.chave);
             return (
               <section key={grupo.chave}>
                 <button

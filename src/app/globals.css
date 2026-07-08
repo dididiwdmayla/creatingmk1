@@ -1,15 +1,17 @@
 @import "tailwindcss";
 
 /*
- * Paleta única, sempre escura (painel de operação — sem alternância
- * clara/escura). Tema "radar/sonar": fundo em gradiente azul-profundo →
- * quase-preto, acento vibrante verde-radar (fósforo de tela de sonar).
- * Valores validados com a skill dataviz contra a surface #121b24
- * (contraste ≥3:1; ramp ordinal de status do lead com monotonicidade de
- * luminância; paleta de 10 cores das buscas com CVD adjacente ≥8ΔE). Ver
- * ARCHITECTURE.md.
+ * Tema "radar/sonar" em duas variantes: escura (default) e clara (toggle
+ * persistido em localStorage; o script inline do layout aplica
+ * data-theme="light" no <html> antes da pintura). O caráter é o mesmo nas
+ * duas: gradiente sutil no fundo, acento verde-radar, hairlines tingidas.
+ * Valores validados com a skill dataviz (contraste ≥3:1 em UI, ≥4.5:1 em
+ * texto; ramp ordinal de status com monotonicidade de luminância; paleta
+ * de 10 cores das buscas com CVD adjacente ≥8ΔE). Ver ARCHITECTURE.md.
  */
 :root {
+  color-scheme: dark;
+
   --background: #060a10; /* page plane, ponto mais escuro do gradiente */
   --background-2: #0d141d; /* ponto médio do gradiente (azul-profundo) */
   --foreground: #eef3f1; /* ink primária, levemente fria */
@@ -24,14 +26,56 @@
   --warning: #fab219; /* meter perto do teto */
   --critical: #e6534f; /* meter no teto / erro */
   --good: #1fbf5c;
+  /* Texto sobre good/critical: nos tons vibrantes do escuro o branco não
+     passa em contraste — a ink é preta; no claro os fills escurecem e a
+     ink vira branca. */
+  --good-ink: #04170f;
+  --critical-ink: #16060a;
+
+  /* Trilha/marcador do meter e ring de foco suave — neutros por tema. */
+  --meter-track: rgba(255, 255, 255, 0.08);
+  --meter-mark: rgba(255, 255, 255, 0.3);
+  --ring-soft: rgba(255, 255, 255, 0.3);
 
   /* Status do lead é ordinal (posição no funil), não identidade — um hue,
      degraus monótonos de luminância: novo é o mais escuro, fechado o mais
-     claro (mais saliente no fundo escuro). */
+     claro (mais saliente no fundo escuro). Os chips carregam a própria
+     ink (branca/preta por degrau), então valem nos dois temas. */
   --status-novo: #184f95;
   --status-contactado: #256abf;
   --status-respondeu: #3987e5;
   --status-fechado: #6da7ec;
+}
+
+/*
+ * Variante clara: mesmos papéis, luminâncias invertidas. Verde-radar
+ * escurecido para valer como texto/fundo de ação sobre branco (≥4.5:1);
+ * warning/critical/good escurecidos para funcionarem como texto sobre a
+ * surface clara (a ink sobre eles vira branca).
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --background: #eef2f1;
+  --background-2: #dde6e3;
+  --foreground: #14201c;
+  --surface: #ffffff;
+  --surface-2: #f1f5f3;
+  --line: rgba(25, 70, 60, 0.18);
+  --ink-secondary: #3e4d4e;
+  --ink-muted: #5c6b6e;
+
+  --accent: #0b7a55; /* 5.4:1 sobre branco (texto e botão) */
+  --accent-ink: #ffffff;
+  --warning: #8a5f00; /* 5.3:1 sobre branco */
+  --critical: #bf3a34; /* 4.9:1 sobre branco */
+  --good: #177a45;
+  --good-ink: #ffffff;
+  --critical-ink: #ffffff;
+
+  --meter-track: rgba(10, 40, 30, 0.1);
+  --meter-mark: rgba(10, 40, 30, 0.35);
+  --ring-soft: rgba(0, 0, 0, 0.25);
 }
 
 @theme inline {
@@ -48,7 +92,9 @@
   --color-accent-ink: var(--accent-ink);
   --color-warning: var(--warning);
   --color-critical: var(--critical);
+  --color-critical-ink: var(--critical-ink);
   --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
 
   --color-status-novo: var(--status-novo);
   --color-status-contactado: var(--status-contactado);
@@ -154,6 +200,30 @@ body {
   transform: translateY(-2px);
   border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
   box-shadow: 0 8px 24px -12px color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+/* No tema claro, "screen" apagaria o sweep sobre branco. */
+:root[data-theme="light"] .radar-sweep::before {
+  mix-blend-mode: multiply;
+}
+
+/* Descarte suave: listra diagonal vermelha + card esmaecido. Reversível. */
+.lead-descartado {
+  position: relative;
+  opacity: 0.6;
+}
+
+.lead-descartado::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 10px,
+    color-mix(in oklab, var(--critical) 16%, transparent) 10px 13px
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {

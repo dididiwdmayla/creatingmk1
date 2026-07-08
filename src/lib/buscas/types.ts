@@ -34,6 +34,11 @@ export interface Busca {
   regiao: string;
   /** Hex de BUSCA_CORES; docs antigos sem cor ganham fallback na leitura. */
   cor: string;
+  /**
+   * Mensagem padrão do grupo (opcional). O botão WhatsApp usa a do grupo
+   * quando existir; senão cai na mensagem global de /config/app.
+   */
+  mensagemPadrao?: string;
   criadaEm: string;
   totalCriados: number;
   totalExistentes: number;

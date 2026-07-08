@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { regiaoCacheKey } from "@/lib/geo/geocode";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { POST } from "../search/route";
 import { PATCH } from "../leads/[id]/route";
@@ -22,12 +23,47 @@ const GOOGLE_PLACES = {
   ],
 };
 
+const VIEWPORT = {
+  low: { latitude: -23.5, longitude: -51.95 },
+  high: { latitude: -23.38, longitude: -51.8 },
+};
+
+const GEOCODE_OK = {
+  status: "OK",
+  results: [
+    {
+      formatted_address: "Sarandi, PR, Brasil",
+      geometry: {
+        location: { lat: -23.4444, lng: -51.8739 },
+        viewport: {
+          northeast: { lat: -23.38, lng: -51.8 },
+          southwest: { lat: -23.5, lng: -51.95 },
+        },
+      },
+    },
+  ],
+};
+
+/** Região default já resolvida no cache — a maioria dos testes não geocodifica. */
+function seedGeocache(regiao = "Sarandi PR", endereco = "Sarandi, PR, Brasil") {
+  db.seed(`geocache/${regiaoCacheKey(regiao)}`, {
+    regiao,
+    endereco,
+    location: { lat: -23.4444, lng: -51.8739 },
+    viewport: VIEWPORT,
+    criadoEm: "2026-07-01T00:00:00.000Z",
+  });
+}
+
 beforeEach(() => {
   db = new FakeFirestore();
   db.seed("config/app", { nicho: "dentista", regiao: "Sarandi PR" });
+  seedGeocache();
   fetchMock.mockReset();
-  fetchMock.mockImplementation(
-    async () => new Response(JSON.stringify(GOOGLE_PLACES), { status: 200 }),
+  fetchMock.mockImplementation(async (url: string) =>
+    String(url).includes("maps/api/geocode")
+      ? new Response(JSON.stringify(GEOCODE_OK), { status: 200 })
+      : new Response(JSON.stringify(GOOGLE_PLACES), { status: 200 }),
   );
   vi.stubGlobal("fetch", fetchMock);
   vi.stubEnv("GOOGLE_PLACES_API_KEY", "chave-teste");
@@ -45,11 +81,19 @@ function searchRequest(body?: unknown): Request {
   });
 }
 
+/** Chamadas ao Text Search (ignora as de geocoding). */
+function searchCalls(): RequestInit[] {
+  return fetchMock.mock.calls
+    .filter(([url]) => String(url).includes("places:searchText"))
+    .map(([, init]) => init as RequestInit);
+}
+
+function sentSearchBody(call = 0): Record<string, unknown> {
+  return JSON.parse(searchCalls()[call].body as string) as Record<string, unknown>;
+}
+
 function sentQuery(call = 0): string {
-  const body = JSON.parse(
-    (fetchMock.mock.calls[call][1] as RequestInit).body as string,
-  ) as { textQuery: string };
-  return body.textQuery;
+  return sentSearchBody(call).textQuery as string;
 }
 
 describe("POST /api/search", () => {
@@ -238,12 +282,119 @@ describe("POST /api/search", () => {
     expect(res.status).toBe(400);
   });
 
-  it("resposta informa quantas páginas foram consumidas", async () => {
-    const res = await POST(searchRequest());
+  it("resposta informa quantas páginas foram consumidas e a região resolvida", async () => {
+    const res = await POST(searchRequest({ quantidade: 2 }));
 
     const data = await res.json();
     expect(data.paginas).toBe(1);
     expect(data.aviso).toBeUndefined();
+    expect(data.regiaoResolvida).toBe("Sarandi, PR, Brasil");
+  });
+
+  it("menos resultados que o pedido → aviso de resultados esgotados", async () => {
+    const res = await POST(searchRequest()); // pediu 20 (default), só há 2
+
+    const data = await res.json();
+    expect(data.criados).toBe(2);
+    expect(data.aviso).toContain("resultados esgotados");
+  });
+
+  it("aplica o locationRestriction (viewport geocodificado) no Text Search", async () => {
+    await POST(searchRequest());
+
+    expect(sentSearchBody(0).locationRestriction).toEqual({ rectangle: VIEWPORT });
+  });
+
+  it("região sem cache: geocodifica 1 vez, grava /geocache e conta no SKU geocoding", async () => {
+    const res = await POST(searchRequest({ regiao: "Maringá PR" }));
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.regiaoResolvida).toBe("Sarandi, PR, Brasil"); // fixture do geocode
+    const geocodeCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes("maps/api/geocode"),
+    );
+    expect(geocodeCalls).toHaveLength(1);
+    expect(db.getDoc(`geocache/${regiaoCacheKey("Maringá PR")}`)).toBeDefined();
+
+    const period = new Date().toISOString().slice(0, 7);
+    expect(db.getDoc(`usage/${period}`)).toMatchObject({ geocoding: 1 });
+
+    // Segunda busca na mesma região: cache, sem novo geocoding.
+    await POST(searchRequest({ regiao: "Maringá PR" }));
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).includes("maps/api/geocode")),
+    ).toHaveLength(1);
+  });
+
+  it("região que o Google não encontra → 400 validation_error", async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).includes("maps/api/geocode")
+        ? new Response(JSON.stringify({ status: "ZERO_RESULTS", results: [] }), {
+            status: 200,
+          })
+        : new Response(JSON.stringify(GOOGLE_PLACES), { status: 200 }),
+    );
+
+    const res = await POST(searchRequest({ regiao: "Xyzlândia QQ" }));
+
+    expect(res.status).toBe(400);
+    const { error } = await res.json();
+    expect(error.code).toBe("validation_error");
+    expect(searchCalls()).toHaveLength(0); // não chegou ao Text Search
+  });
+
+  it("teto de geocoding estourado (região sem cache) → 429 do SKU geocoding", async () => {
+    db.seed("config/app", {
+      nicho: "dentista",
+      regiao: "Sarandi PR",
+      caps: { geocoding: 0 },
+    });
+
+    const res = await POST(searchRequest({ regiao: "Maringá PR" }));
+
+    expect(res.status).toBe(429);
+    const { error } = await res.json();
+    expect(error.sku).toBe("geocoding");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("20 = 20 novos: pagina até juntar a quantidade de leads INÉDITOS", async () => {
+    // ChIJ001 e ChIJ002 já existem na base.
+    await POST(searchRequest({ quantidade: 2 }));
+    fetchMock.mockClear();
+
+    // Página 1: os 2 existentes + token; página 2: 2 inéditos.
+    fetchMock
+      .mockImplementationOnce(async () =>
+        new Response(
+          JSON.stringify({ places: GOOGLE_PLACES.places, nextPageToken: "tok-2" }),
+          { status: 200 },
+        ),
+      )
+      .mockImplementationOnce(async () =>
+        new Response(
+          JSON.stringify({
+            places: [
+              { id: "ChIJ003", displayName: { text: "Odonto Nova" } },
+              { id: "ChIJ004", displayName: { text: "Sorriso Novo" } },
+            ],
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const res = await POST(searchRequest({ quantidade: 2 }));
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.criados).toBe(2); // os 2 inéditos pedidos
+    expect(data.existentes).toBe(2); // os repetidos também entram na busca
+    expect(data.paginas).toBe(2);
+    expect(data.aviso).toBeUndefined();
+
+    const period = new Date().toISOString().slice(0, 7);
+    expect(db.getDoc(`usage/${period}`)).toMatchObject({ textSearch: 3 });
   });
 
   it("quantidade > 20 pagina e o contador reflete as páginas", async () => {
@@ -293,7 +444,7 @@ describe("POST /api/search", () => {
     expect(data.aviso).toContain("teto mensal");
   });
 
-  it("busca qualificada marca temSite/siteUrl nos leads salvos", async () => {
+  it("busca qualificada marca temSite/siteUrl/siteProprio nos leads salvos — nada fica desconhecido", async () => {
     fetchMock.mockImplementation(async () =>
       new Response(
         JSON.stringify({
@@ -304,6 +455,11 @@ describe("POST /api/search", () => {
               websiteUri: "https://comsite.com.br",
             },
             { id: "ChIJ_qs2", displayName: { text: "Sem Site" } },
+            {
+              id: "ChIJ_qs3",
+              displayName: { text: "Só Instagram" },
+              websiteUri: "https://instagram.com/negocio",
+            },
           ],
         }),
         { status: 200 },
@@ -315,10 +471,21 @@ describe("POST /api/search", () => {
     expect(res.status).toBe(200);
     expect(db.getDoc("leads/ChIJ_qs1")).toMatchObject({
       temSite: true,
+      siteProprio: true,
       siteUrl: "https://comsite.com.br",
       enriquecido: false,
     });
-    expect(db.getDoc("leads/ChIJ_qs2")).toMatchObject({ temSite: false });
+    // Ausência de websiteUri = definitivo (o campo foi pedido no mask).
+    expect(db.getDoc("leads/ChIJ_qs2")).toMatchObject({
+      temSite: false,
+      siteProprio: false,
+    });
+    // Rede social: tem URL, mas sem site próprio → entra no filtro "sem".
+    expect(db.getDoc("leads/ChIJ_qs3")).toMatchObject({
+      temSite: true,
+      siteProprio: false,
+      siteUrl: "https://instagram.com/negocio",
+    });
 
     const period = new Date().toISOString().slice(0, 7);
     expect(db.getDoc(`usage/${period}`)).toMatchObject({ textSearchEnterprise: 1 });

@@ -28,12 +28,31 @@ export interface Lead {
   busca?: { nicho: string; subNicho?: string; regiao: string; em: string };
   /** IDs de /buscas em que o lead apareceu — só cresce, nunca é sobrescrito. */
   buscaId?: string[];
-  /** Da busca qualificada (websiteUri no Text Search). undefined = desconhecido. */
+  /**
+   * O Google retornou ALGUMA URL para o lugar (busca qualificada ou
+   * enriquecimento). Na busca qualificada é sempre definitivo: o campo foi
+   * pedido no mask, então ausência de websiteUri = false. undefined =
+   * desconhecido (busca básica sem enriquecer).
+   */
   temSite?: boolean;
   siteUrl?: string;
+  /**
+   * Classificação da URL (src/lib/site-proprio.ts): true = site próprio;
+   * false = SEM site próprio — ou não tem URL nenhuma, ou a URL é rede
+   * social/WhatsApp/agregador (lead quente do mesmo jeito); undefined
+   * (ausente no doc) = desconhecido. Filtro "Site próprio" usa este campo.
+   */
+  siteProprio?: boolean;
+  /** Da busca qualificada (telefones no Text Search). undefined = desconhecido. */
+  temTelefone?: boolean;
+  telefone?: string;
+  /** Base do link wa.me — o botão WhatsApp funciona sem enriquecer. */
+  telefoneIntl?: string;
   /** Anotação curta editável direto no card da lista. */
   notas?: string;
   favorito?: boolean;
+  /** Descarte suave: não deleta; vai pro fim da lista com listra. Reversível. */
+  descartado?: boolean;
   enriquecido: boolean;
   detalhes?: DetalhesLugar & { enriquecidoEm: string };
   contato?: {
