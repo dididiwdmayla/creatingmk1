@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# material bruto de skins (clones de referência, fora do app)
+/skins-raw/

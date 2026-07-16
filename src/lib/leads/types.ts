@@ -1,3 +1,4 @@
+import type { LeadDemo } from "@/lib/demos/types";
 import type { DetalhesLugar } from "@/lib/places/client";
 
 export const LEADS_COLLECTION = "leads";
@@ -55,6 +56,11 @@ export interface Lead {
   descartado?: boolean;
   enriquecido: boolean;
   detalhes?: DetalhesLugar & { enriquecidoEm: string };
+  /**
+   * Configuração da demo personalizada (Forja de Demos): skin, tema e
+   * overrides de conteúdo. O upsert da busca nunca toca neste campo.
+   */
+  demo?: LeadDemo;
   contato?: {
     primeiroContatoEm?: string;
     respondeuEm?: string;
