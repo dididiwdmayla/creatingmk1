@@ -132,8 +132,10 @@ function LeadsPageInner() {
   const temTelefone = (searchParams.get("tel") ?? "qualquer") as FiltroPresenca;
   const soFavoritos = searchParams.get("fav") === "1";
   const agrupar = searchParams.get("plano") !== "1";
-  const fechados = useMemo(
-    () => new Set((searchParams.get("fechados") ?? "").split(",").filter(Boolean)),
+  // Grupos iniciam COLAPSADOS por padrão — o param guarda os EXPANDIDOS
+  // explicitamente (ausente da URL = colapsado).
+  const abertos = useMemo(
+    () => new Set((searchParams.get("abertos") ?? "").split(",").filter(Boolean)),
     [searchParams],
   );
 
@@ -288,10 +290,10 @@ function LeadsPageInner() {
   }
 
   function toggleColapsado(chave: string) {
-    const next = new Set(fechados);
+    const next = new Set(abertos);
     if (next.has(chave)) next.delete(chave);
     else next.add(chave);
-    setParam("fechados", [...next].join(","));
+    setParam("abertos", [...next].join(","));
   }
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -574,7 +576,7 @@ function LeadsPageInner() {
       ) : agrupado ? (
         <div className="flex flex-col gap-3">
           {grupos.map((grupo) => {
-            const fechado = fechados.has(grupo.chave);
+            const fechado = !abertos.has(grupo.chave);
             return (
               <section key={grupo.chave}>
                 <button
