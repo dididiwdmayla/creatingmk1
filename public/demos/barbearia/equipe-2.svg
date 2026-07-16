@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" role="img" aria-label="Placeholder: barbeiro">
+  <defs>
+    <linearGradient id="e2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#241E2B"/>
+      <stop offset="1" stop-color="#120F16"/>
+    </linearGradient>
+    <radialGradient id="e2g" cx="0.5" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#B8862D" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#B8862D" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="800" fill="url(#e2)"/>
+  <rect width="600" height="800" fill="url(#e2g)"/>
+  <rect x="32" y="32" width="536" height="736" fill="none" stroke="#B8862D" stroke-opacity="0.3" stroke-width="2"/>
+
+  <!-- busto: coque, barba longa -->
+  <g fill="#0C0A10">
+    <circle cx="300" cy="336" r="112"/>
+    <circle cx="300" cy="204" r="42" fill="#B8862D" opacity="0.5"/>
+    <path d="M192 320 Q 200 224 300 224 Q 400 224 408 320 L 408 296 Q 396 244 300 244 Q 204 244 192 296 Z" fill="#B8862D" opacity="0.45"/>
+    <path d="M226 380 Q 230 520 300 540 Q 370 520 374 380 L 374 430 Q 366 546 300 566 Q 234 546 226 430 Z" fill="#B8862D" opacity="0.35"/>
+    <path d="M120 800 Q 120 600 300 600 Q 480 600 480 800 Z"/>
+  </g>
+  <line x1="220" y1="672" x2="380" y2="672" stroke="#B8862D" stroke-opacity="0.4" stroke-width="2"/>
+  <text x="300" y="736" font-family="Georgia, serif" font-size="20" letter-spacing="10" text-anchor="middle" fill="#A89882">BARBEIRO 02</text>
+</svg>

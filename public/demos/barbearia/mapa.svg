@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Placeholder: mapa da região">
+  <defs>
+    <linearGradient id="m" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#211A13"/>
+      <stop offset="1" stop-color="#14100B"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#m)"/>
+
+  <!-- malha de ruas -->
+  <g stroke="#A89882" stroke-opacity="0.22" stroke-width="3">
+    <line x1="0" y1="180" x2="800" y2="140"/>
+    <line x1="0" y1="360" x2="800" y2="330"/>
+    <line x1="0" y1="560" x2="800" y2="520"/>
+    <line x1="0" y1="760" x2="800" y2="740"/>
+    <line x1="150" y1="0" x2="190" y2="1000"/>
+    <line x1="390" y1="0" x2="410" y2="1000"/>
+    <line x1="620" y1="0" x2="650" y2="1000"/>
+  </g>
+  <g stroke="#B8862D" stroke-opacity="0.5" stroke-width="7" fill="none">
+    <path d="M 0 470 Q 400 420 800 440"/>
+    <path d="M 300 0 Q 310 500 280 1000"/>
+  </g>
+  <!-- quadras -->
+  <g fill="#E8DCC4" opacity="0.05">
+    <rect x="210" y="200" width="150" height="120"/>
+    <rect x="440" y="360" width="150" height="130"/>
+    <rect x="210" y="590" width="140" height="140"/>
+    <rect x="470" y="600" width="120" height="110"/>
+  </g>
+
+  <!-- pin -->
+  <g transform="translate(400 430)">
+    <circle r="90" fill="#B8862D" opacity="0.12"/>
+    <circle r="56" fill="#B8862D" opacity="0.16"/>
+    <path d="M0 -58 Q 44 -58 44 -16 Q 44 14 0 62 Q -44 14 -44 -16 Q -44 -58 0 -58 Z" fill="#B8862D"/>
+    <circle cy="-18" r="16" fill="#1A1411"/>
+  </g>
+
+  <text x="400" y="920" font-family="Georgia, serif" font-size="22" letter-spacing="12" text-anchor="middle" fill="#A89882">VOCÊ CHEGA FÁCIL</text>
+  <line x1="270" y1="948" x2="530" y2="948" stroke="#B8862D" stroke-opacity="0.5" stroke-width="1"/>
+</svg>

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-label="Placeholder: barbearia">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#241B14"/>
+      <stop offset="0.55" stop-color="#1A1411"/>
+      <stop offset="1" stop-color="#120D0A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.65">
+      <stop offset="0" stop-color="#B8862D" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#B8862D" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grain" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="6" r="1" fill="#E8DCC4" opacity="0.05"/>
+      <circle cx="18" cy="20" r="1" fill="#E8DCC4" opacity="0.04"/>
+    </pattern>
+  </defs>
+  <rect width="900" height="1200" fill="url(#bg)"/>
+  <rect width="900" height="1200" fill="url(#grain)"/>
+  <rect width="900" height="1200" fill="url(#glow)"/>
+
+  <!-- moldura editorial -->
+  <rect x="56" y="56" width="788" height="1088" fill="none" stroke="#B8862D" stroke-opacity="0.35" stroke-width="2"/>
+  <rect x="72" y="72" width="756" height="1056" fill="none" stroke="#E8DCC4" stroke-opacity="0.08" stroke-width="1"/>
+
+  <!-- poste de barbeiro -->
+  <g transform="translate(450 470)">
+    <circle r="180" fill="none" stroke="#B8862D" stroke-opacity="0.5" stroke-width="2"/>
+    <circle r="150" fill="none" stroke="#E8DCC4" stroke-opacity="0.12" stroke-width="1"/>
+    <g>
+      <rect x="-46" y="-120" width="92" height="240" rx="46" fill="#241B14" stroke="#B8862D" stroke-width="3"/>
+      <clipPath id="pole"><rect x="-46" y="-120" width="92" height="240" rx="46"/></clipPath>
+      <g clip-path="url(#pole)" opacity="0.85">
+        <g stroke-width="18">
+          <line x1="-90" y1="-96" x2="90" y2="-166" stroke="#B8862D"/>
+          <line x1="-90" y1="-48" x2="90" y2="-118" stroke="#E8DCC4" opacity="0.8"/>
+          <line x1="-90" y1="0" x2="90" y2="-70" stroke="#8C4A2B"/>
+          <line x1="-90" y1="48" x2="90" y2="-22" stroke="#B8862D"/>
+          <line x1="-90" y1="96" x2="90" y2="26" stroke="#E8DCC4" opacity="0.8"/>
+          <line x1="-90" y1="144" x2="90" y2="74" stroke="#8C4A2B"/>
+          <line x1="-90" y1="192" x2="90" y2="122" stroke="#B8862D"/>
+        </g>
+      </g>
+      <circle cx="0" cy="-138" r="16" fill="#B8862D"/>
+      <circle cx="0" cy="138" r="16" fill="#B8862D"/>
+    </g>
+  </g>
+
+  <!-- tesoura cruzada -->
+  <g transform="translate(450 880)" stroke="#B8862D" stroke-width="4" fill="none" stroke-linecap="round">
+    <line x1="-110" y1="-60" x2="70" y2="46"/>
+    <line x1="110" y1="-60" x2="-70" y2="46"/>
+    <circle cx="92" cy="60" r="26"/>
+    <circle cx="-92" cy="60" r="26"/>
+  </g>
+
+  <g font-family="Georgia, serif" text-anchor="middle" fill="#A89882">
+    <text x="450" y="1064" font-size="26" letter-spacing="14">BARBEARIA</text>
+    <line x1="330" y1="1092" x2="570" y2="1092" stroke="#B8862D" stroke-opacity="0.5" stroke-width="1"/>
+  </g>
+</svg>

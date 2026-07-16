@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" role="img" aria-label="Placeholder: barbeiro">
+  <defs>
+    <linearGradient id="e3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E2620"/>
+      <stop offset="1" stop-color="#0F1410"/>
+    </linearGradient>
+    <radialGradient id="e3g" cx="0.5" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#B8862D" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#B8862D" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="800" fill="url(#e3)"/>
+  <rect width="600" height="800" fill="url(#e3g)"/>
+  <rect x="32" y="32" width="536" height="736" fill="none" stroke="#B8862D" stroke-opacity="0.3" stroke-width="2"/>
+
+  <!-- busto: topete alto, rosto liso -->
+  <g fill="#0A0E0B">
+    <circle cx="300" cy="340" r="112"/>
+    <path d="M196 300 Q 210 180 320 190 Q 420 200 410 306 L 404 280 Q 380 224 310 222 Q 230 220 204 292 Z" fill="#B8862D" opacity="0.55"/>
+    <path d="M120 800 Q 120 596 300 596 Q 480 596 480 800 Z"/>
+  </g>
+  <line x1="220" y1="672" x2="380" y2="672" stroke="#B8862D" stroke-opacity="0.4" stroke-width="2"/>
+  <text x="300" y="736" font-family="Georgia, serif" font-size="20" letter-spacing="10" text-anchor="middle" fill="#A89882">BARBEIRO 03</text>
+</svg>
