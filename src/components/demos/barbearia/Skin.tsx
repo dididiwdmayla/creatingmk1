@@ -27,11 +27,11 @@ function waHref(whatsapp: string | undefined): string {
   return digitos ? `https://wa.me/${digitos}` : "#contato";
 }
 
-function Etiqueta({ numero, texto }: { numero: string; texto?: string }) {
+function Etiqueta({ numero, texto }: { numero?: string; texto?: string }) {
   if (!texto) return null;
   return (
     <span className="mb-6 block font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] md:text-xs">
-      {numero} / {texto}
+      {numero ? `${numero} / ${texto}` : texto}
     </span>
   );
 }
@@ -81,12 +81,16 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
     "--d-text": paleta.texto,
     "--d-muted": paleta.textoSuave,
     "--d-border": paleta.borda,
+    "--d-accent-2": paleta.acentoSecundario,
+    "--d-accent-3": paleta.acentoTerciario,
     "--d-radius": theme.raio,
     "--d-display": fontes.display,
     "--d-corpo": fontes.corpo,
     "--d-mono": fontes.mono,
     "--d-serif": fontes.serif,
     "--d-deco": fontes.decorativa,
+    "--d-citacao": fontes.citacao,
+    "--d-destaque": fontes.destaque,
     "--d-sec-y": SECTION_PAD[theme.densidade],
   } as CSSProperties;
 
@@ -104,9 +108,9 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         .d-pole {
           animation: d-pole 2s linear infinite;
           background-image: linear-gradient(45deg,
-            var(--d-accent) 25%, var(--d-text) 25%, var(--d-text) 50%,
-            var(--d-muted) 50%, var(--d-muted) 75%, var(--d-accent) 75%);
-          background-size: 40px 6px;
+            var(--d-accent-2) 25%, var(--d-text) 25%, var(--d-text) 50%,
+            var(--d-accent-3) 50%, var(--d-accent-3) 75%, var(--d-accent-2) 75%);
+          background-size: 40px 4px;
           background-repeat: repeat-x;
         }
         @media (prefers-reduced-motion: reduce) { .d-pole { animation: none; } }
@@ -143,7 +147,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           <div className="mt-12 flex flex-col items-start gap-8 md:mt-0">
             <div>
               {data.slogan && (
-                <h2 className="mb-4 font-[family-name:var(--d-serif)] text-xl italic text-[var(--d-muted)] md:text-2xl">
+                <h2 className="mb-4 font-[family-name:var(--d-destaque)] text-xl italic text-[var(--d-muted)] md:text-2xl">
                   {data.slogan}
                 </h2>
               )}
@@ -346,13 +350,16 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       {/* ── Ritual (citação) ───────────────────────────────────── */}
       {s.ritual?.texto && (
         <section className="border-y border-[var(--d-border)] bg-[var(--d-bg)] py-[var(--d-sec-y)] text-center">
-          <div className="mx-auto max-w-4xl px-6">
-            <p className="mb-8 font-[family-name:var(--d-serif)] text-3xl italic leading-snug text-[var(--d-text)] md:text-4xl">
+          <div className="mx-auto flex max-w-4xl flex-col items-center px-6">
+            <Etiqueta numero="04" texto={s.ritual.rotulo ?? "RITUAL"} />
+            <p className="mb-12 font-[family-name:var(--d-citacao)] text-3xl italic leading-snug text-[var(--d-text)] md:text-4xl">
               &ldquo;{s.ritual.texto}&rdquo;
             </p>
-            {s.ritual.rotulo && (
-              <span className="font-[family-name:var(--d-mono)] text-[11px] uppercase tracking-[0.2em] text-[var(--d-accent)]">
-                {s.ritual.rotulo}
+            {/* Acento raro (accent-3 = forest no original) — a única linha decorativa fora da paleta principal. */}
+            <div className="mb-12 h-px w-20 bg-[var(--d-accent-3)]" />
+            {s.ritual.ctaSecundaria && (
+              <span className="font-[family-name:var(--d-mono)] text-[11px] uppercase tracking-[0.2em] text-[var(--d-muted)]">
+                {s.ritual.ctaSecundaria}
               </span>
             )}
           </div>
@@ -364,7 +371,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         <section className="bg-[var(--d-bg-alt)] py-[var(--d-sec-y)]">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mb-16">
-              <Etiqueta numero="04" texto={s.depoimentos?.rotulo} />
+              {/* Sem número de seção: seção adicional, não existe no material bruto original. */}
+              <Etiqueta texto={s.depoimentos?.rotulo} />
               <Headline texto={s.depoimentos?.titulo} />
             </div>
             <div className="grid gap-8 md:grid-cols-3">
@@ -401,7 +409,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         <section id="agendar" className="border-y border-[var(--d-border)] bg-[var(--d-bg)] py-[var(--d-sec-y)]">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mb-16">
-              <Etiqueta numero="05" texto={s.agendamento.rotulo} />
+              {/* Sem número: "COMO FUNCIONA" também é sem número no original. */}
+              <Etiqueta texto={s.agendamento.rotulo} />
               <Headline texto={s.agendamento.titulo} />
             </div>
             <div className="mb-16 grid gap-12 md:grid-cols-3">
@@ -440,7 +449,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         <div className="mx-auto grid max-w-7xl items-center gap-16 px-6 md:grid-cols-2 md:gap-24">
           <div className="flex flex-col items-start">
             <span className="mb-8 rounded-[var(--d-radius)] border border-[var(--d-accent)]/25 bg-[var(--d-bg)]/40 px-4 py-1.5 font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] backdrop-blur-sm md:text-xs">
-              06 / {s.contato?.rotulo ?? "CONTATO"}
+              05 / {s.contato?.rotulo ?? "CONTATO"}
             </span>
             <div className="mb-12">
               <Headline texto={s.contato?.titulo} />
@@ -541,7 +550,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
             </p>
           )}
           {data.slogan && (
-            <p className="mb-24 font-[family-name:var(--d-serif)] text-lg italic text-[var(--d-muted)] md:text-xl">
+            <p className="mb-24 font-[family-name:var(--d-citacao)] text-lg italic text-[var(--d-muted)] md:text-xl">
               &ldquo;{data.slogan}&rdquo;
             </p>
           )}

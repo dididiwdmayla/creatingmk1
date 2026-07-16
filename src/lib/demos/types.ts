@@ -89,6 +89,10 @@ export interface ThemePaleta {
   texto: string;
   textoSuave: string;
   borda: string;
+  /** Acento secundário raro — detalhes decorativos (ex.: listra do poste). */
+  acentoSecundario: string;
+  /** Acento terciário raro — mesmo uso do secundário, para paletas de 3 cores. */
+  acentoTerciario: string;
 }
 
 /**
@@ -101,10 +105,14 @@ export interface ThemeFontes {
   corpo: string;
   /** Etiquetas, preços e dados tabulares. */
   mono: string;
-  /** Citações e bios. */
+  /** Bios e corpo de texto editorial mais longo. */
   serif: string;
   /** Logotipo/assinatura. */
   decorativa: string;
+  /** Citações curtas e taglines em itálico. */
+  citacao: string;
+  /** Subtítulo de destaque (ex.: linha de abertura do hero). */
+  destaque: string;
 }
 
 /** Tokens visuais de um tema de skin. */

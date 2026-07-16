@@ -34,19 +34,23 @@ const mono = JetBrains_Mono({
 const crimson = Crimson_Pro({
   variable: "--font-demo-crimson",
   subsets: ["latin"],
-  style: ["normal", "italic"],
+  weight: "400",
 });
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-demo-cormorant",
   subsets: ["latin"],
-  weight: ["400", "600"],
+  weight: ["400", "600", "700"],
   style: ["normal", "italic"],
 });
 
+// Peso 900 itálico only — igual ao material bruto: um display serif bem
+// pesado e inclinado, usado só na linha de abertura do hero.
 const playfair = Playfair_Display({
   variable: "--font-demo-playfair",
   subsets: ["latin"],
+  weight: "900",
+  style: "italic",
 });
 
 const limelight = Limelight({

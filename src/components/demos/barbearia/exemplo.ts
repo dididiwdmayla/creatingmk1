@@ -128,15 +128,16 @@ export const BARBEARIA_EXEMPLO: DemoData = {
       ],
     },
     ritual: {
-      rotulo: "ATENDIMENTO POR AGENDAMENTO",
+      rotulo: "RITUAL",
       texto: "Você entra com pressa. Sai com calma.",
+      ctaSecundaria: "ATENDIMENTO POR AGENDAMENTO",
     },
     depoimentos: {
       rotulo: "DEPOIMENTOS",
       titulo: "QUEM SENTA NA CADEIRA, VOLTA.",
     },
     agendamento: {
-      rotulo: "AGENDAR",
+      rotulo: "COMO FUNCIONA",
       titulo: "TRÊS PASSOS, NADA MAIS.",
       cta: "AGENDAR PELO WHATSAPP",
       itens: [
