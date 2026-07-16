@@ -1,4 +1,5 @@
 import { BARBEARIA_EXEMPLO } from "@/components/demos/barbearia/exemplo";
+import { BARBEARIA_SECOES } from "@/components/demos/barbearia/secoes";
 import { BarbeariaEditorial } from "@/components/demos/barbearia/Skin";
 import {
   BARBEARIA_THEME_DEFAULT,
@@ -22,6 +23,7 @@ export const SKINS: SkinDefinition[] = [
     themeDefault: BARBEARIA_THEME_DEFAULT,
     themePresets: BARBEARIA_THEME_PRESETS,
     demoDataExemplo: BARBEARIA_EXEMPLO,
+    secoes: BARBEARIA_SECOES,
   },
 ];
 

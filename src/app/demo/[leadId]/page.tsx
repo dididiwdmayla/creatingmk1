@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
+import { getSkin, getTheme } from "@/lib/demos/registry";
 import { montarDemoData } from "@/lib/demos/montar";
+import { aplicarTema } from "@/lib/demos/tema";
 import { getDb } from "@/lib/firebase/admin";
 import { getLead } from "@/lib/leads/repo";
 import type { Lead } from "@/lib/leads/types";
@@ -11,11 +12,12 @@ import { demoFontsClassName } from "../fonts";
 /**
  * Rota PÚBLICA da demo de um lead (a única fora da proteção por senha —
  * ver src/proxy.ts). Server Component: lê o lead direto do Firestore e
- * monta o DemoData (exemplo do template ← dados do lead ← edições da
- * ficha). Nenhuma chamada ao Google acontece aqui — só Firestore.
+ * monta o DemoData (exemplo do template ← dados do lead ← edições do
+ * editor). Nenhuma chamada ao Google acontece aqui — só Firestore.
  *
- * Sem demo salva na ficha, a skin default renderiza com os dados que o
- * lead já tem: o link /demo/{leadId} funciona antes de qualquer edição.
+ * A demo só existe DEPOIS de salva no editor (/leads/{id}/demo/editar):
+ * lead sem `demo` responde 404 — mesma resposta de lead inexistente, e o
+ * que "Excluir demo" restaura. Nada é publicado sem intenção explícita.
  */
 
 // Sempre por request: a demo reflete a última edição da ficha na hora.
@@ -25,10 +27,11 @@ type Props = { params: Promise<{ leadId: string }> };
 
 async function loadDemo(leadId: string) {
   const lead: Lead | undefined = await getLead(getDb(), leadId);
-  if (!lead) return undefined;
-  const skin = getSkin(lead.demo?.skinId) ?? DEFAULT_SKIN;
-  const theme = getTheme(skin, lead.demo?.themeId);
-  const data = montarDemoData(skin.demoDataExemplo, lead, lead.demo?.dados);
+  if (!lead?.demo) return undefined;
+  const skin = getSkin(lead.demo.skinId);
+  if (!skin) return undefined;
+  const theme = aplicarTema(getTheme(skin, lead.demo.themeId), lead.demo.tema);
+  const data = montarDemoData(skin.demoDataExemplo, lead, lead.demo.dados);
   return { skin, theme, data };
 }
 

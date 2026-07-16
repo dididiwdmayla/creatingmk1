@@ -48,6 +48,24 @@ describe("registro de skins", () => {
           `placeholder ausente em public${src} (slot ${slot})`,
         ).toBe(true);
       }
+
+      // Contrato de seções do editor: ids únicos, presentes no exemplo
+      // (o painel monta os campos a partir dele), pelo menos uma seção
+      // reordenável e alignOptions só com valores válidos.
+      const secaoIds = skin.secoes.map((secao) => secao.id);
+      expect(secaoIds.length).toBeGreaterThan(0);
+      expect(new Set(secaoIds).size).toBe(secaoIds.length);
+      expect(skin.secoes.some((secao) => !secao.fixa)).toBe(true);
+      for (const secao of skin.secoes) {
+        expect(secao.nome, `nome da seção ${secao.id}`).toBeTruthy();
+        expect(
+          exemplo.secoes[secao.id],
+          `seção ${secao.id} declarada mas ausente no exemplo`,
+        ).toBeDefined();
+        for (const opcao of secao.alignOptions ?? []) {
+          expect(["esquerda", "centro", "direita"]).toContain(opcao);
+        }
+      }
     },
   );
 

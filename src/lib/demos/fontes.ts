@@ -1,0 +1,79 @@
+/**
+ * Lista curada de fontes do editor de demos. Cada entrada referencia uma
+ * CSS var carregada via next/font em src/app/demo/fonts.ts (--font-demo-*),
+ * com fallback de sistema — nenhuma chamada externa em runtime. O TemaPatch
+ * guarda só o `id`; aplicarTema (./tema.ts) resolve para o valor CSS.
+ *
+ * `papeis` diz onde a fonte funciona: "display" (títulos) e/ou "corpo"
+ * (texto corrido) — o editor filtra o seletor por papel (uma display
+ * condensada como Bebas seria ilegível como corpo de texto).
+ */
+
+export type FontePapel = "display" | "corpo";
+
+export interface DemoFonte {
+  id: string;
+  nome: string;
+  /** Valor CSS pronto (var + fallback), como Theme.fontes espera. */
+  css: string;
+  papeis: readonly FontePapel[];
+}
+
+export const DEMO_FONTES: readonly DemoFonte[] = [
+  {
+    id: "bebas",
+    nome: "Bebas Neue (display condensada)",
+    css: "var(--font-demo-bebas), 'Arial Narrow', sans-serif",
+    papeis: ["display"],
+  },
+  {
+    id: "playfair",
+    nome: "Playfair Display (serif dramática)",
+    css: "var(--font-demo-playfair), Georgia, serif",
+    papeis: ["display"],
+  },
+  {
+    id: "oswald",
+    nome: "Oswald (display compacta)",
+    css: "var(--font-demo-oswald), 'Arial Narrow', sans-serif",
+    papeis: ["display"],
+  },
+  {
+    id: "limelight",
+    nome: "Limelight (letreiro art déco)",
+    css: "var(--font-demo-limelight), Georgia, serif",
+    papeis: ["display"],
+  },
+  {
+    id: "cormorant",
+    nome: "Cormorant Garamond (serif clássica)",
+    css: "var(--font-demo-cormorant), Georgia, serif",
+    papeis: ["display", "corpo"],
+  },
+  {
+    id: "inter",
+    nome: "Inter (sans neutra)",
+    css: "var(--font-demo-inter), system-ui, sans-serif",
+    papeis: ["corpo"],
+  },
+  {
+    id: "poppins",
+    nome: "Poppins (sans geométrica)",
+    css: "var(--font-demo-poppins), system-ui, sans-serif",
+    papeis: ["display", "corpo"],
+  },
+  {
+    id: "lora",
+    nome: "Lora (serif de leitura)",
+    css: "var(--font-demo-lora), Georgia, serif",
+    papeis: ["corpo"],
+  },
+];
+
+export function getFonte(id: string | undefined): DemoFonte | undefined {
+  return DEMO_FONTES.find((fonte) => fonte.id === id);
+}
+
+export function fontesPorPapel(papel: FontePapel): DemoFonte[] {
+  return DEMO_FONTES.filter((fonte) => fonte.papeis.includes(papel));
+}

@@ -3,7 +3,7 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 import type { AppDb } from "@/lib/firestore-like";
 
-function requireEnv(name: string): string {
+export function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
     throw new Error(`Variável de ambiente ${name} não configurada (ver .env.example).`);
@@ -11,8 +11,8 @@ function requireEnv(name: string): string {
   return value;
 }
 
-/** Init lazy: só toca nas credenciais quando uma rota realmente precisa do banco. */
-export function getDb(): Firestore {
+/** Init lazy do app admin: só toca nas credenciais quando alguém precisa. */
+export function ensureApp(): void {
   if (getApps().length === 0) {
     initializeApp({
       credential: cert({
@@ -23,6 +23,10 @@ export function getDb(): Firestore {
       }),
     });
   }
+}
+
+export function getDb(): Firestore {
+  ensureApp();
   return getFirestore();
 }
 

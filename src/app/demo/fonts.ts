@@ -5,7 +5,10 @@ import {
   Inter,
   JetBrains_Mono,
   Limelight,
+  Lora,
+  Oswald,
   Playfair_Display,
+  Poppins,
 } from "next/font/google";
 
 /**
@@ -59,6 +62,27 @@ const limelight = Limelight({
   weight: "400",
 });
 
+// Fontes extras da lista curada do editor (src/lib/demos/fontes.ts) —
+// opções de display/corpo além das que as skins já usavam.
+const oswald = Oswald({
+  variable: "--font-demo-oswald",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+const poppins = Poppins({
+  variable: "--font-demo-poppins",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const lora = Lora({
+  variable: "--font-demo-lora",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+});
+
 export const demoFontsClassName = [
   bebas.variable,
   inter.variable,
@@ -67,4 +91,7 @@ export const demoFontsClassName = [
   cormorant.variable,
   playfair.variable,
   limelight.variable,
+  oswald.variable,
+  poppins.variable,
+  lora.variable,
 ].join(" ");
