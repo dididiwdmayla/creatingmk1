@@ -179,10 +179,20 @@ function LeadsPageInner() {
   const [buscaAviso, setBuscaAviso] = useState<string | null>(null);
   const [buscaErro, setBuscaErro] = useState<string | null>(null);
 
-  // "Buscando em: X" — região resolvida pelo geocoding (com cache no servidor).
+  // "Buscando em: X" — região resolvida pelo geocoding (com cache no
+  // servidor E no cliente, por texto normalizado — evita regeocodificar a
+  // mesma região a cada blur). Região não confirmada bloqueia a busca.
   const [regiaoDefault, setRegiaoDefault] = useState("");
   const [regiaoResolvida, setRegiaoResolvida] = useState<string | null>(null);
   const [regiaoErro, setRegiaoErro] = useState<string | null>(null);
+  const [regiaoStatus, setRegiaoStatus] = useState<"idle" | "resolvendo" | "ok" | "erro">(
+    "idle",
+  );
+  const regiaoCacheRef = useRef(
+    new Map<string, { ok: true; endereco: string } | { ok: false; mensagem: string }>(),
+  );
+  /** Texto (normalizado) para o qual `regiaoStatus === "ok"` é válido. */
+  const [regiaoConfirmadaPara, setRegiaoConfirmadaPara] = useState<string | null>(null);
 
   const filters: LeadFiltersState = { status, temSite, temTelefone, soFavoritos, buscaId };
 
@@ -230,44 +240,115 @@ function LeadsPageInner() {
     };
   }, []);
 
-  // Resolve a região efetiva (campo ou default da config) para mostrar
-  // "Buscando em: X" antes de confirmar. Roda no blur do campo e quando o
-  // default carrega; o cache do servidor faz o hit custar zero.
-  function resolverRegiao(texto: string) {
-    const efetiva = texto.trim() || regiaoDefault.trim();
+  /** Chave normalizada do cache client-side de geocodificação por texto. */
+  function chaveRegiao(texto: string): string {
+    return texto.trim().toLowerCase();
+  }
+
+  /**
+   * Resolve a região efetiva (campo ou default da config) para mostrar
+   * "Buscando em: X" antes de confirmar. Roda no blur do campo e quando o
+   * default carrega. Cacheada por texto no cliente (Map em ref) — além do
+   * cache permanente do servidor, evita regeocodificar a cada blur na
+   * mesma região; só erro de validação (região não encontrada) é
+   * cacheado, erro transitório é reconsultado na próxima tentativa.
+   */
+  function resolverRegiao(textoBruto: string) {
+    const efetiva = textoBruto.trim() || regiaoDefault.trim();
     if (!efetiva) {
+      setRegiaoStatus("idle");
       setRegiaoResolvida(null);
+      setRegiaoErro(null);
+      setRegiaoConfirmadaPara(null);
       return;
     }
+    const chave = chaveRegiao(efetiva);
+    const emCache = regiaoCacheRef.current.get(chave);
+    if (emCache) {
+      if (emCache.ok) {
+        setRegiaoConfirmadaPara(chave);
+        setRegiaoStatus("ok");
+        setRegiaoResolvida(emCache.endereco);
+        setRegiaoErro(null);
+      } else {
+        setRegiaoConfirmadaPara(null);
+        setRegiaoStatus("erro");
+        setRegiaoResolvida(null);
+        setRegiaoErro(emCache.mensagem);
+      }
+      return;
+    }
+    setRegiaoStatus("resolvendo");
     setRegiaoErro(null);
     api
       .geocode(efetiva)
-      .then((geo) => setRegiaoResolvida(geo.endereco))
+      .then((geo) => {
+        regiaoCacheRef.current.set(chave, { ok: true, endereco: geo.endereco });
+        setRegiaoConfirmadaPara(chave);
+        setRegiaoStatus("ok");
+        setRegiaoResolvida(geo.endereco);
+      })
       .catch((error) => {
+        const naoEncontrada = error instanceof ApiError && error.code === "validation_error";
+        const mensagem = naoEncontrada
+          ? `Região não encontrada: "${efetiva}".`
+          : "Não foi possível confirmar a região agora. Tente sair e voltar no campo.";
+        if (naoEncontrada) {
+          regiaoCacheRef.current.set(chave, { ok: false, mensagem });
+        }
+        setRegiaoConfirmadaPara(null);
+        setRegiaoStatus("erro");
         setRegiaoResolvida(null);
-        setRegiaoErro(
-          error instanceof ApiError && error.code === "validation_error"
-            ? `Região não encontrada: "${efetiva}".`
-            : null, // erro transitório: some em silêncio, a busca reporta
-        );
+        setRegiaoErro(mensagem);
       });
   }
 
+  /** Descarta a confirmação anterior assim que o texto muda (até o próximo blur). */
+  function onRegiaoChange(valor: string) {
+    setRegiao(valor);
+    const chave = chaveRegiao(valor || regiaoDefault);
+    if (regiaoConfirmadaPara !== chave) {
+      setRegiaoStatus("idle");
+      setRegiaoResolvida(null);
+      setRegiaoErro(null);
+    }
+  }
+
   useEffect(() => {
-    if (!regiaoDefault) return;
+    if (!regiaoDefault || regiao.trim()) return; // o usuário já digitou algo — não pisa
     let ignore = false;
+    const chave = chaveRegiao(regiaoDefault);
+    const emCache = regiaoCacheRef.current.get(chave);
+    if (emCache?.ok) {
+      setRegiaoConfirmadaPara(chave);
+      setRegiaoStatus("ok");
+      setRegiaoResolvida(emCache.endereco);
+      return;
+    }
+    setRegiaoStatus("resolvendo");
     api
       .geocode(regiaoDefault)
       .then((geo) => {
-        if (!ignore) setRegiaoResolvida((atual) => atual ?? geo.endereco);
+        if (ignore) return;
+        regiaoCacheRef.current.set(chave, { ok: true, endereco: geo.endereco });
+        setRegiaoConfirmadaPara(chave);
+        setRegiaoStatus("ok");
+        setRegiaoResolvida(geo.endereco);
       })
       .catch(() => {
-        // silencioso: o campo em branco só perde o hint
+        // silencioso: o campo em branco só perde o hint; o blur reconfirma
+        if (!ignore) setRegiaoStatus("idle");
       });
     return () => {
       ignore = true;
     };
-  }, [regiaoDefault]);
+  }, [regiaoDefault, regiao]);
+
+  const regiaoEfetivaAtual = chaveRegiao(regiao || regiaoDefault);
+  const regiaoConfirmada =
+    regiaoStatus === "ok" &&
+    regiaoConfirmadaPara === regiaoEfetivaAtual &&
+    regiaoEfetivaAtual.length > 0;
 
   // ── Scroll restoration: volta da ficha exatamente onde estava ─────────
   // A posição salva é aplicada em useLayoutEffect (síncrono, ANTES do
@@ -339,10 +420,18 @@ function LeadsPageInner() {
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBuscando(true);
     setBuscaMsg(null);
     setBuscaAviso(null);
     setBuscaErro(null);
+    if (!regiaoConfirmada) {
+      setBuscaErro(
+        regiaoStatus === "resolvendo"
+          ? "Aguarde a confirmação da região antes de buscar."
+          : "Região não confirmada. Preencha o campo região e saia dele (blur) para confirmar.",
+      );
+      return;
+    }
+    setBuscando(true);
     try {
       const body: Parameters<typeof api.search>[0] = {};
       if (nicho.trim()) body.nicho = nicho.trim();
@@ -433,20 +522,28 @@ function LeadsPageInner() {
           </div>
           <input
             value={regiao}
-            onChange={(event) => setRegiao(event.target.value)}
+            onChange={(event) => onRegiaoChange(event.target.value)}
             onBlur={(event) => resolverRegiao(event.target.value)}
             placeholder={
               regiaoDefault ? `Região (padrão: ${regiaoDefault})` : "Região (padrão: da config)"
             }
             className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
           />
-          {regiaoResolvida && !regiaoErro && (
-            <p className="text-xs text-ink-muted">
+          {regiaoConfirmada && regiaoResolvida && (
+            <p className="flex items-center gap-1.5 text-xs text-ink-muted">
+              <span aria-hidden className="font-semibold text-good">
+                ✓
+              </span>
               Buscando em: <span className="text-ink-secondary">{regiaoResolvida}</span>{" "}
               <span aria-hidden>·</span> só resultados dentro da região
             </p>
           )}
-          {regiaoErro && <p className="text-xs text-critical">{regiaoErro}</p>}
+          {regiaoStatus === "resolvendo" && (
+            <p className="text-xs text-ink-muted">Confirmando região…</p>
+          )}
+          {regiaoStatus === "erro" && regiaoErro && (
+            <p className="text-xs text-critical">⚠ {regiaoErro}</p>
+          )}
           <input
             value={nomeBusca}
             onChange={(event) => setNomeBusca(event.target.value)}
@@ -510,7 +607,7 @@ function LeadsPageInner() {
             />
             <span>automaticamente (máx. {AUTO_ENRICH_MAX})</span>
           </label>
-          <Button type="submit" loading={buscando}>
+          <Button type="submit" loading={buscando} disabled={!regiaoConfirmada}>
             Buscar
           </Button>
         </div>
