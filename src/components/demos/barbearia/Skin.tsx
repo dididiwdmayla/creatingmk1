@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { CSSProperties } from "react";
 
 import type { Densidade, SkinProps } from "@/lib/demos/types";
+import { ScrollHeader } from "./interactive/ScrollHeader";
 import { TypewriterText } from "./interactive/TypewriterText";
 
 /**
@@ -119,29 +120,15 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       `}</style>
 
       {/* ── Header ─────────────────────────────────────────────── */}
-      <header className="fixed inset-x-0 top-0 z-40 border-b border-[var(--d-border)] bg-[var(--d-bg)]/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <a
-            href="#topo"
-            className="font-[family-name:var(--d-deco)] text-lg tracking-[0.08em] text-[var(--d-accent)]"
-          >
-            {data.nome}
-          </a>
-          <nav className="hidden items-center gap-8 font-[family-name:var(--d-mono)] text-[11px] uppercase tracking-[0.18em] md:flex">
-            {s.servicos?.rotulo && <a href="#servicos" className="hover:text-[var(--d-accent)]">{s.servicos.rotulo}</a>}
-            {s.equipe?.rotulo && <a href="#equipe" className="hover:text-[var(--d-accent)]">{s.equipe.rotulo}</a>}
-            {s.contato?.rotulo && <a href="#contato" className="hover:text-[var(--d-accent)]">{s.contato.rotulo}</a>}
-          </nav>
-          {s.hero?.cta && (
-            <a
-              href={agendar}
-              className="rounded-[var(--d-radius)] bg-[var(--d-accent)] px-5 py-2 font-[family-name:var(--d-display)] text-xs font-bold uppercase tracking-[0.2em] text-[var(--d-accent-ink)] transition-opacity hover:opacity-85"
-            >
-              {s.hero.cta}
-            </a>
-          )}
-        </div>
-      </header>
+      <ScrollHeader
+        nome={data.nome}
+        ctaHref="#agendar"
+        links={[
+          s.servicos?.rotulo && { href: "#servicos", label: s.servicos.rotulo },
+          s.equipe?.rotulo && { href: "#equipe", label: s.equipe.rotulo },
+          s.contato?.rotulo && { href: "#contato", label: s.contato.rotulo },
+        ].filter((link): link is { href: string; label: string } => Boolean(link))}
+      />
 
       {/* ── Hero ───────────────────────────────────────────────── */}
       <section id="topo" className="relative flex min-h-screen items-center overflow-hidden pt-24">
