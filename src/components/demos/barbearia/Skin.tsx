@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 
 import type { Densidade, SkinProps } from "@/lib/demos/types";
 import { AnimatedScissors } from "./interactive/AnimatedScissors";
-import { CustomCursor } from "./interactive/CustomCursor";
+import { IntroExperience } from "./interactive/IntroExperience";
 import { ScrollHeader } from "./interactive/ScrollHeader";
 import { TeamCard } from "./interactive/TeamCard";
 import { TypewriterText } from "./interactive/TypewriterText";
@@ -144,7 +144,15 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       style={vars}
       className="min-h-screen bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
-      <CustomCursor accent={paleta.destaque} />
+      {/* Textura de ruído sutil no fundo — mesmo .noise-overlay do original (body). */}
+      <div
+        className="pointer-events-none fixed inset-0 z-50 opacity-[0.04]"
+        style={{
+          backgroundImage: `radial-gradient(var(--d-text) 1px, transparent 1px)`,
+          backgroundSize: "24px 24px",
+        }}
+        aria-hidden="true"
+      />
 
       {/* Keyframes do poste de barbeiro — escopo próprio da skin. */}
       <style>{`
@@ -178,6 +186,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         @media (prefers-reduced-motion: reduce) { .d-cta:hover { transform: none; } }
       `}</style>
 
+      <IntroExperience nome={data.nome} cidade={data.cidade} accent={paleta.destaque}>
       {/* ── Header ─────────────────────────────────────────────── */}
       <ScrollHeader
         nome={data.nome}
@@ -656,6 +665,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           </div>
         </div>
       </footer>
+      </IntroExperience>
     </div>
   );
 }
