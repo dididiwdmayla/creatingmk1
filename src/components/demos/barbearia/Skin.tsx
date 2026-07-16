@@ -29,11 +29,38 @@ function waHref(whatsapp: string | undefined): string {
   return digitos ? `https://wa.me/${digitos}` : "#contato";
 }
 
-function Etiqueta({ numero, texto }: { numero?: string; texto?: string }) {
+/**
+ * Etiqueta de seção. O original alterna dois estilos: "caixa" (borda +
+ * fundo com blur — Filosofia/Ritual/Booking/Contato) e texto solto sem
+ * caixa (Serviços/Equipe/QuickBooking).
+ */
+function Etiqueta({
+  numero,
+  texto,
+  caixa,
+  className = "mb-6",
+}: {
+  numero?: string;
+  texto?: string;
+  caixa?: boolean;
+  className?: string;
+}) {
   if (!texto) return null;
+  const label = numero ? `${numero} / ${texto}` : texto;
+  if (caixa) {
+    return (
+      <span
+        className={`${className} inline-block border border-[var(--d-accent)]/25 bg-[var(--d-bg)]/40 px-4 py-1.5 font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] backdrop-blur-sm md:text-xs`}
+      >
+        {label}
+      </span>
+    );
+  }
   return (
-    <span className="mb-6 block font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] md:text-xs">
-      {numero ? `${numero} / ${texto}` : texto}
+    <span
+      className={`${className} block font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] md:text-xs`}
+    >
+      {label}
     </span>
   );
 }
@@ -45,6 +72,15 @@ function Headline({ texto, animado }: { texto?: string; animado?: boolean }) {
     <h2 className="font-[family-name:var(--d-display)] text-4xl uppercase leading-tight tracking-tight text-[var(--d-text)] md:text-5xl">
       {animado ? <TypewriterText text={texto} triggerOnInView speed={40} /> : texto}
     </h2>
+  );
+}
+
+/** Ícone do WhatsApp usado no CTA de agendamento rápido (chrome fixo, não dado do lead). */
+function WhatsAppIcon() {
+  return (
+    <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.51 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.458L0 24zm6.59-4.846c1.6.95 3.1 1.455 4.7 1.456 5.483 0 9.94-4.444 9.943-9.914.002-2.651-1.023-5.143-2.884-7.009C16.486 1.82 14.004.792 11.4.792 5.92.792 1.463 5.235 1.461 10.704c-.001 1.71.463 3.38 1.341 4.904l-.991 3.619 3.731-.975c1.51.82 3.1 1.25 4.8 1.25v-.01zM17.43 14.8c-.3-.15-.1.45-.75-.45-.65-.9-1.15-1.1-1.35-1.15-.2-.05-.35-.05-.5.15-.15.2-.6.75-.75.9-.15.15-.3.15-.6 0-.3-.15-1.25-.45-2.38-1.45-.9-.8-1.5-1.8-1.7-2.1-.2-.3-.02-.45.13-.6.13-.13.3-.35.45-.5.15-.15.2-.25.3-.45.1-.2.05-.35-.02-.5-.07-.15-.65-1.55-.9-2.1-.23-.6-.5-.5-.7-.5h-.6c-.2 0-.5.05-.75.3-.25.25-1 1-1 2.4s1 2.8 1.15 3c.15.2 2 3.05 4.85 4.25.7.3 1.2.5 1.6.65.7.2 1.35.2 1.85.15.55-.08 1.7-.7 1.95-1.35.25-.65.25-1.2.15-1.35-.1-.15-.3-.25-.6-.4z" />
+    </svg>
   );
 }
 
@@ -117,6 +153,24 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           background-repeat: repeat-x;
         }
         @media (prefers-reduced-motion: reduce) { .d-pole { animation: none; } }
+
+        /* Pílula de CTA do WhatsApp (QuickBooking + Agendamento). */
+        .d-cta {
+          font-family: var(--d-display);
+          font-size: 18px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: var(--d-accent-ink);
+          background: var(--d-accent);
+          padding: 20px 40px;
+          box-shadow: 0 8px 24px color-mix(in srgb, var(--d-accent) 30%, transparent);
+          transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .d-cta:hover {
+          transform: scale(1.03);
+          box-shadow: 0 8px 24px color-mix(in srgb, var(--d-accent) 40%, transparent);
+        }
+        @media (prefers-reduced-motion: reduce) { .d-cta:hover { transform: none; } }
       `}</style>
 
       {/* ── Header ─────────────────────────────────────────────── */}
@@ -195,25 +249,69 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         </div>
       </section>
 
-      {/* ── Faixa de agendamento rápido ────────────────────────── */}
-      {(data.horarios || data.whatsapp) && (
-        <div className="border-y border-[var(--d-border)] bg-[var(--d-bg-alt)]">
-          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-6 py-6 font-[family-name:var(--d-mono)] text-xs uppercase tracking-[0.18em] md:flex-row md:items-center">
-            {data.horarios && <span className="text-[var(--d-muted)]">{data.horarios}</span>}
-            {data.whatsapp && (
-              <a href={agendar} className="text-[var(--d-accent)] hover:underline">
-                WHATSAPP {data.whatsapp} →
-              </a>
-            )}
+      {/* ── Agendamento rápido (QuickBooking) ──────────────────── */}
+      {s.agendamentoRapido && (
+        <section className="relative border-b border-[var(--d-border)] bg-[var(--d-bg-elev)] py-[60px] md:py-[80px]">
+          <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 md:grid-cols-[60%_40%]">
+            <div className="flex flex-col items-start gap-5">
+              <Etiqueta texto={s.agendamentoRapido.rotulo} className="mb-0" />
+              <div className="space-y-2">
+                <h2
+                  className="font-[family-name:var(--d-display)] uppercase leading-[0.95] tracking-tight text-[var(--d-text)]"
+                  style={{ fontSize: "clamp(2.5rem, 6vw, 4rem)" }}
+                >
+                  {s.agendamentoRapido.titulo}
+                </h2>
+                {s.agendamentoRapido.texto && (
+                  <p className="font-[family-name:var(--d-citacao)] text-base italic text-[var(--d-muted)] md:text-lg">
+                    {s.agendamentoRapido.texto}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-2 flex flex-col gap-2">
+                {data.endereco && (
+                  <p className="text-[17px] font-medium leading-relaxed text-[var(--d-text)]">
+                    {data.endereco}
+                  </p>
+                )}
+                {data.horarios && (
+                  <p className="font-[family-name:var(--d-mono)] text-xs uppercase tracking-wider text-[var(--d-accent)]">
+                    {data.horarios}
+                  </p>
+                )}
+              </div>
+
+              {s.agendamentoRapido.cta && (
+                <div className="mt-4 w-full sm:w-auto">
+                  <a href={agendar} className="d-cta inline-flex w-full items-center justify-center gap-3 sm:w-auto">
+                    <WhatsAppIcon />
+                    <span>{s.agendamentoRapido.cta} →</span>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div
+              className="relative aspect-square w-full overflow-hidden border border-[var(--d-accent)]/25 md:aspect-[4/3]"
+              style={{ boxShadow: "0 16px 48px rgba(0,0,0,0.6)" }}
+            >
+              <Placeholder
+                src={data.imagens["agendamento-rapido"] ?? data.imagens.hero}
+                alt="Cliente sendo atendido na cadeira"
+                sizes="(max-width: 768px) 100vw, 40vw"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--d-bg)]/70 to-transparent" />
+            </div>
           </div>
-        </div>
+        </section>
       )}
 
       {/* ── Filosofia ──────────────────────────────────────────── */}
       {s.filosofia && (
         <section className="border-b border-[var(--d-border)] py-[var(--d-sec-y)]">
           <div className="mx-auto max-w-7xl px-6">
-            <Etiqueta numero="01" texto={s.filosofia.rotulo} />
+            <Etiqueta numero="01" texto={s.filosofia.rotulo} caixa className="mb-8" />
             <div className="mb-16">
               <Headline texto={s.filosofia.titulo} animado />
             </div>
@@ -340,7 +438,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       {s.ritual?.texto && (
         <section className="border-y border-[var(--d-border)] bg-[var(--d-bg)] py-[var(--d-sec-y)] text-center">
           <div className="mx-auto flex max-w-4xl flex-col items-center px-6">
-            <Etiqueta numero="04" texto={s.ritual.rotulo ?? "RITUAL"} />
+            <Etiqueta numero="04" texto={s.ritual.rotulo ?? "RITUAL"} caixa className="mb-12" />
             <p className="mb-12 font-[family-name:var(--d-citacao)] text-3xl italic leading-snug text-[var(--d-text)] md:text-4xl">
               &ldquo;<TypewriterText text={s.ritual.texto} triggerOnInView speed={50} />&rdquo;
             </p>
@@ -399,7 +497,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           <div className="mx-auto max-w-7xl px-6">
             <div className="mb-16">
               {/* Sem número: "COMO FUNCIONA" também é sem número no original. */}
-              <Etiqueta texto={s.agendamento.rotulo} />
+              <Etiqueta texto={s.agendamento.rotulo} caixa />
               <Headline texto={s.agendamento.titulo} />
             </div>
             <div className="mb-16 grid gap-12 md:grid-cols-3">
@@ -422,12 +520,12 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               ))}
             </div>
             {s.agendamento.cta && (
-              <a
-                href={agendar}
-                className="inline-block rounded-[var(--d-radius)] bg-[var(--d-accent)] px-10 py-5 font-[family-name:var(--d-display)] text-sm font-bold uppercase tracking-[0.2em] text-[var(--d-accent-ink)] transition-opacity hover:opacity-85"
-              >
-                {s.agendamento.cta} →
-              </a>
+              <div className="flex justify-center">
+                <a href={agendar} className="d-cta inline-flex items-center justify-center gap-3">
+                  <span>{s.agendamento.cta}</span>
+                  <span>→</span>
+                </a>
+              </div>
             )}
           </div>
         </section>
@@ -437,9 +535,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       <section id="contato" className="bg-[var(--d-bg-elev)] py-[var(--d-sec-y)]">
         <div className="mx-auto grid max-w-7xl items-center gap-16 px-6 md:grid-cols-2 md:gap-24">
           <div className="flex flex-col items-start">
-            <span className="mb-8 rounded-[var(--d-radius)] border border-[var(--d-accent)]/25 bg-[var(--d-bg)]/40 px-4 py-1.5 font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] backdrop-blur-sm md:text-xs">
-              05 / {s.contato?.rotulo ?? "CONTATO"}
-            </span>
+            <Etiqueta numero="05" texto={s.contato?.rotulo ?? "CONTATO"} caixa className="mb-8" />
             <div className="mb-12">
               <Headline texto={s.contato?.titulo} animado />
             </div>

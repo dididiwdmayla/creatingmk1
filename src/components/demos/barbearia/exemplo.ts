@@ -75,6 +75,12 @@ export const BARBEARIA_EXEMPLO: DemoData = {
       cta: "AGENDAR HORÁRIO",
       ctaSecundaria: "VER SERVIÇOS",
     },
+    agendamentoRapido: {
+      rotulo: "AGENDAMENTO",
+      titulo: "QUER SÓ AGENDAR? OBJETIVO.",
+      texto: "Sem precisar percorrer o site todo.",
+      cta: "AGENDAR HORÁRIO PELO WHATSAPP",
+    },
     filosofia: {
       rotulo: "FILOSOFIA",
       titulo: "TRÊS COISAS NÃO NEGOCIÁVEIS",
@@ -166,6 +172,7 @@ export const BARBEARIA_EXEMPLO: DemoData = {
   },
   imagens: {
     hero: "/demos/barbearia/hero.svg",
+    "agendamento-rapido": "/demos/barbearia/agendamento-rapido.svg",
     servicos: "/demos/barbearia/servicos.svg",
     "equipe-1": "/demos/barbearia/equipe-1.svg",
     "equipe-2": "/demos/barbearia/equipe-2.svg",
