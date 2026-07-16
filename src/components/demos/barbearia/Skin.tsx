@@ -2,7 +2,9 @@ import Image from "next/image";
 import type { CSSProperties } from "react";
 
 import type { Densidade, SkinProps } from "@/lib/demos/types";
+import { AnimatedScissors } from "./interactive/AnimatedScissors";
 import { ScrollHeader } from "./interactive/ScrollHeader";
+import { TeamCard } from "./interactive/TeamCard";
 import { TypewriterText } from "./interactive/TypewriterText";
 
 /**
@@ -393,41 +395,25 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       {s.equipe && (s.equipe.itens?.length ?? 0) > 0 && (
         <section id="equipe" className="bg-[var(--d-bg-alt)] py-[var(--d-sec-y)]">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="mb-20">
-              <Etiqueta numero="03" texto={s.equipe.rotulo} />
-              <Headline texto={s.equipe.titulo} animado />
+            <div className="mb-20 flex items-start justify-between">
+              <div>
+                <Etiqueta numero="03" texto={s.equipe.rotulo} />
+                <Headline texto={s.equipe.titulo} animado />
+              </div>
+              <div className="hidden md:block">
+                <AnimatedScissors />
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
               {(s.equipe.itens ?? []).map((membro, i) => (
-                <div
+                <TeamCard
                   key={membro.titulo}
-                  className="group flex h-full flex-col overflow-hidden rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg)] p-4 pb-8 transition-transform duration-500 hover:-translate-y-2"
-                  style={{ boxShadow: "0 16px 48px rgba(0,0,0,0.4)" }}
-                >
-                  <div className="relative mb-6 aspect-[3/4] w-full overflow-hidden rounded-[var(--d-radius)]">
-                    <Placeholder
-                      src={data.imagens[`equipe-${i + 1}`] ?? data.imagens.hero}
-                      alt={membro.titulo}
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                    />
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--d-bg)] to-transparent" />
-                  </div>
-                  <div className="px-2">
-                    <h3 className="mb-1 font-[family-name:var(--d-display)] text-3xl tracking-tight text-[var(--d-text)] transition-colors group-hover:text-[var(--d-accent)] md:text-4xl">
-                      {membro.titulo}
-                    </h3>
-                    {membro.subtitulo && (
-                      <span className="mb-4 block font-[family-name:var(--d-mono)] text-[10px] font-medium uppercase tracking-widest text-[var(--d-accent)] md:text-xs">
-                        {membro.subtitulo}
-                      </span>
-                    )}
-                    {membro.texto && (
-                      <p className="font-[family-name:var(--d-serif)] text-sm leading-[1.7] text-[var(--d-muted)] md:text-base">
-                        {membro.texto}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                  imageSrc={data.imagens[`equipe-${i + 1}`] ?? data.imagens.hero}
+                  alt={membro.titulo}
+                  nome={membro.titulo}
+                  subtitulo={membro.subtitulo}
+                  bio={membro.texto}
+                />
               ))}
             </div>
           </div>
