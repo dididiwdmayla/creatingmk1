@@ -9,7 +9,8 @@ import {
 
 /**
  * Proteção por senha única de TODO o app (páginas e API), exceto assets,
- * a página /login e /api/login. As rotas gastam dinheiro na API do Google
+ * a página /login, /api/login e as demos públicas em /demo/{leadId}.
+ * As rotas gastam dinheiro na API do Google
  * — sem sessão válida, nada passa. Aceita também o header x-app-password
  * (útil para curl e para a primeira visita antes de existir a página de
  * login); quando correto, já estabelece o cookie de sessão na resposta.
@@ -31,6 +32,14 @@ export async function proxy(request: NextRequest) {
       },
       { status: 503 },
     );
+  }
+
+  // Forja de Demos: /demo/{leadId} é a ÚNICA rota pública além do login —
+  // é o link enviado ao lead. Só renderiza dados do Firestore (nunca chama
+  // o Google), então não há custo exposto. Fica DEPOIS do check de
+  // APP_PASSWORD: sem config, o app inteiro continua fail-closed.
+  if (pathname === "/demo" || pathname.startsWith("/demo/")) {
+    return NextResponse.next();
   }
 
   const expected = await sessionTokenFor(password);
