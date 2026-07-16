@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { CSSProperties } from "react";
 
 import type { Densidade, SkinProps } from "@/lib/demos/types";
+import { TypewriterText } from "./interactive/TypewriterText";
 
 /**
  * Skin "Barbearia Editorial" — conversão fiel do material bruto
@@ -36,11 +37,12 @@ function Etiqueta({ numero, texto }: { numero?: string; texto?: string }) {
   );
 }
 
-function Headline({ texto }: { texto?: string }) {
+/** `animado` reproduz a máquina de escrever do original (só nas seções que a usavam). */
+function Headline({ texto, animado }: { texto?: string; animado?: boolean }) {
   if (!texto) return null;
   return (
     <h2 className="font-[family-name:var(--d-display)] text-4xl uppercase leading-tight tracking-tight text-[var(--d-text)] md:text-5xl">
-      {texto}
+      {animado ? <TypewriterText text={texto} triggerOnInView speed={40} /> : texto}
     </h2>
   );
 }
@@ -155,7 +157,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                 className="font-[family-name:var(--d-display)] uppercase leading-[0.9] tracking-tight text-[var(--d-text)] drop-shadow-2xl"
                 style={{ fontSize: "clamp(3rem, 8vw, 6.5rem)" }}
               >
-                {s.hero?.titulo ?? data.nome}
+                <TypewriterText text={s.hero?.titulo ?? data.nome} delay={1800} speed={80} />
               </h1>
             </div>
 
@@ -226,7 +228,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           <div className="mx-auto max-w-7xl px-6">
             <Etiqueta numero="01" texto={s.filosofia.rotulo} />
             <div className="mb-16">
-              <Headline texto={s.filosofia.titulo} />
+              <Headline texto={s.filosofia.titulo} animado />
             </div>
             <div className="grid gap-12 md:grid-cols-3">
               {(s.filosofia.itens ?? []).map((pilar) => (
@@ -259,7 +261,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               <div>
                 <Etiqueta numero="02" texto={s.servicos?.rotulo} />
                 <div className="mb-8">
-                  <Headline texto={s.servicos?.titulo} />
+                  <Headline texto={s.servicos?.titulo} animado />
                 </div>
               </div>
               <div
@@ -308,7 +310,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           <div className="mx-auto max-w-7xl px-6">
             <div className="mb-20">
               <Etiqueta numero="03" texto={s.equipe.rotulo} />
-              <Headline texto={s.equipe.titulo} />
+              <Headline texto={s.equipe.titulo} animado />
             </div>
             <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
               {(s.equipe.itens ?? []).map((membro, i) => (
@@ -353,7 +355,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           <div className="mx-auto flex max-w-4xl flex-col items-center px-6">
             <Etiqueta numero="04" texto={s.ritual.rotulo ?? "RITUAL"} />
             <p className="mb-12 font-[family-name:var(--d-citacao)] text-3xl italic leading-snug text-[var(--d-text)] md:text-4xl">
-              &ldquo;{s.ritual.texto}&rdquo;
+              &ldquo;<TypewriterText text={s.ritual.texto} triggerOnInView speed={50} />&rdquo;
             </p>
             {/* Acento raro (accent-3 = forest no original) — a única linha decorativa fora da paleta principal. */}
             <div className="mb-12 h-px w-20 bg-[var(--d-accent-3)]" />
@@ -452,7 +454,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               05 / {s.contato?.rotulo ?? "CONTATO"}
             </span>
             <div className="mb-12">
-              <Headline texto={s.contato?.titulo} />
+              <Headline texto={s.contato?.titulo} animado />
             </div>
 
             <div className="flex w-full flex-col gap-8">
