@@ -60,6 +60,8 @@ export interface SearchResponse {
   paginas: number;
   /** Endereço que o geocoding resolveu para a região ("Sarandi, PR, Brasil"). */
   regiaoResolvida: string;
+  /** Só com soComTelefone: quantos resultados com telefone sobraram após o descarte. */
+  validos?: number;
   /** Presente quando a busca parou antes da quantidade pedida (teto/erro/fim). */
   aviso?: string;
 }
@@ -97,6 +99,7 @@ export const api = {
     nome?: string;
     quantidade?: number;
     qualificada?: boolean;
+    soComTelefone?: boolean;
   }) =>
     request<SearchResponse>("/api/search", { method: "POST", body: JSON.stringify(body) }),
 

@@ -406,6 +406,180 @@ describe("searchText — qualificada (SKU textSearchEnterprise)", () => {
     ).rejects.toThrow(QuotaExceededError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("sem soComTelefone, o campo validos não aparece no resultado", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ places: [{ id: "ChIJ001", displayName: { text: "Lugar 1" } }] }),
+    );
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, { qualificada: true });
+
+    expect(result.validos).toBeUndefined();
+  });
+});
+
+describe("searchText — soComTelefone (descarta sem telefone)", () => {
+  it("descarta resultados sem telefone: não entram em places nem contam pra novos/validos", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        places: [
+          {
+            id: "ChIJ_tel",
+            displayName: { text: "Com Telefone" },
+            nationalPhoneNumber: "(44) 3264-0000",
+            internationalPhoneNumber: "+55 44 3264-0000",
+          },
+          { id: "ChIJ_sem1", displayName: { text: "Sem Telefone 1" } },
+          { id: "ChIJ_sem2", displayName: { text: "Sem Telefone 2" } },
+        ],
+      }),
+    );
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, {
+      qualificada: true,
+      soComTelefone: true,
+      quantidade: 40,
+    });
+
+    expect(result.places).toHaveLength(1);
+    expect(result.places[0].placeId).toBe("ChIJ_tel");
+    expect(result.novos).toBe(1);
+    expect(result.validos).toBe(1);
+  });
+
+  it("pagina até completar a quantidade de NOVOS com telefone, ignorando os sem telefone", async () => {
+    // Página 1: 1 com telefone (novo) + 2 sem telefone (descartados).
+    fetchMock
+      .mockImplementationOnce(async () =>
+        jsonResponse({
+          places: [
+            {
+              id: "ChIJ_a",
+              displayName: { text: "A" },
+              nationalPhoneNumber: "(44) 3264-0001",
+              internationalPhoneNumber: "+55 44 3264-0001",
+            },
+            { id: "ChIJ_b", displayName: { text: "B (sem tel)" } },
+            { id: "ChIJ_c", displayName: { text: "C (sem tel)" } },
+          ],
+          nextPageToken: "tok-2",
+        }),
+      )
+      // Página 2: mais 2 com telefone (novos) — completa a quantidade de 3.
+      .mockImplementationOnce(async () =>
+        jsonResponse({
+          places: [
+            {
+              id: "ChIJ_d",
+              displayName: { text: "D" },
+              nationalPhoneNumber: "(44) 3264-0002",
+              internationalPhoneNumber: "+55 44 3264-0002",
+            },
+            {
+              id: "ChIJ_e",
+              displayName: { text: "E" },
+              nationalPhoneNumber: "(44) 3264-0003",
+              internationalPhoneNumber: "+55 44 3264-0003",
+            },
+          ],
+        }),
+      );
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, {
+      qualificada: true,
+      soComTelefone: true,
+      quantidade: 3,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.paginas).toBe(2);
+    expect(result.places).toHaveLength(3); // só os com telefone
+    expect(result.novos).toBe(3);
+    expect(result.validos).toBe(3);
+    expect(result.aviso).toBeUndefined();
+    expect(usageDoc(db)).toMatchObject({ textSearchEnterprise: 2 });
+  });
+
+  it("resultados esgotados sem atingir a quantidade de válidos → aviso, cota gasta normalmente", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        places: [
+          {
+            id: "ChIJ_unico",
+            displayName: { text: "Único com telefone" },
+            nationalPhoneNumber: "(44) 3264-0000",
+            internationalPhoneNumber: "+55 44 3264-0000",
+          },
+          { id: "ChIJ_sem", displayName: { text: "Sem telefone" } },
+        ],
+      }),
+    );
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, {
+      qualificada: true,
+      soComTelefone: true,
+      quantidade: 20,
+    });
+
+    expect(result.places).toHaveLength(1);
+    expect(result.validos).toBe(1);
+    expect(result.aviso).toContain("resultados esgotados");
+    expect(usageDoc(db)).toMatchObject({ textSearchEnterprise: 1 });
+  });
+
+  it("existentes com telefone contam pra validos mas não pra novos (segue a semântica de quantidade)", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        places: [
+          {
+            id: "ChIJ_existente",
+            displayName: { text: "Já existe" },
+            nationalPhoneNumber: "(44) 3264-0000",
+            internationalPhoneNumber: "+55 44 3264-0000",
+          },
+          { id: "ChIJ_sem", displayName: { text: "Sem telefone" } },
+        ],
+      }),
+    );
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, {
+      qualificada: true,
+      soComTelefone: true,
+      quantidade: 1,
+      isNovo: async () => false, // já existe na base
+    });
+
+    expect(result.places).toHaveLength(1);
+    expect(result.validos).toBe(1);
+    expect(result.novos).toBe(0);
+    // Continuou paginando (limite de páginas) já que 0 novos < quantidade 1.
+    expect(result.aviso).toBeDefined();
+  });
+
+  it("respeita o limite de 3 páginas e a cota por página mesmo descartando tudo", async () => {
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as { pageToken?: string };
+      const proximo =
+        body.pageToken === "tok-1" ? "tok-2" : body.pageToken === "tok-2" ? "tok-3" : "tok-1";
+      return jsonResponse({
+        places: [{ id: `ChIJ_${proximo}`, displayName: { text: "Sem telefone" } }],
+        nextPageToken: proximo,
+      });
+    });
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, {
+      qualificada: true,
+      soComTelefone: true,
+      quantidade: 40,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(result.paginas).toBe(3);
+    expect(result.places).toHaveLength(0);
+    expect(result.validos).toBe(0);
+    expect(result.aviso).toContain("limite de 3 páginas");
+    expect(usageDoc(db)).toMatchObject({ textSearchEnterprise: 3 });
+  });
 });
 
 describe("placeDetails (SKU detailsEnterprise)", () => {

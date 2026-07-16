@@ -71,6 +71,13 @@ export interface SearchTextOptions {
   quantidade?: number;
   /** Busca qualificada: mask com websiteUri/telefones → SKU textSearchEnterprise. */
   qualificada?: boolean;
+  /**
+   * Só com qualificada: descarta (não entra em `places`, não conta pra
+   * `novos`) todo resultado sem nationalPhoneNumber/internationalPhoneNumber.
+   * Pagina até juntar `quantidade` leads NOVOS com telefone, respeitando a
+   * mesma cota-por-página e o limite de 3 páginas do Google.
+   */
+  soComTelefone?: boolean;
   /** Localização dura: retângulo (viewport geocodificado) da região. */
   locationRestriction?: LatLngRect;
   /**
@@ -87,6 +94,11 @@ export interface SearchTextResult {
   paginas: number;
   /** Resultados inéditos segundo isNovo (sem o predicado, = places.length). */
   novos: number;
+  /**
+   * Presente só com `soComTelefone`: quantos resultados com telefone
+   * sobraram depois do descarte (= places.length nesse modo).
+   */
+  validos?: number;
   /** Preenchido quando a busca parou antes da quantidade pedida (teto/erro/fim). */
   aviso?: string;
 }
@@ -165,6 +177,7 @@ export async function searchText(
     SEARCH_MAX_RESULTS,
   );
   const qualificada = options.qualificada ?? false;
+  const soComTelefone = options.soComTelefone ?? false;
   const sku: Sku = qualificada ? "textSearchEnterprise" : "textSearch";
   // pageSize constante entre as páginas: a API exige os mesmos parâmetros
   // (fora o pageToken) nas chamadas de continuação.
@@ -173,6 +186,7 @@ export async function searchText(
   const places: PlaceBasico[] = [];
   const vistos = new Set<string>();
   let novos = 0;
+  let validos = 0;
   let paginas = 0;
   let aviso: string | undefined;
   let pageToken: string | undefined;
@@ -217,7 +231,9 @@ export async function searchText(
       const place = toPlaceBasico(raw, qualificada);
       if (!place || vistos.has(place.placeId)) continue;
       vistos.add(place.placeId);
+      if (soComTelefone && !place.temTelefone) continue; // descarta sem telefone
       places.push(place);
+      if (soComTelefone) validos += 1;
       if ((await options.isNovo?.(place.placeId)) ?? true) {
         novos += 1;
       }
@@ -233,7 +249,7 @@ export async function searchText(
       : `resultados esgotados: ${novos} novo(s) em ${paginas} página(s)`;
   }
 
-  return { places, paginas, novos, aviso };
+  return { places, paginas, novos, ...(soComTelefone && { validos }), aviso };
 }
 
 /** Place Details (New) com o field mask Enterprise, SKU detailsEnterprise. */

@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         problemas.push(`${key} deve ser string`);
       }
     }
-    const { quantidade, qualificada } = body;
+    const { quantidade, qualificada, soComTelefone } = body;
     if (
       quantidade !== undefined &&
       (typeof quantidade !== "number" ||
@@ -47,6 +47,12 @@ export async function POST(req: Request) {
     }
     if (qualificada !== undefined && typeof qualificada !== "boolean") {
       problemas.push("qualificada deve ser booleano");
+    }
+    if (soComTelefone !== undefined && typeof soComTelefone !== "boolean") {
+      problemas.push("soComTelefone deve ser booleano");
+    }
+    if (soComTelefone === true && qualificada !== true) {
+      problemas.push("soComTelefone exige qualificada: true (telefone só vem na qualificada)");
     }
     if (problemas.length > 0) {
       throw new ValidationError(problemas);
@@ -72,6 +78,7 @@ export async function POST(req: Request) {
     const resultado = await searchText(db, query, config.caps, {
       quantidade: quantidade as number | undefined,
       qualificada: qualificada as boolean | undefined,
+      soComTelefone: soComTelefone as boolean | undefined,
       locationRestriction: geo.viewport,
       isNovo: async (placeId) => !(await getLead(db, placeId)),
     });
@@ -105,6 +112,7 @@ export async function POST(req: Request) {
       busca,
       paginas: resultado.paginas,
       regiaoResolvida: geo.endereco,
+      ...(resultado.validos !== undefined && { validos: resultado.validos }),
       ...(resultado.aviso && { aviso: resultado.aviso }),
     });
   } catch (error) {

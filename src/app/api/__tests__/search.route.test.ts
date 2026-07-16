@@ -524,4 +524,48 @@ describe("POST /api/search", () => {
     expect(primeira.busca.cor).toMatch(/^#/);
     expect(segunda.busca.cor).not.toBe(primeira.busca.cor);
   });
+
+  it("soComTelefone sem qualificada → 400 validation_error", async () => {
+    const res = await POST(searchRequest({ soComTelefone: true }));
+
+    expect(res.status).toBe(400);
+    const { error } = await res.json();
+    expect(error.code).toBe("validation_error");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("soComTelefone não-booleano → 400", async () => {
+    const res = await POST(searchRequest({ qualificada: true, soComTelefone: "sim" }));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("soComTelefone descarta leads sem telefone e devolve validos/paginas na resposta", async () => {
+    fetchMock.mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          places: [
+            {
+              id: "ChIJ_tel1",
+              displayName: { text: "Com Telefone" },
+              nationalPhoneNumber: "(44) 3264-0000",
+              internationalPhoneNumber: "+55 44 3264-0000",
+            },
+            { id: "ChIJ_semtel", displayName: { text: "Sem Telefone" } },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const res = await POST(searchRequest({ qualificada: true, soComTelefone: true }));
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.criados).toBe(1); // só o com telefone foi salvo
+    expect(data.validos).toBe(1);
+    expect(data.paginas).toBe(1);
+    expect(db.getDoc("leads/ChIJ_tel1")).toMatchObject({ temTelefone: true });
+    expect(db.getDoc("leads/ChIJ_semtel")).toBeUndefined(); // descartado, nunca chegou a upsert
+  });
 });

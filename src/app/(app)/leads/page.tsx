@@ -172,6 +172,7 @@ function LeadsPageInner() {
   const [nomeBusca, setNomeBusca] = useState("");
   const [quantidade, setQuantidade] = useState(20);
   const [qualificada, setQualificada] = useState(false);
+  const [soComTelefone, setSoComTelefone] = useState(false);
   const [autoEnrich, setAutoEnrich] = useState(false);
   const [autoEnrichN, setAutoEnrichN] = useState(3);
   const [buscando, setBuscando] = useState(false);
@@ -440,6 +441,7 @@ function LeadsPageInner() {
       if (nomeBusca.trim()) body.nome = nomeBusca.trim();
       body.quantidade = Math.min(Math.max(quantidade, 1), QUANTIDADE_MAX);
       if (qualificada) body.qualificada = true;
+      if (qualificada && soComTelefone) body.soComTelefone = true;
       const result = await api.search(body);
       setRegiaoResolvida(result.regiaoResolvida);
 
@@ -448,6 +450,9 @@ function LeadsPageInner() {
           `${result.criados} novo(s), ${result.existentes} já existente(s) ` +
           `em ${result.paginas} página(s).`,
       ];
+      if (result.validos !== undefined) {
+        partes.push(`${result.validos} válido(s) em ${result.paginas} página(s).`);
+      }
       if (result.aviso) setBuscaAviso(`Busca parcial: ${result.aviso}.`);
       if (autoEnrich) {
         const n = Math.min(Math.max(autoEnrichN, 1), AUTO_ENRICH_MAX);
@@ -573,7 +578,11 @@ function LeadsPageInner() {
               <input
                 type="checkbox"
                 checked={qualificada}
-                onChange={(event) => setQualificada(event.target.checked)}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setQualificada(checked);
+                  if (!checked) setSoComTelefone(false); // só faz sentido com a qualificada
+                }}
                 className="h-4 w-4 accent-[var(--accent)]"
               />
               <span>
@@ -583,6 +592,22 @@ function LeadsPageInner() {
                 </span>
               </span>
             </label>
+            {qualificada && (
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={soComTelefone}
+                  onChange={(event) => setSoComTelefone(event.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                <span>
+                  Só com telefone{" "}
+                  <span className="text-xs text-ink-muted">
+                    (descarta sem telefone; pagina até completar N válidos)
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
           <label className="flex items-center gap-2 py-1 text-sm text-ink-secondary">
             <input
