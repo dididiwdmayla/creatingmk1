@@ -149,7 +149,7 @@ export default function BuscasPage() {
                       }
                       rows={3}
                       autoFocus
-                      placeholder="Mensagem do WhatsApp deste grupo — {nome} vira o nome do lead. Vazio volta pra mensagem global."
+                      placeholder="Mensagem do WhatsApp deste grupo — {nome} vira o nome do lead, {demo} vira o link da demo. Vazio volta pra mensagem global."
                       className="w-full rounded border border-line bg-surface-2 px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
                     />
                     <div className="mt-1 flex gap-2">

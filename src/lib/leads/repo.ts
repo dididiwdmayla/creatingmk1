@@ -1,4 +1,5 @@
 import type { FiltroPresenca } from "@/lib/config";
+import type { DemoDataPatch } from "@/lib/demos/types";
 import { InvalidTransitionError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import type { DetalhesLugar, PlaceBasico } from "@/lib/places/client";
@@ -253,6 +254,24 @@ export async function updateLeadExtras(
     ...(extras.favorito !== undefined && { favorito: extras.favorito }),
     ...(extras.descartado !== undefined && { descartado: extras.descartado }),
     atualizadoEm: now.toISOString(),
+  };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/** Salva a configuração da demo do lead (Forja de Demos). */
+export async function saveDemo(
+  db: AppDb,
+  placeId: string,
+  demo: { skinId: string; themeId: string; dados: DemoDataPatch },
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  const em = now.toISOString();
+  const updated: Lead = {
+    ...lead,
+    demo: { ...demo, atualizadoEm: em },
+    atualizadoEm: em,
   };
   await docRef(db, placeId).set(toDoc(updated));
   return updated;

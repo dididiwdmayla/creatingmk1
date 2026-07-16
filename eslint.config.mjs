@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Material bruto de skins (clones de referência, fora do app).
+    "skins-raw/**",
   ]),
 ]);
 

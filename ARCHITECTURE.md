@@ -20,6 +20,9 @@ src/
     layout.tsx                      # dark fixo (sem alternância clara/escura), fontes Space Grotesk/Inter/JetBrains Mono
     icon.tsx                        # ✅ favicon gerado (ImageResponse) — tema radar
     login/page.tsx                  # ✅ form de senha → POST /api/login, identidade RADAR
+    demo/
+      fonts.ts                      # ✅ fontes das skins via next/font (--font-demo-*)
+      [leadId]/page.tsx             # ✅ demo PÚBLICA do lead (única rota sem senha; só Firestore)
     (app)/                          # route group: páginas autenticadas, com Nav
       layout.tsx                    # ✅ header + bottom nav (Painel/Leads/Buscas/Config) + Sair
       page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas
@@ -39,6 +42,7 @@ src/
       leads/route.ts                # ✅ GET lista de leads com filtros
       leads/[id]/route.ts           # ✅ GET ficha / PATCH status·notas·favorito·descartado
       leads/[id]/enrich/route.ts    # ✅ POST enriquecimento (Place Details)
+      leads/[id]/demo/route.ts      # ✅ PUT configuração da demo do lead (Forja de Demos)
       usage/route.ts                # ✅ GET uso do mês + custo projetado
       metrics/route.ts              # ✅ GET métricas de prospecção
       __tests__/                    # ✅ testes das rotas (fake Firestore + fetch mockado)
@@ -74,6 +78,11 @@ src/
     buscas/                         # ✅ registro das buscas executadas
       types.ts
       repo.ts
+    demos/                          # ✅ Forja de Demos (ver seção própria)
+      types.ts                      # DemoData, Theme, SkinDefinition, LeadDemo
+      montar.ts                     # montarDemoData: exemplo ← lead ← edições
+      registry.ts                   # registro de skins (a lista canônica)
+      validate.ts                   # validação do PUT /api/leads/[id]/demo
     testing/
       fake-firestore.ts             # ✅ fake em memória com semântica de transação
   components/                       # ✅ UI compartilhada
@@ -84,6 +93,13 @@ src/
     LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site
     PageTransition.tsx              # fade-in de página por troca de rota (client)
     RadarSweep.tsx                  # decoração de sweep de radar (CSS puro)
+    demos/                          # ✅ skins da Forja de Demos (um pacote por skin)
+      barbearia/
+        Skin.tsx                    # componente puro { data, theme }
+        themes.ts                   # default + presets de tema
+        exemplo.ts                  # DemoData de exemplo (base da ficha)
+public/
+  demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
@@ -154,6 +170,12 @@ Observações:
     "totalAvaliacoes": 132,                     // userRatingCount
     "enriquecidoEm": "<timestamp>"
   },
+  "demo": {                                     // Forja de Demos (opcional; ver seção própria)
+    "skinId": "barbearia-editorial",            // do registro de skins
+    "themeId": "creme",                         // preset da skin (inválido → default)
+    "dados": { "slogan": "Tradição desde 1998." }, // overrides parciais de DemoData
+    "atualizadoEm": "<timestamp>"
+  },
   "contato": {                                  // carimbos das transições de status
     "primeiroContatoEm": "<timestamp>",         // status → contactado
     "respondeuEm": "<timestamp>",               // status → respondeu
@@ -165,7 +187,7 @@ Observações:
 ```
 
 Regras de escrita:
-- Upsert da busca **nunca rebaixa status** nem apaga `detalhes`/`notas`/`favorito` de um lead existente — só atualiza nome/endereço/`busca`, **anexa** o novo id ao array `buscaId` (com dedupe) e atualiza `temSite`/`siteUrl`/`siteProprio`/telefones quando a busca qualificada trouxer informação fresca (nunca remove).
+- Upsert da busca **nunca rebaixa status** nem apaga `detalhes`/`notas`/`favorito`/`demo` de um lead existente — só atualiza nome/endereço/`busca`, **anexa** o novo id ao array `buscaId` (com dedupe) e atualiza `temSite`/`siteUrl`/`siteProprio`/telefones quando a busca qualificada trouxer informação fresca (nunca remove).
 - O enriquecimento também grava `temSite`/`siteUrl`/`siteProprio` (o mask Enterprise pede `websiteUri`, então a resposta é definitiva).
 - Transições válidas: `novo → contactado → respondeu → fechado` (e `contactado → fechado` direto). Cada transição carimba o timestamp correspondente em `contato`, que alimenta as métricas.
 
@@ -241,6 +263,7 @@ Formato de erro padrão em todas as rotas:
 | `/api/leads/[id]` | GET | — | `200 { lead }` · `404` | — |
 | `/api/leads/[id]` | PATCH | `{ status?, notas? (≤500), favorito?, descartado? }` (≥1 campo) | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
 | `/api/leads/[id]/enrich` | POST | — | `200 { lead }` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsEnterprise** |
+| `/api/leads/[id]/demo` | PUT | `{ skinId, themeId, dados? }` | `200 { lead }` · `400` · `404` | — |
 | `/api/usage` | GET | — | `200 { period, usage, caps, cotaGratis, custoProjetado: { usd, brl } }` | — |
 | `/api/metrics` | GET | — | `200 { contatosHoje, contatosSemana, taxaResposta }` | — |
 | `/api/logout` | POST | — | `204` (limpa o cookie de sessão) | — |
@@ -302,15 +325,45 @@ Decisões de projeto:
 - Contadores malformados no doc (string, negativo, NaN) são lidos como `0` — o módulo nunca quebra por dado sujo, só fica mais conservador.
 - `atualizadoEm` gravado como ISO string (evita dependência do `FieldValue` do admin dentro do módulo puro).
 
+## Forja de Demos (`src/lib/demos` + `src/components/demos`)
+
+Prévia de site personalizada por lead, servida pelo próprio Radar em **`/demo/{leadId}`** — o link que vai na mensagem de prospecção (variável `{demo}`). Nenhum deploy por lead, nenhuma chamada ao Google: a página é um Server Component que lê **só o Firestore**.
+
+Contratos centrais (`src/lib/demos/types.ts`):
+
+- **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição), `depoimentos[]` (autor/texto/nota), `secoes` (textos por seção, chaves definidas pela skin) e `imagens` (caminho por slot).
+- **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda), `fontes` (display/corpo/mono/serif/decorativa como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts.ts`), `raio` e `densidade` (compacta/confortável/arejada → espaçamento vertical das seções).
+- **`SkinDefinition`** — entrada do registro: `{ id, nicho, nome, componente, themeDefault, themePresets, demoDataExemplo }`.
+
+Regras do sistema:
+
+1. **Skin é componente PURO** `({ data, theme }) => JSX`: nenhum texto, imagem ou cor hardcoded; o tema entra como CSS vars num wrapper (`--d-bg`, `--d-accent`, `--d-radius`, `--d-sec-y`…) e o Tailwind consome via arbitrary values. Sem hooks — renderiza igual no server (rota pública) e no client (se um dia houver preview).
+2. **DemoData efetivo é montado em camadas** (`montarDemoData`): exemplo do template ← dados reais do lead (nome, endereço, telefone, whatsapp) ← edições da ficha (`lead.demo.dados`). Por isso o link `/demo/{leadId}` funciona **antes de qualquer edição** — sem demo salva, renderiza a skin default com os dados que o lead já tem.
+3. **Imagens são placeholders locais por slot** (`public/demos/<nicho>/*.svg`) — nunca fotos do cliente original; um override em `dados.imagens` troca slot a slot.
+4. **A configuração vive no campo `demo` do doc do lead** (não em subcoleção — a interface `AppDb` não precisa crescer) e é salva por `PUT /api/leads/[id]/demo` com validação estrita (skin/preset existentes, chaves desconhecidas rejeitadas, textos ≤2000, listas ≤30).
+5. **A rota pública é `force-dynamic` e `noindex`**: reflete a última edição na hora e não entra em buscador.
+
+### Padrão para adicionar uma nova skin
+
+1. Clone o material bruto em `skins-raw/<nicho>/` (fora do git/tsc/eslint — é só referência).
+2. Crie o pacote `src/components/demos/<nicho>/`:
+   - `Skin.tsx` — componente puro `{ data, theme }`, tokens só via CSS vars;
+   - `themes.ts` — `themeDefault` + 3–4 presets (contraste do `destaqueInk` é responsabilidade do preset);
+   - `exemplo.ts` — `DemoData` completo com copy do material bruto e marca genérica.
+3. Coloque os placeholders em `public/demos/<nicho>/` (locais, um por slot de `imagens`).
+4. Se a skin usa fonte nova, carregue-a em `src/app/demo/fonts.ts` com var `--font-demo-*`.
+5. Acrescente a entrada em `src/lib/demos/registry.ts` — rota pública e ficha passam a conhecê-la sem mais mudanças.
+6. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo e existência física dos placeholders.
+
 ## Proteção por senha (src/proxy.ts)
 
-Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login` e `POST /api/login`. Fluxo:
+Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login`, `POST /api/login` e a demo pública `/demo/{leadId}`. Fluxo:
 
 1. `POST /api/login` com `{ senha }` compara com a env var `APP_PASSWORD` e grava o cookie `radar_session` (httpOnly, sameSite=lax, 30 dias, secure em produção). A página `/login` faz esse POST e redireciona para `/` no sucesso.
 2. O valor do cookie é o **SHA-256 da senha** — trocar `APP_PASSWORD` invalida todas as sessões. Sem estado no banco.
 3. O proxy também aceita o header `x-app-password` (útil para curl); quando correto, já estabelece o cookie na resposta.
 4. `POST /api/logout` limpa o cookie (usado pelo botão "Sair" da navegação).
-5. **Fail-closed**: sem `APP_PASSWORD` configurada, tudo responde `503 config_error` — o app nunca sobe aberto por engano.
+5. **Fail-closed**: sem `APP_PASSWORD` configurada, tudo responde `503 config_error` — o app nunca sobe aberto por engano. A exceção da demo pública fica **depois** desse check: sem config, nem a demo abre.
 
 ## UI (implementada)
 
@@ -321,7 +374,7 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
   - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite") e um KPI row com `/api/metrics`.
   - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (toggle, header com dot da cor + nome + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto). Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha — além dos dots de cor das buscas e destaque "sem site (lead quente)". Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
   - **`/buscas`**: buscas salvas (dot de cor, nome, nicho/sub-nicho, região, data, totais); tocar no dot cicla a cor pela paleta e persiste (`PATCH /api/buscas/[id]`); clicar no card navega para `/leads?buscaId=…`.
-  - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior.
+  - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior. Inclui a seção **Demo**: escolha de skin, presets de tema (chips com amostras da paleta), campos pré-preenchidos pelo DemoData efetivo, salvar (`PUT /api/leads/[id]/demo`), abrir e copiar o link público. Campo esvaziado volta ao padrão do template ao salvar; edições avançadas feitas via API (serviços, seções, imagens) são preservadas. A mensagem do WhatsApp aceita `{demo}` além de `{nome}`.
   - **`/config`**: formulário completo (busca, filtros, mensagem padrão, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
 - **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tema "radar/sonar": fundo em gradiente azul-profundo → quase-preto (`--background-2` → `--background`), surface com leve tingimento azul (`#121b24`), acento vibrante verde-radar (`--accent`, com `--accent-ink` preto para texto sobre ele — o verde não passa em contraste com texto branco). Tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas, reforçado por forma (quadrado→pill) e marcador (○◐◑●); o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro. A paleta das 10 cores de busca (`BUSCA_CORES`) foi revalidada (mais saturada) contra a nova surface. Textos sobre `good`/`critical`/`warning` usam preto (não branco) — o contraste do branco falha nesses tons vibrantes.
 - **Tipografia**: Space Grotesk (`font-display`, via `next/font/google`) para títulos e números grandes do dashboard; Inter (`font-sans`) para o corpo; JetBrains Mono (`font-mono`) para dados tabulares/valores.

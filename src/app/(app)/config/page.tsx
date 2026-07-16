@@ -126,7 +126,8 @@ export default function ConfigPage() {
           Mensagem padrão
         </h2>
         <p className="mt-1 text-xs text-ink-muted">
-          Use <code className="font-mono">{"{nome}"}</code> para o nome do lead.
+          Use <code className="font-mono">{"{nome}"}</code> para o nome do lead e{" "}
+          <code className="font-mono">{"{demo}"}</code> para o link da demo personalizada.
         </p>
         <textarea
           value={form.mensagemPadrao}

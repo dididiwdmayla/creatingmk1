@@ -1,6 +1,7 @@
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import type { UsageCounts } from "@/lib/costs";
+import type { DemoDataPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
 import type { Metrics } from "@/lib/leads/metrics";
 
@@ -138,4 +139,9 @@ export const api = {
     }),
   enrichLead: (id: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/enrich`, { method: "POST" }),
+  putLeadDemo: (id: string, demo: { skinId: string; themeId: string; dados: DemoDataPatch }) =>
+    request<{ lead: Lead }>(`/api/leads/${id}/demo`, {
+      method: "PUT",
+      body: JSON.stringify(demo),
+    }),
 };

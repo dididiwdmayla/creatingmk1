@@ -77,6 +77,29 @@ describe("proxy (proteção por senha)", () => {
     expect(res.status).toBe(401);
   });
 
+  it("/demo/{leadId} é pública (link de demo enviado ao lead)", async () => {
+    for (const path of ["/demo/ChIJabc123", "/demo/ChIJabc123/"]) {
+      const res = await proxy(request(path));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-middleware-next")).toBe("1");
+    }
+  });
+
+  it("caminhos que só se PARECEM com a demo continuam protegidos", async () => {
+    for (const path of ["/demonstracao", "/api/demo/x", "/demos/x"]) {
+      const res = await proxy(request(path));
+      expect(res.status).toBe(401);
+    }
+  });
+
+  it("APP_PASSWORD ausente → 503 também na demo pública (fail-closed)", async () => {
+    vi.stubEnv("APP_PASSWORD", "");
+
+    const res = await proxy(request("/demo/abc"));
+
+    expect(res.status).toBe(503);
+  });
+
   it("APP_PASSWORD ausente → 503 fail-closed (nada passa)", async () => {
     vi.stubEnv("APP_PASSWORD", "");
 
