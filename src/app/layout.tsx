@@ -26,9 +26,12 @@ export const metadata: Metadata = {
 /**
  * Aplica o tema salvo ANTES da primeira pintura (evita flash). Roda inline
  * como primeiro elemento do body; o default é o tema escuro (sem atributo).
- * Mesma chave usada pelo ThemeToggle.
+ * Mesma chave usada pelo ThemeToggle. Também desliga a restauração de
+ * scroll NATIVA do browser (history.scrollRestoration) o mais cedo
+ * possível — sem isso ela briga com a restauração manual da lista de
+ * leads (sessionStorage + useLayoutEffect) ao voltar da ficha.
  */
-const THEME_INIT = `try{if(localStorage.getItem("radar:tema")==="claro")document.documentElement.dataset.theme="light"}catch(e){}`;
+const THEME_INIT = `try{if(localStorage.getItem("radar:tema")==="claro")document.documentElement.dataset.theme="light"}catch(e){}try{if("scrollRestoration" in history)history.scrollRestoration="manual"}catch(e){}`;
 
 export default function RootLayout({
   children,

@@ -1,7 +1,15 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { Button } from "@/components/Button";
 import { LeadCard } from "@/components/LeadCard";
@@ -195,6 +203,7 @@ function LeadsPageInner() {
     };
   }, [status, temSite, temTelefone, soFavoritos, buscaId]);
 
+  const [buscasProntas, setBuscasProntas] = useState(false);
   useEffect(() => {
     let ignore = false;
     api
@@ -204,6 +213,9 @@ function LeadsPageInner() {
       })
       .catch(() => {
         // agrupamento/cores degradam para a lista plana; sem erro fatal
+      })
+      .finally(() => {
+        if (!ignore) setBuscasProntas(true);
       });
     api
       .getConfig()
@@ -258,13 +270,42 @@ function LeadsPageInner() {
   }, [regiaoDefault]);
 
   // ── Scroll restoration: volta da ficha exatamente onde estava ─────────
-  const scrollRestaurado = useRef(false);
-  useEffect(() => {
-    if (leads === null || scrollRestaurado.current) return;
-    scrollRestaurado.current = true;
-    const salvo = sessionStorage.getItem(SCROLL_KEY);
-    if (salvo) window.scrollTo(0, Number(salvo));
-  }, [leads]);
+  // A posição salva é aplicada em useLayoutEffect (síncrono, ANTES do
+  // paint) — não useEffect, que só roda depois que o browser já pintou a
+  // lista no topo (o "pisca no topo antes de descer" do bug). Como a
+  // lista só atinge a altura certa depois que `leads` carrega (fetch
+  // assíncrono), um overlay de sweep cobre a tela nesse intervalo. O
+  // overlay é ligado/desligado via manipulação direta do DOM (ref), não
+  // useState — setState síncrono dentro de efeito é proibido pelo lint do
+  // React Compiler (ver ARCHITECTURE.md).
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const scrollAlvoRef = useRef(0);
+  const temPosicaoSalvaRef = useRef(false);
+  const scrollAplicadoRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const salvo = Number(sessionStorage.getItem(SCROLL_KEY) ?? 0);
+    if (salvo > 0) {
+      scrollAlvoRef.current = salvo;
+      temPosicaoSalvaRef.current = true;
+      if (overlayRef.current) overlayRef.current.style.display = "flex";
+      window.scrollTo(0, 0);
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!temPosicaoSalvaRef.current || scrollAplicadoRef.current) return;
+    if (leads === null && erroLista === null) return; // ainda carregando
+    // No modo agrupado, a lista só chega na altura final depois que
+    // `buscas` também carrega (senão tudo cai temporariamente no grupo
+    // "Sem busca", que pode estar colapsado) — espera as duas fontes
+    // assentarem antes de medir/restaurar, senão o alvo fica fora do
+    // scrollHeight disponível e a posição se perde.
+    if (agrupar && !buscaId && !buscasProntas) return;
+    scrollAplicadoRef.current = true;
+    window.scrollTo(0, scrollAlvoRef.current);
+    if (overlayRef.current) overlayRef.current.style.display = "none";
+  }, [leads, erroLista, buscasProntas, agrupar, buscaId]);
 
   useEffect(() => {
     let raf = 0;
@@ -363,6 +404,14 @@ function LeadsPageInner() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div
+        ref={overlayRef}
+        style={{ display: "none" }}
+        className="fixed inset-0 z-50 flex-col items-center justify-center gap-3 bg-background"
+      >
+        <RadarSweep size={64} />
+        <p className="text-sm text-ink-muted">Restaurando posição…</p>
+      </div>
       <form onSubmit={handleSearch} className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Nova busca

@@ -97,7 +97,11 @@ export function LeadCard({
       }`}
     >
       <div className="flex items-start justify-between gap-2">
-        <Link href={`/leads/${lead.placeId}`} className="min-w-0 flex-1 hover:opacity-80">
+        <Link
+          href={`/leads/${lead.placeId}`}
+          scroll={false}
+          className="min-w-0 flex-1 hover:opacity-80"
+        >
           <p className="truncate text-sm font-medium text-foreground">{lead.nome}</p>
           {lead.endereco && (
             <p className="truncate text-xs text-ink-muted">{lead.endereco}</p>
