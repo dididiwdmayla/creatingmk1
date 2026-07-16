@@ -11,12 +11,14 @@ export function TeamCard({
   alt,
   nome,
   subtitulo,
+  detalhe,
   bio,
 }: {
   imageSrc: string;
   alt: string;
   nome: string;
   subtitulo?: string;
+  detalhe?: string;
   bio?: string;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -47,10 +49,19 @@ export function TeamCard({
         <h3 className="mb-1 font-[family-name:var(--d-display)] text-3xl tracking-tight text-[var(--d-text)] transition-colors group-hover:text-[var(--d-accent)] md:text-4xl">
           {nome}
         </h3>
-        {subtitulo && (
-          <span className="mb-4 block font-[family-name:var(--d-mono)] text-[10px] font-medium uppercase tracking-widest text-[var(--d-accent)] md:text-xs">
-            {subtitulo}
-          </span>
+        {(subtitulo || detalhe) && (
+          <div className="mb-4 flex flex-col gap-1">
+            {subtitulo && (
+              <span className="font-[family-name:var(--d-mono)] text-[10px] font-medium uppercase tracking-widest text-[var(--d-accent)] md:text-xs">
+                {subtitulo}
+              </span>
+            )}
+            {detalhe && (
+              <span className="font-[family-name:var(--d-mono)] text-[10px] font-medium uppercase tracking-wider text-[var(--d-muted)] md:text-[11px]">
+                {detalhe}
+              </span>
+            )}
+          </div>
         )}
         {bio && (
           <p className="font-[family-name:var(--d-serif)] text-sm leading-[1.7] text-[var(--d-muted)] md:text-base">

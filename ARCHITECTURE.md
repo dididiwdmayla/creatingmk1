@@ -95,9 +95,21 @@ src/
     RadarSweep.tsx                  # decoração de sweep de radar (CSS puro)
     demos/                          # ✅ skins da Forja de Demos (um pacote por skin)
       barbearia/
-        Skin.tsx                    # componente puro { data, theme }
+        Skin.tsx                    # composição { data, theme }, sem hooks próprios
         themes.ts                   # default + presets de tema
         exemplo.ts                  # DemoData de exemplo (base da ficha)
+        interactive/                # ✅ subcomponentes "use client" (animações/interação)
+          ScrollHeader.tsx           # header que reage ao scroll
+          TypewriterText.tsx         # máquina de escrever fiel ao original
+          TeamCard.tsx               # card da equipe + HairParticles no hover
+          HairParticles.tsx          # fios de cabelo caindo (rAF, sem lib)
+          AnimatedScissors.tsx       # tesourinha animada (motion)
+          CustomCursor.tsx           # cursor contextual com spring (motion)
+          cursorIcons.tsx            # ícones do cursor (navalha/pente/máquina/tesoura)
+          IntroExperience.tsx        # orquestra cursor + intro + sessionStorage
+          IntroAnimation.tsx         # navalha corta a tela (motion)
+          RazorBlade.tsx             # navalha decorativa da intro
+          SparkParticles.tsx         # faíscas da intro (motion)
 public/
   demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem
 ```
@@ -331,13 +343,13 @@ Prévia de site personalizada por lead, servida pelo próprio Radar em **`/demo/
 
 Contratos centrais (`src/lib/demos/types.ts`):
 
-- **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição), `depoimentos[]` (autor/texto/nota), `secoes` (textos por seção, chaves definidas pela skin) e `imagens` (caminho por slot).
-- **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda), `fontes` (display/corpo/mono/serif/decorativa como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts.ts`), `raio` e `densidade` (compacta/confortável/arejada → espaçamento vertical das seções).
+- **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição), `depoimentos[]` (autor/texto/nota), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes) e `imagens` (caminho por slot).
+- **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda, e dois acentos raros `acentoSecundario`/`acentoTerciario` para detalhes decorativos que não seguem o acento principal), `fontes` (display/corpo/mono/serif/decorativa/**citacao**/**destaque** como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts.ts`), `raio` e `densidade` (compacta/confortável/arejada → espaçamento vertical das seções).
 - **`SkinDefinition`** — entrada do registro: `{ id, nicho, nome, componente, themeDefault, themePresets, demoDataExemplo }`.
 
 Regras do sistema:
 
-1. **Skin é componente PURO** `({ data, theme }) => JSX`: nenhum texto, imagem ou cor hardcoded; o tema entra como CSS vars num wrapper (`--d-bg`, `--d-accent`, `--d-radius`, `--d-sec-y`…) e o Tailwind consome via arbitrary values. Sem hooks — renderiza igual no server (rota pública) e no client (se um dia houver preview).
+1. **Skin é orientada por dados**: nenhum texto, imagem ou cor hardcoded no componente — tudo vem de `data`/`theme`, aplicado como CSS vars num wrapper (`--d-bg`, `--d-accent`, `--d-radius`, `--d-sec-y`…) que o Tailwind consome via arbitrary values. O componente de topo (`Skin.tsx`) não tem hooks e renderiza igual no server (rota pública); ele **compõe subcomponentes `"use client"`** (`src/components/demos/<nicho>/interactive/`) para as partes que precisam de interatividade real — scroll do header, máquina de escrever, cursor contextual, partículas, animação de entrada — sem que isso reintroduza conteúdo hardcoded: esses subcomponentes só recebem props (texto, imagem, cor) vindas de `data`/`theme` como qualquer outro pedaço da skin.
 2. **DemoData efetivo é montado em camadas** (`montarDemoData`): exemplo do template ← dados reais do lead (nome, endereço, telefone, whatsapp) ← edições da ficha (`lead.demo.dados`). Por isso o link `/demo/{leadId}` funciona **antes de qualquer edição** — sem demo salva, renderiza a skin default com os dados que o lead já tem.
 3. **Imagens são placeholders locais por slot** (`public/demos/<nicho>/*.svg`) — nunca fotos do cliente original; um override em `dados.imagens` troca slot a slot.
 4. **A configuração vive no campo `demo` do doc do lead** (não em subcoleção — a interface `AppDb` não precisa crescer) e é salva por `PUT /api/leads/[id]/demo` com validação estrita (skin/preset existentes, chaves desconhecidas rejeitadas, textos ≤2000, listas ≤30).
@@ -345,15 +357,16 @@ Regras do sistema:
 
 ### Padrão para adicionar uma nova skin
 
-1. Clone o material bruto em `skins-raw/<nicho>/` (fora do git/tsc/eslint — é só referência).
+1. Clone o material bruto em `skins-raw/<nicho>/` (fora do git/tsc/eslint — é só referência) e leia **todos** os componentes e estilos antes de converter, não só os principais — animações e interações (hover, scroll, cursor, máquina de escrever, intro) fazem parte do que precisa ser fielmente portado, não só o layout estático.
 2. Crie o pacote `src/components/demos/<nicho>/`:
-   - `Skin.tsx` — componente puro `{ data, theme }`, tokens só via CSS vars;
-   - `themes.ts` — `themeDefault` + 3–4 presets (contraste do `destaqueInk` é responsabilidade do preset);
+   - `Skin.tsx` — composição orientada por `{ data, theme }`, tokens só via CSS vars; delega interatividade a `interactive/*.tsx` (`"use client"`);
+   - `themes.ts` — `themeDefault` fiel às cores do material bruto (inclusive acentos secundário/terciário se existirem) + 3–4 presets (contraste do `destaqueInk` é responsabilidade do preset);
    - `exemplo.ts` — `DemoData` completo com copy do material bruto e marca genérica.
 3. Coloque os placeholders em `public/demos/<nicho>/` (locais, um por slot de `imagens`).
-4. Se a skin usa fonte nova, carregue-a em `src/app/demo/fonts.ts` com var `--font-demo-*`.
-5. Acrescente a entrada em `src/lib/demos/registry.ts` — rota pública e ficha passam a conhecê-la sem mais mudanças.
-6. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo e existência física dos placeholders.
+4. Se a skin usa fonte nova, carregue-a em `src/app/demo/fonts.ts` com var `--font-demo-*`, com o peso/estilo exatos do original (ex.: uma fonte carregada só em itálico 900 não é a mesma coisa que a mesma família em peso 400 normal).
+5. Se o original usa uma lib de animação (ex.: `motion`), adicione a dependência e port fielmente o timing/easing em vez de recriar com CSS aproximado — o objetivo é a demo parecer idêntica ao original com os dados de exemplo, exceto o que é slot/tema por design.
+6. Acrescente a entrada em `src/lib/demos/registry.ts` — rota pública e ficha passam a conhecê-la sem mais mudanças.
+7. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo e existência física dos placeholders.
 
 ## Proteção por senha (src/proxy.ts)
 
@@ -385,6 +398,8 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
 ## Verificação da UI
 
 Sem Firebase real neste ambiente de sessão, a verificação de ponta a ponta foi feita ligando temporariamente o `FakeFirestore` (o mesmo fake dos testes) no lugar do Firestore via uma env var (`RADAR_FAKE_DB=1`), com dados de exemplo, rodando `next build && next start` e navegando o app real com Playwright (login errado/certo, dashboard com os três estados de meter, filtros de leads, ficha enriquecida/não enriquecida, botão Enriquecer com erro real de `GOOGLE_PLACES_API_KEY` ausente, transição de status, link `wa.me` com telefone e `{nome}` corretos, salvar config, logout e bloqueio pós-logout). O patch em `admin.ts` e os dados de exemplo foram revertidos antes do commit — não fazem parte do código do app.
+
+A skin de barbearia da Forja de Demos foi verificada **lado a lado com o material bruto** (`skins-raw/barbearia` rodando em paralelo, `npm install && next build && next start` no diretório clonado): comparação seção a seção (header com scroll, hero com máquina de escrever, agendamento rápido, filosofia, serviços, equipe com hover de fios de cabelo e tesourinha animada, ritual, passos de agendamento, contato, footer com poste de barbeiro) e a animação de entrada (navalha cortando a tela) e o cursor contextual capturados em pleno funcionamento (motion habilitado, sem `prefers-reduced-motion`). Divergências encontradas nessa comparação (fontes trocadas, seção QuickBooking reduzida a uma faixa, animações ausentes, bio da equipe sem a segunda linha de detalhe) foram corrigidas antes do commit final.
 
 ## Variáveis de ambiente
 

@@ -33,6 +33,8 @@ export interface DemoDepoimento {
 export interface DemoItem {
   titulo: string;
   subtitulo?: string;
+  /** Segunda linha curta, com peso visual mais leve que subtitulo (ex.: tempo de experiência). */
+  detalhe?: string;
   texto?: string;
 }
 

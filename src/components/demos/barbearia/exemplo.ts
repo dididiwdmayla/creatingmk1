@@ -111,23 +111,26 @@ export const BARBEARIA_EXEMPLO: DemoData = {
     },
     equipe: {
       rotulo: "EQUIPE",
-      titulo: "HOMENS DE OFÍCIO.",
+      titulo: "TRÊS HOMENS DE OFÍCIO.",
       itens: [
         {
           titulo: "Alan",
-          subtitulo: "Cortes clássicos e navalha tradicional · 14 anos de ofício",
+          subtitulo: "Cortes clássicos, navalha tradicional, barba longa",
+          detalhe: "14 ANOS DE OFÍCIO",
           texto:
             "Aprendeu o ofício com o avô. Trabalha com navalha de barbeiro tradicional e tem mão firme nos cortes clássicos masculinos — pompadour, side part, slick back.",
         },
         {
           titulo: "Rogério",
-          subtitulo: "Barbas artísticas e design de barba · 9 anos de ofício",
+          subtitulo: "Barbas artísticas, design de barba, sobrancelha",
+          detalhe: "9 ANOS DE OFÍCIO",
           texto:
             "Vem do mundo das tatuagens e trouxe o olhar de artista pro design de barbas. Especialista em barbas longas, lineup preciso e hidratação artesanal.",
         },
         {
           titulo: "João",
-          subtitulo: "Cortes modernos e fades complexos · 7 anos de ofício",
+          subtitulo: "Cortes modernos, fades complexos, texturização",
+          detalhe: "7 ANOS DE OFÍCIO",
           texto:
             "Formação internacional. Domina fades complexos, taper, texturização e cortes modernos inspirados em barbearia europeia contemporânea.",
         },

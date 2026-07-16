@@ -433,6 +433,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                   alt={membro.titulo}
                   nome={membro.titulo}
                   subtitulo={membro.subtitulo}
+                  detalhe={membro.detalhe}
                   bio={membro.texto}
                 />
               ))}
