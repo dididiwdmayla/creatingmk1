@@ -56,11 +56,11 @@ function validaItens(value: unknown, path: string, problemas: string[]): void {
       return;
     }
     validaTexto(item.titulo, `${path}[${i}].titulo`, problemas);
-    for (const campo of ["subtitulo", "texto"] as const) {
+    for (const campo of ["subtitulo", "detalhe", "texto"] as const) {
       if (item[campo] !== undefined) validaTexto(item[campo], `${path}[${i}].${campo}`, problemas);
     }
     for (const chave of Object.keys(item)) {
-      if (!["titulo", "subtitulo", "texto"].includes(chave)) {
+      if (!["titulo", "subtitulo", "detalhe", "texto"].includes(chave)) {
         problemas.push(`${path}[${i}].${chave}: chave desconhecida`);
       }
     }

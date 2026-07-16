@@ -12,9 +12,15 @@ const FONTES_EDITORIAIS: ThemeFontes = {
   mono: "var(--font-demo-mono), ui-monospace, monospace",
   serif: "var(--font-demo-crimson), Georgia, serif",
   decorativa: "var(--font-demo-limelight), 'Georgia', serif",
+  citacao: "var(--font-demo-cormorant), Georgia, serif",
+  destaque: "var(--font-demo-playfair), Georgia, serif",
 };
 
-/** Paleta original do material bruto: madeira escura, couro e dourado. */
+/**
+ * Paleta original do material bruto: madeira escura, couro e dourado.
+ * `acentoSecundario`/`acentoTerciario` são os oxblood/forest do original
+ * (listra do poste do footer, linha decorativa do Ritual) — fiéis ao hex.
+ */
 const NORTE: Theme = {
   id: "norte",
   nome: "Norte (madeira e ouro)",
@@ -27,6 +33,8 @@ const NORTE: Theme = {
     texto: "#E8DCC4",
     textoSuave: "#A89882",
     borda: "rgba(232, 220, 196, 0.10)",
+    acentoSecundario: "#C04A2B",
+    acentoTerciario: "#5D6B4A",
   },
   fontes: FONTES_EDITORIAIS,
   raio: "0px",
@@ -45,6 +53,8 @@ const MEIA_NOITE: Theme = {
     texto: "#E4E9F0",
     textoSuave: "#93A0B3",
     borda: "rgba(228, 233, 240, 0.10)",
+    acentoSecundario: "#B3495F",
+    acentoTerciario: "#4E7F73",
   },
   fontes: FONTES_EDITORIAIS,
   raio: "4px",
@@ -63,6 +73,8 @@ const CREME: Theme = {
     texto: "#2B2118",
     textoSuave: "#6E5F4B",
     borda: "rgba(43, 33, 24, 0.14)",
+    acentoSecundario: "#A33B2E",
+    acentoTerciario: "#5F6E45",
   },
   fontes: {
     ...FONTES_EDITORIAIS,
@@ -85,6 +97,8 @@ const OLIVA: Theme = {
     texto: "#E7E4D3",
     textoSuave: "#A3A488",
     borda: "rgba(231, 228, 211, 0.10)",
+    acentoSecundario: "#9C4430",
+    acentoTerciario: "#6B7A52",
   },
   fontes: {
     ...FONTES_EDITORIAIS,

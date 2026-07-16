@@ -75,6 +75,12 @@ export const BARBEARIA_EXEMPLO: DemoData = {
       cta: "AGENDAR HORÁRIO",
       ctaSecundaria: "VER SERVIÇOS",
     },
+    agendamentoRapido: {
+      rotulo: "AGENDAMENTO",
+      titulo: "QUER SÓ AGENDAR? OBJETIVO.",
+      texto: "Sem precisar percorrer o site todo.",
+      cta: "AGENDAR HORÁRIO PELO WHATSAPP",
+    },
     filosofia: {
       rotulo: "FILOSOFIA",
       titulo: "TRÊS COISAS NÃO NEGOCIÁVEIS",
@@ -105,38 +111,42 @@ export const BARBEARIA_EXEMPLO: DemoData = {
     },
     equipe: {
       rotulo: "EQUIPE",
-      titulo: "HOMENS DE OFÍCIO.",
+      titulo: "TRÊS HOMENS DE OFÍCIO.",
       itens: [
         {
           titulo: "Alan",
-          subtitulo: "Cortes clássicos e navalha tradicional · 14 anos de ofício",
+          subtitulo: "Cortes clássicos, navalha tradicional, barba longa",
+          detalhe: "14 ANOS DE OFÍCIO",
           texto:
             "Aprendeu o ofício com o avô. Trabalha com navalha de barbeiro tradicional e tem mão firme nos cortes clássicos masculinos — pompadour, side part, slick back.",
         },
         {
           titulo: "Rogério",
-          subtitulo: "Barbas artísticas e design de barba · 9 anos de ofício",
+          subtitulo: "Barbas artísticas, design de barba, sobrancelha",
+          detalhe: "9 ANOS DE OFÍCIO",
           texto:
             "Vem do mundo das tatuagens e trouxe o olhar de artista pro design de barbas. Especialista em barbas longas, lineup preciso e hidratação artesanal.",
         },
         {
           titulo: "João",
-          subtitulo: "Cortes modernos e fades complexos · 7 anos de ofício",
+          subtitulo: "Cortes modernos, fades complexos, texturização",
+          detalhe: "7 ANOS DE OFÍCIO",
           texto:
             "Formação internacional. Domina fades complexos, taper, texturização e cortes modernos inspirados em barbearia europeia contemporânea.",
         },
       ],
     },
     ritual: {
-      rotulo: "ATENDIMENTO POR AGENDAMENTO",
+      rotulo: "RITUAL",
       texto: "Você entra com pressa. Sai com calma.",
+      ctaSecundaria: "ATENDIMENTO POR AGENDAMENTO",
     },
     depoimentos: {
       rotulo: "DEPOIMENTOS",
       titulo: "QUEM SENTA NA CADEIRA, VOLTA.",
     },
     agendamento: {
-      rotulo: "AGENDAR",
+      rotulo: "COMO FUNCIONA",
       titulo: "TRÊS PASSOS, NADA MAIS.",
       cta: "AGENDAR PELO WHATSAPP",
       itens: [
@@ -165,6 +175,7 @@ export const BARBEARIA_EXEMPLO: DemoData = {
   },
   imagens: {
     hero: "/demos/barbearia/hero.svg",
+    "agendamento-rapido": "/demos/barbearia/agendamento-rapido.svg",
     servicos: "/demos/barbearia/servicos.svg",
     "equipe-1": "/demos/barbearia/equipe-1.svg",
     "equipe-2": "/demos/barbearia/equipe-2.svg",

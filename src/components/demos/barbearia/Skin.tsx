@@ -2,6 +2,11 @@ import Image from "next/image";
 import type { CSSProperties } from "react";
 
 import type { Densidade, SkinProps } from "@/lib/demos/types";
+import { AnimatedScissors } from "./interactive/AnimatedScissors";
+import { IntroExperience } from "./interactive/IntroExperience";
+import { ScrollHeader } from "./interactive/ScrollHeader";
+import { TeamCard } from "./interactive/TeamCard";
+import { TypewriterText } from "./interactive/TypewriterText";
 
 /**
  * Skin "Barbearia Editorial" — conversão fiel do material bruto
@@ -27,21 +32,58 @@ function waHref(whatsapp: string | undefined): string {
   return digitos ? `https://wa.me/${digitos}` : "#contato";
 }
 
-function Etiqueta({ numero, texto }: { numero: string; texto?: string }) {
+/**
+ * Etiqueta de seção. O original alterna dois estilos: "caixa" (borda +
+ * fundo com blur — Filosofia/Ritual/Booking/Contato) e texto solto sem
+ * caixa (Serviços/Equipe/QuickBooking).
+ */
+function Etiqueta({
+  numero,
+  texto,
+  caixa,
+  className = "mb-6",
+}: {
+  numero?: string;
+  texto?: string;
+  caixa?: boolean;
+  className?: string;
+}) {
   if (!texto) return null;
+  const label = numero ? `${numero} / ${texto}` : texto;
+  if (caixa) {
+    return (
+      <span
+        className={`${className} inline-block border border-[var(--d-accent)]/25 bg-[var(--d-bg)]/40 px-4 py-1.5 font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] backdrop-blur-sm md:text-xs`}
+      >
+        {label}
+      </span>
+    );
+  }
   return (
-    <span className="mb-6 block font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] md:text-xs">
-      {numero} / {texto}
+    <span
+      className={`${className} block font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] md:text-xs`}
+    >
+      {label}
     </span>
   );
 }
 
-function Headline({ texto }: { texto?: string }) {
+/** `animado` reproduz a máquina de escrever do original (só nas seções que a usavam). */
+function Headline({ texto, animado }: { texto?: string; animado?: boolean }) {
   if (!texto) return null;
   return (
     <h2 className="font-[family-name:var(--d-display)] text-4xl uppercase leading-tight tracking-tight text-[var(--d-text)] md:text-5xl">
-      {texto}
+      {animado ? <TypewriterText text={texto} triggerOnInView speed={40} /> : texto}
     </h2>
+  );
+}
+
+/** Ícone do WhatsApp usado no CTA de agendamento rápido (chrome fixo, não dado do lead). */
+function WhatsAppIcon() {
+  return (
+    <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.51 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.458L0 24zm6.59-4.846c1.6.95 3.1 1.455 4.7 1.456 5.483 0 9.94-4.444 9.943-9.914.002-2.651-1.023-5.143-2.884-7.009C16.486 1.82 14.004.792 11.4.792 5.92.792 1.463 5.235 1.461 10.704c-.001 1.71.463 3.38 1.341 4.904l-.991 3.619 3.731-.975c1.51.82 3.1 1.25 4.8 1.25v-.01zM17.43 14.8c-.3-.15-.1.45-.75-.45-.65-.9-1.15-1.1-1.35-1.15-.2-.05-.35-.05-.5.15-.15.2-.6.75-.75.9-.15.15-.3.15-.6 0-.3-.15-1.25-.45-2.38-1.45-.9-.8-1.5-1.8-1.7-2.1-.2-.3-.02-.45.13-.6.13-.13.3-.35.45-.5.15-.15.2-.25.3-.45.1-.2.05-.35-.02-.5-.07-.15-.65-1.55-.9-2.1-.23-.6-.5-.5-.7-.5h-.6c-.2 0-.5.05-.75.3-.25.25-1 1-1 2.4s1 2.8 1.15 3c.15.2 2 3.05 4.85 4.25.7.3 1.2.5 1.6.65.7.2 1.35.2 1.85.15.55-.08 1.7-.7 1.95-1.35.25-.65.25-1.2.15-1.35-.1-.15-.3-.25-.6-.4z" />
+    </svg>
   );
 }
 
@@ -81,12 +123,16 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
     "--d-text": paleta.texto,
     "--d-muted": paleta.textoSuave,
     "--d-border": paleta.borda,
+    "--d-accent-2": paleta.acentoSecundario,
+    "--d-accent-3": paleta.acentoTerciario,
     "--d-radius": theme.raio,
     "--d-display": fontes.display,
     "--d-corpo": fontes.corpo,
     "--d-mono": fontes.mono,
     "--d-serif": fontes.serif,
     "--d-deco": fontes.decorativa,
+    "--d-citacao": fontes.citacao,
+    "--d-destaque": fontes.destaque,
     "--d-sec-y": SECTION_PAD[theme.densidade],
   } as CSSProperties;
 
@@ -98,44 +144,59 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       style={vars}
       className="min-h-screen bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
+      {/* Textura de ruído sutil no fundo — mesmo .noise-overlay do original (body). */}
+      <div
+        className="pointer-events-none fixed inset-0 z-50 opacity-[0.04]"
+        style={{
+          backgroundImage: `radial-gradient(var(--d-text) 1px, transparent 1px)`,
+          backgroundSize: "24px 24px",
+        }}
+        aria-hidden="true"
+      />
+
       {/* Keyframes do poste de barbeiro — escopo próprio da skin. */}
       <style>{`
         @keyframes d-pole { 0% { background-position: 0 0; } 100% { background-position: 40px 0; } }
         .d-pole {
           animation: d-pole 2s linear infinite;
           background-image: linear-gradient(45deg,
-            var(--d-accent) 25%, var(--d-text) 25%, var(--d-text) 50%,
-            var(--d-muted) 50%, var(--d-muted) 75%, var(--d-accent) 75%);
-          background-size: 40px 6px;
+            var(--d-accent-2) 25%, var(--d-text) 25%, var(--d-text) 50%,
+            var(--d-accent-3) 50%, var(--d-accent-3) 75%, var(--d-accent-2) 75%);
+          background-size: 40px 4px;
           background-repeat: repeat-x;
         }
         @media (prefers-reduced-motion: reduce) { .d-pole { animation: none; } }
+
+        /* Pílula de CTA do WhatsApp (QuickBooking + Agendamento). */
+        .d-cta {
+          font-family: var(--d-display);
+          font-size: 18px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: var(--d-accent-ink);
+          background: var(--d-accent);
+          padding: 20px 40px;
+          box-shadow: 0 8px 24px color-mix(in srgb, var(--d-accent) 30%, transparent);
+          transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .d-cta:hover {
+          transform: scale(1.03);
+          box-shadow: 0 8px 24px color-mix(in srgb, var(--d-accent) 40%, transparent);
+        }
+        @media (prefers-reduced-motion: reduce) { .d-cta:hover { transform: none; } }
       `}</style>
 
+      <IntroExperience nome={data.nome} cidade={data.cidade} accent={paleta.destaque}>
       {/* ── Header ─────────────────────────────────────────────── */}
-      <header className="fixed inset-x-0 top-0 z-40 border-b border-[var(--d-border)] bg-[var(--d-bg)]/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <a
-            href="#topo"
-            className="font-[family-name:var(--d-deco)] text-lg tracking-[0.08em] text-[var(--d-accent)]"
-          >
-            {data.nome}
-          </a>
-          <nav className="hidden items-center gap-8 font-[family-name:var(--d-mono)] text-[11px] uppercase tracking-[0.18em] md:flex">
-            {s.servicos?.rotulo && <a href="#servicos" className="hover:text-[var(--d-accent)]">{s.servicos.rotulo}</a>}
-            {s.equipe?.rotulo && <a href="#equipe" className="hover:text-[var(--d-accent)]">{s.equipe.rotulo}</a>}
-            {s.contato?.rotulo && <a href="#contato" className="hover:text-[var(--d-accent)]">{s.contato.rotulo}</a>}
-          </nav>
-          {s.hero?.cta && (
-            <a
-              href={agendar}
-              className="rounded-[var(--d-radius)] bg-[var(--d-accent)] px-5 py-2 font-[family-name:var(--d-display)] text-xs font-bold uppercase tracking-[0.2em] text-[var(--d-accent-ink)] transition-opacity hover:opacity-85"
-            >
-              {s.hero.cta}
-            </a>
-          )}
-        </div>
-      </header>
+      <ScrollHeader
+        nome={data.nome}
+        ctaHref="#agendar"
+        links={[
+          s.servicos?.rotulo && { href: "#servicos", label: s.servicos.rotulo },
+          s.equipe?.rotulo && { href: "#equipe", label: s.equipe.rotulo },
+          s.contato?.rotulo && { href: "#contato", label: s.contato.rotulo },
+        ].filter((link): link is { href: string; label: string } => Boolean(link))}
+      />
 
       {/* ── Hero ───────────────────────────────────────────────── */}
       <section id="topo" className="relative flex min-h-screen items-center overflow-hidden pt-24">
@@ -143,7 +204,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           <div className="mt-12 flex flex-col items-start gap-8 md:mt-0">
             <div>
               {data.slogan && (
-                <h2 className="mb-4 font-[family-name:var(--d-serif)] text-xl italic text-[var(--d-muted)] md:text-2xl">
+                <h2 className="mb-4 font-[family-name:var(--d-destaque)] text-xl italic text-[var(--d-muted)] md:text-2xl">
                   {data.slogan}
                 </h2>
               )}
@@ -151,7 +212,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                 className="font-[family-name:var(--d-display)] uppercase leading-[0.9] tracking-tight text-[var(--d-text)] drop-shadow-2xl"
                 style={{ fontSize: "clamp(3rem, 8vw, 6.5rem)" }}
               >
-                {s.hero?.titulo ?? data.nome}
+                <TypewriterText text={s.hero?.titulo ?? data.nome} delay={1800} speed={80} />
               </h1>
             </div>
 
@@ -165,6 +226,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               {s.hero?.cta && (
                 <a
                   href={agendar}
+                  data-cursor="open-scissors"
+                  data-cursor-text="AGENDAR →"
                   className="w-full rounded-[var(--d-radius)] bg-[var(--d-accent)] px-8 py-4 text-center font-[family-name:var(--d-display)] text-xs font-bold uppercase tracking-[0.2em] text-[var(--d-accent-ink)] transition-opacity hover:opacity-85 sm:w-auto"
                 >
                   {s.hero.cta}
@@ -202,27 +265,76 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         </div>
       </section>
 
-      {/* ── Faixa de agendamento rápido ────────────────────────── */}
-      {(data.horarios || data.whatsapp) && (
-        <div className="border-y border-[var(--d-border)] bg-[var(--d-bg-alt)]">
-          <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-6 py-6 font-[family-name:var(--d-mono)] text-xs uppercase tracking-[0.18em] md:flex-row md:items-center">
-            {data.horarios && <span className="text-[var(--d-muted)]">{data.horarios}</span>}
-            {data.whatsapp && (
-              <a href={agendar} className="text-[var(--d-accent)] hover:underline">
-                WHATSAPP {data.whatsapp} →
-              </a>
-            )}
+      {/* ── Agendamento rápido (QuickBooking) ──────────────────── */}
+      {s.agendamentoRapido && (
+        <section className="relative border-b border-[var(--d-border)] bg-[var(--d-bg-elev)] py-[60px] md:py-[80px]">
+          <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 md:grid-cols-[60%_40%]">
+            <div className="flex flex-col items-start gap-5">
+              <Etiqueta texto={s.agendamentoRapido.rotulo} className="mb-0" />
+              <div className="space-y-2">
+                <h2
+                  className="font-[family-name:var(--d-display)] uppercase leading-[0.95] tracking-tight text-[var(--d-text)]"
+                  style={{ fontSize: "clamp(2.5rem, 6vw, 4rem)" }}
+                >
+                  {s.agendamentoRapido.titulo}
+                </h2>
+                {s.agendamentoRapido.texto && (
+                  <p className="font-[family-name:var(--d-citacao)] text-base italic text-[var(--d-muted)] md:text-lg">
+                    {s.agendamentoRapido.texto}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-2 flex flex-col gap-2">
+                {data.endereco && (
+                  <p className="text-[17px] font-medium leading-relaxed text-[var(--d-text)]">
+                    {data.endereco}
+                  </p>
+                )}
+                {data.horarios && (
+                  <p className="font-[family-name:var(--d-mono)] text-xs uppercase tracking-wider text-[var(--d-accent)]">
+                    {data.horarios}
+                  </p>
+                )}
+              </div>
+
+              {s.agendamentoRapido.cta && (
+                <div className="mt-4 w-full sm:w-auto">
+                  <a
+                    href={agendar}
+                    data-cursor="open-scissors"
+                    data-cursor-text="AGENDAR →"
+                    className="d-cta inline-flex w-full items-center justify-center gap-3 sm:w-auto"
+                  >
+                    <WhatsAppIcon />
+                    <span>{s.agendamentoRapido.cta} →</span>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div
+              className="relative aspect-square w-full overflow-hidden border border-[var(--d-accent)]/25 md:aspect-[4/3]"
+              style={{ boxShadow: "0 16px 48px rgba(0,0,0,0.6)" }}
+            >
+              <Placeholder
+                src={data.imagens["agendamento-rapido"] ?? data.imagens.hero}
+                alt="Cliente sendo atendido na cadeira"
+                sizes="(max-width: 768px) 100vw, 40vw"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--d-bg)]/70 to-transparent" />
+            </div>
           </div>
-        </div>
+        </section>
       )}
 
       {/* ── Filosofia ──────────────────────────────────────────── */}
       {s.filosofia && (
         <section className="border-b border-[var(--d-border)] py-[var(--d-sec-y)]">
           <div className="mx-auto max-w-7xl px-6">
-            <Etiqueta numero="01" texto={s.filosofia.rotulo} />
+            <Etiqueta numero="01" texto={s.filosofia.rotulo} caixa className="mb-8" />
             <div className="mb-16">
-              <Headline texto={s.filosofia.titulo} />
+              <Headline texto={s.filosofia.titulo} animado />
             </div>
             <div className="grid gap-12 md:grid-cols-3">
               {(s.filosofia.itens ?? []).map((pilar) => (
@@ -255,7 +367,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               <div>
                 <Etiqueta numero="02" texto={s.servicos?.rotulo} />
                 <div className="mb-8">
-                  <Headline texto={s.servicos?.titulo} />
+                  <Headline texto={s.servicos?.titulo} animado />
                 </div>
               </div>
               <div
@@ -276,6 +388,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               {data.servicos.map((servico) => (
                 <div
                   key={servico.nome}
+                  data-cursor="comb"
+                  data-cursor-text="AGENDAR ESSE →"
                   className="group flex flex-col border-b border-[var(--d-border)] py-8 transition-colors hover:border-[var(--d-accent)]/60"
                 >
                   <div className="mb-3 flex items-baseline justify-between gap-4">
@@ -302,41 +416,26 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       {s.equipe && (s.equipe.itens?.length ?? 0) > 0 && (
         <section id="equipe" className="bg-[var(--d-bg-alt)] py-[var(--d-sec-y)]">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="mb-20">
-              <Etiqueta numero="03" texto={s.equipe.rotulo} />
-              <Headline texto={s.equipe.titulo} />
+            <div className="mb-20 flex items-start justify-between">
+              <div>
+                <Etiqueta numero="03" texto={s.equipe.rotulo} />
+                <Headline texto={s.equipe.titulo} animado />
+              </div>
+              <div className="hidden md:block">
+                <AnimatedScissors />
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
               {(s.equipe.itens ?? []).map((membro, i) => (
-                <div
+                <TeamCard
                   key={membro.titulo}
-                  className="group flex h-full flex-col overflow-hidden rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg)] p-4 pb-8 transition-transform duration-500 hover:-translate-y-2"
-                  style={{ boxShadow: "0 16px 48px rgba(0,0,0,0.4)" }}
-                >
-                  <div className="relative mb-6 aspect-[3/4] w-full overflow-hidden rounded-[var(--d-radius)]">
-                    <Placeholder
-                      src={data.imagens[`equipe-${i + 1}`] ?? data.imagens.hero}
-                      alt={membro.titulo}
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                    />
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--d-bg)] to-transparent" />
-                  </div>
-                  <div className="px-2">
-                    <h3 className="mb-1 font-[family-name:var(--d-display)] text-3xl tracking-tight text-[var(--d-text)] transition-colors group-hover:text-[var(--d-accent)] md:text-4xl">
-                      {membro.titulo}
-                    </h3>
-                    {membro.subtitulo && (
-                      <span className="mb-4 block font-[family-name:var(--d-mono)] text-[10px] font-medium uppercase tracking-widest text-[var(--d-accent)] md:text-xs">
-                        {membro.subtitulo}
-                      </span>
-                    )}
-                    {membro.texto && (
-                      <p className="font-[family-name:var(--d-serif)] text-sm leading-[1.7] text-[var(--d-muted)] md:text-base">
-                        {membro.texto}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                  imageSrc={data.imagens[`equipe-${i + 1}`] ?? data.imagens.hero}
+                  alt={membro.titulo}
+                  nome={membro.titulo}
+                  subtitulo={membro.subtitulo}
+                  detalhe={membro.detalhe}
+                  bio={membro.texto}
+                />
               ))}
             </div>
           </div>
@@ -346,13 +445,16 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       {/* ── Ritual (citação) ───────────────────────────────────── */}
       {s.ritual?.texto && (
         <section className="border-y border-[var(--d-border)] bg-[var(--d-bg)] py-[var(--d-sec-y)] text-center">
-          <div className="mx-auto max-w-4xl px-6">
-            <p className="mb-8 font-[family-name:var(--d-serif)] text-3xl italic leading-snug text-[var(--d-text)] md:text-4xl">
-              &ldquo;{s.ritual.texto}&rdquo;
+          <div className="mx-auto flex max-w-4xl flex-col items-center px-6">
+            <Etiqueta numero="04" texto={s.ritual.rotulo ?? "RITUAL"} caixa className="mb-12" />
+            <p className="mb-12 font-[family-name:var(--d-citacao)] text-3xl italic leading-snug text-[var(--d-text)] md:text-4xl">
+              &ldquo;<TypewriterText text={s.ritual.texto} triggerOnInView speed={50} />&rdquo;
             </p>
-            {s.ritual.rotulo && (
-              <span className="font-[family-name:var(--d-mono)] text-[11px] uppercase tracking-[0.2em] text-[var(--d-accent)]">
-                {s.ritual.rotulo}
+            {/* Acento raro (accent-3 = forest no original) — a única linha decorativa fora da paleta principal. */}
+            <div className="mb-12 h-px w-20 bg-[var(--d-accent-3)]" />
+            {s.ritual.ctaSecundaria && (
+              <span className="font-[family-name:var(--d-mono)] text-[11px] uppercase tracking-[0.2em] text-[var(--d-muted)]">
+                {s.ritual.ctaSecundaria}
               </span>
             )}
           </div>
@@ -364,7 +466,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         <section className="bg-[var(--d-bg-alt)] py-[var(--d-sec-y)]">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mb-16">
-              <Etiqueta numero="04" texto={s.depoimentos?.rotulo} />
+              {/* Sem número de seção: seção adicional, não existe no material bruto original. */}
+              <Etiqueta texto={s.depoimentos?.rotulo} />
               <Headline texto={s.depoimentos?.titulo} />
             </div>
             <div className="grid gap-8 md:grid-cols-3">
@@ -401,7 +504,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         <section id="agendar" className="border-y border-[var(--d-border)] bg-[var(--d-bg)] py-[var(--d-sec-y)]">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mb-16">
-              <Etiqueta numero="05" texto={s.agendamento.rotulo} />
+              {/* Sem número: "COMO FUNCIONA" também é sem número no original. */}
+              <Etiqueta texto={s.agendamento.rotulo} caixa />
               <Headline texto={s.agendamento.titulo} />
             </div>
             <div className="mb-16 grid gap-12 md:grid-cols-3">
@@ -424,26 +528,34 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               ))}
             </div>
             {s.agendamento.cta && (
-              <a
-                href={agendar}
-                className="inline-block rounded-[var(--d-radius)] bg-[var(--d-accent)] px-10 py-5 font-[family-name:var(--d-display)] text-sm font-bold uppercase tracking-[0.2em] text-[var(--d-accent-ink)] transition-opacity hover:opacity-85"
-              >
-                {s.agendamento.cta} →
-              </a>
+              <div className="flex justify-center">
+                <a
+                  href={agendar}
+                  data-cursor="open-scissors"
+                  data-cursor-text="AGENDAR →"
+                  className="d-cta inline-flex items-center justify-center gap-3"
+                >
+                  <span>{s.agendamento.cta}</span>
+                  <span>→</span>
+                </a>
+              </div>
             )}
           </div>
         </section>
       )}
 
       {/* ── Contato ────────────────────────────────────────────── */}
-      <section id="contato" className="bg-[var(--d-bg-elev)] py-[var(--d-sec-y)]">
+      <section
+        id="contato"
+        data-cursor="shaving-machine"
+        data-cursor-text="FALE CONOSCO →"
+        className="bg-[var(--d-bg-elev)] py-[var(--d-sec-y)]"
+      >
         <div className="mx-auto grid max-w-7xl items-center gap-16 px-6 md:grid-cols-2 md:gap-24">
           <div className="flex flex-col items-start">
-            <span className="mb-8 rounded-[var(--d-radius)] border border-[var(--d-accent)]/25 bg-[var(--d-bg)]/40 px-4 py-1.5 font-[family-name:var(--d-mono)] text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--d-accent)] backdrop-blur-sm md:text-xs">
-              06 / {s.contato?.rotulo ?? "CONTATO"}
-            </span>
+            <Etiqueta numero="05" texto={s.contato?.rotulo ?? "CONTATO"} caixa className="mb-8" />
             <div className="mb-12">
-              <Headline texto={s.contato?.titulo} />
+              <Headline texto={s.contato?.titulo} animado />
             </div>
 
             <div className="flex w-full flex-col gap-8">
@@ -515,6 +627,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                   href={`https://maps.google.com/?q=${encodeURIComponent(data.endereco)}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  data-cursor="open-scissors"
+                  data-cursor-text="TRAÇAR ROTA"
                   className="block w-full rounded-[var(--d-radius)] border border-[var(--d-accent)]/30 bg-[var(--d-bg-alt)]/90 px-6 py-4 text-center font-[family-name:var(--d-mono)] text-[11px] font-medium tracking-widest text-[var(--d-text)] backdrop-blur-sm transition-colors hover:bg-[var(--d-accent)] hover:text-[var(--d-accent-ink)]"
                 >
                   {s.contato.cta} →
@@ -541,7 +655,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
             </p>
           )}
           {data.slogan && (
-            <p className="mb-24 font-[family-name:var(--d-serif)] text-lg italic text-[var(--d-muted)] md:text-xl">
+            <p className="mb-24 font-[family-name:var(--d-citacao)] text-lg italic text-[var(--d-muted)] md:text-xl">
               &ldquo;{data.slogan}&rdquo;
             </p>
           )}
@@ -552,6 +666,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           </div>
         </div>
       </footer>
+      </IntroExperience>
     </div>
   );
 }
