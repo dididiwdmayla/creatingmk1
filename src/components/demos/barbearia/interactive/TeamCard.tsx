@@ -23,6 +23,8 @@ export function TeamCard({
 
   return (
     <div
+      data-cursor="razor"
+      data-cursor-text="VER PERFIL →"
       className="group flex h-full flex-col overflow-hidden rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg)] p-4 pb-8 transition-transform duration-500 hover:-translate-y-2"
       style={{ boxShadow: "0 16px 48px rgba(0,0,0,0.4)" }}
       onMouseEnter={() => setHovered(true)}

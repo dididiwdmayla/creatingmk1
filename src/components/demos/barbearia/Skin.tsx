@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 
 import type { Densidade, SkinProps } from "@/lib/demos/types";
 import { AnimatedScissors } from "./interactive/AnimatedScissors";
+import { CustomCursor } from "./interactive/CustomCursor";
 import { ScrollHeader } from "./interactive/ScrollHeader";
 import { TeamCard } from "./interactive/TeamCard";
 import { TypewriterText } from "./interactive/TypewriterText";
@@ -143,6 +144,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       style={vars}
       className="min-h-screen bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
+      <CustomCursor accent={paleta.destaque} />
+
       {/* Keyframes do poste de barbeiro — escopo próprio da skin. */}
       <style>{`
         @keyframes d-pole { 0% { background-position: 0 0; } 100% { background-position: 40px 0; } }
@@ -214,6 +217,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               {s.hero?.cta && (
                 <a
                   href={agendar}
+                  data-cursor="open-scissors"
+                  data-cursor-text="AGENDAR →"
                   className="w-full rounded-[var(--d-radius)] bg-[var(--d-accent)] px-8 py-4 text-center font-[family-name:var(--d-display)] text-xs font-bold uppercase tracking-[0.2em] text-[var(--d-accent-ink)] transition-opacity hover:opacity-85 sm:w-auto"
                 >
                   {s.hero.cta}
@@ -286,7 +291,12 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
 
               {s.agendamentoRapido.cta && (
                 <div className="mt-4 w-full sm:w-auto">
-                  <a href={agendar} className="d-cta inline-flex w-full items-center justify-center gap-3 sm:w-auto">
+                  <a
+                    href={agendar}
+                    data-cursor="open-scissors"
+                    data-cursor-text="AGENDAR →"
+                    className="d-cta inline-flex w-full items-center justify-center gap-3 sm:w-auto"
+                  >
                     <WhatsAppIcon />
                     <span>{s.agendamentoRapido.cta} →</span>
                   </a>
@@ -369,6 +379,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               {data.servicos.map((servico) => (
                 <div
                   key={servico.nome}
+                  data-cursor="comb"
+                  data-cursor-text="AGENDAR ESSE →"
                   className="group flex flex-col border-b border-[var(--d-border)] py-8 transition-colors hover:border-[var(--d-accent)]/60"
                 >
                   <div className="mb-3 flex items-baseline justify-between gap-4">
@@ -507,7 +519,12 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
             </div>
             {s.agendamento.cta && (
               <div className="flex justify-center">
-                <a href={agendar} className="d-cta inline-flex items-center justify-center gap-3">
+                <a
+                  href={agendar}
+                  data-cursor="open-scissors"
+                  data-cursor-text="AGENDAR →"
+                  className="d-cta inline-flex items-center justify-center gap-3"
+                >
                   <span>{s.agendamento.cta}</span>
                   <span>→</span>
                 </a>
@@ -518,7 +535,12 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       )}
 
       {/* ── Contato ────────────────────────────────────────────── */}
-      <section id="contato" className="bg-[var(--d-bg-elev)] py-[var(--d-sec-y)]">
+      <section
+        id="contato"
+        data-cursor="shaving-machine"
+        data-cursor-text="FALE CONOSCO →"
+        className="bg-[var(--d-bg-elev)] py-[var(--d-sec-y)]"
+      >
         <div className="mx-auto grid max-w-7xl items-center gap-16 px-6 md:grid-cols-2 md:gap-24">
           <div className="flex flex-col items-start">
             <Etiqueta numero="05" texto={s.contato?.rotulo ?? "CONTATO"} caixa className="mb-8" />
@@ -595,6 +617,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                   href={`https://maps.google.com/?q=${encodeURIComponent(data.endereco)}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  data-cursor="open-scissors"
+                  data-cursor-text="TRAÇAR ROTA"
                   className="block w-full rounded-[var(--d-radius)] border border-[var(--d-accent)]/30 bg-[var(--d-bg-alt)]/90 px-6 py-4 text-center font-[family-name:var(--d-mono)] text-[11px] font-medium tracking-widest text-[var(--d-text)] backdrop-blur-sm transition-colors hover:bg-[var(--d-accent)] hover:text-[var(--d-accent-ink)]"
                 >
                   {s.contato.cta} →
