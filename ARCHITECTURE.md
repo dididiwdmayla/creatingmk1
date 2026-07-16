@@ -21,8 +21,14 @@ src/
     icon.tsx                        # ✅ favicon gerado (ImageResponse) — tema radar
     login/page.tsx                  # ✅ form de senha → POST /api/login, identidade RADAR
     demo/
-      fonts.ts                      # ✅ fontes das skins via next/font (--font-demo-*)
-      [leadId]/page.tsx             # ✅ demo PÚBLICA do lead (única rota sem senha; só Firestore)
+      fonts.ts                      # ✅ fontes das skins + lista curada do editor via next/font (--font-demo-*)
+      [leadId]/page.tsx             # ✅ demo PÚBLICA do lead (única rota sem senha; só Firestore; 404 sem demo salva)
+    demo-preview/page.tsx           # ✅ preview do editor (iframe; estado via postMessage; protegida por senha)
+    leads/[id]/demo/editar/         # ✅ editor visual da demo (fora do route group (app) — tela cheia)
+      page.tsx                      #    wrapper server fino (params.id → client)
+      EditorClient.tsx              #    preview ao vivo + painel (estado, salvar, excluir, slot→campo)
+      paineis.tsx                   #    abas Conteúdo/Imagens/Tema/Estrutura (drag-and-drop via motion)
+      comprimir.ts                  #    compressão client-side (canvas → WebP ≤1600px) antes do upload
     (app)/                          # route group: páginas autenticadas, com Nav
       layout.tsx                    # ✅ header + bottom nav (Painel/Leads/Buscas/Config) + Sair
       page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas
@@ -42,7 +48,8 @@ src/
       leads/route.ts                # ✅ GET lista de leads com filtros
       leads/[id]/route.ts           # ✅ GET ficha / PATCH status·notas·favorito·descartado
       leads/[id]/enrich/route.ts    # ✅ POST enriquecimento (Place Details)
-      leads/[id]/demo/route.ts      # ✅ PUT configuração da demo do lead (Forja de Demos)
+      leads/[id]/demo/route.ts      # ✅ PUT configuração da demo / DELETE exclui demo + imagens
+      leads/[id]/demo/imagens/route.ts # ✅ POST upload de imagem de slot / DELETE volta ao placeholder
       usage/route.ts                # ✅ GET uso do mês + custo projetado
       metrics/route.ts              # ✅ GET métricas de prospecção
       __tests__/                    # ✅ testes das rotas (fake Firestore + fetch mockado)
@@ -69,6 +76,7 @@ src/
     config/                         # ✅ config efetiva: defaults + /config/app, validação de PUT
     firebase/
       admin.ts                      # ✅ init lazy do firebase-admin (env vars)
+      storage.ts                    # ✅ adaptador do Firebase Storage p/ DemoStorage (bucket via env)
     places/
       client.ts                     # ✅ searchText() / placeDetails(), sempre via reserveQuota
     leads/                          # ✅ repositório de leads (upsert, filtros, transições)
@@ -79,12 +87,18 @@ src/
       types.ts
       repo.ts
     demos/                          # ✅ Forja de Demos (ver seção própria)
-      types.ts                      # DemoData, Theme, SkinDefinition, LeadDemo
+      types.ts                      # DemoData, Theme, SkinDefinition (+secoes), LeadDemo (+tema), TemaPatch
       montar.ts                     # montarDemoData: exemplo ← lead ← edições
+      patch.ts                      # montarPatch: diff mínimo que o editor salva (inverso de aplicarPatch)
       registry.ts                   # registro de skins (a lista canônica)
-      validate.ts                   # validação do PUT /api/leads/[id]/demo
+      validate.ts                   # validação do PUT /api/leads/[id]/demo (dados + tema + estrutura)
+      fontes.ts                     # lista curada de fontes do editor (ids → CSS vars de next/font)
+      tema.ts                       # aplicarTema (preset ← TemaPatch), TEMA_RAIOS, ink por contraste
+      estrutura.ts                  # ordem efetiva/visibilidade de seções (skin + editor usam a mesma)
+      imagens.ts                    # upload/remoção no Storage sobre interface mínima (DemoStorage)
     testing/
       fake-firestore.ts             # ✅ fake em memória com semântica de transação
+      fake-storage.ts               # ✅ fake em memória do DemoStorage (rotas de imagens)
   components/                       # ✅ UI compartilhada
     Button.tsx                      # variantes + estado de loading
     Nav.tsx                         # bottom nav + logout (client)
@@ -185,7 +199,19 @@ Observações:
   "demo": {                                     // Forja de Demos (opcional; ver seção própria)
     "skinId": "barbearia-editorial",            // do registro de skins
     "themeId": "creme",                         // preset da skin (inválido → default)
-    "dados": { "slogan": "Tradição desde 1998." }, // overrides parciais de DemoData
+    "dados": {                                  // overrides parciais de DemoData (diff mínimo do editor)
+      "slogan": "Tradição desde 1998.",
+      "ordemSecoes": ["servicos", "equipe"],    // ordem das seções NÃO-fixas (drag-and-drop)
+      "secoes": { "ritual": { "oculta": true }, "filosofia": { "alinhamento": "centro" } },
+      "imagens": { "hero": "https://storage.googleapis.com/<bucket>/demos/<leadId>/hero-<ts>.webp" }
+    },
+    "tema": {                                   // ajustes por cima do preset (opcional)
+      "fonteDisplay": "playfair",               // id da lista curada (lib/demos/fontes.ts)
+      "fonteCorpo": "lora",
+      "destaque": "#8c4a2b",                    // cor primária; ink recalculado por contraste
+      "raio": "8px",                            // um de TEMA_RAIOS
+      "densidade": "arejada"
+    },
     "atualizadoEm": "<timestamp>"
   },
   "contato": {                                  // carimbos das transições de status
@@ -275,7 +301,10 @@ Formato de erro padrão em todas as rotas:
 | `/api/leads/[id]` | GET | — | `200 { lead }` · `404` | — |
 | `/api/leads/[id]` | PATCH | `{ status?, notas? (≤500), favorito?, descartado? }` (≥1 campo) | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
 | `/api/leads/[id]/enrich` | POST | — | `200 { lead }` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsEnterprise** |
-| `/api/leads/[id]/demo` | PUT | `{ skinId, themeId, dados? }` | `200 { lead }` · `400` · `404` | — |
+| `/api/leads/[id]/demo` | PUT | `{ skinId, themeId, dados?, tema? }` | `200 { lead }` · `400` · `404` | — |
+| `/api/leads/[id]/demo` | DELETE | — | `200 { lead }` (idempotente; apaga demo + imagens do Storage) · `404` | — |
+| `/api/leads/[id]/demo/imagens` | POST | multipart `slot` + `arquivo` (+`skinId?`) | `200 { slot, url }` · `400` (formato/tamanho/slot) · `404` | — |
+| `/api/leads/[id]/demo/imagens` | DELETE | `{ slot }` | `200 { lead }` (apaga arquivos do slot + override salvo) · `400` · `404` | — |
 | `/api/usage` | GET | — | `200 { period, usage, caps, cotaGratis, custoProjetado: { usd, brl } }` | — |
 | `/api/metrics` | GET | — | `200 { contatosHoje, contatosSemana, taxaResposta }` | — |
 | `/api/logout` | POST | — | `204` (limpa o cookie de sessão) | — |
@@ -339,34 +368,47 @@ Decisões de projeto:
 
 ## Forja de Demos (`src/lib/demos` + `src/components/demos`)
 
-Prévia de site personalizada por lead, servida pelo próprio Radar em **`/demo/{leadId}`** — o link que vai na mensagem de prospecção (variável `{demo}`). Nenhum deploy por lead, nenhuma chamada ao Google: a página é um Server Component que lê **só o Firestore**.
+Prévia de site personalizada por lead, servida pelo próprio Radar em **`/demo/{leadId}`** — o link que vai na mensagem de prospecção (variável `{demo}`). Nenhum deploy por lead, nenhuma chamada ao Google: a página é um Server Component que lê **só o Firestore**. **A demo pública só existe depois de salva no editor**: lead sem campo `demo` (ou com skin removida do registro) responde 404 — nada é publicado sem intenção explícita, e "Excluir demo" devolve exatamente esse estado.
 
 Contratos centrais (`src/lib/demos/types.ts`):
 
-- **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição), `depoimentos[]` (autor/texto/nota), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes) e `imagens` (caminho por slot).
+- **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição), `depoimentos[]` (autor/texto/nota), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes), `imagens` (caminho por slot) e a **estrutura editável**: `ordemSecoes` (ordem das seções não-fixas) e, por seção, `oculta` e `alinhamento`.
 - **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda, e dois acentos raros `acentoSecundario`/`acentoTerciario` para detalhes decorativos que não seguem o acento principal), `fontes` (display/corpo/mono/serif/decorativa/**citacao**/**destaque** como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts.ts`), `raio` e `densidade` (compacta/confortável/arejada → espaçamento vertical das seções).
-- **`SkinDefinition`** — entrada do registro: `{ id, nicho, nome, componente, themeDefault, themePresets, demoDataExemplo }`.
+- **`TemaPatch`** (`LeadDemo.tema`) — ajustes por cima do preset: `fonteDisplay`/`fonteCorpo` (ids da **lista curada** em `fontes.ts`, ~8 fontes via `next/font`, cada uma com os papéis onde funciona), `destaque` (cor primária hex; `destaqueInk` é **recalculado por contraste** em `tema.ts`), `raio` (um de `TEMA_RAIOS`) e `densidade`. `aplicarTema(preset, patch)` é puro e usado pela rota pública E pelo preview — o editor nunca mostra algo diferente do publicado.
+- **`SkinDefinition`** — entrada do registro: `{ id, nicho, nome, componente, themeDefault, themePresets, demoDataExemplo, secoes }`. **`secoes`** é o contrato do editor: lista ordenada de `SkinSecaoDef` (`{ id, nome, fixa?, alignOptions? }`) — `fixa` não reordena nem oculta (ex.: hero); `alignOptions` diz onde a skin aceita alinhamento (validado no PUT; a primeira opção é o natural da skin). Sem posicionamento livre por pixel: o template continua responsivo.
 
 Regras do sistema:
 
 1. **Skin é orientada por dados**: nenhum texto, imagem ou cor hardcoded no componente — tudo vem de `data`/`theme`, aplicado como CSS vars num wrapper (`--d-bg`, `--d-accent`, `--d-radius`, `--d-sec-y`…) que o Tailwind consome via arbitrary values. O componente de topo (`Skin.tsx`) não tem hooks e renderiza igual no server (rota pública); ele **compõe subcomponentes `"use client"`** (`src/components/demos/<nicho>/interactive/`) para as partes que precisam de interatividade real — scroll do header, máquina de escrever, cursor contextual, partículas, animação de entrada — sem que isso reintroduza conteúdo hardcoded: esses subcomponentes só recebem props (texto, imagem, cor) vindas de `data`/`theme` como qualquer outro pedaço da skin.
-2. **DemoData efetivo é montado em camadas** (`montarDemoData`): exemplo do template ← dados reais do lead (nome, endereço, telefone, whatsapp) ← edições da ficha (`lead.demo.dados`). Por isso o link `/demo/{leadId}` funciona **antes de qualquer edição** — sem demo salva, renderiza a skin default com os dados que o lead já tem.
-3. **Imagens são placeholders locais por slot** (`public/demos/<nicho>/*.svg`) — nunca fotos do cliente original; um override em `dados.imagens` troca slot a slot.
-4. **A configuração vive no campo `demo` do doc do lead** (não em subcoleção — a interface `AppDb` não precisa crescer) e é salva por `PUT /api/leads/[id]/demo` com validação estrita (skin/preset existentes, chaves desconhecidas rejeitadas, textos ≤2000, listas ≤30).
-5. **A rota pública é `force-dynamic` e `noindex`**: reflete a última edição na hora e não entra em buscador.
+2. **DemoData efetivo é montado em camadas** (`montarDemoData`): exemplo do template ← dados reais do lead (nome, endereço, telefone, whatsapp) ← edições do editor (`lead.demo.dados`). O editor pré-preenche tudo com essa mesma montagem; o que ele salva é o **diff mínimo** contra exemplo←lead (`montarPatch` em `patch.ts` — campo esvaziado/igual ao template volta a segui-lo).
+3. **A estrutura é dado, não código**: a skin renderiza suas seções pela **ordem efetiva** (`estrutura.ts`: `ordemSecoes` filtrado contra o contrato `SkinDefinition.secoes`, fixas no lugar, ids desconhecidos ignorados, seções não listadas no fim) e pula as `oculta`. Numeração de seção ("01 / FILOSOFIA") é recalculada pela ordem visível — reordenar/ocultar nunca deixa número furado. Cada texto/imagem da skin carrega **`data-demo-slot="<caminho do slot>"`** (ex.: `secoes.hero.titulo`, `servicos.0.preco`, `imagens.hero`) — atributo inerte na demo pública que o editor usa para o mapa clique-no-preview → campo-do-painel.
+4. **Imagens: placeholder local por slot, upload por lead no Firebase Storage.** Os placeholders (`public/demos/<nicho>/*.svg`) nunca são fotos do cliente original; o editor troca slot a slot subindo para `demos/{leadId}/{slot}-{ts}.{ext}` (jpg/png/webp, ≤2MB, comprimido client-side via canvas antes do envio — ver `comprimir.ts`). Objetos são públicos (a demo é pública) com cache imutável — trocar imagem gera caminho novo, e o upload apaga as versões velhas do slot. A URL vai em `dados.imagens[slot]` no PUT normal; "Remover" apaga os arquivos e o override (volta ao placeholder). "Excluir demo" apaga o registro e **todas** as imagens do lead; upload órfão de edição abandonada é limpo no próximo upload do slot ou na exclusão.
+5. **A configuração vive no campo `demo` do doc do lead** (não em subcoleção — a interface `AppDb` não precisa crescer) e é salva por `PUT /api/leads/[id]/demo` com validação estrita (skin/preset existentes, chaves desconhecidas rejeitadas, textos ≤2000, listas ≤30, `tema` contra a lista curada/`TEMA_RAIOS`/hex, `ordemSecoes` só com seções reordenáveis da skin, `oculta` proibido em seção fixa, `alinhamento` só onde a skin declara `alignOptions`).
+6. **A rota pública é `force-dynamic` e `noindex`**: reflete a última edição na hora e não entra em buscador.
+
+### Editor visual (`/leads/{id}/demo/editar`)
+
+A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta página em tela cheia (fora do route group `(app)`, sem o chrome do painel):
+
+- **Preview ao vivo num iframe** apontando para `/demo-preview` (rota protegida por senha, como tudo). O editor manda o estado completo — `skinId` + `DemoData` efetivo + `Theme` já com `aplicarTema` — por `postMessage` (mesma origem) a cada tecla; o iframe só renderiza a skin. Nada é lido do banco no preview, então o que se vê é exatamente o que o PUT publicará. Toggle desktop/celular muda a largura do iframe.
+- **Edição por slot**: clique em qualquer elemento com `data-demo-slot` no preview → o iframe devolve o caminho por `postMessage` → o editor abre a aba/grupo certo e foca o campo (`campo-{slot}`). Links/CTAs não navegam dentro do preview (capture + preventDefault).
+- **Painel em abas**: Conteúdo (negócio, serviços, depoimentos e cada seção do contrato da skin, com listas add/remove), Imagens (trocar/remover por slot), Tema (skin, presets, cor primária com amostra do ink calculado, fontes display/corpo da lista curada, raio, densidade) e Estrutura (drag-and-drop via `Reorder` do `motion`, ocultar/exibir, alinhamento onde a skin oferece).
+- **Persistência explícita**: "Salvar" faz o PUT (diff mínimo + tema); "Excluir demo" pede confirmação inline, chama o DELETE e volta pra ficha. Aviso de alterações não salvas no header + `beforeunload`.
+- **Mobile**: o painel vira um drawer inferior (72dvh) com botão flutuante "Editar"; as mesmas abas funcionam por toque (o Reorder do motion suporta touch).
 
 ### Padrão para adicionar uma nova skin
 
 1. Clone o material bruto em `skins-raw/<nicho>/` (fora do git/tsc/eslint — é só referência) e leia **todos** os componentes e estilos antes de converter, não só os principais — animações e interações (hover, scroll, cursor, máquina de escrever, intro) fazem parte do que precisa ser fielmente portado, não só o layout estático.
 2. Crie o pacote `src/components/demos/<nicho>/`:
-   - `Skin.tsx` — composição orientada por `{ data, theme }`, tokens só via CSS vars; delega interatividade a `interactive/*.tsx` (`"use client"`);
+   - `Skin.tsx` — composição orientada por `{ data, theme }`, tokens só via CSS vars; delega interatividade a `interactive/*.tsx` (`"use client"`); renderiza as seções pela **ordem efetiva** (`secoesVisiveis` de `lib/demos/estrutura.ts`) e marca cada texto/imagem editável com `data-demo-slot`;
+   - `secoes.ts` — o contrato `SkinSecaoDef[]` (ordem default, `fixa`, `alignOptions` onde o layout aguenta);
    - `themes.ts` — `themeDefault` fiel às cores do material bruto (inclusive acentos secundário/terciário se existirem) + 3–4 presets (contraste do `destaqueInk` é responsabilidade do preset);
    - `exemplo.ts` — `DemoData` completo com copy do material bruto e marca genérica.
 3. Coloque os placeholders em `public/demos/<nicho>/` (locais, um por slot de `imagens`).
 4. Se a skin usa fonte nova, carregue-a em `src/app/demo/fonts.ts` com var `--font-demo-*`, com o peso/estilo exatos do original (ex.: uma fonte carregada só em itálico 900 não é a mesma coisa que a mesma família em peso 400 normal).
 5. Se o original usa uma lib de animação (ex.: `motion`), adicione a dependência e port fielmente o timing/easing em vez de recriar com CSS aproximado — o objetivo é a demo parecer idêntica ao original com os dados de exemplo, exceto o que é slot/tema por design.
-6. Acrescente a entrada em `src/lib/demos/registry.ts` — rota pública e ficha passam a conhecê-la sem mais mudanças.
-7. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo e existência física dos placeholders.
+6. Acrescente a entrada em `src/lib/demos/registry.ts` — rota pública, ficha e editor passam a conhecê-la sem mais mudanças.
+7. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo, existência física dos placeholders e o contrato de seções (ids únicos, presentes no exemplo, `alignOptions` válidos, ao menos uma seção reordenável).
 
 ## Proteção por senha (src/proxy.ts)
 
@@ -387,7 +429,7 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
   - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite") e um KPI row com `/api/metrics`.
   - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (toggle, header com dot da cor + nome + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto). Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha — além dos dots de cor das buscas e destaque "sem site (lead quente)". Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
   - **`/buscas`**: buscas salvas (dot de cor, nome, nicho/sub-nicho, região, data, totais); tocar no dot cicla a cor pela paleta e persiste (`PATCH /api/buscas/[id]`); clicar no card navega para `/leads?buscaId=…`.
-  - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior. Inclui a seção **Demo**: escolha de skin, presets de tema (chips com amostras da paleta), campos pré-preenchidos pelo DemoData efetivo, salvar (`PUT /api/leads/[id]/demo`), abrir e copiar o link público. Campo esvaziado volta ao padrão do template ao salvar; edições avançadas feitas via API (serviços, seções, imagens) são preservadas. A mensagem do WhatsApp aceita `{demo}` além de `{nome}`.
+  - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior. A seção **Demo** é um resumo (skin, preset, atualizado em) com "Criar/Editar demo" apontando para o **editor visual** `/leads/{id}/demo/editar` (ver seção da Forja), além de abrir/copiar o link público. Sem demo salva, deixa claro que `/demo/{id}` responde 404. A mensagem do WhatsApp aceita `{demo}` além de `{nome}`.
   - **`/config`**: formulário completo (busca, filtros, mensagem padrão, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
 - **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tema "radar/sonar": fundo em gradiente azul-profundo → quase-preto (`--background-2` → `--background`), surface com leve tingimento azul (`#121b24`), acento vibrante verde-radar (`--accent`, com `--accent-ink` preto para texto sobre ele — o verde não passa em contraste com texto branco). Tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas, reforçado por forma (quadrado→pill) e marcador (○◐◑●); o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro. A paleta das 10 cores de busca (`BUSCA_CORES`) foi revalidada (mais saturada) contra a nova surface. Textos sobre `good`/`critical`/`warning` usam preto (não branco) — o contraste do branco falha nesses tons vibrantes.
 - **Tipografia**: Space Grotesk (`font-display`, via `next/font/google`) para títulos e números grandes do dashboard; Inter (`font-sans`) para o corpo; JetBrains Mono (`font-mono`) para dados tabulares/valores.
@@ -399,19 +441,22 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
 
 Sem Firebase real neste ambiente de sessão, a verificação de ponta a ponta foi feita ligando temporariamente o `FakeFirestore` (o mesmo fake dos testes) no lugar do Firestore via uma env var (`RADAR_FAKE_DB=1`), com dados de exemplo, rodando `next build && next start` e navegando o app real com Playwright (login errado/certo, dashboard com os três estados de meter, filtros de leads, ficha enriquecida/não enriquecida, botão Enriquecer com erro real de `GOOGLE_PLACES_API_KEY` ausente, transição de status, link `wa.me` com telefone e `{nome}` corretos, salvar config, logout e bloqueio pós-logout). O patch em `admin.ts` e os dados de exemplo foram revertidos antes do commit — não fazem parte do código do app.
 
+O **editor visual de demos** foi verificado no app real com o mesmo esquema (fake Firestore + fake Storage via env var temporária, revertidos antes do commit; `next dev` + Playwright): abrir `/leads/{id}/demo/editar` com preview renderizando a skin e os dados do lead; digitar no painel e ver o preview atualizar ao vivo; clicar num slot do preview e ver o campo correspondente focado; ocultar seção na aba Estrutura sumindo do preview; trocar cor primária na aba Tema; salvar e conferir `/demo/{id}` **200** com as edições e a cor custom no HTML; excluir com confirmação voltando à ficha e `/demo/{id}` de volta a **404** (também 404 antes do primeiro save); e, em viewport mobile (390px, touch), o painel começando fechado, abrindo pelo botão flutuante como drawer editável e fechando.
+
 A skin de barbearia da Forja de Demos foi verificada **lado a lado com o material bruto** (`skins-raw/barbearia` rodando em paralelo, `npm install && next build && next start` no diretório clonado): comparação seção a seção (header com scroll, hero com máquina de escrever, agendamento rápido, filosofia, serviços, equipe com hover de fios de cabelo e tesourinha animada, ritual, passos de agendamento, contato, footer com poste de barbeiro) e a animação de entrada (navalha cortando a tela) e o cursor contextual capturados em pleno funcionamento (motion habilitado, sem `prefers-reduced-motion`). Divergências encontradas nessa comparação (fontes trocadas, seção QuickBooking reduzida a uma faixa, animações ausentes, bio da equipe sem a segunda linha de detalhe) foram corrigidas antes do commit final.
 
 ## Variáveis de ambiente
 
 ```
-GOOGLE_PLACES_API_KEY=   # NUNCA exposta ao cliente; usada só em route handlers
+GOOGLE_PLACES_API_KEY=    # NUNCA exposta ao cliente; usada só em route handlers
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=    # com \n literais; admin.ts converte
-APP_PASSWORD=            # senha única do app; sem ela tudo responde 503
+FIREBASE_PRIVATE_KEY=     # com \n literais; admin.ts converte
+FIREBASE_STORAGE_BUCKET=  # bucket das imagens de demo (ex.: <projeto>.appspot.com)
+APP_PASSWORD=             # senha única do app; sem ela tudo responde 503
 ```
 
-Ver `.env.example`. Na Vercel, cadastrar as cinco em Project Settings → Environment Variables.
+Ver `.env.example`. Na Vercel, cadastrar as seis em Project Settings → Environment Variables.
 
 ## Decisões tomadas
 

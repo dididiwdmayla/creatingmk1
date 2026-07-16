@@ -1,7 +1,7 @@
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import type { UsageCounts } from "@/lib/costs";
-import type { DemoDataPatch } from "@/lib/demos/types";
+import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
 import type { Metrics } from "@/lib/leads/metrics";
 
@@ -21,10 +21,12 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(path, {
-      ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    });
+    // FormData define o próprio Content-Type (multipart com boundary).
+    const headers =
+      init?.body instanceof FormData
+        ? (init?.headers ?? {})
+        : { "Content-Type": "application/json", ...(init?.headers ?? {}) };
+    res = await fetch(path, { ...init, headers });
   } catch {
     throw new ApiError(0, "network_error", "Falha de rede. Verifique sua conexão.");
   }
@@ -139,9 +141,29 @@ export const api = {
     }),
   enrichLead: (id: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/enrich`, { method: "POST" }),
-  putLeadDemo: (id: string, demo: { skinId: string; themeId: string; dados: DemoDataPatch }) =>
+  putLeadDemo: (
+    id: string,
+    demo: { skinId: string; themeId: string; dados: DemoDataPatch; tema?: TemaPatch },
+  ) =>
     request<{ lead: Lead }>(`/api/leads/${id}/demo`, {
       method: "PUT",
       body: JSON.stringify(demo),
+    }),
+  deleteLeadDemo: (id: string) =>
+    request<{ lead: Lead }>(`/api/leads/${id}/demo`, { method: "DELETE" }),
+  uploadDemoImagem: (id: string, slot: string, arquivo: File, skinId?: string) => {
+    const form = new FormData();
+    form.set("slot", slot);
+    if (skinId) form.set("skinId", skinId);
+    form.set("arquivo", arquivo);
+    return request<{ slot: string; url: string }>(`/api/leads/${id}/demo/imagens`, {
+      method: "POST",
+      body: form,
+    });
+  },
+  deleteDemoImagem: (id: string, slot: string) =>
+    request<{ lead: Lead }>(`/api/leads/${id}/demo/imagens`, {
+      method: "DELETE",
+      body: JSON.stringify({ slot }),
     }),
 };

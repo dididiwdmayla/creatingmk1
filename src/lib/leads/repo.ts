@@ -1,5 +1,5 @@
 import type { FiltroPresenca } from "@/lib/config";
-import type { DemoDataPatch } from "@/lib/demos/types";
+import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import { InvalidTransitionError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import type { DetalhesLugar, PlaceBasico } from "@/lib/places/client";
@@ -263,7 +263,7 @@ export async function updateLeadExtras(
 export async function saveDemo(
   db: AppDb,
   placeId: string,
-  demo: { skinId: string; themeId: string; dados: DemoDataPatch },
+  demo: { skinId: string; themeId: string; dados: DemoDataPatch; tema?: TemaPatch },
   now: Date = new Date(),
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
@@ -272,6 +272,44 @@ export async function saveDemo(
     ...lead,
     demo: { ...demo, atualizadoEm: em },
     atualizadoEm: em,
+  };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/** Apaga a configuração da demo (o lead continua; /demo/{id} volta a 404). */
+export async function deleteDemo(
+  db: AppDb,
+  placeId: string,
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  const semDemo = { ...lead };
+  delete semDemo.demo;
+  const updated: Lead = { ...semDemo, atualizadoEm: now.toISOString() };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/**
+ * Remove o override de imagem de um slot da demo salva (volta ao
+ * placeholder do template). Sem demo salva ou sem override, é no-op —
+ * a rota de imagens sempre pode apagar o arquivo do Storage sem medo.
+ */
+export async function removeDemoImagem(
+  db: AppDb,
+  placeId: string,
+  slot: string,
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  if (!lead.demo?.dados.imagens?.[slot]) return lead;
+  const imagens = { ...lead.demo.dados.imagens };
+  delete imagens[slot];
+  const updated: Lead = {
+    ...lead,
+    demo: { ...lead.demo, dados: { ...lead.demo.dados, imagens } },
+    atualizadoEm: now.toISOString(),
   };
   await docRef(db, placeId).set(toDoc(updated));
   return updated;

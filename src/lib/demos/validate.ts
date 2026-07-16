@@ -1,6 +1,13 @@
 import { ValidationError } from "@/lib/errors";
+import { getFonte } from "./fontes";
 import { getSkin } from "./registry";
-import type { DemoDataPatch } from "./types";
+import { HEX_RE, TEMA_RAIOS } from "./tema";
+import {
+  ALINHAMENTOS,
+  type DemoDataPatch,
+  type SkinDefinition,
+  type TemaPatch,
+} from "./types";
 
 /**
  * Validação do corpo do PUT /api/leads/[id]/demo. Devolve a configuração
@@ -10,6 +17,7 @@ import type { DemoDataPatch } from "./types";
 
 const TEXTO_MAX = 2000;
 const LISTA_MAX = 30;
+const DENSIDADES = ["compacta", "confortavel", "arejada"] as const;
 
 const CAMPOS_TEXTO = [
   "nome",
@@ -67,7 +75,11 @@ function validaItens(value: unknown, path: string, problemas: string[]): void {
   });
 }
 
-function validaDados(value: unknown, problemas: string[]): DemoDataPatch {
+function validaDados(
+  value: unknown,
+  problemas: string[],
+  skin: SkinDefinition | undefined,
+): DemoDataPatch {
   if (!isRecord(value)) {
     problemas.push("dados deve ser um objeto");
     return {};
@@ -76,8 +88,18 @@ function validaDados(value: unknown, problemas: string[]): DemoDataPatch {
   for (const chave of Object.keys(value)) {
     const conhecida =
       (CAMPOS_TEXTO as readonly string[]).includes(chave) ||
-      ["servicos", "depoimentos", "secoes", "imagens"].includes(chave);
+      ["servicos", "depoimentos", "secoes", "imagens", "ordemSecoes"].includes(chave);
     if (!conhecida) problemas.push(`dados.${chave}: chave desconhecida`);
+  }
+
+  if (value.ordemSecoes !== undefined && validaLista(value.ordemSecoes, "dados.ordemSecoes", problemas)) {
+    (value.ordemSecoes as unknown[]).forEach((id, i) => {
+      if (typeof id !== "string") {
+        problemas.push(`dados.ordemSecoes[${i}] deve ser string`);
+      } else if (skin && !skin.secoes.some((secao) => !secao.fixa && secao.id === id)) {
+        problemas.push(`dados.ordemSecoes[${i}]: "${id}" não é seção reordenável da skin`);
+      }
+    });
   }
 
   for (const campo of CAMPOS_TEXTO) {
@@ -132,8 +154,36 @@ function validaDados(value: unknown, problemas: string[]): DemoDataPatch {
         if (secao.itens !== undefined) {
           validaItens(secao.itens, `dados.secoes.${nome}.itens`, problemas);
         }
+        const def = skin?.secoes.find((s) => s.id === nome);
+        if (secao.oculta !== undefined) {
+          if (typeof secao.oculta !== "boolean") {
+            problemas.push(`dados.secoes.${nome}.oculta deve ser booleano`);
+          } else if (secao.oculta && def?.fixa) {
+            problemas.push(`dados.secoes.${nome}.oculta: seção fixa não pode ser ocultada`);
+          }
+        }
+        if (secao.alinhamento !== undefined) {
+          if (
+            typeof secao.alinhamento !== "string" ||
+            !(ALINHAMENTOS as readonly string[]).includes(secao.alinhamento)
+          ) {
+            problemas.push(
+              `dados.secoes.${nome}.alinhamento deve ser um de: ${ALINHAMENTOS.join(", ")}`,
+            );
+          } else if (
+            skin &&
+            !(def?.alignOptions ?? []).includes(secao.alinhamento as (typeof ALINHAMENTOS)[number])
+          ) {
+            problemas.push(
+              `dados.secoes.${nome}.alinhamento: a skin não oferece alinhamento nesta seção`,
+            );
+          }
+        }
         for (const chave of Object.keys(secao)) {
-          if (!(CAMPOS_SECAO as readonly string[]).includes(chave) && chave !== "itens") {
+          if (
+            !(CAMPOS_SECAO as readonly string[]).includes(chave) &&
+            !["itens", "oculta", "alinhamento"].includes(chave)
+          ) {
             problemas.push(`dados.secoes.${nome}.${chave}: chave desconhecida`);
           }
         }
@@ -154,17 +204,69 @@ function validaDados(value: unknown, problemas: string[]): DemoDataPatch {
   return value as DemoDataPatch;
 }
 
+/** Ajustes de tema (LeadDemo.tema): fontes da lista curada, cor hex, raio/densidade do menu. */
+function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined {
+  if (!isRecord(value)) {
+    problemas.push("tema deve ser um objeto");
+    return undefined;
+  }
+
+  for (const chave of Object.keys(value)) {
+    if (!["fonteDisplay", "fonteCorpo", "destaque", "raio", "densidade"].includes(chave)) {
+      problemas.push(`tema.${chave}: chave desconhecida`);
+    }
+  }
+
+  for (const [campo, papel] of [
+    ["fonteDisplay", "display"],
+    ["fonteCorpo", "corpo"],
+  ] as const) {
+    const id = value[campo];
+    if (id === undefined) continue;
+    if (typeof id !== "string") {
+      problemas.push(`tema.${campo} deve ser string`);
+      continue;
+    }
+    const fonte = getFonte(id);
+    if (!fonte) {
+      problemas.push(`tema.${campo}: fonte desconhecida "${id}" (ver lista curada)`);
+    } else if (!fonte.papeis.includes(papel)) {
+      problemas.push(`tema.${campo}: a fonte "${id}" não serve para ${papel}`);
+    }
+  }
+
+  if (value.destaque !== undefined) {
+    if (typeof value.destaque !== "string" || !HEX_RE.test(value.destaque)) {
+      problemas.push("tema.destaque deve ser cor hex (#rrggbb)");
+    }
+  }
+
+  if (value.raio !== undefined && !TEMA_RAIOS.includes(value.raio as string)) {
+    problemas.push(`tema.raio deve ser um de: ${TEMA_RAIOS.join(", ")}`);
+  }
+
+  if (
+    value.densidade !== undefined &&
+    !(DENSIDADES as readonly string[]).includes(value.densidade as string)
+  ) {
+    problemas.push(`tema.densidade deve ser um de: ${DENSIDADES.join(", ")}`);
+  }
+
+  return value as TemaPatch;
+}
+
 export interface LeadDemoInput {
   skinId: string;
   themeId: string;
   dados: DemoDataPatch;
+  tema?: TemaPatch;
 }
 
 export function validateLeadDemoInput(body: Record<string, unknown>): LeadDemoInput {
   const problemas: string[] = [];
 
   for (const chave of Object.keys(body)) {
-    if (!["skinId", "themeId", "dados"].includes(chave)) {
+    if (!["skinId", "themeId", "dados", "tema"].includes(chave)) {
       problemas.push(`chave desconhecida: ${chave}`);
     }
   }
@@ -186,11 +288,17 @@ export function validateLeadDemoInput(body: Record<string, unknown>): LeadDemoIn
     );
   }
 
-  const dados = body.dados === undefined ? {} : validaDados(body.dados, problemas);
+  const dados = body.dados === undefined ? {} : validaDados(body.dados, problemas, skin);
+  const tema = body.tema === undefined ? undefined : validaTema(body.tema, problemas);
 
   if (problemas.length > 0) {
     throw new ValidationError(problemas);
   }
 
-  return { skinId: body.skinId as string, themeId: body.themeId as string, dados };
+  return {
+    skinId: body.skinId as string,
+    themeId: body.themeId as string,
+    dados,
+    ...(tema && Object.keys(tema).length > 0 && { tema }),
+  };
 }

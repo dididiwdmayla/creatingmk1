@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { salvarImagemDemo } from "@/lib/demos/imagens";
 import { DEFAULT_SKIN } from "@/lib/demos/registry";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
-import { PUT } from "../leads/[id]/demo/route";
+import { FakeDemoStorage } from "@/lib/testing/fake-storage";
+import { DELETE, PUT } from "../leads/[id]/demo/route";
 
 let db: FakeFirestore;
+let storage: FakeDemoStorage;
 
 vi.mock("@/lib/firebase/admin", () => ({ getDb: () => db }));
+vi.mock("@/lib/firebase/storage", () => ({ getDemoStorage: () => storage }));
 
 beforeEach(() => {
   db = new FakeFirestore();
+  storage = new FakeDemoStorage();
   db.seed("leads/A", {
     placeId: "A",
     nome: "Barbearia do Zé",
@@ -30,6 +35,12 @@ function put(id: string, body: unknown): Promise<Response> {
     }),
     { params: Promise.resolve({ id }) },
   );
+}
+
+function del(id: string): Promise<Response> {
+  return DELETE(new Request(`http://localhost/api/leads/${id}/demo`, { method: "DELETE" }), {
+    params: Promise.resolve({ id }),
+  });
 }
 
 const VALIDO = {
@@ -110,5 +121,115 @@ describe("PUT /api/leads/[id]/demo", () => {
 
     const { lead } = await res.json();
     expect(lead.demo.dados).toEqual({ nome: "Zé Premium" });
+  });
+
+  it("salva tema (fontes curadas, cor primária, raio, densidade)", async () => {
+    const res = await put("A", {
+      ...VALIDO,
+      tema: { fonteDisplay: "playfair", destaque: "#8c4a2b", raio: "8px", densidade: "arejada" },
+    });
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.demo.tema).toEqual({
+      fonteDisplay: "playfair",
+      destaque: "#8c4a2b",
+      raio: "8px",
+      densidade: "arejada",
+    });
+  });
+
+  it("400 para tema inválido (fonte fora da lista, papel errado, cor/raio inválidos)", async () => {
+    const res = await put("A", {
+      ...VALIDO,
+      tema: {
+        fonteDisplay: "comic-sans",
+        fonteCorpo: "bebas", // display-only: não serve pra corpo
+        destaque: "dourado",
+        raio: "37px",
+        densidade: "apertada",
+      },
+    });
+
+    expect(res.status).toBe(400);
+    const { error } = await res.json();
+    const texto = error.problemas.join(" | ");
+    expect(texto).toContain("tema.fonteDisplay");
+    expect(texto).toContain("tema.fonteCorpo");
+    expect(texto).toContain("tema.destaque");
+    expect(texto).toContain("tema.raio");
+    expect(texto).toContain("tema.densidade");
+  });
+
+  it("salva estrutura: ordemSecoes, oculta e alinhamento suportado", async () => {
+    const ordem = DEFAULT_SKIN.secoes
+      .filter((secao) => !secao.fixa)
+      .map((secao) => secao.id)
+      .reverse();
+    const res = await put("A", {
+      ...VALIDO,
+      dados: {
+        ordemSecoes: ordem,
+        secoes: { ritual: { oculta: true }, filosofia: { alinhamento: "centro" } },
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.demo.dados.ordemSecoes).toEqual(ordem);
+    expect(lead.demo.dados.secoes.ritual.oculta).toBe(true);
+    expect(lead.demo.dados.secoes.filosofia.alinhamento).toBe("centro");
+  });
+
+  it("400 para estrutura inválida (seção fixa oculta/reordenada, alinhamento sem suporte)", async () => {
+    const res = await put("A", {
+      ...VALIDO,
+      dados: {
+        ordemSecoes: ["hero"],
+        secoes: {
+          hero: { oculta: true },
+          contato: { alinhamento: "centro" }, // sem alignOptions na skin
+          filosofia: { alinhamento: "diagonal" },
+        },
+      },
+    });
+
+    expect(res.status).toBe(400);
+    const { error } = await res.json();
+    const texto = error.problemas.join(" | ");
+    expect(texto).toContain("ordemSecoes[0]");
+    expect(texto).toContain("hero.oculta");
+    expect(texto).toContain("contato.alinhamento");
+    expect(texto).toContain("filosofia.alinhamento");
+  });
+});
+
+describe("DELETE /api/leads/[id]/demo", () => {
+  it("apaga o campo demo e TODAS as imagens do lead no Storage", async () => {
+    await put("A", VALIDO);
+    await salvarImagemDemo(storage, "A", "hero", new Uint8Array([1]), "image/webp");
+    await salvarImagemDemo(storage, "B", "hero", new Uint8Array([1]), "image/webp");
+
+    const res = await del("A");
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.demo).toBeUndefined();
+    expect(db.getDoc("leads/A")?.demo).toBeUndefined();
+    // Imagens de OUTRO lead ficam intactas.
+    expect(storage.paths()).toHaveLength(1);
+    expect(storage.paths()[0]).toContain("demos/B/");
+  });
+
+  it("é idempotente: lead sem demo responde 200 do mesmo jeito", async () => {
+    const res = await del("A");
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.demo).toBeUndefined();
+  });
+
+  it("404 para lead inexistente", async () => {
+    const res = await del("nao-existe");
+    expect(res.status).toBe(404);
   });
 });

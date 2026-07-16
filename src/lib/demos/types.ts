@@ -38,6 +38,11 @@ export interface DemoItem {
   texto?: string;
 }
 
+/** Alinhamento do conteúdo de uma seção (onde a skin declarar alignOptions). */
+export type Alinhamento = "esquerda" | "centro" | "direita";
+
+export const ALINHAMENTOS: readonly Alinhamento[] = ["esquerda", "centro", "direita"];
+
 /** Bloco de textos de uma seção. Slots que o skin não usa são ignorados. */
 export interface DemoSecao {
   /** Etiqueta pequena da seção (ex.: "SERVIÇOS"). */
@@ -48,6 +53,10 @@ export interface DemoSecao {
   cta?: string;
   ctaSecundaria?: string;
   itens?: DemoItem[];
+  /** Seção escondida no editor (só para seções não-fixas da skin). */
+  oculta?: boolean;
+  /** Só vale se a skin declara alignOptions para a seção (ver SkinSecaoDef). */
+  alinhamento?: Alinhamento;
 }
 
 /**
@@ -69,6 +78,13 @@ export interface DemoData {
   depoimentos: DemoDepoimento[];
   /** Textos por seção; as chaves são definidas por cada skin. */
   secoes: Record<string, DemoSecao>;
+  /**
+   * Ordem das seções NÃO-fixas da skin (ids de SkinSecaoDef). Ausente =
+   * ordem default da skin; ids desconhecidos são ignorados e seções não
+   * listadas entram no fim, na ordem default (a skin nunca quebra por
+   * dado velho de uma versão anterior do contrato).
+   */
+  ordemSecoes?: string[];
   /**
    * Imagem por slot (chaves definidas pelo skin, ex.: "hero", "equipe-1").
    * Slot ausente = placeholder default do template. Sempre caminhos locais
@@ -134,6 +150,41 @@ export interface SkinProps {
   theme: Theme;
 }
 
+/**
+ * Uma seção declarada pela skin, na ordem default de render. O editor usa
+ * esta lista para reordenar/ocultar seções e oferecer alinhamento; a
+ * validação do PUT usa `alignOptions` para rejeitar alinhamento onde a
+ * skin não suporta.
+ */
+export interface SkinSecaoDef {
+  /** Chave da seção em DemoData.secoes (e em ordemSecoes). */
+  id: string;
+  /** Nome legível no editor (ex.: "Filosofia"). */
+  nome: string;
+  /** Fixa = não reordenável nem ocultável (ex.: hero de abertura). */
+  fixa?: boolean;
+  /** Alinhamentos que a skin suporta nesta seção; ausente = sem opção. */
+  alignOptions?: readonly Alinhamento[];
+}
+
+/**
+ * Ajustes de tema por cima do preset escolhido (LeadDemo.tema). Fontes
+ * vêm da lista curada (ids de DEMO_FONTES em ./fontes.ts); `destaque` é a
+ * cor primária em hex — o ink sobre ela é recalculado por contraste
+ * (ver aplicarTema em ./tema.ts).
+ */
+export interface TemaPatch {
+  /** Id da fonte curada para títulos (fontes.display). */
+  fonteDisplay?: string;
+  /** Id da fonte curada para o corpo (fontes.corpo). */
+  fonteCorpo?: string;
+  /** Cor primária (#rrggbb) — substitui paleta.destaque do preset. */
+  destaque?: string;
+  /** Raio de borda base — um de TEMA_RAIOS (./tema.ts). */
+  raio?: string;
+  densidade?: Densidade;
+}
+
 /** Entrada do registro de skins (ver ./registry.tsx). */
 export interface SkinDefinition {
   id: string;
@@ -146,6 +197,8 @@ export interface SkinDefinition {
   /** Presets oferecidos na ficha do lead (inclui o default). */
   themePresets: Theme[];
   demoDataExemplo: DemoData;
+  /** Seções da skin, na ordem default de render (contrato do editor). */
+  secoes: SkinSecaoDef[];
 }
 
 /**
@@ -160,5 +213,7 @@ export interface LeadDemo {
   skinId: string;
   themeId: string;
   dados: DemoDataPatch;
+  /** Ajustes de tema por cima do preset (fontes, cor primária, raio, densidade). */
+  tema?: TemaPatch;
   atualizadoEm: string;
 }
