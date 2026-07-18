@@ -68,6 +68,54 @@ export const DEMO_FONTES: readonly DemoFonte[] = [
     css: "var(--font-demo-lora), Georgia, serif",
     papeis: ["corpo"],
   },
+  {
+    id: "abril",
+    nome: "Abril Fatface (display dramática)",
+    css: "var(--font-demo-abril), Georgia, serif",
+    papeis: ["display"],
+  },
+  {
+    id: "archivo-black",
+    nome: "Archivo Black (display robusta)",
+    css: "var(--font-demo-archivo-black), 'Arial Black', sans-serif",
+    papeis: ["display"],
+  },
+  {
+    id: "cinzel",
+    nome: "Cinzel (romana gravada)",
+    css: "var(--font-demo-cinzel), Georgia, serif",
+    papeis: ["display"],
+  },
+  {
+    id: "dm-sans",
+    nome: "DM Sans (sans limpa)",
+    css: "var(--font-demo-dm-sans), system-ui, sans-serif",
+    papeis: ["corpo"],
+  },
+  {
+    id: "josefin",
+    nome: "Josefin Sans (geométrica elegante)",
+    css: "var(--font-demo-josefin), system-ui, sans-serif",
+    papeis: ["display"],
+  },
+  {
+    id: "libre-baskerville",
+    nome: "Libre Baskerville (livro clássico)",
+    css: "var(--font-demo-libre-baskerville), Georgia, serif",
+    papeis: ["display", "corpo"],
+  },
+  {
+    id: "merriweather",
+    nome: "Merriweather (leitura serifada)",
+    css: "var(--font-demo-merriweather), Georgia, serif",
+    papeis: ["corpo"],
+  },
+  {
+    id: "montserrat",
+    nome: "Montserrat (geométrica versátil)",
+    css: "var(--font-demo-montserrat), system-ui, sans-serif",
+    papeis: ["display", "corpo"],
+  },
 ];
 
 export function getFonte(id: string | undefined): DemoFonte | undefined {

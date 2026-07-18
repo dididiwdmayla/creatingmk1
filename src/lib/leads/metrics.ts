@@ -6,6 +6,8 @@ export interface Metrics {
   contatosSemana: number;
   /** Fração 0..1: leads com respondeuEm ÷ leads com primeiroContatoEm. */
   taxaResposta: number;
+  /** Leads com demo salva (campo `demo` presente) — card do dashboard. */
+  demosCriadas: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -29,6 +31,7 @@ export async function getMetrics(db: AppDb, now: Date = new Date()): Promise<Met
   let contatosSemana = 0;
   let comPrimeiroContato = 0;
   let comResposta = 0;
+  let demosCriadas = 0;
 
   for (const doc of snapshot.docs) {
     const lead = doc.data() as unknown as Lead;
@@ -40,11 +43,13 @@ export async function getMetrics(db: AppDb, now: Date = new Date()): Promise<Met
       if (t >= sevenDaysAgo) contatosSemana += 1;
     }
     if (lead.contato?.respondeuEm) comResposta += 1;
+    if (lead.demo) demosCriadas += 1;
   }
 
   return {
     contatosHoje,
     contatosSemana,
     taxaResposta: comPrimeiroContato > 0 ? comResposta / comPrimeiroContato : 0,
+    demosCriadas,
   };
 }

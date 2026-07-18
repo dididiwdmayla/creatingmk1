@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ApiError, api, type UsageResponse } from "@/lib/api-client";
@@ -120,6 +121,24 @@ export default function DashboardPage() {
           <StatTile label="Últimos 7 dias" value={formatInt(metrics.contatosSemana)} />
           <StatTile label="Taxa de resposta" value={formatPercent(metrics.taxaResposta)} />
         </div>
+      </section>
+
+      <section>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Forja de Demos
+        </h2>
+        <Link
+          href="/demos"
+          className="card-lift mt-3 flex items-center justify-between rounded-lg border border-line bg-surface p-4"
+        >
+          <div>
+            <p className="text-xs text-ink-muted">Demos criadas</p>
+            <p className="mt-1 font-display text-3xl font-bold text-foreground">
+              {formatInt(metrics.demosCriadas)}
+            </p>
+          </div>
+          <span className="text-xs text-accent">Ver todas →</span>
+        </Link>
       </section>
     </div>
   );

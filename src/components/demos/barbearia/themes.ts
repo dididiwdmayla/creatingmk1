@@ -39,6 +39,7 @@ const NORTE: Theme = {
   fontes: FONTES_EDITORIAIS,
   raio: "0px",
   densidade: "confortavel",
+  animacao: "marcante",
 };
 
 const MEIA_NOITE: Theme = {
@@ -59,6 +60,7 @@ const MEIA_NOITE: Theme = {
   fontes: FONTES_EDITORIAIS,
   raio: "4px",
   densidade: "compacta",
+  animacao: "sutil",
 };
 
 const CREME: Theme = {
@@ -83,6 +85,7 @@ const CREME: Theme = {
   },
   raio: "0px",
   densidade: "arejada",
+  animacao: "sutil",
 };
 
 const OLIVA: Theme = {
@@ -106,6 +109,7 @@ const OLIVA: Theme = {
   },
   raio: "8px",
   densidade: "confortavel",
+  animacao: "marcante",
 };
 
 export const BARBEARIA_THEME_DEFAULT: Theme = NORTE;

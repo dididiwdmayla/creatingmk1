@@ -5,17 +5,15 @@ import {
   Inter,
   JetBrains_Mono,
   Limelight,
-  Lora,
-  Oswald,
   Playfair_Display,
-  Poppins,
 } from "next/font/google";
 
 /**
- * Fontes das skins de demo, carregadas via next/font (self-hosted no build,
- * nenhuma chamada externa em runtime). Os presets de tema referenciam estas
- * CSS vars (--font-demo-*); a página /demo aplica o className no wrapper.
- * Fontes do app (layout raiz) usam vars próprias — sem colisão.
+ * Fontes SEMPRE presentes nos presets da skin de barbearia (themes.ts) —
+ * carregadas estaticamente (preload default) porque toda demo renderiza
+ * pelo menos uma delas, não importa o preset escolhido. As demais fontes
+ * da lista curada (src/lib/demos/fontes.ts) só existem para override
+ * opcional do editor e são carregadas sob demanda (ver ./registry.ts).
  */
 
 const bebas = Bebas_Neue({
@@ -62,28 +60,16 @@ const limelight = Limelight({
   weight: "400",
 });
 
-// Fontes extras da lista curada do editor (src/lib/demos/fontes.ts) —
-// opções de display/corpo além das que as skins já usavam.
-const oswald = Oswald({
-  variable: "--font-demo-oswald",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
+/** Ids da lista curada (fontes.ts) já cobertos por este pacote estático. */
+export const CORE_FONT_IDS: readonly string[] = [
+  "bebas",
+  "inter",
+  "cormorant",
+  "playfair",
+  "limelight",
+];
 
-const poppins = Poppins({
-  variable: "--font-demo-poppins",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const lora = Lora({
-  variable: "--font-demo-lora",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
-});
-
-export const demoFontsClassName = [
+export const demoCoreFontsClassName = [
   bebas.variable,
   inter.variable,
   mono.variable,
@@ -91,7 +77,4 @@ export const demoFontsClassName = [
   cormorant.variable,
   playfair.variable,
   limelight.variable,
-  oswald.variable,
-  poppins.variable,
-  lora.variable,
 ].join(" ");

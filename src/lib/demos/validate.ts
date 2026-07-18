@@ -4,6 +4,7 @@ import { getSkin } from "./registry";
 import { HEX_RE, TEMA_RAIOS } from "./tema";
 import {
   ALINHAMENTOS,
+  ANIMACOES,
   type DemoDataPatch,
   type SkinDefinition,
   type TemaPatch,
@@ -212,7 +213,9 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
   }
 
   for (const chave of Object.keys(value)) {
-    if (!["fonteDisplay", "fonteCorpo", "destaque", "raio", "densidade"].includes(chave)) {
+    if (
+      !["fonteDisplay", "fonteCorpo", "destaque", "raio", "densidade", "animacao"].includes(chave)
+    ) {
       problemas.push(`tema.${chave}: chave desconhecida`);
     }
   }
@@ -250,6 +253,13 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
     !(DENSIDADES as readonly string[]).includes(value.densidade as string)
   ) {
     problemas.push(`tema.densidade deve ser um de: ${DENSIDADES.join(", ")}`);
+  }
+
+  if (
+    value.animacao !== undefined &&
+    !(ANIMACOES as readonly string[]).includes(value.animacao as string)
+  ) {
+    problemas.push(`tema.animacao deve ser um de: ${ANIMACOES.join(", ")}`);
   }
 
   return value as TemaPatch;

@@ -20,6 +20,7 @@ describe("GET /api/metrics", () => {
       contatosHoje: 0,
       contatosSemana: 0,
       taxaResposta: 0,
+      demosCriadas: 0,
     });
   });
 

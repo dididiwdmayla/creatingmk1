@@ -130,10 +130,10 @@ export function DemoEditorClient({ id }: { id: string }) {
   const enviarPreview = useCallback(() => {
     if (!dados) return;
     iframeRef.current?.contentWindow?.postMessage(
-      { tipo: MSG_PREVIEW, skinId: skin.id, data: dados, theme: themeEfetivo },
+      { tipo: MSG_PREVIEW, skinId: skin.id, data: dados, theme: themeEfetivo, tema },
       window.location.origin,
     );
-  }, [dados, skin.id, themeEfetivo]);
+  }, [dados, skin.id, themeEfetivo, tema]);
 
   // Preview ao vivo: reposta a cada mudança de conteúdo/tema.
   useEffect(() => {
