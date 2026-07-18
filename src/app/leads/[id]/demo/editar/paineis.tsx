@@ -11,9 +11,13 @@ import { TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
 import type {
   Alinhamento,
   Animacao,
+  AnimacaoEntrada,
+  CliqueEstilo,
   DemoData,
   DemoItem,
   Densidade,
+  FundoEfeito,
+  HoverEstilo,
   SkinDefinition,
   TemaPatch,
 } from "@/lib/demos/types";
@@ -550,6 +554,70 @@ const ANIMACOES: Array<{ id: Animacao; rotulo: string }> = [
   { id: "marcante", rotulo: "Marcante" },
 ];
 
+const HOVERS: Array<{ id: HoverEstilo; rotulo: string }> = [
+  { id: "lift", rotulo: "Elevar" },
+  { id: "zoom", rotulo: "Zoom" },
+  { id: "brilho", rotulo: "Brilho" },
+];
+
+const CLIQUES: Array<{ id: CliqueEstilo; rotulo: string }> = [
+  { id: "nenhum", rotulo: "Sem animação" },
+  { id: "pressao", rotulo: "Pressionar" },
+  { id: "pulso", rotulo: "Pulso" },
+];
+
+const FUNDOS: Array<{ id: FundoEfeito; rotulo: string }> = [
+  { id: "nenhum", rotulo: "Nenhum" },
+  { id: "gradiente", rotulo: "Gradiente animado" },
+  { id: "particulas", rotulo: "Partículas" },
+];
+
+/** Linha de botões Padrão + opções, padrão visual das escolhas do tema. */
+function Escolha<T extends string>({
+  titulo,
+  padraoRotulo,
+  opcoes,
+  valor,
+  onChange,
+}: {
+  titulo: string;
+  padraoRotulo: string;
+  opcoes: Array<{ id: T; rotulo: string }>;
+  valor: T | undefined;
+  onChange: (valor: T | undefined) => void;
+}) {
+  const btn = (ativo: boolean) =>
+    `rounded border px-2.5 py-1.5 text-xs ${
+      ativo ? "border-accent text-foreground" : "border-line text-ink-muted hover:border-accent/50"
+    }`;
+  return (
+    <div>
+      <span className="text-xs text-ink-muted">{titulo}</span>
+      <div className="mt-1.5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(undefined)}
+          aria-pressed={valor === undefined}
+          className={btn(valor === undefined)}
+        >
+          Padrão ({padraoRotulo})
+        </button>
+        {opcoes.map(({ id, rotulo }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onChange(id)}
+            aria-pressed={valor === id}
+            className={btn(valor === id)}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PainelTema({
   skinId,
   onSkinChange,
@@ -747,6 +815,43 @@ export function PainelTema({
           ))}
         </div>
       </div>
+
+      <Escolha
+        titulo="Intro de abertura (splash do template)"
+        padraoRotulo={preset.intro ? "ligada" : "desligada"}
+        opcoes={[
+          { id: "ligada", rotulo: "Ligada" },
+          { id: "desligada", rotulo: "Desligada" },
+        ]}
+        valor={tema.intro === undefined ? undefined : tema.intro ? "ligada" : "desligada"}
+        onChange={(v) =>
+          setTema({ ...tema, intro: v === undefined ? undefined : v === "ligada" })
+        }
+      />
+
+      <Escolha
+        titulo="Hover de cards e botões"
+        padraoRotulo={HOVERS.find((h) => h.id === preset.hover)?.rotulo ?? preset.hover}
+        opcoes={HOVERS}
+        valor={tema.hover}
+        onChange={(hover) => setTema({ ...tema, hover })}
+      />
+
+      <Escolha
+        titulo="Animação de clique"
+        padraoRotulo={CLIQUES.find((c) => c.id === preset.clique)?.rotulo ?? preset.clique}
+        opcoes={CLIQUES}
+        valor={tema.clique}
+        onChange={(clique) => setTema({ ...tema, clique })}
+      />
+
+      <Escolha
+        titulo="Efeito de fundo (sutil, leve em mobile)"
+        padraoRotulo={FUNDOS.find((f) => f.id === preset.fundoEfeito)?.rotulo ?? preset.fundoEfeito}
+        opcoes={FUNDOS}
+        valor={tema.fundoEfeito}
+        onChange={(fundoEfeito) => setTema({ ...tema, fundoEfeito })}
+      />
     </div>
   );
 }
@@ -757,6 +862,14 @@ const ALINHAMENTO_ROTULO: Record<Alinhamento, string> = {
   esquerda: "Esq.",
   centro: "Centro",
   direita: "Dir.",
+};
+
+const ENTRADA_ROTULO: Record<AnimacaoEntrada, string> = {
+  nenhuma: "Sem",
+  fade: "Fade",
+  "deslizar-esquerda": "Desl. esq.",
+  "deslizar-direita": "Desl. dir.",
+  typewriter: "Máquina",
 };
 
 /**
@@ -770,15 +883,23 @@ function ItemEstrutura({
   def,
   oculta,
   alinhamento,
+  entrada,
   onOcultar,
   onAlinhar,
+  onEntrada,
 }: {
   id: string;
-  def: { nome: string; alignOptions?: readonly Alinhamento[] };
+  def: {
+    nome: string;
+    alignOptions?: readonly Alinhamento[];
+    entradaOptions?: readonly AnimacaoEntrada[];
+  };
   oculta: boolean;
   alinhamento: Alinhamento | undefined;
+  entrada: AnimacaoEntrada | undefined;
   onOcultar: () => void;
   onAlinhar: (opcao: Alinhamento) => void;
+  onEntrada: (opcao: AnimacaoEntrada | undefined) => void;
 }) {
   const controls = useDragControls();
 
@@ -824,6 +945,38 @@ function ItemEstrutura({
               }`}
             >
               {ALINHAMENTO_ROTULO[opcao]}
+            </button>
+          ))}
+        </div>
+      )}
+      {def.entradaOptions && !oculta && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-ink-muted">Entrada</span>
+          <button
+            type="button"
+            onClick={() => onEntrada(undefined)}
+            aria-pressed={entrada === undefined}
+            className={`rounded border px-2 py-0.5 text-[11px] ${
+              entrada === undefined
+                ? "border-accent text-foreground"
+                : "border-line text-ink-muted hover:border-accent/50"
+            }`}
+          >
+            Padrão
+          </button>
+          {def.entradaOptions.map((opcao) => (
+            <button
+              key={opcao}
+              type="button"
+              onClick={() => onEntrada(opcao)}
+              aria-pressed={entrada === opcao}
+              className={`rounded border px-2 py-0.5 text-[11px] ${
+                entrada === opcao
+                  ? "border-accent text-foreground"
+                  : "border-line text-ink-muted hover:border-accent/50"
+              }`}
+            >
+              {ENTRADA_ROTULO[opcao]}
             </button>
           ))}
         </div>
@@ -892,8 +1045,10 @@ export function PainelEstrutura({
               def={def}
               oculta={oculta}
               alinhamento={alinhamento}
+              entrada={secao?.animacaoEntrada}
               onOcultar={() => setSecao(id, { oculta: oculta ? undefined : true })}
               onAlinhar={(opcao) => setSecao(id, { alinhamento: opcao })}
+              onEntrada={(opcao) => setSecao(id, { animacaoEntrada: opcao })}
             />
           );
         })}

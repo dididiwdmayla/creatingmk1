@@ -59,6 +59,7 @@ export async function geocodeRegion(
   db: AppDb,
   regiao: string,
   caps: UsageCounts,
+  userId?: string,
 ): Promise<RegiaoGeo & { cached: boolean }> {
   const texto = regiao.trim();
   if (!texto) {
@@ -73,7 +74,7 @@ export async function geocodeRegion(
   }
 
   const key = requireApiKey();
-  await reserveQuota(db, "geocoding", caps);
+  await reserveQuota(db, "geocoding", caps, undefined, userId);
 
   const url =
     `${GEOCODE_URL}?address=${encodeURIComponent(texto)}` +

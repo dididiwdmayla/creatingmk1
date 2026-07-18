@@ -51,6 +51,17 @@ describe("montarPatch", () => {
     expect(patch.secoes).toEqual({ hero: { titulo: "OUTRO TÍTULO." } });
   });
 
+  it("animacaoEntrada entra no diff; ausente (padrão do template) fica fora", () => {
+    const atual = clone(BASE);
+    atual.secoes.filosofia = { ...atual.secoes.filosofia, animacaoEntrada: "deslizar-esquerda" };
+    const patch = montarPatch(BASE, atual, DEFAULT_SKIN);
+    expect(patch.secoes).toEqual({ filosofia: { animacaoEntrada: "deslizar-esquerda" } });
+
+    // Aplicado sobre a base, reproduz o estado editado (inverso de aplicarPatch).
+    const efetivo = montarDemoData(BASE, undefined, patch);
+    expect(efetivo.secoes.filosofia.animacaoEntrada).toBe("deslizar-esquerda");
+  });
+
   it("oculta=true entra; alinhamento só quando difere do natural da skin", () => {
     const atual = clone(BASE);
     atual.secoes.ritual = { ...atual.secoes.ritual, oculta: true };

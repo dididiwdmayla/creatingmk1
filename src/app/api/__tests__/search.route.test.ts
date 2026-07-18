@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { regiaoCacheKey } from "@/lib/geo/geocode";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
+import { cookieDeSessao } from "@/lib/testing/sessao";
 import { POST } from "../search/route";
 import { PATCH } from "../leads/[id]/route";
 
@@ -67,6 +68,7 @@ beforeEach(() => {
   );
   vi.stubGlobal("fetch", fetchMock);
   vi.stubEnv("GOOGLE_PLACES_API_KEY", "chave-teste");
+  vi.stubEnv("APP_PASSWORD", "segredo123");
 });
 
 afterEach(() => {
@@ -74,9 +76,10 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function searchRequest(body?: unknown): Request {
+function searchRequest(body?: unknown, cookie?: string): Request {
   return new Request("http://localhost/api/search", {
     method: "POST",
+    ...(cookie && { headers: { cookie } }),
     ...(body !== undefined && { body: JSON.stringify(body) }),
   });
 }
@@ -523,5 +526,25 @@ describe("POST /api/search", () => {
     expect(typeof primeira.busca.cor).toBe("string");
     expect(primeira.busca.cor).toMatch(/^#/);
     expect(segunda.busca.cor).not.toBe(primeira.busca.cor);
+  });
+
+  it("com sessão, a busca registra o userId e a cota ganha quebra porUsuario", async () => {
+    const cookie = await cookieDeSessao(db, { id: "ana", papel: "membro" });
+
+    const data = await (await POST(searchRequest(undefined, cookie))).json();
+
+    expect(data.busca.userId).toBe("ana");
+    expect(db.getDoc(`buscas/${data.busca.id}`)?.userId).toBe("ana");
+    const period = new Date().toISOString().slice(0, 7);
+    const usage = db.getDoc(`usage/${period}`);
+    expect(usage).toMatchObject({ textSearch: 1 });
+    expect((usage?.porUsuario as Record<string, { textSearch: number }>).ana.textSearch).toBe(1);
+  });
+
+  it("sem sessão identificável a busca continua funcionando (sem userId)", async () => {
+    const data = await (await POST(searchRequest())).json();
+
+    expect(data.busca.userId).toBeUndefined();
+    expect(db.getDoc(`buscas/${data.busca.id}`)?.userId).toBeUndefined();
   });
 });

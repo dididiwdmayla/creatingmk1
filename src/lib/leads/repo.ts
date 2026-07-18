@@ -222,6 +222,7 @@ export async function changeStatus(
   placeId: string,
   para: LeadStatus,
   now: Date = new Date(),
+  userId?: string,
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
   if (!VALID_TRANSITIONS[lead.status].includes(para)) {
@@ -233,6 +234,11 @@ export async function changeStatus(
   const stamp = STATUS_STAMPS[para];
   if (stamp && !contato[stamp]) {
     contato[stamp] = em;
+    // "Lead contactado" é ação-chave: registra QUEM contactou (métricas
+    // por usuário). Só no primeiro carimbo, junto com o timestamp.
+    if (para === "contactado" && userId) {
+      contato.primeiroContatoPor = userId;
+    }
   }
 
   const updated: Lead = { ...lead, status: para, contato, atualizadoEm: em };
@@ -265,12 +271,20 @@ export async function saveDemo(
   placeId: string,
   demo: { skinId: string; themeId: string; dados: DemoDataPatch; tema?: TemaPatch },
   now: Date = new Date(),
+  userId?: string,
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
   const em = now.toISOString();
+  // criadoEm/criadoPor são do PRIMEIRO save; edições seguintes preservam.
+  const criadoPor = lead.demo?.criadoEm ? lead.demo.criadoPor : userId;
   const updated: Lead = {
     ...lead,
-    demo: { ...demo, criadoEm: lead.demo?.criadoEm ?? em, atualizadoEm: em },
+    demo: {
+      ...demo,
+      criadoEm: lead.demo?.criadoEm ?? em,
+      ...(criadoPor && { criadoPor }),
+      atualizadoEm: em,
+    },
     atualizadoEm: em,
   };
   await docRef(db, placeId).set(toDoc(updated));
@@ -320,13 +334,14 @@ export async function saveDetails(
   placeId: string,
   detalhes: DetalhesLugar,
   now: Date = new Date(),
+  userId?: string,
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
   const em = now.toISOString();
   const updated: Lead = {
     ...lead,
     enriquecido: true,
-    detalhes: { ...detalhes, enriquecidoEm: em },
+    detalhes: { ...detalhes, enriquecidoEm: em, ...(userId && { enriquecidoPor: userId }) },
     // O enriquecimento também pediu websiteUri no mask → resposta definitiva.
     temSite: Boolean(detalhes.site),
     siteUrl: detalhes.site ?? lead.siteUrl,

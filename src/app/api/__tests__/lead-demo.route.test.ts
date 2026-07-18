@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { salvarImagemDemo } from "@/lib/demos/imagens";
 import { DEFAULT_SKIN } from "@/lib/demos/registry";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { FakeDemoStorage } from "@/lib/testing/fake-storage";
+import { cookieDeSessao } from "@/lib/testing/sessao";
 import { DELETE, PUT } from "../leads/[id]/demo/route";
 
 let db: FakeFirestore;
@@ -25,12 +26,18 @@ beforeEach(() => {
     criadoEm: "2026-07-01T00:00:00.000Z",
     atualizadoEm: "2026-07-01T00:00:00.000Z",
   });
+  vi.stubEnv("APP_PASSWORD", "segredo123");
 });
 
-function put(id: string, body: unknown): Promise<Response> {
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+function put(id: string, body: unknown, cookie?: string): Promise<Response> {
   return PUT(
     new Request(`http://localhost/api/leads/${id}/demo`, {
       method: "PUT",
+      ...(cookie && { headers: { cookie } }),
       body: JSON.stringify(body),
     }),
     { params: Promise.resolve({ id }) },
@@ -168,6 +175,78 @@ describe("PUT /api/leads/[id]/demo", () => {
     expect(texto).toContain("tema.raio");
     expect(texto).toContain("tema.densidade");
     expect(texto).toContain("tema.animacao");
+  });
+
+  it("salva tema com intro/hover/clique/fundoEfeito; valores inválidos → 400", async () => {
+    const ok = await put("A", {
+      ...VALIDO,
+      tema: { intro: false, hover: "brilho", clique: "pulso", fundoEfeito: "gradiente" },
+    });
+
+    expect(ok.status).toBe(200);
+    const { lead } = await ok.json();
+    expect(lead.demo.tema).toEqual({
+      intro: false,
+      hover: "brilho",
+      clique: "pulso",
+      fundoEfeito: "gradiente",
+    });
+
+    const ruim = await put("A", {
+      ...VALIDO,
+      tema: { intro: "sim", hover: "girar", clique: "explodir", fundoEfeito: "chuva" },
+    });
+    expect(ruim.status).toBe(400);
+    const { error } = await ruim.json();
+    const texto = error.problemas.join(" | ");
+    expect(texto).toContain("tema.intro");
+    expect(texto).toContain("tema.hover");
+    expect(texto).toContain("tema.clique");
+    expect(texto).toContain("tema.fundoEfeito");
+  });
+
+  it("salva animacaoEntrada por seção onde a skin oferece; inválida → 400", async () => {
+    const ok = await put("A", {
+      ...VALIDO,
+      dados: {
+        secoes: {
+          filosofia: { animacaoEntrada: "deslizar-esquerda" },
+          servicos: { animacaoEntrada: "fade" },
+        },
+      },
+    });
+
+    expect(ok.status).toBe(200);
+    const { lead } = await ok.json();
+    expect(lead.demo.dados.secoes.filosofia.animacaoEntrada).toBe("deslizar-esquerda");
+
+    // Serviços tem sticky interno: a skin NÃO oferece deslizar ali.
+    const semSuporte = await put("A", {
+      ...VALIDO,
+      dados: { secoes: { servicos: { animacaoEntrada: "deslizar-direita" } } },
+    });
+    expect(semSuporte.status).toBe(400);
+    expect((await semSuporte.json()).error.problemas.join(" ")).toContain(
+      "servicos.animacaoEntrada",
+    );
+
+    const desconhecida = await put("A", {
+      ...VALIDO,
+      dados: { secoes: { filosofia: { animacaoEntrada: "girar" } } },
+    });
+    expect(desconhecida.status).toBe(400);
+  });
+
+  it("registra criadoPor no primeiro save e preserva nas edições seguintes", async () => {
+    const cookieAna = await cookieDeSessao(db, { id: "ana", papel: "membro" });
+    const cookieAdmin = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    await put("A", VALIDO, cookieAna);
+    expect(db.getDoc("leads/A")?.demo).toMatchObject({ criadoPor: "ana" });
+
+    // Edição por outro usuário não rouba a autoria do primeiro save.
+    await put("A", { ...VALIDO, dados: { nome: "Zé Premium" } }, cookieAdmin);
+    expect(db.getDoc("leads/A")?.demo).toMatchObject({ criadoPor: "ana" });
   });
 
   it("salva estrutura: ordemSecoes, oculta e alinhamento suportado", async () => {

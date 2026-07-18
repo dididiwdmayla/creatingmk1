@@ -65,6 +65,15 @@ describe("registro de skins", () => {
         for (const opcao of secao.alignOptions ?? []) {
           expect(["esquerda", "centro", "direita"]).toContain(opcao);
         }
+        for (const opcao of secao.entradaOptions ?? []) {
+          expect([
+            "nenhuma",
+            "fade",
+            "deslizar-esquerda",
+            "deslizar-direita",
+            "typewriter",
+          ]).toContain(opcao);
+        }
       }
     },
   );

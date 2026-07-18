@@ -3,22 +3,21 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ApiError, api, type UsageResponse } from "@/lib/api-client";
+import { ApiError, api, type MetricsResponse, type UsageResponse } from "@/lib/api-client";
 import { formatBRL, formatInt, formatPercent, formatUSD } from "@/lib/format";
-import type { Metrics } from "@/lib/leads/metrics";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
 import { RadarSweep } from "@/components/RadarSweep";
 import { UsageMeter } from "@/components/UsageMeter";
 
 /** Fetcher puro (não mexe em estado) — reaproveitado pelo efeito de carga e pelo retry. */
-async function fetchDashboardData(): Promise<{ usage: UsageResponse; metrics: Metrics }> {
+async function fetchDashboardData(): Promise<{ usage: UsageResponse; metrics: MetricsResponse }> {
   const [usage, metrics] = await Promise.all([api.getUsage(), api.getMetrics()]);
   return { usage, metrics };
 }
 
 export default function DashboardPage() {
   const [usage, setUsage] = useState<UsageResponse | null>(null);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -123,6 +122,52 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {/* Só o admin recebe a quebra por usuário (membro vê só o próprio uso acima). */}
+      {Boolean(usage.porUsuario?.length || metrics.porUsuario?.length) && (
+        <section className="rounded-lg border border-line bg-surface p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Por usuário
+          </h2>
+          <div className="mt-3 flex flex-col gap-3">
+            {(metrics.porUsuario ?? []).map((u) => {
+              const uso = usage.porUsuario?.find((x) => x.userId === u.userId)?.usage;
+              const requests = uso ? SKUS.reduce((soma, sku) => soma + uso[sku], 0) : 0;
+              return (
+                <div key={u.userId} className="rounded border border-line p-3">
+                  <p className="text-sm font-semibold text-foreground">{u.nome}</p>
+                  <div className="mt-2 grid grid-cols-4 gap-2 text-center">
+                    <MiniStat label="Requests" value={formatInt(requests)} />
+                    <MiniStat label="Buscas" value={formatInt(u.buscas)} />
+                    <MiniStat label="Demos" value={formatInt(u.demos)} />
+                    <MiniStat label="Contatos" value={formatInt(u.contatos)} />
+                  </div>
+                  {uso && requests > 0 && (
+                    <p className="mt-2 font-mono text-[10px] text-ink-muted">
+                      {SKUS.filter((sku) => uso[sku] > 0)
+                        .map((sku) => `${SKU_LABELS[sku]}: ${formatInt(uso[sku])}`)
+                        .join(" · ")}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+            {/* Usuários com requests mas sem ação-chave carimbada ainda. */}
+            {(usage.porUsuario ?? [])
+              .filter((x) => !(metrics.porUsuario ?? []).some((u) => u.userId === x.userId))
+              .map((x) => (
+                <div key={x.userId} className="rounded border border-line p-3">
+                  <p className="text-sm font-semibold text-foreground">{x.nome}</p>
+                  <p className="mt-1 font-mono text-[10px] text-ink-muted">
+                    {SKUS.filter((sku) => x.usage[sku] > 0)
+                      .map((sku) => `${SKU_LABELS[sku]}: ${formatInt(x.usage[sku])}`)
+                      .join(" · ") || "sem requests este mês"}
+                  </p>
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
+
       <section>
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Forja de Demos
@@ -140,6 +185,15 @@ export default function DashboardPage() {
           <span className="text-xs text-accent">Ver todas →</span>
         </Link>
       </section>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="font-display text-xl font-bold text-foreground">{value}</p>
+      <p className="text-[10px] uppercase tracking-wide text-ink-muted">{label}</p>
     </div>
   );
 }

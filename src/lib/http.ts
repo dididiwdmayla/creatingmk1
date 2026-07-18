@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 
 import { QuotaExceededError } from "@/lib/costs";
 import {
+  ForbiddenError,
   InvalidTransitionError,
   NotFoundError,
+  UnauthorizedError,
   ValidationError,
 } from "@/lib/errors";
 import { PlacesError } from "@/lib/places/client";
@@ -41,6 +43,12 @@ export function handleRouteError(error: unknown): NextResponse {
     return jsonError(400, error.code, error.message, {
       problemas: error.problemas,
     });
+  }
+  if (error instanceof UnauthorizedError) {
+    return jsonError(401, error.code, error.message);
+  }
+  if (error instanceof ForbiddenError) {
+    return jsonError(403, error.code, error.message);
   }
   if (error instanceof NotFoundError) {
     return jsonError(404, error.code, error.message);

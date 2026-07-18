@@ -1,5 +1,11 @@
 import { getFonte } from "./fontes";
-import type { TemaPatch, Theme } from "./types";
+import {
+  CLIQUE_ESTILOS,
+  FUNDO_EFEITOS,
+  HOVER_ESTILOS,
+  type TemaPatch,
+  type Theme,
+} from "./types";
 
 /**
  * Aplicação do TemaPatch (LeadDemo.tema) por cima do preset escolhido.
@@ -71,5 +77,13 @@ export function aplicarTema(preset: Theme, patch: TemaPatch | undefined): Theme 
     raio: patch.raio && TEMA_RAIOS.includes(patch.raio) ? patch.raio : preset.raio,
     densidade: patch.densidade ?? preset.densidade,
     animacao: patch.animacao ?? preset.animacao,
+    intro: patch.intro ?? preset.intro,
+    hover: patch.hover && HOVER_ESTILOS.includes(patch.hover) ? patch.hover : preset.hover,
+    clique:
+      patch.clique && CLIQUE_ESTILOS.includes(patch.clique) ? patch.clique : preset.clique,
+    fundoEfeito:
+      patch.fundoEfeito && FUNDO_EFEITOS.includes(patch.fundoEfeito)
+        ? patch.fundoEfeito
+        : preset.fundoEfeito,
   };
 }

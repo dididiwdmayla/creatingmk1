@@ -1,19 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import {
-  appPassword,
-  SESSION_COOKIE,
-  SESSION_COOKIE_OPTIONS,
-  sessionTokenFor,
-} from "@/lib/auth";
+import { SESSION_COOKIE, appPassword, lerSessaoToken } from "@/lib/auth";
 
 /**
- * Proteção por senha única de TODO o app (páginas e API), exceto assets,
- * a página /login, /api/login e as demos públicas em /demo/{leadId}.
- * As rotas gastam dinheiro na API do Google
- * — sem sessão válida, nada passa. Aceita também o header x-app-password
- * (útil para curl e para a primeira visita antes de existir a página de
- * login); quando correto, já estabelece o cookie de sessão na resposta.
+ * Proteção de TODO o app (páginas e API), exceto assets, a página /login,
+ * /api/login e as demos públicas em /demo/{leadId}. As rotas gastam
+ * dinheiro na API do Google — sem sessão válida, nada passa.
+ *
+ * Multiusuário: o cookie é um token ASSINADO (HMAC com APP_PASSWORD como
+ * segredo — ver lib/auth.ts) carregando id/papel/versão do usuário. O
+ * proxy só verifica a assinatura (roda no Edge, sem Firestore); as rotas
+ * API ainda conferem o doc do usuário para atribuir ações e escopar
+ * respostas. Sem sessão: página redireciona para /login (acesso direto
+ * por URL cai no form, não num JSON de erro); rota API responde 401.
+ * A página /config é restrita ao admin — membro é mandado de volta ao
+ * painel.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = new URL(request.url);
@@ -21,8 +22,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const password = appPassword();
-  if (!password) {
+  const secret = appPassword();
+  if (!secret) {
     return NextResponse.json(
       {
         error: {
@@ -42,31 +43,34 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const expected = await sessionTokenFor(password);
-  if (request.cookies.get(SESSION_COOKIE)?.value === expected) {
+  const sessao = await lerSessaoToken(request.cookies.get(SESSION_COOKIE)?.value, secret);
+  if (sessao) {
+    if (pathname === "/config" && sessao.papel !== "admin") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
     return NextResponse.next();
   }
 
-  if (request.headers.get("x-app-password") === password) {
-    const res = NextResponse.next();
-    res.cookies.set(SESSION_COOKIE, expected, { ...SESSION_COOKIE_OPTIONS });
-    return res;
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "unauthorized",
+          message:
+            "Sessão ausente ou inválida. Faça login em POST /api/login com { nome, senha }.",
+        },
+      },
+      { status: 401 },
+    );
   }
 
-  return NextResponse.json(
-    {
-      error: {
-        code: "unauthorized",
-        message:
-          "Sessão ausente ou inválida. Faça login em POST /api/login com { senha }.",
-      },
-    },
-    { status: 401 },
-  );
+  // Página sem sessão (acesso direto por URL, cookie expirado…) → form de
+  // login, nunca um JSON de erro.
+  return NextResponse.redirect(new URL("/login", request.url));
 }
 
 export const config = {
-  // Tudo passa pela senha, menos assets estáticos do Next e arquivos públicos.
+  // Tudo passa pela sessão, menos assets estáticos do Next e arquivos públicos.
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml)$).*)",
   ],

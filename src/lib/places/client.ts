@@ -79,6 +79,8 @@ export interface SearchTextOptions {
    * conta. Os já existentes continuam no retorno (o upsert anexa a busca).
    */
   isNovo?: (placeId: string) => Promise<boolean>;
+  /** Usuário logado — cada reserva de cota registra a quebra por usuário. */
+  userId?: string;
 }
 
 export interface SearchTextResult {
@@ -179,7 +181,7 @@ export async function searchText(
 
   while (paginas < SEARCH_MAX_PAGES) {
     try {
-      await reserveQuota(db, sku, caps);
+      await reserveQuota(db, sku, caps, undefined, options.userId);
     } catch (error) {
       // 1ª página: nada foi consumido, o erro sobe (rota → 429).
       if (paginas === 0 || !(error instanceof QuotaExceededError)) throw error;
@@ -241,9 +243,10 @@ export async function placeDetails(
   db: UsageDb,
   placeId: string,
   caps: UsageCounts,
+  userId?: string,
 ): Promise<DetalhesLugar> {
   const key = requireApiKey();
-  await reserveQuota(db, "detailsEnterprise", caps);
+  await reserveQuota(db, "detailsEnterprise", caps, undefined, userId);
 
   const url = `${BASE_URL}/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`;
   const res = await fetch(url, {

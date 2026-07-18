@@ -58,6 +58,30 @@ describe("aplicarTema", () => {
     expect(TEMA_RAIOS).toContain("0px");
     expect(TEMA_RAIOS.length).toBeGreaterThanOrEqual(4);
   });
+
+  it("intro liga/desliga por cima do preset (default ligada)", () => {
+    expect(PRESET.intro).toBe(true);
+    expect(aplicarTema(PRESET, { intro: false }).intro).toBe(false);
+    expect(aplicarTema(PRESET, {}).intro).toBe(true);
+  });
+
+  it("hover/clique/fundoEfeito sobrescrevem; valores fora do menu caem no preset", () => {
+    const tema = aplicarTema(PRESET, {
+      hover: "brilho",
+      clique: "pressao",
+      fundoEfeito: "particulas",
+    });
+    expect(tema.hover).toBe("brilho");
+    expect(tema.clique).toBe("pressao");
+    expect(tema.fundoEfeito).toBe("particulas");
+
+    const sujo = aplicarTema(PRESET, {
+      hover: "girar" as never,
+      fundoEfeito: "chuva" as never,
+    });
+    expect(sujo.hover).toBe(PRESET.hover);
+    expect(sujo.fundoEfeito).toBe(PRESET.fundoEfeito);
+  });
 });
 
 describe("inkPara", () => {
