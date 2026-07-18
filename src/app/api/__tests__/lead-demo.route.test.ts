@@ -123,10 +123,16 @@ describe("PUT /api/leads/[id]/demo", () => {
     expect(lead.demo.dados).toEqual({ nome: "Zé Premium" });
   });
 
-  it("salva tema (fontes curadas, cor primária, raio, densidade)", async () => {
+  it("salva tema (fontes curadas, cor primária, raio, densidade, animação)", async () => {
     const res = await put("A", {
       ...VALIDO,
-      tema: { fonteDisplay: "playfair", destaque: "#8c4a2b", raio: "8px", densidade: "arejada" },
+      tema: {
+        fonteDisplay: "playfair",
+        destaque: "#8c4a2b",
+        raio: "8px",
+        densidade: "arejada",
+        animacao: "marcante",
+      },
     });
 
     expect(res.status).toBe(200);
@@ -136,10 +142,11 @@ describe("PUT /api/leads/[id]/demo", () => {
       destaque: "#8c4a2b",
       raio: "8px",
       densidade: "arejada",
+      animacao: "marcante",
     });
   });
 
-  it("400 para tema inválido (fonte fora da lista, papel errado, cor/raio inválidos)", async () => {
+  it("400 para tema inválido (fonte fora da lista, papel errado, cor/raio/animação inválidos)", async () => {
     const res = await put("A", {
       ...VALIDO,
       tema: {
@@ -148,6 +155,7 @@ describe("PUT /api/leads/[id]/demo", () => {
         destaque: "dourado",
         raio: "37px",
         densidade: "apertada",
+        animacao: "exagerada",
       },
     });
 
@@ -159,6 +167,7 @@ describe("PUT /api/leads/[id]/demo", () => {
     expect(texto).toContain("tema.destaque");
     expect(texto).toContain("tema.raio");
     expect(texto).toContain("tema.densidade");
+    expect(texto).toContain("tema.animacao");
   });
 
   it("salva estrutura: ordemSecoes, oculta e alinhamento suportado", async () => {

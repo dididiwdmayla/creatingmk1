@@ -96,6 +96,15 @@ export interface DemoData {
 /** Densidade de espaçamento vertical das seções. */
 export type Densidade = "compacta" | "confortavel" | "arejada";
 
+/**
+ * Nível de animação do tema: afeta entrada de seção (scroll reveal),
+ * hovers (lift/scale) e transições (duração) — ver aplicarTema em
+ * ./tema.ts e a implementação na skin de barbearia.
+ */
+export type Animacao = "nenhuma" | "sutil" | "marcante";
+
+export const ANIMACOES: readonly Animacao[] = ["nenhuma", "sutil", "marcante"];
+
 export interface ThemePaleta {
   fundo: string;
   fundoAlt: string;
@@ -142,6 +151,8 @@ export interface Theme {
   /** Raio de borda base (ex.: "0px" editorial, "12px" soft). */
   raio: string;
   densidade: Densidade;
+  /** Nível de animação (entradas de seção, hovers, transições). */
+  animacao: Animacao;
 }
 
 /** Props que TODO componente de skin recebe. */
@@ -183,6 +194,7 @@ export interface TemaPatch {
   /** Raio de borda base — um de TEMA_RAIOS (./tema.ts). */
   raio?: string;
   densidade?: Densidade;
+  animacao?: Animacao;
 }
 
 /** Entrada do registro de skins (ver ./registry.tsx). */
@@ -215,5 +227,7 @@ export interface LeadDemo {
   dados: DemoDataPatch;
   /** Ajustes de tema por cima do preset (fontes, cor primária, raio, densidade). */
   tema?: TemaPatch;
+  /** Primeiro save da demo — preservado entre edições (ver saveDemo em repo.ts). */
+  criadoEm: string;
   atualizadoEm: string;
 }

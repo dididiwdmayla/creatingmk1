@@ -49,6 +49,11 @@ describe("aplicarTema", () => {
     expect(aplicarTema(PRESET, { densidade: "arejada" }).densidade).toBe("arejada");
   });
 
+  it("animacao sobrescreve o preset; sem patch mantém o default", () => {
+    expect(aplicarTema(PRESET, { animacao: "nenhuma" }).animacao).toBe("nenhuma");
+    expect(aplicarTema(PRESET, {}).animacao).toBe(PRESET.animacao);
+  });
+
   it("TEMA_RAIOS cobre do reto ao bem arredondado", () => {
     expect(TEMA_RAIOS).toContain("0px");
     expect(TEMA_RAIOS.length).toBeGreaterThanOrEqual(4);

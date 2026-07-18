@@ -270,7 +270,7 @@ export async function saveDemo(
   const em = now.toISOString();
   const updated: Lead = {
     ...lead,
-    demo: { ...demo, atualizadoEm: em },
+    demo: { ...demo, criadoEm: lead.demo?.criadoEm ?? em, atualizadoEm: em },
     atualizadoEm: em,
   };
   await docRef(db, placeId).set(toDoc(updated));

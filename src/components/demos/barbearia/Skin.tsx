@@ -2,10 +2,11 @@ import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
-import type { Densidade, SkinProps } from "@/lib/demos/types";
+import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { AnimatedScissors } from "./interactive/AnimatedScissors";
 import { IntroExperience } from "./interactive/IntroExperience";
 import { ScrollHeader } from "./interactive/ScrollHeader";
+import { SectionReveal } from "./interactive/SectionReveal";
 import { BARBEARIA_SECOES } from "./secoes";
 import { TeamCard } from "./interactive/TeamCard";
 import { TypewriterText } from "./interactive/TypewriterText";
@@ -36,6 +37,28 @@ const SECTION_PAD: Record<Densidade, string> = {
   compacta: "4.5rem",
   confortavel: "7rem",
   arejada: "9rem",
+};
+
+/**
+ * Intensidade de hover/transição por nível de animação — consumida como
+ * CSS vars (`--d-anim-*`) por qualquer elemento com transição na skin
+ * (CTA, cards, linhas de serviço). "nenhuma" zera duração e deslocamento:
+ * o hover ainda funciona (cor/borda mudam), só não anima.
+ */
+const ANIM_DURATION: Record<Animacao, string> = {
+  nenhuma: "0ms",
+  sutil: "200ms",
+  marcante: "450ms",
+};
+const ANIM_HOVER_SCALE: Record<Animacao, string> = {
+  nenhuma: "1",
+  sutil: "1.02",
+  marcante: "1.06",
+};
+const ANIM_HOVER_LIFT: Record<Animacao, string> = {
+  nenhuma: "0px",
+  sutil: "-2px",
+  marcante: "-8px",
 };
 
 /** Seções que carregam número na etiqueta, na ordem visível. */
@@ -159,6 +182,10 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
     "--d-citacao": fontes.citacao,
     "--d-destaque": fontes.destaque,
     "--d-sec-y": SECTION_PAD[theme.densidade],
+    "--d-anim-duration": ANIM_DURATION[theme.animacao],
+    "--d-anim-ease": "cubic-bezier(0.16, 1, 0.3, 1)",
+    "--d-hover-scale": ANIM_HOVER_SCALE[theme.animacao],
+    "--d-hover-lift": ANIM_HOVER_LIFT[theme.animacao],
   } as CSSProperties;
 
   const s = data.secoes;
@@ -424,12 +451,12 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                   key={servico.nome}
                   data-cursor="comb"
                   data-cursor-text="AGENDAR ESSE →"
-                  className="group flex flex-col border-b border-[var(--d-border)] py-8 transition-colors hover:border-[var(--d-accent)]/60"
+                  className="group flex flex-col border-b border-[var(--d-border)] py-8 transition-[color,border-color] duration-[var(--d-anim-duration)] hover:border-[var(--d-accent)]/60"
                 >
                   <div className="mb-3 flex items-baseline justify-between gap-4">
                     <h3
                       data-demo-slot={`servicos.${i}.nome`}
-                      className="font-[family-name:var(--d-display)] text-2xl uppercase tracking-tight text-[var(--d-text)] transition-colors group-hover:text-[var(--d-accent)] md:text-3xl"
+                      className="font-[family-name:var(--d-display)] text-2xl uppercase tracking-tight text-[var(--d-text)] transition-colors duration-[var(--d-anim-duration)] group-hover:text-[var(--d-accent)] md:text-3xl"
                     >
                       {servico.nome}
                     </h3>
@@ -545,7 +572,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               {data.depoimentos.map((dep, i) => (
                 <figure
                   key={dep.autor}
-                  className="flex h-full flex-col justify-between gap-6 rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg)] p-8"
+                  className="d-card-hover flex h-full flex-col justify-between gap-6 rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg)] p-8"
                 >
                   <div>
                     {dep.nota !== undefined && (
@@ -798,13 +825,23 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           background: var(--d-accent);
           padding: 20px 40px;
           box-shadow: 0 8px 24px color-mix(in srgb, var(--d-accent) 30%, transparent);
-          transition: transform 0.3s, box-shadow 0.3s;
+          transition: transform var(--d-anim-duration) var(--d-anim-ease),
+            box-shadow var(--d-anim-duration) var(--d-anim-ease);
         }
         .d-cta:hover {
-          transform: scale(1.03);
+          transform: scale(var(--d-hover-scale)) translateY(var(--d-hover-lift));
           box-shadow: 0 8px 24px color-mix(in srgb, var(--d-accent) 40%, transparent);
         }
         @media (prefers-reduced-motion: reduce) { .d-cta:hover { transform: none; } }
+
+        /* Lift genérico de card (depoimentos) — intensidade por --d-hover-*. */
+        .d-card-hover {
+          transition: transform var(--d-anim-duration) var(--d-anim-ease);
+        }
+        .d-card-hover:hover {
+          transform: translateY(var(--d-hover-lift));
+        }
+        @media (prefers-reduced-motion: reduce) { .d-card-hover:hover { transform: none; } }
       `}</style>
 
       <IntroExperience nome={data.nome} cidade={data.cidade} accent={paleta.destaque}>
@@ -819,10 +856,19 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         ].filter((link): link is { href: string; label: string } => Boolean(link))}
       />
 
-      {/* Seções na ordem efetiva (DemoData.ordemSecoes), sem as ocultas. */}
-      {visiveis.map((id) => (
-        <Fragment key={id}>{secoes[id]?.()}</Fragment>
-      ))}
+      {/* Seções na ordem efetiva (DemoData.ordemSecoes), sem as ocultas.
+          "servicos" fica de fora do reveal: tem sidebar `position: sticky`
+          por dentro, que um wrapper com transform quebraria (ver
+          SectionReveal.tsx). */}
+      {visiveis.map((id) =>
+        id === "servicos" ? (
+          <Fragment key={id}>{secoes[id]?.()}</Fragment>
+        ) : (
+          <SectionReveal key={id} animacao={theme.animacao}>
+            {secoes[id]?.()}
+          </SectionReveal>
+        ),
+      )}
 
       {/* ── Footer ─────────────────────────────────────────────── */}
       <footer className="relative overflow-hidden border-t border-[var(--d-border)] bg-[var(--d-bg)] py-24 text-center md:py-32">

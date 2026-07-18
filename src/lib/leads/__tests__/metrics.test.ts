@@ -29,6 +29,7 @@ describe("getMetrics", () => {
       contatosHoje: 0,
       contatosSemana: 0,
       taxaResposta: 0,
+      demosCriadas: 0,
     });
   });
 
@@ -95,5 +96,30 @@ describe("getMetrics", () => {
     const metrics = await getMetrics(db, NOW);
 
     expect(metrics.taxaResposta).toBe(0);
+  });
+
+  it("demosCriadas conta leads com campo demo presente", async () => {
+    const db = new FakeFirestore();
+    seedLead(db, "A");
+    seedLead(db, "B");
+    db.seed("leads/C", {
+      placeId: "C",
+      nome: "Lead C",
+      status: "novo",
+      enriquecido: false,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+      demo: {
+        skinId: "barbearia-editorial",
+        themeId: "norte",
+        dados: {},
+        criadoEm: "2026-07-01T00:00:00.000Z",
+        atualizadoEm: "2026-07-01T00:00:00.000Z",
+      },
+    });
+
+    const metrics = await getMetrics(db, NOW);
+
+    expect(metrics.demosCriadas).toBe(1);
   });
 });

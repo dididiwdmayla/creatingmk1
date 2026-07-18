@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 
 import { getSkin } from "@/lib/demos/registry";
-import type { DemoData, Theme } from "@/lib/demos/types";
-import { demoFontsClassName } from "../demo/fonts";
+import type { DemoData, TemaPatch, Theme } from "@/lib/demos/types";
+import { demoCoreFontsClassName, resolveExtraFontClassNames } from "../demo/fonts";
 
 /**
  * Preview AO VIVO do editor de demos — carregada num iframe por
@@ -22,6 +22,7 @@ interface PreviewState {
   skinId: string;
   data: DemoData;
   theme: Theme;
+  tema?: TemaPatch;
 }
 
 const MSG_PREVIEW = "radar-demo-preview";
@@ -30,13 +31,14 @@ const MSG_PRONTO = "radar-demo-preview-pronto";
 
 export default function DemoPreviewPage() {
   const [estado, setEstado] = useState<PreviewState | null>(null);
+  const [extraFontClassName, setExtraFontClassName] = useState("");
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (event.origin !== window.location.origin) return;
       const msg = event.data as { tipo?: string } & Partial<PreviewState>;
       if (msg?.tipo === MSG_PREVIEW && msg.skinId && msg.data && msg.theme) {
-        setEstado({ skinId: msg.skinId, data: msg.data, theme: msg.theme });
+        setEstado({ skinId: msg.skinId, data: msg.data, theme: msg.theme, tema: msg.tema });
       }
     }
     window.addEventListener("message", onMessage);
@@ -44,6 +46,20 @@ export default function DemoPreviewPage() {
     window.parent.postMessage({ tipo: MSG_PRONTO }, window.location.origin);
     return () => window.removeEventListener("message", onMessage);
   }, []);
+
+  // Import dinâmico só da fonte escolhida no editor — o resto da lista
+  // curada nunca chega a ser buscado neste preview.
+  useEffect(() => {
+    let ignore = false;
+    resolveExtraFontClassNames([estado?.tema?.fonteDisplay, estado?.tema?.fonteCorpo]).then(
+      (classe) => {
+        if (!ignore) setExtraFontClassName(classe);
+      },
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [estado?.tema?.fonteDisplay, estado?.tema?.fonteCorpo]);
 
   useEffect(() => {
     // Clique em slot → foca o campo no painel do editor. Capture para
@@ -73,7 +89,7 @@ export default function DemoPreviewPage() {
 
   const Skin = skin.componente;
   return (
-    <div className={demoFontsClassName}>
+    <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
       {/* Affordance de edição: qualquer slot clicável ganha contorno no hover. */}
       <style>{`
         [data-demo-slot] { cursor: pointer; }

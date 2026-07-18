@@ -70,5 +70,6 @@ export function aplicarTema(preset: Theme, patch: TemaPatch | undefined): Theme 
     },
     raio: patch.raio && TEMA_RAIOS.includes(patch.raio) ? patch.raio : preset.raio,
     densidade: patch.densidade ?? preset.densidade,
+    animacao: patch.animacao ?? preset.animacao,
   };
 }

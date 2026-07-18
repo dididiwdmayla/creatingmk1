@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Reorder } from "motion/react";
+import { Reorder, useDragControls } from "motion/react";
 import { useRef, type ChangeEvent, type ReactNode } from "react";
 
 import { ordemEfetiva } from "@/lib/demos/estrutura";
@@ -10,6 +10,7 @@ import { SKINS } from "@/lib/demos/registry";
 import { TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
 import type {
   Alinhamento,
+  Animacao,
   DemoData,
   DemoItem,
   Densidade,
@@ -543,6 +544,12 @@ const DENSIDADES: Array<{ id: Densidade; rotulo: string }> = [
   { id: "arejada", rotulo: "Arejada" },
 ];
 
+const ANIMACOES: Array<{ id: Animacao; rotulo: string }> = [
+  { id: "nenhuma", rotulo: "Sem animação" },
+  { id: "sutil", rotulo: "Sutil" },
+  { id: "marcante", rotulo: "Marcante" },
+];
+
 export function PainelTema({
   skinId,
   onSkinChange,
@@ -713,6 +720,33 @@ export function PainelTema({
           ))}
         </div>
       </div>
+
+      <div>
+        <span className="text-xs text-ink-muted">
+          Animação (entradas de seção, hovers, transições)
+        </span>
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setTema({ ...tema, animacao: undefined })}
+            aria-pressed={tema.animacao === undefined}
+            className={`rounded border px-2.5 py-1.5 text-xs ${tema.animacao === undefined ? "border-accent text-foreground" : "border-line text-ink-muted hover:border-accent/50"}`}
+          >
+            Padrão ({ANIMACOES.find((a) => a.id === preset.animacao)?.rotulo ?? preset.animacao})
+          </button>
+          {ANIMACOES.map(({ id, rotulo }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTema({ ...tema, animacao: id })}
+              aria-pressed={tema.animacao === id}
+              className={`rounded border px-2.5 py-1.5 text-xs ${tema.animacao === id ? "border-accent text-foreground" : "border-line text-ink-muted hover:border-accent/50"}`}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -724,6 +758,79 @@ const ALINHAMENTO_ROTULO: Record<Alinhamento, string> = {
   centro: "Centro",
   direita: "Dir.",
 };
+
+/**
+ * Uma linha arrastável da aba Estrutura. O drag só inicia pelo handle ⠿
+ * (dragListener=false + dragControls.start no pointerdown do handle) —
+ * o corpo do item continua tocável normalmente (abrir/ocultar, alinhar)
+ * e, fora do handle, o toque rola a lista em vez de arrastar.
+ */
+function ItemEstrutura({
+  id,
+  def,
+  oculta,
+  alinhamento,
+  onOcultar,
+  onAlinhar,
+}: {
+  id: string;
+  def: { nome: string; alignOptions?: readonly Alinhamento[] };
+  oculta: boolean;
+  alinhamento: Alinhamento | undefined;
+  onOcultar: () => void;
+  onAlinhar: (opcao: Alinhamento) => void;
+}) {
+  const controls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={id}
+      dragListener={false}
+      dragControls={controls}
+      className="rounded border border-line bg-surface px-3 py-2.5"
+    >
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden
+          onPointerDown={(e) => controls.start(e)}
+          className="cursor-grab touch-none px-1 text-ink-muted active:cursor-grabbing"
+        >
+          ⠿
+        </span>
+        <span className={`text-sm ${oculta ? "text-ink-muted line-through" : "text-foreground"}`}>
+          {def.nome}
+        </span>
+        <button
+          type="button"
+          onClick={onOcultar}
+          className="ml-auto text-xs text-accent hover:underline"
+        >
+          {oculta ? "Exibir" : "Ocultar"}
+        </button>
+      </div>
+      {def.alignOptions && !oculta && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-ink-muted">Alinhar</span>
+          {def.alignOptions.map((opcao) => (
+            <button
+              key={opcao}
+              type="button"
+              onClick={() => onAlinhar(opcao)}
+              aria-pressed={alinhamento === opcao}
+              className={`rounded border px-2 py-0.5 text-[11px] ${
+                alinhamento === opcao
+                  ? "border-accent text-foreground"
+                  : "border-line text-ink-muted hover:border-accent/50"
+              }`}
+            >
+              {ALINHAMENTO_ROTULO[opcao]}
+            </button>
+          ))}
+        </div>
+      )}
+    </Reorder.Item>
+  );
+}
 
 export function PainelEstrutura({
   dados,
@@ -779,49 +886,15 @@ export function PainelEstrutura({
           const oculta = secao?.oculta === true;
           const alinhamento = secao?.alinhamento ?? def.alignOptions?.[0];
           return (
-            <Reorder.Item
+            <ItemEstrutura
               key={id}
-              value={id}
-              className="cursor-grab rounded border border-line bg-surface px-3 py-2.5 active:cursor-grabbing"
-            >
-              <div className="flex items-center gap-2">
-                <span aria-hidden className="text-ink-muted">
-                  ⠿
-                </span>
-                <span className={`text-sm ${oculta ? "text-ink-muted line-through" : "text-foreground"}`}>
-                  {def.nome}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSecao(id, { oculta: oculta ? undefined : true })}
-                  className="ml-auto text-xs text-accent hover:underline"
-                >
-                  {oculta ? "Exibir" : "Ocultar"}
-                </button>
-              </div>
-              {def.alignOptions && !oculta && (
-                <div className="mt-2 flex items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-wide text-ink-muted">
-                    Alinhar
-                  </span>
-                  {def.alignOptions.map((opcao) => (
-                    <button
-                      key={opcao}
-                      type="button"
-                      onClick={() => setSecao(id, { alinhamento: opcao })}
-                      aria-pressed={alinhamento === opcao}
-                      className={`rounded border px-2 py-0.5 text-[11px] ${
-                        alinhamento === opcao
-                          ? "border-accent text-foreground"
-                          : "border-line text-ink-muted hover:border-accent/50"
-                      }`}
-                    >
-                      {ALINHAMENTO_ROTULO[opcao]}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </Reorder.Item>
+              id={id}
+              def={def}
+              oculta={oculta}
+              alinhamento={alinhamento}
+              onOcultar={() => setSecao(id, { oculta: oculta ? undefined : true })}
+              onAlinhar={(opcao) => setSecao(id, { alinhamento: opcao })}
+            />
           );
         })}
       </Reorder.Group>

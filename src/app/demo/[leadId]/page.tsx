@@ -7,7 +7,7 @@ import { aplicarTema } from "@/lib/demos/tema";
 import { getDb } from "@/lib/firebase/admin";
 import { getLead } from "@/lib/leads/repo";
 import type { Lead } from "@/lib/leads/types";
-import { demoFontsClassName } from "../fonts";
+import { demoCoreFontsClassName, resolveExtraFontClassNames } from "../fonts";
 
 /**
  * Rota PÚBLICA da demo de um lead (a única fora da proteção por senha —
@@ -32,7 +32,13 @@ async function loadDemo(leadId: string) {
   if (!skin) return undefined;
   const theme = aplicarTema(getTheme(skin, lead.demo.themeId), lead.demo.tema);
   const data = montarDemoData(skin.demoDataExemplo, lead, lead.demo.dados);
-  return { skin, theme, data };
+  // Só busca (import dinâmico) as fontes curadas que o editor de fato
+  // escolheu — o resto da lista nunca chega a ser fetched pelo cliente.
+  const extraFontClassName = await resolveExtraFontClassNames([
+    lead.demo.tema?.fonteDisplay,
+    lead.demo.tema?.fonteCorpo,
+  ]);
+  return { skin, theme, data, extraFontClassName };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -54,7 +60,7 @@ export default async function DemoPage({ params }: Props) {
 
   const Skin = demo.skin.componente;
   return (
-    <div className={demoFontsClassName}>
+    <div className={`${demoCoreFontsClassName} ${demo.extraFontClassName}`}>
       <Skin data={demo.data} theme={demo.theme} />
     </div>
   );
