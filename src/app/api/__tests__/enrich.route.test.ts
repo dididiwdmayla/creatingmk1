@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
+import { cookieDeSessao } from "@/lib/testing/sessao";
 import { POST } from "../leads/[id]/enrich/route";
 
 let db: FakeFirestore;
@@ -34,6 +35,7 @@ beforeEach(() => {
   );
   vi.stubGlobal("fetch", fetchMock);
   vi.stubEnv("GOOGLE_PLACES_API_KEY", "chave-teste");
+  vi.stubEnv("APP_PASSWORD", "segredo123");
 });
 
 afterEach(() => {
@@ -41,10 +43,14 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function enrich(id: string): Promise<Response> {
-  return POST(new Request(`http://localhost/api/leads/${id}/enrich`, { method: "POST" }), {
-    params: Promise.resolve({ id }),
-  });
+function enrich(id: string, cookie?: string): Promise<Response> {
+  return POST(
+    new Request(`http://localhost/api/leads/${id}/enrich`, {
+      method: "POST",
+      ...(cookie && { headers: { cookie } }),
+    }),
+    { params: Promise.resolve({ id }) },
+  );
 }
 
 function usageDoc(): Record<string, unknown> | undefined {
@@ -141,6 +147,21 @@ describe("POST /api/leads/[id]/enrich", () => {
     expect(error).toMatchObject({ code: "quota_exceeded", sku: "detailsEnterprise" });
     expect(db.getDoc("leads/ChIJ001")).toMatchObject({ enriquecido: false });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("com sessão, registra enriquecidoPor e a quebra porUsuario da cota", async () => {
+    const cookie = await cookieDeSessao(db, { id: "ana", papel: "membro" });
+
+    const res = await enrich("ChIJ001", cookie);
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.detalhes.enriquecidoPor).toBe("ana");
+    const usage = usageDoc();
+    expect(
+      (usage?.porUsuario as Record<string, { detailsEnterprise: number }>).ana
+        .detailsEnterprise,
+    ).toBe(1);
   });
 
   it("erro do Google → 502, cota consumida, lead NÃO marcado como enriquecido", async () => {

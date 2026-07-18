@@ -1,21 +1,30 @@
 import { NextResponse } from "next/server";
 
 import {
-  appPassword,
   SESSION_COOKIE,
   SESSION_COOKIE_OPTIONS,
-  sessionTokenFor,
+  appPassword,
+  criarSessaoToken,
 } from "@/lib/auth";
+import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, jsonError, readJsonBody } from "@/lib/http";
+import { getUsuarioPorNome, seedUsuariosSeVazio, verificarSenha } from "@/lib/usuarios";
 
 /**
- * Única rota fora da proteção do proxy: recebe { senha } e estabelece o
- * cookie de sessão. A futura página /login fará POST aqui.
+ * Única rota fora da proteção do proxy: recebe { nome, senha }, identifica
+ * o usuário em /usuarios e estabelece o cookie de sessão assinado com o id
+ * dele. `nome` ausente cai em "admin" (compatível com o fluxo antigo de
+ * senha única via curl).
+ *
+ * Migração da senha única: na primeira tentativa de login com /usuarios
+ * vazia, o seed cria o admin (senha = APP_PASSWORD atual) + 2 membros sem
+ * senha (o admin define em /config) — quem já usava o app continua
+ * entrando com a mesma senha, agora como admin.
  */
 export async function POST(req: Request) {
   try {
-    const password = appPassword();
-    if (!password) {
+    const secret = appPassword();
+    if (!secret) {
       return jsonError(
         503,
         "config_error",
@@ -24,14 +33,31 @@ export async function POST(req: Request) {
     }
 
     const body = await readJsonBody(req);
-    if (body.senha !== password) {
-      return jsonError(401, "invalid_password", "Senha incorreta.");
+    const nome = typeof body.nome === "string" && body.nome.trim() ? body.nome : "admin";
+    const senha = typeof body.senha === "string" ? body.senha : "";
+
+    const db = getDb();
+    await seedUsuariosSeVazio(db, secret);
+
+    const usuario = await getUsuarioPorNome(db, nome);
+    const confere = usuario ? await verificarSenha(senha, usuario.senhaHash) : false;
+    if (!usuario || !usuario.ativo || !confere) {
+      return jsonError(
+        401,
+        "invalid_credentials",
+        "Usuário ou senha incorretos (ou usuário inativo/sem senha definida — fale com o admin).",
+      );
     }
 
     const res = new NextResponse(null, { status: 204 });
-    res.cookies.set(SESSION_COOKIE, await sessionTokenFor(password), {
-      ...SESSION_COOKIE_OPTIONS,
-    });
+    res.cookies.set(
+      SESSION_COOKIE,
+      await criarSessaoToken(
+        { userId: usuario.id, papel: usuario.papel, versao: usuario.sessao },
+        secret,
+      ),
+      { ...SESSION_COOKIE_OPTIONS },
+    );
     return res;
   } catch (error) {
     return handleRouteError(error);

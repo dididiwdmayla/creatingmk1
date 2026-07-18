@@ -55,7 +55,7 @@ export interface Lead {
   /** Descarte suave: não deleta; vai pro fim da lista com listra. Reversível. */
   descartado?: boolean;
   enriquecido: boolean;
-  detalhes?: DetalhesLugar & { enriquecidoEm: string };
+  detalhes?: DetalhesLugar & { enriquecidoEm: string; enriquecidoPor?: string };
   /**
    * Configuração da demo personalizada (Forja de Demos): skin, tema e
    * overrides de conteúdo. O upsert da busca nunca toca neste campo.
@@ -63,6 +63,8 @@ export interface Lead {
   demo?: LeadDemo;
   contato?: {
     primeiroContatoEm?: string;
+    /** Usuário que marcou o lead como contactado (métricas por usuário). */
+    primeiroContatoPor?: string;
     respondeuEm?: string;
     fechadoEm?: string;
   };

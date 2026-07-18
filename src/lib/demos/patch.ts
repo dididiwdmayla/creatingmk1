@@ -58,6 +58,12 @@ function diffSecao(
     secao.alinhamento = atual.alinhamento;
   }
 
+  // Sem "natural" da skin: o padrão é o próprio default do template
+  // (animacaoEntrada ausente), então qualquer valor definido entra no patch.
+  if (atual.animacaoEntrada && atual.animacaoEntrada !== base?.animacaoEntrada) {
+    secao.animacaoEntrada = atual.animacaoEntrada;
+  }
+
   return Object.keys(secao).length > 0 ? secao : undefined;
 }
 

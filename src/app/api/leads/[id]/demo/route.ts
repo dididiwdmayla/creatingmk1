@@ -6,6 +6,7 @@ import { getDb } from "@/lib/firebase/admin";
 import { getDemoStorage } from "@/lib/firebase/storage";
 import { handleRouteError, readJsonBody } from "@/lib/http";
 import { deleteDemo, saveDemo } from "@/lib/leads/repo";
+import { usuarioDaRequest } from "@/lib/usuarios";
 
 /**
  * PUT /api/leads/[id]/demo — salva a configuração da demo do lead (skin,
@@ -21,7 +22,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params;
     const body = await readJsonBody(req);
     const demo = validateLeadDemoInput(body);
-    const lead = await saveDemo(getDb(), id, demo);
+    const db = getDb();
+    // "Demo criada" registra o usuário do primeiro save (criadoPor).
+    const usuario = await usuarioDaRequest(db, req);
+    const lead = await saveDemo(db, id, demo, undefined, usuario?.id);
     return NextResponse.json({ lead });
   } catch (error) {
     return handleRouteError(error);

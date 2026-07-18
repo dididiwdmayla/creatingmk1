@@ -6,6 +6,7 @@ import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api } from "@/lib/api-client";
 
 export default function LoginPage() {
+  const [nome, setNome] = useState("");
   const [senha, setSenha] = useState("");
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -15,7 +16,7 @@ export default function LoginPage() {
     setLoading(true);
     setErro(null);
     try {
-      await api.login(senha);
+      await api.login(nome, senha);
       window.location.href = "/";
     } catch (error) {
       setErro(
@@ -43,13 +44,25 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <label htmlFor="senha" className="mt-6 block text-sm text-ink-secondary">
+        <label htmlFor="nome" className="mt-6 block text-sm text-ink-secondary">
+          Usuário
+        </label>
+        <input
+          id="nome"
+          autoFocus
+          autoComplete="username"
+          placeholder="ex.: admin"
+          value={nome}
+          onChange={(event) => setNome(event.target.value)}
+          className="mt-1.5 w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+        />
+
+        <label htmlFor="senha" className="mt-4 block text-sm text-ink-secondary">
           Senha
         </label>
         <input
           id="senha"
           type="password"
-          autoFocus
           autoComplete="current-password"
           value={senha}
           onChange={(event) => setSenha(event.target.value)}
@@ -60,7 +73,7 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          disabled={loading || senha.length === 0}
+          disabled={loading || senha.length === 0 || nome.trim().length === 0}
           className="mt-5 w-full rounded bg-accent px-3 py-2 text-sm font-semibold text-accent-ink transition-all hover:bg-accent/90 hover:-translate-y-px hover:shadow-[0_6px_16px_-6px_var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {loading ? "Entrando…" : "Entrar"}

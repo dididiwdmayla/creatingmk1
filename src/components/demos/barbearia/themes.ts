@@ -21,9 +21,23 @@ const FONTES_EDITORIAIS: ThemeFontes = {
  * `acentoSecundario`/`acentoTerciario` são os oxblood/forest do original
  * (listra do poste do footer, linha decorativa do Ritual) — fiéis ao hex.
  */
+/**
+ * Micro-interações default de todos os presets — fiéis ao material bruto:
+ * intro (navalha) existia e ficava ligada; o hover dos cards era lift; não
+ * havia animação de clique nem efeito de fundo. O editor sobrescreve via
+ * TemaPatch.
+ */
+const INTERACOES_ORIGINAIS = {
+  intro: true,
+  hover: "lift",
+  clique: "nenhum",
+  fundoEfeito: "nenhum",
+} as const;
+
 const NORTE: Theme = {
   id: "norte",
   nome: "Norte (madeira e ouro)",
+  ...INTERACOES_ORIGINAIS,
   paleta: {
     fundo: "#1A1411",
     fundoAlt: "#2B2118",
@@ -45,6 +59,7 @@ const NORTE: Theme = {
 const MEIA_NOITE: Theme = {
   id: "meia-noite",
   nome: "Meia-noite (aço e prata)",
+  ...INTERACOES_ORIGINAIS,
   paleta: {
     fundo: "#10131A",
     fundoAlt: "#171C26",
@@ -66,6 +81,7 @@ const MEIA_NOITE: Theme = {
 const CREME: Theme = {
   id: "creme",
   nome: "Creme (clássico claro)",
+  ...INTERACOES_ORIGINAIS,
   paleta: {
     fundo: "#F4EDE0",
     fundoAlt: "#ECE1CC",
@@ -91,6 +107,7 @@ const CREME: Theme = {
 const OLIVA: Theme = {
   id: "oliva",
   nome: "Oliva (verde e latão)",
+  ...INTERACOES_ORIGINAIS,
   paleta: {
     fundo: "#12160F",
     fundoAlt: "#1B2216",

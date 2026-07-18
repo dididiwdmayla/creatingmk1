@@ -43,6 +43,29 @@ export type Alinhamento = "esquerda" | "centro" | "direita";
 
 export const ALINHAMENTOS: readonly Alinhamento[] = ["esquerda", "centro", "direita"];
 
+/**
+ * Animação de entrada no scroll de UMA seção (override do comportamento
+ * default da skin). "typewriter" anima o TÍTULO da seção como máquina de
+ * escrever (com fade no bloco); os demais valem para o bloco inteiro.
+ * undefined = padrão do template. A intensidade/duração continua vindo do
+ * nível global `Theme.animacao` — e `nenhuma` global (ou
+ * prefers-reduced-motion) desliga tudo, inclusive estes overrides.
+ */
+export type AnimacaoEntrada =
+  | "nenhuma"
+  | "fade"
+  | "deslizar-esquerda"
+  | "deslizar-direita"
+  | "typewriter";
+
+export const ANIMACOES_ENTRADA: readonly AnimacaoEntrada[] = [
+  "nenhuma",
+  "fade",
+  "deslizar-esquerda",
+  "deslizar-direita",
+  "typewriter",
+];
+
 /** Bloco de textos de uma seção. Slots que o skin não usa são ignorados. */
 export interface DemoSecao {
   /** Etiqueta pequena da seção (ex.: "SERVIÇOS"). */
@@ -57,6 +80,8 @@ export interface DemoSecao {
   oculta?: boolean;
   /** Só vale se a skin declara alignOptions para a seção (ver SkinSecaoDef). */
   alinhamento?: Alinhamento;
+  /** Só vale se a skin declara entradaOptions para a seção (ver SkinSecaoDef). */
+  animacaoEntrada?: AnimacaoEntrada;
 }
 
 /**
@@ -104,6 +129,28 @@ export type Densidade = "compacta" | "confortavel" | "arejada";
 export type Animacao = "nenhuma" | "sutil" | "marcante";
 
 export const ANIMACOES: readonly Animacao[] = ["nenhuma", "sutil", "marcante"];
+
+/**
+ * Micro-interações opcionais do tema. Tudo CSS puro (transform/opacity/
+ * box-shadow — custo baixo em mobile), com intensidade escalada pelo nível
+ * global `Theme.animacao` e desligado por completo em `nenhuma` /
+ * prefers-reduced-motion.
+ */
+
+/** Estilo do hover de cards/botões da skin. */
+export type HoverEstilo = "lift" | "zoom" | "brilho";
+
+export const HOVER_ESTILOS: readonly HoverEstilo[] = ["lift", "zoom", "brilho"];
+
+/** Animação de clique (pressionar) em botões/CTAs. */
+export type CliqueEstilo = "nenhum" | "pressao" | "pulso";
+
+export const CLIQUE_ESTILOS: readonly CliqueEstilo[] = ["nenhum", "pressao", "pulso"];
+
+/** Efeito sutil de fundo (overlay fixo, GPU-friendly). */
+export type FundoEfeito = "nenhum" | "gradiente" | "particulas";
+
+export const FUNDO_EFEITOS: readonly FundoEfeito[] = ["nenhum", "gradiente", "particulas"];
 
 export interface ThemePaleta {
   fundo: string;
@@ -153,6 +200,14 @@ export interface Theme {
   densidade: Densidade;
   /** Nível de animação (entradas de seção, hovers, transições). */
   animacao: Animacao;
+  /** Intro/splash de abertura do template ligada? */
+  intro: boolean;
+  /** Estilo do hover animado de cards/botões. */
+  hover: HoverEstilo;
+  /** Animação de clique em botões/CTAs. */
+  clique: CliqueEstilo;
+  /** Efeito sutil de fundo (gradiente animado / partículas leves). */
+  fundoEfeito: FundoEfeito;
 }
 
 /** Props que TODO componente de skin recebe. */
@@ -176,6 +231,12 @@ export interface SkinSecaoDef {
   fixa?: boolean;
   /** Alinhamentos que a skin suporta nesta seção; ausente = sem opção. */
   alignOptions?: readonly Alinhamento[];
+  /**
+   * Animações de entrada que a skin suporta nesta seção; ausente = sem
+   * seletor no editor. Uma seção com sticky interno, por ex., só declara
+   * opções sem transform ("fade"/"typewriter") — ver SectionReveal.
+   */
+  entradaOptions?: readonly AnimacaoEntrada[];
 }
 
 /**
@@ -195,6 +256,11 @@ export interface TemaPatch {
   raio?: string;
   densidade?: Densidade;
   animacao?: Animacao;
+  /** Liga/desliga a intro/splash de abertura do template. */
+  intro?: boolean;
+  hover?: HoverEstilo;
+  clique?: CliqueEstilo;
+  fundoEfeito?: FundoEfeito;
 }
 
 /** Entrada do registro de skins (ver ./registry.tsx). */
@@ -229,5 +295,7 @@ export interface LeadDemo {
   tema?: TemaPatch;
   /** Primeiro save da demo — preservado entre edições (ver saveDemo em repo.ts). */
   criadoEm: string;
+  /** Usuário do primeiro save — preservado entre edições (métricas por usuário). */
+  criadoPor?: string;
   atualizadoEm: string;
 }

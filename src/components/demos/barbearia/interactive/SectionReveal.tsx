@@ -6,25 +6,36 @@ import type { ReactNode } from "react";
 import type { Animacao } from "@/lib/demos/types";
 
 /**
- * Entrada de seção por scroll, intensidade conforme `theme.animacao`.
- * NÃO use este wrapper em volta de uma seção que tenha `position: sticky`
- * no seu interior (a sidebar da seção Serviços, por ex.): mesmo depois de
- * assentar em `y: 0`, o `transform: translateY(0px)` residual do motion
- * cria um containing block que quebra o sticky — a seção Serviços é
- * renderizada sem este wrapper em Skin.tsx por isso. "nenhuma" e
+ * Entrada de seção por scroll, intensidade conforme `theme.animacao` e
+ * direção conforme o override por seção (`DemoSecao.animacaoEntrada`):
+ *
+ *   - "padrao" — fade + slide de baixo (comportamento original da skin);
+ *   - "fade" — só opacidade, SEM transform (seguro para seções com
+ *     `position: sticky` interno, como a sidebar de Serviços);
+ *   - "esquerda"/"direita" — fade + slide lateral (entra vindo do lado).
+ *
+ * NÃO use os tipos com transform em volta de uma seção que tenha sticky
+ * no interior: mesmo depois de assentar, o `transform: translate(0)`
+ * residual do motion cria um containing block que quebra o sticky — por
+ * isso o contrato da skin (secoes.ts, `entradaOptions`) só oferece
+ * "fade"/"typewriter" para a seção Serviços. "nenhuma" global e
  * prefers-reduced-motion pulam o wrapper por completo — sem custo, sem
  * elemento extra no DOM.
  */
-const PRESETS: Record<"sutil" | "marcante", { y: number; duration: number }> = {
-  sutil: { y: 20, duration: 0.5 },
-  marcante: { y: 56, duration: 0.8 },
+export type RevealTipo = "padrao" | "fade" | "esquerda" | "direita";
+
+const PRESETS: Record<"sutil" | "marcante", { dist: number; duration: number }> = {
+  sutil: { dist: 20, duration: 0.5 },
+  marcante: { dist: 56, duration: 0.8 },
 };
 
 export function SectionReveal({
   animacao,
+  tipo = "padrao",
   children,
 }: {
   animacao: Animacao;
+  tipo?: RevealTipo;
   children: ReactNode;
 }) {
   const reduzida = useReducedMotion();
@@ -34,10 +45,21 @@ export function SectionReveal({
   }
 
   const preset = PRESETS[animacao];
+  const inicial =
+    tipo === "fade"
+      ? { opacity: 0 }
+      : tipo === "esquerda"
+        ? { opacity: 0, x: -preset.dist }
+        : tipo === "direita"
+          ? { opacity: 0, x: preset.dist }
+          : { opacity: 0, y: preset.dist };
+  const final =
+    tipo === "fade" ? { opacity: 1 } : tipo === "padrao" ? { opacity: 1, y: 0 } : { opacity: 1, x: 0 };
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: preset.y }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={inicial}
+      whileInView={final}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: preset.duration, ease: [0.16, 1, 0.3, 1] }}
     >

@@ -174,6 +174,21 @@ describe("reserveQuota", () => {
 
     expect(db.getDoc(DOC)?.atualizadoEm).toBe("2026-07-02T12:00:00.000Z");
   });
+
+  it("com userId, incrementa também a quebra porUsuario (teto continua agregado)", async () => {
+    const db = new FakeFirestore();
+
+    await reserveQuota(db, "textSearch", caps(), NOW, "ana");
+    await reserveQuota(db, "textSearch", caps(), NOW, "ana");
+    await reserveQuota(db, "textSearch", caps(), NOW, "beto");
+    await reserveQuota(db, "textSearch", caps(), NOW); // sem usuário identificado
+
+    const doc = db.getDoc(DOC);
+    expect(doc?.textSearch).toBe(4);
+    const porUsuario = doc?.porUsuario as Record<string, Record<string, number>>;
+    expect(porUsuario.ana.textSearch).toBe(2);
+    expect(porUsuario.beto.textSearch).toBe(1);
+  });
 });
 
 describe("getUsage", () => {
@@ -186,6 +201,27 @@ describe("getUsage", () => {
       period: "2026-07",
       usage: {
         textSearch: 0,
+        textSearchEnterprise: 0,
+        detailsEssentials: 0,
+        detailsEnterprise: 0,
+        geocoding: 0,
+      },
+      porUsuario: {},
+    });
+  });
+
+  it("lê a quebra porUsuario do doc (entradas malformadas ignoradas)", async () => {
+    const db = new FakeFirestore();
+    db.seed(DOC, {
+      textSearch: 12,
+      porUsuario: { ana: { textSearch: 5 }, sujo: "não é objeto" },
+    });
+
+    const result = await getUsage(db, NOW);
+
+    expect(result.porUsuario).toEqual({
+      ana: {
+        textSearch: 5,
         textSearchEnterprise: 0,
         detailsEssentials: 0,
         detailsEnterprise: 0,

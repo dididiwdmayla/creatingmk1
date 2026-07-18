@@ -3,10 +3,11 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
+import { BackgroundEffect } from "./BackgroundEffect";
 import { AnimatedScissors } from "./interactive/AnimatedScissors";
 import { IntroExperience } from "./interactive/IntroExperience";
 import { ScrollHeader } from "./interactive/ScrollHeader";
-import { SectionReveal } from "./interactive/SectionReveal";
+import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
 import { BARBEARIA_SECOES } from "./secoes";
 import { TeamCard } from "./interactive/TeamCard";
 import { TypewriterText } from "./interactive/TypewriterText";
@@ -63,6 +64,13 @@ const ANIM_HOVER_LIFT: Record<Animacao, string> = {
 
 /** Seções que carregam número na etiqueta, na ordem visível. */
 const SECOES_NUMERADAS = new Set(["filosofia", "servicos", "equipe", "ritual", "contato"]);
+
+/**
+ * Seções cujo título (ou citação, no Ritual) usa máquina de escrever POR
+ * DEFAULT — fiel ao material bruto. O override por seção
+ * (DemoSecao.animacaoEntrada) liga/desliga isso por cima.
+ */
+const TYPEWRITER_DEFAULT = new Set(["filosofia", "servicos", "equipe", "ritual", "contato"]);
 
 /** Link wa.me a partir do número exibido; sem número, âncora pro contato. */
 function waHref(whatsapp: string | undefined): string {
@@ -200,6 +208,30 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
     }
   }
   const centro = (id: string): boolean => s[id]?.alinhamento === "centro";
+
+  /**
+   * Animação de entrada resolvida por seção: o override do editor
+   * (DemoSecao.animacaoEntrada) vence; sem override vale o default do
+   * template. O nível global "nenhuma" desliga tudo (o SectionReveal já
+   * se retira sozinho; o typewriter é desligado aqui).
+   */
+  const entradaDe = (id: string) => s[id]?.animacaoEntrada;
+  const typewriter = (id: string): boolean => {
+    if (theme.animacao === "nenhuma") return false;
+    const entrada = entradaDe(id);
+    return entrada === undefined ? TYPEWRITER_DEFAULT.has(id) : entrada === "typewriter";
+  };
+  // null = sem wrapper. "servicos" sem override fica sem wrapper (sticky
+  // interno — ver SectionReveal); com "fade"/"typewriter" o wrapper é só
+  // opacidade, que não cria containing block.
+  const wrapperTipo = (id: string): RevealTipo | null => {
+    const entrada = entradaDe(id);
+    if (entrada === undefined) return id === "servicos" ? null : "padrao";
+    if (entrada === "nenhuma") return null;
+    if (entrada === "deslizar-esquerda") return "esquerda";
+    if (entrada === "deslizar-direita") return "direita";
+    return "fade"; // "fade" e "typewriter" (typewriter ganha fade no bloco)
+  };
 
   const secoes: Record<string, () => ReactNode> = {
     /* ── Hero (fixa) ─────────────────────────────────────────── */
@@ -374,7 +406,11 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               className="mb-8"
             />
             <div className="mb-16">
-              <Headline texto={s.filosofia.titulo} slot="secoes.filosofia.titulo" animado />
+              <Headline
+                texto={s.filosofia.titulo}
+                slot="secoes.filosofia.titulo"
+                animado={typewriter("filosofia")}
+              />
             </div>
             <div className="grid gap-12 md:grid-cols-3">
               {(s.filosofia.itens ?? []).map((pilar, i) => (
@@ -427,7 +463,11 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                   slot="secoes.servicos.rotulo"
                 />
                 <div className="mb-8">
-                  <Headline texto={s.servicos?.titulo} slot="secoes.servicos.titulo" animado />
+                  <Headline
+                    texto={s.servicos?.titulo}
+                    slot="secoes.servicos.titulo"
+                    animado={typewriter("servicos")}
+                  />
                 </div>
               </div>
               <div
@@ -500,7 +540,11 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                   texto={s.equipe.rotulo}
                   slot="secoes.equipe.rotulo"
                 />
-                <Headline texto={s.equipe.titulo} slot="secoes.equipe.titulo" animado />
+                <Headline
+                  texto={s.equipe.titulo}
+                  slot="secoes.equipe.titulo"
+                  animado={typewriter("equipe")}
+                />
               </div>
               {!centro("equipe") && (
                 <div className="hidden md:block">
@@ -542,7 +586,13 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               data-demo-slot="secoes.ritual.texto"
               className="mb-12 font-[family-name:var(--d-citacao)] text-3xl italic leading-snug text-[var(--d-text)] md:text-4xl"
             >
-              &ldquo;<TypewriterText text={s.ritual.texto} triggerOnInView speed={50} />&rdquo;
+              &ldquo;
+              {typewriter("ritual") ? (
+                <TypewriterText text={s.ritual.texto} triggerOnInView speed={50} />
+              ) : (
+                s.ritual.texto
+              )}
+              &rdquo;
             </p>
             {/* Acento raro (accent-3 = forest no original) — a única linha decorativa fora da paleta principal. */}
             <div className="mb-12 h-px w-20 bg-[var(--d-accent-3)]" />
@@ -566,7 +616,11 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
             <div className={`mb-16 ${centro("depoimentos") ? "text-center" : ""}`}>
               {/* Sem número de seção: seção adicional, não existe no material bruto original. */}
               <Etiqueta texto={s.depoimentos?.rotulo} slot="secoes.depoimentos.rotulo" />
-              <Headline texto={s.depoimentos?.titulo} slot="secoes.depoimentos.titulo" />
+              <Headline
+                texto={s.depoimentos?.titulo}
+                slot="secoes.depoimentos.titulo"
+                animado={typewriter("depoimentos")}
+              />
             </div>
             <div className="grid gap-8 md:grid-cols-3">
               {data.depoimentos.map((dep, i) => (
@@ -614,7 +668,11 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
             <div className="mb-16">
               {/* Sem número: "COMO FUNCIONA" também é sem número no original. */}
               <Etiqueta texto={s.agendamento.rotulo} slot="secoes.agendamento.rotulo" caixa />
-              <Headline texto={s.agendamento.titulo} slot="secoes.agendamento.titulo" />
+              <Headline
+                texto={s.agendamento.titulo}
+                slot="secoes.agendamento.titulo"
+                animado={typewriter("agendamento")}
+              />
             </div>
             <div className="mb-16 grid gap-12 md:grid-cols-3">
               {(s.agendamento.itens ?? []).map((passo, i) => (
@@ -683,7 +741,11 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               className="mb-8"
             />
             <div className="mb-12">
-              <Headline texto={s.contato?.titulo} slot="secoes.contato.titulo" animado />
+              <Headline
+                texto={s.contato?.titulo}
+                slot="secoes.contato.titulo"
+                animado={typewriter("contato")}
+              />
             </div>
 
             <div className="flex w-full flex-col gap-8">
@@ -790,6 +852,9 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
   return (
     <div
       style={vars}
+      data-d-hover={theme.hover}
+      data-d-clique={theme.clique}
+      data-d-anim={theme.animacao}
       className="min-h-screen bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
       {/* Textura de ruído sutil no fundo — mesmo .noise-overlay do original (body). */}
@@ -836,15 +901,119 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
 
         /* Lift genérico de card (depoimentos) — intensidade por --d-hover-*. */
         .d-card-hover {
-          transition: transform var(--d-anim-duration) var(--d-anim-ease);
+          transition: transform var(--d-anim-duration) var(--d-anim-ease),
+            box-shadow var(--d-anim-duration) var(--d-anim-ease),
+            border-color var(--d-anim-duration) var(--d-anim-ease);
         }
         .d-card-hover:hover {
           transform: translateY(var(--d-hover-lift));
         }
         @media (prefers-reduced-motion: reduce) { .d-card-hover:hover { transform: none; } }
+
+        /* ── Hover do tema (Theme.hover) ─────────────────────────
+           "lift" é o default acima; "zoom" e "brilho" sobrescrevem.
+           A intensidade continua vindo de --d-hover-* (nível global):
+           em "nenhuma" scale=1/lift=0 neutralizam o movimento. */
+        [data-d-hover="zoom"] .d-cta:hover {
+          transform: scale(var(--d-hover-scale));
+        }
+        [data-d-hover="zoom"] .d-card-hover:hover {
+          transform: scale(var(--d-hover-scale));
+        }
+        [data-d-hover="brilho"] .d-cta:hover {
+          transform: none;
+          box-shadow: 0 0 32px color-mix(in srgb, var(--d-accent) 55%, transparent);
+        }
+        [data-d-hover="brilho"] .d-card-hover:hover {
+          transform: none;
+          box-shadow: 0 0 24px color-mix(in srgb, var(--d-accent) 30%, transparent);
+          border-color: color-mix(in srgb, var(--d-accent) 45%, transparent);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [data-d-hover] .d-cta:hover, [data-d-hover] .d-card-hover:hover { transform: none; }
+        }
+
+        /* ── Animação de clique (Theme.clique) ───────────────────
+           Só transform, custo zero; desligada no nível global "nenhuma"
+           e em prefers-reduced-motion. */
+        [data-d-clique="pressao"]:not([data-d-anim="nenhuma"]) a:active,
+        [data-d-clique="pressao"]:not([data-d-anim="nenhuma"]) button:active {
+          transform: scale(0.96);
+          transition-duration: 90ms;
+        }
+        @keyframes d-clique-pulso {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        [data-d-clique="pulso"]:not([data-d-anim="nenhuma"]) a:active,
+        [data-d-clique="pulso"]:not([data-d-anim="nenhuma"]) button:active {
+          animation: d-clique-pulso 280ms var(--d-anim-ease);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [data-d-clique] a:active, [data-d-clique] button:active {
+            transform: none;
+            animation: none;
+          }
+        }
+
+        /* ── Efeito de fundo (Theme.fundoEfeito) ─────────────────
+           Overlay fixo por cima do conteúdo (mesmo padrão do noise, que é
+           z-50/opacity 0.04) — só transform/opacity, GPU-friendly. */
+        .d-bg-gradiente {
+          position: fixed;
+          inset: -25%;
+          z-index: 40;
+          pointer-events: none;
+          opacity: 0.1;
+          background:
+            radial-gradient(circle at 30% 30%, var(--d-accent) 0%, transparent 40%),
+            radial-gradient(circle at 70% 65%, var(--d-accent-3) 0%, transparent 38%);
+          filter: blur(80px);
+          animation: d-bg-drift 26s ease-in-out infinite alternate;
+          will-change: transform;
+        }
+        @keyframes d-bg-drift {
+          from { transform: translate3d(-3%, -2%, 0) scale(1); }
+          to { transform: translate3d(3%, 2%, 0) scale(1.08); }
+        }
+        .d-bg-particulas {
+          position: fixed;
+          inset: 0;
+          z-index: 40;
+          pointer-events: none;
+          overflow: hidden;
+        }
+        .d-bg-particulas span {
+          position: absolute;
+          bottom: -10px;
+          border-radius: 9999px;
+          background: var(--d-accent);
+          opacity: 0;
+          animation-name: d-bg-flutua;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+        }
+        @keyframes d-bg-flutua {
+          0% { transform: translateY(0); opacity: 0; }
+          8% { opacity: 0.35; }
+          85% { opacity: 0.12; }
+          100% { transform: translateY(-105vh); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .d-bg-gradiente, .d-bg-particulas { display: none; }
+        }
       `}</style>
 
-      <IntroExperience nome={data.nome} cidade={data.cidade} accent={paleta.destaque}>
+      {/* Efeito sutil de fundo do tema (overlay fixo; ver BackgroundEffect). */}
+      <BackgroundEffect efeito={theme.fundoEfeito} animacao={theme.animacao} />
+
+      <IntroExperience
+        nome={data.nome}
+        cidade={data.cidade}
+        accent={paleta.destaque}
+        ativa={theme.intro !== false}
+      >
       {/* ── Header ─────────────────────────────────────────────── */}
       <ScrollHeader
         nome={data.nome}
@@ -856,19 +1025,22 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         ].filter((link): link is { href: string; label: string } => Boolean(link))}
       />
 
-      {/* Seções na ordem efetiva (DemoData.ordemSecoes), sem as ocultas.
-          "servicos" fica de fora do reveal: tem sidebar `position: sticky`
-          por dentro, que um wrapper com transform quebraria (ver
-          SectionReveal.tsx). */}
-      {visiveis.map((id) =>
-        id === "servicos" ? (
+      {/* Seções na ordem efetiva (DemoData.ordemSecoes), sem as ocultas,
+          cada uma com a animação de entrada resolvida (override do editor
+          ← default do template). "servicos" sem override fica sem wrapper:
+          tem sidebar `position: sticky` por dentro, que um wrapper com
+          transform quebraria — só "fade"/"typewriter" (sem transform) são
+          oferecidos para ela (ver secoes.ts e SectionReveal.tsx). */}
+      {visiveis.map((id) => {
+        const tipo = wrapperTipo(id);
+        return tipo === null ? (
           <Fragment key={id}>{secoes[id]?.()}</Fragment>
         ) : (
-          <SectionReveal key={id} animacao={theme.animacao}>
+          <SectionReveal key={id} animacao={theme.animacao} tipo={tipo}>
             {secoes[id]?.()}
           </SectionReveal>
-        ),
-      )}
+        );
+      })}
 
       {/* ── Footer ─────────────────────────────────────────────── */}
       <footer className="relative overflow-hidden border-t border-[var(--d-border)] bg-[var(--d-bg)] py-24 text-center md:py-32">

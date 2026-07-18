@@ -15,6 +15,8 @@ export const USAGE_COLLECTION = "usage";
 export interface UsageSnapshot {
   period: string;
   usage: UsageCounts;
+  /** Quebra por usuário (requests por SKU). Docs antigos → objeto vazio. */
+  porUsuario: Record<string, UsageCounts>;
 }
 
 /**
@@ -35,8 +37,21 @@ function readCounts(data: Record<string, unknown> | undefined): UsageCounts {
   return counts;
 }
 
-function countsFrom(snap: UsageDocSnapshot): UsageCounts {
-  return readCounts(snap.exists ? snap.data() : undefined);
+/** Quebra por usuário no doc; entradas malformadas são ignoradas. */
+function readPorUsuario(data: Record<string, unknown> | undefined): Record<string, UsageCounts> {
+  const bruto = data?.porUsuario;
+  if (typeof bruto !== "object" || bruto === null || Array.isArray(bruto)) return {};
+  const porUsuario: Record<string, UsageCounts> = {};
+  for (const [userId, counts] of Object.entries(bruto)) {
+    if (typeof counts === "object" && counts !== null && !Array.isArray(counts)) {
+      porUsuario[userId] = readCounts(counts as Record<string, unknown>);
+    }
+  }
+  return porUsuario;
+}
+
+function snapshotData(snap: UsageDocSnapshot): Record<string, unknown> | undefined {
+  return snap.exists ? snap.data() : undefined;
 }
 
 /**
@@ -45,25 +60,42 @@ function countsFrom(snap: UsageDocSnapshot): UsageCounts {
  * Transacional: ler doc de uso → verificar teto → incrementar. Chamar SEMPRE
  * antes do request ao Google — se o Google falhar depois, o contador fica 1
  * acima do real, que é o lado seguro do erro.
+ *
+ * `userId` (quando a rota identifica a sessão) incrementa também a quebra
+ * `porUsuario` do doc — o teto continua sendo um só (agregado), a quebra é
+ * atribuição de uso, não cota individual. O objeto `porUsuario` inteiro é
+ * reescrito dentro da transação (merge raso é suficiente e se comporta
+ * igual no fake dos testes).
  */
 export async function reserveQuota(
   db: UsageDb,
   sku: Sku,
   caps: UsageCounts = DEFAULT_CAPS,
   now: Date = new Date(),
+  userId?: string,
 ): Promise<UsageSnapshot> {
   const period = periodKey(now);
   const ref = db.collection(USAGE_COLLECTION).doc(period);
 
   return db.runTransaction(async (tx) => {
-    const usage = countsFrom(await tx.get(ref));
+    const data = snapshotData(await tx.get(ref));
+    const usage = readCounts(data);
     const cap = Math.max(0, caps[sku]);
     if (usage[sku] + 1 > cap) {
       throw new QuotaExceededError(sku, usage[sku], cap, period);
     }
     const next = { ...usage, [sku]: usage[sku] + 1 };
-    tx.set(ref, { ...next, atualizadoEm: now.toISOString() }, { merge: true });
-    return { period, usage: next };
+    const porUsuario = readPorUsuario(data);
+    if (userId) {
+      const atual = porUsuario[userId] ?? { ...ZERO_USAGE };
+      porUsuario[userId] = { ...atual, [sku]: atual[sku] + 1 };
+    }
+    tx.set(
+      ref,
+      { ...next, porUsuario, atualizadoEm: now.toISOString() },
+      { merge: true },
+    );
+    return { period, usage: next, porUsuario };
   });
 }
 
@@ -74,5 +106,6 @@ export async function getUsage(
 ): Promise<UsageSnapshot> {
   const period = periodKey(now);
   const snap = await db.collection(USAGE_COLLECTION).doc(period).get();
-  return { period, usage: countsFrom(snap) };
+  const data = snapshotData(snap);
+  return { period, usage: readCounts(data), porUsuario: readPorUsuario(data) };
 }

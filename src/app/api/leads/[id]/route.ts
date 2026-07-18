@@ -5,6 +5,7 @@ import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, readJsonBody } from "@/lib/http";
 import { changeStatus, getLead, updateLeadExtras } from "@/lib/leads/repo";
 import { LEAD_STATUSES, type Lead, type LeadStatus } from "@/lib/leads/types";
+import { usuarioDaRequest } from "@/lib/usuarios";
 
 export const NOTAS_MAX = 500;
 
@@ -67,7 +68,9 @@ export async function PATCH(req: Request, { params }: Params) {
     const db = getDb();
     let lead: Lead | undefined;
     if (status !== undefined) {
-      lead = await changeStatus(db, id, status as LeadStatus);
+      // "Lead contactado" registra quem contactou (métricas por usuário).
+      const usuario = await usuarioDaRequest(db, req);
+      lead = await changeStatus(db, id, status as LeadStatus, undefined, usuario?.id);
     }
     if (notas !== undefined || favorito !== undefined || descartado !== undefined) {
       lead = await updateLeadExtras(db, id, {

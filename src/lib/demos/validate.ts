@@ -5,6 +5,11 @@ import { HEX_RE, TEMA_RAIOS } from "./tema";
 import {
   ALINHAMENTOS,
   ANIMACOES,
+  ANIMACOES_ENTRADA,
+  CLIQUE_ESTILOS,
+  FUNDO_EFEITOS,
+  HOVER_ESTILOS,
+  type AnimacaoEntrada,
   type DemoDataPatch,
   type SkinDefinition,
   type TemaPatch,
@@ -180,10 +185,27 @@ function validaDados(
             );
           }
         }
+        if (secao.animacaoEntrada !== undefined) {
+          if (
+            typeof secao.animacaoEntrada !== "string" ||
+            !(ANIMACOES_ENTRADA as readonly string[]).includes(secao.animacaoEntrada)
+          ) {
+            problemas.push(
+              `dados.secoes.${nome}.animacaoEntrada deve ser um de: ${ANIMACOES_ENTRADA.join(", ")}`,
+            );
+          } else if (
+            skin &&
+            !(def?.entradaOptions ?? []).includes(secao.animacaoEntrada as AnimacaoEntrada)
+          ) {
+            problemas.push(
+              `dados.secoes.${nome}.animacaoEntrada: a skin não oferece essa animação nesta seção`,
+            );
+          }
+        }
         for (const chave of Object.keys(secao)) {
           if (
             !(CAMPOS_SECAO as readonly string[]).includes(chave) &&
-            !["itens", "oculta", "alinhamento"].includes(chave)
+            !["itens", "oculta", "alinhamento", "animacaoEntrada"].includes(chave)
           ) {
             problemas.push(`dados.secoes.${nome}.${chave}: chave desconhecida`);
           }
@@ -214,7 +236,18 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
 
   for (const chave of Object.keys(value)) {
     if (
-      !["fonteDisplay", "fonteCorpo", "destaque", "raio", "densidade", "animacao"].includes(chave)
+      ![
+        "fonteDisplay",
+        "fonteCorpo",
+        "destaque",
+        "raio",
+        "densidade",
+        "animacao",
+        "intro",
+        "hover",
+        "clique",
+        "fundoEfeito",
+      ].includes(chave)
     ) {
       problemas.push(`tema.${chave}: chave desconhecida`);
     }
@@ -260,6 +293,23 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
     !(ANIMACOES as readonly string[]).includes(value.animacao as string)
   ) {
     problemas.push(`tema.animacao deve ser um de: ${ANIMACOES.join(", ")}`);
+  }
+
+  if (value.intro !== undefined && typeof value.intro !== "boolean") {
+    problemas.push("tema.intro deve ser booleano");
+  }
+
+  for (const [campo, lista] of [
+    ["hover", HOVER_ESTILOS],
+    ["clique", CLIQUE_ESTILOS],
+    ["fundoEfeito", FUNDO_EFEITOS],
+  ] as const) {
+    if (
+      value[campo] !== undefined &&
+      !(lista as readonly string[]).includes(value[campo] as string)
+    ) {
+      problemas.push(`tema.${campo} deve ser um de: ${lista.join(", ")}`);
+    }
   }
 
   return value as TemaPatch;

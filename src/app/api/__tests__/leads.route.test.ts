@@ -1,12 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
+import { cookieDeSessao } from "@/lib/testing/sessao";
 import { GET as LIST } from "../leads/route";
 import { GET as GET_ONE, PATCH } from "../leads/[id]/route";
 
 let db: FakeFirestore;
 
 vi.mock("@/lib/firebase/admin", () => ({ getDb: () => db }));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 function seedLead(id: string, data: Record<string, unknown>): void {
   db.seed(`leads/${id}`, {
@@ -215,10 +220,15 @@ function params(id: string): { params: Promise<{ id: string }> } {
   return { params: Promise.resolve({ id }) };
 }
 
-function patchRequest(id: string, body: unknown): [Request, { params: Promise<{ id: string }> }] {
+function patchRequest(
+  id: string,
+  body: unknown,
+  cookie?: string,
+): [Request, { params: Promise<{ id: string }> }] {
   return [
     new Request(`http://localhost/api/leads/${id}`, {
       method: "PATCH",
+      ...(cookie && { headers: { cookie } }),
       body: JSON.stringify(body),
     }),
     params(id),
@@ -254,6 +264,17 @@ describe("PATCH /api/leads/[id]", () => {
     expect(lead.contato.primeiroContatoEm).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
     expect(db.getDoc("leads/A")).toMatchObject({ status: "contactado" });
+  });
+
+  it("com sessão, contactado registra também QUEM contactou (primeiroContatoPor)", async () => {
+    vi.stubEnv("APP_PASSWORD", "segredo123");
+    const cookie = await cookieDeSessao(db, { id: "ana", papel: "membro" });
+
+    const res = await PATCH(...patchRequest("A", { status: "contactado" }, cookie));
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.contato.primeiroContatoPor).toBe("ana");
   });
 
   it("cadeia completa carimba respondeuEm e fechadoEm", async () => {

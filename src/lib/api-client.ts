@@ -3,7 +3,8 @@ import type { AppConfig } from "@/lib/config";
 import type { UsageCounts } from "@/lib/costs";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
-import type { Metrics } from "@/lib/leads/metrics";
+import type { Metrics, MetricsUsuario } from "@/lib/leads/metrics";
+import type { Papel, UsuarioPublico } from "@/lib/usuarios/types";
 
 /** Espelha o formato de erro padrão das rotas (ver ARCHITECTURE.md). */
 export class ApiError extends Error {
@@ -52,7 +53,14 @@ export interface UsageResponse {
   caps: UsageCounts;
   cotaGratis: UsageCounts;
   custoProjetado: { usd: number; brl: number };
+  /** Só para admin: requests por SKU de cada usuário. */
+  porUsuario?: Array<{ userId: string; nome: string; usage: UsageCounts }>;
 }
+
+/** Métricas + (para admin) rollup de ações-chave por usuário. */
+export type MetricsResponse = Metrics & {
+  porUsuario?: Array<{ userId: string; nome: string } & MetricsUsuario>;
+};
 
 export interface SearchResponse {
   criados: number;
@@ -79,9 +87,25 @@ export interface GeocodeResponse {
 }
 
 export const api = {
-  login: (senha: string) =>
-    request<void>("/api/login", { method: "POST", body: JSON.stringify({ senha }) }),
+  login: (nome: string, senha: string) =>
+    request<void>("/api/login", { method: "POST", body: JSON.stringify({ nome, senha }) }),
   logout: () => request<void>("/api/logout", { method: "POST" }),
+  me: () => request<{ usuario: UsuarioPublico }>("/api/me"),
+
+  listUsuarios: () => request<{ usuarios: UsuarioPublico[] }>("/api/usuarios"),
+  createUsuario: (dados: { nome: string; papel?: Papel; senha?: string }) =>
+    request<{ usuario: UsuarioPublico }>("/api/usuarios", {
+      method: "POST",
+      body: JSON.stringify(dados),
+    }),
+  patchUsuario: (
+    id: string,
+    patch: { nome?: string; papel?: Papel; ativo?: boolean; senha?: string },
+  ) =>
+    request<{ usuario: UsuarioPublico }>(`/api/usuarios/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
 
   getConfig: () => request<{ config: AppConfig }>("/api/config"),
   putConfig: (patch: Partial<AppConfig>) =>
@@ -91,7 +115,7 @@ export const api = {
     }),
 
   getUsage: () => request<UsageResponse>("/api/usage"),
-  getMetrics: () => request<Metrics>("/api/metrics"),
+  getMetrics: () => request<MetricsResponse>("/api/metrics"),
 
   search: (body: {
     nicho?: string;

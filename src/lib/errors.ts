@@ -12,6 +12,24 @@ export class ValidationError extends Error {
   }
 }
 
+export class UnauthorizedError extends Error {
+  readonly code = "unauthorized";
+
+  constructor(message = "Sessão ausente ou inválida. Faça login em /login.") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
+export class ForbiddenError extends Error {
+  readonly code = "forbidden";
+
+  constructor(message = "Ação restrita ao administrador.") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
 export class NotFoundError extends Error {
   readonly code = "not_found";
 

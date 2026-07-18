@@ -42,4 +42,6 @@ export interface Busca {
   criadaEm: string;
   totalCriados: number;
   totalExistentes: number;
+  /** Usuário que executou a busca (ausente em docs anteriores ao multiusuário). */
+  userId?: string;
 }
