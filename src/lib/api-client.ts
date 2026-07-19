@@ -190,4 +190,19 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ slot }),
     }),
+  uploadDemoVideo: (id: string, slot: string, arquivo: File, skinId?: string) => {
+    const form = new FormData();
+    form.set("slot", slot);
+    if (skinId) form.set("skinId", skinId);
+    form.set("arquivo", arquivo);
+    return request<{ slot: string; url: string }>(`/api/leads/${id}/demo/videos`, {
+      method: "POST",
+      body: form,
+    });
+  },
+  deleteDemoVideo: (id: string, slot: string, skinId?: string) =>
+    request<{ lead: Lead }>(`/api/leads/${id}/demo/videos`, {
+      method: "DELETE",
+      body: JSON.stringify({ slot, ...(skinId && { skinId }) }),
+    }),
 };

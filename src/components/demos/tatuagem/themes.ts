@@ -36,6 +36,10 @@ const INTERACOES_ORIGINAIS = {
   hover: "zoom",
   clique: "nenhum",
   fundoEfeito: "nenhum",
+  // fonte "" = herda fontes.display do preset. Hero nasce centralizado,
+  // fiel ao material bruto (wordmark gigante centralizada).
+  heroTitulo: { fonte: "", escala: 1, alinhamento: "centro" },
+  led: "desligado",
 } as const;
 
 /** Paleta original do material bruto: preto profundo + sangue. */

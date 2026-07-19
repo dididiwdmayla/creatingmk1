@@ -7,6 +7,7 @@ import { BackgroundEffect } from "./BackgroundEffect";
 import { GothicLetters } from "./GothicLetters";
 import { FadeUp } from "./interactive/FadeUp";
 import { IntroExperience } from "./interactive/IntroExperience";
+import { LedEdges } from "./interactive/LedEdges";
 import { Parallax } from "./interactive/Parallax";
 import { ScrollHeader } from "./interactive/ScrollHeader";
 import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
@@ -148,6 +149,10 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
     "--d-deco": fontes.decorativa,
     "--d-citacao": fontes.citacao,
     "--d-destaque": fontes.destaque,
+    // Título hero: controles próprios do editor (aba Tema), independentes
+    // do resto da tipografia — "" em heroTitulo.fonte herda fontes.display.
+    "--d-hero-font": theme.heroTitulo.fonte || fontes.display,
+    "--d-hero-escala": theme.heroTitulo.escala,
     "--d-sec-y": SECTION_PAD[theme.densidade],
     "--d-anim-duration": ANIM_DURATION[theme.animacao],
     "--d-anim-ease": "cubic-bezier(0.16, 1, 0.3, 1)",
@@ -157,6 +162,11 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
 
   const s = data.secoes;
   const agendar = waHref(data.whatsapp);
+  const HERO_ALINHAMENTO_TEXT: Record<Alinhamento, string> = {
+    esquerda: "text-left",
+    centro: "text-center",
+    direita: "text-right",
+  };
 
   const visiveis = secoesVisiveis(TATUAGEM_SECOES, data);
   // Ausente = primeira opção de alignOptions da seção (o "natural" da skin
@@ -218,10 +228,12 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
             )}
           </FadeUp>
 
-          <div className="w-full max-w-[1200px]">
+          <div className={`w-full max-w-[1200px] ${HERO_ALINHAMENTO_TEXT[theme.heroTitulo.alinhamento]}`}>
             <Wordmark
               nome={data.nome}
-              className="mb-8 block text-[clamp(3rem,13vw,9rem)] leading-[0.9] drop-shadow-[4px_6px_0_rgba(0,0,0,0.9)]"
+              videoSrc={data.videos?.titulo}
+              imagemFallback={data.imagens.hero}
+              className="mb-8 block text-[calc(clamp(3rem,13vw,9rem)*var(--d-hero-escala))] leading-[0.9] drop-shadow-[4px_6px_0_rgba(0,0,0,0.9)]"
             />
           </div>
 
@@ -829,10 +841,49 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
         @media (prefers-reduced-motion: reduce) {
           .d-bg-gradiente, .d-bg-particulas { animation: none; display: none; }
         }
+
+        /* Bordas laterais com luz LED (Theme.led) — ver LedEdges.tsx.
+           --d-led-scroll (0–1, escrito via ref/rAF) desloca o ponto mais
+           brilhante do gradiente ao longo da barra conforme o progresso do
+           scroll; box-shadow/opacity só, sem transform de layout. */
+        .d-led-edges {
+          position: fixed; inset: 0; z-index: 45; pointer-events: none;
+          --d-led-scroll: 0;
+        }
+        .d-led-bar {
+          position: absolute; top: 0; bottom: 0; width: 3px;
+          background: linear-gradient(to bottom,
+            transparent 0%,
+            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(var(--d-led-scroll) * 100% - 18%),
+            var(--d-accent) calc(var(--d-led-scroll) * 100%),
+            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(var(--d-led-scroll) * 100% + 18%),
+            transparent 100%);
+          box-shadow: 0 0 10px 1px color-mix(in srgb, var(--d-accent) 55%, transparent);
+          opacity: 0.5;
+          transition: opacity 200ms ease, box-shadow 200ms ease;
+        }
+        [data-d-led="marcante"] .d-led-bar {
+          width: 4px;
+          opacity: 0.85;
+          box-shadow: 0 0 20px 3px color-mix(in srgb, var(--d-accent) 70%, transparent);
+        }
+        .d-led-left { left: 0; }
+        .d-led-right { right: 0; }
+        @keyframes d-led-pulso {
+          0% { filter: brightness(1); }
+          30% { filter: brightness(1.8); }
+          100% { filter: brightness(1); }
+        }
+        .d-led-pulse .d-led-bar { animation: d-led-pulso 500ms ease-out; }
+        @media (prefers-reduced-motion: reduce) {
+          .d-led-bar { transition: none; }
+          .d-led-pulse .d-led-bar { animation: none; }
+        }
       `}</style>
 
       <GothicLetters nome={data.nome} />
       <BackgroundEffect efeito={theme.fundoEfeito} animacao={theme.animacao} />
+      <LedEdges preset={theme.led} />
 
       <IntroExperience nome={data.nome} accent={paleta.destaque} ativa={theme.intro !== false}>
         <ScrollHeader

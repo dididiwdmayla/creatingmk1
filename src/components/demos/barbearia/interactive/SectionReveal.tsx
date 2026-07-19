@@ -60,7 +60,13 @@ export function SectionReveal({
     <motion.div
       initial={inicial}
       whileInView={final}
-      viewport={{ once: true, amount: 0.2 }}
+      // "some" (qualquer parte visível), não uma fração fixa: o wrapper
+      // envolve a SEÇÃO INTEIRA, e seções com lista de tamanho livre podem
+      // ficar muito mais altas que a viewport — uma fração como 0.2 exige
+      // 20% da área TOTAL do elemento na viewport, inatingível quando a
+      // seção passa de ~5x a altura da viewport (mesmo bug corrigido na
+      // seção Portfólio da skin de tatuagem — ver SectionReveal de lá).
+      viewport={{ once: true, amount: "some" }}
       transition={{ duration: preset.duration, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}

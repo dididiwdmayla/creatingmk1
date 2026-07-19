@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Miniatura: Barbearia Editorial">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#241B14"/>
+      <stop offset="1" stop-color="#1A1411"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <circle cx="200" cy="150" r="70" fill="none" stroke="#B8862D" stroke-width="4" stroke-opacity="0.7"/>
+  <path d="M170 120 L230 180 M230 120 L170 180" stroke="#B8862D" stroke-width="6" stroke-linecap="round"/>
+  <text x="200" y="250" font-family="Georgia, serif" text-anchor="middle" fill="#E8DCC4" font-size="20" letter-spacing="4">BARBEARIA</text>
+</svg>

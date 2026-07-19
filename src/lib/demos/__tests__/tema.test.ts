@@ -84,6 +84,50 @@ describe("aplicarTema", () => {
   });
 });
 
+describe("aplicarTema — heroTitulo e led", () => {
+  it("sem patch de heroTitulo, mantém o do preset", () => {
+    const tema = aplicarTema(PRESET, {});
+    expect(tema.heroTitulo).toEqual(PRESET.heroTitulo);
+    expect(tema.led).toBe(PRESET.led);
+  });
+
+  it("fonte do heroTitulo vem da lista curada (papel display); id desconhecido ignora", () => {
+    const tema = aplicarTema(PRESET, { heroTitulo: { fonte: "playfair" } });
+    expect(tema.heroTitulo.fonte).toContain("--font-demo-playfair");
+
+    const ignorado = aplicarTema(PRESET, { heroTitulo: { fonte: "nao-existe" } });
+    expect(ignorado.heroTitulo.fonte).toBe(PRESET.heroTitulo.fonte);
+  });
+
+  it("escala é recortada pelos limites da skin", () => {
+    const limites = { min: 0.8, max: 1.2 };
+    expect(aplicarTema(PRESET, { heroTitulo: { escala: 1.05 } }, limites).heroTitulo.escala).toBe(
+      1.05,
+    );
+    expect(aplicarTema(PRESET, { heroTitulo: { escala: 5 } }, limites).heroTitulo.escala).toBe(
+      1.2,
+    );
+    expect(aplicarTema(PRESET, { heroTitulo: { escala: -1 } }, limites).heroTitulo.escala).toBe(
+      0.8,
+    );
+  });
+
+  it("alinhamento do heroTitulo sobrescreve; valor fora do menu cai no preset", () => {
+    expect(aplicarTema(PRESET, { heroTitulo: { alinhamento: "direita" } }).heroTitulo.alinhamento).toBe(
+      "direita",
+    );
+    expect(
+      aplicarTema(PRESET, { heroTitulo: { alinhamento: "no-meio" as never } }).heroTitulo
+        .alinhamento,
+    ).toBe(PRESET.heroTitulo.alinhamento);
+  });
+
+  it("led sobrescreve o preset; valor fora do menu cai no preset", () => {
+    expect(aplicarTema(PRESET, { led: "marcante" }).led).toBe("marcante");
+    expect(aplicarTema(PRESET, { led: "piscando" as never }).led).toBe(PRESET.led);
+  });
+});
+
 describe("inkPara", () => {
   it("preto sobre cor clara, branco sobre cor escura", () => {
     expect(inkPara("#ffffff")).toBe("#111111");

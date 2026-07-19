@@ -6,6 +6,7 @@ import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { BackgroundEffect } from "./BackgroundEffect";
 import { AnimatedScissors } from "./interactive/AnimatedScissors";
 import { IntroExperience } from "./interactive/IntroExperience";
+import { LedEdges } from "./interactive/LedEdges";
 import { ScrollHeader } from "./interactive/ScrollHeader";
 import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
 import { BARBEARIA_SECOES } from "./secoes";
@@ -189,12 +190,21 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
     "--d-deco": fontes.decorativa,
     "--d-citacao": fontes.citacao,
     "--d-destaque": fontes.destaque,
+    // Título hero: controles próprios do editor (aba Tema) — "" em
+    // heroTitulo.fonte herda fontes.display.
+    "--d-hero-font": theme.heroTitulo.fonte || fontes.display,
+    "--d-hero-escala": theme.heroTitulo.escala,
     "--d-sec-y": SECTION_PAD[theme.densidade],
     "--d-anim-duration": ANIM_DURATION[theme.animacao],
     "--d-anim-ease": "cubic-bezier(0.16, 1, 0.3, 1)",
     "--d-hover-scale": ANIM_HOVER_SCALE[theme.animacao],
     "--d-hover-lift": ANIM_HOVER_LIFT[theme.animacao],
   } as CSSProperties;
+  const HERO_ALINHAMENTO_SELF: Record<string, string> = {
+    esquerda: "self-start text-left",
+    centro: "self-center text-center",
+    direita: "self-end text-right",
+  };
 
   const s = data.secoes;
   const agendar = waHref(data.whatsapp);
@@ -250,8 +260,8 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               )}
               <h1
                 data-demo-slot="secoes.hero.titulo"
-                className="font-[family-name:var(--d-display)] uppercase leading-[0.9] tracking-tight text-[var(--d-text)] drop-shadow-2xl"
-                style={{ fontSize: "clamp(3rem, 8vw, 6.5rem)" }}
+                className={`w-full font-[family-name:var(--d-hero-font)] uppercase leading-[0.9] tracking-tight text-[var(--d-text)] drop-shadow-2xl ${HERO_ALINHAMENTO_SELF[theme.heroTitulo.alinhamento]}`}
+                style={{ fontSize: "calc(clamp(3rem, 8vw, 6.5rem) * var(--d-hero-escala))" }}
               >
                 <TypewriterText text={s.hero?.titulo ?? data.nome} delay={1800} speed={80} />
               </h1>
@@ -1003,10 +1013,49 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         @media (prefers-reduced-motion: reduce) {
           .d-bg-gradiente, .d-bg-particulas { display: none; }
         }
+
+        /* Bordas laterais com luz LED (Theme.led) — ver LedEdges.tsx.
+           --d-led-scroll (0–1, escrito via ref/rAF) desloca o ponto mais
+           brilhante do gradiente ao longo da barra conforme o progresso do
+           scroll; box-shadow/opacity só, sem transform de layout. */
+        .d-led-edges {
+          position: fixed; inset: 0; z-index: 45; pointer-events: none;
+          --d-led-scroll: 0;
+        }
+        .d-led-bar {
+          position: absolute; top: 0; bottom: 0; width: 3px;
+          background: linear-gradient(to bottom,
+            transparent 0%,
+            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(var(--d-led-scroll) * 100% - 18%),
+            var(--d-accent) calc(var(--d-led-scroll) * 100%),
+            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(var(--d-led-scroll) * 100% + 18%),
+            transparent 100%);
+          box-shadow: 0 0 10px 1px color-mix(in srgb, var(--d-accent) 55%, transparent);
+          opacity: 0.5;
+          transition: opacity 200ms ease, box-shadow 200ms ease;
+        }
+        [data-d-led="marcante"] .d-led-bar {
+          width: 4px;
+          opacity: 0.85;
+          box-shadow: 0 0 20px 3px color-mix(in srgb, var(--d-accent) 70%, transparent);
+        }
+        .d-led-left { left: 0; }
+        .d-led-right { right: 0; }
+        @keyframes d-led-pulso {
+          0% { filter: brightness(1); }
+          30% { filter: brightness(1.8); }
+          100% { filter: brightness(1); }
+        }
+        .d-led-pulse .d-led-bar { animation: d-led-pulso 500ms ease-out; }
+        @media (prefers-reduced-motion: reduce) {
+          .d-led-bar { transition: none; }
+          .d-led-pulse .d-led-bar { animation: none; }
+        }
       `}</style>
 
       {/* Efeito sutil de fundo do tema (overlay fixo; ver BackgroundEffect). */}
       <BackgroundEffect efeito={theme.fundoEfeito} animacao={theme.animacao} />
+      <LedEdges preset={theme.led} />
 
       <IntroExperience
         nome={data.nome}

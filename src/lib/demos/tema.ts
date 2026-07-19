@@ -1,11 +1,16 @@
 import { getFonte } from "./fontes";
 import {
+  ALINHAMENTOS,
   CLIQUE_ESTILOS,
   FUNDO_EFEITOS,
   HOVER_ESTILOS,
+  LED_PRESETS,
   type TemaPatch,
   type Theme,
 } from "./types";
+
+/** Limites de escala do título hero quando a skin não declara os dela. */
+const ESCALA_LIMITES_PADRAO = { min: 0.75, max: 1.3 };
 
 /**
  * Aplicação do TemaPatch (LeadDemo.tema) por cima do preset escolhido.
@@ -52,13 +57,27 @@ export function inkPara(destaque: string): string {
   return contrastePreto >= contrasteBranco ? "#111111" : "#ffffff";
 }
 
-/** Tema efetivo do lead: preset ← ajustes do TemaPatch. Sem patch, o próprio preset. */
-export function aplicarTema(preset: Theme, patch: TemaPatch | undefined): Theme {
+/**
+ * Tema efetivo do lead: preset ← ajustes do TemaPatch. Sem patch, o
+ * próprio preset. `limitesHero` vem de SkinDefinition.heroEscalaLimites
+ * (ausente = limites padrão) — usado só pra recortar `heroTitulo.escala`.
+ */
+export function aplicarTema(
+  preset: Theme,
+  patch: TemaPatch | undefined,
+  limitesHero: { min: number; max: number } = ESCALA_LIMITES_PADRAO,
+): Theme {
   if (!patch) return preset;
 
   const fonteDisplay = getFonte(patch.fonteDisplay);
   const fonteCorpo = getFonte(patch.fonteCorpo);
+  const fonteHero = getFonte(patch.heroTitulo?.fonte);
   const destaqueValido = patch.destaque && HEX_RE.test(patch.destaque);
+  const escalaPedida = patch.heroTitulo?.escala;
+  const escala =
+    typeof escalaPedida === "number" && !Number.isNaN(escalaPedida)
+      ? Math.min(limitesHero.max, Math.max(limitesHero.min, escalaPedida))
+      : preset.heroTitulo.escala;
 
   return {
     ...preset,
@@ -85,5 +104,14 @@ export function aplicarTema(preset: Theme, patch: TemaPatch | undefined): Theme 
       patch.fundoEfeito && FUNDO_EFEITOS.includes(patch.fundoEfeito)
         ? patch.fundoEfeito
         : preset.fundoEfeito,
+    heroTitulo: {
+      fonte: fonteHero ? fonteHero.css : preset.heroTitulo.fonte,
+      escala,
+      alinhamento:
+        patch.heroTitulo?.alinhamento && ALINHAMENTOS.includes(patch.heroTitulo.alinhamento)
+          ? patch.heroTitulo.alinhamento
+          : preset.heroTitulo.alinhamento,
+    },
+    led: patch.led && LED_PRESETS.includes(patch.led) ? patch.led : preset.led,
   };
 }

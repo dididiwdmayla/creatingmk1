@@ -116,6 +116,15 @@ export interface DemoData {
    * (nunca fotos do cliente original).
    */
   imagens: Record<string, string>;
+  /**
+   * Vídeo por slot de vídeo-no-texto (chaves = SkinDefinition.videoSlots —
+   * opt-in por skin, ver ./registry.ts). Slot ausente = sem vídeo: a skin
+   * cai no fallback (imagem do slot correspondente, se houver, senão cor
+   * sólida). NUNCA tem placeholder — ao contrário de `imagens`, vídeo é
+   * sempre conteúdo real do lead (a Forja não versiona vídeo de terceiros).
+   * URL sempre do Storage (upload em /api/leads/[id]/demo/videos).
+   */
+  videos?: Record<string, string>;
 }
 
 /** Densidade de espaçamento vertical das seções. */
@@ -189,6 +198,27 @@ export interface ThemeFontes {
   destaque: string;
 }
 
+/**
+ * Estilo do título principal (hero), independente do resto da tipografia
+ * — o editor dá controles próprios pra ele (aba Tema): fonte (da lista
+ * curada, papel "display"), escala (multiplica o clamp de tamanho da
+ * skin, dentro de SkinDefinition.heroEscalaLimites) e alinhamento do
+ * bloco. `texto` continua em DemoData (dados.secoes.hero.titulo — ausente
+ * = nome do negócio), já que é conteúdo, não estilo.
+ */
+export interface HeroTituloTema {
+  /** Valor CSS pronto (var(--font-demo-*) + fallback); ausente = fontes.display do tema. */
+  fonte: string;
+  /** Multiplica o tamanho-base do título hero da skin; 1 = tamanho default. */
+  escala: number;
+  alinhamento: Alinhamento;
+}
+
+/** Preset de LED (efeito lateral) — ver Theme.led. */
+export type LedPreset = "desligado" | "sutil" | "marcante";
+
+export const LED_PRESETS: readonly LedPreset[] = ["desligado", "sutil", "marcante"];
+
 /** Tokens visuais de um tema de skin. */
 export interface Theme {
   id: string;
@@ -208,6 +238,14 @@ export interface Theme {
   clique: CliqueEstilo;
   /** Efeito sutil de fundo (gradiente animado / partículas leves). */
   fundoEfeito: FundoEfeito;
+  /** Estilo/escala/alinhamento do título hero (texto continua em DemoData). */
+  heroTitulo: HeroTituloTema;
+  /**
+   * Bordas laterais com luz LED na cor de destaque, reagindo a scroll
+   * (intensidade) e clique (pulso). CSS puro, custo baixo em mobile;
+   * desligado por completo em prefers-reduced-motion. Default "desligado".
+   */
+  led: LedPreset;
 }
 
 /** Props que TODO componente de skin recebe. */
@@ -261,6 +299,9 @@ export interface TemaPatch {
   hover?: HoverEstilo;
   clique?: CliqueEstilo;
   fundoEfeito?: FundoEfeito;
+  /** Ajustes do título hero por cima do preset (fonte/escala/alinhamento). */
+  heroTitulo?: Partial<HeroTituloTema>;
+  led?: LedPreset;
 }
 
 /** Entrada do registro de skins (ver ./registry.tsx). */
@@ -277,6 +318,18 @@ export interface SkinDefinition {
   demoDataExemplo: DemoData;
   /** Seções da skin, na ordem default de render (contrato do editor). */
   secoes: SkinSecaoDef[];
+  /** Limites de escala do título hero oferecidos na aba Tema do editor. */
+  heroEscalaLimites: { min: number; max: number };
+  /**
+   * Slots de vídeo-no-texto que esta skin suporta (opt-in — ausente/vazio
+   * = a skin não oferece o efeito). Cada id é uma chave de DemoData.videos
+   * (ex.: "titulo"). Upload via /api/leads/[id]/demo/videos valida contra
+   * esta lista, igual a `imagens` mas sem placeholder — sem vídeo no slot,
+   * a skin cai no fallback (imagem correspondente ou cor sólida).
+   */
+  videoSlots?: readonly string[];
+  /** Miniatura estática (ex.: /demos/<nicho>/thumb.svg) pro passo de escolha de skin no fluxo de criação. */
+  thumbnail: string;
 }
 
 /**

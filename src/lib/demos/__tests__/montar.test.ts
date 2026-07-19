@@ -108,6 +108,25 @@ describe("aplicarPatch", () => {
     });
   });
 
+  it("videos: ausente na base fica ausente; patch cria e mescla por slot", () => {
+    expect(aplicarPatch(exemplo, undefined).videos).toBeUndefined();
+
+    const criado = aplicarPatch(exemplo, {
+      videos: { titulo: "https://storage.googleapis.com/b/demos/x/video-titulo-1.mp4" },
+    });
+    expect(criado.videos).toEqual({
+      titulo: "https://storage.googleapis.com/b/demos/x/video-titulo-1.mp4",
+    });
+
+    const mesclado = aplicarPatch(criado, {
+      videos: { rodape: "https://storage.googleapis.com/b/demos/x/video-rodape-1.mp4" },
+    });
+    expect(mesclado.videos).toEqual({
+      titulo: "https://storage.googleapis.com/b/demos/x/video-titulo-1.mp4",
+      rodape: "https://storage.googleapis.com/b/demos/x/video-rodape-1.mp4",
+    });
+  });
+
   it("servicos e depoimentos substituem a lista inteira quando presentes", () => {
     const out = aplicarPatch(exemplo, {
       servicos: [{ nome: "BARBA", preco: "R$ 60" }],

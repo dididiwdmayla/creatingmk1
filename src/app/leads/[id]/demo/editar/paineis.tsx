@@ -18,6 +18,7 @@ import type {
   Densidade,
   FundoEfeito,
   HoverEstilo,
+  LedPreset,
   SkinDefinition,
   TemaPatch,
 } from "@/lib/demos/types";
@@ -502,6 +503,78 @@ function LinhaImagem({
   );
 }
 
+/** Rótulo por slot de vídeo — hoje só "titulo" (vídeo-no-título do wordmark). */
+const ROTULO_SLOT_VIDEO: Record<string, string> = {
+  titulo: "Vídeo no título",
+};
+
+function LinhaVideo({
+  slot,
+  atual,
+  ocupado,
+  onUpload,
+  onRemover,
+}: {
+  slot: string;
+  atual: string | undefined;
+  ocupado: boolean;
+  onUpload: (slot: string, file: File) => void;
+  onRemover: (slot: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function onFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) onUpload(slot, file);
+    event.target.value = "";
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded border border-line p-2.5">
+      <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border border-line bg-surface-2 text-[10px] text-ink-muted">
+        {atual ? (
+          <video src={atual} muted className="h-full w-full object-cover" />
+        ) : (
+          "sem vídeo"
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-foreground">{ROTULO_SLOT_VIDEO[slot] ?? rotuloDoSlot(slot)}</p>
+        <p className="truncate text-[11px] text-ink-muted">
+          {atual ? "Vídeo próprio" : "Sem vídeo — cai na imagem ou cor sólida"}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={ocupado}
+          className="text-xs text-accent hover:underline disabled:opacity-50"
+        >
+          {ocupado ? "Enviando…" : atual ? "Trocar" : "Enviar"}
+        </button>
+        {atual && (
+          <button
+            type="button"
+            onClick={() => onRemover(slot)}
+            disabled={ocupado}
+            className="text-[11px] text-critical hover:underline disabled:opacity-50"
+          >
+            Remover
+          </button>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/mp4,video/webm"
+        onChange={onFile}
+        className="hidden"
+      />
+    </div>
+  );
+}
+
 export function PainelImagens({
   dados,
   skin,
@@ -509,6 +582,10 @@ export function PainelImagens({
   erro,
   onUpload,
   onRemover,
+  uploadVideoSlot,
+  videoErro,
+  onUploadVideo,
+  onRemoverVideo,
 }: {
   dados: DemoData;
   skin: SkinDefinition;
@@ -516,8 +593,13 @@ export function PainelImagens({
   erro: string | null;
   onUpload: (slot: string, file: File) => void;
   onRemover: (slot: string) => void;
+  uploadVideoSlot?: string | null;
+  videoErro?: string | null;
+  onUploadVideo?: (slot: string, file: File) => void;
+  onRemoverVideo?: (slot: string) => void;
 }) {
   const slots = Object.keys(skin.demoDataExemplo.imagens);
+  const videoSlots = skin.videoSlots ?? [];
   return (
     <div className="flex flex-col gap-2">
       <p className="text-[11px] text-ink-muted">
@@ -536,6 +618,27 @@ export function PainelImagens({
           onRemover={onRemover}
         />
       ))}
+
+      {videoSlots.length > 0 && onUploadVideo && onRemoverVideo && (
+        <div className="mt-2 flex flex-col gap-2 border-t border-line pt-3">
+          <p className="text-[11px] text-ink-muted">
+            MP4 ou WebM até 15MB — vídeo pesa e carrega devagar em conexões ruins; sem vídeo (ou
+            se ele não conseguir tocar a tempo), o título cai automaticamente na imagem do hero
+            ou, na falta dela, numa cor sólida.
+          </p>
+          {videoErro && <p className="text-xs text-critical">{videoErro}</p>}
+          {videoSlots.map((slot) => (
+            <LinhaVideo
+              key={slot}
+              slot={slot}
+              atual={dados.videos?.[slot]}
+              ocupado={uploadVideoSlot === slot}
+              onUpload={onUploadVideo}
+              onRemover={onRemoverVideo}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -570,6 +673,18 @@ const FUNDOS: Array<{ id: FundoEfeito; rotulo: string }> = [
   { id: "nenhum", rotulo: "Nenhum" },
   { id: "gradiente", rotulo: "Gradiente animado" },
   { id: "particulas", rotulo: "Partículas" },
+];
+
+const LEDS: Array<{ id: LedPreset; rotulo: string }> = [
+  { id: "desligado", rotulo: "Desligado" },
+  { id: "sutil", rotulo: "Sutil" },
+  { id: "marcante", rotulo: "Marcante" },
+];
+
+const ALINHAMENTOS_HERO: Array<{ id: Alinhamento; rotulo: string }> = [
+  { id: "esquerda", rotulo: "Esquerda" },
+  { id: "centro", rotulo: "Centro" },
+  { id: "direita", rotulo: "Direita" },
 ];
 
 /** Linha de botões Padrão + opções, padrão visual das escolhas do tema. */
@@ -852,6 +967,72 @@ export function PainelTema({
         valor={tema.fundoEfeito}
         onChange={(fundoEfeito) => setTema({ ...tema, fundoEfeito })}
       />
+
+      <Escolha
+        titulo="LED (bordas laterais, reage a scroll e clique)"
+        padraoRotulo={LEDS.find((l) => l.id === preset.led)?.rotulo ?? preset.led}
+        opcoes={LEDS}
+        valor={tema.led}
+        onChange={(led) => setTema({ ...tema, led })}
+      />
+
+      <div className="flex flex-col gap-3 rounded border border-line p-3">
+        <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Título principal (hero)
+        </span>
+
+        <label className={LABEL_CLS}>
+          Fonte do título
+          <select
+            value={tema.heroTitulo?.fonte ?? ""}
+            onChange={(e) =>
+              setTema({
+                ...tema,
+                heroTitulo: { ...tema.heroTitulo, fonte: e.target.value || undefined },
+              })
+            }
+            className={INPUT_CLS}
+          >
+            <option value="">Padrão (acompanha a fonte dos títulos)</option>
+            {fontesPorPapel("display").map((fonte) => (
+              <option key={fonte.id} value={fonte.id}>
+                {fonte.nome}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className={LABEL_CLS}>
+          Tamanho ({(tema.heroTitulo?.escala ?? preset.heroTitulo.escala).toFixed(2)}×)
+          <input
+            type="range"
+            min={skin.heroEscalaLimites.min}
+            max={skin.heroEscalaLimites.max}
+            step={0.05}
+            value={tema.heroTitulo?.escala ?? preset.heroTitulo.escala}
+            onChange={(e) =>
+              setTema({
+                ...tema,
+                heroTitulo: { ...tema.heroTitulo, escala: Number(e.target.value) },
+              })
+            }
+            className="accent-accent"
+          />
+        </label>
+
+        <Escolha
+          titulo="Alinhamento"
+          padraoRotulo={
+            ALINHAMENTOS_HERO.find((a) => a.id === preset.heroTitulo.alinhamento)?.rotulo ??
+            preset.heroTitulo.alinhamento
+          }
+          opcoes={ALINHAMENTOS_HERO}
+          valor={tema.heroTitulo?.alinhamento}
+          onChange={(alinhamento) =>
+            setTema({ ...tema, heroTitulo: { ...tema.heroTitulo, alinhamento } })
+          }
+        />
+      </div>
     </div>
   );
 }
