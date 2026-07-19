@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" role="img" aria-label="Placeholder: ONION RINGS">
+  <rect width="500" height="500" rx="40" fill="#FAF7F2"/>
+  <g transform="translate(250 280)">
+    
+    <g fill="none" stroke="#FFD93D" stroke-width="18">
+      <ellipse cx="0" cy="-40" rx="90" ry="34"/>
+      <ellipse cx="-20" cy="10" rx="90" ry="34"/>
+      <ellipse cx="30" cy="60" rx="90" ry="34"/>
+    </g>
+    
+  </g>
+  <text x="250" y="460" font-family="Georgia, serif" text-anchor="middle" fill="#1A0F0A" fill-opacity="0.4" font-size="18" letter-spacing="6">ONION RINGS</text>
+</svg>

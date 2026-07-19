@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" role="img" aria-label="Placeholder: bebida 5">
+  <rect width="500" height="500" rx="40" fill="#FAF7F2"/>
+  <g transform="translate(250 270)">
+    <path d="M-90 -160 L 90 -160 L 65 170 Q 65 200 30 200 L -30 200 Q -65 200 -65 170 Z" fill="#BFE3F0" stroke="#1A0F0A" stroke-opacity="0.25" stroke-width="6"/>
+    <rect x="-90" y="-180" width="180" height="30" rx="10" fill="#1A0F0A" fill-opacity="0.15"/>
+    <rect x="-8" y="-230" width="16" height="90" rx="8" fill="#FFD93D" transform="rotate(12 0 -185)"/>
+  </g>
+  <text x="250" y="460" font-family="Georgia, serif" text-anchor="middle" fill="#1A0F0A" fill-opacity="0.4" font-size="18" letter-spacing="6">AGUA</text>
+</svg>

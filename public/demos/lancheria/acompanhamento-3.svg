@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" role="img" aria-label="Placeholder: NUGGETS">
+  <rect width="500" height="500" rx="40" fill="#FAF7F2"/>
+  <g transform="translate(250 280)">
+    
+    <g fill="#FFD93D" stroke="#1A0F0A" stroke-opacity="0.2" stroke-width="4">
+      <ellipse cx="-60" cy="-20" rx="55" ry="38" transform="rotate(-10 -60 -20)"/>
+      <ellipse cx="55" cy="-30" rx="55" ry="38" transform="rotate(8 55 -30)"/>
+      <ellipse cx="0" cy="55" rx="58" ry="40" transform="rotate(-4 0 55)"/>
+    </g>
+    
+  </g>
+  <text x="250" y="460" font-family="Georgia, serif" text-anchor="middle" fill="#1A0F0A" fill-opacity="0.4" font-size="18" letter-spacing="6">NUGGETS</text>
+</svg>

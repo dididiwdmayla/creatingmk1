@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-label="Placeholder: chapa quente ao fundo">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="42%" r="60%">
+      <stop offset="0" stop-color="#FF6321" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#1A0F0A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2B1A10"/>
+      <stop offset="1" stop-color="#1A0F0A"/>
+    </linearGradient>
+    <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M80 0H0V80" fill="none" stroke="#FAF7F2" stroke-opacity="0.04" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect width="1600" height="1000" fill="url(#grid)"/>
+  <rect width="1600" height="1000" fill="url(#glow)"/>
+
+  <!-- silhueta de hamburguer, camadas -->
+  <g transform="translate(800 560)">
+    <ellipse cx="0" cy="-170" rx="230" ry="90" fill="#FFD93D" opacity="0.92"/>
+    <ellipse cx="0" cy="-120" rx="238" ry="34" fill="#1A0F0A" opacity="0.5"/>
+    <path d="M-238 -90 Q -200 -40 -160 -90 Q -120 -40 -80 -90 Q -40 -40 0 -90 Q 40 -40 80 -90 Q 120 -40 160 -90 Q 200 -40 238 -90 L 238 -60 L -238 -60 Z" fill="#4ADE80"/>
+    <rect x="-238" y="-58" width="476" height="46" rx="10" fill="#FF6321"/>
+    <rect x="-238" y="6" width="476" height="70" rx="16" fill="#6B3A1E"/>
+    <ellipse cx="0" cy="96" rx="238" ry="60" fill="#FFD93D"/>
+    <g fill="#1A0F0A" opacity="0.5">
+      <circle cx="-120" cy="-190" r="7"/><circle cx="-60" cy="-205" r="7"/>
+      <circle cx="0" cy="-212" r="7"/><circle cx="60" cy="-205" r="7"/>
+      <circle cx="120" cy="-190" r="7"/><circle cx="-30" cy="-185" r="6"/><circle cx="30" cy="-185" r="6"/>
+    </g>
+  </g>
+
+  <text x="800" y="920" font-family="Georgia, serif" text-anchor="middle" fill="#FAF7F2" fill-opacity="0.35" font-size="22" letter-spacing="10">CHAPA QUENTE, TODO DIA</text>
+</svg>
