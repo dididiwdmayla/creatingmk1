@@ -21,18 +21,21 @@ import { VideoNoTitulo } from "./interactive/VideoNoTitulo";
 export function Wordmark({
   nome,
   className = "",
+  slot,
   videoSrc,
   imagemFallback,
 }: {
   nome: string;
   className?: string;
+  /** Marca o slot editável no preview (ver data-demo-slot nas demais skins). */
+  slot?: string;
   /** URL do Storage (dados.videos["titulo"]); ausente = sem tentativa de vídeo. */
   videoSrc?: string;
   /** Fallback estático (ex.: dados.imagens.hero) pra quando o vídeo não roda. */
   imagemFallback?: string;
 }) {
   return (
-    <span className={`d-wordmark ${className}`} aria-label={nome}>
+    <span className={`d-wordmark ${className}`} data-demo-slot={slot} aria-label={nome}>
       <span className="d-wordmark-fill" aria-hidden="true">
         {nome}
       </span>

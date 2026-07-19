@@ -42,6 +42,8 @@ export const SKINS: SkinDefinition[] = [
     thumbnail: "/demos/barbearia/thumb.svg",
     // Sem videoSlots: vídeo-no-título é opt-in por skin, e a barbearia não
     // porta o efeito (o material bruto dela não tinha esse recurso).
+    // Serifas clássicas/vintage — o registro editorial da barbearia.
+    fontesRecomendadas: ["playfair", "cormorant", "libre-baskerville", "merriweather", "lora", "cinzel"],
   },
   {
     id: "tatuagem-editorial",
@@ -57,6 +59,8 @@ export const SKINS: SkinDefinition[] = [
     thumbnail: "/demos/tatuagem/thumb.svg",
     // Fiel ao material bruto: vídeo rodando dentro das letras do wordmark.
     videoSlots: ["titulo"],
+    // Góticas/brutalist/condensadas — o tom sombrio-editorial da skin.
+    fontesRecomendadas: ["pirata", "archivo-black", "oswald", "bebas", "cinzel", "abril"],
   },
   {
     id: "lancheria-chapa-burger",
@@ -72,6 +76,8 @@ export const SKINS: SkinDefinition[] = [
     heroEscalaLimites: { min: 0.7, max: 1.25 },
     thumbnail: "/demos/lancheria/thumb.svg",
     // Sem videoSlots: o material bruto não tem vídeo-no-título.
+    // Displays arredondadas/apetitosas — o tom bem-humorado de lanchonete.
+    fontesRecomendadas: ["fugaz", "archivo-black", "poppins", "montserrat", "bebas", "dm-sans"],
   },
 ];
 

@@ -19,9 +19,23 @@ export function ScrollHeader({
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 50);
+    // Throttled por rAF: sem isso, o listener roda a cada evento nativo de
+    // scroll (muitos por frame em scroll rápido/momentum no mobile),
+    // competindo com o main thread — ver LedEdges.tsx (mesmo padrão).
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        setScrolled(window.scrollY > 50);
+      });
+    };
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (

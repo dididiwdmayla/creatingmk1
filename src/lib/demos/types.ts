@@ -330,6 +330,16 @@ export interface SkinDefinition {
   videoSlots?: readonly string[];
   /** Miniatura estática (ex.: /demos/<nicho>/thumb.svg) pro passo de escolha de skin no fluxo de criação. */
   thumbnail: string;
+  /**
+   * Ids de DEMO_FONTES (ver ./fontes.ts) curados para o nicho desta skin —
+   * 4 a 6 fontes que combinam com o estilo do negócio (ex.: góticas/
+   * condensadas para tatuagem, serifas clássicas para barbearia, displays
+   * arredondadas para lanchonete). O seletor de fontes do editor mostra
+   * essas primeiro, numa seção "Recomendadas para este nicho", com o
+   * restante da lista curada abaixo. Ausente/vazio = sem destaque (mostra
+   * a lista inteira, sem seção de recomendadas).
+   */
+  fontesRecomendadas?: readonly string[];
 }
 
 /**

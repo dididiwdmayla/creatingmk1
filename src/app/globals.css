@@ -106,8 +106,21 @@
   --font-mono: var(--font-mono-data);
 }
 
+/*
+ * Trava o scroll lateral na raiz do documento: efeitos fixos das demos que
+ * sangram além da viewport por design (ex.: .d-bg-gradiente, inset: -25%)
+ * e transforms de entrada por scroll (SectionReveal "deslizar-esquerda"/
+ * "direita") não criam scrollbar horizontal fantasma — "clip" (não
+ * "hidden") porque não precisamos de um novo scroll container, só cortar
+ * o que passa da borda. Ver ARCHITECTURE.md / skins de demo.
+ */
+html {
+  overflow-x: clip;
+}
+
 body {
   min-height: 100%;
+  overflow-x: clip;
   background: var(--background);
   background-image:
     radial-gradient(ellipse 120% 60% at 50% -10%, var(--background-2) 0%, transparent 60%),
