@@ -116,6 +116,12 @@ export const DEMO_FONTES: readonly DemoFonte[] = [
     css: "var(--font-demo-montserrat), system-ui, sans-serif",
     papeis: ["display", "corpo"],
   },
+  {
+    id: "pirata",
+    nome: "Pirata One (blackletter gótica)",
+    css: "var(--font-demo-pirata), 'Times New Roman', serif",
+    papeis: ["display"],
+  },
 ];
 
 export function getFonte(id: string | undefined): DemoFonte | undefined {

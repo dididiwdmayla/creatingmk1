@@ -5,15 +5,17 @@ import {
   Inter,
   JetBrains_Mono,
   Limelight,
+  Pirata_One,
   Playfair_Display,
 } from "next/font/google";
 
 /**
- * Fontes SEMPRE presentes nos presets da skin de barbearia (themes.ts) —
- * carregadas estaticamente (preload default) porque toda demo renderiza
- * pelo menos uma delas, não importa o preset escolhido. As demais fontes
- * da lista curada (src/lib/demos/fontes.ts) só existem para override
- * opcional do editor e são carregadas sob demanda (ver ./registry.ts).
+ * Fontes SEMPRE presentes nos presets das skins de barbearia e tatuagem
+ * (themes.ts de cada uma) — carregadas estaticamente (preload default)
+ * porque toda demo renderiza pelo menos uma delas, não importa o preset
+ * escolhido. As demais fontes da lista curada (src/lib/demos/fontes.ts)
+ * só existem para override opcional do editor e são carregadas sob
+ * demanda (ver ./registry.ts).
  */
 
 const bebas = Bebas_Neue({
@@ -60,6 +62,25 @@ const limelight = Limelight({
   weight: "400",
 });
 
+// Blackletter gótica da skin de tatuagem — wordmark, logo do header e
+// assinatura do footer (única fonte "display" do material bruto).
+const pirata = Pirata_One({
+  variable: "--font-demo-pirata",
+  subsets: ["latin"],
+  weight: "400",
+});
+
+// Pesos 400/900, estilo normal only — igual ao material bruto (que também
+// não carrega itálico real: o "font-light italic" do Manifesto usa itálico
+// SINTÉTICO sobre a face normal, e peso 300 sem face própria cai no 400
+// mais próximo, o mesmo comportamento que replicamos aqui). Var distinta
+// da `--font-demo-playfair` da barbearia (essa é 900 itálico só).
+const playfairBlack = Playfair_Display({
+  variable: "--font-demo-playfair-black",
+  subsets: ["latin"],
+  weight: ["400", "900"],
+});
+
 /** Ids da lista curada (fontes.ts) já cobertos por este pacote estático. */
 export const CORE_FONT_IDS: readonly string[] = [
   "bebas",
@@ -67,6 +88,7 @@ export const CORE_FONT_IDS: readonly string[] = [
   "cormorant",
   "playfair",
   "limelight",
+  "pirata",
 ];
 
 export const demoCoreFontsClassName = [
@@ -77,4 +99,6 @@ export const demoCoreFontsClassName = [
   cormorant.variable,
   playfair.variable,
   limelight.variable,
+  pirata.variable,
+  playfairBlack.variable,
 ].join(" ");

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Placeholder: tatuagem realismo dark">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#141414"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg)"/>
+  <rect x="30" y="30" width="740" height="940" fill="none" stroke="#F5F5F5" stroke-opacity="0.06"/>
+  <g transform="translate(400 480)" fill="none" stroke="#F5F5F5" stroke-opacity="0.55" stroke-width="3">
+    <path d="M-190 0 Q 0 -140 190 0 Q 0 140 -190 0 Z"/>
+    <circle cx="0" cy="0" r="60" stroke="#8B0000" stroke-opacity="0.6"/>
+    <circle cx="0" cy="0" r="22"/>
+  </g>
+  <text x="400" y="900" font-family="Georgia, serif" text-anchor="middle" fill="#8A8A8A" font-size="20" letter-spacing="6">REALISMO DARK</text>
+</svg>

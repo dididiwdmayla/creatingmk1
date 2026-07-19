@@ -139,8 +139,25 @@ src/
           IntroAnimation.tsx         # navalha corta a tela (motion)
           RazorBlade.tsx             # navalha decorativa da intro
           SparkParticles.tsx         # faíscas da intro (motion)
+      tatuagem/
+        Skin.tsx                    # composição { data, theme }, sem hooks próprios
+        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
+        GothicLetters.tsx           # letras góticas gigantes atrás do conteúdo (chrome fixo)
+        Wordmark.tsx                # assinatura tipográfica (gradiente + contorno multicor, CSS puro)
+        secoes.ts                   # contrato SkinSecaoDef[]
+        themes.ts                   # default + presets de tema
+        exemplo.ts                  # DemoData de exemplo (base da ficha)
+        interactive/                # ✅ subcomponentes "use client" (animações/interação)
+          SectionReveal.tsx          # entrada de seção por scroll, intensidade = theme.animacao
+          FadeUp.tsx                 # stagger granular item a item (fiel ao <FadeUp> original)
+          Parallax.tsx               # parallax sutil de imagem (fiel ao <Parallax> original)
+          ScrollHeader.tsx           # header que reage ao scroll
+          CustomCursor.tsx           # cursor de máquina de tatuagem com spring (motion)
+          IntroExperience.tsx        # orquestra cursor + intro + sessionStorage
+          IntroLoader.tsx            # splash letra-a-letra fiel ao original
 public/
   demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem
+  demos/tatuagem/*.svg              # ✅ placeholders locais por slot de imagem
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
