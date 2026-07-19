@@ -7,12 +7,13 @@ import { BackgroundEffect } from "./BackgroundEffect";
 import { CategoryNav } from "./interactive/CategoryNav";
 import { CompactSection } from "./interactive/CompactSection";
 import { BurgerCard } from "./interactive/BurgerCard";
-import { DecorativeBlob } from "./interactive/DecorativeBlob";
+import { DecorativeFloat } from "./interactive/DecorativeFloat";
 import { Header } from "./interactive/Header";
 import { IntroExperience } from "./interactive/IntroExperience";
 import { LedEdges } from "./interactive/LedEdges";
 import { OrderCta } from "./interactive/OrderCta";
 import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
+import { LANCHERIA_DECORATIVE_FLOATS } from "./decorativeFloats";
 import { LANCHERIA_SECOES } from "./secoes";
 
 /**
@@ -134,6 +135,11 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
 
   const s = data.secoes;
 
+  // Um flutuante decorativo por seção que o declara (ver decorativeFloats.ts);
+  // a imagem em si é um slot normal de DemoData.imagens, com placeholder.
+  const floatDe = (secaoId: string) =>
+    LANCHERIA_DECORATIVE_FLOATS.find((f) => f.secaoId === secaoId);
+
   const visiveis = secoesVisiveis(LANCHERIA_SECOES, data);
   const centro = (id: string): boolean => s[id]?.alinhamento === "centro";
   const entradaDe = (id: string) => s[id]?.animacaoEntrada;
@@ -252,7 +258,12 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
             ))}
           </div>
 
-          <DecorativeBlob side="left" rotate={12} size={180} cor="var(--d-accent-2)" />
+          {floatDe("cardapio") && (
+            <DecorativeFloat
+              def={floatDe("cardapio")!}
+              src={data.imagens[floatDe("cardapio")!.slot] ?? data.imagens.hero}
+            />
+          )}
         </section>
       ),
 
@@ -278,7 +289,12 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
             slotPrefix="bebida"
             whatsapp={data.whatsapp}
           />
-          <DecorativeBlob side="right" rotate={-8} size={200} cor="var(--d-accent)" />
+          {floatDe("bebidas") && (
+            <DecorativeFloat
+              def={floatDe("bebidas")!}
+              src={data.imagens[floatDe("bebidas")!.slot] ?? data.imagens.hero}
+            />
+          )}
         </section>
       ),
 
@@ -304,7 +320,12 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
             slotPrefix="acompanhamento"
             whatsapp={data.whatsapp}
           />
-          <DecorativeBlob side="left" rotate={-15} size={220} cor="var(--d-accent-3)" />
+          {floatDe("acompanhamentos") && (
+            <DecorativeFloat
+              def={floatDe("acompanhamentos")!}
+              src={data.imagens[floatDe("acompanhamentos")!.slot] ?? data.imagens.hero}
+            />
+          )}
         </section>
       ),
 

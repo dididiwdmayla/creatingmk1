@@ -255,6 +255,26 @@ export interface SkinProps {
 }
 
 /**
+ * Um flutuante decorativo lateral (imagem com leve parallax vertical no
+ * scroll, ancorada na borda inferior de uma seção — fiel ao efeito de
+ * comida flutuando nas laterais do material bruto da lancheria). O slot
+ * aponta pra uma chave normal de DemoData.imagens (editável no editor como
+ * qualquer outra imagem, mesmo upload/placeholder); posição, tamanho e
+ * rotação são decorativos e fixos pela skin, não conteúdo do usuário.
+ */
+export interface DecorativeFloatDef {
+  /** Chave em DemoData.imagens (e em SkinDefinition.demoDataExemplo.imagens). */
+  slot: string;
+  /** Seção (SkinSecaoDef.id) em que o flutuante é ancorado. */
+  secaoId: string;
+  lado: "esquerda" | "direita";
+  /** Tamanho máximo em px — escala pra baixo em telas estreitas via clamp(). */
+  tamanho: number;
+  /** Rotação fixa em graus. */
+  rotacao: number;
+}
+
+/**
  * Uma seção declarada pela skin, na ordem default de render. O editor usa
  * esta lista para reordenar/ocultar seções e oferecer alinhamento; a
  * validação do PUT usa `alignOptions` para rejeitar alinhamento onde a
@@ -340,6 +360,14 @@ export interface SkinDefinition {
    * a lista inteira, sem seção de recomendadas).
    */
   fontesRecomendadas?: readonly string[];
+  /**
+   * Flutuantes decorativos (imagens com leve parallax nas laterais das
+   * seções — ver DecorativeFloatDef) — opt-in por skin, ausente/vazio =
+   * a skin não usa o efeito. Cada slot é editável em DemoData.imagens
+   * como qualquer outro (upload/placeholder), só posição/tamanho/rotação
+   * vêm fixos daqui.
+   */
+  decorativeFloats?: readonly DecorativeFloatDef[];
 }
 
 /**

@@ -36,10 +36,14 @@ export function Wordmark({
 }) {
   return (
     <span className={`d-wordmark ${className}`} data-demo-slot={slot} aria-label={nome}>
-      <span className="d-wordmark-fill" aria-hidden="true">
-        {nome}
-      </span>
-      <span className="d-wordmark-stroke" aria-hidden="true">
+      {/* Preenchimento em gradiente + contorno multicor NO MESMO elemento
+          (background-clip:text + -webkit-text-stroke): duas camadas irmãs
+          seguindo o mesmo texto, cada uma com sua própria animação CSS
+          infinita, podiam ser promovidas a compositor layers independentes
+          e se dessincronizar por 1 frame sob carga (scroll rápido) — o
+          "ghosting" ficava visível como contorno/sombra se descolando do
+          preenchimento. Um elemento só = uma camada, sem essa divergência. */}
+      <span className="d-wordmark-text" aria-hidden="true">
         {nome}
       </span>
       {(videoSrc || imagemFallback) && (

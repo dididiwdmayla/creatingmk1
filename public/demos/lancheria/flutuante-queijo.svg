@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Placeholder: queijo flutuante">
+  <g transform="translate(120 130)">
+    <path d="M-95 60 L -20 -75 Q -8 -95 8 -75 L 95 60 Q 100 70 88 70 L -83 70 Q -95 70 -95 60 Z"
+      fill="#FFD93D" stroke="#1A0F0A" stroke-opacity="0.3" stroke-width="6" stroke-linejoin="round"/>
+    <circle cx="-30" cy="20" r="14" fill="#FAF7F2" opacity="0.9"/>
+    <circle cx="18" cy="-15" r="10" fill="#FAF7F2" opacity="0.9"/>
+    <circle cx="35" cy="35" r="12" fill="#FAF7F2" opacity="0.9"/>
+    <circle cx="-8" cy="45" r="8" fill="#FAF7F2" opacity="0.9"/>
+  </g>
+</svg>

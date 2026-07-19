@@ -649,18 +649,27 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
           background-blend-mode: overlay;
         }
 
-        /* Assinatura tipográfica (Wordmark): preenchimento em gradiente que
-           deriva devagar + contorno multicor por cima — ver Wordmark.tsx. */
+        /* Assinatura tipográfica (Wordmark): preenchimento em gradiente +
+           contorno multicor NO MESMO elemento (background-clip:text e
+           -webkit-text-stroke coexistem numa única caixa) — ver
+           Wordmark.tsx. Eram duas camadas irmãs (uma só com o fill, outra
+           só com o stroke, sobreposta via position:absolute), cada uma com
+           sua própria animação infinita: sob carga de scroll rápido o
+           navegador podia promovê-las a compositor layers independentes e
+           uma acabava "atrasando" um frame em relação à outra — o contorno
+           parecia se descolar do preenchimento (ghosting). Uma única caixa
+           anima as duas propriedades juntas, sem essa divergência possível.
+           A sombra do título (drop-shadow, className passada pela skin) já
+           cai nesta mesma caixa — nunca numa camada irmã. */
         .d-wordmark { position: relative; display: inline-block; font-family: var(--d-deco); line-height: 1; }
-        .d-wordmark-fill, .d-wordmark-stroke {
+        .d-wordmark-text {
+          display: inline-block;
           text-transform: uppercase;
           letter-spacing: 0.04em;
           /* pre-line (não nowrap): respeita quebra de linha do título
              (textarea do editor) e ainda permite quebrar em telas
              estreitas — nunca força overflow horizontal num título longo. */
           white-space: pre-line;
-        }
-        .d-wordmark-fill {
           background-image: linear-gradient(120deg,
             var(--d-bg) 0%,
             color-mix(in srgb, var(--d-accent) 35%, var(--d-bg)) 20%,
@@ -672,15 +681,10 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
-          animation: d-wordmark-drift 9s ease-in-out infinite;
-        }
-        .d-wordmark-stroke {
-          position: absolute;
-          inset: 0;
-          -webkit-text-fill-color: transparent;
           -webkit-text-stroke: 1px var(--d-accent);
-          opacity: 0.9;
-          animation: d-stroke-cycle 12s ease-in-out infinite;
+          animation:
+            d-wordmark-drift 9s ease-in-out infinite,
+            d-stroke-cycle 12s ease-in-out infinite;
         }
         @keyframes d-wordmark-drift {
           0%, 100% { background-position: 0% 50%; }
@@ -693,7 +697,7 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
           100% { -webkit-text-stroke-color: var(--d-accent); }
         }
         @media (prefers-reduced-motion: reduce) {
-          .d-wordmark-fill, .d-wordmark-stroke { animation: none; }
+          .d-wordmark-text { animation: none; }
         }
 
         /* Faixa rolante infinita (marquee). */
