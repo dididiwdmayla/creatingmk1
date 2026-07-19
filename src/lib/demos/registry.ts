@@ -5,6 +5,13 @@ import {
   BARBEARIA_THEME_DEFAULT,
   BARBEARIA_THEME_PRESETS,
 } from "@/components/demos/barbearia/themes";
+import { LANCHERIA_EXEMPLO } from "@/components/demos/lancheria/exemplo";
+import { LANCHERIA_SECOES } from "@/components/demos/lancheria/secoes";
+import { LancheriaChapaBurger } from "@/components/demos/lancheria/Skin";
+import {
+  LANCHERIA_THEME_DEFAULT,
+  LANCHERIA_THEME_PRESETS,
+} from "@/components/demos/lancheria/themes";
 import { TATUAGEM_EXEMPLO } from "@/components/demos/tatuagem/exemplo";
 import { TATUAGEM_SECOES } from "@/components/demos/tatuagem/secoes";
 import { TatuagemEditorial } from "@/components/demos/tatuagem/Skin";
@@ -50,6 +57,21 @@ export const SKINS: SkinDefinition[] = [
     thumbnail: "/demos/tatuagem/thumb.svg",
     // Fiel ao material bruto: vídeo rodando dentro das letras do wordmark.
     videoSlots: ["titulo"],
+  },
+  {
+    id: "lancheria-chapa-burger",
+    nicho: "lancheria",
+    nome: "Lancheria Chapa Burger",
+    descricao:
+      "Lanchonete artesanal bem-humorada: tipografia poster com contorno, cardápio com efeito de lente no hover e listas compactas de bebidas/acompanhamentos.",
+    componente: LancheriaChapaBurger,
+    themeDefault: LANCHERIA_THEME_DEFAULT,
+    themePresets: LANCHERIA_THEME_PRESETS,
+    demoDataExemplo: LANCHERIA_EXEMPLO,
+    secoes: LANCHERIA_SECOES,
+    heroEscalaLimites: { min: 0.7, max: 1.25 },
+    thumbnail: "/demos/lancheria/thumb.svg",
+    // Sem videoSlots: o material bruto não tem vídeo-no-título.
   },
 ];
 

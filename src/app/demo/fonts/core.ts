@@ -2,6 +2,7 @@ import {
   Bebas_Neue,
   Cormorant_Garamond,
   Crimson_Pro,
+  Fugaz_One,
   Inter,
   JetBrains_Mono,
   Limelight,
@@ -70,6 +71,15 @@ const pirata = Pirata_One({
   weight: "400",
 });
 
+// Display "poster" arredondada da skin de lancheria — logo do header, hero
+// (contorno + drop-shadow) e assinatura do footer, igual ao material bruto
+// (só existe peso 400 na família).
+const fugaz = Fugaz_One({
+  variable: "--font-demo-fugaz",
+  subsets: ["latin"],
+  weight: "400",
+});
+
 // Pesos 400/900, estilo normal only — igual ao material bruto (que também
 // não carrega itálico real: o "font-light italic" do Manifesto usa itálico
 // SINTÉTICO sobre a face normal, e peso 300 sem face própria cai no 400
@@ -89,6 +99,7 @@ export const CORE_FONT_IDS: readonly string[] = [
   "playfair",
   "limelight",
   "pirata",
+  "fugaz",
 ];
 
 export const demoCoreFontsClassName = [
@@ -101,4 +112,5 @@ export const demoCoreFontsClassName = [
   limelight.variable,
   pirata.variable,
   playfairBlack.variable,
+  fugaz.variable,
 ].join(" ");

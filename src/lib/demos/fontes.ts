@@ -122,6 +122,12 @@ export const DEMO_FONTES: readonly DemoFonte[] = [
     css: "var(--font-demo-pirata), 'Times New Roman', serif",
     papeis: ["display"],
   },
+  {
+    id: "fugaz",
+    nome: "Fugaz One (poster arredondada)",
+    css: "var(--font-demo-fugaz), Impact, 'Arial Black', sans-serif",
+    papeis: ["display"],
+  },
 ];
 
 export function getFonte(id: string | undefined): DemoFonte | undefined {

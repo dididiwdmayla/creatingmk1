@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Miniatura: Lancheria Chapa Burger">
+  <defs>
+    <linearGradient id="bgthumb" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2B1A10"/>
+      <stop offset="1" stop-color="#1A0F0A"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bgthumb)"/>
+  <g transform="translate(200 130)">
+    <ellipse cx="0" cy="-46" rx="62" ry="26" fill="#FFD93D"/>
+    <rect x="-62" y="-24" width="124" height="16" rx="6" fill="#4ADE80"/>
+    <rect x="-62" y="-8" width="124" height="20" rx="6" fill="#6B3A1E"/>
+    <ellipse cx="0" cy="26" rx="64" ry="18" fill="#FFD93D"/>
+  </g>
+  <text x="200" y="250" font-family="Georgia, serif" text-anchor="middle" fill="#FAF7F2" font-size="22" letter-spacing="4">CHAPA BURGER</text>
+</svg>

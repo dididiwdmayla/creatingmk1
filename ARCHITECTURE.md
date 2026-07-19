@@ -163,9 +163,26 @@ src/
           IntroLoader.tsx            # splash letra-a-letra fiel ao original
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
           VideoNoTitulo.tsx          # ✅ vídeo/imagem mascarados pelas letras do wordmark (SVG mask + foreignObject)
+      lancheria/
+        Skin.tsx                    # composição { data, theme }, sem hooks próprios
+        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
+        secoes.ts                   # contrato SkinSecaoDef[]
+        themes.ts                   # default + presets de tema
+        exemplo.ts                  # DemoData de exemplo (base da ficha)
+        interactive/                # ✅ subcomponentes "use client" (animações/interação)
+          SectionReveal.tsx          # entrada de seção por scroll, intensidade = theme.animacao
+          Header.tsx                  # header que reage ao scroll + CTA de pedido
+          CategoryNav.tsx             # pills sticky de categoria (cardápio/bebidas/acompanhamentos)
+          BurgerCard.tsx              # card do cardápio: lente de hover revela o "prato vazio" (motion clipPath)
+          CompactSection.tsx          # lista horizontal compacta (bebidas/acompanhamentos)
+          DecorativeBlob.tsx          # blob decorativo entre seções, parallax sutil no scroll
+          OrderCta.tsx                # ✅ CTA de pedido neutro: WhatsApp (data.whatsapp) ou toast "disponível na versão completa"
+          IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
+          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
 public/
   demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/tatuagem/*.svg              # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
+  demos/lancheria/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
@@ -586,6 +603,15 @@ A skin de barbearia da Forja de Demos foi verificada **lado a lado com o materia
 - **Escolha de skin**: lead sem demo em `/leads/{id}/demo/escolher` mostrou os dois cards (miniatura + nicho); escolher "Tatuagem" navegou pro editor com a skin certa já carregada (`?skin=`), sem precisar trocar depois na aba Tema.
 - **LED**: ligar "Marcante" na aba Tema fez as barras vermelhas aparecerem nas bordas esquerda/direita do preview ao vivo.
 - **Título hero**: mover o alinhamento pra "Esquerda" e a escala pro máximo do slider moveu e aumentou o wordmark no preview, sem afetar o resto do hero (subtítulo/CTA continuam no lugar).
+
+**Skin "Lancheria Chapa Burger"** (conversão de `skins-raw/lancheria`, uma lanchonete artesanal full stack — Mercado Pago, painel de comandas, carrinho — da qual só as páginas públicas visuais foram portadas): verificada lado a lado com o material bruto (`npm install && next dev` no diretório clonado, screenshots via Playwright em desktop e mobile, comparando com uma página temporária renderizando a skin fora da proteção por sessão — revertida antes do commit, sem alterar `src/proxy.ts` no resultado final).
+
+- **Divergência de cor encontrada e corrigida**: a primeira versão usava `paleta.destaque` (cor de CTA) para os títulos também, deixando os botões amarelos — no material bruto os botões ("VER CARDÁPIO", "ESCOLHER", "+") são sempre laranja e só títulos/logo são amarelos. Corrigido remapeando os papéis: `destaque` = laranja (ação), `acentoSecundario` = amarelo (marca/títulos), `acentoTerciario` = verde (preço, papel fixo em todos os presets — igual ao `alface` do original).
+- **Efeito de lente do card do cardápio** (`BurgerCard.tsx`, fiel ao `<BurgerCard>` original: `clipPath` circular via `useMotionValue`/`useSpring`/`useMotionTemplate` que revela o "prato vazio" sob a foto do lanche, com frase aleatória sem repetição) confirmado hover a hover em navegador real — círculo segue o mouse, frase troca sem repetir a anterior.
+- **CTA de pedido neutro** (`OrderCta.tsx`): substitui carrinho/checkout/Mercado Pago do original — com `data.whatsapp` preenchido (caso do exemplo), vira link `wa.me` com mensagem pronta por item; sem número, mostra o toast "Disponível na versão completa" (mesmo cartão/animação de toast do material bruto, sem o carrinho por trás). Usado no botão do header, "ESCOLHER" do cardápio, "+" de bebidas/acompanhamentos e "Fazer Pedido" do rodapé.
+- **Elemento decorativo entre seções** (`DecorativeBlob.tsx`, parallax fiel ao `<DecorativeElement>` original): reposicionado da borda superior (onde sobrepunha o título da seção seguinte) pra borda inferior com `-z-10`, garantindo que fique sempre atrás do texto independente da ordem de reprodução no DOM.
+- **Fonte nova**: Fugaz One (display "poster" do material bruto) virou fonte core (`--font-demo-fugaz`) e entrou na lista curada do editor (`lib/demos/fontes.ts`) — nenhuma das skins anteriores tinha essa família.
+- Responsivo confirmado em mobile (390px): título do hero quebra em duas linhas naturalmente (sem split manual), grade de lanches vira coluna única, listas de bebidas/acompanhamentos mantêm rolagem horizontal, rodapé empilha.
 
 ## Variáveis de ambiente
 

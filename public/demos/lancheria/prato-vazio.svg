@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 700" role="img" aria-label="Placeholder: prato vazio com migalhas">
+  <rect width="700" height="700" rx="48" fill="#FAF7F2"/>
+  <circle cx="350" cy="360" r="230" fill="none" stroke="#1A0F0A" stroke-opacity="0.15" stroke-width="10"/>
+  <circle cx="350" cy="360" r="160" fill="none" stroke="#1A0F0A" stroke-opacity="0.08" stroke-width="4"/>
+  <g fill="#1A0F0A" fill-opacity="0.28">
+    <circle cx="300" cy="330" r="7"/><circle cx="340" cy="300" r="5"/><circle cx="400" cy="340" r="8"/>
+    <circle cx="420" cy="390" r="5"/><circle cx="330" cy="410" r="6"/><circle cx="270" cy="380" r="4"/>
+    <circle cx="380" cy="280" r="4"/><circle cx="440" cy="310" r="5"/><circle cx="260" cy="300" r="5"/>
+  </g>
+  <text x="350" y="640" font-family="Georgia, serif" text-anchor="middle" fill="#1A0F0A" fill-opacity="0.4" font-size="20" letter-spacing="8">SÓ SOBROU O CHEIRO</text>
+</svg>
