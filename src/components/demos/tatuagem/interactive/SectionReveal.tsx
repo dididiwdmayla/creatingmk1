@@ -56,7 +56,15 @@ export function SectionReveal({
     <motion.div
       initial={inicial}
       whileInView={final}
-      viewport={{ once: true, amount: 0.2 }}
+      // "some" (qualquer parte visível), não uma fração fixa: o wrapper
+      // envolve a SEÇÃO INTEIRA, e seções com lista de tamanho livre (ex.:
+      // portfólio, até 30 itens — ver validate.ts) podem ficar muito mais
+      // altas que a viewport, sobretudo no masonry de 1 coluna do celular.
+      // Uma fração como 0.2 exige que 20% da área TOTAL do elemento
+      // intersecte a viewport — matematicamente inatingível quando a seção
+      // passa de ~5x a altura da viewport, deixando a seção (e as imagens
+      // dentro dela) presa em opacity:0 para sempre.
+      viewport={{ once: true, amount: "some" }}
       transition={{ duration: preset.duration, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}

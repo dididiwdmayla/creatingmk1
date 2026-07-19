@@ -205,6 +205,65 @@ describe("PUT /api/leads/[id]/demo", () => {
     expect(texto).toContain("tema.fundoEfeito");
   });
 
+  it("salva heroTitulo (fonte/escala/alinhamento) e led; valores inválidos → 400", async () => {
+    const ok = await put("A", {
+      ...VALIDO,
+      tema: { heroTitulo: { fonte: "playfair", escala: 1.1, alinhamento: "centro" }, led: "marcante" },
+    });
+
+    expect(ok.status).toBe(200);
+    const { lead } = await ok.json();
+    expect(lead.demo.tema).toEqual({
+      heroTitulo: { fonte: "playfair", escala: 1.1, alinhamento: "centro" },
+      led: "marcante",
+    });
+
+    const ruim = await put("A", {
+      ...VALIDO,
+      tema: {
+        heroTitulo: { fonte: "lora", escala: "grande", alinhamento: "no-meio" },
+        led: "piscando",
+      },
+    });
+    expect(ruim.status).toBe(400);
+    const texto = (await ruim.json()).error.problemas.join(" | ");
+    // "lora" é papel "corpo", não "display" — inválida pro título hero.
+    expect(texto).toContain("tema.heroTitulo.fonte");
+    expect(texto).toContain("tema.heroTitulo.escala");
+    expect(texto).toContain("tema.heroTitulo.alinhamento");
+    expect(texto).toContain("tema.led");
+  });
+
+  it("dados.videos: opt-in por skin (SkinDefinition.videoSlots)", async () => {
+    const comVideo = await put("A", {
+      skinId: "tatuagem-editorial",
+      themeId: "sangue",
+      dados: { videos: { titulo: "https://storage.googleapis.com/b/demos/A/video-titulo-1.mp4" } },
+    });
+    expect(comVideo.status).toBe(200);
+    const { lead } = await comVideo.json();
+    expect(lead.demo.dados.videos).toEqual({
+      titulo: "https://storage.googleapis.com/b/demos/A/video-titulo-1.mp4",
+    });
+
+    const slotDesconhecido = await put("A", {
+      skinId: "tatuagem-editorial",
+      themeId: "sangue",
+      dados: { videos: { rodape: "https://storage.googleapis.com/b/demos/A/video-rodape-1.mp4" } },
+    });
+    expect(slotDesconhecido.status).toBe(400);
+    expect((await slotDesconhecido.json()).error.problemas.join(" ")).toContain(
+      "não oferece vídeo-no-título",
+    );
+
+    // Barbearia não declara videoSlots: qualquer vídeo é rejeitado.
+    const semSuporte = await put("A", {
+      ...VALIDO,
+      dados: { videos: { titulo: "https://storage.googleapis.com/b/demos/A/video-titulo-1.mp4" } },
+    });
+    expect(semSuporte.status).toBe(400);
+  });
+
   it("salva animacaoEntrada por seção onde a skin oferece; inválida → 400", async () => {
     const ok = await put("A", {
       ...VALIDO,

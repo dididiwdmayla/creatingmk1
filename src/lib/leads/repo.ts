@@ -329,6 +329,26 @@ export async function removeDemoImagem(
   return updated;
 }
 
+/** Mesma lógica de removeDemoImagem, pro override de dados.videos[slot]. */
+export async function removeDemoVideo(
+  db: AppDb,
+  placeId: string,
+  slot: string,
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  if (!lead.demo?.dados.videos?.[slot]) return lead;
+  const videos = { ...lead.demo.dados.videos };
+  delete videos[slot];
+  const updated: Lead = {
+    ...lead,
+    demo: { ...lead.demo, dados: { ...lead.demo.dados, videos } },
+    atualizadoEm: now.toISOString(),
+  };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
 export async function saveDetails(
   db: AppDb,
   placeId: string,

@@ -32,6 +32,11 @@ const INTERACOES_ORIGINAIS = {
   hover: "lift",
   clique: "nenhum",
   fundoEfeito: "nenhum",
+  // fonte "" = herda fontes.display do próprio preset (alguns presets, como
+  // Creme, sobrescrevem display — o hero acompanha sem ficar preso a uma
+  // fonte fixa aqui). Hero nasce à esquerda, fiel ao material bruto.
+  heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
+  led: "desligado",
 } as const;
 
 const NORTE: Theme = {

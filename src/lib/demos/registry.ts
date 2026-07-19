@@ -31,6 +31,10 @@ export const SKINS: SkinDefinition[] = [
     themePresets: BARBEARIA_THEME_PRESETS,
     demoDataExemplo: BARBEARIA_EXEMPLO,
     secoes: BARBEARIA_SECOES,
+    heroEscalaLimites: { min: 0.8, max: 1.2 },
+    thumbnail: "/demos/barbearia/thumb.svg",
+    // Sem videoSlots: vídeo-no-título é opt-in por skin, e a barbearia não
+    // porta o efeito (o material bruto dela não tinha esse recurso).
   },
   {
     id: "tatuagem-editorial",
@@ -42,6 +46,10 @@ export const SKINS: SkinDefinition[] = [
     themePresets: TATUAGEM_THEME_PRESETS,
     demoDataExemplo: TATUAGEM_EXEMPLO,
     secoes: TATUAGEM_SECOES,
+    heroEscalaLimites: { min: 0.7, max: 1.3 },
+    thumbnail: "/demos/tatuagem/thumb.svg",
+    // Fiel ao material bruto: vídeo rodando dentro das letras do wordmark.
+    videoSlots: ["titulo"],
   },
 ];
 

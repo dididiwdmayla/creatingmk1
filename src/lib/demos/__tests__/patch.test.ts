@@ -83,6 +83,17 @@ describe("montarPatch", () => {
     });
   });
 
+  it("videos: só entram slots que apontam pra longe da base (ausente = sem vídeo)", () => {
+    const atual = clone(BASE);
+    atual.videos = { titulo: "https://storage.googleapis.com/b/demos/A/video-titulo-1.mp4" };
+    const patch = montarPatch(BASE, atual, DEFAULT_SKIN);
+    expect(patch.videos).toEqual({
+      titulo: "https://storage.googleapis.com/b/demos/A/video-titulo-1.mp4",
+    });
+
+    expect(montarPatch(BASE, clone(BASE), DEFAULT_SKIN).videos).toBeUndefined();
+  });
+
   it("ordemSecoes entra só quando difere da ordem default", () => {
     const ordemDefault = DEFAULT_SKIN.secoes.filter((s) => !s.fixa).map((s) => s.id);
     const igual = clone(BASE);

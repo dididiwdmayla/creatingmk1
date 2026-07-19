@@ -317,7 +317,7 @@ export function LeadDetailClient({ id }: { id: string }) {
             </p>
             <div>
               <Link
-                href={`/leads/${lead.placeId}/demo/editar`}
+                href={`/leads/${lead.placeId}/demo/escolher`}
                 className="inline-block rounded bg-accent px-3 py-2 text-sm font-medium text-accent-ink hover:bg-accent/90"
               >
                 Criar demo

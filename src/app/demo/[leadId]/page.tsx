@@ -30,7 +30,7 @@ async function loadDemo(leadId: string) {
   if (!lead?.demo) return undefined;
   const skin = getSkin(lead.demo.skinId);
   if (!skin) return undefined;
-  const theme = aplicarTema(getTheme(skin, lead.demo.themeId), lead.demo.tema);
+  const theme = aplicarTema(getTheme(skin, lead.demo.themeId), lead.demo.tema, skin.heroEscalaLimites);
   const data = montarDemoData(skin.demoDataExemplo, lead, lead.demo.dados);
   // Só busca (import dinâmico) as fontes curadas que o editor de fato
   // escolheu — o resto da lista nunca chega a ser fetched pelo cliente.

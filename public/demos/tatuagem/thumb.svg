@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Miniatura: Tatuagem Editorial Sombria">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#141414"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <g transform="translate(200 140)" stroke="#8B0000" stroke-opacity="0.8" stroke-width="3" fill="none" stroke-linejoin="round">
+    <path d="M-70 60 L 0 -70 L 70 60 Z"/>
+    <line x1="-70" y1="60" x2="70" y2="60"/>
+  </g>
+  <text x="200" y="250" font-family="Georgia, serif" text-anchor="middle" fill="#F5F5F5" font-size="20" letter-spacing="6">TATUAGEM</text>
+</svg>

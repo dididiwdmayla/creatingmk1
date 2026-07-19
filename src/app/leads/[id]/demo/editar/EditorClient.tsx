@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
@@ -59,6 +59,7 @@ function grupoDoSlot(slot: string): string {
 
 export function DemoEditorClient({ id }: { id: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [lead, setLead] = useState<Lead | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -82,6 +83,8 @@ export function DemoEditorClient({ id }: { id: string }) {
   const [excluindo, setExcluindo] = useState(false);
   const [uploadSlot, setUploadSlot] = useState<string | null>(null);
   const [imgErro, setImgErro] = useState<string | null>(null);
+  const [uploadVideoSlot, setUploadVideoSlot] = useState<string | null>(null);
+  const [videoErro, setVideoErro] = useState<string | null>(null);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -92,7 +95,11 @@ export function DemoEditorClient({ id }: { id: string }) {
       .then(({ lead: leadData }) => {
         if (ignore) return;
         setLead(leadData);
-        const inicial = estadoInicial(leadData);
+        // ?skin= vem do passo de escolha (/leads/{id}/demo/escolher) — só
+        // vale pra demo NOVA; uma já salva mantém o skin dela (a troca
+        // continua disponível na aba Tema).
+        const skinDaUrl = !leadData.demo ? searchParams.get("skin") : null;
+        const inicial = estadoInicial(leadData, skinDaUrl ?? undefined);
         setSkinId(inicial.skinId);
         setThemeId(inicial.themeId);
         setTema(inicial.tema);
@@ -109,11 +116,12 @@ export function DemoEditorClient({ id }: { id: string }) {
     return () => {
       ignore = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams só é lido no load inicial do lead.
   }, [id]);
 
   const skin = getSkin(skinId) ?? DEFAULT_SKIN;
   const themeEfetivo = useMemo(
-    () => aplicarTema(getTheme(skin, themeId), tema),
+    () => aplicarTema(getTheme(skin, themeId), tema, skin.heroEscalaLimites),
     [skin, themeId, tema],
   );
   const base = useMemo(
@@ -272,6 +280,41 @@ export function DemoEditorClient({ id }: { id: string }) {
       setImgErro(error instanceof ApiError ? error.message : "Falha ao remover a imagem.");
     } finally {
       setUploadSlot(null);
+    }
+  }
+
+  async function handleUploadVideo(slot: string, file: File) {
+    setVideoErro(null);
+    setUploadVideoSlot(slot);
+    try {
+      const { url } = await api.uploadDemoVideo(id, slot, file, skin.id);
+      atualizar((d) => ({ ...d, videos: { ...d.videos, [slot]: url } }));
+    } catch (error) {
+      setVideoErro(
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : "Falha ao subir o vídeo.",
+      );
+    } finally {
+      setUploadVideoSlot(null);
+    }
+  }
+
+  async function handleRemoverVideo(slot: string) {
+    setVideoErro(null);
+    setUploadVideoSlot(slot);
+    try {
+      const { lead: updated } = await api.deleteDemoVideo(id, slot, skin.id);
+      setLead(updated);
+      atualizar((d) => {
+        const videos = { ...d.videos };
+        delete videos[slot];
+        return { ...d, videos };
+      });
+    } catch (error) {
+      setVideoErro(error instanceof ApiError ? error.message : "Falha ao remover o vídeo.");
+    } finally {
+      setUploadVideoSlot(null);
     }
   }
 
@@ -444,6 +487,10 @@ export function DemoEditorClient({ id }: { id: string }) {
                 erro={imgErro}
                 onUpload={handleUpload}
                 onRemover={handleRemoverImagem}
+                uploadVideoSlot={uploadVideoSlot}
+                videoErro={videoErro}
+                onUploadVideo={handleUploadVideo}
+                onRemoverVideo={handleRemoverVideo}
               />
             )}
             {aba === "tema" && (

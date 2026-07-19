@@ -98,6 +98,12 @@ export function montarPatch(
   }
   if (Object.keys(imagens).length > 0) patch.imagens = imagens;
 
+  const videos: Record<string, string> = {};
+  for (const [slot, src] of Object.entries(atual.videos ?? {})) {
+    if (src && src !== base.videos?.[slot]) videos[slot] = src;
+  }
+  if (Object.keys(videos).length > 0) patch.videos = videos;
+
   const ordemDefault = skin.secoes.filter((s) => !s.fixa).map((s) => s.id);
   if (atual.ordemSecoes && !igualJson(atual.ordemSecoes, ordemDefault)) {
     patch.ordemSecoes = atual.ordemSecoes;

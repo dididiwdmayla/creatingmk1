@@ -49,6 +49,28 @@ describe("registro de skins", () => {
         ).toBe(true);
       }
 
+      // Miniatura do passo de escolha de skin: caminho local existente.
+      expect(skin.thumbnail).toMatch(/^\//);
+      expect(
+        existsSync(join(process.cwd(), "public", skin.thumbnail)),
+        `miniatura ausente em public${skin.thumbnail}`,
+      ).toBe(true);
+
+      // Limites de escala do título hero: min < max, ambos positivos.
+      expect(skin.heroEscalaLimites.min).toBeGreaterThan(0);
+      expect(skin.heroEscalaLimites.max).toBeGreaterThan(skin.heroEscalaLimites.min);
+
+      // Vídeo-no-título é opt-in: NUNCA vem com vídeo de exemplo (a Forja
+      // não versiona vídeo de terceiros — só imagem tem placeholder).
+      expect(exemplo.videos).toBeUndefined();
+
+      // Todo Theme (default + presets) resolve heroTitulo/led — ver tema.ts.
+      for (const theme of skin.themePresets) {
+        expect(theme.heroTitulo.escala).toBeGreaterThan(0);
+        expect(["esquerda", "centro", "direita"]).toContain(theme.heroTitulo.alinhamento);
+        expect(["desligado", "sutil", "marcante"]).toContain(theme.led);
+      }
+
       // Contrato de seções do editor: ids únicos, presentes no exemplo
       // (o painel monta os campos a partir dele), pelo menos uma seção
       // reordenável e alignOptions só com valores válidos.
@@ -77,6 +99,13 @@ describe("registro de skins", () => {
       }
     },
   );
+
+  it("videoSlots é opt-in por skin (tatuagem tem, barbearia não)", () => {
+    const tatuagem = SKINS.find((s) => s.id === "tatuagem-editorial");
+    const barbearia = SKINS.find((s) => s.id === "barbearia-editorial");
+    expect(tatuagem?.videoSlots).toEqual(["titulo"]);
+    expect(barbearia?.videoSlots ?? []).toEqual([]);
+  });
 
   it("getTheme cai no default quando o preset não existe", () => {
     expect(getTheme(DEFAULT_SKIN, "nao-existe")).toBe(DEFAULT_SKIN.themeDefault);

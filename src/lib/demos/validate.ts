@@ -9,6 +9,7 @@ import {
   CLIQUE_ESTILOS,
   FUNDO_EFEITOS,
   HOVER_ESTILOS,
+  LED_PRESETS,
   type AnimacaoEntrada,
   type DemoDataPatch,
   type SkinDefinition,
@@ -94,7 +95,7 @@ function validaDados(
   for (const chave of Object.keys(value)) {
     const conhecida =
       (CAMPOS_TEXTO as readonly string[]).includes(chave) ||
-      ["servicos", "depoimentos", "secoes", "imagens", "ordemSecoes"].includes(chave);
+      ["servicos", "depoimentos", "secoes", "imagens", "videos", "ordemSecoes"].includes(chave);
     if (!conhecida) problemas.push(`dados.${chave}: chave desconhecida`);
   }
 
@@ -224,6 +225,19 @@ function validaDados(
     }
   }
 
+  if (value.videos !== undefined) {
+    if (!isRecord(value.videos)) {
+      problemas.push("dados.videos deve ser um objeto");
+    } else {
+      for (const [slot, src] of Object.entries(value.videos)) {
+        validaTexto(src, `dados.videos.${slot}`, problemas);
+        if (skin && !(skin.videoSlots ?? []).includes(slot)) {
+          problemas.push(`dados.videos.${slot}: a skin não oferece vídeo-no-título nesse slot`);
+        }
+      }
+    }
+  }
+
   return value as DemoDataPatch;
 }
 
@@ -247,6 +261,8 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
         "hover",
         "clique",
         "fundoEfeito",
+        "heroTitulo",
+        "led",
       ].includes(chave)
     ) {
       problemas.push(`tema.${chave}: chave desconhecida`);
@@ -269,6 +285,50 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
     } else if (!fonte.papeis.includes(papel)) {
       problemas.push(`tema.${campo}: a fonte "${id}" não serve para ${papel}`);
     }
+  }
+
+  if (value.heroTitulo !== undefined) {
+    if (!isRecord(value.heroTitulo)) {
+      problemas.push("tema.heroTitulo deve ser um objeto");
+    } else {
+      for (const chave of Object.keys(value.heroTitulo)) {
+        if (!["fonte", "escala", "alinhamento"].includes(chave)) {
+          problemas.push(`tema.heroTitulo.${chave}: chave desconhecida`);
+        }
+      }
+      const fonteId = value.heroTitulo.fonte;
+      if (fonteId !== undefined) {
+        if (typeof fonteId !== "string") {
+          problemas.push("tema.heroTitulo.fonte deve ser string");
+        } else {
+          const fonte = getFonte(fonteId);
+          if (!fonte) {
+            problemas.push(`tema.heroTitulo.fonte: fonte desconhecida "${fonteId}" (ver lista curada)`);
+          } else if (!fonte.papeis.includes("display")) {
+            problemas.push(`tema.heroTitulo.fonte: a fonte "${fonteId}" não serve para display`);
+          }
+        }
+      }
+      if (
+        value.heroTitulo.escala !== undefined &&
+        (typeof value.heroTitulo.escala !== "number" || !Number.isFinite(value.heroTitulo.escala))
+      ) {
+        problemas.push("tema.heroTitulo.escala deve ser um número");
+      }
+      if (
+        value.heroTitulo.alinhamento !== undefined &&
+        (typeof value.heroTitulo.alinhamento !== "string" ||
+          !(ALINHAMENTOS as readonly string[]).includes(value.heroTitulo.alinhamento))
+      ) {
+        problemas.push(
+          `tema.heroTitulo.alinhamento deve ser um de: ${ALINHAMENTOS.join(", ")}`,
+        );
+      }
+    }
+  }
+
+  if (value.led !== undefined && !(LED_PRESETS as readonly string[]).includes(value.led as string)) {
+    problemas.push(`tema.led deve ser um de: ${LED_PRESETS.join(", ")}`);
   }
 
   if (value.destaque !== undefined) {
