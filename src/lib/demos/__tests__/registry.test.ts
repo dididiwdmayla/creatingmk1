@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { getFonte } from "../fontes";
 import { DEFAULT_SKIN, SKINS, getSkin, getTheme } from "../registry";
 
 describe("registro de skins", () => {
@@ -69,6 +70,20 @@ describe("registro de skins", () => {
         expect(theme.heroTitulo.escala).toBeGreaterThan(0);
         expect(["esquerda", "centro", "direita"]).toContain(theme.heroTitulo.alinhamento);
         expect(["desligado", "sutil", "marcante"]).toContain(theme.led);
+      }
+
+      // Fontes recomendadas por nicho: 4–6 ids únicos da lista curada, e
+      // ao menos uma serve para o título hero (papel "display").
+      if (skin.fontesRecomendadas) {
+        expect(skin.fontesRecomendadas.length).toBeGreaterThanOrEqual(4);
+        expect(skin.fontesRecomendadas.length).toBeLessThanOrEqual(6);
+        expect(new Set(skin.fontesRecomendadas).size).toBe(skin.fontesRecomendadas.length);
+        for (const id of skin.fontesRecomendadas) {
+          expect(getFonte(id), `fontesRecomendadas: id desconhecido "${id}"`).toBeDefined();
+        }
+        expect(
+          skin.fontesRecomendadas.some((id) => getFonte(id)?.papeis.includes("display")),
+        ).toBe(true);
       }
 
       // Contrato de seções do editor: ids únicos, presentes no exemplo

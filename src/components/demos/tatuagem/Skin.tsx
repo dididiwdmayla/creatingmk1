@@ -230,7 +230,8 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
 
           <div className={`w-full max-w-[1200px] ${HERO_ALINHAMENTO_TEXT[theme.heroTitulo.alinhamento]}`}>
             <Wordmark
-              nome={data.nome}
+              nome={s.hero?.titulo ?? data.nome}
+              slot="secoes.hero.titulo"
               videoSrc={data.videos?.titulo}
               imagemFallback={data.imagens.hero}
               className="mb-8 block text-[calc(clamp(3rem,13vw,9rem)*var(--d-hero-escala))] leading-[0.9] drop-shadow-[4px_6px_0_rgba(0,0,0,0.9)]"
@@ -637,7 +638,7 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="d-noise relative min-h-screen font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
+      className="d-noise relative min-h-screen overflow-x-clip font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
       <style>{`
         /* Grão de ruído sutil sobre o fundo — mesmo filtro SVG do original (body). */
@@ -654,7 +655,10 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
         .d-wordmark-fill, .d-wordmark-stroke {
           text-transform: uppercase;
           letter-spacing: 0.04em;
-          white-space: nowrap;
+          /* pre-line (não nowrap): respeita quebra de linha do título
+             (textarea do editor) e ainda permite quebrar em telas
+             estreitas — nunca força overflow horizontal num título longo. */
+          white-space: pre-line;
         }
         .d-wordmark-fill {
           background-image: linear-gradient(120deg,

@@ -71,6 +71,7 @@ export const TATUAGEM_EXEMPLO: DemoData = {
   ],
   secoes: {
     hero: {
+      titulo: "ÓSSEA STUDIO",
       texto: "Estúdio de tatuagem autoral. Blackwork, realismo dark e iconografia.",
       cta: "INICIAR CONVERSA",
     },

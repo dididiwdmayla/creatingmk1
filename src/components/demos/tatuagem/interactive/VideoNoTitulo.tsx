@@ -61,6 +61,13 @@ export function VideoNoTitulo({
 
   if (nivel === "nenhum") return null;
 
+  // Título multilinha (textarea do editor, ver paineis.tsx): `<text>` de
+  // SVG não quebra em "\n" sozinho — um `<tspan>` por linha, com a
+  // primeira deslocada pra cima em metade da altura do bloco (dy em em,
+  // igual ao line-height:1 do .d-wordmark em CSS), mantém o bloco inteiro
+  // centrado em y="52%" independente do número de linhas.
+  const linhas = nome.split("\n");
+
   return (
     <svg
       className="pointer-events-none absolute inset-0 h-full w-full"
@@ -83,7 +90,11 @@ export function VideoNoTitulo({
               letterSpacing: "0.04em",
             }}
           >
-            {nome}
+            {linhas.map((linha, i) => (
+              <tspan key={i} x="50%" dy={i === 0 ? `${-(linhas.length - 1) / 2}em` : "1em"}>
+                {linha}
+              </tspan>
+            ))}
           </text>
         </mask>
       </defs>

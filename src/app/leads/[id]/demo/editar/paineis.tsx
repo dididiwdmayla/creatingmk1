@@ -5,7 +5,7 @@ import { Reorder, useDragControls } from "motion/react";
 import { useRef, type ChangeEvent, type ReactNode } from "react";
 
 import { ordemEfetiva } from "@/lib/demos/estrutura";
-import { fontesPorPapel } from "@/lib/demos/fontes";
+import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
 import { SKINS } from "@/lib/demos/registry";
 import { TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
 import type {
@@ -355,7 +355,10 @@ export function PainelConteudo({
                   slot={`secoes.${def.id}.${chave}`}
                   rotulo={rotulo}
                   valor={secao?.[chave] ?? ""}
-                  area={"area" in extra}
+                  // Título principal (hero): aceita quebra de linha — as
+                  // skins renderizam com white-space respeitado (ver
+                  // Skin.tsx de cada nicho).
+                  area={"area" in extra || (def.id === "hero" && chave === "titulo")}
                   onChange={(valor) => setSecaoCampo(def.id, chave, valor)}
                 />
               ),
@@ -733,6 +736,63 @@ function Escolha<T extends string>({
   );
 }
 
+/**
+ * Seletor de fonte (título/corpo/hero) com as fontes curadas do nicho da
+ * skin (`SkinDefinition.fontesRecomendadas`, ver registry.ts) destacadas no
+ * topo, numa seção própria — o resto da lista curada (filtrada por papel)
+ * continua abaixo, sempre acessível. Sem recomendadas para o papel pedido
+ * (skin sem `fontesRecomendadas`, ou nenhuma delas serve pro papel), cai
+ * pra uma lista única, igual ao seletor simples de antes.
+ */
+function SeletorFonte({
+  papel,
+  skin,
+  value,
+  placeholder,
+  onChange,
+}: {
+  papel: FontePapel;
+  skin: SkinDefinition;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  const todas = fontesPorPapel(papel);
+  const recomendadasIds = new Set(skin.fontesRecomendadas ?? []);
+  const recomendadas = todas.filter((fonte) => recomendadasIds.has(fonte.id));
+  const outras = todas.filter((fonte) => !recomendadasIds.has(fonte.id));
+
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={INPUT_CLS}>
+      <option value="">{placeholder}</option>
+      {recomendadas.length > 0 ? (
+        <>
+          <optgroup label={`Recomendadas para ${skin.nicho}`}>
+            {recomendadas.map((fonte) => (
+              <option key={fonte.id} value={fonte.id}>
+                {fonte.nome}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Todas as fontes">
+            {outras.map((fonte) => (
+              <option key={fonte.id} value={fonte.id}>
+                {fonte.nome}
+              </option>
+            ))}
+          </optgroup>
+        </>
+      ) : (
+        todas.map((fonte) => (
+          <option key={fonte.id} value={fonte.id}>
+            {fonte.nome}
+          </option>
+        ))
+      )}
+    </select>
+  );
+}
+
 export function PainelTema({
   skinId,
   onSkinChange,
@@ -824,34 +884,24 @@ export function PainelTema({
 
       <label className={LABEL_CLS}>
         Fonte dos títulos
-        <select
+        <SeletorFonte
+          papel="display"
+          skin={skin}
           value={tema.fonteDisplay ?? ""}
-          onChange={(e) => setTema({ ...tema, fonteDisplay: e.target.value || undefined })}
-          className={INPUT_CLS}
-        >
-          <option value="">Padrão do preset</option>
-          {fontesPorPapel("display").map((fonte) => (
-            <option key={fonte.id} value={fonte.id}>
-              {fonte.nome}
-            </option>
-          ))}
-        </select>
+          placeholder="Padrão do preset"
+          onChange={(value) => setTema({ ...tema, fonteDisplay: value || undefined })}
+        />
       </label>
 
       <label className={LABEL_CLS}>
         Fonte do corpo
-        <select
+        <SeletorFonte
+          papel="corpo"
+          skin={skin}
           value={tema.fonteCorpo ?? ""}
-          onChange={(e) => setTema({ ...tema, fonteCorpo: e.target.value || undefined })}
-          className={INPUT_CLS}
-        >
-          <option value="">Padrão do preset</option>
-          {fontesPorPapel("corpo").map((fonte) => (
-            <option key={fonte.id} value={fonte.id}>
-              {fonte.nome}
-            </option>
-          ))}
-        </select>
+          placeholder="Padrão do preset"
+          onChange={(value) => setTema({ ...tema, fonteCorpo: value || undefined })}
+        />
       </label>
 
       <div>
@@ -983,23 +1033,18 @@ export function PainelTema({
 
         <label className={LABEL_CLS}>
           Fonte do título
-          <select
+          <SeletorFonte
+            papel="display"
+            skin={skin}
             value={tema.heroTitulo?.fonte ?? ""}
-            onChange={(e) =>
+            placeholder="Padrão (acompanha a fonte dos títulos)"
+            onChange={(value) =>
               setTema({
                 ...tema,
-                heroTitulo: { ...tema.heroTitulo, fonte: e.target.value || undefined },
+                heroTitulo: { ...tema.heroTitulo, fonte: value || undefined },
               })
             }
-            className={INPUT_CLS}
-          >
-            <option value="">Padrão (acompanha a fonte dos títulos)</option>
-            {fontesPorPapel("display").map((fonte) => (
-              <option key={fonte.id} value={fonte.id}>
-                {fonte.nome}
-              </option>
-            ))}
-          </select>
+          />
         </label>
 
         <label className={LABEL_CLS}>

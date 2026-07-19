@@ -260,7 +260,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               )}
               <h1
                 data-demo-slot="secoes.hero.titulo"
-                className={`w-full font-[family-name:var(--d-hero-font)] uppercase leading-[0.9] tracking-tight text-[var(--d-text)] drop-shadow-2xl ${HERO_ALINHAMENTO_SELF[theme.heroTitulo.alinhamento]}`}
+                className={`w-full whitespace-pre-line font-[family-name:var(--d-hero-font)] uppercase leading-[0.9] tracking-tight text-[var(--d-text)] drop-shadow-2xl ${HERO_ALINHAMENTO_SELF[theme.heroTitulo.alinhamento]}`}
                 style={{ fontSize: "calc(clamp(3rem, 8vw, 6.5rem) * var(--d-hero-escala))" }}
               >
                 <TypewriterText text={s.hero?.titulo ?? data.nome} delay={1800} speed={80} />
@@ -865,7 +865,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="min-h-screen bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
+      className="min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
       {/* Textura de ruído sutil no fundo — mesmo .noise-overlay do original (body). */}
       <div

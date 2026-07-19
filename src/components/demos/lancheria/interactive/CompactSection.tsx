@@ -94,7 +94,7 @@ export function CompactSection({
     <div className="relative">
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-12 bg-gradient-to-l from-[var(--d-bg)] to-transparent md:block" />
       <div
-        className="scrollbar-hide flex w-[100vw] -ml-4 snap-x snap-mandatory gap-4 overflow-x-auto py-2 pb-6 pl-4 pr-10 md:ml-0 md:w-auto md:px-0 md:pr-0"
+        className="scrollbar-hide flex w-[calc(100%+2rem)] -mx-4 snap-x snap-mandatory gap-4 overflow-x-auto py-2 pb-6 pl-4 pr-10 md:mx-0 md:w-auto md:px-0 md:pr-0"
         id={`${id}-scroll`}
       >
         {itens.map((item, i) => (

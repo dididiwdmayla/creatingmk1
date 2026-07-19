@@ -175,7 +175,7 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
           <div className="mb-6 flex flex-col leading-[0.9]">
             <h1
               data-demo-slot="secoes.hero.titulo"
-              className="w-full font-[family-name:var(--d-hero-font)] uppercase leading-[0.85] tracking-tight text-[var(--d-accent-2)]"
+              className="w-full whitespace-pre-line font-[family-name:var(--d-hero-font)] uppercase leading-[0.85] tracking-tight text-[var(--d-accent-2)]"
               style={
                 {
                   fontSize: "calc(clamp(3.25rem, 13vw, 9rem) * var(--d-hero-escala))",
@@ -400,7 +400,7 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="min-h-screen bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)] selection:bg-[var(--d-accent)] selection:text-[var(--d-accent-ink)]"
+      className="min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)] selection:bg-[var(--d-accent)] selection:text-[var(--d-accent-ink)]"
     >
       {/* Textura de ruído sutil no fundo — mesmo padrão das demais skins. */}
       <div
