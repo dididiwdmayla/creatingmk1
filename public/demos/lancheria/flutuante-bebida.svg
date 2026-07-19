@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Placeholder: bebida flutuante">
+  <g transform="translate(120 125)">
+    <path d="M-55 -70 L 55 -70 L 40 85 Q 38 100 22 100 L -22 100 Q -38 100 -40 85 Z"
+      fill="#FF6321" stroke="#1A0F0A" stroke-opacity="0.3" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M-48 -30 L 48 -30 L 42 20 L -42 20 Z" fill="#FAF7F2" opacity="0.25"/>
+    <ellipse cx="0" cy="-70" rx="55" ry="14" fill="#FAF7F2" stroke="#1A0F0A" stroke-opacity="0.25" stroke-width="5"/>
+    <rect x="8" y="-140" width="14" height="85" rx="7" fill="#4ADE80" transform="rotate(10 15 -100)"/>
+  </g>
+</svg>

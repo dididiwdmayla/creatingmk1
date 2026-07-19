@@ -86,6 +86,24 @@ describe("registro de skins", () => {
         ).toBe(true);
       }
 
+      // Flutuantes decorativos: slot é uma chave real do exemplo (editável
+      // como qualquer imagem), e a seção-âncora existe de fato na skin.
+      if (skin.decorativeFloats) {
+        const secaoIds = new Set(skin.secoes.map((secao) => secao.id));
+        for (const float of skin.decorativeFloats) {
+          expect(
+            exemplo.imagens[float.slot],
+            `decorativeFloats: slot "${float.slot}" ausente em demoDataExemplo.imagens`,
+          ).toBeTruthy();
+          expect(
+            secaoIds.has(float.secaoId),
+            `decorativeFloats: seção-âncora "${float.secaoId}" não existe na skin`,
+          ).toBe(true);
+          expect(["esquerda", "direita"]).toContain(float.lado);
+          expect(float.tamanho).toBeGreaterThan(0);
+        }
+      }
+
       // Contrato de seções do editor: ids únicos, presentes no exemplo
       // (o painel monta os campos a partir dele), pelo menos uma seção
       // reordenável e alignOptions só com valores válidos.

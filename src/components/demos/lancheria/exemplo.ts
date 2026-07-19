@@ -107,5 +107,8 @@ export const LANCHERIA_EXEMPLO: DemoData = {
     "acompanhamento-2": "/demos/lancheria/acompanhamento-2.svg",
     "acompanhamento-3": "/demos/lancheria/acompanhamento-3.svg",
     "acompanhamento-4": "/demos/lancheria/acompanhamento-4.svg",
+    "flutuante-bacon": "/demos/lancheria/flutuante-bacon.svg",
+    "flutuante-queijo": "/demos/lancheria/flutuante-queijo.svg",
+    "flutuante-bebida": "/demos/lancheria/flutuante-bebida.svg",
   },
 };

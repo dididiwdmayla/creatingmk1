@@ -5,6 +5,7 @@ import {
   BARBEARIA_THEME_DEFAULT,
   BARBEARIA_THEME_PRESETS,
 } from "@/components/demos/barbearia/themes";
+import { LANCHERIA_DECORATIVE_FLOATS } from "@/components/demos/lancheria/decorativeFloats";
 import { LANCHERIA_EXEMPLO } from "@/components/demos/lancheria/exemplo";
 import { LANCHERIA_SECOES } from "@/components/demos/lancheria/secoes";
 import { LancheriaChapaBurger } from "@/components/demos/lancheria/Skin";
@@ -78,6 +79,8 @@ export const SKINS: SkinDefinition[] = [
     // Sem videoSlots: o material bruto não tem vídeo-no-título.
     // Displays arredondadas/apetitosas — o tom bem-humorado de lanchonete.
     fontesRecomendadas: ["fugaz", "archivo-black", "poppins", "montserrat", "bebas", "dm-sans"],
+    // Comida flutuando nas laterais (bacon/queijo/bebida), fiel ao material bruto.
+    decorativeFloats: LANCHERIA_DECORATIVE_FLOATS,
   },
 ];
 
