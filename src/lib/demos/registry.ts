@@ -5,6 +5,13 @@ import {
   BARBEARIA_THEME_DEFAULT,
   BARBEARIA_THEME_PRESETS,
 } from "@/components/demos/barbearia/themes";
+import { TATUAGEM_EXEMPLO } from "@/components/demos/tatuagem/exemplo";
+import { TATUAGEM_SECOES } from "@/components/demos/tatuagem/secoes";
+import { TatuagemEditorial } from "@/components/demos/tatuagem/Skin";
+import {
+  TATUAGEM_THEME_DEFAULT,
+  TATUAGEM_THEME_PRESETS,
+} from "@/components/demos/tatuagem/themes";
 import type { SkinDefinition, Theme } from "./types";
 
 /**
@@ -24,6 +31,17 @@ export const SKINS: SkinDefinition[] = [
     themePresets: BARBEARIA_THEME_PRESETS,
     demoDataExemplo: BARBEARIA_EXEMPLO,
     secoes: BARBEARIA_SECOES,
+  },
+  {
+    id: "tatuagem-editorial",
+    nicho: "tatuagem",
+    nome: "Tatuagem Editorial Sombria",
+    descricao: "Preto profundo e sangue: blackletter gótica, manifesto editorial e portfólio em masonry.",
+    componente: TatuagemEditorial,
+    themeDefault: TATUAGEM_THEME_DEFAULT,
+    themePresets: TATUAGEM_THEME_PRESETS,
+    demoDataExemplo: TATUAGEM_EXEMPLO,
+    secoes: TATUAGEM_SECOES,
   },
 ];
 
