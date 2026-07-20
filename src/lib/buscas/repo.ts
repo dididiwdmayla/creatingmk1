@@ -1,6 +1,12 @@
 import { NotFoundError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
-import { BUSCAS_COLLECTION, BUSCA_CORES, type Busca } from "./types";
+import {
+  BUSCAS_COLLECTION,
+  BUSCA_CORES,
+  execucoesCollection,
+  type Busca,
+  type BuscaExecucao,
+} from "./types";
 
 // O Firestore real rejeita undefined como valor (subNicho ausente); o
 // round-trip JSON descarta essas chaves.
@@ -41,10 +47,48 @@ export async function listBuscas(db: AppDb): Promise<Busca[]> {
     .sort((a, b) => b.criadaEm.localeCompare(a.criadaEm));
 }
 
+/**
+ * Buscas recorrentes na ordem DETERMINÍSTICA de execução do cron: mais
+ * antiga primeiro (criadaEm asc, desempate pelo id) — a fila não muda de
+ * ordem entre rodadas, então um teto de cota estourado interrompe sempre
+ * as mesmas buscas do fim da fila, nunca aleatoriamente.
+ */
+export async function listBuscasRecorrentes(db: AppDb): Promise<Busca[]> {
+  const todas = await listBuscas(db);
+  return todas
+    .filter((busca) => busca.recorrente === true)
+    .sort((a, b) => a.criadaEm.localeCompare(b.criadaEm) || a.id.localeCompare(b.id));
+}
+
+/**
+ * Grava o resumo do delta de uma re-execução do cron na subcoleção
+ * /buscas/{id}/execucoes e soma o delta aos totais do grupo (os leads
+ * novos do cron pertencem a esta busca — os contadores acompanham).
+ */
+export async function registrarExecucao(
+  db: AppDb,
+  buscaId: string,
+  execucao: BuscaExecucao,
+): Promise<void> {
+  await db
+    .collection(execucoesCollection(buscaId))
+    .doc(crypto.randomUUID())
+    .set({ ...execucao });
+  const busca = await getBusca(db, buscaId);
+  const atualizada: Busca = {
+    ...busca,
+    totalCriados: busca.totalCriados + execucao.novos,
+    totalExistentes: busca.totalExistentes + execucao.existentes,
+  };
+  await db.collection(BUSCAS_COLLECTION).doc(buscaId).set(toDoc(atualizada));
+}
+
 export interface BuscaPatch {
   cor?: string;
   /** String vazia limpa a mensagem do grupo (volta ao fallback global). */
   mensagemPadrao?: string;
+  /** Liga/desliga a re-execução diária pelo cron. */
+  recorrente?: boolean;
 }
 
 export async function getBusca(db: AppDb, id: string): Promise<Busca> {
@@ -83,6 +127,10 @@ export async function updateBusca(db: AppDb, id: string, patch: BuscaPatch): Pro
   if (patch.mensagemPadrao !== undefined) {
     // undefined some do doc no toDoc (round-trip JSON descarta a chave)…
     busca.mensagemPadrao = patch.mensagemPadrao.trim() || undefined;
+  }
+  if (patch.recorrente !== undefined) {
+    // false também some do doc — recorrente só existe quando ligado.
+    busca.recorrente = patch.recorrente || undefined;
   }
   await ref.set(toDoc(busca));
   return busca;

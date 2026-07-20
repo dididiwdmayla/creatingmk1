@@ -17,7 +17,8 @@ export default function LoginPage() {
     setErro(null);
     try {
       await api.login(nome, senha);
-      window.location.href = "/";
+      // A fila do dia é a home pós-login (o painel continua em /).
+      window.location.href = "/hoje";
     } catch (error) {
       setErro(
         error instanceof ApiError

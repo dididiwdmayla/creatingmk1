@@ -133,6 +133,21 @@ export async function criarUsuario(
   return usuario;
 }
 
+/**
+ * Carimba a última visita à fila do dia (/hoje). Não mexe em atualizadoEm
+ * (que marca edições administrativas) nem em sessao — visitar não é editar.
+ * Usuário sumido (corrida com exclusão de doc) é no-op.
+ */
+export async function carimbarVisita(
+  db: AppDb,
+  id: string,
+  now: Date = new Date(),
+): Promise<void> {
+  const usuario = await getUsuario(db, id);
+  if (!usuario) return;
+  await docRef(db, id).set(toDoc({ ...usuario, ultimaVisitaEm: now.toISOString() }));
+}
+
 export interface UsuarioPatch {
   nome?: string;
   papel?: Papel;

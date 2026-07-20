@@ -97,6 +97,10 @@ export async function POST(req: Request) {
         nicho,
         subNicho,
         regiao,
+        // Parâmetros da execução, guardados para o cron re-executar o
+        // MESMO pipeline caso a busca vire recorrente.
+        ...(qualificada === true && { qualificada: true }),
+        ...(quantidade !== undefined && { quantidade: quantidade as number }),
         totalCriados: criados,
         totalExistentes: existentes,
         ...(usuario && { userId: usuario.id }),

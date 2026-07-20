@@ -20,6 +20,17 @@ export interface AppConfig {
   regiao: string;
   filtros: { temSite: FiltroPresenca; temTelefone: FiltroPresenca };
   mensagemPadrao: string;
+  /**
+   * Fila do dia (/hoje): lead "contactado" sem resposta há mais deste
+   * número de dias vira follow-up. Inteiro ≥ 1.
+   */
+  followUpDias: number;
+  /**
+   * Teto de buscas recorrentes simultâneas (cron diário). O toggle
+   * "recorrente" recusa passar do teto; o cron também recorta a fila.
+   * Inteiro ≥ 0 (0 desliga a recorrência por completo).
+   */
+  maxBuscasRecorrentes: number;
   caps: UsageCounts;
   precos: {
     usdPor1000: Record<Sku, number>;
@@ -42,6 +53,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   mensagemPadrao:
     "Oi {nome}, tudo bem? Sou web designer e ajudo negócios locais a " +
     "aparecerem melhor no Google. Posso te mostrar uma ideia rápida?",
+  followUpDias: 4,
+  maxBuscasRecorrentes: 3,
   caps: { ...DEFAULT_CAPS },
   precos: {
     usdPor1000: perSku((sku) => DEFAULT_PRICING[sku].usdPer1000),
@@ -56,6 +69,8 @@ const TOP_LEVEL_KEYS = new Set([
   "regiao",
   "filtros",
   "mensagemPadrao",
+  "followUpDias",
+  "maxBuscasRecorrentes",
   "caps",
   "precos",
 ]);
@@ -130,6 +145,24 @@ export function validateConfigPatch(patch: unknown): asserts patch is Partial<Ap
     }
   }
 
+  if (
+    patch.followUpDias !== undefined &&
+    (typeof patch.followUpDias !== "number" ||
+      !Number.isInteger(patch.followUpDias) ||
+      patch.followUpDias < 1)
+  ) {
+    problemas.push("followUpDias deve ser inteiro ≥ 1");
+  }
+
+  if (
+    patch.maxBuscasRecorrentes !== undefined &&
+    (typeof patch.maxBuscasRecorrentes !== "number" ||
+      !Number.isInteger(patch.maxBuscasRecorrentes) ||
+      patch.maxBuscasRecorrentes < 0)
+  ) {
+    problemas.push("maxBuscasRecorrentes deve ser inteiro ≥ 0");
+  }
+
   if (patch.caps !== undefined) {
     validateSkuMap(patch.caps, "caps", problemas, { integer: true });
   }
@@ -192,6 +225,8 @@ export function mergeConfig(base: AppConfig, patch: Partial<AppConfig>): AppConf
     nicho: patch.nicho ?? base.nicho,
     regiao: patch.regiao ?? base.regiao,
     mensagemPadrao: patch.mensagemPadrao ?? base.mensagemPadrao,
+    followUpDias: patch.followUpDias ?? base.followUpDias,
+    maxBuscasRecorrentes: patch.maxBuscasRecorrentes ?? base.maxBuscasRecorrentes,
     filtros: { ...base.filtros, ...patch.filtros },
     caps: mergeSkuMap(base.caps, patch.caps),
     precos: {

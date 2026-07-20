@@ -45,9 +45,33 @@ export interface Busca {
    * regenera sob clique explícito no botão "Analisar com IA".
    */
   analiseIA?: { texto: string; geradaEm: string };
+  /**
+   * Busca recorrente: o cron diário (/api/cron) re-executa com os mesmos
+   * parâmetros e anexa os novos leads a ESTE grupo. Teto de recorrentes
+   * simultâneas em config.maxBuscasRecorrentes. Ausente/false = só manual.
+   */
+  recorrente?: boolean;
+  /** Parâmetros da execução original, reusados pelo cron ("mesmo pipeline"). */
+  qualificada?: boolean;
+  quantidade?: number;
   criadaEm: string;
   totalCriados: number;
   totalExistentes: number;
   /** Usuário que executou a busca (ausente em docs anteriores ao multiusuário). */
   userId?: string;
+}
+
+/**
+ * Resumo do delta de uma re-execução do cron, um doc por rodada em
+ * /buscas/{id}/execucoes (subcoleção — ID UUID, ordenação pelo campo em).
+ */
+export interface BuscaExecucao {
+  em: string;
+  novos: number;
+  existentes: number;
+}
+
+/** Caminho da subcoleção de execuções de uma busca recorrente. */
+export function execucoesCollection(buscaId: string): string {
+  return `${BUSCAS_COLLECTION}/${buscaId}/execucoes`;
 }

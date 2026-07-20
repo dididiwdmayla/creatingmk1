@@ -142,6 +142,43 @@ export default function ConfigPage() {
 
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Operação diária
+        </h2>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Field label="Follow-up após (dias sem resposta)">
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={form.followUpDias}
+              onChange={(e) =>
+                setForm({ ...form, followUpDias: Number(e.target.value) || 0 })
+              }
+              className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+            />
+          </Field>
+          <Field label="Teto de buscas recorrentes">
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={form.maxBuscasRecorrentes}
+              onChange={(e) =>
+                setForm({ ...form, maxBuscasRecorrentes: Number(e.target.value) || 0 })
+              }
+              className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+            />
+          </Field>
+        </div>
+        <p className="mt-2 text-xs text-ink-muted">
+          O cron da madrugada re-executa as buscas marcadas como recorrentes (até o teto) e a
+          fila do dia (/hoje) marca follow-up quem está contactado sem resposta há mais dias
+          que o limite.
+        </p>
+      </section>
+
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Tetos mensais por SKU
         </h2>
         <div className="mt-3 flex flex-col gap-3">

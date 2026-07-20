@@ -43,6 +43,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Vercel Cron chama /api/cron com Bearer CRON_SECRET, sem cookie — a
+  // rota valida o segredo ela mesma. Match EXATO: /api/cron/status (widget
+  // do dashboard) continua atrás da sessão. Também depois do check de
+  // APP_PASSWORD (fail-closed vale para o cron igual).
+  if (pathname === "/api/cron") {
+    return NextResponse.next();
+  }
+
   const sessao = await lerSessaoToken(request.cookies.get(SESSION_COOKIE)?.value, secret);
   if (sessao) {
     if (pathname === "/config" && sessao.papel !== "admin") {
