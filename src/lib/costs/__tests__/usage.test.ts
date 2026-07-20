@@ -25,6 +25,7 @@ describe("reserveQuota", () => {
       detailsEssentials: 0,
       detailsEnterprise: 0,
       geocoding: 0,
+      aiGeneration: 0,
     });
     expect(db.getDoc(DOC)).toMatchObject({ textSearch: 1, detailsEnterprise: 0 });
   });
@@ -52,6 +53,7 @@ describe("reserveQuota", () => {
       detailsEssentials: 0,
       detailsEnterprise: 2,
       geocoding: 0,
+      aiGeneration: 0,
     });
   });
 
@@ -164,6 +166,7 @@ describe("reserveQuota", () => {
       detailsEssentials: 0,
       detailsEnterprise: 0,
       geocoding: 0,
+      aiGeneration: 0,
     });
   });
 
@@ -205,6 +208,7 @@ describe("getUsage", () => {
         detailsEssentials: 0,
         detailsEnterprise: 0,
         geocoding: 0,
+        aiGeneration: 0,
       },
       porUsuario: {},
     });
@@ -226,6 +230,7 @@ describe("getUsage", () => {
         detailsEssentials: 0,
         detailsEnterprise: 0,
         geocoding: 0,
+        aiGeneration: 0,
       },
     });
   });
@@ -242,6 +247,7 @@ describe("getUsage", () => {
       detailsEssentials: 1,
       detailsEnterprise: 17,
       geocoding: 0,
+      aiGeneration: 0,
     });
   });
 

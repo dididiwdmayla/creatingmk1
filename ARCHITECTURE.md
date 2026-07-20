@@ -37,13 +37,14 @@ src/
       paineis.tsx                   #    abas Conteúdo/Imagens/Tema/Estrutura (drag-and-drop via motion, handle dedicado)
       comprimir.ts                  #    compressão client-side (canvas → WebP ≤1600px) antes do upload
     (app)/                          # route group: páginas autenticadas, com Nav
-      layout.tsx                    # ✅ header + bottom nav (Painel/Leads/Buscas/Demos/Config) + Sair
+      layout.tsx                    # ✅ header + bottom nav (Painel/Leads/Buscas/Demos/Chat/Config) + Sair
       page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas, card "Demos criadas"
       leads/page.tsx                # ✅ lista de leads com filtros + nova busca (com auto-enriquecimento)
       leads/[id]/page.tsx           # ✅ wrapper server (extrai params.id, key={id})
       leads/[id]/LeadDetailClient.tsx # ✅ ficha: enriquecer, WhatsApp, transições de status
       buscas/page.tsx               # ✅ buscas salvas → clique filtra os leads da busca
       demos/page.tsx                # ✅ todas as demos ativas: skin, datas, link copiável, editar/excluir
+      mensagens/page.tsx            # ✅ chat privado entre usuários: conversas, envio, polling leve
       config/page.tsx               # ✅ config completa + gestão de usuários (página restrita a admin)
     api/
       login/route.ts                # ✅ POST { nome, senha } → cookie de sessão assinado (+ seed de /usuarios)
@@ -62,6 +63,10 @@ src/
       leads/[id]/demo/route.ts      # ✅ PUT configuração da demo / DELETE exclui demo + imagens
       leads/[id]/demo/imagens/route.ts # ✅ POST upload de imagem de slot / DELETE volta ao placeholder
       leads/[id]/demo/videos/route.ts  # ✅ POST upload de vídeo-no-título / DELETE volta ao fallback (opt-in por skin)
+      leads/[id]/demo/sugestao/route.ts # ✅ POST sugestão de IA da demo (Gemini; SKU aiGeneration)
+      ia/route.ts                   # ✅ GET disponibilidade da IA (GEMINI_API_KEY configurada?)
+      mensagens/route.ts            # ✅ GET resumo/conversa (escopado à sessão) / POST envia texto
+      mensagens/nao-lidas/route.ts  # ✅ GET total de não-lidas (badge do menu, polling leve)
       usage/route.ts                # ✅ GET uso do mês + custo projetado
       metrics/route.ts              # ✅ GET métricas de prospecção
       __tests__/                    # ✅ testes das rotas (fake Firestore + fetch mockado)
@@ -94,6 +99,15 @@ src/
     firebase/
       admin.ts                      # ✅ init lazy do firebase-admin (env vars)
       storage.ts                    # ✅ adaptador do Firebase Storage p/ DemoStorage (bucket via env)
+    ai/                             # ✅ IA na Forja (ver seção própria)
+      gemini.ts                     # cliente do Gemini (flash atual, GEMINI_API_KEY só server-side)
+      sugestao.ts                   # prompt + schema estrito + validação + retry 1x (via reserveQuota)
+      index.ts
+      __tests__/
+    mensagens/                      # ✅ mensagens privadas entre usuários
+      types.ts                      #    Mensagem { deUserId, paraUserId, texto, criadaEm, lidaEm? }
+      repo.ts                       #    enviar/conversa/resumo/não-lidas — leitura SEMPRE escopada à sessão
+      index.ts
     places/
       client.ts                     # ✅ searchText() / placeDetails(), sempre via reserveQuota
     leads/                          # ✅ repositório de leads (upsert, filtros, transições)
@@ -342,6 +356,22 @@ O doc é gravado **depois** do upsert dos leads (para ter os totais). Se a busca
 
 Sobre a **cor**: paleta fixa de 10 (validada contra a superfície escura: banda de luminância, croma e contraste ≥3:1). Com 10 hues a separação CVD de todos os pares é matematicamente inviável — por isso a cor é sempre reforço redundante: o nome da busca acompanha o badge em texto. Docs antigos sem `cor` ganham fallback estável na leitura.
 
+### `/mensagens/{uuid}` — uma mensagem privada por doc
+
+```jsonc
+{
+  "deUserId": "admin",              // remetente (id de /usuarios)
+  "paraUserId": "membro-1",         // destinatário
+  "texto": "Fechei o lead da barbearia!", // texto simples, ≤2000
+  "criadaEm": "<ISO 8601>",
+  "lidaEm": "<ISO 8601>"            // ausente = ainda não lida pelo destinatário
+}
+```
+
+- **Privacidade por construção**: toda leitura no repositório (`src/lib/mensagens/repo.ts`) recebe o userId da SESSÃO e só devolve mensagens em que ele é remetente ou destinatário. **Admin não tem acesso especial** — papel administra usuários, não lê conversa alheia; pedir a conversa de terceiros devolve vazio.
+- `lidaEm` é carimbada quando o destinatário abre a conversa (o `GET ?com=` marca as recebidas) — e o polling da conversa aberta mantém isso atualizado.
+- Docs malformados são ignorados na leitura (mesma postura do módulo de custos: dado sujo nunca quebra listagem).
+
 ### `/geocache/{regiaoNormalizada}` — cache permanente de geocoding
 
 ID = região normalizada (minúsculas, espaços colapsados, URL-encoded). Doc: `{ regiao, endereco, location, viewport, criadoEm }`. Cada região digitada só custa **1 request de geocoding na vida** — o viewport cacheado alimenta o `locationRestriction` de todas as buscas seguintes. Sem expiração: limites geográficos de cidade não mudam em escala relevante para prospecção.
@@ -403,6 +433,11 @@ Formato de erro padrão em todas as rotas:
 | `/api/leads/[id]/demo/imagens` | DELETE | `{ slot }` | `200 { lead }` (apaga arquivos do slot + override salvo) · `400` · `404` | — |
 | `/api/leads/[id]/demo/videos` | POST | multipart `slot` + `arquivo` (+`skinId?`) | `200 { slot, url }` · `400` (formato/tamanho/slot fora de `videoSlots`) · `404` | — |
 | `/api/leads/[id]/demo/videos` | DELETE | `{ slot, skinId? }` | `200 { lead }` (apaga arquivos do slot + override salvo) · `400` · `404` | — |
+| `/api/ia` | GET | — | `200 { disponivel, modelo }` (nunca expõe a chave) | — |
+| `/api/leads/[id]/demo/sugestao` | POST | `{ skinId }` | `200 { sugestao }` · `400` · `404` · `429 quota_exceeded` · `502 ai_error` · `503 ai_unavailable` | Gemini generateContent · **aiGeneration** (1 por tentativa; retry de resposta inválida = 2) |
+| `/api/mensagens` | GET | query opcional `com` | sem `com`: `200 { usuarios[], conversas[], totalNaoLidas }` · com `com`: `200 { mensagens[] }` (marca recebidas como lidas) · `401` | — |
+| `/api/mensagens` | POST | `{ paraUserId, texto (≤2000) }` | `200 { mensagem }` · `400` · `401` · `404` (destinatário) | — |
+| `/api/mensagens/nao-lidas` | GET | — | `200 { total }` · `401` | — |
 | `/api/usage` | GET | — | `200 { period, usage, caps, cotaGratis, custoProjetado, porUsuario? }` — membro: `usage` = SÓ o dele; admin: agregado + `porUsuario[]` com nomes | — |
 | `/api/metrics` | GET | — | `200 { contatosHoje, contatosSemana, taxaResposta, demosCriadas, porUsuario? }` — membro: escopado a ele; admin: agregado + `porUsuario[]` (buscas/demos/contatos) | — |
 | `/api/logout` | POST | — | `204` (limpa o cookie de sessão) | — |
@@ -438,6 +473,7 @@ O Google cobra a chamada pelo **campo de tier mais alto presente no field mask**
 | `detailsEssentials` | `GET places/{id}` | `id,formattedAddress,location` | Essentials · US$5/1.000 · 10.000 grátis | Reservado; fora do fluxo principal |
 | `detailsEnterprise` | `GET places/{id}` | `id,nationalPhoneNumber,internationalPhoneNumber,websiteUri,rating,userRatingCount` | Enterprise · US$20/1.000 · 1.000 grátis | Enriquecimento da ficha (sob demanda) |
 | `geocoding` | `GET geocode/json` | — (Geocoding API não usa field mask) | Essentials · US$5/1.000 · 10.000 grátis | Resolver a região da busca (com cache permanente em `/geocache`) |
+| `aiGeneration` | `POST models/gemini-3.5-flash:generateContent` (Gemini, não Places) | — | Free tier do Flash · US$0 default · teto 50/mês | Sugestões de IA da Forja (ver "IA na Forja") |
 
 > ⚠️ **Tiers conferidos na tabela vigente (jul/2026)**: telefone/site/rating são tier **Enterprise** (não Pro); displayName/endereço/location no Text Search são tier **Pro** (5.000 grátis/mês — não os 10k de Essentials). O SKU antigo `detailsPro` foi renomeado para `detailsEnterprise` com migração de leitura dos contadores e da config. `displayName` foi removido do mask de `detailsEssentials` (é campo Pro em Place Details). Os defaults continuam **todos sobrescrevíveis via `/config/app`** — corrigir preço/cota é mudança de configuração, não de código.
 
@@ -549,6 +585,27 @@ A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta 
 6. Acrescente a entrada em `src/lib/demos/registry.ts` (incluindo `heroEscalaLimites` e `thumbnail`, obrigatórios) — rota pública, ficha e editor passam a conhecê-la sem mais mudanças.
 7. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo, existência física dos placeholders e da miniatura, `heroEscalaLimites` coerentes, `heroTitulo`/`led` resolvidos em todo preset, `videos` ausente no exemplo (vídeo nunca tem placeholder) e o contrato de seções (ids únicos, presentes no exemplo, `alignOptions` válidos, ao menos uma seção reordenável).
 
+## IA na Forja (`src/lib/ai`) — sugestões de demo via Gemini
+
+Botão "✨ Gerar com IA" no editor de demos (e checkbox "Começar com sugestões de IA" no passo de escolha de skin): o Gemini sugere um ponto de partida de tema + textos calibrado pelo nicho. Princípios:
+
+1. **Chave só em env** (`GEMINI_API_KEY`), chamadas exclusivamente server-side (`src/lib/ai/gemini.ts` é o único ponto que fala com `generativelanguage.googleapis.com`). Modelo: `gemini-3.5-flash` (o flash mais atual, GA em jul/2026 — constante `GEMINI_MODEL`).
+2. **Sem a chave, nada quebra**: `GET /api/ia` devolve `{ disponivel: false }`, o editor oculta o botão, o passo de escolha troca o checkbox por um aviso e a rota de sugestão responde `503 ai_unavailable`.
+3. **Mesma mecânica de custos das APIs pagas**: cada chamada real ao Gemini passa por `reserveQuota(sku "aiGeneration")` ANTES do fetch. Teto default 50/mês (configurável em /config como qualquer SKU), preço default US$0 (free tier do flash) — o meter aparece no dashboard como os demais.
+4. **JSON validado com schema estrito, retry 1x**: a rota envia `responseMimeType: application/json` + `responseJsonSchema` (orientação ao modelo) e valida localmente contra o contrato da skin (`validarSugestao`): preset entre os `themePresets` da skin (paleta dentro dos tokens do Theme), `destaque` hex (o único token de cor patchável via `TemaPatch`), fonte da lista curada (papel display, recomendadas da skin primeiro), `animacao` de `ANIMACOES`, e textos curtos pt-BR (slogan ≤120, descrição ≤400, título ≤80 — comprimento é recortado, não motivo de rejeição). Chave desconhecida/enum inválido/seção fora do contrato → UM retry com os problemas anexados ao prompt (nova reserva de cota); inválido de novo → `502 ai_error`.
+5. **Só as seções NÃO-fixas recebem título** — o título da fixa (hero) é o nome/wordmark do negócio; a `descricao` vai para `secoes.hero.texto` (apresentação, não identidade) e o `slogan` para `dados.slogan`.
+6. **Nunca sobrescreve sem confirmar**: a rota só GERA — quem escreve é o usuário. O editor mostra a sugestão num preview (preset, amostra da cor, fonte, animação, textos) com **Aplicar/Descartar**; aplicar muda apenas o rascunho em memória e nada é publicado sem o "Salvar" normal (PUT com a validação estrita de sempre). O fluxo `?ia=1` da criação usa o MESMO preview — a demo nova "começa com sugestões", mas ainda atrás de um Aplicar explícito.
+7. **Prompt** (`montarPromptSugestao`): nicho (da busca do lead, fallback no nicho da skin), sub-nicho, nome, endereço e rating/total de avaliações JÁ salvos (nunca dispara busca/enriquecimento novo), mais as escolhas permitidas. Dados públicos do lead, nenhum dado sensível.
+
+## Mensagens entre usuários (`src/lib/mensagens` + `/mensagens`)
+
+Chat interno de texto simples entre os usuários do time (coleção `/mensagens` — ver modelo de dados). Decisões:
+
+- **Privacidade no repositório, não só na rota**: toda leitura exige o userId da sessão e filtra por participação. Admin gerencia usuários mas NÃO lê conversas alheias — não existe rota/flag que devolva mensagem de terceiros.
+- **Polling leve, sem websocket** (escala de 3 usuários): conversa aberta a cada 5s, lista de conversas a cada 10s, badge do menu a cada 30s (+ refetch ao trocar de rota). O `GET ?com=` já marca as recebidas como lidas — manter a conversa aberta é "ler".
+- **Página `/mensagens`** (route group `(app)`, protegida por sessão como tudo): lista de conversas (um card por colega, com última mensagem, horário e badge de não-lidas; usuário desativado aparece marcado, histórico preservado) e a conversa aberta (bolhas minhas/dele, carimbo "lida" nas minhas já vistas, input fixo acima da nav). Envio otimista simples: o POST devolve a mensagem e ela entra na lista local.
+- **Badge no menu**: a Nav ganhou a aba "Chat" (`/mensagens`) com contador de não-lidas via `GET /api/mensagens/nao-lidas` (resposta mínima `{ total }`).
+
 ## Proteção por sessão multiusuário (src/proxy.ts + lib/auth.ts + lib/usuarios)
 
 Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login`, `POST /api/login` e a demo pública `/demo/{leadId}`. Fluxo:
@@ -566,12 +623,13 @@ Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `
 Client Components (`"use client"`) que buscam dados via `fetch` no próprio cliente (não Server Components lendo o Firestore direto) — decisão deliberada: cada ação do usuário (buscar, enriquecer, mudar status, salvar config) precisa do feedback de erro específico das rotas (429/502/400/404/409), então a mesma rota HTTP serve tanto a carga inicial quanto a mutação, com um único caminho de tratamento de erro (`src/lib/api-client.ts`, classe `ApiError`).
 
 - **`/login`**: form de usuário + senha → `POST /api/login` → redireciona para `/`. Qualquer página protegida sem sessão redireciona para cá (proxy).
-- **`(app)/` (route group)**: layout com nav inferior fixa (Painel/Leads/Buscas/Demos/Config) + botão Sair; todas as páginas autenticadas vivem aqui.
+- **`(app)/` (route group)**: layout com nav inferior fixa (Painel/Leads/Buscas/Demos/Chat/Config) + botão Sair; a aba Chat carrega o badge de não-lidas (polling leve de `/api/mensagens/nao-lidas`); todas as páginas autenticadas vivem aqui.
   - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite"), um KPI row de prospecção com `/api/metrics` e o card "Demos criadas" (total de `metrics.demosCriadas`, linka para `/demos`). **Membro vê os números escopados a ele** (a API já escopa); **admin ganha a seção "Por usuário"** (requests por SKU, buscas, demos, contatos de cada um).
   - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (toggle, header com dot da cor + nome + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto). Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha — além dos dots de cor das buscas e destaque "sem site (lead quente)". Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
   - **`/buscas`**: buscas salvas (dot de cor, nome, nicho/sub-nicho, região, data, totais); tocar no dot cicla a cor pela paleta e persiste (`PATCH /api/buscas/[id]`); clicar no card navega para `/leads?buscaId=…`.
   - **`/demos`**: todas as demos ativas (leads com `demo` salva) — nome do lead, skin, data de criação/edição (`demo.criadoEm`/`atualizadoEm`), link público copiável e atalhos "Editar" (`/leads/{id}/demo/editar`) e "Excluir" (confirmação inline, mesmo `DELETE /api/leads/[id]/demo` do editor). Reaproveita `GET /api/leads` (sem filtros) e filtra client-side pelos leads com `demo` — mesma escala de "centenas de leads" do resto do app, sem rota nova.
   - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior. A seção **Demo** é um resumo (skin, preset, atualizado em) com "Criar/Editar demo" apontando para o **editor visual** `/leads/{id}/demo/editar` (ver seção da Forja), além de abrir/copiar o link público. Sem demo salva, deixa claro que `/demo/{id}` responde 404. A mensagem do WhatsApp aceita `{demo}` além de `{nome}`.
+  - **`/mensagens`**: chat privado entre os usuários — lista de conversas e conversa aberta com envio de texto simples (ver seção "Mensagens entre usuários").
   - **`/config`** (restrita a admin — o proxy manda membro de volta ao painel): seção **Usuários** (criar, ativar/desativar, redefinir senha; membro sem senha definida aparece marcado) + formulário completo (busca, filtros, mensagem padrão, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
 - **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tema "radar/sonar": fundo em gradiente azul-profundo → quase-preto (`--background-2` → `--background`), surface com leve tingimento azul (`#121b24`), acento vibrante verde-radar (`--accent`, com `--accent-ink` preto para texto sobre ele — o verde não passa em contraste com texto branco). Tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas, reforçado por forma (quadrado→pill) e marcador (○◐◑●); o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro. A paleta das 10 cores de busca (`BUSCA_CORES`) foi revalidada (mais saturada) contra a nova surface. Textos sobre `good`/`critical`/`warning` usam preto (não branco) — o contraste do branco falha nesses tons vibrantes.
 - **Tipografia**: Space Grotesk (`font-display`, via `next/font/google`) para títulos e números grandes do dashboard; Inter (`font-sans`) para o corpo; JetBrains Mono (`font-mono`) para dados tabulares/valores.
@@ -622,9 +680,10 @@ FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=     # com \n literais; admin.ts converte
 FIREBASE_STORAGE_BUCKET=  # bucket das imagens de demo (ex.: <projeto>.appspot.com)
 APP_PASSWORD=             # segredo de assinatura das sessões + senha INICIAL do admin; sem ela tudo responde 503
+GEMINI_API_KEY=           # OPCIONAL: sugestões de IA da Forja; ausente = IA oculta/desabilitada com aviso, nada quebra
 ```
 
-Ver `.env.example`. Na Vercel, cadastrar as seis em Project Settings → Environment Variables.
+Ver `.env.example`. Na Vercel, cadastrar todas em Project Settings → Environment Variables (a do Gemini só se quiser IA).
 
 ## Decisões tomadas
 

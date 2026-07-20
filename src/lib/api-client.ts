@@ -1,9 +1,11 @@
+import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import type { UsageCounts } from "@/lib/costs";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
 import type { Metrics, MetricsUsuario } from "@/lib/leads/metrics";
+import type { ConversaResumo, Mensagem } from "@/lib/mensagens/types";
 import type { Papel, UsuarioPublico } from "@/lib/usuarios/types";
 
 /** Espelha o formato de erro padrão das rotas (ver ARCHITECTURE.md). */
@@ -84,6 +86,13 @@ export interface GeocodeResponse {
     high: { latitude: number; longitude: number };
   };
   cached: boolean;
+}
+
+/** Resumo da página /mensagens: interlocutores + conversas + badge. */
+export interface MensagensResumoResponse {
+  usuarios: Array<{ id: string; nome: string; ativo: boolean }>;
+  conversas: ConversaResumo[];
+  totalNaoLidas: number;
 }
 
 export const api = {
@@ -200,6 +209,24 @@ export const api = {
       body: form,
     });
   },
+  mensagensResumo: () => request<MensagensResumoResponse>("/api/mensagens"),
+  listConversa: (comUserId: string) =>
+    request<{ mensagens: Mensagem[] }>(
+      `/api/mensagens?com=${encodeURIComponent(comUserId)}`,
+    ),
+  enviarMensagem: (paraUserId: string, texto: string) =>
+    request<{ mensagem: Mensagem }>("/api/mensagens", {
+      method: "POST",
+      body: JSON.stringify({ paraUserId, texto }),
+    }),
+  mensagensNaoLidas: () => request<{ total: number }>("/api/mensagens/nao-lidas"),
+
+  iaStatus: () => request<{ disponivel: boolean; modelo: string }>("/api/ia"),
+  gerarSugestaoDemo: (id: string, skinId: string) =>
+    request<{ sugestao: SugestaoDemo }>(`/api/leads/${id}/demo/sugestao`, {
+      method: "POST",
+      body: JSON.stringify({ skinId }),
+    }),
   deleteDemoVideo: (id: string, slot: string, skinId?: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/demo/videos`, {
       method: "DELETE",

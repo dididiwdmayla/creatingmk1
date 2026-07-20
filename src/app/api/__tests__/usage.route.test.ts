@@ -40,6 +40,7 @@ describe("GET /api/usage", () => {
         detailsEssentials: 0,
         detailsEnterprise: 0,
         geocoding: 0,
+        aiGeneration: 0,
       },
       caps: DEFAULT_CONFIG.caps,
       cotaGratis: DEFAULT_CONFIG.precos.cotaGratis,

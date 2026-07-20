@@ -13,6 +13,12 @@
  *   (Text Search US$35/1.000; Place Details US$20/1.000; 1.000 grátis/mês).
  * - Geocoding API (resolver a região da busca) → Essentials
  *   (US$5/1.000, 10.000 grátis/mês). Sem field mask — API própria.
+ *
+ * `aiGeneration` não é um SKU do Google Maps: conta as chamadas ao Gemini
+ * (sugestões de demo da Forja — ver src/lib/ai). Entra na MESMA mecânica
+ * de reserveQuota/teto/config dos demais; o preço default é 0 (free tier
+ * do flash) e o teto default de 50/mês segura o uso mesmo se um dia a
+ * chave usada tiver billing.
  */
 
 export const SKUS = [
@@ -21,6 +27,7 @@ export const SKUS = [
   "detailsEssentials",
   "detailsEnterprise",
   "geocoding",
+  "aiGeneration",
 ] as const;
 
 export type Sku = (typeof SKUS)[number];
@@ -47,9 +54,10 @@ export type PricingTable = Record<Sku, SkuPricing>;
 
 /**
  * Field mask enviado em X-Goog-FieldMask, por SKU da Places API.
- * O SKU geocoding fica fora: a Geocoding API não usa field mask.
+ * Geocoding e aiGeneration ficam fora: Geocoding não usa field mask e
+ * aiGeneration nem é Places (é o contador das chamadas ao Gemini).
  */
-export const FIELD_MASKS: Record<Exclude<Sku, "geocoding">, string> = {
+export const FIELD_MASKS: Record<Exclude<Sku, "geocoding" | "aiGeneration">, string> = {
   textSearch:
     "places.id,places.displayName,places.formattedAddress,places.location,nextPageToken",
   // Busca qualificada: + websiteUri e telefones (campos Enterprise — a
@@ -74,6 +82,9 @@ export const DEFAULT_PRICING: PricingTable = {
   detailsEssentials: { usdPer1000: 5, freeQuota: 10_000 },
   detailsEnterprise: { usdPer1000: 20, freeQuota: 1_000 },
   geocoding: { usdPer1000: 5, freeQuota: 10_000 },
+  // Free tier do Gemini Flash: custo 0; a "cota grátis" espelha o teto
+  // default (o dashboard mostra uso vs 50 sem projeção de custo).
+  aiGeneration: { usdPer1000: 0, freeQuota: 50 },
 };
 
 /**
@@ -86,6 +97,7 @@ export const DEFAULT_CAPS: UsageCounts = {
   detailsEssentials: 10_000,
   detailsEnterprise: 1_000,
   geocoding: 10_000,
+  aiGeneration: 50,
 };
 
 export const ZERO_USAGE: UsageCounts = {
@@ -94,4 +106,5 @@ export const ZERO_USAGE: UsageCounts = {
   detailsEssentials: 0,
   detailsEnterprise: 0,
   geocoding: 0,
+  aiGeneration: 0,
 };
