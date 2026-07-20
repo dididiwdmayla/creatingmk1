@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { StatusBadge } from "./StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
+import { estadoAtual } from "@/lib/leads/horarios";
 import type { Lead } from "@/lib/leads/types";
 
 const NOTAS_MAX = 500; // espelha o limite da rota PATCH
@@ -49,6 +50,7 @@ export function LeadCard({
     .map((id) => cores[id])
     .filter(Boolean)
     .slice(0, 3);
+  const estado = estadoAtual(lead.horarios);
 
   async function toggleFavorito() {
     setSalvandoFavorito(true);
@@ -160,6 +162,12 @@ export function LeadCard({
           </span>
         )}
       </div>
+
+      {estado && (
+        <p className={`mt-1 text-xs ${estado.aberto ? "font-medium text-good" : "text-ink-muted"}`}>
+          {estado.texto}
+        </p>
+      )}
 
       {editandoNotas ? (
         <div className="mt-2">

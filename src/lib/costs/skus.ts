@@ -9,6 +9,8 @@
  * Tabela vigente (conferida em jul/2026, sempre sobrescrevível via config):
  * - displayName/formattedAddress/location no Text Search → tier PRO
  *   (US$32/1.000, 5.000 grátis/mês).
+ * - regularOpeningHours/utcOffsetMinutes em Place Details → tier PRO
+ *   (US$17/1.000, 5.000 grátis/mês, contador PRÓPRIO: detailsProHours).
  * - websiteUri/telefones/rating/userRatingCount → tier ENTERPRISE
  *   (Text Search US$35/1.000; Place Details US$20/1.000; 1.000 grátis/mês).
  * - Geocoding API (resolver a região da busca) → Essentials
@@ -26,6 +28,7 @@ export const SKUS = [
   "textSearchEnterprise",
   "detailsEssentials",
   "detailsEnterprise",
+  "detailsProHours",
   "geocoding",
   "aiGeneration",
 ] as const;
@@ -70,6 +73,11 @@ export const FIELD_MASKS: Record<Exclude<Sku, "geocoding" | "aiGeneration">, str
   detailsEssentials: "id,formattedAddress,location",
   detailsEnterprise:
     "id,nationalPhoneNumber,internationalPhoneNumber,websiteUri,rating,userRatingCount",
+  // Horário de funcionamento: tier Pro, SKU e contador PRÓPRIOS (separado
+  // do enriquecimento Enterprise). utcOffsetMinutes vem junto — sem ele não
+  // dá pra calcular "aberto agora" no fuso do lead a partir dos períodos
+  // (que o Google devolve em hora LOCAL do lugar).
+  detailsProHours: "regularOpeningHours,utcOffsetMinutes",
 };
 
 /**
@@ -81,6 +89,8 @@ export const DEFAULT_PRICING: PricingTable = {
   textSearchEnterprise: { usdPer1000: 35, freeQuota: 1_000 },
   detailsEssentials: { usdPer1000: 5, freeQuota: 10_000 },
   detailsEnterprise: { usdPer1000: 20, freeQuota: 1_000 },
+  // Place Details tier Pro — cota grátis própria, bem maior que a Enterprise.
+  detailsProHours: { usdPer1000: 17, freeQuota: 5_000 },
   geocoding: { usdPer1000: 5, freeQuota: 10_000 },
   // Free tier do Gemini Flash: custo 0; a "cota grátis" espelha o teto
   // default (o dashboard mostra uso vs 50 sem projeção de custo).
@@ -96,6 +106,7 @@ export const DEFAULT_CAPS: UsageCounts = {
   textSearchEnterprise: 1_000,
   detailsEssentials: 10_000,
   detailsEnterprise: 1_000,
+  detailsProHours: 5_000,
   geocoding: 10_000,
   aiGeneration: 50,
 };
@@ -105,6 +116,7 @@ export const ZERO_USAGE: UsageCounts = {
   textSearchEnterprise: 0,
   detailsEssentials: 0,
   detailsEnterprise: 0,
+  detailsProHours: 0,
   geocoding: 0,
   aiGeneration: 0,
 };

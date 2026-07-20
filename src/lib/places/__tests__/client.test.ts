@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_CAPS, FIELD_MASKS, QuotaExceededError } from "@/lib/costs";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
-import { PlacesError, placeDetails, searchText } from "../client";
+import { PlacesError, placeDetails, placeHours, searchText } from "../client";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -464,5 +464,75 @@ describe("placeDetails (SKU detailsEnterprise)", () => {
     expect(error).toBeInstanceOf(PlacesError);
     expect((error as PlacesError).googleStatus).toBe(404);
     expect((error as PlacesError).detail).toBe("Not Found");
+  });
+});
+
+describe("placeHours (SKU detailsProHours)", () => {
+  it("chama o endpoint com o field mask Pro e normaliza os períodos", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        id: "ChIJ001",
+        utcOffsetMinutes: -180,
+        regularOpeningHours: {
+          periods: [
+            { open: { day: 1, hour: 9, minute: 0 }, close: { day: 1, hour: 18, minute: 0 } },
+            { open: { day: 5, hour: 22 }, close: { day: 6, hour: 2 } },
+          ],
+        },
+      }),
+    );
+
+    const horarios = await placeHours(db, "ChIJ001", DEFAULT_CAPS);
+
+    expect(sentMask(fetchMock)).toBe(FIELD_MASKS.detailsProHours);
+    expect(horarios).toEqual({
+      utcOffsetMinutes: -180,
+      faixas: [
+        { diaAbre: 1, horaAbre: 9, minAbre: 0, diaFecha: 1, horaFecha: 18, minFecha: 0 },
+        { diaAbre: 5, horaAbre: 22, minAbre: 0, diaFecha: 6, horaFecha: 2, minFecha: 0 },
+      ],
+    });
+    expect(usageDoc(db)).toMatchObject({ detailsProHours: 1 });
+  });
+
+  it("período sem close (aberto 24h) vira faixa de 24h a partir da abertura", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        id: "ChIJ24h",
+        utcOffsetMinutes: 0,
+        regularOpeningHours: { periods: [{ open: { day: 0, hour: 0, minute: 0 } }] },
+      }),
+    );
+
+    const horarios = await placeHours(db, "ChIJ24h", DEFAULT_CAPS);
+
+    expect(horarios.faixas).toEqual([
+      { diaAbre: 0, horaAbre: 0, minAbre: 0, diaFecha: 1, horaFecha: 0, minFecha: 0 },
+    ]);
+  });
+
+  it("lugar sem horário conhecido → faixas vazias", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ id: "ChIJ003" }));
+
+    const horarios = await placeHours(db, "ChIJ003", DEFAULT_CAPS);
+
+    expect(horarios.faixas).toEqual([]);
+    expect(horarios.utcOffsetMinutes).toBeUndefined();
+  });
+
+  it("teto detailsProHours estourado → QuotaExceededError sem chamar o Google", async () => {
+    await expect(
+      placeHours(db, "ChIJ001", { ...DEFAULT_CAPS, detailsProHours: 0 }),
+    ).rejects.toThrow(QuotaExceededError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("erro do Google → PlacesError, cota já consumida", async () => {
+    fetchMock.mockImplementation(async () => new Response("boom", { status: 500 }));
+
+    const error = await placeHours(db, "ChIJ001", DEFAULT_CAPS).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(PlacesError);
+    expect(usageDoc(db)).toMatchObject({ detailsProHours: 1 });
   });
 });

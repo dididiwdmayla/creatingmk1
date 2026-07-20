@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api, type HojeResponse } from "@/lib/api-client";
 import { formatDateTime, formatInt } from "@/lib/format";
+import { melhorMomento } from "@/lib/leads/horarios";
 import { calculaScore } from "@/lib/leads/score";
 import type { Lead } from "@/lib/leads/types";
 import { buildWhatsAppLink } from "@/lib/wa";
@@ -216,6 +217,7 @@ function ItemHoje({
   extra?: React.ReactNode;
 }) {
   const origem = buscaDeOrigem(lead, porId);
+  const momento = melhorMomento(lead.horarios);
   const telefoneIntl = lead.detalhes?.telefoneIntl ?? lead.telefoneIntl;
   const demoUrl =
     lead.demo && typeof window !== "undefined"
@@ -254,12 +256,21 @@ function ItemHoje({
           <span />
         )}
         <span className="flex shrink-0 items-center gap-3 text-xs">
+          {momento && (
+            <span className={momento.agora ? "font-semibold text-good" : "text-ink-muted"}>
+              {momento.agora ? "melhor momento: agora" : `melhor momento: ${momento.texto}`}
+            </span>
+          )}
           {waHref && (
             <a
               href={waHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-good hover:underline"
+              className={
+                momento?.agora
+                  ? "font-semibold text-good underline decoration-2 underline-offset-2"
+                  : "font-semibold text-good hover:underline"
+              }
             >
               WhatsApp
             </a>

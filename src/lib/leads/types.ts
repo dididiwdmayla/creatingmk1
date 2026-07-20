@@ -1,5 +1,5 @@
 import type { LeadDemo } from "@/lib/demos/types";
-import type { DetalhesLugar } from "@/lib/places/client";
+import type { DetalhesLugar, FaixaHorario } from "@/lib/places/client";
 
 export const LEADS_COLLECTION = "leads";
 
@@ -56,6 +56,18 @@ export interface Lead {
   descartado?: boolean;
   enriquecido: boolean;
   detalhes?: DetalhesLugar & { enriquecidoEm: string; enriquecidoPor?: string };
+  /**
+   * Horário de funcionamento estruturado (SKU detailsProHours, tier Pro,
+   * contador PRÓPRIO — separado de `detalhes`/`enriquecido`). Chamado junto
+   * do enriquecimento quando o lead ainda não tinha nenhum dos dois; leads
+   * já enriquecidos ANTES desta feature buscam via botão dedicado
+   * ("buscar horários"). Ausente = nunca buscado (nem tentado, nem falhou).
+   */
+  horarios?: {
+    faixas: FaixaHorario[];
+    utcOffsetMinutes?: number;
+    obtidoEm: string;
+  };
   /**
    * Configuração da demo personalizada (Forja de Demos): skin, tema e
    * overrides de conteúdo. O upsert da busca nunca toca neste campo.

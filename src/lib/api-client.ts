@@ -202,6 +202,8 @@ export const api = {
     }),
   enrichLead: (id: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/enrich`, { method: "POST" }),
+  buscarHorarios: (id: string) =>
+    request<{ lead: Lead }>(`/api/leads/${id}/horarios`, { method: "POST" }),
   putLeadDemo: (
     id: string,
     demo: { skinId: string; themeId: string; dados: DemoDataPatch; tema?: TemaPatch },

@@ -17,6 +17,12 @@ const GOOGLE_DETAILS = {
   websiteUri: "https://clinicasorriso.com.br",
   rating: 4.7,
   userRatingCount: 132,
+  utcOffsetMinutes: -180,
+  regularOpeningHours: {
+    periods: [
+      { open: { day: 1, hour: 9, minute: 0 }, close: { day: 1, hour: 18, minute: 0 } },
+    ],
+  },
 };
 
 beforeEach(() => {
@@ -83,6 +89,34 @@ describe("POST /api/leads/[id]/enrich", () => {
     expect(usageDoc()).toMatchObject({ detailsEnterprise: 1 });
   });
 
+  it("busca horário JUNTO do enriquecimento — 2 requests, 2 SKUs distintos", async () => {
+    const res = await enrich("ChIJ001");
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(lead.horarios).toMatchObject({
+      utcOffsetMinutes: -180,
+      faixas: [{ diaAbre: 1, horaAbre: 9, minAbre: 0, diaFecha: 1, horaFecha: 18, minFecha: 0 }],
+    });
+    expect(usageDoc()).toMatchObject({ detailsEnterprise: 1, detailsProHours: 1 });
+  });
+
+  it("teto detailsProHours estourado: enriquecimento principal salva mesmo assim", async () => {
+    db.seed("config/app", { caps: { detailsProHours: 0 } });
+
+    const res = await enrich("ChIJ001");
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.enriquecido).toBe(true);
+    expect(lead.detalhes.site).toBe("https://clinicasorriso.com.br");
+    expect(lead.horarios).toBeUndefined();
+    // Só a 1ª chamada (Enterprise) foi ao Google — o teto do Pro barrou antes do fetch.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(usageDoc()).toMatchObject({ detailsEnterprise: 1, detailsProHours: 0 });
+  });
+
   it("enriquecimento com site de rede social persiste siteProprio=false", async () => {
     fetchMock.mockImplementation(async () =>
       new Response(
@@ -125,8 +159,9 @@ describe("POST /api/leads/[id]/enrich", () => {
     expect(res.status).toBe(200);
     const { lead } = await res.json();
     expect(lead.detalhes.site).toBe("https://clinicasorriso.com.br");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(usageDoc()).toMatchObject({ detailsEnterprise: 1 });
+    // 1ª chamada já fez os 2 requests (Enterprise + Pro); a 2ª vem do cache.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(usageDoc()).toMatchObject({ detailsEnterprise: 1, detailsProHours: 1 });
   });
 
   it("lead inexistente → 404 sem consumir cota", async () => {
