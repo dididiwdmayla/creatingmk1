@@ -21,6 +21,24 @@ export function EscolherSkinClient({ id }: { id: string }) {
   const [lead, setLead] = useState<Lead | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // IA na Forja: checkbox só aparece com GEMINI_API_KEY configurada.
+  const [iaDisponivel, setIaDisponivel] = useState<boolean | null>(null);
+  const [comIA, setComIA] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .iaStatus()
+      .then(({ disponivel }) => {
+        if (!ignore) setIaDisponivel(disponivel);
+      })
+      .catch(() => {
+        if (!ignore) setIaDisponivel(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -75,11 +93,35 @@ export function EscolherSkinClient({ id }: { id: string }) {
           Tema do editor, mas já sai daqui com uma base fiel ao nicho do negócio.
         </p>
 
+        {iaDisponivel === true ? (
+          <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-lg border border-line bg-surface p-3 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={comIA}
+              onChange={(e) => setComIA(e.target.checked)}
+              className="mt-0.5 accent-[var(--accent)]"
+            />
+            <span>
+              ✨ Começar com sugestões de IA
+              <span className="block text-xs text-ink-muted">
+                O Gemini sugere paleta, fonte, animação e textos pelo nicho do negócio — você
+                revisa e aplica (ou descarta) antes de salvar.
+              </span>
+            </span>
+          </label>
+        ) : (
+          iaDisponivel === false && (
+            <p className="mt-4 text-xs text-ink-muted">
+              Sugestões de IA indisponíveis — configure GEMINI_API_KEY no servidor para ativar.
+            </p>
+          )
+        )}
+
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {SKINS.map((skin) => (
             <Link
               key={skin.id}
-              href={`/leads/${id}/demo/editar?skin=${skin.id}`}
+              href={`/leads/${id}/demo/editar?skin=${skin.id}${comIA ? "&ia=1" : ""}`}
               className="group flex flex-col overflow-hidden rounded-lg border border-line bg-surface transition-colors hover:border-accent"
             >
               <span className="relative aspect-[4/3] w-full overflow-hidden bg-surface-2">

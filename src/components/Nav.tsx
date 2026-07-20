@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api-client";
 import { ThemeToggle } from "./ThemeToggle";
@@ -12,8 +12,12 @@ const TABS = [
   { href: "/leads", label: "Leads" },
   { href: "/buscas", label: "Buscas" },
   { href: "/demos", label: "Demos" },
+  { href: "/mensagens", label: "Chat" },
   { href: "/config", label: "Config" },
 ] as const;
+
+/** Cadência do polling do badge de não-lidas (leve, sem websocket). */
+const NAO_LIDAS_POLL_MS = 30_000;
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -23,6 +27,29 @@ function isActive(pathname: string, href: string): boolean {
 export function Nav() {
   const pathname = usePathname();
   const [signingOut, setSigningOut] = useState(false);
+  const [naoLidas, setNaoLidas] = useState(0);
+
+  // Badge de não-lidas: polling leve + refetch ao trocar de página (sair
+  // de /mensagens com a conversa lida zera o badge na hora).
+  useEffect(() => {
+    let ignore = false;
+    function atualizar() {
+      api
+        .mensagensNaoLidas()
+        .then(({ total }) => {
+          if (!ignore) setNaoLidas(total);
+        })
+        .catch(() => {
+          /* badge é acessório: falha de rede não pode quebrar a nav */
+        });
+    }
+    atualizar();
+    const timer = setInterval(atualizar, NAO_LIDAS_POLL_MS);
+    return () => {
+      ignore = true;
+      clearInterval(timer);
+    };
+  }, [pathname]);
 
   async function handleLogout() {
     setSigningOut(true);
@@ -70,7 +97,17 @@ export function Nav() {
                   active ? "text-accent" : "text-ink-muted hover:text-ink-secondary"
                 }`}
               >
-                {tab.label}
+                <span className="relative inline-block">
+                  {tab.label}
+                  {tab.href === "/mensagens" && naoLidas > 0 && (
+                    <span
+                      aria-label={`${naoLidas} mensagem(ns) não lida(s)`}
+                      className="absolute -right-3.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold leading-none text-accent-ink"
+                    >
+                      {naoLidas > 9 ? "9+" : naoLidas}
+                    </span>
+                  )}
+                </span>
                 {active && (
                   <span className="absolute inset-x-3 -top-px h-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent)]" />
                 )}

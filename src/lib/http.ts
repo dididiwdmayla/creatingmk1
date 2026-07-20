@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { AiError, AiIndisponivelError } from "@/lib/ai/gemini";
 import { QuotaExceededError } from "@/lib/costs";
 import {
   ForbiddenError,
@@ -38,6 +39,12 @@ export function handleRouteError(error: unknown): NextResponse {
       googleStatus: error.googleStatus,
       detail: error.detail,
     });
+  }
+  if (error instanceof AiIndisponivelError) {
+    return jsonError(503, error.code, error.message);
+  }
+  if (error instanceof AiError) {
+    return jsonError(502, error.code, error.message, { detail: error.detail });
   }
   if (error instanceof ValidationError) {
     return jsonError(400, error.code, error.message, {

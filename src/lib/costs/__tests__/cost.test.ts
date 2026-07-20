@@ -9,6 +9,7 @@ const PRICING: PricingTable = {
   detailsEssentials: { usdPer1000: 5, freeQuota: 10_000 },
   detailsEnterprise: { usdPer1000: 20, freeQuota: 1_000 },
   geocoding: { usdPer1000: 5, freeQuota: 10_000 },
+  aiGeneration: { usdPer1000: 0, freeQuota: 50 },
 };
 
 describe("projectedCostUSD", () => {
@@ -23,6 +24,7 @@ describe("projectedCostUSD", () => {
       detailsEssentials: 500,
       detailsEnterprise: 900,
       geocoding: 100,
+      aiGeneration: 10,
     };
     expect(projectedCostUSD(usage, PRICING)).toBe(0);
   });
@@ -34,6 +36,7 @@ describe("projectedCostUSD", () => {
       detailsEssentials: 10_000,
       detailsEnterprise: 1_000,
       geocoding: 10_000,
+      aiGeneration: 50,
     };
     expect(projectedCostUSD(usage, PRICING)).toBe(0);
   });
@@ -51,6 +54,7 @@ describe("projectedCostUSD", () => {
       detailsEssentials: 12_000, // 2.000 × $5/1000  = $10
       detailsEnterprise: 1_100, //   100 × $20/1000 = $2
       geocoding: 12_000, // 2.000 × $5/1000  = $10
+      aiGeneration: 200, //   preço 0: excedente não custa nada
     };
     expect(projectedCostUSD(usage, PRICING)).toBeCloseTo(45, 10);
   });
@@ -62,6 +66,7 @@ describe("projectedCostUSD", () => {
       detailsEssentials: { usdPer1000: 0, freeQuota: 0 },
       detailsEnterprise: { usdPer1000: 0, freeQuota: 0 },
       geocoding: { usdPer1000: 0, freeQuota: 0 },
+      aiGeneration: { usdPer1000: 0, freeQuota: 0 },
     };
     expect(projectedCostUSD({ ...ZERO_USAGE, textSearch: 500 }, custom)).toBe(5);
   });

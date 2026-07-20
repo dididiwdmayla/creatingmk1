@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
+import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import { ApiError, api } from "@/lib/api-client";
+import { getFonte } from "@/lib/demos/fontes";
 import { montarDemoData } from "@/lib/demos/montar";
 import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
@@ -86,6 +88,16 @@ export function DemoEditorClient({ id }: { id: string }) {
   const [uploadVideoSlot, setUploadVideoSlot] = useState<string | null>(null);
   const [videoErro, setVideoErro] = useState<string | null>(null);
 
+  // IA na Forja: sem GEMINI_API_KEY o botão fica oculto (nada quebra).
+  const [iaDisponivel, setIaDisponivel] = useState<boolean | null>(null);
+  const [mostrarIA, setMostrarIA] = useState(false);
+  const [gerandoIA, setGerandoIA] = useState(false);
+  const [sugestao, setSugestao] = useState<SugestaoDemo | null>(null);
+  const [iaErro, setIaErro] = useState<string | null>(null);
+  // ?ia=1 (checkbox "começar com sugestões de IA" do passo de escolha).
+  const [iaAuto, setIaAuto] = useState(false);
+  const iaAutoDisparadaRef = useRef(false);
+
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -104,6 +116,8 @@ export function DemoEditorClient({ id }: { id: string }) {
         setThemeId(inicial.themeId);
         setTema(inicial.tema);
         setDados(inicial.dados);
+        // Só demo NOVA começa com sugestões de IA — nunca por cima de algo salvo.
+        if (!leadData.demo && searchParams.get("ia") === "1") setIaAuto(true);
       })
       .catch((error) => {
         if (ignore) return;
@@ -118,6 +132,21 @@ export function DemoEditorClient({ id }: { id: string }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams só é lido no load inicial do lead.
   }, [id]);
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .iaStatus()
+      .then(({ disponivel }) => {
+        if (!ignore) setIaDisponivel(disponivel);
+      })
+      .catch(() => {
+        if (!ignore) setIaDisponivel(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const skin = getSkin(skinId) ?? DEFAULT_SKIN;
   const themeEfetivo = useMemo(
@@ -179,6 +208,23 @@ export function DemoEditorClient({ id }: { id: string }) {
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [enviarPreview]);
+
+  // Chegou com ?ia=1: gera a sugestão assim que lead + disponibilidade
+  // resolverem, abrindo o MESMO preview aplicar/descartar do botão — a
+  // demo "começa com sugestões", mas nada entra sem confirmação.
+  useEffect(() => {
+    if (!iaAuto || iaDisponivel !== true || !lead || iaAutoDisparadaRef.current) return;
+    iaAutoDisparadaRef.current = true;
+    setMostrarIA(true);
+    setGerandoIA(true);
+    api
+      .gerarSugestaoDemo(lead.placeId, skinId)
+      .then(({ sugestao: nova }) => setSugestao(nova))
+      .catch((error) =>
+        setIaErro(error instanceof ApiError ? error.message : "Falha ao gerar sugestões."),
+      )
+      .finally(() => setGerandoIA(false));
+  }, [iaAuto, iaDisponivel, lead, skinId]);
 
   // Rede de segurança contra fechar a aba com edição não salva.
   useEffect(() => {
@@ -318,6 +364,50 @@ export function DemoEditorClient({ id }: { id: string }) {
     }
   }
 
+  function handleGerarIA() {
+    setMostrarIA(true);
+    setIaErro(null);
+    setSugestao(null);
+    setGerandoIA(true);
+    api
+      .gerarSugestaoDemo(id, skin.id)
+      .then(({ sugestao: nova }) => setSugestao(nova))
+      .catch((error) =>
+        setIaErro(error instanceof ApiError ? error.message : "Falha ao gerar sugestões."),
+      )
+      .finally(() => setGerandoIA(false));
+  }
+
+  /** Aplica a sugestão ao estado do editor — nada persiste sem "Salvar". */
+  function handleAplicarSugestao() {
+    if (!sugestao) return;
+    const aplicada = sugestao;
+    setThemeId(aplicada.themeId);
+    setTema((atual) => ({
+      ...atual,
+      destaque: aplicada.destaque,
+      fonteDisplay: aplicada.fonteDisplay,
+      animacao: aplicada.animacao,
+    }));
+    atualizar((d) => {
+      const secoes = { ...d.secoes };
+      for (const [idSecao, titulo] of Object.entries(aplicada.titulosSecoes)) {
+        secoes[idSecao] = { ...secoes[idSecao], titulo };
+      }
+      secoes.hero = { ...secoes.hero, texto: aplicada.descricao };
+      return { ...d, slogan: aplicada.slogan, secoes };
+    });
+    setMostrarIA(false);
+    setSugestao(null);
+    setAviso("Sugestões de IA aplicadas — salve para publicar.");
+  }
+
+  function handleDescartarSugestao() {
+    setMostrarIA(false);
+    setSugestao(null);
+    setIaErro(null);
+  }
+
   function handleVoltar() {
     if (sujo && !window.confirm("Sair sem salvar? As edições não salvas serão perdidas.")) {
       return;
@@ -399,6 +489,17 @@ export function DemoEditorClient({ id }: { id: string }) {
           {aviso && <span className="hidden text-xs text-good sm:inline">{aviso}</span>}
           {sujo && !aviso && (
             <span className="hidden text-xs text-warning sm:inline">Alterações não salvas</span>
+          )}
+          {iaDisponivel && (
+            <button
+              type="button"
+              onClick={handleGerarIA}
+              disabled={gerandoIA}
+              className="rounded border border-line px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-accent disabled:opacity-50"
+            >
+              ✨ <span className="hidden sm:inline">Gerar com IA</span>
+              <span className="sm:hidden">IA</span>
+            </button>
           )}
           <Button onClick={handleSalvar} loading={salvando}>
             Salvar
@@ -559,6 +660,118 @@ export function DemoEditorClient({ id }: { id: string }) {
           </div>
         </aside>
       </div>
+
+      {/* Preview das sugestões de IA: aplicar ou descartar — nunca escreve
+          por cima sem confirmação, e nada persiste sem o Salvar normal. */}
+      {mostrarIA && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-2xl">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <h2 className="text-sm font-semibold text-foreground">✨ Sugestões de IA</h2>
+              <button
+                type="button"
+                onClick={handleDescartarSugestao}
+                className="text-xs text-ink-muted hover:text-foreground"
+              >
+                Fechar ✕
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm">
+              {gerandoIA && (
+                <p className="py-6 text-center text-ink-muted">
+                  Gerando sugestões para {lead.nome}…
+                </p>
+              )}
+              {iaErro && !gerandoIA && (
+                <p className="rounded border border-critical/30 bg-critical/10 px-3 py-2 text-xs text-critical">
+                  {iaErro}
+                </p>
+              )}
+              {sugestao && !gerandoIA && (
+                <div className="flex flex-col gap-3">
+                  <div className="rounded border border-line bg-surface-2 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                      Tema
+                    </p>
+                    <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                      <li>
+                        Preset:{" "}
+                        {skin.themePresets.find((p) => p.id === sugestao.themeId)?.nome ??
+                          sugestao.themeId}
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        Cor primária:
+                        <span
+                          className="inline-block h-3.5 w-3.5 rounded-full border border-line"
+                          style={{ backgroundColor: sugestao.destaque }}
+                        />
+                        <code className="font-mono">{sugestao.destaque}</code>
+                      </li>
+                      <li>
+                        Fonte dos títulos:{" "}
+                        {getFonte(sugestao.fonteDisplay)?.nome ?? sugestao.fonteDisplay}
+                      </li>
+                      <li>Animação: {sugestao.animacao}</li>
+                    </ul>
+                  </div>
+                  <div className="rounded border border-line bg-surface-2 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                      Textos
+                    </p>
+                    <p className="mt-1.5 text-xs text-foreground">
+                      <span className="text-ink-muted">Slogan:</span> {sugestao.slogan}
+                    </p>
+                    <p className="mt-1 text-xs text-foreground">
+                      <span className="text-ink-muted">Descrição:</span> {sugestao.descricao}
+                    </p>
+                  </div>
+                  {Object.keys(sugestao.titulosSecoes).length > 0 && (
+                    <div className="rounded border border-line bg-surface-2 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                        Títulos de seções
+                      </p>
+                      <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                        {Object.entries(sugestao.titulosSecoes).map(([idSecao, titulo]) => (
+                          <li key={idSecao}>
+                            <span className="text-ink-muted">
+                              {skin.secoes.find((s) => s.id === idSecao)?.nome ?? idSecao}:
+                            </span>{" "}
+                            {titulo}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-ink-muted">
+                    Aplicar só muda o rascunho do editor — nada é publicado sem Salvar.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+              {iaErro && !gerandoIA && (
+                <Button onClick={handleGerarIA} className="!px-3 !py-1.5 text-xs">
+                  Tentar de novo
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={handleDescartarSugestao}
+                className="rounded border border-line px-3 py-1.5 text-xs text-ink-muted hover:text-foreground"
+              >
+                Descartar
+              </button>
+              {sugestao && !gerandoIA && (
+                <Button onClick={handleAplicarSugestao} className="!px-3 !py-1.5 text-xs">
+                  Aplicar sugestões
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Botão flutuante que abre o painel no celular. */}
       {!painelAberto && (

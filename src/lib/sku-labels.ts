@@ -6,6 +6,7 @@ export const SKU_LABELS: Record<Sku, string> = {
   detailsEssentials: "Detalhes básicos (Essentials)",
   detailsEnterprise: "Enriquecimento (Enterprise)",
   geocoding: "Região da busca (Geocoding)",
+  aiGeneration: "Sugestões de IA (Gemini)",
 };
 
 export { SKUS };
