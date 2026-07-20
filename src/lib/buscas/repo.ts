@@ -47,6 +47,28 @@ export interface BuscaPatch {
   mensagemPadrao?: string;
 }
 
+export async function getBusca(db: AppDb, id: string): Promise<Busca> {
+  const snap = await db.collection(BUSCAS_COLLECTION).doc(id).get();
+  const data = snap.exists ? snap.data() : undefined;
+  if (!data) {
+    throw new NotFoundError(`Busca "${id}" não encontrada.`);
+  }
+  return { ...(data as unknown as Busca), id };
+}
+
+/** Cacheia a análise de IA do grupo — sobrescrita a cada regeneração. */
+export async function salvarAnaliseIA(
+  db: AppDb,
+  id: string,
+  texto: string,
+  now: Date = new Date(),
+): Promise<Busca> {
+  const busca = await getBusca(db, id);
+  const atualizada: Busca = { ...busca, analiseIA: { texto, geradaEm: now.toISOString() } };
+  await db.collection(BUSCAS_COLLECTION).doc(id).set(toDoc(atualizada));
+  return atualizada;
+}
+
 export async function updateBusca(db: AppDb, id: string, patch: BuscaPatch): Promise<Busca> {
   const ref = db.collection(BUSCAS_COLLECTION).doc(id);
   const snap = await ref.get();

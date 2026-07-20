@@ -147,6 +147,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
+  gerarAnaliseBusca: (id: string) =>
+    request<{ busca: Busca }>(`/api/buscas/${id}/analise`, { method: "POST" }),
 
   listLeads: (filters: {
     status?: string;

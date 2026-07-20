@@ -39,6 +39,12 @@ export interface Busca {
    * quando existir; senão cai na mensagem global de /config/app.
    */
   mensagemPadrao?: string;
+  /**
+   * Recomendação de priorização gerada pelo Gemini a partir dos leads do
+   * grupo (SKU aiGeneration, uma única chamada). Cacheada aqui — só
+   * regenera sob clique explícito no botão "Analisar com IA".
+   */
+  analiseIA?: { texto: string; geradaEm: string };
   criadaEm: string;
   totalCriados: number;
   totalExistentes: number;

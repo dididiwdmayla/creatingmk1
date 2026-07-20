@@ -12,3 +12,9 @@ export {
   validarSugestao,
   type SugestaoDemo,
 } from "./sugestao";
+export {
+  gerarAnaliseBusca,
+  montarPromptAnaliseBusca,
+  schemaAnaliseBusca,
+  validarAnaliseBusca,
+} from "./analiseBusca";
