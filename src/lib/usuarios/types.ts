@@ -25,6 +25,12 @@ export interface Usuario {
    * DESTE usuário (sem estado de sessão no banco).
    */
   sessao: number;
+  /**
+   * Última vez que ESTE usuário carregou a fila do dia (/hoje). O delta de
+   * "leads novos" é por usuário: novos = criados depois deste carimbo.
+   * Atualizado pelo próprio GET /api/hoje.
+   */
+  ultimaVisitaEm?: string;
   criadoEm: string;
   atualizadoEm: string;
 }

@@ -37,8 +37,9 @@ src/
       paineis.tsx                   #    abas Conteúdo/Imagens/Tema/Estrutura (drag-and-drop via motion, handle dedicado)
       comprimir.ts                  #    compressão client-side (canvas → WebP ≤1600px) antes do upload
     (app)/                          # route group: páginas autenticadas, com Nav
-      layout.tsx                    # ✅ header + bottom nav (Painel/Leads/Buscas/Demos/Chat/Config) + Sair
-      page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas, card "Demos criadas"
+      layout.tsx                    # ✅ header + bottom nav (Hoje/Painel/Leads/Buscas/Demos/Chat/Config) + Sair
+      page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas, widget do cron, card "Demos criadas"
+      hoje/page.tsx                 # ✅ fila do dia (home pós-login): novos por score, follow-ups, demos paradas
       leads/page.tsx                # ✅ lista de leads com filtros + nova busca (com auto-enriquecimento)
       leads/[id]/page.tsx           # ✅ wrapper server (extrai params.id, key={id})
       leads/[id]/LeadDetailClient.tsx # ✅ ficha: enriquecer, WhatsApp, transições de status
@@ -67,6 +68,9 @@ src/
       ia/route.ts                   # ✅ GET disponibilidade da IA (GEMINI_API_KEY configurada?)
       mensagens/route.ts            # ✅ GET resumo/conversa (escopado à sessão) / POST envia texto
       mensagens/nao-lidas/route.ts  # ✅ GET total de não-lidas (badge do menu, polling leve)
+      hoje/route.ts                 # ✅ GET fila do dia (delta por usuário; carimba ultimaVisitaEm)
+      cron/route.ts                 # ✅ GET gatilho do Vercel Cron (Bearer CRON_SECRET, fora da sessão)
+      cron/status/route.ts          # ✅ GET última execução do cron + recorrentes ligadas (widget)
       usage/route.ts                # ✅ GET uso do mês + custo projetado
       metrics/route.ts              # ✅ GET métricas de prospecção
       __tests__/                    # ✅ testes das rotas (fake Firestore + fetch mockado)
@@ -114,9 +118,12 @@ src/
       types.ts
       repo.ts
       metrics.ts                    # ✅ contatosHoje/contatosSemana/taxaResposta
+      score.ts                      # ✅ score de priorização por regras (ordenação + badge)
+      hoje.ts                       # ✅ montarFilaDoDia: seleção pura das 3 seções de /hoje
     buscas/                         # ✅ registro das buscas executadas
-      types.ts
-      repo.ts
+      types.ts                      #    + recorrente/qualificada/quantidade e BuscaExecucao
+      repo.ts                       #    + listBuscasRecorrentes (ordem determinística) e registrarExecucao
+      cron.ts                       # ✅ executarBuscasRecorrentes: pipeline diário + resumo em /cron/ultima
     demos/                          # ✅ Forja de Demos (ver seção própria)
       types.ts                      # DemoData, Theme, SkinDefinition (+secoes), LeadDemo (+tema), TemaPatch
       montar.ts                     # montarDemoData: exemplo ← lead ← edições
@@ -213,6 +220,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
   "ativo": true,
   "senhaHash": "pbkdf2:100000:<salt>:<hash>", // ausente = senha não definida (não loga)
   "sessao": 0,                      // versão de sessão: redefinir senha/desativar/trocar papel incrementa
+  "ultimaVisitaEm": "<ISO 8601>",   // última carga de /hoje DESTE usuário (o delta de "novos" é por usuário)
   "criadoEm": "<ISO 8601>",
   "atualizadoEm": "<ISO 8601>"
 }
@@ -233,6 +241,8 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
     "temTelefone": "qualquer"                   // idem
   },
   "mensagemPadrao": "Oi {nome}, tudo bem? ...", // variável {nome} → displayName do lead
+  "followUpDias": 4,                            // /hoje: contactado sem resposta há mais de N dias vira follow-up
+  "maxBuscasRecorrentes": 3,                    // teto de buscas recorrentes simultâneas (cron diário)
   "caps": {                                     // teto mensal de requests por SKU
     "textSearch": 5000,
     "textSearchEnterprise": 1000,
@@ -345,14 +355,42 @@ Regras de escrita:
   "regiao": "Sarandi PR",
   "cor": "#2f82e0",                             // paleta fixa de 10 (BUSCA_CORES), rotação na criação, editável
   "mensagemPadrao": "Oi {nome}! ...",           // opcional (≤1000): mensagem do WhatsApp DESTE grupo; ausente = usa a global da config
+  "recorrente": true,                           // opcional: o cron diário re-executa esta busca (ausente/false = só manual)
+  "qualificada": true,                          // opcional: parâmetros da execução original, reusados pelo cron
+  "quantidade": 20,                             //   ("mesmo pipeline" — ausentes em docs antigos = defaults da rota)
   "criadaEm": "<ISO 8601>",
-  "totalCriados": 12,                           // leads novos que esta busca criou
+  "totalCriados": 12,                           // leads novos que esta busca criou (o cron SOMA os deltas aqui)
   "totalExistentes": 8,                         // leads que já estavam na base
   "userId": "admin"                             // quem executou (ausente em docs pré-multiusuário)
 }
 ```
 
 O doc é gravado **depois** do upsert dos leads (para ter os totais). Se a busca falhar por completo (teto/erro na 1ª página), nenhum doc de busca é criado; se parar no meio da paginação, o doc registra o parcial.
+
+### `/buscas/{id}/execucoes/{uuid}` — resumo de cada re-execução do cron
+
+Subcoleção da busca recorrente, um doc por rodada do cron: `{ em, novos, existentes }`. O `registrarExecucao` grava o doc E soma o delta aos totais do doc da busca (os leads novos do cron entram no MESMO grupo — o `buscaId` deles recebe o id da busca recorrente). Buscas manuais não têm execuções: o histórico só existe para o que o cron fez.
+
+### `/cron/ultima` — resumo da última rodada do cron (doc único, sobrescrito)
+
+```jsonc
+{
+  "em": "<ISO 8601>",                 // início da rodada
+  "concluidaEm": "<ISO 8601>",
+  "recorrentes": 3,                   // buscas marcadas como recorrentes (antes do teto)
+  "buscas": [                         // uma entrada por busca executada, na ordem da fila
+    { "buscaId": "<uuid>", "nome": "Implantes Sarandi", "novos": 2, "existentes": 5,
+      "erro": "Google Places respondeu 500: …" }  // só quando o Google falhou NESTA busca
+  ],
+  "totalNovos": 2,
+  "totalExistentes": 5,
+  "interrompida": {                   // presente se a COTA estourou no meio: a fila parou aqui
+    "buscaId": "<uuid>", "nome": "…", "motivo": "Teto mensal atingido para \"textSearch\" …"
+  }
+}
+```
+
+Alimenta o widget "Buscas recorrentes" do dashboard via `GET /api/cron/status`. Só a última rodada interessa no painel — o histórico por busca fica nas subcoleções `execucoes`.
 
 Sobre a **cor**: paleta fixa de 10 (validada contra a superfície escura: banda de luminância, croma e contraste ≥3:1). Com 10 hues a separação CVD de todos os pares é matematicamente inviável — por isso a cor é sempre reforço redundante: o nome da busca acompanha o badge em texto. Docs antigos sem `cor` ganham fallback estável na leitura.
 
@@ -422,7 +460,10 @@ Formato de erro padrão em todas as rotas:
 | `/api/search` | POST | `{ nicho?, subNicho?, regiao?, nome?, quantidade? (1–40), qualificada? }` (nicho/regiao default: config) | `200 { criados, existentes, leads[], busca, paginas, regiaoResolvida, aviso? }` · `400` · `429 quota_exceeded` · `502 places_error` | Geocoding (com cache) + Text Search · **geocoding** + **textSearch** ou **textSearchEnterprise** |
 | `/api/geocode` | GET | query: `regiao` (default: config) | `200 { regiao, endereco, location, viewport, cached }` · `400` · `429` · `502` | Geocoding · **geocoding** (só em cache miss) |
 | `/api/buscas` | GET | — | `200 { buscas[] }` (mais recentes primeiro) | — |
-| `/api/buscas/[id]` | PATCH | `{ cor? (da paleta), mensagemPadrao? (≤1000, "" limpa) }` (≥1 campo) | `200 { busca }` · `400` · `404` | — |
+| `/api/buscas/[id]` | PATCH | `{ cor? (da paleta), mensagemPadrao? (≤1000, "" limpa), recorrente? }` (≥1 campo; ligar recorrente respeita o teto `maxBuscasRecorrentes`) | `200 { busca }` · `400` · `404` | — |
+| `/api/hoje` | GET | — (exige sessão identificável) | `200 { novos[], followUps[], demosParadas[], novosDesde, followUpDias, mensagemPadrao, buscas[] }` · `401` | — |
+| `/api/cron` | GET | header `Authorization: Bearer ${CRON_SECRET}` (fora da sessão — exceção no proxy) | `200 { execucao }` · `401` · `503 config_error` (sem CRON_SECRET) | mesmo pipeline de `/api/search`, por busca recorrente |
+| `/api/cron/status` | GET | — | `200 { ultima, recorrentes }` | — |
 | `/api/leads` | GET | query: `status`, `temSite`, `temTelefone`, `buscaId`, `favorito` | `200 { leads[] }` · `400` | — |
 | `/api/leads/[id]` | GET | — | `200 { lead }` · `404` | — |
 | `/api/leads/[id]` | PATCH | `{ status?, notas? (≤500), favorito?, descartado? }` (≥1 campo) | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
@@ -457,6 +498,8 @@ Semântica fixa:
 - O botão WhatsApp é montado **no cliente** a partir de dados já persistidos (`wa.me/<telefoneIntl sem símbolos>?text=<mensagem com {nome} substituído>`) — não há rota nem chamada externa. O telefone da **busca qualificada** já sustenta o botão sem enriquecer. A mensagem usada é a **do grupo** (busca mais recente do lead que tiver `mensagemPadrao` própria) e, na falta, a global da config.
 - **Descarte suave** (`descartado: true` via PATCH): o lead não é deletado — vai pro fim da lista com marcação e pode ser restaurado. Reversível por design: apagar de verdade perderia o histórico de contato.
 - `/api/metrics`: "hoje" usa o dia corrente em UTC (mesma convenção do período de custos); "semana" é uma janela rolante dos últimos 7 dias (não semana de calendário). `taxaResposta` é `leads com respondeuEm ÷ leads com primeiroContatoEm`, `0` (não `NaN`) sem contatos.
+- `/api/hoje` é a única rota de leitura que **exige** sessão identificável (401 sem ela): o delta de "novos" depende do `ultimaVisitaEm` do usuário. A rota calcula a fila com o carimbo **anterior** e grava o novo ao responder — recarregar a página zera o delta por design ("novos desde a última visita" é literal).
+- `/api/cron` fica **fora da sessão** (exceção exata no proxy) e se protege sozinha com `Authorization: Bearer ${CRON_SECRET}` — exatamente o header que o Vercel Cron envia. Fail-closed: sem a env, 503 e nada roda. `/api/cron/status` é rota comum atrás da sessão.
 
 ## Estratégia de field masks por SKU
 
@@ -608,9 +651,31 @@ Chat interno de texto simples entre os usuários do time (coleção `/mensagens`
 - **Layout da conversa aberta, estilo WhatsApp — sem `position:fixed`**: o header e a barra inferior do app (`Nav.tsx`, ambos com altura fechada `h-14`, expostas como `--app-header-h`/`--app-nav-h` em `globals.css`) continuam visíveis e intocados; o bloco da conversa só ocupa, dentro do `<main>` do `AppLayout`, a altura exata que sobra entre os dois — `calc(100dvh - var(--app-header-h) - var(--app-nav-h) - env(safe-area-inset-bottom))` (viewport **dinâmica**, nunca `100vh`, que em mobile inclui a barra de endereço e sub/superestima o espaço real). Margens negativas cancelam o padding do `<main>` (`px-4 pt-4 pb-20`) pra esse cálculo não ficar com padding contado duas vezes — era exatamente esse descompasso que colapsava a área de mensagens a zero de altura. Dentro do bloco: mini-header da conversa (`shrink-0`) → lista de mensagens (`flex-1 overflow-y-auto`, `justify-end` — histórico curto fica ancorado embaixo, histórico longo estoura o topo e scrolla) → formulário de envio (`shrink-0`, **fluxo normal, não fixed**: sendo o último item de uma coluna de altura fechada, ele naturalmente encosta no fim do bloco, que é o topo da nav). `scrollIntoView` no fim da lista roda sempre que o número de mensagens cresce (abrir a conversa ou enviar), sem forçar o scroll durante o polling se nada mudou (não atrapalha quem rolou pra ler o histórico).
 - **Teclado mobile**: `viewport.interactiveWidget = "resizes-content"` (`app/layout.tsx`) faz o navegador **encolher de verdade** a viewport dinâmica quando o teclado abre — como o bloco da conversa é dimensionado via `dvh` e vive em fluxo normal (não `fixed`), o encolhimento reflui pra cá sozinho: o input continua colado no fim da coluna, agora mais curta, sem cobrir as últimas mensagens. `viewport.viewportFit = "cover"` dá efeito real ao `env(safe-area-inset-*)` já usado em Nav/editor (sem isso os valores são sempre 0). Verificado com Playwright (viewport 390×844 → 390×400, simulando o resize real do teclado): input permanece dentro da viewport reduzida, última mensagem visível acima dele, nav inferior nunca coberta.
 
+## Operação diária — buscas recorrentes (cron) + fila do dia (/hoje)
+
+O Radar como rotina, não só ferramenta: o cron reabastece a base de madrugada e a fila do dia diz o que trabalhar de manhã.
+
+### Buscas recorrentes (`src/lib/buscas/cron.ts` + `/api/cron`)
+
+1. **Toggle "recorrente" por busca** (página /buscas → `PATCH /api/buscas/[id]`). Ligar respeita o teto `config.maxBuscasRecorrentes` (default 3) — a quarta recebe 400 com a dica de desligar outra ou subir o teto. Religar uma já recorrente é idempotente; desligar nunca esbarra no teto.
+2. **Vercel Cron 1x/dia de madrugada** (`vercel.json`: `0 6 * * *` UTC = ~3h em Brasília) chama `GET /api/cron` com `Authorization: Bearer ${CRON_SECRET}`.
+3. **Mesmo pipeline da busca manual**: geocode com cache permanente, `searchText` com `reserveQuota` ANTES de cada página, upsert que **não rebaixa** status nem apaga nada, leads novos anexados ao MESMO grupo (`buscaId` da busca recorrente). Os parâmetros originais (`qualificada`, `quantidade`) são gravados no doc da busca na criação e reusados aqui. Sem usuário: o cron não carimba `userId` nem quebra `porUsuario` — o uso conta só no agregado.
+4. **Ordem determinística**: `criadaEm` asc (desempate por id), recortada ao teto — se o teto de cota estourar no meio, param sempre as MESMAS buscas do fim da fila, nunca aleatoriamente.
+5. **Cota estourada no meio → para e registra**: `QuotaExceededError` (1ª página) interrompe a fila com `interrompida: { buscaId, nome, motivo }` no resumo; teto a partir da 2ª página registra o parcial daquela busca (já pago) e também interrompe. Erro do **Google** numa busca só marca `erro` naquela entrada e segue — uma região com problema não trava as demais.
+6. **Cada re-execução grava** `{ em, novos, existentes }` em `/buscas/{id}/execucoes` (e soma os deltas aos totais do grupo); a rodada inteira sobrescreve `/cron/ultima`, que o dashboard mostra no widget "Buscas recorrentes" via `GET /api/cron/status`.
+
+### Fila do dia (`src/lib/leads/hoje.ts` + `/api/hoje` + página /hoje)
+
+- **Home pós-login** (o login redireciona para `/hoje`; o Painel continua em `/`, primeira aba "Hoje" na nav). Contadores no topo: "7 novos · 3 follow-ups · 2 demos paradas".
+- **(a) Leads novos desde a última visita** — `criadoEm` posterior ao `ultimaVisitaEm` do usuário (primeira visita = tudo), ordenados pelo score de priorização (`calculaScore`, desc), com badge da **busca de origem** (a primeira do array `buscaId`).
+- **(b) Follow-ups** — status `contactado` sem `respondeuEm` há mais de `config.followUpDias` dias (default 4), o mais antigo primeiro, com "Xd sem resposta".
+- **(c) Demos paradas** — lead com `demo` salva e status ainda `novo` (demo criada e não enviada), demo mais antiga primeiro.
+- Descartados ficam fora de todas as seções (a fila é "o que trabalhar"; descartar é tirar do caminho). Cada item tem ação direta: **WhatsApp** (link `wa.me` com a mensagem do grupo ou a global, `{demo}` → link público quando houver demo), **abrir ficha** e **abrir demo**.
+- A seleção é pura (`montarFilaDoDia`) e testada isolada; a rota só orquestra (config + leads + buscas + carimbo de visita).
+
 ## Proteção por sessão multiusuário (src/proxy.ts + lib/auth.ts + lib/usuarios)
 
-Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login`, `POST /api/login` e a demo pública `/demo/{leadId}`. Fluxo:
+Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login`, `POST /api/login`, a demo pública `/demo/{leadId}` e o gatilho do cron `GET /api/cron` (match exato; protegido por `CRON_SECRET` na própria rota — ver "Operação diária"). Como a demo, a exceção do cron fica DEPOIS do check de `APP_PASSWORD` (fail-closed vale para ele igual). Fluxo:
 
 1. `POST /api/login` com `{ nome, senha }` identifica o usuário em `/usuarios` (PBKDF2) e grava o cookie `radar_session` (httpOnly, sameSite=lax, 30 dias, secure em produção). Antes de conferir, a rota roda o **seed se a coleção estiver vazia** (migração da senha única — ver `/usuarios` acima). `nome` ausente cai em "admin" (compat com o fluxo antigo via curl).
 2. O cookie é um **token assinado sem estado no banco**: `userId.papel.versao` + HMAC-SHA256 com `APP_PASSWORD` como segredo. Trocar `APP_PASSWORD` invalida todas as sessões; redefinir a senha/desativar/trocar o papel de um usuário incrementa a `versao` (campo `sessao` do doc) e derruba só as sessões dele.
@@ -624,15 +689,16 @@ Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `
 
 Client Components (`"use client"`) que buscam dados via `fetch` no próprio cliente (não Server Components lendo o Firestore direto) — decisão deliberada: cada ação do usuário (buscar, enriquecer, mudar status, salvar config) precisa do feedback de erro específico das rotas (429/502/400/404/409), então a mesma rota HTTP serve tanto a carga inicial quanto a mutação, com um único caminho de tratamento de erro (`src/lib/api-client.ts`, classe `ApiError`).
 
-- **`/login`**: form de usuário + senha → `POST /api/login` → redireciona para `/`. Qualquer página protegida sem sessão redireciona para cá (proxy).
-- **`(app)/` (route group)**: layout com nav inferior fixa (Painel/Leads/Buscas/Demos/Chat/Config) + botão Sair; a aba Chat carrega o badge de não-lidas (polling leve de `/api/mensagens/nao-lidas`); todas as páginas autenticadas vivem aqui.
-  - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite"), um KPI row de prospecção com `/api/metrics` e o card "Demos criadas" (total de `metrics.demosCriadas`, linka para `/demos`). **Membro vê os números escopados a ele** (a API já escopa); **admin ganha a seção "Por usuário"** (requests por SKU, buscas, demos, contatos de cada um).
+- **`/login`**: form de usuário + senha → `POST /api/login` → redireciona para `/hoje` (a fila do dia é a home pós-login). Qualquer página protegida sem sessão redireciona para cá (proxy).
+- **`(app)/` (route group)**: layout com nav inferior fixa (Hoje/Painel/Leads/Buscas/Demos/Chat/Config) + botão Sair; a aba Chat carrega o badge de não-lidas (polling leve de `/api/mensagens/nao-lidas`); todas as páginas autenticadas vivem aqui.
+  - **`/hoje` (Fila do dia)**: contadores no topo + as 3 seções de `GET /api/hoje` (novos por score com badge da busca de origem, follow-ups com "Xd sem resposta", demos paradas), cada item com WhatsApp/Ficha/Demo diretos — ver "Operação diária".
+  - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite"), um KPI row de prospecção com `/api/metrics`, o widget "Buscas recorrentes" (última execução do cron via `/api/cron/status`: quando rodou, quanto achou, interrupção/erros e quantas recorrentes estão ligadas) e o card "Demos criadas" (total de `metrics.demosCriadas`, linka para `/demos`). **Membro vê os números escopados a ele** (a API já escopa); **admin ganha a seção "Por usuário"** (requests por SKU, buscas, demos, contatos de cada um).
   - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (toggle, header com dot da cor + nome + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto). Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha — além dos dots de cor das buscas e destaque "sem site (lead quente)". Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
-  - **`/buscas`**: buscas salvas (dot de cor, nome, nicho/sub-nicho, região, data, totais); tocar no dot cicla a cor pela paleta e persiste (`PATCH /api/buscas/[id]`); clicar no card navega para `/leads?buscaId=…`.
+  - **`/buscas`**: buscas salvas (dot de cor, nome, nicho/sub-nicho, região, data, totais); tocar no dot cicla a cor pela paleta e persiste (`PATCH /api/buscas/[id]`); clicar no card navega para `/leads?buscaId=…`; toggle "tornar recorrente"/"recorrente ✓" por card (mesmo PATCH — o 400 do teto de recorrentes aparece como erro na página) com badge "recorrente" no nome.
   - **`/demos`**: todas as demos ativas (leads com `demo` salva) — nome do lead, skin, data de criação/edição (`demo.criadoEm`/`atualizadoEm`), link público copiável e atalhos "Editar" (`/leads/{id}/demo/editar`) e "Excluir" (confirmação inline, mesmo `DELETE /api/leads/[id]/demo` do editor). Reaproveita `GET /api/leads` (sem filtros) e filtra client-side pelos leads com `demo` — mesma escala de "centenas de leads" do resto do app, sem rota nova.
   - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior. A seção **Demo** é um resumo (skin, preset, atualizado em) com "Criar/Editar demo" apontando para o **editor visual** `/leads/{id}/demo/editar` (ver seção da Forja), além de abrir/copiar o link público. Sem demo salva, deixa claro que `/demo/{id}` responde 404. A mensagem do WhatsApp aceita `{demo}` além de `{nome}`.
   - **`/mensagens`**: chat privado entre os usuários — lista de conversas e conversa aberta com envio de texto simples (ver seção "Mensagens entre usuários").
-  - **`/config`** (restrita a admin — o proxy manda membro de volta ao painel): seção **Usuários** (criar, ativar/desativar, redefinir senha; membro sem senha definida aparece marcado) + formulário completo (busca, filtros, mensagem padrão, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
+  - **`/config`** (restrita a admin — o proxy manda membro de volta ao painel): seção **Usuários** (criar, ativar/desativar, redefinir senha; membro sem senha definida aparece marcado) + formulário completo (busca, filtros, mensagem padrão, **operação diária** — dias de follow-up e teto de buscas recorrentes —, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
 - **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tema "radar/sonar": fundo em gradiente azul-profundo → quase-preto (`--background-2` → `--background`), surface com leve tingimento azul (`#121b24`), acento vibrante verde-radar (`--accent`, com `--accent-ink` preto para texto sobre ele — o verde não passa em contraste com texto branco). Tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas, reforçado por forma (quadrado→pill) e marcador (○◐◑●); o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro. A paleta das 10 cores de busca (`BUSCA_CORES`) foi revalidada (mais saturada) contra a nova surface. Textos sobre `good`/`critical`/`warning` usam preto (não branco) — o contraste do branco falha nesses tons vibrantes.
 - **Tipografia**: Space Grotesk (`font-display`, via `next/font/google`) para títulos e números grandes do dashboard; Inter (`font-sans`) para o corpo; JetBrains Mono (`font-mono`) para dados tabulares/valores.
 - **Animações** (CSS puro, sem lib): fade-in sutil de página (`.page-transition`, disparado por `PageTransition.tsx` que troca a `key` pelo pathname), barra do `UsageMeter` cresce de 0 ao montar, pulso (`.pulse-warning`/`.pulse-critical`) no preenchimento do meter perto do teto/no limite, elevação no hover dos cards clicáveis (`.card-lift`), sweep de radar rotativo (`RadarSweep.tsx` + `.radar-sweep`) no carregamento do dashboard. Tudo respeita `prefers-reduced-motion`.
@@ -685,6 +751,7 @@ FIREBASE_PRIVATE_KEY=     # com \n literais; admin.ts converte
 FIREBASE_STORAGE_BUCKET=  # bucket das imagens de demo (ex.: <projeto>.appspot.com)
 APP_PASSWORD=             # segredo de assinatura das sessões + senha INICIAL do admin; sem ela tudo responde 503
 GEMINI_API_KEY=           # OPCIONAL: sugestões de IA da Forja; ausente = IA oculta/desabilitada com aviso, nada quebra
+CRON_SECRET=              # segredo do cron diário (/api/cron); o Vercel Cron envia "Bearer ${CRON_SECRET}"; sem ela a rota responde 503
 ```
 
 Ver `.env.example`. Na Vercel, cadastrar todas em Project Settings → Environment Variables (a do Gemini só se quiser IA).

@@ -131,6 +131,33 @@ describe("saveConfig", () => {
       ValidationError,
     );
   });
+
+  it("aceita followUpDias/maxBuscasRecorrentes válidos e aplica defaults", async () => {
+    const db = new FakeFirestore();
+
+    const config = await saveConfig(db, { followUpDias: 7, maxBuscasRecorrentes: 0 });
+
+    expect(config.followUpDias).toBe(7);
+    expect(config.maxBuscasRecorrentes).toBe(0);
+    // Doc antigo sem os campos cai nos defaults na leitura.
+    expect(DEFAULT_CONFIG.followUpDias).toBe(4);
+    expect(DEFAULT_CONFIG.maxBuscasRecorrentes).toBe(3);
+  });
+
+  it("rejeita followUpDias < 1 e maxBuscasRecorrentes negativo/não-inteiro", async () => {
+    const db = new FakeFirestore();
+
+    const error = await saveConfig(db, {
+      followUpDias: 0,
+      maxBuscasRecorrentes: 1.5,
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).problemas).toEqual([
+      "followUpDias deve ser inteiro ≥ 1",
+      "maxBuscasRecorrentes deve ser inteiro ≥ 0",
+    ]);
+  });
 });
 
 describe("pricingFromConfig", () => {

@@ -3,21 +3,36 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ApiError, api, type MetricsResponse, type UsageResponse } from "@/lib/api-client";
-import { formatBRL, formatInt, formatPercent, formatUSD } from "@/lib/format";
+import {
+  ApiError,
+  api,
+  type CronStatusResponse,
+  type MetricsResponse,
+  type UsageResponse,
+} from "@/lib/api-client";
+import { formatBRL, formatDateTime, formatInt, formatPercent, formatUSD } from "@/lib/format";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
 import { RadarSweep } from "@/components/RadarSweep";
 import { UsageMeter } from "@/components/UsageMeter";
 
 /** Fetcher puro (não mexe em estado) — reaproveitado pelo efeito de carga e pelo retry. */
-async function fetchDashboardData(): Promise<{ usage: UsageResponse; metrics: MetricsResponse }> {
-  const [usage, metrics] = await Promise.all([api.getUsage(), api.getMetrics()]);
-  return { usage, metrics };
+async function fetchDashboardData(): Promise<{
+  usage: UsageResponse;
+  metrics: MetricsResponse;
+  cron: CronStatusResponse;
+}> {
+  const [usage, metrics, cron] = await Promise.all([
+    api.getUsage(),
+    api.getMetrics(),
+    api.cronStatus(),
+  ]);
+  return { usage, metrics, cron };
 }
 
 export default function DashboardPage() {
   const [usage, setUsage] = useState<UsageResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
+  const [cron, setCron] = useState<CronStatusResponse | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,6 +43,7 @@ export default function DashboardPage() {
         if (ignore) return;
         setUsage(data.usage);
         setMetrics(data.metrics);
+        setCron(data.cron);
         setErro(null);
       })
       .catch((error) => {
@@ -48,6 +64,7 @@ export default function DashboardPage() {
       .then((data) => {
         setUsage(data.usage);
         setMetrics(data.metrics);
+        setCron(data.cron);
         setErro(null);
       })
       .catch((error) => {
@@ -167,6 +184,47 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Buscas recorrentes · cron da madrugada
+        </h2>
+        {cron?.ultima ? (
+          <div className="mt-2">
+            <p className="text-sm text-foreground">
+              Última execução: {formatDateTime(cron.ultima.em)} —{" "}
+              <span className="font-semibold">{formatInt(cron.ultima.totalNovos)} novo(s)</span> ·{" "}
+              {formatInt(cron.ultima.totalExistentes)} já existente(s) em{" "}
+              {formatInt(cron.ultima.buscas.length)} busca(s)
+            </p>
+            {cron.ultima.interrompida && (
+              <p className="mt-1 text-xs text-warning">
+                Interrompida{cron.ultima.interrompida.nome ? ` em "${cron.ultima.interrompida.nome}"` : ""}:{" "}
+                {cron.ultima.interrompida.motivo}
+              </p>
+            )}
+            {cron.ultima.buscas.some((b) => b.erro) && (
+              <p className="mt-1 text-xs text-critical">
+                {cron.ultima.buscas
+                  .filter((b) => b.erro)
+                  .map((b) => `"${b.nome}" falhou`)
+                  .join(" · ")}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-ink-muted">O cron ainda não rodou.</p>
+        )}
+        <p className="mt-2 text-xs text-ink-muted">
+          {cron
+            ? `${formatInt(cron.recorrentes)} busca(s) recorrente(s) ligada(s) — gerencie em `
+            : "Gerencie as recorrências em "}
+          <Link href="/buscas" className="text-accent">
+            Buscas
+          </Link>
+          .
+        </p>
+      </section>
 
       <section>
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">

@@ -1,5 +1,6 @@
 export {
   atualizarUsuario,
+  carimbarVisita,
   criarUsuario,
   getUsuario,
   getUsuarioPorNome,

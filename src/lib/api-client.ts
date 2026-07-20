@@ -1,4 +1,5 @@
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
+import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import type { UsageCounts } from "@/lib/costs";
@@ -88,6 +89,25 @@ export interface GeocodeResponse {
   cached: boolean;
 }
 
+/** Fila do dia (/hoje): as 3 seções + contexto para badges e WhatsApp. */
+export interface HojeResponse {
+  novos: Lead[];
+  followUps: Lead[];
+  demosParadas: Lead[];
+  /** Carimbo anterior usado no delta de novos (null = primeira visita). */
+  novosDesde: string | null;
+  followUpDias: number;
+  /** Mensagem global do WhatsApp (fallback quando o grupo não tem própria). */
+  mensagemPadrao: string;
+  buscas: Array<{ id: string; nome: string; cor: string; mensagemPadrao?: string }>;
+}
+
+/** Widget do dashboard: última rodada do cron + recorrentes ligadas. */
+export interface CronStatusResponse {
+  ultima: CronExecucao | null;
+  recorrentes: number;
+}
+
 /** Resumo da página /mensagens: interlocutores + conversas + badge. */
 export interface MensagensResumoResponse {
   usuarios: Array<{ id: string; nome: string; ativo: boolean }>;
@@ -141,8 +161,14 @@ export const api = {
       `/api/geocode${regiao ? `?regiao=${encodeURIComponent(regiao)}` : ""}`,
     ),
 
+  hoje: () => request<HojeResponse>("/api/hoje"),
+  cronStatus: () => request<CronStatusResponse>("/api/cron/status"),
+
   listBuscas: () => request<{ buscas: Busca[] }>("/api/buscas"),
-  patchBusca: (id: string, patch: { cor?: string; mensagemPadrao?: string }) =>
+  patchBusca: (
+    id: string,
+    patch: { cor?: string; mensagemPadrao?: string; recorrente?: boolean },
+  ) =>
     request<{ busca: Busca }>(`/api/buscas/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),

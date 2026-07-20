@@ -8,6 +8,7 @@ import { api } from "@/lib/api-client";
 import { ThemeToggle } from "./ThemeToggle";
 
 const TABS = [
+  { href: "/hoje", label: "Hoje" },
   { href: "/", label: "Painel" },
   { href: "/leads", label: "Leads" },
   { href: "/buscas", label: "Buscas" },

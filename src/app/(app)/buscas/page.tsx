@@ -22,6 +22,7 @@ export default function BuscasPage() {
   const [editandoMsg, setEditandoMsg] = useState<string | null>(null);
   const [msgDraft, setMsgDraft] = useState("");
   const [salvandoMsg, setSalvandoMsg] = useState(false);
+  const [salvandoRecorrente, setSalvandoRecorrente] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -59,6 +60,24 @@ export default function BuscasPage() {
       setErro(error instanceof ApiError ? error.message : "Falha ao trocar a cor.");
     } finally {
       setTrocandoCor(null);
+    }
+  }
+
+  async function toggleRecorrente(busca: Busca) {
+    setSalvandoRecorrente(busca.id);
+    setErro(null);
+    try {
+      const { busca: updated } = await api.patchBusca(busca.id, {
+        recorrente: !busca.recorrente,
+      });
+      aplicarUpdate(updated);
+    } catch (error) {
+      // Inclui o 400 do teto de recorrentes simultâneas — mensagem da API.
+      setErro(
+        error instanceof ApiError ? error.message : "Falha ao alterar a recorrência.",
+      );
+    } finally {
+      setSalvandoRecorrente(null);
     }
   }
 
@@ -123,8 +142,16 @@ export default function BuscasPage() {
                   className="block"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {busca.nome}
+                    <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
+                      <span className="truncate">{busca.nome}</span>
+                      {busca.recorrente && (
+                        <span
+                          title="Busca recorrente: o cron re-executa 1x/dia"
+                          className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
+                        >
+                          recorrente
+                        </span>
+                      )}
                     </p>
                     <span className="shrink-0 text-xs text-ink-muted">
                       {formatDateTime(busca.criadaEm)}
@@ -179,16 +206,35 @@ export default function BuscasPage() {
                     ) : (
                       <span className="text-xs text-ink-muted">mensagem: global</span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditandoMsg(busca.id);
-                        setMsgDraft(busca.mensagemPadrao ?? "");
-                      }}
-                      className="shrink-0 text-xs text-ink-muted hover:text-accent"
-                    >
-                      {busca.mensagemPadrao ? "editar mensagem" : "+ mensagem do grupo"}
-                    </button>
+                    <span className="flex shrink-0 items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleRecorrente(busca)}
+                        disabled={salvandoRecorrente === busca.id}
+                        title={
+                          busca.recorrente
+                            ? "Desligar a re-execução diária desta busca"
+                            : "Re-executar esta busca 1x/dia (cron da madrugada)"
+                        }
+                        className={`text-xs disabled:opacity-50 ${
+                          busca.recorrente
+                            ? "text-accent hover:text-foreground"
+                            : "text-ink-muted hover:text-accent"
+                        }`}
+                      >
+                        {busca.recorrente ? "recorrente ✓" : "tornar recorrente"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditandoMsg(busca.id);
+                          setMsgDraft(busca.mensagemPadrao ?? "");
+                        }}
+                        className="text-xs text-ink-muted hover:text-accent"
+                      >
+                        {busca.mensagemPadrao ? "editar mensagem" : "+ mensagem do grupo"}
+                      </button>
+                    </span>
                   </div>
                 )}
               </div>
