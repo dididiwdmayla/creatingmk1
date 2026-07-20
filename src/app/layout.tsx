@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -21,6 +21,21 @@ const jetBrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Radar",
   description: "Prospecção de leads locais",
+};
+
+/**
+ * `interactiveWidget: "resizes-content"` é o que faz o teclado virtual
+ * ENCOLHER a viewport dinâmica (dvh) em vez de só sobrepor o conteúdo —
+ * sem isto, telas cheias baseadas em dvh (ex.: o chat em /mensagens, o
+ * editor de demo) ficam com o input escondido atrás do teclado em
+ * iOS/Android. `viewportFit: "cover"` é o que dá efeito real ao
+ * env(safe-area-inset-*) já usado em vários componentes (Nav, editor).
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 /**
