@@ -130,88 +130,94 @@ export default function MensagensPage() {
 
   const interlocutor = resumo?.usuarios.find((u) => u.id === com);
 
-  // ── Conversa aberta ─────────────────────────────────────────────
+  // ── Conversa aberta ───────────────────────────────────────────────
+  // Estilo WhatsApp: ocupa a viewport inteira (top:0 até acima da nav
+  // fixa), cobrindo o cabeçalho RADAR — o próprio cabeçalho da conversa
+  // faz esse papel enquanto o chat está aberto. Mensagens ancoradas
+  // embaixo (justify-end) e o input fixo no rodapé, acima da nav.
   if (com) {
     return (
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              setCom(null);
-              setMensagens(null);
-              totalRef.current = 0;
-            }}
-            className="text-xs text-ink-muted hover:text-foreground"
-          >
-            ← Conversas
-          </button>
-          <h1 className="font-display text-base font-bold text-foreground">
-            {interlocutor?.nome ?? com}
-          </h1>
-          {interlocutor && !interlocutor.ativo && (
-            <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-muted">
-              desativado
-            </span>
-          )}
-        </div>
+      <div className="fixed inset-x-0 top-0 bottom-12 z-20 bg-background">
+        <div className="mx-auto flex h-full w-full max-w-lg flex-col">
+          <div className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-3">
+            <button
+              type="button"
+              onClick={() => {
+                setCom(null);
+                setMensagens(null);
+                totalRef.current = 0;
+              }}
+              className="text-xs text-ink-muted hover:text-foreground"
+            >
+              ← Conversas
+            </button>
+            <h1 className="font-display text-base font-bold text-foreground">
+              {interlocutor?.nome ?? com}
+            </h1>
+            {interlocutor && !interlocutor.ativo && (
+              <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-muted">
+                desativado
+              </span>
+            )}
+          </div>
 
-        {erro && (
-          <p className="rounded border border-critical/30 bg-critical/10 px-3 py-2 text-xs text-critical">
-            {erro}
-          </p>
-        )}
-
-        <div className="flex min-h-[40dvh] flex-col gap-2 pb-24">
-          {mensagens === null && <p className="text-sm text-ink-muted">Carregando…</p>}
-          {mensagens?.length === 0 && (
-            <p className="text-sm text-ink-muted">
-              Nenhuma mensagem ainda — puxe o assunto abaixo.
+          {erro && (
+            <p className="mx-4 mt-2 shrink-0 rounded border border-critical/30 bg-critical/10 px-3 py-2 text-xs text-critical">
+              {erro}
             </p>
           )}
-          {mensagens?.map((mensagem) => {
-            const minha = mensagem.deUserId === meuId;
-            return (
-              <div
-                key={mensagem.id}
-                className={`flex flex-col ${minha ? "items-end" : "items-start"}`}
-              >
-                <div
-                  className={`max-w-[85%] whitespace-pre-wrap break-words rounded-lg px-3 py-2 text-sm ${
-                    minha
-                      ? "bg-accent text-accent-ink"
-                      : "border border-line bg-surface text-foreground"
-                  }`}
-                >
-                  {mensagem.texto}
-                </div>
-                <span className="mt-0.5 text-[10px] text-ink-muted">
-                  {formatDateTime(mensagem.criadaEm)}
-                  {minha && mensagem.lidaEm ? " · lida" : ""}
-                </span>
-              </div>
-            );
-          })}
-          <div ref={fimRef} />
-        </div>
 
-        <form
-          onSubmit={handleEnviar}
-          className="fixed inset-x-0 bottom-12 z-10 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
-        >
-          <div className="mx-auto flex w-full max-w-lg items-center gap-2 px-4 py-2">
-            <input
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              maxLength={MENSAGEM_TEXTO_MAX}
-              placeholder="Escreva uma mensagem…"
-              className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-            />
-            <Button type="submit" loading={enviando} disabled={!texto.trim()}>
-              Enviar
-            </Button>
+          <div className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-y-auto px-4 py-3">
+            {mensagens === null && <p className="text-sm text-ink-muted">Carregando…</p>}
+            {mensagens?.length === 0 && (
+              <p className="text-sm text-ink-muted">
+                Nenhuma mensagem ainda — puxe o assunto abaixo.
+              </p>
+            )}
+            {mensagens?.map((mensagem) => {
+              const minha = mensagem.deUserId === meuId;
+              return (
+                <div
+                  key={mensagem.id}
+                  className={`flex flex-col ${minha ? "items-end" : "items-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] whitespace-pre-wrap break-words rounded-lg px-3 py-2 text-sm ${
+                      minha
+                        ? "bg-accent text-accent-ink"
+                        : "border border-line bg-surface text-foreground"
+                    }`}
+                  >
+                    {mensagem.texto}
+                  </div>
+                  <span className="mt-0.5 text-[10px] text-ink-muted">
+                    {formatDateTime(mensagem.criadaEm)}
+                    {minha && mensagem.lidaEm ? " · lida" : ""}
+                  </span>
+                </div>
+              );
+            })}
+            <div ref={fimRef} />
           </div>
-        </form>
+
+          <form
+            onSubmit={handleEnviar}
+            className="shrink-0 border-t border-line bg-surface px-4 py-2 pb-[env(safe-area-inset-bottom)]"
+          >
+            <div className="flex items-center gap-2">
+              <input
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                maxLength={MENSAGEM_TEXTO_MAX}
+                placeholder="Escreva uma mensagem…"
+                className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+              />
+              <Button type="submit" loading={enviando} disabled={!texto.trim()}>
+                Enviar
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
     );
   }

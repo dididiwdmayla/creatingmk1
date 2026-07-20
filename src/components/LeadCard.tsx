@@ -21,11 +21,17 @@ function presencaTexto(presenca: boolean | undefined): string {
 export function LeadCard({
   lead,
   cores,
+  score,
+  destaque,
   onChange,
 }: {
   lead: Lead;
   /** buscaId → cor (badge de cor das buscas em que o lead apareceu). */
   cores: Record<string, string>;
+  /** Score de priorização (calculaScore) — badge no card. */
+  score: number;
+  /** Está entre os top-scored da lista/grupo atual — ganha o 🎯. */
+  destaque?: boolean;
   onChange: (lead: Lead) => void;
 }) {
   const [editandoNotas, setEditandoNotas] = useState(false);
@@ -104,6 +110,17 @@ export function LeadCard({
           )}
         </Link>
         <div className="flex shrink-0 items-center gap-2">
+          <span
+            title="Score de priorização"
+            className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+              destaque
+                ? "bg-warning/15 text-warning"
+                : "bg-surface-2 text-ink-muted"
+            }`}
+          >
+            {destaque && <span aria-hidden>🎯</span>}
+            {score > 0 ? `+${score}` : score}
+          </span>
           <StatusBadge status={lead.status} />
           <button
             type="button"

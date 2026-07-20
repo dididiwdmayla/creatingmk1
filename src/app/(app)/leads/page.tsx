@@ -9,7 +9,33 @@ import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api } from "@/lib/api-client";
 import type { Busca } from "@/lib/buscas/types";
 import type { FiltroPresenca } from "@/lib/config";
+import { formatDateTime } from "@/lib/format";
+import { calculaScore } from "@/lib/leads/score";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
+
+/** Quantos leads (por lista/grupo) ganham o 🎯 na ordenação por prioridade. */
+const TOP_SCORE_N = 3;
+
+/** IDs dos leads mais bem pontuados dentro da lista dada (badge 🎯 do card). */
+function topScoreIds(leads: Lead[], n = TOP_SCORE_N): Set<string> {
+  return new Set(
+    [...leads]
+      .filter((lead) => !lead.descartado)
+      .sort((a, b) => calculaScore(b) - calculaScore(a))
+      .slice(0, n)
+      .map((lead) => lead.placeId),
+  );
+}
+
+/** Descartados sempre no fim; por prioridade ordena o resto por score desc. */
+function ordenarPorPrioridade(leads: Lead[]): Lead[] {
+  return [...leads].sort(
+    (a, b) =>
+      Number(a.descartado === true) - Number(b.descartado === true) ||
+      calculaScore(b) - calculaScore(a) ||
+      b.criadoEm.localeCompare(a.criadoEm),
+  );
+}
 
 const STATUS_OPTIONS: Array<{ value: LeadStatus | ""; label: string }> = [
   { value: "", label: "Todos os status" },
@@ -132,6 +158,7 @@ function LeadsPageInner() {
   const temTelefone = (searchParams.get("tel") ?? "qualquer") as FiltroPresenca;
   const soFavoritos = searchParams.get("fav") === "1";
   const agrupar = searchParams.get("plano") !== "1";
+  const ordem = (searchParams.get("ordem") ?? "recentes") as "recentes" | "prioridade";
   const fechados = useMemo(
     () => new Set((searchParams.get("fechados") ?? "").split(",").filter(Boolean)),
     [searchParams],
@@ -174,6 +201,11 @@ function LeadsPageInner() {
   const [regiaoResolvida, setRegiaoResolvida] = useState<string | null>(null);
   const [regiaoErro, setRegiaoErro] = useState<string | null>(null);
 
+  // Análise de grupo com IA (só existe na página de um grupo, buscaId setado).
+  const [iaDisponivel, setIaDisponivel] = useState(false);
+  const [analisando, setAnalisando] = useState(false);
+  const [iaErro, setIaErro] = useState<string | null>(null);
+
   const filters: LeadFiltersState = { status, temSite, temTelefone, soFavoritos, buscaId };
 
   useEffect(() => {
@@ -211,10 +243,38 @@ function LeadsPageInner() {
       .catch(() => {
         // placeholder fica genérico; a busca ainda resolve no servidor
       });
+    api
+      .iaStatus()
+      .then(({ disponivel }) => {
+        if (!ignore) setIaDisponivel(disponivel);
+      })
+      .catch(() => {
+        if (!ignore) setIaDisponivel(false);
+      });
     return () => {
       ignore = true;
     };
   }, []);
+
+  async function analisarGrupoComIA() {
+    if (!buscaId || analisando) return;
+    setAnalisando(true);
+    setIaErro(null);
+    try {
+      const { busca: atualizada } = await api.gerarAnaliseBusca(buscaId);
+      setBuscas((atual) => atual.map((b) => (b.id === atualizada.id ? atualizada : b)));
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "quota_exceeded") {
+        setIaErro(
+          `Teto mensal atingido para ${error.extra.sku} (${error.extra.used}/${error.extra.cap} em ${error.extra.period}).`,
+        );
+      } else {
+        setIaErro(error instanceof ApiError ? error.message : "Falha ao analisar com IA.");
+      }
+    } finally {
+      setAnalisando(false);
+    }
+  }
 
   // Resolve a região efetiva (campo ou default da config) para mostrar
   // "Buscando em: X" antes de confirmar. Roda no blur do campo e quando o
@@ -357,7 +417,12 @@ function LeadsPageInner() {
     buscas.map((busca) => [busca.id, busca.cor]),
   );
   const agrupado = agrupar && !buscaId;
-  const grupos = agrupado && leads ? agruparPorBusca(leads, buscas) : [];
+  const leadsOrdenados =
+    ordem === "prioridade" && leads ? ordenarPorPrioridade(leads) : leads;
+  const grupos = agrupado && leadsOrdenados ? agruparPorBusca(leadsOrdenados, buscas) : [];
+  // Top da lista toda quando plana; top DENTRO de cada grupo quando agrupado.
+  const topFlat = !agrupado && leadsOrdenados ? topScoreIds(leadsOrdenados) : new Set<string>();
+  const buscaAtual = buscaId ? buscas.find((b) => b.id === buscaId) : undefined;
 
   return (
     <div className="flex flex-col gap-6">
@@ -480,23 +545,58 @@ function LeadsPageInner() {
       </form>
 
       {buscaId && (
-        <div className="flex items-center justify-between gap-2 rounded border border-accent/40 bg-accent/10 px-3 py-2">
-          <p className="truncate text-sm text-ink-secondary">
-            Mostrando leads da busca{" "}
-            <span className="font-medium text-foreground">{buscaNome ?? buscaId}</span>
-          </p>
-          <button
-            type="button"
-            onClick={() =>
-              updateParams((params) => {
-                params.delete("buscaId");
-                params.delete("buscaNome");
-              })
-            }
-            className="shrink-0 text-xs font-medium text-accent hover:underline"
-          >
-            Limpar
-          </button>
+        <div className="flex flex-col gap-2 rounded border border-accent/40 bg-accent/10 px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-sm text-ink-secondary">
+              Mostrando leads da busca{" "}
+              <span className="font-medium text-foreground">{buscaNome ?? buscaId}</span>
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                updateParams((params) => {
+                  params.delete("buscaId");
+                  params.delete("buscaNome");
+                })
+              }
+              className="shrink-0 text-xs font-medium text-accent hover:underline"
+            >
+              Limpar
+            </button>
+          </div>
+
+          {iaDisponivel && (
+            <div className="border-t border-accent/20 pt-2">
+              {analisando ? (
+                <p className="text-xs text-ink-muted">Analisando o grupo com IA…</p>
+              ) : buscaAtual?.analiseIA ? (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-sm text-ink-secondary">{buscaAtual.analiseIA.texto}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-ink-muted">
+                      Gerada em {formatDateTime(buscaAtual.analiseIA.geradaEm)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={analisarGrupoComIA}
+                      className="shrink-0 text-xs font-medium text-accent hover:underline"
+                    >
+                      Regenerar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={analisarGrupoComIA}
+                  className="text-xs font-medium text-accent hover:underline"
+                >
+                  ✨ Analisar com IA
+                </button>
+              )}
+              {iaErro && <p className="mt-1 text-xs text-critical">{iaErro}</p>}
+            </div>
+          )}
         </div>
       )}
 
@@ -550,6 +650,16 @@ function LeadsPageInner() {
         >
           ★ Favoritos
         </button>
+        <select
+          value={ordem}
+          onChange={(event) =>
+            setParam("ordem", event.target.value === "recentes" ? null : event.target.value)
+          }
+          className="rounded border border-line bg-surface-2 px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
+        >
+          <option value="recentes">Ordenar: mais recentes</option>
+          <option value="prioridade">Ordenar: por prioridade</option>
+        </select>
         {!buscaId && (
           <label className="ml-auto flex items-center gap-1.5 text-xs text-ink-secondary">
             <input
@@ -575,6 +685,7 @@ function LeadsPageInner() {
         <div className="flex flex-col gap-3">
           {grupos.map((grupo) => {
             const fechado = fechados.has(grupo.chave);
+            const topDoGrupo = topScoreIds(grupo.leads);
             return (
               <section key={grupo.chave}>
                 <button
@@ -600,7 +711,13 @@ function LeadsPageInner() {
                   <ul className="mt-1.5 flex flex-col gap-2">
                     {grupo.leads.map((lead) => (
                       <li key={`${grupo.chave}-${lead.placeId}`}>
-                        <LeadCard lead={lead} cores={cores} onChange={onLeadChange} />
+                        <LeadCard
+                          lead={lead}
+                          cores={cores}
+                          score={calculaScore(lead)}
+                          destaque={topDoGrupo.has(lead.placeId)}
+                          onChange={onLeadChange}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -611,9 +728,15 @@ function LeadsPageInner() {
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
-          {leads.map((lead) => (
+          {(leadsOrdenados ?? []).map((lead) => (
             <li key={lead.placeId}>
-              <LeadCard lead={lead} cores={cores} onChange={onLeadChange} />
+              <LeadCard
+                lead={lead}
+                cores={cores}
+                score={calculaScore(lead)}
+                destaque={topFlat.has(lead.placeId)}
+                onChange={onLeadChange}
+              />
             </li>
           ))}
         </ul>
