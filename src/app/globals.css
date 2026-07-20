@@ -45,6 +45,14 @@
   --status-contactado: #256abf;
   --status-respondeu: #3987e5;
   --status-fechado: #6da7ec;
+
+  /* Alturas fixas do chrome do app (Nav.tsx: header + barra inferior),
+     iguais nos dois temas — usadas por telas que precisam ocupar EXATAMENTE
+     o espaço restante da viewport dinâmica (ex.: o chat em /mensagens, via
+     calc(100dvh - var(--app-header-h) - var(--app-nav-h) - env(safe-area-
+     inset-bottom))). Nav.tsx usa h-14 nos dois para bater com estes valores. */
+  --app-header-h: 3.5rem;
+  --app-nav-h: 3.5rem;
 }
 
 /*

@@ -62,7 +62,7 @@ export function Nav() {
 
   return (
     <>
-      <header className="flex items-center justify-between border-b border-line bg-surface px-4 py-3">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-line bg-surface px-4">
         <span className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
@@ -86,14 +86,14 @@ export function Nav() {
       </header>
 
       <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto flex max-w-lg">
+        <div className="mx-auto flex h-14 max-w-lg">
           {TABS.map((tab) => {
             const active = isActive(pathname, tab.href);
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`relative flex-1 py-3 text-center text-sm font-medium transition-colors ${
+                className={`relative flex flex-1 items-center justify-center text-sm font-medium transition-colors ${
                   active ? "text-accent" : "text-ink-muted hover:text-ink-secondary"
                 }`}
               >
