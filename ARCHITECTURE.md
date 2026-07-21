@@ -202,10 +202,28 @@ src/
           OrderCta.tsx                # ✅ CTA de pedido neutro: WhatsApp (data.whatsapp) ou toast "disponível na versão completa"
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+      imobiliaria/
+        Skin.tsx                    # composição { data, theme }, sem hooks próprios
+        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
+        secoes.ts                   # contrato SkinSecaoDef[]
+        themes.ts                   # default + presets de tema
+        exemplo.ts                  # DemoData de exemplo (base da ficha)
+        interactive/                # ✅ subcomponentes "use client" (animações/interação)
+          SectionReveal.tsx          # entrada de SEÇÃO por scroll (só quando o editor pede override — ver Reveal.tsx)
+          Reveal.tsx                 # entrada por ELEMENTO fiel ao data-reveal/data-delay do material bruto (default do template)
+          Nav.tsx                    # header translúcido, cor troca por seção sob a barra (data-nav-theme claro/escuro)
+          HeroVisual.tsx             # imagem do hero com parallax + selo circular giratório (SVG textPath)
+          ManifestoReveal.tsx        # manifesto revelado palavra a palavra por progresso de scroll
+          BairroCarousel.tsx         # carrossel de bairros com arraste (pointer events, sem lib)
+          NewsletterForm.tsx         # captura de e-mail neutra (sem backend real — mesmo espírito do OrderCta)
+          CustomCursor.tsx           # cursor customizado que cresce/some sobre cards de imóvel
+          IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
+          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
 public/
   demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/tatuagem/*.svg              # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/lancheria/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
+  demos/imobiliaria/*.svg           # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
