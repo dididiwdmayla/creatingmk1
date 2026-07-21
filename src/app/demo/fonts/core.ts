@@ -1,7 +1,9 @@
 import {
+  Archivo,
   Bebas_Neue,
   Cormorant_Garamond,
   Crimson_Pro,
+  DM_Serif_Display,
   Fugaz_One,
   Inter,
   JetBrains_Mono,
@@ -91,6 +93,25 @@ const playfairBlack = Playfair_Display({
   weight: ["400", "900"],
 });
 
+// Dupla tipográfica da skin "Tatuagem Pigmento Vivo" (CROMA Tattoo Studio):
+// DM Serif Display cobre títulos/citações/wordmark; Archivo cobre corpo,
+// rótulos e preços — o material bruto não tem uma família monoespaçada
+// separada, então `mono`/`destaque` reaproveitam a mesma Archivo (ver
+// components/demos/tatuagem2/themes.ts).
+const dmSerif = DM_Serif_Display({
+  variable: "--font-demo-dm-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+});
+
+const archivo = Archivo({
+  variable: "--font-demo-archivo",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+});
+
 /** Ids da lista curada (fontes.ts) já cobertos por este pacote estático. */
 export const CORE_FONT_IDS: readonly string[] = [
   "bebas",
@@ -100,6 +121,8 @@ export const CORE_FONT_IDS: readonly string[] = [
   "limelight",
   "pirata",
   "fugaz",
+  "dm-serif",
+  "archivo",
 ];
 
 export const demoCoreFontsClassName = [
@@ -113,4 +136,6 @@ export const demoCoreFontsClassName = [
   pirata.variable,
   playfairBlack.variable,
   fugaz.variable,
+  dmSerif.variable,
+  archivo.variable,
 ].join(" ");
