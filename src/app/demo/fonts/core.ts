@@ -1,7 +1,9 @@
 import {
+  Archivo,
   Bebas_Neue,
   Cormorant_Garamond,
   Crimson_Pro,
+  Fraunces,
   Fugaz_One,
   Inter,
   JetBrains_Mono,
@@ -80,6 +82,25 @@ const fugaz = Fugaz_One({
   weight: "400",
 });
 
+// Serif variável (eixo óptico) da skin de barbearia2 — display do hero,
+// headlines editoriais e o logotipo do rodapé. O material bruto usa pesos
+// finos (330-400) ao longo do eixo `opsz`; aproximamos para os cortes
+// estáticos 400/500 do next/font (mesmo critério do peso 340→400 já usado
+// alhures neste arquivo).
+const fraunces = Fraunces({
+  variable: "--font-demo-fraunces",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+
+// Sans neutra do corpo de texto da skin de barbearia2 — igual ao material
+// bruto (Archivo 400/500, nunca itálico).
+const archivo = Archivo({
+  variable: "--font-demo-archivo",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+
 // Pesos 400/900, estilo normal only — igual ao material bruto (que também
 // não carrega itálico real: o "font-light italic" do Manifesto usa itálico
 // SINTÉTICO sobre a face normal, e peso 300 sem face própria cai no 400
@@ -113,4 +134,6 @@ export const demoCoreFontsClassName = [
   pirata.variable,
   playfairBlack.variable,
   fugaz.variable,
+  fraunces.variable,
+  archivo.variable,
 ].join(" ");

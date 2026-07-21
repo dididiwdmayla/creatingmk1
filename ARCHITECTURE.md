@@ -202,10 +202,24 @@ src/
           OrderCta.tsx                # ✅ CTA de pedido neutro: WhatsApp (data.whatsapp) ou toast "disponível na versão completa"
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+      barbearia2/
+        Skin.tsx                    # composição { data, theme }, sem hooks próprios
+        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
+        secoes.ts                   # contrato SkinSecaoDef[]
+        themes.ts                   # default + presets de tema
+        exemplo.ts                  # DemoData de exemplo (base da ficha)
+        interactive/                # ✅ subcomponentes "use client" (animações/interação)
+          SectionReveal.tsx          # entrada de seção por scroll, intensidade = theme.animacao
+          FadeUp.tsx                  # stagger granular item a item (manifesto, ritual, hero)
+          RevealLine.tsx              # linha divisória que abre da esquerda (scaleX), antes de cada etiqueta
+          DragGallery.tsx             # galeria com arraste por mouse + momentum ao soltar (pointer events puros)
+          IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
+          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
 public/
   demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/tatuagem/*.svg              # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/lancheria/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
+  demos/barbearia2/*.svg            # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
