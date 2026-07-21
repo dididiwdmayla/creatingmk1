@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Miniatura: Tatuagem Pigmento Vivo">
+  <defs>
+    <radialGradient id="blobA" cx="0.25" cy="0.3" r="0.55">
+      <stop offset="0" stop-color="#D6336C" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#D6336C" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blobB" cx="0.8" cy="0.65" r="0.5">
+      <stop offset="0" stop-color="#2B4EFF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#2B4EFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blobC" cx="0.55" cy="0.9" r="0.4">
+      <stop offset="0" stop-color="#FF6B35" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#FF6B35" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="300" fill="#FAF6F0"/>
+  <rect width="400" height="300" fill="url(#blobA)"/>
+  <rect width="400" height="300" fill="url(#blobB)"/>
+  <rect width="400" height="300" fill="url(#blobC)"/>
+  <text x="200" y="165" font-family="Georgia, serif" text-anchor="middle" fill="#141414" font-size="34" letter-spacing="1">Pigmento Vivo</text>
+  <circle cx="284" cy="150" r="4" fill="#D6336C"/>
+</svg>

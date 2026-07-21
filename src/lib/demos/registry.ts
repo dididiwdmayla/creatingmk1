@@ -20,6 +20,13 @@ import {
   TATUAGEM_THEME_DEFAULT,
   TATUAGEM_THEME_PRESETS,
 } from "@/components/demos/tatuagem/themes";
+import { TATUAGEM2_EXEMPLO } from "@/components/demos/tatuagem2/exemplo";
+import { TATUAGEM2_SECOES } from "@/components/demos/tatuagem2/secoes";
+import { TatuagemPigmentoVivo } from "@/components/demos/tatuagem2/Skin";
+import {
+  TATUAGEM2_THEME_DEFAULT,
+  TATUAGEM2_THEME_PRESETS,
+} from "@/components/demos/tatuagem2/themes";
 import type { SkinDefinition, Theme } from "./types";
 
 /**
@@ -62,6 +69,24 @@ export const SKINS: SkinDefinition[] = [
     videoSlots: ["titulo"],
     // Góticas/brutalist/condensadas — o tom sombrio-editorial da skin.
     fontesRecomendadas: ["pirata", "archivo-black", "oswald", "bebas", "cinzel", "abril"],
+  },
+  {
+    id: "tatuagem-pigmento-vivo",
+    nicho: "tatuagem",
+    nome: "Tatuagem Pigmento Vivo",
+    descricao:
+      "Fundo claro e blobs coloridos: manifesto que acende palavra a palavra no scroll, portfólio em trilha horizontal e cartões com blob no hover.",
+    componente: TatuagemPigmentoVivo,
+    themeDefault: TATUAGEM2_THEME_DEFAULT,
+    themePresets: TATUAGEM2_THEME_PRESETS,
+    demoDataExemplo: TATUAGEM2_EXEMPLO,
+    secoes: TATUAGEM2_SECOES,
+    heroEscalaLimites: { min: 0.75, max: 1.25 },
+    thumbnail: "/demos/tatuagem2/thumb.svg",
+    // Sem videoSlots: o material bruto não tem vídeo-no-título (o hero
+    // nem usa foto — só blobs de cor e um traço SVG).
+    // Serif dramática + sans editorial — o par tipográfico do material bruto.
+    fontesRecomendadas: ["dm-serif", "archivo", "playfair", "cormorant", "josefin"],
   },
   {
     id: "lancheria-chapa-burger",

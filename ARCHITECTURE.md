@@ -202,10 +202,31 @@ src/
           OrderCta.tsx                # ✅ CTA de pedido neutro: WhatsApp (data.whatsapp) ou toast "disponível na versão completa"
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+      tatuagem2/
+        Skin.tsx                    # composição { data, theme }, sem hooks próprios
+        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
+        secoes.ts                   # contrato SkinSecaoDef[]
+        themes.ts                   # default + presets de tema
+        exemplo.ts                  # DemoData de exemplo (base da ficha)
+        interactive/                # ✅ subcomponentes "use client" (animações/interação)
+          SectionReveal.tsx          # entrada de seção por scroll, intensidade = theme.animacao
+          FadeUp.tsx                 # stagger granular item a item
+          Parallax.tsx               # parallax sutil de imagem/blob (fiel ao <Parallax> original)
+          Nav.tsx                    # header translúcido fixo + ponto de pigmento da seção + CTA com gradiente no hover
+          CustomCursor.tsx           # ponto sólido mix-blend-multiply, cor = pigmento da seção atual
+          PigmentTracker.tsx         # observa a seção em foco e escreve a cor dela em --d-pigment (nav dot + cursor)
+          SplashTitle.tsx            # título com hover letra-a-letra + última palavra em itálico na cor de acento
+          ManifestoReveal.tsx        # manifesto que "acende" palavra a palavra conforme o progresso do scroll
+          ScrollGallery.tsx          # portfólio em trilha horizontal pinada (scroll vertical → translateX); scroll nativo em touch
+          LineDraw.tsx               # traço SVG que se desenha ao entrar no viewport (rabiscos de artista, linha do processo)
+          FaqAccordion.tsx           # acordeão com um item aberto por vez (primeiro já aberto, fiel ao original)
+          IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
+          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
 public/
   demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/tatuagem/*.svg              # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/lancheria/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
+  demos/tatuagem2/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
@@ -751,6 +772,17 @@ A skin de barbearia da Forja de Demos foi verificada **lado a lado com o materia
 - **Elemento decorativo entre seções** (`DecorativeBlob.tsx`, parallax fiel ao `<DecorativeElement>` original): reposicionado da borda superior (onde sobrepunha o título da seção seguinte) pra borda inferior com `-z-10`, garantindo que fique sempre atrás do texto independente da ordem de reprodução no DOM.
 - **Fonte nova**: Fugaz One (display "poster" do material bruto) virou fonte core (`--font-demo-fugaz`) e entrou na lista curada do editor (`lib/demos/fontes.ts`) — nenhuma das skins anteriores tinha essa família.
 - Responsivo confirmado em mobile (390px): título do hero quebra em duas linhas naturalmente (sem split manual), grade de lanches vira coluna única, listas de bebidas/acompanhamentos mantêm rolagem horizontal, rodapé empilha.
+
+**Skin "Tatuagem Pigmento Vivo"** (conversão de `skins-raw/tatuagem2`, CROMA Tattoo Studio — fundo claro, blobs coloridos, manifesto scroll-driven e portfólio em trilha horizontal): clonado com `git clone` (o material bruto é um componente único auto-bootstrapping via CDN — React/ReactDOM/Babel carregados em runtime pelo próprio `support.js`), renderizado localmente (interceptando as 3 URLs de CDN e servindo os pacotes equivalentes do `node_modules` via Playwright `page.route`, já que o CDN não é alcançável no sandbox) e comparado lado a lado com a conversão através de uma página temporária (`/qa-tatuagem2-preview`, fora da proteção por sessão via uma exceção EXATA em `src/proxy.ts`) — ambas revertidas antes do commit, sem sobra no resultado final.
+
+- **Dois bugs reais de layout encontrados e corrigidos**: (1) os blobs decorativos do hero, embrulhados direto em `<Parallax>`, herdavam a classe `relative` do próprio wrapper do Parallax por cima do `absolute` que a skin passava — como as duas utilities Tailwind têm a mesma especificidade, a ordem de geração do CSS decidiu a disputa a favor de `relative`, jogando os três blobs (cada um ~46vw de altura) para dentro do fluxo normal do documento e empurrando o hero inteiro ~1900px pra baixo da dobra; corrigido envolvendo cada blob num `<div>` absolutamente posicionado PRÓPRIO, com o `<Parallax>` só por dentro (`h-full w-full`, sem position). (2) O CTA da nav mobile (classe utilitária `.d-nav-cta` com `display: inline-flex` fixo no `<style>` do componente) duplicava visualmente o CTA desktop em vez de somente aparecer abaixo de 768px: a tag `<style>` do componente é renderizada no `<body>`, depois do CSS compilado do Tailwind no `<head>` — com a mesma especificidade de seletor, a regra que vem depois no documento ganha o cascade, então o `display` fixo do `.d-nav-cta` vencia o `md:hidden` do Tailwind independente do viewport; corrigido tirando `display` da classe custom e deixando cada uso decidir via utility Tailwind (`inline-flex` / `inline-flex md:hidden`). Ambos reproduzidos e confirmados corrigidos via Playwright (`getBoundingClientRect`/screenshot) antes e depois da mudança.
+- Um terceiro problema, de hidratação (não de layout): um comentário de código dentro do template string do `<style>` continha a substring literal `<style>`, e o sanitizador de conteúdo de tags `<style>`/`<script>` do React escapa essa sequência de formas diferentes entre o HTML gerado no servidor e a renderização no cliente — causando "Hydration failed" nesse texto. Corrigido reescrevendo o comentário sem a substring `<style>` verbatim.
+- **Manifesto scroll-driven** (`ManifestoReveal.tsx`, DOM direto + rAF, mesmo padrão de `LedEdges.tsx`): confirmado rolando a página real — palavras "acendem" progressivamente da cor esmaecida (`color-mix` entre texto e fundo, funciona em qualquer preset) para a cor final conforme o scroll alcança o índice de cada uma; a cada 5 palavras, uma ganha itálico + cor do ciclo de acentos do tema, reproduzindo o efeito do original sem depender de quais palavras específicas o texto de exemplo usa.
+- **Trilha horizontal do portfólio** (`ScrollGallery.tsx`): confirmada em desktop (ponteiro fino) com pin real — a seção fica "presa" enquanto a trilha desliza horizontalmente conforme o scroll vertical avança — e em mobile (390px) com o fallback de scroll nativo (sem pin, `overflow-x-auto`), mesmo comportamento do material bruto em `coarse` pointers.
+- **Cartões de "Estilos"**: hover real confirmado — o blob de cor por trás do cartão expande (`scale(2.1)`) e o cartão inclina em 3D (`perspective`/`rotateX`/`rotateY`, alternando o sinal por posição par/ímpar), fiel ao original; o último cartão da lista sempre nasce com o esquema invertido (fundo escuro, texto claro usando os mesmos tokens de tema — funciona em preset claro OU escuro) no lugar do "Blackwork" fixo do original.
+- **FAQ** (`FaqAccordion.tsx`): primeiro item nasce aberto (`state = { open: 0 }` do original), clicar em outro item fecha o anterior e abre o novo, ponto colorido só preenche quando aberto.
+- **Preset escuro** ("Meia-noite"): confirmado visualmente com boa legibilidade e as micro-interações opcionais da Forja ligadas nesse preset (LED sutil, partículas de fundo) renderizando por cima do conteúdo sem atrapalhar leitura — mesma verificação de contraste feita nos outros presets claros ("Aquarela", "Boreal", "Terra").
+- Sem foto no hero nem nos cartões de "Estilos"/"Artistas" — fiel ao material bruto, que também não usa nenhuma imagem ali (só blobs de cor e rabiscos SVG); só o Portfólio tem slot de imagem de verdade.
 
 **Layout do chat `/mensagens`** (mesmo esquema de fake Firestore via `RADAR_FAKE_DB=1`, `next dev`, revertido antes do commit; Playwright em viewport mobile 390×844, dois usuários logados em contextos de browser separados): conversa com 18 mensagens confirmando header RADAR + mini-header da conversa no topo, lista preenchendo `flex-1` com scroll (sem colapsar), input colado acima da nav com as 6 abas sempre visíveis (checado por geometria via `getBoundingClientRect`, não só visual). Teclado mobile simulado por resize real do Chromium (390×844 → 390×400, o efeito equivalente ao `interactiveWidget:"resizes-content"` abrindo o teclado): input permaneceu dentro da viewport reduzida e a última mensagem visível acima dele, nunca escondida. Reabrir a conversa (nova navegação) e o lado do destinatário confirmados abrindo já com o scroll no fundo.
 

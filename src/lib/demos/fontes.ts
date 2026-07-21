@@ -128,6 +128,18 @@ export const DEMO_FONTES: readonly DemoFonte[] = [
     css: "var(--font-demo-fugaz), Impact, 'Arial Black', sans-serif",
     papeis: ["display"],
   },
+  {
+    id: "dm-serif",
+    nome: "DM Serif Display (serif dramática)",
+    css: "var(--font-demo-dm-serif), Georgia, serif",
+    papeis: ["display"],
+  },
+  {
+    id: "archivo",
+    nome: "Archivo (sans editorial)",
+    css: "var(--font-demo-archivo), Arial, sans-serif",
+    papeis: ["display", "corpo"],
+  },
 ];
 
 export function getFonte(id: string | undefined): DemoFonte | undefined {
