@@ -5,6 +5,7 @@ export const SKU_LABELS: Record<Sku, string> = {
   textSearchEnterprise: "Busca qualificada (Enterprise)",
   detailsEssentials: "Detalhes básicos (Essentials)",
   detailsEnterprise: "Enriquecimento (Enterprise)",
+  detailsProHours: "Horário de funcionamento (Pro)",
   geocoding: "Região da busca (Geocoding)",
   aiGeneration: "Sugestões de IA (Gemini)",
 };

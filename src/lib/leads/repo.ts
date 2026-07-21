@@ -2,7 +2,7 @@ import type { FiltroPresenca } from "@/lib/config";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import { InvalidTransitionError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
-import type { DetalhesLugar, PlaceBasico } from "@/lib/places/client";
+import type { DetalhesLugar, HorariosLugar, PlaceBasico } from "@/lib/places/client";
 import { isSiteProprio } from "@/lib/site-proprio";
 import {
   LEADS_COLLECTION,
@@ -366,6 +366,28 @@ export async function saveDetails(
     temSite: Boolean(detalhes.site),
     siteUrl: detalhes.site ?? lead.siteUrl,
     siteProprio: Boolean(detalhes.site) && isSiteProprio(detalhes.site ?? ""),
+    atualizadoEm: em,
+  };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/**
+ * Persiste o horário de funcionamento (SKU detailsProHours, próprio e
+ * separado de `detalhes`). Usado tanto pelo enriquecimento (chamado junto)
+ * quanto pelo botão dedicado "buscar horários" de leads já enriquecidos.
+ */
+export async function saveHorarios(
+  db: AppDb,
+  placeId: string,
+  horarios: HorariosLugar,
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  const em = now.toISOString();
+  const updated: Lead = {
+    ...lead,
+    horarios: { ...horarios, obtidoEm: em },
     atualizadoEm: em,
   };
   await docRef(db, placeId).set(toDoc(updated));

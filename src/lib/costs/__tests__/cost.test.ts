@@ -8,6 +8,7 @@ const PRICING: PricingTable = {
   textSearchEnterprise: { usdPer1000: 35, freeQuota: 1_000 },
   detailsEssentials: { usdPer1000: 5, freeQuota: 10_000 },
   detailsEnterprise: { usdPer1000: 20, freeQuota: 1_000 },
+  detailsProHours: { usdPer1000: 17, freeQuota: 5_000 },
   geocoding: { usdPer1000: 5, freeQuota: 10_000 },
   aiGeneration: { usdPer1000: 0, freeQuota: 50 },
 };
@@ -23,6 +24,7 @@ describe("projectedCostUSD", () => {
       textSearchEnterprise: 500,
       detailsEssentials: 500,
       detailsEnterprise: 900,
+      detailsProHours: 4_999,
       geocoding: 100,
       aiGeneration: 10,
     };
@@ -35,6 +37,7 @@ describe("projectedCostUSD", () => {
       textSearchEnterprise: 1_000,
       detailsEssentials: 10_000,
       detailsEnterprise: 1_000,
+      detailsProHours: 5_000,
       geocoding: 10_000,
       aiGeneration: 50,
     };
@@ -53,10 +56,11 @@ describe("projectedCostUSD", () => {
       textSearchEnterprise: 1_200, //   200 × $35/1000 = $7
       detailsEssentials: 12_000, // 2.000 × $5/1000  = $10
       detailsEnterprise: 1_100, //   100 × $20/1000 = $2
+      detailsProHours: 5_100, //   100 × $17/1000 = $1,7
       geocoding: 12_000, // 2.000 × $5/1000  = $10
       aiGeneration: 200, //   preço 0: excedente não custa nada
     };
-    expect(projectedCostUSD(usage, PRICING)).toBeCloseTo(45, 10);
+    expect(projectedCostUSD(usage, PRICING)).toBeCloseTo(46.7, 10);
   });
 
   it("respeita tabela de preços customizada (override via config)", () => {
@@ -65,6 +69,7 @@ describe("projectedCostUSD", () => {
       textSearchEnterprise: { usdPer1000: 0, freeQuota: 0 },
       detailsEssentials: { usdPer1000: 0, freeQuota: 0 },
       detailsEnterprise: { usdPer1000: 0, freeQuota: 0 },
+      detailsProHours: { usdPer1000: 0, freeQuota: 0 },
       geocoding: { usdPer1000: 0, freeQuota: 0 },
       aiGeneration: { usdPer1000: 0, freeQuota: 0 },
     };

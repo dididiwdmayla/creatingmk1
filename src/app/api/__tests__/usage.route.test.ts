@@ -39,6 +39,7 @@ describe("GET /api/usage", () => {
         textSearchEnterprise: 0,
         detailsEssentials: 0,
         detailsEnterprise: 0,
+        detailsProHours: 0,
         geocoding: 0,
         aiGeneration: 0,
       },

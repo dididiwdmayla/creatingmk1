@@ -24,6 +24,7 @@ describe("reserveQuota", () => {
       textSearchEnterprise: 0,
       detailsEssentials: 0,
       detailsEnterprise: 0,
+      detailsProHours: 0,
       geocoding: 0,
       aiGeneration: 0,
     });
@@ -52,6 +53,7 @@ describe("reserveQuota", () => {
       textSearchEnterprise: 0,
       detailsEssentials: 0,
       detailsEnterprise: 2,
+      detailsProHours: 0,
       geocoding: 0,
       aiGeneration: 0,
     });
@@ -165,6 +167,7 @@ describe("reserveQuota", () => {
       textSearchEnterprise: 0,
       detailsEssentials: 0,
       detailsEnterprise: 0,
+      detailsProHours: 0,
       geocoding: 0,
       aiGeneration: 0,
     });
@@ -207,6 +210,7 @@ describe("getUsage", () => {
         textSearchEnterprise: 0,
         detailsEssentials: 0,
         detailsEnterprise: 0,
+        detailsProHours: 0,
         geocoding: 0,
         aiGeneration: 0,
       },
@@ -229,6 +233,7 @@ describe("getUsage", () => {
         textSearchEnterprise: 0,
         detailsEssentials: 0,
         detailsEnterprise: 0,
+        detailsProHours: 0,
         geocoding: 0,
         aiGeneration: 0,
       },
@@ -246,6 +251,7 @@ describe("getUsage", () => {
       textSearchEnterprise: 0,
       detailsEssentials: 1,
       detailsEnterprise: 17,
+      detailsProHours: 0,
       geocoding: 0,
       aiGeneration: 0,
     });

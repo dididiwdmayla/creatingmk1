@@ -10,6 +10,7 @@ import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { formatDateTime } from "@/lib/format";
+import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
 import { buildWhatsAppLink } from "@/lib/wa";
 
@@ -42,6 +43,8 @@ export function LeadDetailClient({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
   const [enrichErro, setEnrichErro] = useState<string | null>(null);
+  const [buscandoHorarios, setBuscandoHorarios] = useState(false);
+  const [horariosErro, setHorariosErro] = useState<string | null>(null);
   const [changingTo, setChangingTo] = useState<LeadStatus | null>(null);
   const [descartando, setDescartando] = useState(false);
   const [demoErro, setDemoErro] = useState<string | null>(null);
@@ -92,6 +95,21 @@ export function LeadDetailClient({ id }: { id: string }) {
       }
     } finally {
       setEnriching(false);
+    }
+  }
+
+  async function handleBuscarHorarios() {
+    setBuscandoHorarios(true);
+    setHorariosErro(null);
+    try {
+      const { lead: updated } = await api.buscarHorarios(id);
+      setLead(updated);
+    } catch (error) {
+      setHorariosErro(
+        error instanceof ApiError ? error.message : "Falha ao buscar horários.",
+      );
+    } finally {
+      setBuscandoHorarios(false);
     }
   }
 
@@ -172,6 +190,8 @@ export function LeadDetailClient({ id }: { id: string }) {
   // Derivado no servidor (asLead): true = site próprio; false = sem site OU
   // só rede social/agregador; undefined = desconhecido.
   const siteEhProprio = lead.siteProprio;
+  const estado = estadoAtual(lead.horarios);
+  const momento = melhorMomento(lead.horarios);
 
   return (
     <div className="flex flex-col gap-5">
@@ -196,9 +216,27 @@ export function LeadDetailClient({ id }: { id: string }) {
       </div>
 
       <section className="rounded-lg border border-line bg-surface p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Detalhes
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Detalhes
+          </h2>
+          {lead.enriquecido && !lead.horarios && (
+            <button
+              type="button"
+              onClick={handleBuscarHorarios}
+              disabled={buscandoHorarios}
+              className="text-xs text-ink-muted hover:text-accent disabled:opacity-50"
+            >
+              {buscandoHorarios ? "Buscando…" : "buscar horários"}
+            </button>
+          )}
+        </div>
+        {estado && (
+          <p className={`mt-2 text-sm font-medium ${estado.aberto ? "text-good" : "text-ink-muted"}`}>
+            {estado.texto}
+          </p>
+        )}
+        {horariosErro && <p className="mt-1 text-xs text-critical">{horariosErro}</p>}
         {lead.enriquecido && detalhes ? (
           <dl className="mt-3 flex flex-col gap-2 text-sm">
             <Row label="Telefone" value={detalhes.telefone ?? "—"} />
@@ -257,14 +295,27 @@ export function LeadDetailClient({ id }: { id: string }) {
       </section>
 
       {waLink && (
-        <a
-          href={waLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded bg-good px-3 py-2 text-center text-sm font-semibold text-good-ink hover:bg-good/90"
-        >
-          Chamar no WhatsApp
-        </a>
+        <div className="flex flex-col gap-1.5">
+          <a
+            href={waLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`rounded px-3 py-2 text-center text-sm font-semibold text-good-ink transition ${
+              momento?.agora
+                ? "bg-good ring-2 ring-good ring-offset-2 ring-offset-background hover:bg-good/90"
+                : "bg-good/80 hover:bg-good"
+            }`}
+          >
+            Chamar no WhatsApp
+          </a>
+          {momento && (
+            <p
+              className={`text-center text-xs ${momento.agora ? "font-medium text-good" : "text-ink-muted"}`}
+            >
+              Melhor momento pra contatar: {momento.agora ? "agora" : momento.texto}
+            </p>
+          )}
+        </div>
       )}
 
       <section className="rounded-lg border border-line bg-surface p-4">

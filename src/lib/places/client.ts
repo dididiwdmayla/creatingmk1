@@ -66,6 +66,28 @@ export interface DetalhesLugar {
   totalAvaliacoes?: number;
 }
 
+/**
+ * Uma faixa de funcionamento, no formato bruto do Google (dia/hora/minuto
+ * de abertura e fechamento, em hora LOCAL do lugar — 0=domingo…6=sábado).
+ * `diaFecha`/`horaFecha`/`minFecha` podem cair no dia seguinte (faixa que
+ * cruza a meia-noite) — é por isso que a faixa carrega os dois lados
+ * completos em vez de só duração.
+ */
+export interface FaixaHorario {
+  diaAbre: number;
+  horaAbre: number;
+  minAbre: number;
+  diaFecha: number;
+  horaFecha: number;
+  minFecha: number;
+}
+
+export interface HorariosLugar {
+  faixas: FaixaHorario[];
+  /** Deslocamento UTC do lugar em minutos (Google utcOffsetMinutes). */
+  utcOffsetMinutes?: number;
+}
+
 export interface SearchTextOptions {
   /** Leads NOVOS desejados (1–40). Pagina até juntar, cada página = 1 request. */
   quantidade?: number;
@@ -109,6 +131,12 @@ async function errorDetail(res: Response): Promise<string> {
   return body.slice(0, 2000) || res.statusText || "sem detalhe";
 }
 
+interface GoogleHorarioPonto {
+  day?: number;
+  hour?: number;
+  minute?: number;
+}
+
 interface GooglePlace {
   id?: string;
   displayName?: { text?: string };
@@ -119,6 +147,10 @@ interface GooglePlace {
   websiteUri?: string;
   rating?: number;
   userRatingCount?: number;
+  utcOffsetMinutes?: number;
+  regularOpeningHours?: {
+    periods?: Array<{ open?: GoogleHorarioPonto; close?: GoogleHorarioPonto }>;
+  };
 }
 
 function toPlaceBasico(place: GooglePlace, qualificada: boolean): PlaceBasico | undefined {
@@ -266,5 +298,76 @@ export async function placeDetails(
     site: place.websiteUri,
     rating: place.rating,
     totalAvaliacoes: place.userRatingCount,
+  };
+}
+
+/**
+ * Normaliza os períodos brutos do Google em FaixaHorario[]. Um período sem
+ * `close` (representação do Google para "aberto 24h" a partir dali) vira
+ * uma faixa de 24h cheias a partir da abertura.
+ */
+function toFaixas(
+  periods: Array<{ open?: GoogleHorarioPonto; close?: GoogleHorarioPonto }> | undefined,
+): FaixaHorario[] {
+  const faixas: FaixaHorario[] = [];
+  for (const periodo of periods ?? []) {
+    if (periodo?.open?.day === undefined) continue;
+    const diaAbre = periodo.open.day;
+    const horaAbre = periodo.open.hour ?? 0;
+    const minAbre = periodo.open.minute ?? 0;
+    if (periodo.close?.day !== undefined) {
+      faixas.push({
+        diaAbre,
+        horaAbre,
+        minAbre,
+        diaFecha: periodo.close.day,
+        horaFecha: periodo.close.hour ?? 0,
+        minFecha: periodo.close.minute ?? 0,
+      });
+    } else {
+      const fechaTotal = diaAbre * 1440 + horaAbre * 60 + minAbre + 1440;
+      faixas.push({
+        diaAbre,
+        horaAbre,
+        minAbre,
+        diaFecha: Math.floor(fechaTotal / 1440) % 7,
+        horaFecha: Math.floor((fechaTotal % 1440) / 60),
+        minFecha: fechaTotal % 60,
+      });
+    }
+  }
+  return faixas;
+}
+
+/**
+ * Horário de funcionamento (New) com o field mask Pro, SKU detailsProHours
+ * — contador PRÓPRIO, separado do enriquecimento Enterprise (placeDetails).
+ * Chamado JUNTO do enriquecimento (2 requests distintos) ou sozinho pelo
+ * botão "buscar horários" de leads já enriquecidos.
+ */
+export async function placeHours(
+  db: UsageDb,
+  placeId: string,
+  caps: UsageCounts,
+  userId?: string,
+): Promise<HorariosLugar> {
+  const key = requireApiKey();
+  await reserveQuota(db, "detailsProHours", caps, undefined, userId);
+
+  const url = `${BASE_URL}/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`;
+  const res = await fetch(url, {
+    headers: {
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": FIELD_MASKS.detailsProHours,
+    },
+  });
+  if (!res.ok) {
+    throw new PlacesError(res.status, await errorDetail(res));
+  }
+
+  const place = (await res.json()) as GooglePlace;
+  return {
+    faixas: toFaixas(place.regularOpeningHours?.periods),
+    utcOffsetMinutes: place.utcOffsetMinutes,
   };
 }
