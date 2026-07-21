@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1300" role="img" aria-label="Placeholder: viela colorida com ateliês">
+  <rect width="900" height="1300" fill="#F5E9CB"/>
+  <rect x="0" y="480" width="900" height="820" fill="#E7DCC8"/>
+  <g>
+    <rect x="60" y="520" width="220" height="380" fill="#C4572E"/>
+    <rect x="300" y="470" width="220" height="430" fill="#F2B33D"/>
+    <rect x="540" y="540" width="220" height="360" fill="#3E4A34"/>
+    <rect x="0" y="0" width="0" height="0"/>
+  </g>
+  <g fill="#F7F1E8" opacity="0.7">
+    <rect x="100" y="580" width="60" height="80"/>
+    <rect x="200" y="580" width="60" height="80"/>
+    <rect x="340" y="540" width="60" height="80"/>
+    <rect x="440" y="540" width="60" height="80"/>
+    <rect x="580" y="600" width="60" height="80"/>
+    <rect x="680" y="600" width="60" height="80"/>
+  </g>
+  <text x="450" y="1220" font-family="Georgia, serif" text-anchor="middle" fill="#2B2318" fill-opacity="0.4" font-size="22" letter-spacing="4">VILA MADALENA</text>
+</svg>

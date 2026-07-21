@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1300" role="img" aria-label="Placeholder: rua arborizada de bairro clássico">
+  <rect width="900" height="1300" fill="#EFE6D6"/>
+  <g fill="#3E4A34" opacity="0.8">
+    <circle cx="150" cy="420" r="120"/>
+    <circle cx="740" cy="460" r="140"/>
+  </g>
+  <rect x="0" y="500" width="900" height="800" fill="#D8C9A8"/>
+  <g fill="#C4572E">
+    <polygon points="220,540 340,460 460,540" />
+    <rect x="240" y="540" width="200" height="220"/>
+  </g>
+  <g fill="#F2B33D">
+    <polygon points="520,560 640,490 760,560"/>
+    <rect x="540" y="560" width="200" height="200"/>
+  </g>
+  <rect x="0" y="1240" width="900" height="60" fill="#2B2318" opacity="0.2"/>
+  <text x="450" y="1200" font-family="Georgia, serif" text-anchor="middle" fill="#2B2318" fill-opacity="0.35" font-size="22" letter-spacing="4">JARDINS</text>
+</svg>

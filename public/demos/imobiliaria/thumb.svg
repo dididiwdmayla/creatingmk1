@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Miniatura: Raiz Imóveis">
+  <defs>
+    <linearGradient id="bgthumb-imob" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EFE6D6"/>
+      <stop offset="1" stop-color="#F7F1E8"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bgthumb-imob)"/>
+  <circle cx="330" cy="70" r="34" fill="#F2B33D" opacity="0.6"/>
+  <g transform="translate(200 190)">
+    <rect x="-110" y="-70" width="220" height="130" fill="#E7DCC8"/>
+    <path d="M-125 -70 L0 -160 L125 -70 Z" fill="#3E4A34"/>
+    <rect x="-24" y="10" width="48" height="50" fill="#C4572E"/>
+    <rect x="-85" y="-40" width="42" height="42" fill="#F7F1E8"/>
+    <rect x="45" y="-40" width="42" height="42" fill="#F7F1E8"/>
+  </g>
+  <text x="200" y="270" font-family="Georgia, serif" font-style="italic" text-anchor="middle" fill="#2B2318" font-size="26" letter-spacing="1">Raiz Imóveis</text>
+</svg>

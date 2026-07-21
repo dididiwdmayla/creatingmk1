@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500" role="img" aria-label="Placeholder: apartamento clássico reformado">
+  <rect width="1200" height="1500" fill="#E7DCC8"/>
+  <rect x="220" y="260" width="760" height="980" fill="#D2C2A0"/>
+  <g fill="#F7F1E8" opacity="0.8">
+    <rect x="280" y="340" width="150" height="180"/>
+    <rect x="525" y="340" width="150" height="180"/>
+    <rect x="770" y="340" width="150" height="180"/>
+    <rect x="280" y="580" width="150" height="180"/>
+    <rect x="525" y="580" width="150" height="180"/>
+    <rect x="770" y="580" width="150" height="180"/>
+    <rect x="280" y="820" width="150" height="180"/>
+    <rect x="525" y="820" width="150" height="180"/>
+    <rect x="770" y="820" width="150" height="180"/>
+  </g>
+  <rect x="220" y="260" width="760" height="40" fill="#3E4A34"/>
+  <rect x="500" y="1140" width="200" height="100" fill="#C4572E"/>
+  <text x="600" y="1440" font-family="Georgia, serif" text-anchor="middle" fill="#2B2318" fill-opacity="0.4" font-size="24" letter-spacing="4">CLÁSSICO REFORMADO</text>
+</svg>

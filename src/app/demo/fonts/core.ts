@@ -2,7 +2,9 @@ import {
   Bebas_Neue,
   Cormorant_Garamond,
   Crimson_Pro,
+  Fraunces,
   Fugaz_One,
+  Hanken_Grotesk,
   Inter,
   JetBrains_Mono,
   Limelight,
@@ -91,6 +93,25 @@ const playfairBlack = Playfair_Display({
   weight: ["400", "900"],
 });
 
+// Display serif editorial da skin de imobiliária (títulos, citações e o
+// wordmark itálico do header/rodapé) — pesos/estilos exatos do material
+// bruto (300/400/500/600, normal e itálico: a família inteira é variável
+// no original via CSS var-axes, mas o Google Fonts estático exige pesos
+// discretos, então cobrimos os usados na prática).
+const fraunces = Fraunces({
+  variable: "--font-demo-fraunces",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  style: ["normal", "italic"],
+});
+
+// Corpo neutro da skin de imobiliária — texto corrido, nav, botões.
+const hankenGrotesk = Hanken_Grotesk({
+  variable: "--font-demo-hanken-grotesk",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
 /** Ids da lista curada (fontes.ts) já cobertos por este pacote estático. */
 export const CORE_FONT_IDS: readonly string[] = [
   "bebas",
@@ -100,6 +121,8 @@ export const CORE_FONT_IDS: readonly string[] = [
   "limelight",
   "pirata",
   "fugaz",
+  "fraunces",
+  "hanken-grotesk",
 ];
 
 export const demoCoreFontsClassName = [
@@ -113,4 +136,6 @@ export const demoCoreFontsClassName = [
   pirata.variable,
   playfairBlack.variable,
   fugaz.variable,
+  fraunces.variable,
+  hankenGrotesk.variable,
 ].join(" ");

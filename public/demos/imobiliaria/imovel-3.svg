@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500" role="img" aria-label="Placeholder: studio de pé-direito alto">
+  <rect width="1200" height="1500" fill="#EFE6D6"/>
+  <rect x="300" y="300" width="600" height="900" fill="#D8C9A8"/>
+  <rect x="360" y="380" width="480" height="620" fill="#F7F1E8" opacity="0.7"/>
+  <line x1="600" y1="380" x2="600" y2="1000" stroke="#2B2318" stroke-opacity="0.15" stroke-width="8"/>
+  <line x1="360" y1="690" x2="840" y2="690" stroke="#2B2318" stroke-opacity="0.15" stroke-width="8"/>
+  <rect x="300" y="1200" width="600" height="60" fill="#3E4A34" opacity="0.7"/>
+  <text x="600" y="1440" font-family="Georgia, serif" text-anchor="middle" fill="#2B2318" fill-opacity="0.4" font-size="24" letter-spacing="4">STUDIO-ATELIÊ</text>
+</svg>

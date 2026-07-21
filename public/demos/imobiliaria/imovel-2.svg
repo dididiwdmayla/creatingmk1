@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500" role="img" aria-label="Placeholder: cobertura com terraço e pôr do sol">
+  <defs>
+    <linearGradient id="sky2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2B33D" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#E7DCC8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="1500" fill="url(#sky2)"/>
+  <circle cx="900" cy="420" r="110" fill="#F2B33D" opacity="0.8"/>
+  <rect x="260" y="700" width="680" height="700" fill="#C4572E" opacity="0.9"/>
+  <rect x="260" y="700" width="680" height="60" fill="#2B2318" opacity="0.15"/>
+  <g fill="#F7F1E8" opacity="0.75">
+    <rect x="320" y="800" width="110" height="140"/>
+    <rect x="480" y="800" width="110" height="140"/>
+    <rect x="640" y="800" width="110" height="140"/>
+    <rect x="800" y="800" width="110" height="140"/>
+    <rect x="320" y="1000" width="110" height="140"/>
+    <rect x="480" y="1000" width="110" height="140"/>
+    <rect x="640" y="1000" width="110" height="140"/>
+    <rect x="800" y="1000" width="110" height="140"/>
+  </g>
+  <rect x="220" y="640" width="760" height="70" fill="#3E4A34"/>
+  <text x="600" y="1440" font-family="Georgia, serif" text-anchor="middle" fill="#2B2318" fill-opacity="0.4" font-size="24" letter-spacing="4">COBERTURA</text>
+</svg>

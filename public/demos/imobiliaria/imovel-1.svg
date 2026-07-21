@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500" role="img" aria-label="Placeholder: casa com jardim">
+  <rect width="1200" height="1500" fill="#E7DCC8"/>
+  <g transform="translate(600 900)">
+    <rect x="-340" y="-180" width="680" height="380" fill="#D8C9A8"/>
+    <path d="M-380 -180 L0 -420 L380 -180 Z" fill="#3E4A34"/>
+    <rect x="-70" y="40" width="140" height="160" fill="#C4572E"/>
+    <rect x="-260" y="-100" width="120" height="120" fill="#F7F1E8" opacity="0.85"/>
+    <rect x="140" y="-100" width="120" height="120" fill="#F7F1E8" opacity="0.85"/>
+  </g>
+  <ellipse cx="260" cy="1300" rx="130" ry="40" fill="#3E4A34" opacity="0.55"/>
+  <ellipse cx="940" cy="1330" rx="160" ry="42" fill="#3E4A34" opacity="0.5"/>
+  <text x="600" y="1440" font-family="Georgia, serif" text-anchor="middle" fill="#2B2318" fill-opacity="0.4" font-size="24" letter-spacing="4">CASA-JARDIM</text>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" role="img" aria-label="Placeholder: foto de cliente">
+  <circle cx="150" cy="150" r="150" fill="#E7DCC8"/>
+  <circle cx="150" cy="120" r="52" fill="#C4572E" opacity="0.85"/>
+  <path d="M60 268c8-70 62-110 90-110s82 40 90 110" fill="#3E4A34" opacity="0.85"/>
+</svg>
