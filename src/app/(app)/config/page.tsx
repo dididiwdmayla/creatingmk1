@@ -3,10 +3,34 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
-import { ApiError, api } from "@/lib/api-client";
+import { UsageMeter } from "@/components/UsageMeter";
+import { ApiError, api, type CotasUsuariosResponse, type UsageResponse } from "@/lib/api-client";
 import { DEFAULT_CONFIG, type AppConfig, type FiltroPresenca } from "@/lib/config";
+import type { Sku, UsoUsuario } from "@/lib/costs";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
-import type { Papel, UsuarioPublico } from "@/lib/usuarios/types";
+import type { LimitesUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
+
+/** SKUs relevantes à cota individual — resumo compacto no topo da seção de cotas. */
+const SKUS_COTA_INDIVIDUAL: Sku[] = [
+  "textSearch",
+  "textSearchEnterprise",
+  "detailsEnterprise",
+  "detailsProHours",
+];
+
+type CampoLimite = keyof LimitesUsuario;
+
+const JANELAS: Array<{ chave: "dia" | "semana" | "mes"; label: string; sufixo: "Dia" | "Semana" | "Mes" }> = [
+  { chave: "dia", label: "Hoje", sufixo: "Dia" },
+  { chave: "semana", label: "Semana", sufixo: "Semana" },
+  { chave: "mes", label: "Mês", sufixo: "Mes" },
+];
+
+/** Fetcher puro (não mexe em estado) — reaproveitado pela carga inicial e por "zerar dia". */
+async function fetchCotasData(): Promise<{ cotas: CotasUsuariosResponse; usage: UsageResponse }> {
+  const [cotas, usage] = await Promise.all([api.getCotasUsuarios(), api.getUsage()]);
+  return { cotas, usage };
+}
 
 const PRESENCA_OPTIONS: Array<{ value: FiltroPresenca; label: string }> = [
   { value: "qualquer", label: "Qualquer" },
@@ -60,6 +84,7 @@ export default function ConfigPage() {
   return (
     <div className="flex flex-col gap-6 pb-6">
       <UsuariosSection />
+      <CotasUsuariosSection />
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Busca</h2>
@@ -481,5 +506,255 @@ function UsuariosSection() {
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
       {aviso && <p className="mt-2 text-sm text-good">{aviso}</p>}
     </section>
+  );
+}
+
+/**
+ * Cotas individuais (admin): tabela usado/limite × dia/semana/mês, por
+ * usuário, para os dois tipos (buscas/enriquecimentos) — reserveQuota já
+ * garante o bloqueio no servidor; esta seção só edita os limites e mostra
+ * o uso. Edição inline com efeito imediato (cada campo salva sozinho no
+ * blur, sem botão "Salvar" à parte — a config é lida fresca a cada
+ * request, então vale na busca/enriquecimento seguinte). "Zerar dia" refaz
+ * a leitura inteira: mais simples e correto que tentar ajustar local a
+ * soma de semana/mês, que é agregação pura sobre os dias.
+ */
+function CotasUsuariosSection() {
+  const [linhas, setLinhas] = useState<CotasUsuariosResponse["usuarios"] | null>(null);
+  const [usoGlobal, setUsoGlobal] = useState<UsageResponse | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    fetchCotasData()
+      .then(({ cotas, usage }) => {
+        if (ignore) return;
+        setLinhas(cotas.usuarios);
+        setUsoGlobal(usage);
+        setErro(null);
+      })
+      .catch((error) => {
+        if (ignore) return;
+        setErro(
+          error instanceof ApiError && error.status === 403
+            ? "Cotas são restritas ao admin."
+            : "Falha ao carregar as cotas.",
+        );
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function salvarLimite(id: string, campo: CampoLimite, valor: number | null) {
+    const chave = `${id}:${campo}`;
+    setOcupado(chave);
+    setErro(null);
+    try {
+      const { usuario } = await api.patchUsuario(id, { limites: { [campo]: valor } });
+      setLinhas((atual) =>
+        (atual ?? []).map((linha) =>
+          linha.id === id ? { ...linha, limites: usuario.limites ?? {} } : linha,
+        ),
+      );
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : "Falha ao salvar o limite.");
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  async function zerarDia(id: string, nome: string) {
+    setOcupado(`${id}:zerar`);
+    setErro(null);
+    setAviso(null);
+    try {
+      await api.zerarCotaDiaUsuario(id);
+      const { cotas, usage } = await fetchCotasData();
+      setLinhas(cotas.usuarios);
+      setUsoGlobal(usage);
+      setAviso(`Dia de "${nome}" zerado.`);
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : "Falha ao zerar o dia.");
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  if (erro && linhas === null) {
+    return (
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Cotas por usuário
+        </h2>
+        <p className="mt-2 text-sm text-ink-muted">{erro}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+        Cotas por usuário
+      </h2>
+      <p className="mt-1 text-xs text-ink-muted">
+        Vazio = sem limite naquela janela. Admin nunca é bloqueado — os limites dele aqui são só
+        informativos.
+      </p>
+
+      {usoGlobal && (
+        <div className="mt-3 flex flex-col gap-3 rounded border border-line p-3">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+            Teto global do mês (bloqueia membros; admin passa direto)
+          </p>
+          {SKUS_COTA_INDIVIDUAL.map((sku) => (
+            <UsageMeter
+              key={sku}
+              label={SKU_LABELS[sku]}
+              used={usoGlobal.usage[sku]}
+              cap={usoGlobal.caps[sku]}
+              freeQuota={usoGlobal.cotaGratis[sku]}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-col gap-3">
+        {linhas === null && <p className="text-sm text-ink-muted">Carregando…</p>}
+        {(linhas ?? []).map((linha) => (
+          <div key={linha.id} className="rounded border border-line p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`text-sm ${linha.ativo ? "text-foreground" : "text-ink-muted line-through"}`}>
+                {linha.nome}
+              </span>
+              <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-secondary">
+                {linha.papel}
+              </span>
+              <button
+                type="button"
+                disabled={ocupado === `${linha.id}:zerar`}
+                onClick={() => zerarDia(linha.id, linha.nome)}
+                className="ml-auto text-xs text-accent hover:underline disabled:opacity-50"
+              >
+                Zerar dia
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <LinhaCota
+                label="Buscas"
+                uso={linha.buscas}
+                prefixo="buscas"
+                userId={linha.id}
+                ocupado={ocupado}
+                onSalvar={salvarLimite}
+              />
+              <LinhaCota
+                label="Enriquecimentos"
+                uso={linha.enriquecimentos}
+                prefixo="enriquecimentos"
+                userId={linha.id}
+                ocupado={ocupado}
+                onSalvar={salvarLimite}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
+      {aviso && <p className="mt-2 text-sm text-good">{aviso}</p>}
+    </section>
+  );
+}
+
+function LinhaCota({
+  label,
+  uso,
+  prefixo,
+  userId,
+  ocupado,
+  onSalvar,
+}: {
+  label: string;
+  uso: UsoUsuario;
+  prefixo: "buscas" | "enriquecimentos";
+  userId: string;
+  ocupado: string | null;
+  onSalvar: (id: string, campo: CampoLimite, valor: number | null) => void;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-wide text-ink-muted">{label}</p>
+      <div className="mt-1.5 flex flex-col gap-1.5">
+        {JANELAS.map(({ chave, label: janelaLabel, sufixo }) => {
+          const campo = `${prefixo}${sufixo}` as CampoLimite;
+          const { usado, limite } = uso[chave];
+          return (
+            <div key={chave} className="flex items-center gap-2 text-xs text-ink-secondary">
+              <span className="w-14 shrink-0">{janelaLabel}</span>
+              <span className="font-mono text-foreground">{usado}</span>
+              <span className="text-ink-muted">/</span>
+              <LimiteInput
+                valor={limite}
+                disabled={ocupado === `${userId}:${campo}`}
+                onSalvar={(valor) => onSalvar(userId, campo, valor)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Input controlado: vazio = sem limite (null), número = limite. Salva no blur. */
+function LimiteInput({
+  valor,
+  disabled,
+  onSalvar,
+}: {
+  valor: number | undefined;
+  disabled: boolean;
+  onSalvar: (valor: number | null) => void;
+}) {
+  const [texto, setTexto] = useState(valor !== undefined ? String(valor) : "");
+  // Ressincroniza quando o valor vem de fora (salvo com sucesso ou recarga)
+  // — ajuste de estado durante a renderização, não em efeito (o valor pode
+  // mudar sem esta instância ter disparado a mudança, ex.: outra aba).
+  const [ultimoValor, setUltimoValor] = useState(valor);
+  if (valor !== ultimoValor) {
+    setUltimoValor(valor);
+    setTexto(valor !== undefined ? String(valor) : "");
+  }
+
+  function commit() {
+    const trimmed = texto.trim();
+    if (trimmed === "") {
+      if (valor !== undefined) onSalvar(null);
+      return;
+    }
+    const n = Number(trimmed);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+      setTexto(valor !== undefined ? String(valor) : ""); // inválido: reverte
+      return;
+    }
+    if (n !== valor) onSalvar(n);
+  }
+
+  return (
+    <input
+      type="number"
+      min={0}
+      step={1}
+      inputMode="numeric"
+      value={texto}
+      placeholder="∞"
+      disabled={disabled}
+      onChange={(event) => setTexto(event.target.value)}
+      onBlur={commit}
+      className="w-16 rounded border border-line bg-surface-2 px-2 py-1 text-center font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+    />
   );
 }
