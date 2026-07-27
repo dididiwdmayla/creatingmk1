@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
+import type { UsoUsuario } from "@/lib/costs";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { formatDateTime } from "@/lib/format";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
@@ -50,6 +52,17 @@ export function LeadDetailClient({ id }: { id: string }) {
   const [demoErro, setDemoErro] = useState<string | null>(null);
   const [demoAviso, setDemoAviso] = useState<string | null>(null);
 
+  // Cota individual de enriquecimentos — indicador permanente junto do botão.
+  const [cotaEnrich, setCotaEnrich] = useState<UsoUsuario | null>(null);
+  function recarregarCotaEnrich() {
+    api
+      .getCotas()
+      .then(({ enriquecimentos }) => setCotaEnrich(enriquecimentos))
+      .catch(() => {
+        // indicador é cortesia — o bloqueio real é do servidor
+      });
+  }
+
   useEffect(() => {
     let ignore = false;
     Promise.all([api.getLead(id), api.getConfig(), api.listBuscas()])
@@ -72,6 +85,14 @@ export function LeadDetailClient({ id }: { id: string }) {
       .finally(() => {
         if (!ignore) setLoading(false);
       });
+    api
+      .getCotas()
+      .then(({ enriquecimentos }) => {
+        if (!ignore) setCotaEnrich(enriquecimentos);
+      })
+      .catch(() => {
+        // indicador é cortesia — o bloqueio real é do servidor
+      });
     return () => {
       ignore = true;
     };
@@ -88,6 +109,13 @@ export function LeadDetailClient({ id }: { id: string }) {
         setEnrichErro(
           `Teto mensal atingido para ${error.extra.sku} (${error.extra.used}/${error.extra.cap} em ${error.extra.period}).`,
         );
+      } else if (error instanceof ApiError && error.code === "user_quota_exceeded") {
+        const janela = error.extra.janela as string;
+        const janelaLabel = janela === "dia" ? "diário" : janela === "semana" ? "semanal" : "mensal";
+        setEnrichErro(
+          `Limite ${janelaLabel} de enriquecimentos atingido (${error.extra.used}/${error.extra.limite}). ` +
+            `Reseta em ${formatDateTime(error.extra.resetaEm as string)}.`,
+        );
       } else if (error instanceof ApiError && error.code === "places_error") {
         setEnrichErro(`Erro do Google: ${error.extra.detail ?? error.message}`);
       } else {
@@ -95,6 +123,7 @@ export function LeadDetailClient({ id }: { id: string }) {
       }
     } finally {
       setEnriching(false);
+      recarregarCotaEnrich();
     }
   }
 
@@ -231,6 +260,11 @@ export function LeadDetailClient({ id }: { id: string }) {
             </button>
           )}
         </div>
+        {cotaEnrich && (
+          <div className="mt-1.5">
+            <CotaIndicador titulo="Sua cota de enriquecimento" uso={cotaEnrich} />
+          </div>
+        )}
         {estado && (
           <p className={`mt-2 text-sm font-medium ${estado.aberto ? "text-good" : "text-ink-muted"}`}>
             {estado.texto}
@@ -286,7 +320,12 @@ export function LeadDetailClient({ id }: { id: string }) {
             <p className="text-sm text-ink-muted">
               Ainda não enriquecido{lead.temTelefone ? " (rating e mais no enriquecimento)" : ""}.
             </p>
-            <Button onClick={handleEnrich} loading={enriching} className="mt-3">
+            <Button
+              onClick={handleEnrich}
+              loading={enriching}
+              disabled={cotaEsgotada(cotaEnrich)}
+              className="mt-3"
+            >
               Enriquecer
             </Button>
             {enrichErro && <p className="mt-2 text-sm text-critical">{enrichErro}</p>}

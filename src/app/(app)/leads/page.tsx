@@ -4,11 +4,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/Button";
+import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { LeadCard } from "@/components/LeadCard";
 import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api } from "@/lib/api-client";
 import type { Busca } from "@/lib/buscas/types";
 import type { FiltroPresenca } from "@/lib/config";
+import type { UsoUsuario } from "@/lib/costs";
 import { formatDateTime } from "@/lib/format";
 import { calculaScore } from "@/lib/leads/score";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
@@ -206,6 +208,17 @@ function LeadsPageInner() {
   const [analisando, setAnalisando] = useState(false);
   const [iaErro, setIaErro] = useState<string | null>(null);
 
+  // Cota individual de buscas — indicador permanente, atualizado após cada busca.
+  const [cotaBuscas, setCotaBuscas] = useState<UsoUsuario | null>(null);
+  function recarregarCotaBuscas() {
+    api
+      .getCotas()
+      .then(({ buscas: uso }) => setCotaBuscas(uso))
+      .catch(() => {
+        // indicador é cortesia — o bloqueio real é do servidor
+      });
+  }
+
   const filters: LeadFiltersState = { status, temSite, temTelefone, soFavoritos, buscaId };
 
   useEffect(() => {
@@ -250,6 +263,14 @@ function LeadsPageInner() {
       })
       .catch(() => {
         if (!ignore) setIaDisponivel(false);
+      });
+    api
+      .getCotas()
+      .then(({ buscas: uso }) => {
+        if (!ignore) setCotaBuscas(uso);
+      })
+      .catch(() => {
+        // indicador é cortesia — o bloqueio real é do servidor
       });
     return () => {
       ignore = true;
@@ -401,6 +422,13 @@ function LeadsPageInner() {
         setBuscaErro(
           `Teto mensal atingido para ${error.extra.sku} (${error.extra.used}/${error.extra.cap} em ${error.extra.period}).`,
         );
+      } else if (error instanceof ApiError && error.code === "user_quota_exceeded") {
+        const janela = error.extra.janela as string;
+        const janelaLabel = janela === "dia" ? "diário" : janela === "semana" ? "semanal" : "mensal";
+        setBuscaErro(
+          `Limite ${janelaLabel} de buscas atingido (${error.extra.used}/${error.extra.limite}). ` +
+            `Reseta em ${formatDateTime(error.extra.resetaEm as string)}.`,
+        );
       } else if (error instanceof ApiError && error.code === "places_error") {
         setBuscaErro(`Erro do Google: ${error.extra.detail ?? error.message}`);
       } else if (error instanceof ApiError && error.code === "validation_error") {
@@ -410,6 +438,7 @@ function LeadsPageInner() {
       }
     } finally {
       setBuscando(false);
+      recarregarCotaBuscas();
     }
   }
 
@@ -427,9 +456,12 @@ function LeadsPageInner() {
   return (
     <div className="flex flex-col gap-6">
       <form onSubmit={handleSearch} className="rounded-lg border border-line bg-surface p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Nova busca
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Nova busca
+          </h2>
+          {cotaBuscas && <CotaIndicador titulo="Sua cota" uso={cotaBuscas} />}
+        </div>
         <div className="mt-3 flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2">
             <input
@@ -524,7 +556,7 @@ function LeadsPageInner() {
             />
             <span>automaticamente (máx. {AUTO_ENRICH_MAX})</span>
           </label>
-          <Button type="submit" loading={buscando}>
+          <Button type="submit" loading={buscando} disabled={cotaEsgotada(cotaBuscas)}>
             Buscar
           </Button>
         </div>
