@@ -20,7 +20,10 @@ const GOOGLE_HORARIOS = {
   },
 };
 
-beforeEach(() => {
+/** Sessão default de todos os testes deste arquivo — a rota agora EXIGE sessão identificável. */
+let membroCookie: string;
+
+beforeEach(async () => {
   db = new FakeFirestore();
   // Lead já enriquecido ANTES desta feature: tem `detalhes`, não tem `horarios`.
   db.seed("leads/ChIJ001", {
@@ -43,6 +46,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   vi.stubEnv("GOOGLE_PLACES_API_KEY", "chave-teste");
   vi.stubEnv("APP_PASSWORD", "segredo123");
+  membroCookie = await cookieDeSessao(db, { id: "membro-1", papel: "membro" });
 });
 
 afterEach(() => {
@@ -50,7 +54,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function buscarHorarios(id: string, cookie?: string): Promise<Response> {
+/** cookie: null explicitamente pede request SEM sessão (default = membro). */
+function buscarHorarios(id: string, cookie: string | null = membroCookie): Promise<Response> {
   return POST(
     new Request(`http://localhost/api/leads/${id}/horarios`, {
       method: "POST",
@@ -130,6 +135,23 @@ describe("POST /api/leads/[id]/horarios", () => {
     const { error } = await res.json();
     expect(error.code).toBe("places_error");
     expect(db.getDoc("leads/ChIJ001")).not.toHaveProperty("horarios");
+    expect(usageDoc()).toMatchObject({ detailsProHours: 1 });
+  });
+
+  it("sem sessão identificável → 401", async () => {
+    const res = await buscarHorarios("ChIJ001", null);
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("admin ignora o teto GLOBAL mensal (mas o contador ainda incrementa)", async () => {
+    const adminCookie = await cookieDeSessao(db, { id: "chefe", papel: "admin" });
+    db.seed("config/app", { caps: { detailsProHours: 0 } });
+
+    const res = await buscarHorarios("ChIJ001", adminCookie);
+
+    expect(res.status).toBe(200);
     expect(usageDoc()).toMatchObject({ detailsProHours: 1 });
   });
 });

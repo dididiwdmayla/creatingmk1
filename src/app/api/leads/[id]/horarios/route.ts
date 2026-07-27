@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { loadConfig } from "@/lib/config";
-import { NotFoundError } from "@/lib/errors";
+import { NotFoundError, UnauthorizedError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError } from "@/lib/http";
 import { getLead, saveHorarios } from "@/lib/leads/repo";
@@ -21,6 +21,13 @@ export async function POST(req: Request, { params }: Params) {
     const { id } = await params;
     const db = getDb();
 
+    // Mesma exigência de search/enrich: sessão precisa resolver de verdade
+    // (mesmo esta rota nunca contando pra cota individual — é consistência
+    // de política, e o bypass de admin no teto global depende de saber o
+    // papel de quem chama).
+    const usuario = await usuarioDaRequest(db, req);
+    if (!usuario) throw new UnauthorizedError();
+
     const lead = await getLead(db, id);
     if (!lead) {
       throw new NotFoundError(`Lead "${id}" não encontrado.`);
@@ -29,9 +36,11 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ lead });
     }
 
-    const usuario = await usuarioDaRequest(db, req);
     const config = await loadConfig(db);
-    const horarios = await placeHours(db, id, config.caps, usuario?.id);
+    const horarios = await placeHours(db, id, config.caps, {
+      userId: usuario.id,
+      isAdmin: usuario.papel === "admin",
+    });
     const updated = await saveHorarios(db, id, horarios);
     return NextResponse.json({ lead: updated });
   } catch (error) {

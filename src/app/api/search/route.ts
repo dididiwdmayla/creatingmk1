@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createBusca } from "@/lib/buscas/repo";
 import { loadConfig } from "@/lib/config";
-import { ValidationError } from "@/lib/errors";
+import { UnauthorizedError, ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { geocodeRegion } from "@/lib/geo/geocode";
 import { handleRouteError, readJsonBody } from "@/lib/http";
@@ -54,9 +54,11 @@ export async function POST(req: Request) {
     }
 
     const db = getDb();
-    // Ação-chave: a busca (e cada reserva de cota dela) é atribuída ao
-    // usuário logado. O proxy garante sessão; aqui só a identificamos.
+    // Ação-chave sujeita a cota INDIVIDUAL: diferente do resto do app (onde
+    // atribuição é best-effort), aqui a sessão precisa resolver de verdade —
+    // sem saber quem é o usuário não dá pra aplicar o limite dele.
     const usuario = await usuarioDaRequest(db, req);
+    if (!usuario) throw new UnauthorizedError();
     const config = await loadConfig(db);
     const nicho = ((body.nicho as string | undefined) ?? config.nicho).trim();
     const regiao = ((body.regiao as string | undefined) ?? config.regiao).trim();
@@ -71,14 +73,17 @@ export async function POST(req: Request) {
     const nome = ((body.nome as string | undefined) ?? "").trim() || defaultNome(nicho, now);
     const query = [nicho, subNicho, regiao].filter(Boolean).join(" ");
 
-    const geo = await geocodeRegion(db, regiao, config.caps, usuario?.id);
+    const isAdmin = usuario.papel === "admin";
+    const geo = await geocodeRegion(db, regiao, config.caps, { userId: usuario.id, isAdmin });
 
     const resultado = await searchText(db, query, config.caps, {
       quantidade: quantidade as number | undefined,
       qualificada: qualificada as boolean | undefined,
       locationRestriction: geo.viewport,
       isNovo: async (placeId) => !(await getLead(db, placeId)),
-      userId: usuario?.id,
+      userId: usuario.id,
+      isAdmin,
+      limitesUsuario: usuario.limites,
     });
 
     const buscaId = crypto.randomUUID();
@@ -103,7 +108,7 @@ export async function POST(req: Request) {
         ...(quantidade !== undefined && { quantidade: quantidade as number }),
         totalCriados: criados,
         totalExistentes: existentes,
-        ...(usuario && { userId: usuario.id }),
+        userId: usuario.id,
       },
       now,
     );

@@ -224,6 +224,76 @@ describe("GET /api/cron — execução", () => {
     expect(depois.ultima).toMatchObject({ totalNovos: 2, recorrentes: 1 });
   });
 
+  it("conta a busca no dono que a marcou como recorrente (porUsuario)", async () => {
+    seedBusca("b1", { recorrente: true, userId: "ana" });
+    db.seed("usuarios/ana", {
+      id: "ana",
+      nome: "ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    await GET(cronRequest("Bearer segredo-cron"));
+
+    const period = new Date().toISOString().slice(0, 7);
+    const usage = db.getDoc(`usage/${period}`);
+    expect(
+      (usage?.porUsuario as Record<string, { textSearch: number }>).ana.textSearch,
+    ).toBe(1);
+  });
+
+  it("dono estourou o limite individual: pula SÓ essa busca, a fila segue (não interrompe)", async () => {
+    seedBusca("b1", {
+      recorrente: true,
+      userId: "ana",
+      criadaEm: "2026-07-01T00:00:00.000Z",
+    });
+    seedBusca("b2", { recorrente: true, criadaEm: "2026-07-02T00:00:00.000Z" }); // sem dono
+    db.seed("usuarios/ana", {
+      id: "ana",
+      nome: "ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      limites: { buscasDia: 0 },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const { execucao } = await (await GET(cronRequest("Bearer segredo-cron"))).json();
+
+    const b1 = execucao.buscas.find((b: { buscaId: string }) => b.buscaId === "b1");
+    const b2 = execucao.buscas.find((b: { buscaId: string }) => b.buscaId === "b2");
+    expect(b1).toMatchObject({ novos: 0, existentes: 0 });
+    expect(b1.pulada).toContain("iário"); // "Limite diário..." (case dependente do erro)
+    expect(b2).toMatchObject({ novos: 2, existentes: 0 });
+    expect(execucao.interrompida).toBeUndefined();
+    // b1 não chegou a chamar o Google (bloqueado ANTES do fetch); só b2 chamou.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("dono admin ignora o teto GLOBAL mensal", async () => {
+    seedBusca("b1", { recorrente: true, userId: "chefe" });
+    db.seed("usuarios/chefe", {
+      id: "chefe",
+      nome: "chefe",
+      papel: "admin",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+    db.seed("config/app", { caps: { textSearch: 0 } });
+
+    const { execucao } = await (await GET(cronRequest("Bearer segredo-cron"))).json();
+
+    expect(execucao.interrompida).toBeUndefined();
+    expect(execucao.buscas[0]).toMatchObject({ buscaId: "b1", novos: 2 });
+  });
+
   it("busca qualificada recorrente re-executa qualificada (SKU Enterprise + site definitivo)", async () => {
     seedBusca("b1", { recorrente: true, qualificada: true });
     fetchMock.mockImplementation(async () =>

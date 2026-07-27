@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_CAPS, FIELD_MASKS, QuotaExceededError } from "@/lib/costs";
+import { DEFAULT_CAPS, FIELD_MASKS, QuotaExceededError, UserQuotaExceededError } from "@/lib/costs";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { PlacesError, placeDetails, placeHours, searchText } from "../client";
 
@@ -408,6 +408,56 @@ describe("searchText — qualificada (SKU textSearchEnterprise)", () => {
   });
 });
 
+describe("searchText — cota individual (limitesUsuario)", () => {
+  it("limite diário estourado na 1ª página → UserQuotaExceededError, Google NÃO chamado", async () => {
+    await expect(
+      searchText(db, "dentista", DEFAULT_CAPS, {
+        userId: "ana",
+        limitesUsuario: { buscasDia: 0 },
+      }),
+    ).rejects.toThrow(UserQuotaExceededError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("limite individual estourado na 2ª página → devolve a 1ª com aviso próprio (distinto do teto global)", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ places: googlePlaces(1, 20), nextPageToken: "tok-2" }),
+    );
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, {
+      quantidade: 40,
+      userId: "ana",
+      limitesUsuario: { buscasDia: 1 },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.places).toHaveLength(20);
+    expect(result.paginas).toBe(1);
+    expect(result.aviso).toContain("limite individual");
+  });
+
+  it("admin ignora o limite individual mesmo com limitesUsuario presente", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ places: googlePlaces(1, 1) }));
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, {
+      userId: "chefe",
+      isAdmin: true,
+      limitesUsuario: { buscasDia: 0 },
+    });
+
+    expect(result.paginas).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sem limitesUsuario, comportamento é o de sempre (só o teto global)", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ places: googlePlaces(1, 1) }));
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, { userId: "ana" });
+
+    expect(result.paginas).toBe(1);
+  });
+});
+
 describe("placeDetails (SKU detailsEnterprise)", () => {
   it("chama o endpoint do lugar com o field mask Enterprise e mapeia os campos", async () => {
     fetchMock.mockImplementation(async () =>
@@ -464,6 +514,28 @@ describe("placeDetails (SKU detailsEnterprise)", () => {
     expect(error).toBeInstanceOf(PlacesError);
     expect((error as PlacesError).googleStatus).toBe(404);
     expect((error as PlacesError).detail).toBe("Not Found");
+  });
+
+  it("limite diário individual de enriquecimentos → UserQuotaExceededError sem chamar o Google", async () => {
+    await expect(
+      placeDetails(db, "ChIJ001", DEFAULT_CAPS, {
+        userId: "ana",
+        limitesUsuario: { enriquecimentosDia: 0 },
+      }),
+    ).rejects.toThrow(UserQuotaExceededError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("admin ignora o limite individual de enriquecimentos", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ id: "ChIJ001" }));
+
+    await placeDetails(db, "ChIJ001", DEFAULT_CAPS, {
+      userId: "chefe",
+      isAdmin: true,
+      limitesUsuario: { enriquecimentosDia: 0 },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -534,5 +606,16 @@ describe("placeHours (SKU detailsProHours)", () => {
 
     expect(error).toBeInstanceOf(PlacesError);
     expect(usageDoc(db)).toMatchObject({ detailsProHours: 1 });
+  });
+
+  it("admin ignora o teto GLOBAL (placeHours nunca tem cota individual — nem aceita o parâmetro)", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ id: "ChIJ001" }));
+
+    await placeHours(db, "ChIJ001", { ...DEFAULT_CAPS, detailsProHours: 0 }, {
+      userId: "chefe",
+      isAdmin: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

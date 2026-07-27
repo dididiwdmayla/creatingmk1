@@ -1,6 +1,14 @@
-import { QuotaExceededError, reserveQuota, FIELD_MASKS, type Sku, type UsageCounts } from "@/lib/costs";
+import {
+  QuotaExceededError,
+  UserQuotaExceededError,
+  reserveQuota,
+  FIELD_MASKS,
+  type Sku,
+  type UsageCounts,
+} from "@/lib/costs";
 import type { UsageDb } from "@/lib/firestore-like";
 import { isSiteProprio } from "@/lib/site-proprio";
+import type { LimitesUsuario } from "@/lib/usuarios/types";
 
 /**
  * Cliente da Google Places API (New). Único ponto do app que fala com o
@@ -103,6 +111,10 @@ export interface SearchTextOptions {
   isNovo?: (placeId: string) => Promise<boolean>;
   /** Usuário logado — cada reserva de cota registra a quebra por usuário. */
   userId?: string;
+  /** Sessão admin: ignora o teto global E a cota individual de "buscas". */
+  isAdmin?: boolean;
+  /** Limites individuais do dono da busca — cota "buscas" (dia/semana/mês). */
+  limitesUsuario?: LimitesUsuario;
 }
 
 export interface SearchTextResult {
@@ -213,11 +225,20 @@ export async function searchText(
 
   while (paginas < SEARCH_MAX_PAGES) {
     try {
-      await reserveQuota(db, sku, caps, undefined, { userId: options.userId });
+      await reserveQuota(db, sku, caps, undefined, {
+        userId: options.userId,
+        isAdmin: options.isAdmin,
+        userQuota: { tipo: "buscas", limites: options.limitesUsuario },
+      });
     } catch (error) {
+      const estourouCota =
+        error instanceof QuotaExceededError || error instanceof UserQuotaExceededError;
       // 1ª página: nada foi consumido, o erro sobe (rota → 429).
-      if (paginas === 0 || !(error instanceof QuotaExceededError)) throw error;
-      aviso = `teto mensal de "${sku}" atingido após ${paginas} página(s)`;
+      if (paginas === 0 || !estourouCota) throw error;
+      aviso =
+        error instanceof UserQuotaExceededError
+          ? `limite individual de "${sku}" atingido após ${paginas} página(s)`
+          : `teto mensal de "${sku}" atingido após ${paginas} página(s)`;
       break;
     }
 
@@ -270,15 +291,31 @@ export async function searchText(
   return { places, paginas, novos, aviso };
 }
 
+export interface PlaceDetailsCtx {
+  userId?: string;
+  /** Sessão admin: ignora o teto global E a cota individual de "enriquecimentos". */
+  isAdmin?: boolean;
+  /**
+   * Presente só quando esta chamada deve contar para a cota individual de
+   * enriquecimentos — hoje, só o clique em "Enriquecer" (não o horário
+   * avulso/embutido, que só reserva o SKU global).
+   */
+  limitesUsuario?: LimitesUsuario;
+}
+
 /** Place Details (New) com o field mask Enterprise, SKU detailsEnterprise. */
 export async function placeDetails(
   db: UsageDb,
   placeId: string,
   caps: UsageCounts,
-  userId?: string,
+  ctx: PlaceDetailsCtx = {},
 ): Promise<DetalhesLugar> {
   const key = requireApiKey();
-  await reserveQuota(db, "detailsEnterprise", caps, undefined, { userId });
+  await reserveQuota(db, "detailsEnterprise", caps, undefined, {
+    userId: ctx.userId,
+    isAdmin: ctx.isAdmin,
+    userQuota: { tipo: "enriquecimentos", limites: ctx.limitesUsuario },
+  });
 
   const url = `${BASE_URL}/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`;
   const res = await fetch(url, {
@@ -343,16 +380,21 @@ function toFaixas(
  * Horário de funcionamento (New) com o field mask Pro, SKU detailsProHours
  * — contador PRÓPRIO, separado do enriquecimento Enterprise (placeDetails).
  * Chamado JUNTO do enriquecimento (2 requests distintos) ou sozinho pelo
- * botão "buscar horários" de leads já enriquecidos.
+ * botão "buscar horários" de leads já enriquecidos. NUNCA conta para a cota
+ * individual de "enriquecimentos" (decisão de produto) — só o teto GLOBAL
+ * do SKU se aplica, com o mesmo bypass de admin dos demais.
  */
 export async function placeHours(
   db: UsageDb,
   placeId: string,
   caps: UsageCounts,
-  userId?: string,
+  ctx: { userId?: string; isAdmin?: boolean } = {},
 ): Promise<HorariosLugar> {
   const key = requireApiKey();
-  await reserveQuota(db, "detailsProHours", caps, undefined, { userId });
+  await reserveQuota(db, "detailsProHours", caps, undefined, {
+    userId: ctx.userId,
+    isAdmin: ctx.isAdmin,
+  });
 
   const url = `${BASE_URL}/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`;
   const res = await fetch(url, {
