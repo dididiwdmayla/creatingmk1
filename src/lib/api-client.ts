@@ -2,12 +2,12 @@ import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
-import type { UsageCounts } from "@/lib/costs";
+import type { UsageCounts, UsoUsuario } from "@/lib/costs";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
 import type { Metrics, MetricsUsuario } from "@/lib/leads/metrics";
 import type { ConversaResumo, Mensagem } from "@/lib/mensagens/types";
-import type { Papel, UsuarioPublico } from "@/lib/usuarios/types";
+import type { LimitesUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
 
 /** Espelha o formato de erro padrão das rotas (ver ARCHITECTURE.md). */
 export class ApiError extends Error {
@@ -58,6 +58,25 @@ export interface UsageResponse {
   custoProjetado: { usd: number; brl: number };
   /** Só para admin: requests por SKU de cada usuário. */
   porUsuario?: Array<{ userId: string; nome: string; usage: UsageCounts }>;
+}
+
+/** Cota individual do usuário logado — indicador permanente em /leads e na ficha. */
+export interface CotasResponse {
+  buscas: UsoUsuario;
+  enriquecimentos: UsoUsuario;
+}
+
+/** Tabela do painel admin (/config): uso × limite de cada usuário. */
+export interface CotasUsuariosResponse {
+  usuarios: Array<{
+    id: string;
+    nome: string;
+    papel: Papel;
+    ativo: boolean;
+    limites: LimitesUsuario;
+    buscas: UsoUsuario;
+    enriquecimentos: UsoUsuario;
+  }>;
 }
 
 /** Métricas + (para admin) rollup de ações-chave por usuário. */
@@ -129,12 +148,22 @@ export const api = {
     }),
   patchUsuario: (
     id: string,
-    patch: { nome?: string; papel?: Papel; ativo?: boolean; senha?: string },
+    patch: {
+      nome?: string;
+      papel?: Papel;
+      ativo?: boolean;
+      senha?: string;
+      /** number seta o limite; null limpa (sem limite naquela janela). */
+      limites?: Partial<Record<keyof LimitesUsuario, number | null>>;
+    },
   ) =>
     request<{ usuario: UsuarioPublico }>(`/api/usuarios/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
+  zerarCotaDiaUsuario: (id: string) =>
+    request<void>(`/api/usuarios/${id}/zerar-dia`, { method: "POST" }),
+  getCotasUsuarios: () => request<CotasUsuariosResponse>("/api/usuarios/cotas"),
 
   getConfig: () => request<{ config: AppConfig }>("/api/config"),
   putConfig: (patch: Partial<AppConfig>) =>
@@ -145,6 +174,7 @@ export const api = {
 
   getUsage: () => request<UsageResponse>("/api/usage"),
   getMetrics: () => request<MetricsResponse>("/api/metrics"),
+  getCotas: () => request<CotasResponse>("/api/cotas"),
 
   search: (body: {
     nicho?: string;

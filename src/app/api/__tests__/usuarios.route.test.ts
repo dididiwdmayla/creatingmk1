@@ -144,3 +144,114 @@ describe("PATCH /api/usuarios/[id] (admin)", () => {
     ).toBe(404);
   });
 });
+
+describe("PATCH /api/usuarios/[id] — limites individuais (admin)", () => {
+  it("admin define limites e eles persistem no doc", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const res = await editar(
+      request("PATCH", cookie, { limites: { buscasDia: 30, enriquecimentosSemana: 100 } }),
+      params("m1"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(db.getDoc("usuarios/m1")?.limites).toEqual({
+      buscasDia: 30,
+      enriquecimentosSemana: 100,
+    });
+    // Limites não são credencial: não revogam a sessão do usuário.
+    expect(db.getDoc("usuarios/m1")?.sessao).toBe(0);
+  });
+
+  it("null limpa só o campo indicado, mantendo os demais", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      limites: { buscasDia: 30, buscasSemana: 100 },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    await editar(request("PATCH", cookie, { limites: { buscasDia: null } }), params("m1"));
+
+    expect(db.getDoc("usuarios/m1")?.limites).toEqual({ buscasSemana: 100 });
+  });
+
+  it("limpar todos os campos remove o objeto limites por completo (ausente = sem limite)", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      limites: { buscasDia: 30 },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    await editar(request("PATCH", cookie, { limites: { buscasDia: null } }), params("m1"));
+
+    expect(db.getDoc("usuarios/m1")).not.toHaveProperty("limites");
+  });
+
+  it("limites inválidos (negativo, não-inteiro, chave desconhecida) → 400", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const res = await editar(
+      request("PATCH", cookie, { limites: { buscasDia: -1, buscasMes: 1.5, chuta: 1 } }),
+      params("m1"),
+    );
+
+    expect(res.status).toBe(400);
+    const { error } = await res.json();
+    expect(error.problemas).toEqual([
+      "limites.chuta não é um campo de limite conhecido",
+      "limites.buscasDia deve ser inteiro ≥ 0 ou null (sem limite)",
+      "limites.buscasMes deve ser inteiro ≥ 0 ou null (sem limite)",
+    ]);
+  });
+
+  it("membro não altera o próprio limite por nenhum caminho (403, nada muda)", async () => {
+    const cookie = await cookieDeSessao(db, { id: "m1", papel: "membro" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const res = await editar(
+      request("PATCH", cookie, { limites: { buscasDia: 999 } }),
+      params("m1"),
+    );
+
+    expect(res.status).toBe(403);
+    expect(db.getDoc("usuarios/m1")).not.toHaveProperty("limites");
+  });
+});

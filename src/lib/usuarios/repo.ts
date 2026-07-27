@@ -1,7 +1,14 @@
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import { hashSenha } from "./senha";
-import { PAPEIS, USUARIOS_COLLECTION, type Papel, type Usuario } from "./types";
+import {
+  CAMPOS_LIMITE_USUARIO,
+  PAPEIS,
+  USUARIOS_COLLECTION,
+  type LimitesUsuario,
+  type Papel,
+  type Usuario,
+} from "./types";
 
 /**
  * Repositório de /usuarios. Escala de time pequeno (unidades de docs):
@@ -148,19 +155,44 @@ export async function carimbarVisita(
   await docRef(db, id).set(toDoc({ ...usuario, ultimaVisitaEm: now.toISOString() }));
 }
 
+/** Patch de limites: number seta, null LIMPA (sem limite naquela janela), ausente não mexe. */
+export type LimitesPatch = Partial<Record<keyof LimitesUsuario, number | null>>;
+
 export interface UsuarioPatch {
   nome?: string;
   papel?: Papel;
   ativo?: boolean;
   /** Redefine a senha (e derruba as sessões antigas do usuário). */
   senha?: string;
+  /** Nunca vem de sessão do próprio usuário — só de requireAdmin. */
+  limites?: LimitesPatch;
+}
+
+/** Aplica o patch de limites sobre o atual; campo totalmente limpo → undefined (não {}). */
+function mergeLimites(
+  atual: LimitesUsuario | undefined,
+  patch: LimitesPatch | undefined,
+): LimitesUsuario | undefined {
+  if (!patch) return atual;
+  const resultado: LimitesUsuario = { ...atual };
+  for (const campo of CAMPOS_LIMITE_USUARIO) {
+    if (!(campo in patch)) continue;
+    const valor = patch[campo];
+    if (valor === null) {
+      delete resultado[campo];
+    } else if (valor !== undefined) {
+      resultado[campo] = valor;
+    }
+  }
+  return Object.keys(resultado).length > 0 ? resultado : undefined;
 }
 
 /**
  * Atualização pelo admin. Redefinir senha, desativar ou trocar papel
  * incrementa `sessao` — cookies antigos do usuário param de valer nas
  * rotas API. Guarda-corpo: o último admin ativo não pode ser desativado
- * nem rebaixado (o app ficaria sem quem gerencie usuários).
+ * nem rebaixado (o app ficaria sem quem gerencie usuários). Limites nunca
+ * revogam sessão — não são credencial, são configuração operacional.
  */
 export async function atualizarUsuario(
   db: AppDb,
@@ -198,12 +230,14 @@ export async function atualizarUsuario(
     patch.ativo === false ||
     (patch.papel !== undefined && patch.papel !== usuario.papel);
 
+  const limites = mergeLimites(usuario.limites, patch.limites);
   const atualizado: Usuario = {
     ...usuario,
     ...(nome !== undefined && { nome }),
     ...(patch.papel !== undefined && { papel: patch.papel }),
     ...(patch.ativo !== undefined && { ativo: patch.ativo }),
     ...(patch.senha !== undefined && { senhaHash: await hashSenha(patch.senha) }),
+    limites,
     sessao: revoga ? usuario.sessao + 1 : usuario.sessao,
     atualizadoEm: now.toISOString(),
   };
