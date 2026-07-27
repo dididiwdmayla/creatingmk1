@@ -213,7 +213,7 @@ export async function searchText(
 
   while (paginas < SEARCH_MAX_PAGES) {
     try {
-      await reserveQuota(db, sku, caps, undefined, options.userId);
+      await reserveQuota(db, sku, caps, undefined, { userId: options.userId });
     } catch (error) {
       // 1ª página: nada foi consumido, o erro sobe (rota → 429).
       if (paginas === 0 || !(error instanceof QuotaExceededError)) throw error;
@@ -278,7 +278,7 @@ export async function placeDetails(
   userId?: string,
 ): Promise<DetalhesLugar> {
   const key = requireApiKey();
-  await reserveQuota(db, "detailsEnterprise", caps, undefined, userId);
+  await reserveQuota(db, "detailsEnterprise", caps, undefined, { userId });
 
   const url = `${BASE_URL}/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`;
   const res = await fetch(url, {
@@ -352,7 +352,7 @@ export async function placeHours(
   userId?: string,
 ): Promise<HorariosLugar> {
   const key = requireApiKey();
-  await reserveQuota(db, "detailsProHours", caps, undefined, userId);
+  await reserveQuota(db, "detailsProHours", caps, undefined, { userId });
 
   const url = `${BASE_URL}/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`;
   const res = await fetch(url, {

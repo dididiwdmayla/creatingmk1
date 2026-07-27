@@ -95,7 +95,7 @@ export async function gerarAnaliseBusca(
   userId?: string,
 ): Promise<string> {
   const prompt = montarPromptAnaliseBusca(busca, leads);
-  await reserveQuota(db, "aiGeneration", caps, undefined, userId);
+  await reserveQuota(db, "aiGeneration", caps, undefined, { userId });
   const resultado = validarAnaliseBusca(await gerarJson(prompt, schemaAnaliseBusca()));
   if (resultado.analise) return resultado.analise;
   throw new AiError(`resposta fora do schema: ${resultado.problemas.join("; ")}`);

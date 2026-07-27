@@ -74,7 +74,7 @@ export async function geocodeRegion(
   }
 
   const key = requireApiKey();
-  await reserveQuota(db, "geocoding", caps, undefined, userId);
+  await reserveQuota(db, "geocoding", caps, undefined, { userId });
 
   const url =
     `${GEOCODE_URL}?address=${encodeURIComponent(texto)}` +
