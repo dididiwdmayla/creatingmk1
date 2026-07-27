@@ -38,7 +38,10 @@ export async function POST(req: Request, { params }: Params) {
 
     const usuario = await usuarioDaRequest(db, req);
     const config = await loadConfig(db);
-    const sugestao = await gerarSugestaoDemo(db, lead, skin, config.caps, usuario?.id);
+    const sugestao = await gerarSugestaoDemo(db, lead, skin, config.caps, {
+      userId: usuario?.id,
+      isAdmin: usuario?.papel === "admin",
+    });
     return NextResponse.json({ sugestao });
   } catch (error) {
     return handleRouteError(error);

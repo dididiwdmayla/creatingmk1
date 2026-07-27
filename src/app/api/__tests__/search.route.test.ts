@@ -56,7 +56,10 @@ function seedGeocache(regiao = "Sarandi PR", endereco = "Sarandi, PR, Brasil") {
   });
 }
 
-beforeEach(() => {
+/** Sessão default de todos os testes deste arquivo — busca agora EXIGE sessão identificável. */
+let membroCookie: string;
+
+beforeEach(async () => {
   db = new FakeFirestore();
   db.seed("config/app", { nicho: "dentista", regiao: "Sarandi PR" });
   seedGeocache();
@@ -69,6 +72,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   vi.stubEnv("GOOGLE_PLACES_API_KEY", "chave-teste");
   vi.stubEnv("APP_PASSWORD", "segredo123");
+  membroCookie = await cookieDeSessao(db, { id: "membro-1", papel: "membro" });
 });
 
 afterEach(() => {
@@ -76,7 +80,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function searchRequest(body?: unknown, cookie?: string): Request {
+/** cookie: null explicitamente pede request SEM sessão (default = membro). */
+function searchRequest(body?: unknown, cookie: string | null = membroCookie): Request {
   return new Request("http://localhost/api/search", {
     method: "POST",
     ...(cookie && { headers: { cookie } }),
@@ -541,10 +546,46 @@ describe("POST /api/search", () => {
     expect((usage?.porUsuario as Record<string, { textSearch: number }>).ana.textSearch).toBe(1);
   });
 
-  it("sem sessão identificável a busca continua funcionando (sem userId)", async () => {
-    const data = await (await POST(searchRequest())).json();
+  it("sem sessão identificável → 401 (cota individual exige saber quem é o usuário)", async () => {
+    const res = await POST(searchRequest(undefined, null));
 
-    expect(data.busca.userId).toBeUndefined();
-    expect(db.getDoc(`buscas/${data.busca.id}`)?.userId).toBeUndefined();
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("admin ignora o teto GLOBAL mensal (mas o contador ainda incrementa)", async () => {
+    const adminCookie = await cookieDeSessao(db, { id: "chefe", papel: "admin" });
+    db.seed("config/app", {
+      nicho: "dentista",
+      regiao: "Sarandi PR",
+      caps: { textSearch: 0 },
+    });
+
+    const res = await POST(searchRequest(undefined, adminCookie));
+
+    expect(res.status).toBe(200);
+    const period = new Date().toISOString().slice(0, 7);
+    expect(db.getDoc(`usage/${period}`)).toMatchObject({ textSearch: 1 });
+  });
+
+  it("limite diário individual de buscas bloqueia com 429 user_quota_exceeded", async () => {
+    const cookie = await cookieDeSessao(db, { id: "membro-2", papel: "membro" });
+    db.seed("usuarios/membro-2", {
+      id: "membro-2",
+      nome: "membro-2",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      limites: { buscasDia: 1 },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    await POST(searchRequest(undefined, cookie));
+    const res = await POST(searchRequest(undefined, cookie));
+
+    expect(res.status).toBe(429);
+    const { error } = await res.json();
+    expect(error).toMatchObject({ code: "user_quota_exceeded", tipo: "buscas", janela: "dia" });
   });
 });

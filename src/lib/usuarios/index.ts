@@ -6,6 +6,7 @@ export {
   getUsuarioPorNome,
   listUsuarios,
   seedUsuariosSeVazio,
+  type LimitesPatch,
   type UsuarioPatch,
 } from "./repo";
 export { hashSenha, verificarSenha } from "./senha";

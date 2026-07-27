@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { loadConfig } from "@/lib/config";
-import { NotFoundError } from "@/lib/errors";
+import { NotFoundError, UnauthorizedError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError } from "@/lib/http";
 import { getLead, saveDetails, saveHorarios } from "@/lib/leads/repo";
@@ -27,6 +27,12 @@ export async function POST(req: Request, { params }: Params) {
     const { id } = await params;
     const db = getDb();
 
+    // Ação-chave sujeita a cota INDIVIDUAL: diferente do resto do app,
+    // aqui a sessão precisa resolver de verdade — sem usuário não dá pra
+    // aplicar o limite dele.
+    const usuario = await usuarioDaRequest(db, req);
+    if (!usuario) throw new UnauthorizedError();
+
     const lead = await getLead(db, id);
     if (!lead) {
       throw new NotFoundError(`Lead "${id}" não encontrado.`);
@@ -35,13 +41,17 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ lead });
     }
 
-    const usuario = await usuarioDaRequest(db, req);
+    const isAdmin = usuario.papel === "admin";
     const config = await loadConfig(db);
-    const detalhes = await placeDetails(db, id, config.caps, usuario?.id);
-    let updated = await saveDetails(db, id, detalhes, undefined, usuario?.id);
+    const detalhes = await placeDetails(db, id, config.caps, {
+      userId: usuario.id,
+      isAdmin,
+      limitesUsuario: usuario.limites,
+    });
+    let updated = await saveDetails(db, id, detalhes, undefined, usuario.id);
 
     try {
-      const horarios = await placeHours(db, id, config.caps, usuario?.id);
+      const horarios = await placeHours(db, id, config.caps, { userId: usuario.id, isAdmin });
       updated = await saveHorarios(db, id, horarios);
     } catch {
       // Enriquecimento principal já persistido — horário fica pendente.

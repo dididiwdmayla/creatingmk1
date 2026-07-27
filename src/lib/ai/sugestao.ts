@@ -262,12 +262,12 @@ export async function gerarSugestaoDemo(
   lead: Lead,
   skin: SkinDefinition,
   caps: UsageCounts,
-  userId?: string,
+  ctx: { userId?: string; isAdmin?: boolean } = {},
 ): Promise<SugestaoDemo> {
   const prompt = montarPromptSugestao(skin, lead);
   const schema = schemaSugestao(skin);
 
-  await reserveQuota(db, "aiGeneration", caps, undefined, { userId });
+  await reserveQuota(db, "aiGeneration", caps, undefined, ctx);
   const primeira = validarSugestao(await gerarJson(prompt, schema), skin);
   if (primeira.sugestao) return primeira.sugestao;
 
@@ -278,7 +278,7 @@ export async function gerarSugestaoDemo(
     ...primeira.problemas.map((problema) => `- ${problema}`),
   ].join("\n");
 
-  await reserveQuota(db, "aiGeneration", caps, undefined, { userId });
+  await reserveQuota(db, "aiGeneration", caps, undefined, ctx);
   const segunda = validarSugestao(await gerarJson(promptRetry, schema), skin);
   if (segunda.sugestao) return segunda.sugestao;
 
