@@ -19,9 +19,9 @@ describe("getUsoUsuario", () => {
 
   it("soma os dias certos em cada janela (semana começa segunda)", async () => {
     const db = new FakeFirestore();
-    db.seed("usage_users/membro-1/2026-07-01", { buscas: 4 }); // quarta, mesma semana/mês
-    db.seed("usage_users/membro-1/2026-07-02", { buscas: 3 }); // hoje
-    db.seed("usage_users/membro-1/2026-06-15", { buscas: 10 }); // mês anterior — fora das duas janelas
+    db.seed("usage_users/membro-1/dias/2026-07-01", { buscas: 4 }); // quarta, mesma semana/mês
+    db.seed("usage_users/membro-1/dias/2026-07-02", { buscas: 3 }); // hoje
+    db.seed("usage_users/membro-1/dias/2026-06-15", { buscas: 10 }); // mês anterior — fora das duas janelas
 
     const uso = await getUsoUsuario(
       db,
@@ -38,7 +38,7 @@ describe("getUsoUsuario", () => {
 
   it("contadores malformados viram 0", async () => {
     const db = new FakeFirestore();
-    db.seed("usage_users/membro-1/2026-07-02", { buscas: "muitos" });
+    db.seed("usage_users/membro-1/dias/2026-07-02", { buscas: "muitos" });
 
     const uso = await getUsoUsuario(db, "membro-1", "buscas", undefined, NOW);
     expect(uso.dia.usado).toBe(0);
@@ -46,7 +46,7 @@ describe("getUsoUsuario", () => {
 
   it("enriquecimentos e buscas são contadores independentes", async () => {
     const db = new FakeFirestore();
-    db.seed("usage_users/membro-1/2026-07-02", { buscas: 5, enriquecimentos: 2 });
+    db.seed("usage_users/membro-1/dias/2026-07-02", { buscas: 5, enriquecimentos: 2 });
 
     const buscas = await getUsoUsuario(db, "membro-1", "buscas", undefined, NOW);
     const enrich = await getUsoUsuario(db, "membro-1", "enriquecimentos", undefined, NOW);
@@ -59,15 +59,15 @@ describe("getUsoUsuario", () => {
 describe("zerarCotaDia", () => {
   it("zera só o contador do dia corrente, preservando outros dias", async () => {
     const db = new FakeFirestore();
-    db.seed("usage_users/membro-1/2026-07-02", { buscas: 9, enriquecimentos: 4 });
-    db.seed("usage_users/membro-1/2026-07-01", { buscas: 2 });
+    db.seed("usage_users/membro-1/dias/2026-07-02", { buscas: 9, enriquecimentos: 4 });
+    db.seed("usage_users/membro-1/dias/2026-07-01", { buscas: 2 });
 
     await zerarCotaDia(db, "membro-1", NOW);
 
-    expect(db.getDoc("usage_users/membro-1/2026-07-02")).toMatchObject({
+    expect(db.getDoc("usage_users/membro-1/dias/2026-07-02")).toMatchObject({
       buscas: 0,
       enriquecimentos: 0,
     });
-    expect(db.getDoc("usage_users/membro-1/2026-07-01")).toEqual({ buscas: 2 });
+    expect(db.getDoc("usage_users/membro-1/dias/2026-07-01")).toEqual({ buscas: 2 });
   });
 });

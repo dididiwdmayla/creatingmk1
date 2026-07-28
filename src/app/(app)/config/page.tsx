@@ -32,6 +32,11 @@ async function fetchCotasData(): Promise<{ cotas: CotasUsuariosResponse; usage: 
   return { cotas, usage };
 }
 
+/** Mensagem de erro com o `code` da API — sem isso, um 500 inesperado vira só "falha genérica". */
+function mensagemErroCotas(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? `${fallback} (${error.code}): ${error.message}` : fallback;
+}
+
 const PRESENCA_OPTIONS: Array<{ value: FiltroPresenca; label: string }> = [
   { value: "qualquer", label: "Qualquer" },
   { value: "com", label: "Com" },
@@ -540,7 +545,7 @@ function CotasUsuariosSection() {
         setErro(
           error instanceof ApiError && error.status === 403
             ? "Cotas são restritas ao admin."
-            : "Falha ao carregar as cotas.",
+            : mensagemErroCotas(error, "Falha ao carregar as cotas"),
         );
       });
     return () => {
@@ -560,7 +565,7 @@ function CotasUsuariosSection() {
         ),
       );
     } catch (error) {
-      setErro(error instanceof ApiError ? error.message : "Falha ao salvar o limite.");
+      setErro(mensagemErroCotas(error, "Falha ao salvar o limite"));
     } finally {
       setOcupado(null);
     }
@@ -577,7 +582,7 @@ function CotasUsuariosSection() {
       setUsoGlobal(usage);
       setAviso(`Dia de "${nome}" zerado.`);
     } catch (error) {
-      setErro(error instanceof ApiError ? error.message : "Falha ao zerar o dia.");
+      setErro(mensagemErroCotas(error, "Falha ao zerar o dia"));
     } finally {
       setOcupado(null);
     }

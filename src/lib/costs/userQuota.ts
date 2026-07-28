@@ -15,11 +15,16 @@ export type { TipoCotaUsuario, JanelaCotaUsuario } from "./errors";
 
 /**
  * Contadores por usuário por dia (reset por composição de chave com a
- * data — ver periodoUsuario.ts — sem cron). Coleção "usage_users/{userId}"
- * (mesmo truque de path composto que buscas/repo.ts usa para as
- * subcoleções de execução), um doc por dia, com contadores abertos: o
- * item do roadmap de fotos/reviews (Places) pode ganhar um terceiro tipo
- * aqui sem redesenho.
+ * data — ver periodoUsuario.ts — sem cron). Coleção
+ * "usage_users/{userId}/dias" (mesmo truque de path composto que
+ * buscas/repo.ts usa para as subcoleções de execução — 3 segmentos, ímpar,
+ * como toda coleção do Firestore precisa ser: "usage_users/{userId}" sem o
+ * terceiro segmento tem 2 segmentos e o SDK real recusa com "must point to
+ * a collection... does not contain an odd number of components", erro que
+ * só apareceu em produção porque o FakeFirestore dos testes não validava
+ * isso — ver o teste de paridade em fake-firestore.test.ts), um doc por
+ * dia, com contadores abertos: o item do roadmap de fotos/reviews (Places)
+ * pode ganhar um terceiro tipo aqui sem redesenho.
  */
 export interface ContadorDiaUsuario {
   buscas: number;
@@ -29,7 +34,7 @@ export interface ContadorDiaUsuario {
 const ZERO_DIA: ContadorDiaUsuario = { buscas: 0, enriquecimentos: 0 };
 
 export function usageUsuariosCollection(userId: string): string {
-  return `usage_users/${userId}`;
+  return `usage_users/${userId}/dias`;
 }
 
 /** Contadores malformados (string, negativo, NaN) viram 0 — mesma postura do módulo global. */

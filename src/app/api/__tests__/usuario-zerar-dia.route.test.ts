@@ -41,17 +41,17 @@ describe("POST /api/usuarios/[id]/zerar-dia", () => {
       atualizadoEm: "2026-07-01T00:00:00.000Z",
     });
     const hoje = saoPauloDateKey(new Date());
-    db.seed(`usage_users/m1/${hoje}`, { buscas: 9, enriquecimentos: 4 });
-    db.seed("usage_users/m1/2026-01-01", { buscas: 2 });
+    db.seed(`usage_users/m1/dias/${hoje}`, { buscas: 9, enriquecimentos: 4 });
+    db.seed("usage_users/m1/dias/2026-01-01", { buscas: 2 });
 
     const res = await zerar("m1", cookie);
 
     expect(res.status).toBe(204);
-    expect(db.getDoc(`usage_users/m1/${hoje}`)).toMatchObject({
+    expect(db.getDoc(`usage_users/m1/dias/${hoje}`)).toMatchObject({
       buscas: 0,
       enriquecimentos: 0,
     });
-    expect(db.getDoc("usage_users/m1/2026-01-01")).toEqual({ buscas: 2 });
+    expect(db.getDoc("usage_users/m1/dias/2026-01-01")).toEqual({ buscas: 2 });
   });
 
   it("membro → 403; sem sessão → 401", async () => {

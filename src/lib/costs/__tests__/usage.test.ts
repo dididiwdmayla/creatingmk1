@@ -230,7 +230,7 @@ describe("reserveQuota", () => {
 
     // a 3ª tentativa não gravou nem o contador global nem o do usuário
     expect(db.getDoc(DOC)?.textSearch).toBe(2);
-    expect(db.getDoc(`usage_users/membro-1/${saoPauloDateKey(NOW)}`)?.buscas).toBe(2);
+    expect(db.getDoc(`usage_users/membro-1/dias/${saoPauloDateKey(NOW)}`)?.buscas).toBe(2);
   });
 
   it("admin nunca é bloqueado por limite individual, mesmo com userQuota presente", async () => {
@@ -255,7 +255,7 @@ describe("reserveQuota", () => {
       userQuota: { tipo: "buscas", limites: undefined },
     });
 
-    expect(db.getDoc(`usage_users/membro-1/${saoPauloDateKey(NOW)}`)).toMatchObject({
+    expect(db.getDoc(`usage_users/membro-1/dias/${saoPauloDateKey(NOW)}`)).toMatchObject({
       buscas: 1,
       enriquecimentos: 0,
     });
@@ -264,7 +264,7 @@ describe("reserveQuota", () => {
   it("limite SEMANAL soma os dias já gravados na semana (segunda a hoje)", async () => {
     const db = new FakeFirestore();
     const segunda = saoPauloWeekStartKey(saoPauloDateKey(NOW));
-    db.seed(`usage_users/membro-1/${segunda}`, { buscas: 5 });
+    db.seed(`usage_users/membro-1/dias/${segunda}`, { buscas: 5 });
 
     await expect(
       reserveQuota(db, "textSearch", caps(), NOW, {
