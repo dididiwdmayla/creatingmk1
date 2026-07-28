@@ -286,7 +286,7 @@ describe("POST /api/leads/[id]/enrich", () => {
     // 1 enriquecimento (com horário embutido) não estoura um limite de 1/dia.
     expect(res.status).toBe(200);
     const hojeKey = saoPauloDateKey(new Date());
-    expect(db.getDoc(`usage_users/membro-2/${hojeKey}`)).toMatchObject({
+    expect(db.getDoc(`usage_users/membro-2/dias/${hojeKey}`)).toMatchObject({
       enriquecimentos: 1,
     });
   });
