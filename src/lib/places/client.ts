@@ -101,6 +101,13 @@ export interface SearchTextOptions {
   quantidade?: number;
   /** Busca qualificada: mask com websiteUri/telefones → SKU textSearchEnterprise. */
   qualificada?: boolean;
+  /**
+   * "Só sem site": filtro pós-resposta que descarta (nem entra no
+   * resultado) quem tem siteProprio true — implica qualificada (precisa do
+   * mask com websiteUri para classificar). Continua paginando até juntar
+   * `quantidade` leads que passem no filtro, ou os limites de sempre.
+   */
+  soSemSite?: boolean;
   /** Localização dura: retângulo (viewport geocodificado) da região. */
   locationRestriction?: LatLngRect;
   /**
@@ -198,6 +205,12 @@ function toPlaceBasico(place: GooglePlace, qualificada: boolean): PlaceBasico | 
  * Se o teto (ou o Google) falhar a partir da 2ª página, devolve o que já
  * foi obtido com `aviso` — a cota da 1ª página já foi consumida, então
  * jogar os resultados fora seria pagar sem receber.
+ *
+ * Guarda "N = N": o `places` devolvido NUNCA passa de `quantidade`, mesmo
+ * que a caçada por inéditos tenha varrido 3 páginas cheias de duplicados
+ * (repetidos de buscas anteriores). Inéditos têm prioridade pelas vagas;
+ * duplicados só preenchem o que sobrar — se os inéditos já fecham a
+ * quantidade, nenhum duplicado entra (não ocupam vaga do N).
  */
 export async function searchText(
   db: UsageDb,
@@ -210,13 +223,15 @@ export async function searchText(
     Math.max(Math.floor(options.quantidade ?? PAGE_SIZE_MAX), 1),
     SEARCH_MAX_RESULTS,
   );
-  const qualificada = options.qualificada ?? false;
+  const soSemSite = options.soSemSite ?? false;
+  // "Só sem site" precisa classificar siteProprio pra filtrar → força o mask qualificado.
+  const qualificada = (options.qualificada ?? false) || soSemSite;
   const sku: Sku = qualificada ? "textSearchEnterprise" : "textSearch";
   // pageSize constante entre as páginas: a API exige os mesmos parâmetros
   // (fora o pageToken) nas chamadas de continuação.
   const pageSize = Math.min(quantidade, PAGE_SIZE_MAX);
 
-  const places: PlaceBasico[] = [];
+  const entradas: Array<{ place: PlaceBasico; novo: boolean }> = [];
   const vistos = new Set<string>();
   let novos = 0;
   let paginas = 0;
@@ -272,10 +287,13 @@ export async function searchText(
       const place = toPlaceBasico(raw, qualificada);
       if (!place || vistos.has(place.placeId)) continue;
       vistos.add(place.placeId);
-      places.push(place);
-      if ((await options.isNovo?.(place.placeId)) ?? true) {
-        novos += 1;
-      }
+      // Filtro pós-resposta do "só sem site": quem tem site próprio nem
+      // entra no resultado da busca qualificada (pode existir na base de
+      // outra busca, mas não é resultado desta).
+      if (soSemSite && place.siteProprio === true) continue;
+      const novo = (await options.isNovo?.(place.placeId)) ?? true;
+      if (novo) novos += 1;
+      entradas.push({ place, novo });
     }
 
     pageToken = data.nextPageToken;
@@ -287,6 +305,15 @@ export async function searchText(
       ? `limite de ${SEARCH_MAX_PAGES} páginas do Google atingido: ${novos} novo(s)`
       : `resultados esgotados: ${novos} novo(s) em ${paginas} página(s)`;
   }
+
+  // Inéditos primeiro (as vagas do N são deles); duplicados só preenchem
+  // sobra. slice(0, quantidade) é a guarda dura: o resultado desta execução
+  // nunca passa do N pedido, nem quando 3 páginas cheias de duplicados
+  // foram varridas atrás dos inéditos.
+  const places = [
+    ...entradas.filter((e) => e.novo).map((e) => e.place),
+    ...entradas.filter((e) => !e.novo).map((e) => e.place),
+  ].slice(0, quantidade);
 
   return { places, paginas, novos, aviso };
 }

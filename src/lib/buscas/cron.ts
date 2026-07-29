@@ -155,6 +155,7 @@ async function executarBusca(
   const resultado = await searchText(db, query, caps, {
     quantidade: busca.quantidade,
     qualificada: busca.qualificada,
+    soSemSite: busca.soSemSite,
     locationRestriction: geo.viewport,
     isNovo: async (placeId) => !(await getLead(db, placeId)),
     userId: dono?.id,

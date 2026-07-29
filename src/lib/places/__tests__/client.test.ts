@@ -158,8 +158,10 @@ describe("searchText — quantidade e paginação", () => {
     expect(sentBody(fetchMock, 0).pageToken).toBeUndefined();
     expect(sentBody(fetchMock, 1)).toMatchObject({ pageToken: "tok-2", pageSize: 20 });
     expect(result.paginas).toBe(2);
-    // A 2ª página inteira fica (já foi paga), mesmo passando da quantidade.
-    expect(result.places).toHaveLength(40);
+    // A 2ª página inteira é PAGA (cota reservada), mas o resultado devolvido
+    // nunca passa da quantidade pedida — guarda "N = N" (bug: 20 pedidos,
+    // 60 devolvidos).
+    expect(result.places).toHaveLength(30);
     expect(result.novos).toBe(40);
     expect(usageDoc(db)).toMatchObject({ textSearch: 2 });
   });
@@ -198,10 +200,42 @@ describe("searchText — quantidade e paginação", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.paginas).toBe(2);
     expect(result.novos).toBe(25);
-    // Os existentes continuam no retorno — o upsert anexa a busca a eles.
-    expect(result.places).toHaveLength(40);
+    // Os 15 existentes encontrados NA CAÇADA por inéditos não ocupam vaga:
+    // os inéditos (25, prioridade) já fecham a quantidade (20) sozinhos —
+    // resultado tem só inéditos, nunca passa de N.
+    expect(result.places).toHaveLength(20);
+    expect(result.places.every((p) => !existentes.has(p.placeId))).toBe(true);
     expect(result.aviso).toBeUndefined();
     expect(usageDoc(db)).toMatchObject({ textSearch: 2 });
+  });
+
+  it("guarda 'N = N': resultado nunca passa da quantidade mesmo com 3 páginas de duplicados antes dos inéditos", async () => {
+    // Reprodução do bug relatado: pediu 20, back-end varria 3 páginas
+    // (60 resultados) atrás de inéditos por causa de duplicados no meio.
+    fetchMock
+      .mockImplementationOnce(async () =>
+        jsonResponse({ places: googlePlaces(1, 20), nextPageToken: "tok-2" }),
+      )
+      .mockImplementationOnce(async () =>
+        jsonResponse({ places: googlePlaces(21, 20), nextPageToken: "tok-3" }),
+      )
+      .mockImplementationOnce(async () => jsonResponse({ places: googlePlaces(41, 20) }));
+    // As 2 primeiras páginas inteiras (40 lugares) já existem na base —
+    // só a 3ª página (20 lugares) é inédita.
+    const jaExistem = new Set(
+      Array.from({ length: 40 }, (_, i) => `ChIJ${String(1 + i).padStart(3, "0")}`),
+    );
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, {
+      quantidade: 20,
+      isNovo: async (placeId) => !jaExistem.has(placeId),
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(result.paginas).toBe(3);
+    expect(result.novos).toBe(20);
+    expect(result.places.length).toBeLessThanOrEqual(20);
+    expect(result.places).toHaveLength(20);
   });
 
   it("respeita o limite de 3 páginas do Google mesmo faltando novos", async () => {
@@ -405,6 +439,69 @@ describe("searchText — qualificada (SKU textSearchEnterprise)", () => {
       }),
     ).rejects.toThrow(QuotaExceededError);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("searchText — soSemSite (filtro pós-resposta 'Só sem site')", () => {
+  it("força o mask qualificado mesmo sem passar qualificada:true", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ places: googlePlaces(1, 1) }));
+
+    await searchText(db, "dentista", DEFAULT_CAPS, { soSemSite: true });
+
+    expect(sentMask(fetchMock)).toBe(FIELD_MASKS.textSearchEnterprise);
+    expect(usageDoc(db)).toMatchObject({ textSearchEnterprise: 1 });
+  });
+
+  it("descarta quem tem site próprio — reprodução do bug: 'Só sem site' devolvendo lead com site", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        places: [
+          { id: "ChIJ_com", displayName: { text: "Com site" }, websiteUri: "https://a.com.br" },
+          { id: "ChIJ_sem", displayName: { text: "Sem site" } },
+          {
+            id: "ChIJ_ig",
+            displayName: { text: "Só Instagram" },
+            websiteUri: "https://instagram.com/negocio",
+          },
+        ],
+      }),
+    );
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, { soSemSite: true });
+
+    const ids = result.places.map((p) => p.placeId);
+    expect(ids).not.toContain("ChIJ_com");
+    expect(ids).toEqual(expect.arrayContaining(["ChIJ_sem", "ChIJ_ig"]));
+    expect(result.places.every((p) => p.siteProprio !== true)).toBe(true);
+  });
+
+  it("pagina para completar N mesmo descartando os que têm site próprio", async () => {
+    fetchMock
+      .mockImplementationOnce(async () =>
+        jsonResponse({
+          places: [
+            { id: "ChIJ_a", displayName: { text: "A" }, websiteUri: "https://a.com.br" },
+            { id: "ChIJ_b", displayName: { text: "B" }, websiteUri: "https://b.com.br" },
+          ],
+          nextPageToken: "tok-2",
+        }),
+      )
+      .mockImplementationOnce(async () =>
+        jsonResponse({
+          places: [
+            { id: "ChIJ_c", displayName: { text: "C" } },
+            { id: "ChIJ_d", displayName: { text: "D" } },
+          ],
+        }),
+      );
+
+    const result = await searchText(db, "dentista", DEFAULT_CAPS, {
+      quantidade: 2,
+      soSemSite: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.places.map((p) => p.placeId)).toEqual(["ChIJ_c", "ChIJ_d"]);
   });
 });
 

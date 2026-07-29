@@ -55,6 +55,8 @@ export interface Busca {
   recorrente?: boolean;
   /** Parâmetros da execução original, reusados pelo cron ("mesmo pipeline"). */
   qualificada?: boolean;
+  /** "Só sem site": filtro pós-resposta (implica qualificada). */
+  soSemSite?: boolean;
   quantidade?: number;
   criadaEm: string;
   totalCriados: number;

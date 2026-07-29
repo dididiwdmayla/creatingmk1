@@ -37,7 +37,7 @@ export async function POST(req: Request) {
         problemas.push(`${key} deve ser string`);
       }
     }
-    const { quantidade, qualificada } = body;
+    const { quantidade, qualificada, soSemSite } = body;
     if (
       quantidade !== undefined &&
       (typeof quantidade !== "number" ||
@@ -49,6 +49,9 @@ export async function POST(req: Request) {
     }
     if (qualificada !== undefined && typeof qualificada !== "boolean") {
       problemas.push("qualificada deve ser booleano");
+    }
+    if (soSemSite !== undefined && typeof soSemSite !== "boolean") {
+      problemas.push("soSemSite deve ser booleano");
     }
     if (problemas.length > 0) {
       throw new ValidationError(problemas);
@@ -80,6 +83,7 @@ export async function POST(req: Request) {
     const resultado = await searchText(db, query, config.caps, {
       quantidade: quantidade as number | undefined,
       qualificada: qualificada as boolean | undefined,
+      soSemSite: soSemSite as boolean | undefined,
       locationRestriction: geo.viewport,
       isNovo: async (placeId) => !(await getLead(db, placeId)),
       userId: usuario.id,
@@ -106,6 +110,7 @@ export async function POST(req: Request) {
         // Parâmetros da execução, guardados para o cron re-executar o
         // MESMO pipeline caso a busca vire recorrente.
         ...(qualificada === true && { qualificada: true }),
+        ...(soSemSite === true && { soSemSite: true }),
         ...(quantidade !== undefined && { quantidade: quantidade as number }),
         totalCriados: criados,
         totalExistentes: existentes,

@@ -199,7 +199,7 @@ function LeadsPageInner() {
   const [regiao, setRegiao] = useState("");
   const [nomeBusca, setNomeBusca] = useState("");
   const [quantidade, setQuantidade] = useState(20);
-  const [qualificada, setQualificada] = useState(false);
+  const [soSemSite, setSoSemSite] = useState(false);
   const [autoEnrich, setAutoEnrich] = useState(false);
   const [autoEnrichN, setAutoEnrichN] = useState(3);
   const [buscando, setBuscando] = useState(false);
@@ -384,8 +384,15 @@ function LeadsPageInner() {
     setParam("fechados", [...next].join(","));
   }
 
+  // Guarda sincrona contra reenvio (toque duplo/triplo no mobile antes do
+  // re-render desabilitar o botão): checada e setada ANTES de qualquer
+  // await, então nenhuma segunda chamada síncrona passa.
+  const buscandoRef = useRef(false);
+
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (buscandoRef.current) return;
+    buscandoRef.current = true;
     setBuscando(true);
     setBuscaMsg(null);
     setBuscaAviso(null);
@@ -397,7 +404,7 @@ function LeadsPageInner() {
       if (regiao.trim()) body.regiao = regiao.trim();
       if (nomeBusca.trim()) body.nome = nomeBusca.trim();
       body.quantidade = Math.min(Math.max(quantidade, 1), QUANTIDADE_MAX);
-      if (qualificada) body.qualificada = true;
+      if (soSemSite) body.soSemSite = true;
       const result = await api.search(body);
       setRegiaoResolvida(result.regiaoResolvida);
 
@@ -446,6 +453,7 @@ function LeadsPageInner() {
         setBuscaErro(error instanceof ApiError ? error.message : "Falha na busca.");
       }
     } finally {
+      buscandoRef.current = false;
       setBuscando(false);
       recarregarCotaBuscas();
     }
@@ -530,14 +538,15 @@ function LeadsPageInner() {
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={qualificada}
-                onChange={(event) => setQualificada(event.target.checked)}
+                checked={soSemSite}
+                onChange={(event) => setSoSemSite(event.target.checked)}
                 className="h-4 w-4 accent-[var(--accent)]"
               />
               <span>
                 Só sem site{" "}
                 <span className="text-xs text-ink-muted">
-                  (qualificada: site + telefone de graça, tier Enterprise)
+                  (qualificada: site + telefone de graça, tier Enterprise — quem tem site
+                  próprio nem entra no resultado)
                 </span>
               </span>
             </label>
