@@ -43,11 +43,14 @@ export async function GET(req: Request) {
       followUpDias: config.followUpDias,
       /** Para o botão WhatsApp e o badge da busca de origem, sem outra chamada. */
       mensagemPadrao: config.mensagemPadrao,
-      buscas: buscas.map(({ id, nome, cor, mensagemPadrao }) => ({
+      buscas: buscas.map(({ id, nome, cor, mensagemPadrao, nicho, regiao, penetracao }) => ({
         id,
         nome,
         cor,
+        nicho,
+        regiao,
         ...(mensagemPadrao && { mensagemPadrao }),
+        ...(penetracao && { penetracao }),
       })),
     });
   } catch (error) {

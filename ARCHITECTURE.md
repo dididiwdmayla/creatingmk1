@@ -90,7 +90,7 @@ src/
       session.ts                    #    usuarioDaRequest (atribuição/escopo) + requireAdmin (403)
     api-client.ts                   # ✅ fetch tipado do cliente (ApiError, um método por rota)
     format.ts                       # ✅ formatBRL/USD/percent/int/dateTime (pt-BR)
-    wa.ts                           # ✅ monta o link wa.me a partir de dados já persistidos
+    wa.ts                           # ✅ monta o link wa.me a partir de dados já persistidos ({nome}/{demo}/{penetracao})
     site-proprio.ts                 # ✅ classifica websiteUri: rede social/agregador ≠ site próprio
     sku-labels.ts                   # ✅ rótulos pt-BR dos SKUs (dashboard e config)
     geo/
@@ -127,10 +127,12 @@ src/
       score.ts                      # ✅ score de priorização por regras (ordenação + badge)
       horarios.ts                   # ✅ estadoAtual/melhorMomento: funções puras sobre lead.horarios (fuso do lead)
       hoje.ts                       # ✅ montarFilaDoDia: seleção pura das 3 seções de /hoje
+      penetracao.ts                 # ✅ calcularPenetracaoSite/argumentoPenetracao/argumentoForte (ver "Penetração de site")
     buscas/                         # ✅ registro das buscas executadas
-      types.ts                      #    + recorrente/qualificada/quantidade e BuscaExecucao
-      repo.ts                       #    + listBuscasRecorrentes (ordem determinística) e registrarExecucao
+      types.ts                      #    + recorrente/qualificada/quantidade, BuscaExecucao e penetracao (cache)
+      repo.ts                       #    + listBuscasRecorrentes (ordem determinística), registrarExecucao e salvarPenetracao
       cron.ts                       # ✅ executarBuscasRecorrentes: pipeline diário + resumo em /cron/ultima
+      penetracao.ts                 # ✅ calcularPenetracaoGrupo/recalcularPenetracao/penetracaoParaLead (ver "Penetração de site")
     demos/                          # ✅ Forja de Demos (ver seção própria)
       types.ts                      # DemoData, Theme, SkinDefinition (+secoes), LeadDemo (+tema), TemaPatch
       montar.ts                     # montarDemoData: exemplo ← lead ← edições
@@ -152,7 +154,7 @@ src/
     StatusBadge.tsx                 # badge ordinal do status do lead (cor + forma + marcador)
     UsageMeter.tsx                  # meter de uso vs teto (accent/warning/critical), anima ao montar
     CotaIndicador.tsx               # ✅ "usado/limite" por janela (cota individual) + cotaEsgotada() p/ desabilitar botão
-    LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site
+    LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site, badge "argumento forte"
     PageTransition.tsx              # fade-in de página por troca de rota (client)
     RadarSweep.tsx                  # decoração de sweep de radar (CSS puro)
     demos/                          # ✅ skins da Forja de Demos (um pacote por skin)
@@ -385,6 +387,18 @@ Regras de escrita:
 
 `websiteUri` apontando para **rede social, WhatsApp ou agregador de links** (instagram.com, facebook.com, wa.me, api.whatsapp.com, linktr.ee, bio.link, tiktok.com etc. — lista fixa no módulo, comparada por hostname com subdomínios) **não conta como site próprio**: o lead recebe `siteProprio: false` e continua aparecendo no filtro "sem site próprio" — é prospect válido. A URL fica preservada em `siteUrl` (útil para contato). Estados de `siteProprio`: `true` = site próprio · `false` = sem site nenhum OU só rede social · ausente = desconhecido. Docs antigos sem o campo são derivados na leitura (de `detalhes.site` ou `temSite`/`siteUrl`); URL ilegível classifica como site próprio (lado conservador — não polui a lista de prospects).
 
+### Penetração de site por nicho e cidade
+
+100% sobre dados já salvos — **nenhum request novo ao Google**. `src/lib/leads/penetracao.ts` tem a agregação pura: `calcularPenetracaoSite(leads)` classifica cada lead pelo `siteProprio` já existente (com site próprio / só rede social — `siteProprio: false` com `temSite: true` / sem nada — `siteProprio: false` com `temSite` falso) e soma. Leads com `siteProprio` indefinido (nunca enriquecidos nem de busca qualificada) ficam de fora do "total conhecido" e voltam à parte em `desconhecidos`. Com menos de `PENETRACAO_BASE_MINIMA` (5) leads conhecidos, `percentuais` fica `undefined` — a UI mostra a contagem, nunca um percentual sobre base pequena demais pra significar algo.
+
+`src/lib/buscas/penetracao.ts` faz a parte com Firestore: **"neste nicho nesta cidade" é o grupo lógico de TODAS as buscas com o mesmo nicho+região** (normalizado: minúsculas, espaços colapsados), não só a busca corrente — `calcularPenetracaoGrupo` reúne os leads de todas elas. `recalcularPenetracao(db, buscaId)` recalcula e cacheia o agregado no campo `penetracao` do doc da busca (ver `/buscas/{id}`); é chamado **toda vez que a busca roda de novo** — em `POST /api/search` (logo após criar o doc) e no cron (`executarBusca`, logo após `registrarExecucao`). Cada busca doc reflete o agregado de quando ELA rodou por último — buscas irmãs (mesmo nicho+região) que não rodaram desde então ficam com o cache defasado até rodarem de novo; é uma leitura, não uma fonte de verdade em tempo real.
+
+Onde aparece:
+- **Grupo de busca** (`/leads?buscaId=`): card "Penetração de site" com `buscaAtual?.penetracao` — "Neste nicho nesta cidade: X% têm site próprio · Y% só rede social · Z% sem presença (base: N estabelecimentos)"; base pequena mostra só a contagem.
+- **Ficha do lead sem site próprio** (`siteProprio === false`): `argumentoPenetracao(nicho, regiao, penetracao, nome)` monta a linha pronta ("X% dos estabelecimentos de {nicho} em {regiao} que mapeamos já têm site — a {nome} está entre os que ainda não têm.") com botão copiar; usa "estabelecimentos de {nicho}" (em vez de flexionar o nicho em gênero/plural) porque o texto do nicho é livre e imprevisível. `penetracaoParaLead(lead, buscas)` escolhe, entre as buscas em que o lead apareceu (mais recente primeiro), a primeira que já tem `penetracao` cacheada.
+- **Variável `{penetracao}`** na mensagem padrão do WhatsApp (`src/lib/wa.ts`, `buildWhatsAppLink`): mesma linha de argumento, substituída só quando calculada (ausência não apaga a variável em silêncio) — mesmo padrão de `{nome}`/`{demo}`.
+- **Badge "argumento forte"** (`argumentoForte(penetracao)`, `percentuais.comSiteProprio > 60`) em `/hoje` e no `LeadCard` da lista de leads — discreto, não bloqueia nada, só sinaliza que o argumento é forte.
+
 ### `/buscas/{id}` — um doc por busca executada
 
 **O ID do documento é um UUID gerado na rota de busca** (o mesmo valor anexado ao `buscaId` dos leads).
@@ -404,7 +418,11 @@ Regras de escrita:
   "criadaEm": "<ISO 8601>",
   "totalCriados": 12,                           // leads novos que esta busca criou (o cron SOMA os deltas aqui)
   "totalExistentes": 8,                         // leads que já estavam na base
-  "userId": "admin"                             // quem executou (ausente em docs pré-multiusuário)
+  "userId": "admin",                            // quem executou (ausente em docs pré-multiusuário)
+  "penetracao": {                               // ✅ opcional: penetração de site do GRUPO nicho+região (ver seção própria)
+    "total": 14, "comSiteProprio": 9, "soRedeSocial": 3, "semNada": 2, "desconhecidos": 4,
+    "percentuais": { "comSiteProprio": 64, "soRedeSocial": 21, "semNada": 14 } // ausente se total < 5
+  }
 }
 ```
 

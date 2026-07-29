@@ -5,6 +5,7 @@ import { geocodeRegion } from "@/lib/geo/geocode";
 import { getLead, upsertLeads } from "@/lib/leads/repo";
 import { searchText } from "@/lib/places/client";
 import { getUsuario } from "@/lib/usuarios";
+import { recalcularPenetracao } from "./penetracao";
 import { listBuscasRecorrentes, registrarExecucao } from "./repo";
 import type { Busca } from "./types";
 
@@ -172,5 +173,8 @@ async function executarBusca(
     novos: criados,
     existentes,
   });
+  // Mesma regra da busca manual: recalcula a penetração do grupo sempre
+  // que esta busca roda de novo.
+  await recalcularPenetracao(db, busca.id);
   return { criados, existentes, aviso: resultado.aviso };
 }
