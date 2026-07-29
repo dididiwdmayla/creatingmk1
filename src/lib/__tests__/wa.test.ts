@@ -15,7 +15,7 @@ describe("buildWhatsAppLink", () => {
       "Oi {nome}, montei uma prévia: {demo}",
       "Zé",
       "+55 44 3222-1111",
-      "https://radar.example/demo/abc123",
+      { demoUrl: "https://radar.example/demo/abc123" },
     );
     expect(decodeURIComponent(link.split("text=")[1])).toBe(
       "Oi Zé, montei uma prévia: https://radar.example/demo/abc123",
@@ -25,5 +25,22 @@ describe("buildWhatsAppLink", () => {
   it("sem demoUrl, {demo} fica intacto (mensagem não perde conteúdo em silêncio)", () => {
     const link = buildWhatsAppLink("Veja: {demo}", "Zé", "+55 44 3222-1111");
     expect(decodeURIComponent(link.split("text=")[1])).toBe("Veja: {demo}");
+  });
+
+  it("substitui {penetracao} pelo argumento pronto quando fornecido", () => {
+    const link = buildWhatsAppLink(
+      "Oi {nome}! {penetracao}",
+      "Zé",
+      "+55 44 3222-1111",
+      { penetracao: "72% da concorrência já tem site." },
+    );
+    expect(decodeURIComponent(link.split("text=")[1])).toBe(
+      "Oi Zé! 72% da concorrência já tem site.",
+    );
+  });
+
+  it("sem penetracao, {penetracao} fica intacto", () => {
+    const link = buildWhatsAppLink("Veja: {penetracao}", "Zé", "+55 44 3222-1111");
+    expect(decodeURIComponent(link.split("text=")[1])).toBe("Veja: {penetracao}");
   });
 });

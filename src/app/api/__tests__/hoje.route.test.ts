@@ -87,7 +87,14 @@ describe("GET /api/hoje", () => {
     expect(data.followUpDias).toBe(4);
     expect(data.mensagemPadrao).toContain("{nome}");
     expect(data.buscas).toEqual([
-      { id: "b1", nome: "dentistas", cor: "#2f82e0", mensagemPadrao: "msg do grupo" },
+      {
+        id: "b1",
+        nome: "dentistas",
+        cor: "#2f82e0",
+        nicho: "dentista",
+        regiao: "Sarandi PR",
+        mensagemPadrao: "msg do grupo",
+      },
     ]);
   });
 

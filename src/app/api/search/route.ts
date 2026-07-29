@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { recalcularPenetracao } from "@/lib/buscas/penetracao";
 import { createBusca } from "@/lib/buscas/repo";
 import { loadConfig } from "@/lib/config";
 import { UnauthorizedError, ValidationError } from "@/lib/errors";
@@ -112,12 +113,15 @@ export async function POST(req: Request) {
       },
       now,
     );
+    // Recalcula a penetração de site do nicho+região (todas as buscas do
+    // grupo, não só esta) e cacheia no doc — 100% sobre dados já salvos.
+    const buscaAtualizada = await recalcularPenetracao(db, busca.id);
 
     return NextResponse.json({
       criados,
       existentes,
       leads,
-      busca,
+      busca: buscaAtualizada,
       paginas: resultado.paginas,
       regiaoResolvida: geo.endereco,
       ...(resultado.aviso && { aviso: resultado.aviso }),

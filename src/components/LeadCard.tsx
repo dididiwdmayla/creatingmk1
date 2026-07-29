@@ -24,6 +24,7 @@ export function LeadCard({
   cores,
   score,
   destaque,
+  argumentoForte,
   onChange,
 }: {
   lead: Lead;
@@ -33,6 +34,8 @@ export function LeadCard({
   score: number;
   /** Está entre os top-scored da lista/grupo atual — ganha o 🎯. */
   destaque?: boolean;
+  /** Penetração de site do nicho dele é >60% — argumento forte (badge discreto). */
+  argumentoForte?: boolean;
   onChange: (lead: Lead) => void;
 }) {
   const [editandoNotas, setEditandoNotas] = useState(false);
@@ -150,6 +153,14 @@ export function LeadCard({
           )}{" "}
           · tel: {presencaTexto(telPresenca(lead))}
         </span>
+        {argumentoForte && (
+          <span
+            title="Mais de 60% da concorrência do nicho já tem site — argumento forte"
+            className="shrink-0 rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning"
+          >
+            argumento forte
+          </span>
+        )}
         {dots.length > 0 && (
           <span className="flex shrink-0 gap-1" aria-hidden>
             {dots.map((cor, i) => (

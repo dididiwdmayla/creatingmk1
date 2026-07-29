@@ -8,10 +8,12 @@ import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { LeadCard } from "@/components/LeadCard";
 import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api } from "@/lib/api-client";
+import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import type { Busca } from "@/lib/buscas/types";
 import type { FiltroPresenca } from "@/lib/config";
 import type { UsoUsuario } from "@/lib/costs";
 import { formatDateTime } from "@/lib/format";
+import { argumentoForte } from "@/lib/leads/penetracao";
 import { calculaScore } from "@/lib/leads/score";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
 
@@ -138,6 +140,12 @@ function agruparPorBusca(leads: Lead[], buscas: Busca[]): Grupo[] {
     grupos.push({ chave: "__sem_busca__", titulo: "Sem busca", leads: semBusca });
   }
   return grupos;
+}
+
+/** Penetração do nicho dele é >60% — badge "argumento forte" no card. */
+function leadArgumentoForte(lead: Lead, buscas: Busca[]): boolean {
+  const info = penetracaoParaLead(lead, buscas);
+  return info !== undefined && argumentoForte(info.penetracao);
 }
 
 export default function LeadsPage() {
@@ -597,6 +605,40 @@ function LeadsPageInner() {
             </button>
           </div>
 
+          {buscaAtual?.penetracao && (
+            <div className="border-t border-accent/20 pt-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Penetração de site
+              </h3>
+              {buscaAtual.penetracao.percentuais ? (
+                <p className="mt-1 text-sm text-ink-secondary">
+                  Neste nicho nesta cidade:{" "}
+                  <strong className="font-semibold text-foreground">
+                    {buscaAtual.penetracao.percentuais.comSiteProprio}%
+                  </strong>{" "}
+                  têm site próprio · {buscaAtual.penetracao.percentuais.soRedeSocial}% só rede
+                  social · {buscaAtual.penetracao.percentuais.semNada}% sem presença{" "}
+                  <span className="text-xs text-ink-muted">
+                    (base: {buscaAtual.penetracao.total} estabelecimento
+                    {buscaAtual.penetracao.total === 1 ? "" : "s"})
+                  </span>
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-ink-muted">
+                  Base pequena demais ({buscaAtual.penetracao.total} estabelecimento
+                  {buscaAtual.penetracao.total === 1 ? "" : "s"} mapeado
+                  {buscaAtual.penetracao.total === 1 ? "" : "s"}) para mostrar percentual.
+                </p>
+              )}
+              {buscaAtual.penetracao.desconhecidos > 0 && (
+                <p className="mt-1 text-xs text-ink-muted">
+                  + {buscaAtual.penetracao.desconhecidos} lead(s) com site desconhecido (ainda
+                  não enriquecido nem de busca qualificada).
+                </p>
+              )}
+            </div>
+          )}
+
           {iaDisponivel && (
             <div className="border-t border-accent/20 pt-2">
               {analisando ? (
@@ -748,6 +790,7 @@ function LeadsPageInner() {
                           cores={cores}
                           score={calculaScore(lead)}
                           destaque={topDoGrupo.has(lead.placeId)}
+                          argumentoForte={leadArgumentoForte(lead, buscas)}
                           onChange={onLeadChange}
                         />
                       </li>
@@ -767,6 +810,7 @@ function LeadsPageInner() {
                 cores={cores}
                 score={calculaScore(lead)}
                 destaque={topFlat.has(lead.placeId)}
+                argumentoForte={leadArgumentoForte(lead, buscas)}
                 onChange={onLeadChange}
               />
             </li>

@@ -113,6 +113,18 @@ export async function salvarAnaliseIA(
   return atualizada;
 }
 
+/** Cacheia a penetração de site próprio do grupo — sobrescrita a cada recálculo. */
+export async function salvarPenetracao(
+  db: AppDb,
+  id: string,
+  penetracao: Busca["penetracao"],
+): Promise<Busca> {
+  const busca = await getBusca(db, id);
+  const atualizada: Busca = { ...busca, penetracao };
+  await db.collection(BUSCAS_COLLECTION).doc(id).set(toDoc(atualizada));
+  return atualizada;
+}
+
 export async function updateBusca(db: AppDb, id: string, patch: BuscaPatch): Promise<Busca> {
   const ref = db.collection(BUSCAS_COLLECTION).doc(id);
   const snap = await ref.get();

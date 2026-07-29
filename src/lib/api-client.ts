@@ -5,6 +5,7 @@ import type { AppConfig } from "@/lib/config";
 import type { UsageCounts, UsoUsuario } from "@/lib/costs";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
+import type { PenetracaoSite } from "@/lib/leads/penetracao";
 import type { Metrics, MetricsUsuario } from "@/lib/leads/metrics";
 import type { ConversaResumo, Mensagem } from "@/lib/mensagens/types";
 import type { LimitesUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
@@ -118,7 +119,15 @@ export interface HojeResponse {
   followUpDias: number;
   /** Mensagem global do WhatsApp (fallback quando o grupo não tem própria). */
   mensagemPadrao: string;
-  buscas: Array<{ id: string; nome: string; cor: string; mensagemPadrao?: string }>;
+  buscas: Array<{
+    id: string;
+    nome: string;
+    cor: string;
+    nicho: string;
+    regiao: string;
+    mensagemPadrao?: string;
+    penetracao?: PenetracaoSite;
+  }>;
 }
 
 /** Widget do dashboard: última rodada do cron + recorrentes ligadas. */
