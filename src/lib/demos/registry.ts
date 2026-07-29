@@ -5,6 +5,13 @@ import {
   BARBEARIA_THEME_DEFAULT,
   BARBEARIA_THEME_PRESETS,
 } from "@/components/demos/barbearia/themes";
+import { BARBEARIA2_EXEMPLO } from "@/components/demos/barbearia2/exemplo";
+import { BARBEARIA2_SECOES } from "@/components/demos/barbearia2/secoes";
+import { BarbeariaSul } from "@/components/demos/barbearia2/Skin";
+import {
+  BARBEARIA2_THEME_DEFAULT,
+  BARBEARIA2_THEME_PRESETS,
+} from "@/components/demos/barbearia2/themes";
 import { LANCHERIA_DECORATIVE_FLOATS } from "@/components/demos/lancheria/decorativeFloats";
 import { LANCHERIA_EXEMPLO } from "@/components/demos/lancheria/exemplo";
 import { LANCHERIA_SECOES } from "@/components/demos/lancheria/secoes";
@@ -52,6 +59,24 @@ export const SKINS: SkinDefinition[] = [
     // porta o efeito (o material bruto dela não tinha esse recurso).
     // Serifas clássicas/vintage — o registro editorial da barbearia.
     fontesRecomendadas: ["playfair", "cormorant", "libre-baskerville", "merriweather", "lora", "cinzel"],
+  },
+  {
+    id: "barbearia2-sul",
+    nicho: "barbearia",
+    nome: "Barbearia Sul",
+    descricao:
+      "Editorial minimalista verde-musgo e latão: etiquetas mono, título hero centralizado com corte de navalha, serviços que expandem no hover, ritual em três atos e galeria arrastável em preto-e-branco.",
+    componente: BarbeariaSul,
+    themeDefault: BARBEARIA2_THEME_DEFAULT,
+    themePresets: BARBEARIA2_THEME_PRESETS,
+    demoDataExemplo: BARBEARIA2_EXEMPLO,
+    secoes: BARBEARIA2_SECOES,
+    heroEscalaLimites: { min: 0.75, max: 1.25 },
+    thumbnail: "/demos/barbearia2/thumb.svg",
+    // Sem videoSlots: vídeo-no-título é opt-in por skin, e o material bruto
+    // desta não tem esse recurso (wordmark é texto simples, sem máscara).
+    // Serifas editoriais/vintage — mesmo registro da barbearia (nicho irmão).
+    fontesRecomendadas: ["playfair", "cormorant", "libre-baskerville", "lora", "cinzel"],
   },
   {
     id: "tatuagem-editorial",
