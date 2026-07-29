@@ -8,7 +8,7 @@ import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { LeadCard } from "@/components/LeadCard";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { RadarSweep } from "@/components/RadarSweep";
-import { ApiError, api } from "@/lib/api-client";
+import { ApiError, api, type TermoLocalResponse } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import type { Busca } from "@/lib/buscas/types";
 import type { FiltroPresenca } from "@/lib/config";
@@ -214,6 +214,12 @@ function LeadsPageInner() {
   const [regiaoResolvida, setRegiaoResolvida] = useState<string | null>(null);
   const [regiaoErro, setRegiaoErro] = useState<string | null>(null);
 
+  // Sugestão de termo local (só para região de país não-lusófono, com IA
+  // disponível): dica discreta e dispensável abaixo do campo de nicho.
+  const [nichoDefault, setNichoDefault] = useState("");
+  const [termoLocal, setTermoLocal] = useState<TermoLocalResponse | null>(null);
+  const [termoLocalDispensado, setTermoLocalDispensado] = useState(false);
+
   // Análise de grupo com IA (só existe na página de um grupo, buscaId setado).
   const [iaDisponivel, setIaDisponivel] = useState(false);
   const [analisando, setAnalisando] = useState(false);
@@ -262,7 +268,10 @@ function LeadsPageInner() {
     api
       .getConfig()
       .then(({ config }) => {
-        if (!ignore) setRegiaoDefault(config.regiao);
+        if (!ignore) {
+          setRegiaoDefault(config.regiao);
+          setNichoDefault(config.nicho);
+        }
       })
       .catch(() => {
         // placeholder fica genérico; a busca ainda resolve no servidor
@@ -356,6 +365,48 @@ function LeadsPageInner() {
       ignore = true;
     };
   }, [regiaoDefault]);
+
+  // Sugestão de termo local: debounce (o usuário ainda está digitando o
+  // nicho) + guard de região válida — sem isso, cada tecla dispararia uma
+  // chamada (cacheada no servidor, mas ainda assim desnecessária aqui).
+  useEffect(() => {
+    let ignore = false;
+    const timer = setTimeout(() => {
+      if (ignore) return;
+      const nichoEfetivo = nicho.trim() || nichoDefault.trim();
+      if (!regiaoResolvida || regiaoErro || !nichoEfetivo) {
+        setTermoLocal(null);
+        return;
+      }
+      api
+        .termoLocal(nichoEfetivo, regiao.trim() || regiaoDefault.trim())
+        .then((res) => {
+          if (ignore) return;
+          // Sugestão igual ao nicho já digitado (ex.: acabou de aplicá-la) —
+          // nada a sugerir, evita o loop "clicar aplica → dispara de novo".
+          if (res.disponivel && res.termo.trim().toLowerCase() === nichoEfetivo.toLowerCase()) {
+            setTermoLocal(null);
+            return;
+          }
+          setTermoLocal(res);
+          setTermoLocalDispensado(false);
+        })
+        .catch(() => {
+          if (!ignore) setTermoLocal(null);
+        });
+    }, 600);
+    return () => {
+      ignore = true;
+      clearTimeout(timer);
+    };
+  }, [nicho, nichoDefault, regiao, regiaoDefault, regiaoResolvida, regiaoErro]);
+
+  function aplicarTermoLocal() {
+    if (termoLocal?.disponivel) {
+      setNicho(termoLocal.termo);
+      setTermoLocalDispensado(true);
+    }
+  }
 
   // ── Scroll restoration: volta da ficha exatamente onde estava ─────────
   const scrollRestaurado = useRef(false);
@@ -506,6 +557,29 @@ function LeadsPageInner() {
               className="w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
             />
           </div>
+          {termoLocal?.disponivel && !termoLocalDispensado && (
+            <p className="flex items-start justify-between gap-2 rounded border border-accent/30 bg-accent/5 px-2 py-1.5 text-xs text-ink-secondary">
+              <span>
+                Buscando em {termoLocal.pais}: termos em {termoLocal.idioma} costumam render
+                mais resultados — ex.:{" "}
+                <button
+                  type="button"
+                  onClick={aplicarTermoLocal}
+                  className="font-semibold text-accent hover:underline"
+                >
+                  &quot;{termoLocal.termo}&quot;
+                </button>
+              </span>
+              <button
+                type="button"
+                onClick={() => setTermoLocalDispensado(true)}
+                aria-label="Dispensar dica"
+                className="shrink-0 text-ink-muted hover:text-foreground"
+              >
+                ✕
+              </button>
+            </p>
+          )}
           <input
             value={regiao}
             onChange={(event) => setRegiao(event.target.value)}

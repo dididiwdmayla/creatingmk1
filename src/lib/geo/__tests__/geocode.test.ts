@@ -4,7 +4,13 @@ import { DEFAULT_CAPS, QuotaExceededError } from "@/lib/costs";
 import { ValidationError } from "@/lib/errors";
 import { PlacesError } from "@/lib/places/client";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
-import { geocodeRegion, idiomaDoEndereco, regiaoCacheKey } from "../geocode";
+import {
+  geocodeRegion,
+  idiomaDoEndereco,
+  idiomaEhLusofono,
+  idiomaLabel,
+  regiaoCacheKey,
+} from "../geocode";
 
 const GEOCODE_OK = {
   status: "OK",
@@ -202,5 +208,31 @@ describe("idiomaDoEndereco", () => {
     expect(idiomaDoEndereco("Lisboa, Portugal")).toBe("pt-PT");
     expect(idiomaDoEndereco("Madrid, Espanha")).toBe("es-ES");
     expect(idiomaDoEndereco("Paris, França")).toBe("fr-FR");
+  });
+});
+
+describe("idiomaEhLusofono (ver 'Sugestão de termo local na busca')", () => {
+  it("true para pt-BR e demais variantes de português", () => {
+    expect(idiomaEhLusofono("pt-BR")).toBe(true);
+    expect(idiomaEhLusofono("pt-PT")).toBe(true);
+    expect(idiomaEhLusofono("pt-AO")).toBe(true);
+  });
+
+  it("false para outros idiomas", () => {
+    expect(idiomaEhLusofono("en-US")).toBe(false);
+    expect(idiomaEhLusofono("es-ES")).toBe(false);
+  });
+});
+
+describe("idiomaLabel", () => {
+  it("rótulo em português do idioma-alvo", () => {
+    expect(idiomaLabel("pt-BR")).toBe("português do Brasil");
+    expect(idiomaLabel("en-US")).toBe("inglês");
+    expect(idiomaLabel("es-ES")).toBe("espanhol");
+    expect(idiomaLabel("fr-FR")).toBe("francês");
+  });
+
+  it("idioma desconhecido devolve o próprio código", () => {
+    expect(idiomaLabel("ja-JP")).toBe("ja-JP");
   });
 });

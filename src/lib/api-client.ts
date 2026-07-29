@@ -137,6 +137,11 @@ export interface RegiaoIndiceResponse {
   cached: boolean;
 }
 
+/** GET /api/search/termo-local: dica de termo traduzido pro campo de nicho. */
+export type TermoLocalResponse =
+  | { disponivel: false }
+  | { disponivel: true; pais: string; idioma: string; termo: string };
+
 /** Widget do dashboard: última rodada do cron + recorrentes ligadas. */
 export interface CronStatusResponse {
   ultima: CronExecucao | null;
@@ -210,6 +215,12 @@ export const api = {
     request<GeocodeResponse>(
       `/api/geocode${regiao ? `?regiao=${encodeURIComponent(regiao)}` : ""}`,
     ),
+
+  termoLocal: (nicho: string, regiao?: string) => {
+    const params = new URLSearchParams({ nicho });
+    if (regiao) params.set("regiao", regiao);
+    return request<TermoLocalResponse>(`/api/search/termo-local?${params.toString()}`);
+  },
 
   getRegiaoIndice: (regiao: string) =>
     request<RegiaoIndiceResponse>(`/api/regioes?regiao=${encodeURIComponent(regiao)}`),

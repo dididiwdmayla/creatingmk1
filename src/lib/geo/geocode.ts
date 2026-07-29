@@ -89,10 +89,36 @@ const IDIOMA_POR_PAIS: Record<string, string> = {
   "países baixos": "nl-NL",
 };
 
+/** Default do idioma-alvo — Brasil e qualquer país não mapeado acima. */
+export const IDIOMA_PADRAO = "pt-BR";
+
 /** Default "pt-BR" — inclui Brasil e qualquer país não mapeado acima. */
 export function idiomaDoEndereco(endereco: string): string {
   const pais = paisDoEndereco(endereco).toLowerCase();
-  return IDIOMA_POR_PAIS[pais] ?? "pt-BR";
+  return IDIOMA_POR_PAIS[pais] ?? IDIOMA_PADRAO;
+}
+
+/** true para pt-BR/pt-PT/pt-AO/pt-MZ — a busca não ganha dicas de idioma pra esses. */
+export function idiomaEhLusofono(idioma: string): boolean {
+  return idioma.startsWith("pt");
+}
+
+/** Rótulo em português do idioma-alvo (raiz do BCP-47; pt-BR tem rótulo próprio). */
+const IDIOMA_RAIZ_LABEL: Record<string, string> = {
+  pt: "português",
+  en: "inglês",
+  es: "espanhol",
+  fr: "francês",
+  de: "alemão",
+  it: "italiano",
+  nl: "holandês",
+};
+
+/** "português do Brasil" / "inglês" / "espanhol" etc. — usado nos prompts de IA e na UI. */
+export function idiomaLabel(idioma: string): string {
+  if (idioma === IDIOMA_PADRAO) return "português do Brasil";
+  const raiz = idioma.split("-")[0];
+  return IDIOMA_RAIZ_LABEL[raiz] ?? idioma;
 }
 
 /** ID do doc de cache: minúsculas, espaços colapsados, URL-encoded (sem "/"). */
