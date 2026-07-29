@@ -397,7 +397,10 @@ describe("POST /api/search", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.criados).toBe(2); // os 2 inéditos pedidos
-    expect(data.existentes).toBe(2); // os repetidos também entram na busca
+    // Os 2 repetidos encontrados na 1ª página (caçando inéditos) não ocupam
+    // vaga: os 2 inéditos da 2ª página já fecham a quantidade sozinhos.
+    expect(data.existentes).toBe(0);
+    expect(data.leads).toHaveLength(2);
     expect(data.paginas).toBe(2);
     expect(data.aviso).toBeUndefined();
 
@@ -497,6 +500,97 @@ describe("POST /api/search", () => {
 
     const period = new Date().toISOString().slice(0, 7);
     expect(db.getDoc(`usage/${period}`)).toMatchObject({ textSearchEnterprise: 1 });
+  });
+
+  it("soSemSite → 400 se não for booleano", async () => {
+    const res = await POST(searchRequest({ soSemSite: "sim" }));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("checkbox 'Só sem site' (soSemSite): lead com site próprio não aparece no resultado", async () => {
+    fetchMock.mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          places: [
+            {
+              id: "ChIJ_temsite",
+              displayName: { text: "Tem site" },
+              websiteUri: "https://temsite.com.br",
+            },
+            { id: "ChIJ_semsite", displayName: { text: "Sem site" } },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const res = await POST(searchRequest({ soSemSite: true }));
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    const ids = (data.leads as Array<{ placeId: string }>).map((l) => l.placeId);
+    expect(ids).not.toContain("ChIJ_temsite");
+    expect(ids).toContain("ChIJ_semsite");
+    // O lead com site próprio nem é tocado por esta busca.
+    expect(db.getDoc("leads/ChIJ_temsite")).toBeUndefined();
+
+    const periodQualif = new Date().toISOString().slice(0, 7);
+    // Precisou classificar siteProprio → SKU Enterprise, mesmo sem passar qualificada.
+    expect(db.getDoc(`usage/${periodQualif}`)).toMatchObject({ textSearchEnterprise: 1 });
+  });
+
+  it("guarda 'N = N': o resultado de uma execução nunca excede a quantidade pedida, mesmo com 3 páginas de duplicados", async () => {
+    // Reprodução do bug relatado: pediu 20, back-end varria páginas cheias
+    // de repetidos de buscas anteriores atrás de inéditos.
+    const pagina = (inicio: number) =>
+      Array.from({ length: 20 }, (_, i) => ({
+        id: `ChIJdup${inicio + i}`,
+        displayName: { text: `Lugar ${inicio + i}` },
+      }));
+    // 2 buscas anteriores tornam os 40 primeiros lugares "existentes".
+    fetchMock.mockImplementationOnce(
+      async () => new Response(JSON.stringify({ places: pagina(0) }), { status: 200 }),
+    );
+    await POST(searchRequest({ quantidade: 20 }));
+    fetchMock.mockClear();
+    fetchMock.mockImplementationOnce(
+      async () => new Response(JSON.stringify({ places: pagina(20) }), { status: 200 }),
+    );
+    await POST(searchRequest({ quantidade: 20 }));
+    fetchMock.mockClear();
+
+    // 3ª busca: as 2 primeiras páginas só devolvem repetidos; a 3ª página
+    // tem os 20 inéditos.
+    fetchMock
+      .mockImplementationOnce(async () =>
+        new Response(
+          JSON.stringify({ places: pagina(0), nextPageToken: "tok-2" }),
+          { status: 200 },
+        ),
+      )
+      .mockImplementationOnce(async () =>
+        new Response(
+          JSON.stringify({ places: pagina(20), nextPageToken: "tok-3" }),
+          { status: 200 },
+        ),
+      )
+      .mockImplementationOnce(
+        async () => new Response(JSON.stringify({ places: pagina(40) }), { status: 200 }),
+      );
+
+    const res = await POST(searchRequest({ quantidade: 20 }));
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.paginas).toBe(3);
+    expect(data.criados).toBe(20);
+    // Guarda dura: nunca mais que os 20 pedidos, mesmo tendo varrido 60
+    // resultados (40 repetidos de buscas anteriores + 20 inéditos) — era
+    // aqui que o bug de "pediu 20, voltou 60" acontecia.
+    expect(data.leads.length).toBeLessThanOrEqual(20);
+    expect(data.leads).toHaveLength(20);
+    expect(data.busca.totalCriados + data.busca.totalExistentes).toBeLessThanOrEqual(20);
   });
 
   it("busca básica repetida não apaga o temSite vindo da qualificada", async () => {

@@ -199,6 +199,7 @@ export const api = {
     nome?: string;
     quantidade?: number;
     qualificada?: boolean;
+    soSemSite?: boolean;
   }) =>
     request<SearchResponse>("/api/search", { method: "POST", body: JSON.stringify(body) }),
 
