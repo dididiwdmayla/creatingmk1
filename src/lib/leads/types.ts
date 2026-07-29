@@ -26,7 +26,18 @@ export interface Lead {
   location?: { lat: number; lng: number };
   status: LeadStatus;
   /** Contexto da última busca que retornou este lead. */
-  busca?: { nicho: string; subNicho?: string; regiao: string; em: string };
+  busca?: {
+    nicho: string;
+    subNicho?: string;
+    regiao: string;
+    em: string;
+    /**
+     * Idioma-alvo (BCP-47) da região geocodificada — ver "Idioma da IA na
+     * demo": a sugestão de tema/textos do Gemini usa este idioma (default
+     * "pt-BR"). Ausente em leads de antes da feature ou sem busca.
+     */
+    idioma?: string;
+  };
   /** IDs de /buscas em que o lead apareceu — só cresce, nunca é sobrescrito. */
   buscaId?: string[];
   /**
@@ -79,6 +90,22 @@ export interface Lead {
     primeiroContatoPor?: string;
     respondeuEm?: string;
     fechadoEm?: string;
+    /**
+     * Vendedor do fechamento — default o usuário que marcou "fechado";
+     * admin pode ajustar depois (ver ajustarVendidoPor). Base do card
+     * "Fechamentos do mês" por usuário.
+     */
+    fechadoPor?: string;
+  };
+  /**
+   * Selo "já contatou este lead": carimbado ao CLICAR no botão WhatsApp,
+   * independente do fluxo de status (`contato` acima) — primeiro clique
+   * prevalece, nunca sobrescrito. Visível em card/ficha/hoje pra evitar
+   * contato duplicado entre colegas.
+   */
+  seloContato?: {
+    userId: string;
+    em: string;
   };
   criadoEm: string;
   atualizadoEm: string;

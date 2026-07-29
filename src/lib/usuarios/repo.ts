@@ -1,5 +1,6 @@
-import { NotFoundError, ValidationError } from "@/lib/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
+import { usageUsuariosCollection } from "@/lib/costs/userQuota";
 import { hashSenha } from "./senha";
 import {
   CAMPOS_LIMITE_USUARIO,
@@ -258,4 +259,39 @@ export async function atualizarUsuario(
   };
   await docRef(db, id).set(toDoc(atualizado));
   return atualizado;
+}
+
+/**
+ * Exclusão real de usuário (admin), além de desativar: leads/contatos/
+ * mensagens registrados por ele permanecem intocados (apontam pro id, que
+ * simplesmente deixa de resolver — a UI mostra "usuário removido" quando o
+ * id não bate com ninguém em /usuarios). Só os CONTADORES de cota dele
+ * (usage_users/{id}/dias/*) são apagados — não fazem sentido pra um id que
+ * não vai mais bater limite algum. Guarda-corpo: nunca a si mesmo, nunca o
+ * último admin (mesmo limite de atualizarUsuario, mas incondicional aqui —
+ * não existe "desativar de volta" depois de excluído).
+ */
+export async function excluirUsuario(
+  db: AppDb,
+  id: string,
+  requisitanteId: string,
+): Promise<void> {
+  const usuario = await getUsuario(db, id);
+  if (!usuario) throw new NotFoundError(`Usuário "${id}" não encontrado.`);
+
+  if (id === requisitanteId) {
+    throw new ForbiddenError("Não dá pra excluir o próprio usuário.");
+  }
+  if (usuario.papel === "admin") {
+    const admins = (await listUsuarios(db)).filter((u) => u.papel === "admin");
+    if (admins.length <= 1) {
+      throw new ValidationError(["não dá para excluir o último admin"]);
+    }
+  }
+
+  const dias = await db.collection(usageUsuariosCollection(id)).get();
+  for (const doc of dias.docs) {
+    await db.collection(usageUsuariosCollection(id)).doc(doc.id).delete();
+  }
+  await docRef(db, id).delete();
 }

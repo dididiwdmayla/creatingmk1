@@ -22,7 +22,77 @@ export interface RegiaoGeo {
   location: { lat: number; lng: number };
   /** Viewport (retângulo) da região — vira locationRestriction. */
   viewport: LatLngRect;
+  /**
+   * Idioma-alvo (BCP-47) derivado do país da região — ver "Idioma da IA na
+   * demo": a sugestão de tema/textos do Gemini usa este idioma para o lead
+   * (default "pt-BR"). Docs de cache antigos (sem o campo) são derivados na
+   * leitura, sem regravar.
+   */
+  idioma: string;
   criadoEm: string;
+}
+
+/**
+ * Último trecho do endereço formatado (mesma heurística de
+ * src/lib/regioes/ia.ts#parseCidadePais) — o país, em português (a
+ * Geocoding API é chamada com language=pt-BR).
+ */
+function paisDoEndereco(endereco: string): string {
+  const partes = endereco
+    .split(",")
+    .map((parte) => parte.trim())
+    .filter(Boolean);
+  return partes.length > 0 ? partes[partes.length - 1] : "";
+}
+
+/**
+ * Mapa país (nome em pt-BR, como o Google devolve) → idioma BCP-47 dos
+ * textos gerados pela IA na demo. Só os países mais prováveis de aparecer
+ * numa busca de prospecção; qualquer país fora da lista (incluindo Brasil)
+ * cai no default pt-BR.
+ */
+const IDIOMA_POR_PAIS: Record<string, string> = {
+  portugal: "pt-PT",
+  angola: "pt-AO",
+  moçambique: "pt-MZ",
+  "estados unidos": "en-US",
+  "reino unido": "en-GB",
+  irlanda: "en-IE",
+  austrália: "en-AU",
+  "nova zelândia": "en-NZ",
+  canadá: "en-CA",
+  espanha: "es-ES",
+  méxico: "es-MX",
+  argentina: "es-AR",
+  chile: "es-CL",
+  colômbia: "es-CO",
+  peru: "es-PE",
+  uruguai: "es-UY",
+  paraguai: "es-PY",
+  bolívia: "es-BO",
+  equador: "es-EC",
+  venezuela: "es-VE",
+  "costa rica": "es-CR",
+  panamá: "es-PA",
+  guatemala: "es-GT",
+  honduras: "es-HN",
+  nicarágua: "es-NI",
+  "el salvador": "es-SV",
+  "república dominicana": "es-DO",
+  frança: "fr-FR",
+  bélgica: "fr-BE",
+  suíça: "de-CH",
+  alemanha: "de-DE",
+  áustria: "de-AT",
+  itália: "it-IT",
+  holanda: "nl-NL",
+  "países baixos": "nl-NL",
+};
+
+/** Default "pt-BR" — inclui Brasil e qualquer país não mapeado acima. */
+export function idiomaDoEndereco(endereco: string): string {
+  const pais = paisDoEndereco(endereco).toLowerCase();
+  return IDIOMA_POR_PAIS[pais] ?? "pt-BR";
 }
 
 /** ID do doc de cache: minúsculas, espaços colapsados, URL-encoded (sem "/"). */
@@ -70,7 +140,14 @@ export async function geocodeRegion(
   const snap = await ref.get();
   const cachedData = snap.exists ? snap.data() : undefined;
   if (cachedData) {
-    return { ...asRegiaoGeo(cachedData), cached: true };
+    const cacheado = asRegiaoGeo(cachedData);
+    // Migração de leitura: cache antigo (antes do campo idioma) deriva do
+    // endereço já resolvido, sem regravar o doc.
+    return {
+      ...cacheado,
+      idioma: cacheado.idioma ?? idiomaDoEndereco(cacheado.endereco),
+      cached: true,
+    };
   }
 
   const key = requireApiKey();
@@ -110,14 +187,16 @@ export async function geocodeRegion(
     );
   }
 
+  const endereco = primeiro.formatted_address ?? texto;
   const resolvida: RegiaoGeo = {
     regiao: texto,
-    endereco: primeiro.formatted_address ?? texto,
+    endereco,
     location: { lat: location.lat, lng: location.lng },
     viewport: {
       low: { latitude: viewport.southwest.lat, longitude: viewport.southwest.lng },
       high: { latitude: viewport.northeast.lat, longitude: viewport.northeast.lng },
     },
+    idioma: idiomaDoEndereco(endereco),
     criadoEm: new Date().toISOString(),
   };
   await ref.set(resolvida as unknown as Record<string, unknown>);

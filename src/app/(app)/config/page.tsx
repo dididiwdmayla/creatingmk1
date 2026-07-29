@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { UsageMeter } from "@/components/UsageMeter";
 import { ApiError, api, type CotasUsuariosResponse, type UsageResponse } from "@/lib/api-client";
 import {
@@ -433,6 +434,11 @@ function UsuariosSection() {
   const [novaSenha, setNovaSenha] = useState("");
   const [senhaDe, setSenhaDe] = useState<string | null>(null);
   const [senhaNova, setSenhaNova] = useState("");
+  // Exclusão (além de desativar): confirmação DUPLA — 2 modais em sequência,
+  // cada um exigindo um clique deliberado antes da chamada real à API.
+  const [excluindo, setExcluindo] = useState<{ id: string; nome: string; etapa: 1 | 2 } | null>(
+    null,
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -475,6 +481,31 @@ function UsuariosSection() {
         setErro(error instanceof ApiError ? error.message : "Falha ao salvar o usuário."),
       )
       .finally(() => setOcupado(null));
+  }
+
+  function confirmarExclusao() {
+    if (!excluindo) return;
+    if (excluindo.etapa === 1) {
+      setExcluindo({ ...excluindo, etapa: 2 });
+      return;
+    }
+    const { id, nome } = excluindo;
+    setOcupado(id);
+    setErro(null);
+    setAviso(null);
+    api
+      .excluirUsuario(id)
+      .then(() => {
+        setUsuarios((atual) => (atual ?? []).filter((u) => u.id !== id));
+        setAviso(`Usuário "${nome}" excluído — leads/contatos/mensagens dele permanecem, marcados "usuário removido".`);
+      })
+      .catch((error) =>
+        setErro(error instanceof ApiError ? error.message : "Falha ao excluir o usuário."),
+      )
+      .finally(() => {
+        setOcupado(null);
+        setExcluindo(null);
+      });
   }
 
   function criar(event: React.FormEvent<HTMLFormElement>) {
@@ -544,6 +575,15 @@ function UsuariosSection() {
                 >
                   {u.ativo ? "Desativar" : "Reativar"}
                 </button>
+                <button
+                  type="button"
+                  disabled={ocupado === u.id || u.id === meuId}
+                  title={u.id === meuId ? "Não dá pra excluir o próprio usuário" : undefined}
+                  onClick={() => setExcluindo({ id: u.id, nome: u.nome, etapa: 1 })}
+                  className="text-xs text-critical hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Excluir
+                </button>
               </span>
             </div>
             {senhaDe === u.id && (
@@ -597,6 +637,23 @@ function UsuariosSection() {
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
       {aviso && <p className="mt-2 text-sm text-good">{aviso}</p>}
+
+      <ConfirmModal
+        aberto={excluindo?.etapa === 1}
+        titulo={`Excluir "${excluindo?.nome}"?`}
+        mensagem='Os leads/contatos/mensagens registrados por este usuário permanecem na base (marcados "usuário removido"); só os contadores de cota individual dele são apagados. Esta ação não pode ser desfeita.'
+        confirmarLabel="Continuar"
+        onConfirmar={confirmarExclusao}
+        onCancelar={() => setExcluindo(null)}
+      />
+      <ConfirmModal
+        aberto={excluindo?.etapa === 2}
+        titulo="Confirmação final"
+        mensagem={`Confirma DEFINITIVAMENTE a exclusão de "${excluindo?.nome}"?`}
+        confirmarLabel="Excluir para sempre"
+        onConfirmar={confirmarExclusao}
+        onCancelar={() => setExcluindo(null)}
+      />
     </section>
   );
 }

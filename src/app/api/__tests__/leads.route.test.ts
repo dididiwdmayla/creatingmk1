@@ -417,3 +417,73 @@ describe("PATCH /api/leads/[id]", () => {
     expect(db.getDoc("leads/A")).not.toMatchObject({ notas: "não deve salvar" });
   });
 });
+
+describe("PATCH /api/leads/[id] — fechadoPor (item 'Vendedor no fechamento')", () => {
+  it("fechar sem sessão não carimba fechadoPor (default é 'quem fechou', mas sem sessão não há quem)", async () => {
+    const res = await PATCH(...patchRequest("B", { status: "fechado" }));
+
+    const { lead } = await res.json();
+    expect(lead.contato.fechadoPor).toBeUndefined();
+  });
+
+  it("fechar com sessão carimba fechadoPor = quem fechou (default)", async () => {
+    vi.stubEnv("APP_PASSWORD", "segredo123");
+    const cookie = await cookieDeSessao(db, { id: "ana", papel: "membro" });
+
+    const res = await PATCH(...patchRequest("B", { status: "fechado" }, cookie));
+
+    const { lead } = await res.json();
+    expect(lead.contato.fechadoPor).toBe("ana");
+  });
+
+  it("admin ajusta o vendedor de um lead já fechado (vendidoPor)", async () => {
+    vi.stubEnv("APP_PASSWORD", "segredo123");
+    const cookieAna = await cookieDeSessao(db, { id: "ana", papel: "membro" });
+    await PATCH(...patchRequest("B", { status: "fechado" }, cookieAna));
+    db.seed("usuarios/beto", {
+      id: "beto",
+      nome: "Beto",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const cookieAdmin = await cookieDeSessao(db, { id: "admin", papel: "admin", secret: "segredo123" });
+    const res = await PATCH(...patchRequest("B", { vendidoPor: "beto" }, cookieAdmin));
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.contato.fechadoPor).toBe("beto");
+  });
+
+  it("membro não pode ajustar vendidoPor → 403", async () => {
+    vi.stubEnv("APP_PASSWORD", "segredo123");
+    const cookie = await cookieDeSessao(db, { id: "ana", papel: "membro" });
+    await PATCH(...patchRequest("B", { status: "fechado" }, cookie));
+
+    const res = await PATCH(...patchRequest("B", { vendidoPor: "ana" }, cookie));
+
+    expect(res.status).toBe(403);
+  });
+
+  it("vendidoPor em lead não fechado → 400", async () => {
+    vi.stubEnv("APP_PASSWORD", "segredo123");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const res = await PATCH(...patchRequest("A", { vendidoPor: "ana" }, cookie));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("vendidoPor apontando pra usuário inexistente → 400", async () => {
+    vi.stubEnv("APP_PASSWORD", "segredo123");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    await PATCH(...patchRequest("B", { status: "fechado" }, cookie));
+
+    const res = await PATCH(...patchRequest("B", { vendidoPor: "fantasma" }, cookie));
+
+    expect(res.status).toBe(400);
+  });
+});

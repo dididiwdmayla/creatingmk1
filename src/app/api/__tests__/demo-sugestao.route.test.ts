@@ -10,6 +10,7 @@ vi.mock("@/lib/firebase/admin", () => ({ getDb: () => db }));
 
 const fetchMock = vi.fn();
 
+/** Resposta simulada do Gemini — precisa ecoar "idioma" (schema fixa o valor). */
 const SUGESTAO_VALIDA = {
   themeId: "meia-noite",
   destaque: "#8c4a2b",
@@ -18,6 +19,18 @@ const SUGESTAO_VALIDA = {
   slogan: "Tradição de navalha.",
   descricao: "Cortes clássicos no coração de Sarandi.",
   titulosSecoes: { filosofia: "Nossa filosofia" },
+  idioma: "pt-BR",
+};
+
+/** Sugestão validada devolvida pela rota — "idioma" é só validação interna, não vaza aqui. */
+const SUGESTAO_ESPERADA = {
+  themeId: SUGESTAO_VALIDA.themeId,
+  destaque: SUGESTAO_VALIDA.destaque,
+  fonteDisplay: SUGESTAO_VALIDA.fonteDisplay,
+  animacao: SUGESTAO_VALIDA.animacao,
+  slogan: SUGESTAO_VALIDA.slogan,
+  descricao: SUGESTAO_VALIDA.descricao,
+  titulosSecoes: SUGESTAO_VALIDA.titulosSecoes,
 };
 
 /** Resposta do generateContent com o JSON dado no primeiro candidato. */
@@ -77,7 +90,7 @@ describe("POST /api/leads/[id]/demo/sugestao", () => {
 
     expect(res.status).toBe(200);
     const { sugestao } = await res.json();
-    expect(sugestao).toEqual(SUGESTAO_VALIDA);
+    expect(sugestao).toEqual(SUGESTAO_ESPERADA);
     expect(usageDoc()).toMatchObject({ aiGeneration: 1 });
 
     // Chamada certa: modelo flash atual, chave só no header, pedindo JSON.
@@ -112,7 +125,7 @@ describe("POST /api/leads/[id]/demo/sugestao", () => {
     const res = await sugerir("ChIJ001");
 
     expect(res.status).toBe(200);
-    expect((await res.json()).sugestao).toEqual(SUGESTAO_VALIDA);
+    expect((await res.json()).sugestao).toEqual(SUGESTAO_ESPERADA);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(usageDoc()).toMatchObject({ aiGeneration: 2 });
 

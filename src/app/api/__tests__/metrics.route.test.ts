@@ -48,6 +48,7 @@ describe("GET /api/metrics", () => {
       contatosSemana: 0,
       taxaResposta: 0,
       demosCriadas: 0,
+      fechamentosMes: 0,
     });
   });
 
@@ -122,7 +123,22 @@ describe("GET /api/metrics", () => {
     expect(data.contatosHoje).toBe(1);
     expect(data.demosCriadas).toBe(1);
     expect(data.porUsuario).toEqual([
-      { userId: "m1", nome: "Ana", buscas: 1, demos: 1, contatos: 1 },
+      { userId: "m1", nome: "Ana", buscas: 1, demos: 1, contatos: 1, fechamentosMes: 0 },
+    ]);
+  });
+
+  it("porUsuario mostra 'usuário removido' quando o carimbo aponta pra um id excluído", async () => {
+    const agora = new Date().toISOString();
+    seedLead("A", {
+      status: "contactado",
+      contato: { primeiroContatoEm: agora, primeiroContatoPor: "sumiu" },
+    });
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const data = await (await GET(request(cookie))).json();
+
+    expect(data.porUsuario).toEqual([
+      { userId: "sumiu", nome: "usuário removido", buscas: 0, demos: 0, contatos: 1, fechamentosMes: 0 },
     ]);
   });
 });

@@ -4,7 +4,7 @@ import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { cookieDeSessao } from "@/lib/testing/sessao";
 import { GET as getMe } from "../me/route";
 import { GET as listar, POST as criar } from "../usuarios/route";
-import { PATCH as editar } from "../usuarios/[id]/route";
+import { DELETE as excluir, PATCH as editar } from "../usuarios/[id]/route";
 
 let db: FakeFirestore;
 
@@ -253,5 +253,76 @@ describe("PATCH /api/usuarios/[id] — limites individuais (admin)", () => {
 
     expect(res.status).toBe(403);
     expect(db.getDoc("usuarios/m1")).not.toHaveProperty("limites");
+  });
+});
+
+describe("DELETE /api/usuarios/[id] — excluir usuário (item 3)", () => {
+  function seedMembro(id: string, nome = id): void {
+    db.seed(`usuarios/${id}`, {
+      id,
+      nome,
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+  }
+
+  it("membro não exclui usuário → 403", async () => {
+    const cookie = await cookieDeSessao(db, { id: "m1", papel: "membro" });
+    seedMembro("m2");
+
+    const res = await excluir(request("DELETE", cookie), params("m2"));
+
+    expect(res.status).toBe(403);
+    expect(db.getDoc("usuarios/m2")).toBeDefined();
+  });
+
+  it("admin exclui um membro: doc some, cotas apagadas", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    seedMembro("m2", "Beto");
+    db.seed("usage_users/m2/dias/2026-07-15", { buscas: 3, enriquecimentos: 1 });
+
+    const res = await excluir(request("DELETE", cookie), params("m2"));
+
+    expect(res.status).toBe(204);
+    expect(db.getDoc("usuarios/m2")).toBeUndefined();
+    expect(db.getDoc("usage_users/m2/dias/2026-07-15")).toBeUndefined();
+  });
+
+  it("não dá pra excluir a si mesmo → 403", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const res = await excluir(request("DELETE", cookie), params("admin"));
+
+    expect(res.status).toBe(403);
+    expect(db.getDoc("usuarios/admin")).toBeDefined();
+  });
+
+  it("com 2 admins, dá pra excluir um (o outro segue como admin)", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    db.seed("usuarios/admin2", {
+      id: "admin2",
+      nome: "admin2",
+      papel: "admin",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const res = await excluir(request("DELETE", cookie), params("admin2"));
+
+    expect(res.status).toBe(204);
+    expect(db.getDoc("usuarios/admin2")).toBeUndefined();
+  });
+
+  it("usuário inexistente → 404", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const res = await excluir(request("DELETE", cookie), params("nope"));
+
+    expect(res.status).toBe(404);
   });
 });

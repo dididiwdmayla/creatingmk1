@@ -36,6 +36,8 @@ export interface UsageDb {
 
 export interface AppDocRef extends UsageDocRef {
   set(data: Record<string, unknown>, options?: { merge?: boolean }): unknown;
+  /** Exclusão real de doc — usado só por excluirUsuario (ver "Excluir usuário"). */
+  delete(): unknown;
 }
 
 export interface AppQueryDocSnapshot {

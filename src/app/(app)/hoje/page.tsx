@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { SeloContato } from "@/components/SeloContato";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api, type HojeResponse } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
+import type { NomesUsuarios } from "@/lib/contato-selo";
 import { formatDateTime, formatInt } from "@/lib/format";
 import { melhorMomento } from "@/lib/leads/horarios";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { calculaScore } from "@/lib/leads/score";
 import type { Lead } from "@/lib/leads/types";
+import { useWhatsAppContato } from "@/lib/useWhatsAppContato";
 import { buildWhatsAppLink } from "@/lib/wa";
 
 /**
@@ -55,6 +59,8 @@ export default function HojePage() {
   // impuro para o React Compiler).
   const [agora, setAgora] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
+  const [meuId, setMeuId] = useState<string | null>(null);
+  const [nomes, setNomes] = useState<NomesUsuarios>({});
 
   useEffect(() => {
     let ignore = false;
@@ -72,10 +78,45 @@ export default function HojePage() {
           );
         }
       });
+    api
+      .me()
+      .then(({ usuario }) => {
+        if (!ignore) setMeuId(usuario.id);
+      })
+      .catch(() => {
+        // selo/confirmação ficam indisponíveis sem sessão identificável
+      });
+    api
+      .listNomesUsuarios()
+      .then(({ usuarios }) => {
+        if (!ignore) setNomes(Object.fromEntries(usuarios.map((u) => [u.id, u.nome])));
+      })
+      .catch(() => {
+        // selo cai no fallback "usuário removido" — não é bloqueante
+      });
     return () => {
       ignore = true;
     };
   }, []);
+
+  function onLeadChange(atualizado: Lead) {
+    setDados((atual) => {
+      if (!atual) return atual;
+      const substituir = (leads: Lead[]) =>
+        leads.map((lead) => (lead.placeId === atualizado.placeId ? atualizado : lead));
+      return {
+        ...atual,
+        novos: substituir(atual.novos),
+        followUps: substituir(atual.followUps),
+        demosParadas: substituir(atual.demosParadas),
+      };
+    });
+  }
+
+  const { pendente, clicar, confirmar, cancelar, mensagemConfirmacao } = useWhatsAppContato(
+    meuId,
+    onLeadChange,
+  );
 
   if (erro) {
     return <p className="text-sm text-critical">{erro}</p>;
@@ -127,6 +168,8 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              nomes={nomes}
+              onWhatsAppClick={clicar}
               extra={
                 <span
                   title="Score de priorização"
@@ -151,6 +194,8 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              nomes={nomes}
+              onWhatsAppClick={clicar}
               extra={
                 <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
                   {diasSemResposta(lead, agora)}d sem resposta
@@ -172,6 +217,8 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              nomes={nomes}
+              onWhatsAppClick={clicar}
               extra={
                 lead.demo && (
                   <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
@@ -183,6 +230,15 @@ export default function HojePage() {
           ))}
         </Secao>
       )}
+
+      <ConfirmModal
+        aberto={pendente !== null}
+        titulo="Lead já contatado"
+        mensagem={mensagemConfirmacao(nomes) ?? ""}
+        confirmarLabel="Contatar mesmo assim"
+        onConfirmar={confirmar}
+        onCancelar={cancelar}
+      />
     </div>
   );
 }
@@ -211,11 +267,15 @@ function ItemHoje({
   lead,
   porId,
   mensagemGlobal,
+  nomes,
+  onWhatsAppClick,
   extra,
 }: {
   lead: Lead;
   porId: Map<string, BuscaResumo>;
   mensagemGlobal: string;
+  nomes: NomesUsuarios;
+  onWhatsAppClick: (event: { preventDefault: () => void }, lead: Lead, href: string) => void;
   extra?: React.ReactNode;
 }) {
   const origem = buscaDeOrigem(lead, porId);
@@ -262,6 +322,12 @@ function ItemHoje({
         </div>
       </div>
 
+      {lead.seloContato && (
+        <div className="mt-2">
+          <SeloContato lead={lead} nomes={nomes} />
+        </div>
+      )}
+
       <div className="mt-2 flex items-center justify-between gap-2">
         {origem ? (
           <span className="flex min-w-0 items-center gap-1.5 text-xs text-ink-secondary">
@@ -284,6 +350,7 @@ function ItemHoje({
           {waHref && (
             <a
               href={waHref}
+              onClick={(event) => onWhatsAppClick(event, lead, waHref)}
               target="_blank"
               rel="noopener noreferrer"
               className={

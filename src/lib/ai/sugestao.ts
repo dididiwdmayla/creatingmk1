@@ -50,7 +50,28 @@ const CHAVES_SUGESTAO = [
   "slogan",
   "descricao",
   "titulosSecoes",
+  "idioma",
 ] as const;
+
+/** Default do idioma-alvo (ver "Idioma da IA na demo") — região desconhecida ou pré-feature. */
+export const IDIOMA_PADRAO = "pt-BR";
+
+/** Rótulo em português do idioma-alvo, pra instruir o Gemini (raiz do BCP-47; pt-BR tem rótulo próprio). */
+const IDIOMA_RAIZ_LABEL: Record<string, string> = {
+  pt: "português",
+  en: "inglês",
+  es: "espanhol",
+  fr: "francês",
+  de: "alemão",
+  it: "italiano",
+  nl: "holandês",
+};
+
+function idiomaLabel(idioma: string): string {
+  if (idioma === "pt-BR") return "português do Brasil";
+  const raiz = idioma.split("-")[0];
+  return IDIOMA_RAIZ_LABEL[raiz] ?? idioma;
+}
 
 /**
  * Seções que a IA pode intitular: só as NÃO-fixas. O título da fixa (hero)
@@ -71,8 +92,13 @@ function idsFontesDisplay(skin: SkinDefinition): string[] {
 /**
  * JSON Schema (padrão) enviado ao Gemini em responseJsonSchema — guia o
  * modelo pro formato certo; a validação estrita local continua mandando.
+ * `idioma` é fixado num único valor permitido (enum de 1 item): reforça no
+ * schema o idioma-alvo já instruído no prompt, e dá o que validar depois.
  */
-export function schemaSugestao(skin: SkinDefinition): Record<string, unknown> {
+export function schemaSugestao(
+  skin: SkinDefinition,
+  idioma: string = IDIOMA_PADRAO,
+): Record<string, unknown> {
   return {
     type: "object",
     additionalProperties: false,
@@ -98,15 +124,27 @@ export function schemaSugestao(skin: SkinDefinition): Record<string, unknown> {
           ]),
         ),
       },
+      idioma: {
+        type: "string",
+        enum: [idioma],
+        description: "Idioma-alvo dos textos (slogan/descricao/titulosSecoes) — repita este valor.",
+      },
     },
   };
 }
 
 /**
  * Prompt com o que a rota sabe do lead: nicho, nome, rating/dados públicos
- * já salvos (nunca busca nada novo no Google) e a skin escolhida.
+ * já salvos (nunca busca nada novo no Google) e a skin escolhida. `idioma`
+ * (BCP-47, default pt-BR) vem da região geocodificada da busca que trouxe o
+ * lead — ver "Idioma da IA na demo": os TEXTOS saem no idioma do lead, mas
+ * a instrução em si continua em português (idioma do operador do app).
  */
-export function montarPromptSugestao(skin: SkinDefinition, lead: Lead): string {
+export function montarPromptSugestao(
+  skin: SkinDefinition,
+  lead: Lead,
+  idioma: string = IDIOMA_PADRAO,
+): string {
   const nicho = lead.busca?.nicho?.trim() || skin.nicho;
   const rating = lead.detalhes?.rating;
   const avaliacoes = lead.detalhes?.totalAvaliacoes;
@@ -123,8 +161,9 @@ export function montarPromptSugestao(skin: SkinDefinition, lead: Lead): string {
   ];
 
   return [
-    "Você é o diretor de arte de demos de sites para negócios locais brasileiros.",
-    "Sugira tema e textos curtos para a demo do negócio abaixo. Responda APENAS o JSON pedido, em português do Brasil, com tom adequado ao nicho (nada genérico de agência).",
+    "Você é o diretor de arte de demos de sites para negócios locais brasileiros (o cliente da agência é brasileiro; o negócio abaixo pode estar em outro país).",
+    `Sugira tema e textos curtos para a demo do negócio abaixo. Responda APENAS o JSON pedido, com tom adequado ao nicho (nada genérico de agência).`,
+    `IMPORTANTE: escreva os TEXTOS (slogan, descricao, titulosSecoes) em ${idiomaLabel(idioma)} — é o idioma do país/região do negócio, não necessariamente o seu. Preencha o campo "idioma" do JSON com exatamente "${idioma}".`,
     "",
     "Negócio (dados públicos já coletados):",
     ...linhasLead,
@@ -174,6 +213,7 @@ function textoCurto(value: unknown, max: number): string | undefined {
 export function validarSugestao(
   bruto: unknown,
   skin: SkinDefinition,
+  idioma: string = IDIOMA_PADRAO,
 ): { sugestao: SugestaoDemo; problemas: [] } | { sugestao?: undefined; problemas: string[] } {
   const problemas: string[] = [];
   if (!isRecord(bruto)) {
@@ -236,6 +276,10 @@ export function validarSugestao(
     }
   }
 
+  if (bruto.idioma !== idioma) {
+    problemas.push(`idioma deve ser exatamente "${idioma}"`);
+  }
+
   if (problemas.length > 0) return { problemas };
   return {
     sugestao: {
@@ -264,11 +308,14 @@ export async function gerarSugestaoDemo(
   caps: UsageCounts,
   ctx: { userId?: string; isAdmin?: boolean } = {},
 ): Promise<SugestaoDemo> {
-  const prompt = montarPromptSugestao(skin, lead);
-  const schema = schemaSugestao(skin);
+  // Idioma do PAÍS/REGIÃO do lead (geocodificada na busca que o trouxe),
+  // não do usuário logado — ver "Idioma da IA na demo". Default pt-BR.
+  const idioma = lead.busca?.idioma ?? IDIOMA_PADRAO;
+  const prompt = montarPromptSugestao(skin, lead, idioma);
+  const schema = schemaSugestao(skin, idioma);
 
   await reserveQuota(db, "aiGeneration", caps, undefined, ctx);
-  const primeira = validarSugestao(await gerarJson(prompt, schema), skin);
+  const primeira = validarSugestao(await gerarJson(prompt, schema), skin, idioma);
   if (primeira.sugestao) return primeira.sugestao;
 
   const promptRetry = [
@@ -279,7 +326,7 @@ export async function gerarSugestaoDemo(
   ].join("\n");
 
   await reserveQuota(db, "aiGeneration", caps, undefined, ctx);
-  const segunda = validarSugestao(await gerarJson(promptRetry, schema), skin);
+  const segunda = validarSugestao(await gerarJson(promptRetry, schema), skin, idioma);
   if (segunda.sugestao) return segunda.sugestao;
 
   throw new AiError(
