@@ -37,6 +37,33 @@ export interface AppConfig {
     cotaGratis: Record<Sku, number>;
     usdBrl: number;
   };
+  /** Calculadora de precificação regional (card "Precificação"). */
+  precificacao: PrecificacaoConfig;
+}
+
+/** Um atalho do slider (botão que reposiciona o preço-base). */
+export interface PresetPrecificacao {
+  nome: string;
+  valorBRL: number;
+}
+
+export interface PrecificacaoConfig {
+  /**
+   * Multiplicador por nicho (chave-valor livre, chave = texto do nicho tal
+   * como usado nas buscas). Nicho sem entrada correspondente → 1.0
+   * (neutro) — ver `multiplicadorParaNicho` em src/lib/precificacao/calc.ts.
+   */
+  multiplicadoresNicho: Record<string, number>;
+  /** Preço sugerido nunca fica abaixo deste piso (R$). */
+  pisoPrecificacao: number;
+  /**
+   * Fator mínimo do índice efetivo: regiões baratas reduzem o preço em no
+   * máximo (1 - fatorMinimoIndice); regiões caras (índice > 1) sobem sem
+   * teto — ver `calcularIndiceEfetivo`.
+   */
+  fatorMinimoIndice: number;
+  /** Atalhos editáveis que reposicionam o slider (700–10.000, passo 100). */
+  presets: PresetPrecificacao[];
 }
 
 function perSku(pick: (sku: Sku) => number): Record<Sku, number> {
@@ -61,9 +88,21 @@ export const DEFAULT_CONFIG: AppConfig = {
     cotaGratis: perSku((sku) => DEFAULT_PRICING[sku].freeQuota),
     usdBrl: 5.5,
   },
+  precificacao: {
+    multiplicadoresNicho: {},
+    pisoPrecificacao: 900,
+    fatorMinimoIndice: 0.7,
+    presets: [
+      { nome: "Vitrine", valorBRL: 1000 },
+      { nome: "Presença", valorBRL: 2000 },
+      { nome: "Autoridade", valorBRL: 3500 },
+      { nome: "Sistema", valorBRL: 5000 },
+    ],
+  },
 };
 
 const FILTRO_VALUES: FiltroPresenca[] = ["qualquer", "com", "sem"];
+const PRESET_NOME_MAX = 30;
 const TOP_LEVEL_KEYS = new Set([
   "nicho",
   "regiao",
@@ -73,6 +112,7 @@ const TOP_LEVEL_KEYS = new Set([
   "maxBuscasRecorrentes",
   "caps",
   "precos",
+  "precificacao",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -196,8 +236,89 @@ export function validateConfigPatch(patch: unknown): asserts patch is Partial<Ap
     }
   }
 
+  if (patch.precificacao !== undefined) {
+    validatePrecificacaoPatch(patch.precificacao, problemas);
+  }
+
   if (problemas.length > 0) {
     throw new ValidationError(problemas);
+  }
+}
+
+function validatePrecificacaoPatch(value: unknown, problemas: string[]): void {
+  if (!isRecord(value)) {
+    problemas.push("precificacao deve ser um objeto");
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    if (!["multiplicadoresNicho", "pisoPrecificacao", "fatorMinimoIndice", "presets"].includes(key)) {
+      problemas.push(`precificacao.${key} não é um campo conhecido`);
+    }
+  }
+
+  if (value.multiplicadoresNicho !== undefined) {
+    if (!isRecord(value.multiplicadoresNicho)) {
+      problemas.push("precificacao.multiplicadoresNicho deve ser um objeto nicho → multiplicador");
+    } else {
+      for (const [nicho, multiplicador] of Object.entries(value.multiplicadoresNicho)) {
+        if (
+          typeof multiplicador !== "number" ||
+          !Number.isFinite(multiplicador) ||
+          multiplicador <= 0
+        ) {
+          problemas.push(
+            `precificacao.multiplicadoresNicho["${nicho}"] deve ser número > 0`,
+          );
+        }
+      }
+    }
+  }
+
+  if (
+    value.pisoPrecificacao !== undefined &&
+    (typeof value.pisoPrecificacao !== "number" ||
+      !Number.isFinite(value.pisoPrecificacao) ||
+      value.pisoPrecificacao < 0)
+  ) {
+    problemas.push("precificacao.pisoPrecificacao deve ser número ≥ 0");
+  }
+
+  if (
+    value.fatorMinimoIndice !== undefined &&
+    (typeof value.fatorMinimoIndice !== "number" ||
+      !Number.isFinite(value.fatorMinimoIndice) ||
+      value.fatorMinimoIndice <= 0)
+  ) {
+    problemas.push("precificacao.fatorMinimoIndice deve ser número > 0");
+  }
+
+  if (value.presets !== undefined) {
+    if (!Array.isArray(value.presets)) {
+      problemas.push("precificacao.presets deve ser uma lista");
+    } else {
+      value.presets.forEach((preset, i) => {
+        if (!isRecord(preset)) {
+          problemas.push(`precificacao.presets[${i}] deve ser um objeto`);
+          return;
+        }
+        if (
+          typeof preset.nome !== "string" ||
+          !preset.nome.trim() ||
+          preset.nome.length > PRESET_NOME_MAX
+        ) {
+          problemas.push(
+            `precificacao.presets[${i}].nome deve ser string não vazia (≤${PRESET_NOME_MAX} caracteres)`,
+          );
+        }
+        if (
+          typeof preset.valorBRL !== "number" ||
+          !Number.isFinite(preset.valorBRL) ||
+          preset.valorBRL <= 0
+        ) {
+          problemas.push(`precificacao.presets[${i}].valorBRL deve ser número > 0`);
+        }
+      });
+    }
   }
 }
 
@@ -233,6 +354,14 @@ export function mergeConfig(base: AppConfig, patch: Partial<AppConfig>): AppConf
       usdBrl: patch.precos?.usdBrl ?? base.precos.usdBrl,
       usdPor1000: mergeSkuMap(base.precos.usdPor1000, patch.precos?.usdPor1000),
       cotaGratis: mergeSkuMap(base.precos.cotaGratis, patch.precos?.cotaGratis),
+    },
+    precificacao: {
+      multiplicadoresNicho:
+        patch.precificacao?.multiplicadoresNicho ?? base.precificacao.multiplicadoresNicho,
+      pisoPrecificacao: patch.precificacao?.pisoPrecificacao ?? base.precificacao.pisoPrecificacao,
+      fatorMinimoIndice:
+        patch.precificacao?.fatorMinimoIndice ?? base.precificacao.fatorMinimoIndice,
+      presets: patch.precificacao?.presets ?? base.precificacao.presets,
     },
   };
 }

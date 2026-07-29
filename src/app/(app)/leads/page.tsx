@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "
 import { Button } from "@/components/Button";
 import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { LeadCard } from "@/components/LeadCard";
+import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
@@ -672,6 +673,14 @@ function LeadsPageInner() {
             </div>
           )}
         </div>
+      )}
+
+      {buscaAtual && (
+        <PrecificacaoCard
+          key={buscaAtual.id}
+          nicho={buscaAtual.nicho}
+          regiaoTexto={buscaAtual.regiao}
+        />
       )}
 
       <div className="flex flex-wrap items-center gap-2">

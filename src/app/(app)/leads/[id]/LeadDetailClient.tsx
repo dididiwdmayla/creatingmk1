@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
+import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
@@ -381,6 +382,8 @@ export function LeadDetailClient({ id }: { id: string }) {
           </p>
         </section>
       )}
+
+      <PrecificacaoCard nicho={lead.busca?.nicho ?? ""} regiaoTexto={lead.busca?.regiao} />
 
       {waLink && (
         <div className="flex flex-col gap-1.5">

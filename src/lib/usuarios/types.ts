@@ -57,6 +57,12 @@ export interface Usuario {
   ultimaVisitaEm?: string;
   /** Cotas individuais de buscas/enriquecimentos. Ausente = sem limite algum. */
   limites?: LimitesUsuario;
+  /**
+   * Última posição do slider da calculadora de precificação (700–10.000,
+   * BRL) — self-service, atualizado pelo próprio PUT /api/precificacao/slider
+   * a cada mudança. Ausente = ainda não mexeu no slider.
+   */
+  ultimoPrecoBaseSlider?: number;
   criadoEm: string;
   atualizadoEm: string;
 }

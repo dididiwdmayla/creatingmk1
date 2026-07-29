@@ -8,6 +8,7 @@ import type { Lead, LeadStatus } from "@/lib/leads/types";
 import type { PenetracaoSite } from "@/lib/leads/penetracao";
 import type { Metrics, MetricsUsuario } from "@/lib/leads/metrics";
 import type { ConversaResumo, Mensagem } from "@/lib/mensagens/types";
+import type { RegiaoIndice } from "@/lib/regioes";
 import type { LimitesUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
 
 /** Espelha o formato de erro padrão das rotas (ver ARCHITECTURE.md). */
@@ -130,6 +131,12 @@ export interface HojeResponse {
   }>;
 }
 
+/** GET /api/regioes: índice de mercado da região (calculadora de precificação). */
+export interface RegiaoIndiceResponse {
+  regiao: RegiaoIndice;
+  cached: boolean;
+}
+
 /** Widget do dashboard: última rodada do cron + recorrentes ligadas. */
 export interface CronStatusResponse {
   ultima: CronExecucao | null;
@@ -199,6 +206,26 @@ export const api = {
     request<GeocodeResponse>(
       `/api/geocode${regiao ? `?regiao=${encodeURIComponent(regiao)}` : ""}`,
     ),
+
+  getRegiaoIndice: (regiao: string) =>
+    request<RegiaoIndiceResponse>(`/api/regioes?regiao=${encodeURIComponent(regiao)}`),
+  regenerarRegiaoIndice: (regiao: string) =>
+    request<{ regiao: RegiaoIndice }>("/api/regioes/regenerar", {
+      method: "POST",
+      body: JSON.stringify({ regiao }),
+    }),
+  ajustarIndiceRegiao: (regiao: string, indiceAjustado: number | null) =>
+    request<{ regiao: RegiaoIndice }>("/api/regioes/ajustar", {
+      method: "PATCH",
+      body: JSON.stringify({ regiao, indiceAjustado }),
+    }),
+
+  getPrecoBaseSlider: () => request<{ precoBase: number | null }>("/api/precificacao/slider"),
+  putPrecoBaseSlider: (precoBase: number) =>
+    request<{ precoBase: number }>("/api/precificacao/slider", {
+      method: "PUT",
+      body: JSON.stringify({ precoBase }),
+    }),
 
   hoje: () => request<HojeResponse>("/api/hoje"),
   cronStatus: () => request<CronStatusResponse>("/api/cron/status"),
