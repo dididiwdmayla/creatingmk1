@@ -160,6 +160,100 @@ describe("saveConfig", () => {
   });
 });
 
+describe("precificacao (calculadora regional)", () => {
+  it("defaults: piso 900, fator mínimo 0.7, 4 presets, sem multiplicadores", () => {
+    expect(DEFAULT_CONFIG.precificacao).toEqual({
+      multiplicadoresNicho: {},
+      pisoPrecificacao: 900,
+      fatorMinimoIndice: 0.7,
+      presets: [
+        { nome: "Vitrine", valorBRL: 1000 },
+        { nome: "Presença", valorBRL: 2000 },
+        { nome: "Autoridade", valorBRL: 3500 },
+        { nome: "Sistema", valorBRL: 5000 },
+      ],
+    });
+  });
+
+  it("aceita patch parcial e preserva o resto dos defaults", async () => {
+    const db = new FakeFirestore();
+
+    const config = await saveConfig(db, {
+      precificacao: { pisoPrecificacao: 800, multiplicadoresNicho: { dentista: 1.4 } },
+    });
+
+    expect(config.precificacao.pisoPrecificacao).toBe(800);
+    expect(config.precificacao.multiplicadoresNicho).toEqual({ dentista: 1.4 });
+    expect(config.precificacao.fatorMinimoIndice).toBe(0.7);
+    expect(config.precificacao.presets).toEqual(DEFAULT_CONFIG.precificacao.presets);
+  });
+
+  it("preserva o patch anterior quando um novo patch não toca precificacao", async () => {
+    const db = new FakeFirestore();
+    await saveConfig(db, { precificacao: { pisoPrecificacao: 800 } });
+
+    const config = await saveConfig(db, { nicho: "dentista" });
+
+    expect(config.precificacao.pisoPrecificacao).toBe(800);
+  });
+
+  it("rejeita chave desconhecida dentro de precificacao", async () => {
+    const db = new FakeFirestore();
+
+    const error = await saveConfig(db, { precificacao: { pisoo: 1 } }).catch(
+      (e: unknown) => e,
+    );
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).problemas).toEqual([
+      "precificacao.pisoo não é um campo conhecido",
+    ]);
+  });
+
+  it("rejeita multiplicador ≤ 0, piso negativo, fator mínimo ≤ 0", async () => {
+    const db = new FakeFirestore();
+
+    const error = await saveConfig(db, {
+      precificacao: {
+        multiplicadoresNicho: { dentista: 0 },
+        pisoPrecificacao: -1,
+        fatorMinimoIndice: 0,
+      },
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).problemas).toEqual([
+      'precificacao.multiplicadoresNicho["dentista"] deve ser número > 0',
+      "precificacao.pisoPrecificacao deve ser número ≥ 0",
+      "precificacao.fatorMinimoIndice deve ser número > 0",
+    ]);
+  });
+
+  it("rejeita preset sem nome ou com valorBRL inválido", async () => {
+    const db = new FakeFirestore();
+
+    const error = await saveConfig(db, {
+      precificacao: { presets: [{ nome: "", valorBRL: 1000 }, { nome: "Vitrine", valorBRL: -5 }] },
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ValidationError);
+    expect((error as ValidationError).problemas).toEqual([
+      "precificacao.presets[0].nome deve ser string não vazia (≤30 caracteres)",
+      "precificacao.presets[1].valorBRL deve ser número > 0",
+    ]);
+  });
+
+  it("aceita presets editados por completo", async () => {
+    const db = new FakeFirestore();
+
+    const config = await saveConfig(db, {
+      precificacao: { presets: [{ nome: "Básico", valorBRL: 1200 }] },
+    });
+
+    expect(config.precificacao.presets).toEqual([{ nome: "Básico", valorBRL: 1200 }]);
+  });
+});
+
 describe("pricingFromConfig", () => {
   it("monta a tabela de preços do módulo de custos", () => {
     const config = structuredClone(DEFAULT_CONFIG);

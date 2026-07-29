@@ -155,6 +155,21 @@ export async function carimbarVisita(
   await docRef(db, id).set(toDoc({ ...usuario, ultimaVisitaEm: now.toISOString() }));
 }
 
+/**
+ * Salva a última posição do slider da calculadora de precificação
+ * (self-service, sem admin — não é credencial nem edição administrativa,
+ * mesmo espírito de carimbarVisita: não mexe em atualizadoEm/sessao).
+ */
+export async function salvarPrecoBaseSlider(
+  db: AppDb,
+  id: string,
+  precoBase: number,
+): Promise<void> {
+  const usuario = await getUsuario(db, id);
+  if (!usuario) return;
+  await docRef(db, id).set(toDoc({ ...usuario, ultimoPrecoBaseSlider: precoBase }));
+}
+
 /** Patch de limites: number seta, null LIMPA (sem limite naquela janela), ausente não mexe. */
 export type LimitesPatch = Partial<Record<keyof LimitesUsuario, number | null>>;
 

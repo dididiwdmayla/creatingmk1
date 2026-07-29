@@ -59,6 +59,10 @@ src/
       config/route.ts               # ✅ GET config (qualquer sessão) / PUT (admin)
       search/route.ts               # ✅ POST busca (geocode + Text Search paginado/qualificado) + registra em /buscas — exige sessão (cota individual)
       geocode/route.ts              # ✅ GET região resolvida ("Buscando em: X"), cache em /geocache
+      regioes/route.ts              # ✅ GET índice de mercado da região (geocodifica + gera via IA se ainda não tiver)
+      regioes/regenerar/route.ts    # ✅ POST regenera o índice (admin; reaproveita cidade/país já salvos)
+      regioes/ajustar/route.ts      # ✅ PATCH indiceAjustado (admin; number seta, null limpa)
+      precificacao/slider/route.ts  # ✅ GET/PUT última posição do slider da calculadora (self-service, por usuário)
       buscas/route.ts               # ✅ GET buscas salvas
       buscas/[id]/route.ts          # ✅ PATCH cor / mensagem do grupo
       leads/route.ts                # ✅ GET lista de leads com filtros
@@ -95,6 +99,15 @@ src/
     sku-labels.ts                   # ✅ rótulos pt-BR dos SKUs (dashboard e config)
     geo/
       geocode.ts                    # ✅ geocodeRegion() com cache permanente em /geocache
+    regioes/                        # ✅ índice de mercado por cidade/região (ver "Precificação regional por IA")
+      types.ts                      #    RegiaoIndice (slug = regiaoCacheKey reaproveitado do geocoding)
+      ia.ts                         #    parseCidadePais + prompt/schema/validação + gerarIndiceRegiao (1 chamada, sem retry)
+      repo.ts                       #    get/salvar/setIndiceAjustado em /regioes/{slug} — cache PERMANENTE
+      index.ts
+      __tests__/
+    precificacao/                   # ✅ calculadora de precificação (card "Precificação")
+      calc.ts                       #    funções puras: índice efetivo, preço sugerido, multiplicador por nicho, câmbio
+      __tests__/
     costs/                          # ✅ ver seções "Módulo de custos" e "Cotas individuais por usuário"
       skus.ts                       # SKUs, field masks, cotas grátis, preços default
       period.ts                     # chave do período mensal (YYYY-MM, UTC) — teto global
@@ -154,6 +167,7 @@ src/
     StatusBadge.tsx                 # badge ordinal do status do lead (cor + forma + marcador)
     UsageMeter.tsx                  # meter de uso vs teto (accent/warning/critical), anima ao montar
     CotaIndicador.tsx               # ✅ "usado/limite" por janela (cota individual) + cotaEsgotada() p/ desabilitar botão
+    PrecificacaoCard.tsx            # ✅ card "Precificação": slider + cálculo ao vivo + edição de índice (admin) — ver seção própria
     LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site, badge "argumento forte"
     PageTransition.tsx              # fade-in de página por troca de rota (client)
     RadarSweep.tsx                  # decoração de sweep de radar (CSS puro)
@@ -257,6 +271,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
     "buscasDia": 30, "buscasSemana": 150, "buscasMes": 500,
     "enriquecimentosDia": 20, "enriquecimentosSemana": 100, "enriquecimentosMes": 300
   },
+  "ultimoPrecoBaseSlider": 2500,     // ✅ opcional: última posição do slider da calculadora de precificação (self-service)
   "criadoEm": "<ISO 8601>",
   "atualizadoEm": "<ISO 8601>"
 }
@@ -291,6 +306,17 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
     "usdPor1000": { "textSearch": 32, "textSearchEnterprise": 35, "detailsEssentials": 5, "detailsEnterprise": 20, "detailsProHours": 17 },
     "cotaGratis": { "textSearch": 5000, "textSearchEnterprise": 1000, "detailsEssentials": 10000, "detailsEnterprise": 1000, "detailsProHours": 5000 },
     "usdBrl": 5.50                              // câmbio para custo projetado em R$
+  },
+  "precificacao": {                             // ✅ calculadora de precificação regional (ver seção própria)
+    "multiplicadoresNicho": { "dentista": 1.4 }, // chave-valor livre; nicho ausente → multiplicador 1.0
+    "pisoPrecificacao": 900,                    // preço sugerido nunca abaixo disto (R$)
+    "fatorMinimoIndice": 0.7,                   // índice efetivo nunca abaixo disto (regiões caras sobem sem teto)
+    "presets": [                                // atalhos que reposicionam o slider (700–10.000, passo 100)
+      { "nome": "Vitrine", "valorBRL": 1000 },
+      { "nome": "Presença", "valorBRL": 2000 },
+      { "nome": "Autoridade", "valorBRL": 3500 },
+      { "nome": "Sistema", "valorBRL": 5000 }
+    ]
   },
   "atualizadoEm": "<timestamp>"
 }
@@ -475,6 +501,31 @@ Sobre a **cor**: paleta fixa de 10 (validada contra a superfície escura: banda 
 
 ID = região normalizada (minúsculas, espaços colapsados, URL-encoded). Doc: `{ regiao, endereco, location, viewport, criadoEm }`. Cada região digitada só custa **1 request de geocoding na vida** — o viewport cacheado alimenta o `locationRestriction` de todas as buscas seguintes. Sem expiração: limites geográficos de cidade não mudam em escala relevante para prospecção.
 
+### `/regioes/{slug}` — índice de mercado por cidade/região (ver "Precificação regional por IA")
+
+**O `slug` é a MESMA chave normalizada do `/geocache`** (`regiaoCacheKey`, reaproveitada de `src/lib/geo/geocode.ts`) — uma região só é geocodificada uma vez na vida e o índice de precificação usa exatamente essa identidade, sem geocodificar de novo.
+
+```jsonc
+{
+  "slug": "zurique",                            // = ID do doc; regiaoCacheKey(regiaoTexto)
+  "regiaoTexto": "Zurique",                     // texto original (mesmo valor salvo no geocache)
+  "cidade": "Zürich",                           // cidade ESPECÍFICA (extraída do endereço do geocoding, não o país)
+  "pais": "Suíça",
+  "indice": 3.5,                                // índice RELATIVO gerado por IA (cidade média do interior do Brasil = 1.0)
+  "indiceAjustado": 2.8,                        // ✅ opcional: edição manual do admin — quando presente, VENCE `indice`
+  "moedaLocal": "CHF",
+  "cambioAproxBRL": 6.1,                        // ✅ opcional: estimativa (1 unidade da moeda local ≈ N reais)
+  "faixaMercadoLocal": "300–800 CHF",           // faixa típica local de um site simples
+  "justificativa": "Zurique tem alto custo de vida e forte poder aquisitivo.",
+  "confianca": "alta",                          // "alta" | "media" | "baixa"
+  "geradoEm": "<ISO 8601>"
+}
+```
+
+- **Cache PERMANENTE**: gerado sob demanda na primeira vez que a calculadora abre para aquela região (`GET /api/regioes?regiao=`) e nunca expira — só regenera por clique explícito do admin (`POST /api/regioes/regenerar`), que reaproveita `cidade`/`pais`/`regiaoTexto` já salvos (não geocodifica de novo).
+- **`indiceAjustado` é preservado na regeneração**: regenerar só atualiza a base sugerida pela IA; a edição manual do admin (`PATCH /api/regioes/ajustar`, só na UI da região) é uma decisão separada, limpa apenas com `indiceAjustado: null`.
+- Docs sem índice gerado ainda simplesmente não existem — não há doc "vazio" de placeholder.
+
 ### `/usage/{YYYY-MM}` — um doc por mês (contadores de custo)
 
 ```jsonc
@@ -533,6 +584,11 @@ Formato de erro padrão em todas as rotas:
 | `/api/config` | PUT | config parcial ou completa (admin) | `200 { config }` · `400 validation_error` · `401` · `403` | — |
 | `/api/search` | POST | `{ nicho?, subNicho?, regiao?, nome?, quantidade? (1–40), qualificada? }` (nicho/regiao default: config; exige sessão identificável) | `200 { criados, existentes, leads[], busca, paginas, regiaoResolvida, aviso? }` · `400` · `401` · `429 quota_exceeded` · `429 user_quota_exceeded` · `502 places_error` | Geocoding (com cache) + Text Search · **geocoding** + **textSearch** ou **textSearchEnterprise** |
 | `/api/geocode` | GET | query: `regiao` (default: config) | `200 { regiao, endereco, location, viewport, cached }` · `400` · `429` · `502` | Geocoding · **geocoding** (só em cache miss) |
+| `/api/regioes` | GET | query: `regiao` (default: config) | `200 { regiao, cached }` · `400` · `429 quota_exceeded` · `502 places_error` · `502 ai_error` · `503 ai_unavailable` | Geocoding (cache) + Gemini na 1ª vez · **geocoding** + **aiGeneration** (só em cache miss) |
+| `/api/regioes/regenerar` | POST | `{ regiao }` (admin) | `200 { regiao }` · `400` · `401` · `403` · `404` (sem índice gerado ainda) · `429 quota_exceeded` · `502 ai_error` · `503 ai_unavailable` | Gemini generateContent · **aiGeneration** (reaproveita cidade/país já salvos, não geocodifica de novo) |
+| `/api/regioes/ajustar` | PATCH | `{ regiao, indiceAjustado }` (number seta, `null` limpa; admin) | `200 { regiao }` · `400` · `401` · `403` · `404` | — |
+| `/api/precificacao/slider` | GET | — (exige sessão identificável) | `200 { precoBase }` (`null` = ainda não mexeu) · `401` | — |
+| `/api/precificacao/slider` | PUT | `{ precoBase }` (inteiro 700–10.000) | `200 { precoBase }` · `400` · `401` | — |
 | `/api/buscas` | GET | — | `200 { buscas[] }` (mais recentes primeiro) | — |
 | `/api/buscas/[id]` | PATCH | `{ cor? (da paleta), mensagemPadrao? (≤1000, "" limpa), recorrente? }` (≥1 campo; ligar recorrente respeita o teto `maxBuscasRecorrentes`) | `200 { busca }` · `400` · `404` | — |
 | `/api/hoje` | GET | — (exige sessão identificável) | `200 { novos[], followUps[], demosParadas[], novosDesde, followUpDias, mensagemPadrao, buscas[] }` · `401` | — |
@@ -743,6 +799,23 @@ Botão "✨ Gerar com IA" no editor de demos (e checkbox "Começar com sugestõe
 5. **Só as seções NÃO-fixas recebem título** — o título da fixa (hero) é o nome/wordmark do negócio; a `descricao` vai para `secoes.hero.texto` (apresentação, não identidade) e o `slogan` para `dados.slogan`.
 6. **Nunca sobrescreve sem confirmar**: a rota só GERA — quem escreve é o usuário. O editor mostra a sugestão num preview (preset, amostra da cor, fonte, animação, textos) com **Aplicar/Descartar**; aplicar muda apenas o rascunho em memória e nada é publicado sem o "Salvar" normal (PUT com a validação estrita de sempre). O fluxo `?ia=1` da criação usa o MESMO preview — a demo nova "começa com sugestões", mas ainda atrás de um Aplicar explícito.
 7. **Prompt** (`montarPromptSugestao`): nicho (da busca do lead, fallback no nicho da skin), sub-nicho, nome, endereço e rating/total de avaliações JÁ salvos (nunca dispara busca/enriquecimento novo), mais as escolhas permitidas. Dados públicos do lead, nenhum dado sensível.
+
+## Precificação regional por IA (`src/lib/regioes` + `src/lib/precificacao` + card "Precificação")
+
+Calculadora interativa na ficha do lead e no grupo de busca: quanto cobrar por um site, ajustado pelo mercado LOCAL da cidade do lead (não a média do país) e pelo nicho. Dois módulos separados — geração/cache do índice (`src/lib/regioes`, precisa de Firestore/Gemini) e a matemática da calculadora (`src/lib/precificacao/calc.ts`, 100% puro, testado isoladamente):
+
+1. **Slug reaproveita o cache de geocoding**: `/regioes/{slug}` usa a MESMA `regiaoCacheKey` de `/geocache` (`src/lib/geo/geocode.ts`) — uma região só é geocodificada uma vez na vida, e o índice de mercado é da **cidade/região específica** que o geocoding resolveu (`cidade`/`pais`, extraídos do `endereco` formatado — `parseCidadePais`), nunca a média do país (Zurique ≠ interior da Suíça).
+2. **Geração: 1 chamada Gemini, sem retry** (`gerarIndiceRegiao`, mesmo SKU `aiGeneration` e mesma postura de `gerarAnaliseBusca` — resposta fora do schema já é `502 ai_error` direto, sem tentar de novo sozinho). O prompt pede: índice relativo do mercado de sites para pequenos negócios NAQUELA cidade (referência explícita: cidade média do interior do Brasil = 1.0), moeda local, câmbio aproximado para BRL (rotulado como estimativa — omitido se a moeda local já for o Real), faixa típica local de um site simples, justificativa (1-2 frases) e confiança (`alta`/`media`/`baixa`).
+3. **Cache PERMANENTE, regenera só por clique do admin**: `GET /api/regioes?regiao=` geocodifica (cache de geocoding) e, se `/regioes/{slug}` ainda não existir, gera e salva — chamadas seguintes de QUALQUER usuário vêm do cache, sem custo. `POST /api/regioes/regenerar` (admin) força uma nova geração reaproveitando `cidade`/`pais`/`regiaoTexto` já salvos (não geocodifica de novo) e **preserva** `indiceAjustado` — regenerar só atualiza a base sugerida pela IA.
+4. **`indiceAjustado`** (`PATCH /api/regioes/ajustar`, admin, só na UI da região onde o card aparece): number seta e VENCE `indice` nos cálculos; `null` limpa. A UI sempre mostra os dois quando o ajustado existe.
+5. **Cálculo (funções puras, `src/lib/precificacao/calc.ts`)**:
+   - `calcularIndiceEfetivo(indice, indiceAjustado, fatorMinimoIndice)` — `indiceAjustado` vence `indice` quando presente; depois aplica o piso do fator mínimo (`Math.max(base, fatorMinimoIndice)`): regiões baratas reduzem o preço em no máximo `1 − fatorMinimoIndice` (default 0.7 → no máximo 30%), regiões caras (índice > 1) sobem sem teto.
+   - `multiplicadorParaNicho(nicho, multiplicadoresNicho)` — chave-valor livre da config (normalizado minúsculas/espaços, mesmo padrão de `src/lib/buscas/penetracao.ts`); nicho sem entrada → 1.0 (neutro).
+   - `calcularPrecoSugerido(precoBase, indiceEfetivo, multiplicadorNicho, piso)` — `precoBase × indiceEfetivo × multiplicadorNicho`, nunca abaixo do `piso` (default R$900).
+   - `converterMoedaLocal(precoBRL, cambioAproxBRL)` — `precoBRL / cambioAproxBRL` (mesma convenção de `precos.usdBrl`: 1 unidade da moeda local ≈ N reais); câmbio ausente/inválido → `undefined`, a UI mostra só BRL.
+6. **Config admin** (`/config/app`, campo `precificacao`): `multiplicadoresNicho` (lista chave-valor editável, default vazio), `pisoPrecificacao` (default 900), `fatorMinimoIndice` (default 0.7), `presets` (atalhos do slider, default Vitrine 1000 / Presença 2000 / Autoridade 3500 / Sistema 5000 — editáveis, nome + valor em BRL).
+7. **Card "Precificação"** (`src/components/PrecificacaoCard.tsx`, na ficha do lead e no grupo de busca — `/leads?buscaId=`): slider 700–10.000 BRL (passo 100) posiciona o preço-base; botões de preset reposicionam o slider; abaixo, ao vivo: preço sugerido em BRL e (quando há câmbio) na moeda local rotulado "≈ estimado", faixa de mercado local, confiança e justificativa. Membros veem e usam a calculadora; só o admin vê os controles de editar/regenerar o índice. Todos os membros disparam a geração inicial (primeira vez que a região é aberta) — regenerar é ação exclusiva do admin.
+8. **Última posição do slider é por usuário** (`GET`/`PUT /api/precificacao/slider`, self-service — qualquer sessão lê/grava a PRÓPRIA posição): persistida em `usuarios/{id}.ultimoPrecoBaseSlider`, carregada ao abrir o card. Debounce de 500ms no cliente evita gravar a cada pixel arrastado do slider.
 
 ## Mensagens entre usuários (`src/lib/mensagens` + `/mensagens`)
 
