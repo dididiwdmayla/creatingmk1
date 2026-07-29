@@ -12,6 +12,7 @@ import { ApiError, api } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import type { Busca } from "@/lib/buscas/types";
 import type { FiltroPresenca } from "@/lib/config";
+import type { NomesUsuarios } from "@/lib/contato-selo";
 import type { UsoUsuario } from "@/lib/costs";
 import { formatDateTime } from "@/lib/format";
 import { argumentoForte } from "@/lib/leads/penetracao";
@@ -192,6 +193,7 @@ function LeadsPageInner() {
 
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [buscas, setBuscas] = useState<Busca[]>([]);
+  const [nomes, setNomes] = useState<NomesUsuarios>({});
   const [erroLista, setErroLista] = useState<string | null>(null);
 
   const [nicho, setNicho] = useState("");
@@ -280,6 +282,16 @@ function LeadsPageInner() {
       })
       .catch(() => {
         // indicador é cortesia — o bloqueio real é do servidor
+      });
+    api
+      .listNomesUsuarios()
+      .then(({ usuarios }) => {
+        if (!ignore) {
+          setNomes(Object.fromEntries(usuarios.map((u) => [u.id, u.nome])));
+        }
+      })
+      .catch(() => {
+        // selo cai no fallback "usuário removido" — não é bloqueante
       });
     return () => {
       ignore = true;
@@ -809,6 +821,7 @@ function LeadsPageInner() {
                           score={calculaScore(lead)}
                           destaque={topDoGrupo.has(lead.placeId)}
                           argumentoForte={leadArgumentoForte(lead, buscas)}
+                          nomes={nomes}
                           onChange={onLeadChange}
                         />
                       </li>
@@ -829,6 +842,7 @@ function LeadsPageInner() {
                 score={calculaScore(lead)}
                 destaque={topFlat.has(lead.placeId)}
                 argumentoForte={leadArgumentoForte(lead, buscas)}
+                nomes={nomes}
                 onChange={onLeadChange}
               />
             </li>

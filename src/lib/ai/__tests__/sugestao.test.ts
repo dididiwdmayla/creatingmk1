@@ -30,6 +30,7 @@ function sugestaoValida(): Record<string, unknown> {
     slogan: "Tradição de navalha desde sempre.",
     descricao: "Cortes clássicos e barba feita com calma, no coração de Sarandi.",
     titulosSecoes: { filosofia: "Nossa filosofia", servicos: "Serviços e preços" },
+    idioma: "pt-BR",
   };
 }
 
@@ -50,6 +51,14 @@ describe("montarPromptSugestao", () => {
     const prompt = montarPromptSugestao(DEFAULT_SKIN, { ...LEAD, detalhes: undefined });
     expect(prompt).not.toContain("Avaliação no Google");
   });
+
+  it("idioma não-pt-BR instrui o Gemini a escrever nesse idioma (item 'Idioma da IA na demo')", () => {
+    const prompt = montarPromptSugestao(DEFAULT_SKIN, LEAD, "en-US");
+
+    expect(prompt).toContain("inglês");
+    expect(prompt).toContain('"idioma" do JSON com exatamente "en-US"');
+    expect(prompt).not.toContain("português do Brasil");
+  });
 });
 
 describe("schemaSugestao", () => {
@@ -67,6 +76,16 @@ describe("schemaSugestao", () => {
     // hero é fixa: o título dela é identidade do negócio, não slot de IA.
     expect(Object.keys(schema.properties.titulosSecoes.properties)).not.toContain("hero");
     expect(Object.keys(schema.properties.titulosSecoes.properties)).toContain("filosofia");
+  });
+
+  it("fixa o idioma-alvo como único valor permitido (default pt-BR)", () => {
+    const padrao = schemaSugestao(DEFAULT_SKIN) as { properties: { idioma: { enum: string[] } } };
+    expect(padrao.properties.idioma.enum).toEqual(["pt-BR"]);
+
+    const ingles = schemaSugestao(DEFAULT_SKIN, "en-US") as {
+      properties: { idioma: { enum: string[] } };
+    };
+    expect(ingles.properties.idioma.enum).toEqual(["en-US"]);
   });
 });
 
@@ -141,5 +160,16 @@ describe("validarSugestao", () => {
     expect(validarSugestao("texto solto", DEFAULT_SKIN).problemas).toEqual([
       "resposta deve ser um objeto JSON",
     ]);
+  });
+
+  it("idioma divergente do esperado é rejeitado (não aceita pt-BR quando o alvo é outro)", () => {
+    const bruto = sugestaoValida();
+
+    const semAjuste = validarSugestao(bruto, DEFAULT_SKIN, "en-US");
+    expect(semAjuste.sugestao).toBeUndefined();
+    expect(semAjuste.problemas).toContain('idioma deve ser exatamente "en-US"');
+
+    const ajustado = validarSugestao({ ...bruto, idioma: "en-US" }, DEFAULT_SKIN, "en-US");
+    expect(ajustado.problemas).toEqual([]);
   });
 });

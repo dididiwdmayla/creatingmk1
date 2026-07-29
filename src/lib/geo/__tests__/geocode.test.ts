@@ -4,7 +4,7 @@ import { DEFAULT_CAPS, QuotaExceededError } from "@/lib/costs";
 import { ValidationError } from "@/lib/errors";
 import { PlacesError } from "@/lib/places/client";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
-import { geocodeRegion, regiaoCacheKey } from "../geocode";
+import { geocodeRegion, idiomaDoEndereco, regiaoCacheKey } from "../geocode";
 
 const GEOCODE_OK = {
   status: "OK",
@@ -69,9 +69,11 @@ describe("geocodeRegion", () => {
       low: { latitude: -23.5, longitude: -51.95 },
       high: { latitude: -23.38, longitude: -51.8 },
     });
+    expect(geo.idioma).toBe("pt-BR");
     expect(usageDoc()).toMatchObject({ geocoding: 1 });
     expect(db.getDoc(`geocache/${regiaoCacheKey("Sarandi PR")}`)).toMatchObject({
       endereco: "Sarandi, PR, Brasil",
+      idioma: "pt-BR",
     });
   });
 
@@ -140,5 +142,65 @@ describe("geocodeRegion", () => {
     await expect(geocodeRegion(db, "   ", DEFAULT_CAPS)).rejects.toThrow(ValidationError);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(usageDoc()).toBeUndefined();
+  });
+
+  it("região de país não-lusófono resolve o idioma-alvo da IA (ver 'Idioma da IA na demo')", async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            status: "OK",
+            results: [
+              {
+                formatted_address: "Miami, FL, Estados Unidos",
+                geometry: {
+                  location: { lat: 25.76, lng: -80.19 },
+                  viewport: {
+                    northeast: { lat: 25.9, lng: -80.1 },
+                    southwest: { lat: 25.6, lng: -80.3 },
+                  },
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
+
+    const geo = await geocodeRegion(db, "Miami FL", DEFAULT_CAPS);
+
+    expect(geo.idioma).toBe("en-US");
+  });
+
+  it("cache antigo sem idioma deriva na leitura, sem regravar o doc", async () => {
+    db.seed(`geocache/${regiaoCacheKey("Zurique")}`, {
+      regiao: "Zurique",
+      endereco: "Zürich, Suíça",
+      location: { lat: 47.37, lng: 8.54 },
+      viewport: {
+        low: { latitude: 47.3, longitude: 8.4 },
+        high: { latitude: 47.43, longitude: 8.6 },
+      },
+      criadoEm: "2026-01-01T00:00:00.000Z",
+    });
+
+    const geo = await geocodeRegion(db, "Zurique", DEFAULT_CAPS);
+
+    expect(geo.cached).toBe(true);
+    expect(geo.idioma).toBe("de-CH");
+    expect(db.getDoc(`geocache/${regiaoCacheKey("Zurique")}`)).not.toHaveProperty("idioma");
+  });
+});
+
+describe("idiomaDoEndereco", () => {
+  it("default pt-BR pro Brasil e países desconhecidos", () => {
+    expect(idiomaDoEndereco("Sarandi, PR, Brasil")).toBe("pt-BR");
+    expect(idiomaDoEndereco("Nárnia")).toBe("pt-BR");
+  });
+
+  it("resolve países fora do Brasil", () => {
+    expect(idiomaDoEndereco("Lisboa, Portugal")).toBe("pt-PT");
+    expect(idiomaDoEndereco("Madrid, Espanha")).toBe("es-ES");
+    expect(idiomaDoEndereco("Paris, França")).toBe("fr-FR");
   });
 });

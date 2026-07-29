@@ -171,7 +171,7 @@ export default function MensagensPage() {
             ← Conversas
           </button>
           <h1 className="font-display text-base font-bold text-foreground">
-            {interlocutor?.nome ?? com}
+            {interlocutor?.nome ?? "usuário removido"}
           </h1>
           {interlocutor && !interlocutor.ativo && (
             <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-muted">
@@ -277,12 +277,12 @@ export default function MensagensPage() {
                 className="card-lift flex w-full items-center gap-3 rounded-lg border border-line bg-surface p-3 text-left"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 font-display text-sm font-bold uppercase text-accent">
-                  {(usuario?.nome ?? conversa.comUserId).slice(0, 1)}
+                  {(usuario?.nome ?? "usuário removido").slice(0, 1)}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <span className="truncate text-sm font-semibold text-foreground">
-                      {usuario?.nome ?? conversa.comUserId}
+                      {usuario?.nome ?? "usuário removido"}
                     </span>
                     {usuario && !usuario.ativo && (
                       <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-muted">

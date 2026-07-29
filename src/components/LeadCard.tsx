@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { SeloContato } from "./SeloContato";
 import { StatusBadge } from "./StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
+import type { NomesUsuarios } from "@/lib/contato-selo";
 import { estadoAtual } from "@/lib/leads/horarios";
 import type { Lead } from "@/lib/leads/types";
 
@@ -25,6 +27,7 @@ export function LeadCard({
   score,
   destaque,
   argumentoForte,
+  nomes,
   onChange,
 }: {
   lead: Lead;
@@ -36,6 +39,8 @@ export function LeadCard({
   destaque?: boolean;
   /** Penetração de site do nicho dele é >60% — argumento forte (badge discreto). */
   argumentoForte?: boolean;
+  /** id → nome, pra resolver o selo de contato (GET /api/usuarios/nomes). */
+  nomes: NomesUsuarios;
   onChange: (lead: Lead) => void;
 }) {
   const [editandoNotas, setEditandoNotas] = useState(false);
@@ -178,6 +183,12 @@ export function LeadCard({
         <p className={`mt-1 text-xs ${estado.aberto ? "font-medium text-good" : "text-ink-muted"}`}>
           {estado.texto}
         </p>
+      )}
+
+      {lead.seloContato && (
+        <div className="mt-2">
+          <SeloContato lead={lead} nomes={nomes} />
+        </div>
       )}
 
       {editandoNotas ? (

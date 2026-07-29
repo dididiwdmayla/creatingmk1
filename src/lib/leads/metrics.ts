@@ -9,6 +9,8 @@ export interface Metrics {
   taxaResposta: number;
   /** Leads com demo salva (campo `demo` presente) — card do dashboard. */
   demosCriadas: number;
+  /** Leads fechados (contato.fechadoEm) NESTE mês corrente (UTC) — card "Fechamentos do mês". */
+  fechamentosMes: number;
 }
 
 /** Rollup de ações-chave de UM usuário (admin vê a lista completa). */
@@ -16,6 +18,8 @@ export interface MetricsUsuario {
   buscas: number;
   demos: number;
   contatos: number;
+  /** Fechamentos (vendedor do lead, contato.fechadoPor) NESTE mês corrente. */
+  fechamentosMes: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -39,6 +43,7 @@ export async function getMetrics(
     now.getUTCMonth(),
     now.getUTCDate(),
   );
+  const startOfMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
   const sevenDaysAgo = now.getTime() - 7 * DAY_MS;
 
   const snapshot = await db.collection(LEADS_COLLECTION).get();
@@ -48,6 +53,7 @@ export async function getMetrics(
   let comPrimeiroContato = 0;
   let comResposta = 0;
   let demosCriadas = 0;
+  let fechamentosMes = 0;
 
   for (const doc of snapshot.docs) {
     const lead = doc.data() as unknown as Lead;
@@ -64,6 +70,12 @@ export async function getMetrics(
     if (lead.demo && (userId === undefined || lead.demo.criadoPor === userId)) {
       demosCriadas += 1;
     }
+    const fechadoEm = lead.contato?.fechadoEm;
+    const fechamentoDoUsuario =
+      userId === undefined || lead.contato?.fechadoPor === userId;
+    if (fechadoEm && fechamentoDoUsuario && Date.parse(fechadoEm) >= startOfMonth) {
+      fechamentosMes += 1;
+    }
   }
 
   return {
@@ -71,6 +83,7 @@ export async function getMetrics(
     contatosSemana,
     taxaResposta: comPrimeiroContato > 0 ? comResposta / comPrimeiroContato : 0,
     demosCriadas,
+    fechamentosMes,
   };
 }
 
@@ -81,10 +94,12 @@ export async function getMetrics(
  */
 export async function getMetricsPorUsuario(
   db: AppDb,
+  now: Date = new Date(),
 ): Promise<Record<string, MetricsUsuario>> {
+  const startOfMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
   const porUsuario: Record<string, MetricsUsuario> = {};
   const de = (userId: string): MetricsUsuario =>
-    (porUsuario[userId] ??= { buscas: 0, demos: 0, contatos: 0 });
+    (porUsuario[userId] ??= { buscas: 0, demos: 0, contatos: 0, fechamentosMes: 0 });
 
   const buscas = await db.collection(BUSCAS_COLLECTION).get();
   for (const doc of buscas.docs) {
@@ -97,6 +112,10 @@ export async function getMetricsPorUsuario(
     const lead = doc.data() as unknown as Lead;
     if (lead.demo?.criadoPor) de(lead.demo.criadoPor).demos += 1;
     if (lead.contato?.primeiroContatoPor) de(lead.contato.primeiroContatoPor).contatos += 1;
+    const fechadoEm = lead.contato?.fechadoEm;
+    if (lead.contato?.fechadoPor && fechadoEm && Date.parse(fechadoEm) >= startOfMonth) {
+      de(lead.contato.fechadoPor).fechamentosMes += 1;
+    }
   }
 
   return porUsuario;

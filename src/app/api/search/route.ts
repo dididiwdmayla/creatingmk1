@@ -95,7 +95,7 @@ export async function POST(req: Request) {
     const { criados, existentes, leads } = await upsertLeads(
       db,
       resultado.places,
-      { nicho, subNicho, regiao },
+      { nicho, subNicho, regiao, idioma: geo.idioma },
       buscaId,
       now,
     );

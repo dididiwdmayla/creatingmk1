@@ -132,10 +132,11 @@ export default function DashboardPage() {
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Prospecção
         </h2>
-        <div className="mt-3 grid grid-cols-3 gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile label="Hoje" value={formatInt(metrics.contatosHoje)} />
           <StatTile label="Últimos 7 dias" value={formatInt(metrics.contatosSemana)} />
           <StatTile label="Taxa de resposta" value={formatPercent(metrics.taxaResposta)} />
+          <StatTile label="Fechamentos do mês" value={formatInt(metrics.fechamentosMes)} />
         </div>
       </section>
 
@@ -152,11 +153,12 @@ export default function DashboardPage() {
               return (
                 <div key={u.userId} className="rounded border border-line p-3">
                   <p className="text-sm font-semibold text-foreground">{u.nome}</p>
-                  <div className="mt-2 grid grid-cols-4 gap-2 text-center">
+                  <div className="mt-2 grid grid-cols-5 gap-2 text-center">
                     <MiniStat label="Requests" value={formatInt(requests)} />
                     <MiniStat label="Buscas" value={formatInt(u.buscas)} />
                     <MiniStat label="Demos" value={formatInt(u.demos)} />
                     <MiniStat label="Contatos" value={formatInt(u.contatos)} />
+                    <MiniStat label="Fechamentos" value={formatInt(u.fechamentosMes)} />
                   </div>
                   {uso && requests > 0 && (
                     <p className="mt-2 font-mono text-[10px] text-ink-muted">

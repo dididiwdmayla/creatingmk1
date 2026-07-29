@@ -86,7 +86,7 @@ export interface UpsertResult {
 export async function upsertLeads(
   db: AppDb,
   places: PlaceBasico[],
-  busca: { nicho: string; subNicho?: string; regiao: string },
+  busca: { nicho: string; subNicho?: string; regiao: string; idioma?: string },
   buscaId: string,
   now: Date = new Date(),
 ): Promise<UpsertResult> {
@@ -217,6 +217,15 @@ const STATUS_STAMPS: Partial<Record<LeadStatus, keyof NonNullable<Lead["contato"
   fechado: "fechadoEm",
 };
 
+/**
+ * Carimbo de QUEM fez a transição-chave (métricas por usuário): quem
+ * contactou primeiro e quem fechou (vendedor — ver "Fechamentos do mês").
+ */
+const STATUS_POR_STAMPS: Partial<Record<LeadStatus, keyof NonNullable<Lead["contato"]>>> = {
+  contactado: "primeiroContatoPor",
+  fechado: "fechadoPor",
+};
+
 export async function changeStatus(
   db: AppDb,
   placeId: string,
@@ -234,14 +243,56 @@ export async function changeStatus(
   const stamp = STATUS_STAMPS[para];
   if (stamp && !contato[stamp]) {
     contato[stamp] = em;
-    // "Lead contactado" é ação-chave: registra QUEM contactou (métricas
-    // por usuário). Só no primeiro carimbo, junto com o timestamp.
-    if (para === "contactado" && userId) {
-      contato.primeiroContatoPor = userId;
+    const porStamp = STATUS_POR_STAMPS[para];
+    if (porStamp && userId) {
+      contato[porStamp] = userId;
     }
   }
 
   const updated: Lead = { ...lead, status: para, contato, atualizadoEm: em };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/**
+ * Selo "já contatou este lead": carimbado ao clicar no WhatsApp, à parte da
+ * transição de status. Primeiro clique prevalece — cliques seguintes (do
+ * mesmo usuário ou de outro, após confirmar o modal) são no-op aqui.
+ */
+export async function registrarSeloContato(
+  db: AppDb,
+  placeId: string,
+  userId: string,
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  if (lead.seloContato) return lead;
+  const updated: Lead = {
+    ...lead,
+    seloContato: { userId, em: now.toISOString() },
+    atualizadoEm: now.toISOString(),
+  };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/**
+ * Ajuste do vendedor do fechamento pelo admin (default é quem marcou
+ * "fechado" — ver STATUS_STAMPS/changeStatus). Só faz sentido em lead já
+ * fechado; chamador (rota) garante isso e a permissão de admin.
+ */
+export async function ajustarVendidoPor(
+  db: AppDb,
+  placeId: string,
+  vendidoPor: string,
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  const updated: Lead = {
+    ...lead,
+    contato: { ...lead.contato, fechadoPor: vendidoPor },
+    atualizadoEm: now.toISOString(),
+  };
   await docRef(db, placeId).set(toDoc(updated));
   return updated;
 }

@@ -20,3 +20,8 @@ export function formatDateTime(iso: string): string {
     timeStyle: "short",
   });
 }
+
+/** "27/07" — sem ano/hora, usado no modal de confirmação do selo de contato. */
+export function formatDateShort(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}

@@ -31,7 +31,9 @@ export async function GET(req: Request) {
     const porUsuario = Object.entries(rollup)
       .map(([userId, contadores]) => ({
         userId,
-        nome: nomes.get(userId) ?? userId,
+        // Usuário excluído (item "Excluir usuário") some de /usuarios mas
+        // as ações-chave dele ficam no rollup — mostra o fallback, não o id cru.
+        nome: nomes.get(userId) ?? "usuário removido",
         ...contadores,
       }))
       .sort((a, b) => a.nome.localeCompare(b.nome));

@@ -4,6 +4,7 @@ import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import {
   atualizarUsuario,
   criarUsuario,
+  excluirUsuario,
   getUsuario,
   getUsuarioPorNome,
   listUsuarios,
@@ -133,5 +134,59 @@ describe("atualizarUsuario", () => {
     await expect(atualizarUsuario(db, "nope", { ativo: false }, NOW)).rejects.toThrow(
       /não encontrado/,
     );
+  });
+});
+
+describe("excluirUsuario", () => {
+  it("apaga o doc do usuário e os contadores de cota dele, mantendo os de outros", async () => {
+    const db = new FakeFirestore();
+    const ana = await criarUsuario(db, { nome: "Ana" }, NOW);
+    const beto = await criarUsuario(db, { nome: "Beto" }, NOW);
+    db.seed(`usage_users/${ana.id}/dias/2026-07-15`, { buscas: 3, enriquecimentos: 1 });
+    db.seed(`usage_users/${ana.id}/dias/2026-07-16`, { buscas: 1, enriquecimentos: 0 });
+    db.seed(`usage_users/${beto.id}/dias/2026-07-15`, { buscas: 5, enriquecimentos: 2 });
+
+    await excluirUsuario(db, ana.id, beto.id);
+
+    expect(await getUsuario(db, ana.id)).toBeUndefined();
+    expect(db.getDoc(`usage_users/${ana.id}/dias/2026-07-15`)).toBeUndefined();
+    expect(db.getDoc(`usage_users/${ana.id}/dias/2026-07-16`)).toBeUndefined();
+    // Cotas de outro usuário não são tocadas.
+    expect(db.getDoc(`usage_users/${beto.id}/dias/2026-07-15`)).toBeDefined();
+  });
+
+  it("bloqueia excluir a si mesmo", async () => {
+    const db = new FakeFirestore();
+    const ana = await criarUsuario(db, { nome: "Ana" }, NOW);
+
+    await expect(excluirUsuario(db, ana.id, ana.id)).rejects.toThrow(/próprio usuário/);
+    expect(await getUsuario(db, ana.id)).toBeDefined();
+  });
+
+  it("bloqueia excluir o último admin", async () => {
+    const db = new FakeFirestore();
+    await seedUsuariosSeVazio(db, "s", NOW);
+
+    // Um "requisitante" qualquer (a rota já garante que só admin chega aqui;
+    // o guarda-corpo do repositório é a defesa incondicional).
+    await expect(excluirUsuario(db, "admin", "outro-id")).rejects.toThrow(/último admin/);
+    expect(await getUsuario(db, "admin")).toBeDefined();
+  });
+
+  it("com um segundo admin, dá pra excluir um dos dois", async () => {
+    const db = new FakeFirestore();
+    await seedUsuariosSeVazio(db, "s", NOW);
+    const beto = await criarUsuario(db, { nome: "Beto", papel: "admin" }, NOW);
+
+    await excluirUsuario(db, "admin", beto.id);
+
+    expect(await getUsuario(db, "admin")).toBeUndefined();
+    expect(await getUsuario(db, beto.id)).toBeDefined();
+  });
+
+  it("usuário inexistente → NotFound", async () => {
+    const db = new FakeFirestore();
+
+    await expect(excluirUsuario(db, "nope", "quem-pediu")).rejects.toThrow(/não encontrado/);
   });
 });

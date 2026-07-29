@@ -157,6 +157,9 @@ export const api = {
   me: () => request<{ usuario: UsuarioPublico }>("/api/me"),
 
   listUsuarios: () => request<{ usuarios: UsuarioPublico[] }>("/api/usuarios"),
+  listNomesUsuarios: () =>
+    request<{ usuarios: Array<{ id: string; nome: string }> }>("/api/usuarios/nomes"),
+  excluirUsuario: (id: string) => request<void>(`/api/usuarios/${id}`, { method: "DELETE" }),
   createUsuario: (dados: { nome: string; papel?: Papel; senha?: string }) =>
     request<{ usuario: UsuarioPublico }>("/api/usuarios", {
       method: "POST",
@@ -261,12 +264,21 @@ export const api = {
   getLead: (id: string) => request<{ lead: Lead }>(`/api/leads/${id}`),
   patchLead: (
     id: string,
-    patch: { status?: LeadStatus; notas?: string; favorito?: boolean; descartado?: boolean },
+    patch: {
+      status?: LeadStatus;
+      notas?: string;
+      favorito?: boolean;
+      descartado?: boolean;
+      /** Admin ajusta o vendedor do fechamento (default: quem fechou). */
+      vendidoPor?: string;
+    },
   ) =>
     request<{ lead: Lead }>(`/api/leads/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
+  registrarContato: (id: string) =>
+    request<{ lead: Lead }>(`/api/leads/${id}/contato`, { method: "POST" }),
   enrichLead: (id: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/enrich`, { method: "POST" }),
   buscarHorarios: (id: string) =>

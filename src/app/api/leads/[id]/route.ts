@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { NotFoundError, ValidationError } from "@/lib/errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, readJsonBody } from "@/lib/http";
-import { changeStatus, getLead, updateLeadExtras } from "@/lib/leads/repo";
+import { ajustarVendidoPor, changeStatus, getLead, updateLeadExtras } from "@/lib/leads/repo";
 import { LEAD_STATUSES, type Lead, type LeadStatus } from "@/lib/leads/types";
-import { usuarioDaRequest } from "@/lib/usuarios";
+import { getUsuario, usuarioDaRequest } from "@/lib/usuarios";
 
 export const NOTAS_MAX = 500;
 
@@ -26,8 +26,9 @@ export async function GET(_req: Request, { params }: Params) {
 
 /**
  * Atualização parcial do lead: transição de status (novo → contactado →
- * respondeu → fechado) e/ou notas/favorito/descartado editáveis direto no
- * card. Descartar é suave: não deleta, só marca (reversível).
+ * respondeu → fechado), ajuste do vendedor do fechamento (admin) e/ou
+ * notas/favorito/descartado editáveis direto no card. Descartar é suave:
+ * não deleta, só marca (reversível).
  */
 export async function PATCH(req: Request, { params }: Params) {
   try {
@@ -35,14 +36,15 @@ export async function PATCH(req: Request, { params }: Params) {
     const body = await readJsonBody(req);
     const problemas: string[] = [];
 
-    const { status, notas, favorito, descartado } = body;
+    const { status, notas, favorito, descartado, vendidoPor } = body;
     if (
       status === undefined &&
       notas === undefined &&
       favorito === undefined &&
-      descartado === undefined
+      descartado === undefined &&
+      vendidoPor === undefined
     ) {
-      problemas.push("informe ao menos um de: status, notas, favorito, descartado");
+      problemas.push("informe ao menos um de: status, notas, favorito, descartado, vendidoPor");
     }
     if (
       status !== undefined &&
@@ -61,6 +63,9 @@ export async function PATCH(req: Request, { params }: Params) {
     if (descartado !== undefined && typeof descartado !== "boolean") {
       problemas.push("descartado deve ser booleano");
     }
+    if (vendidoPor !== undefined && (typeof vendidoPor !== "string" || !vendidoPor.trim())) {
+      problemas.push("vendidoPor deve ser string não vazia");
+    }
     if (problemas.length > 0) {
       throw new ValidationError(problemas);
     }
@@ -68,7 +73,8 @@ export async function PATCH(req: Request, { params }: Params) {
     const db = getDb();
     let lead: Lead | undefined;
     if (status !== undefined) {
-      // "Lead contactado" registra quem contactou (métricas por usuário).
+      // "Lead contactado"/"fechado" registram quem fez a transição (métricas
+      // por usuário e card "Fechamentos do mês").
       const usuario = await usuarioDaRequest(db, req);
       lead = await changeStatus(db, id, status as LeadStatus, undefined, usuario?.id);
     }
@@ -78,6 +84,22 @@ export async function PATCH(req: Request, { params }: Params) {
         favorito: favorito as boolean | undefined,
         descartado: descartado as boolean | undefined,
       });
+    }
+    if (vendidoPor !== undefined) {
+      // Ajuste do vendedor é restrito ao admin — o default (quem fechou)
+      // já vem de changeStatus acima; isto é só a correção manual.
+      const usuario = await usuarioDaRequest(db, req);
+      if (!usuario || usuario.papel !== "admin") throw new ForbiddenError();
+      const alvo = (lead ?? (await getLead(db, id))) as Lead | undefined;
+      if (!alvo) throw new NotFoundError(`Lead "${id}" não encontrado.`);
+      if (alvo.status !== "fechado") {
+        throw new ValidationError(["vendidoPor só pode ser ajustado em lead fechado"]);
+      }
+      const vendedor = await getUsuario(db, vendidoPor as string);
+      if (!vendedor) {
+        throw new ValidationError([`vendidoPor: usuário "${vendidoPor}" não encontrado`]);
+      }
+      lead = await ajustarVendidoPor(db, id, vendidoPor as string);
     }
     return NextResponse.json({ lead });
   } catch (error) {

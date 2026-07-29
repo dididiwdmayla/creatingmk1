@@ -2,6 +2,7 @@ export {
   atualizarUsuario,
   carimbarVisita,
   criarUsuario,
+  excluirUsuario,
   getUsuario,
   getUsuarioPorNome,
   listUsuarios,

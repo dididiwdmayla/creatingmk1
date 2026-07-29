@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
-import { getMetrics } from "../metrics";
+import { getMetrics, getMetricsPorUsuario } from "../metrics";
 
 const NOW = new Date("2026-07-15T12:00:00Z");
 
@@ -30,6 +30,7 @@ describe("getMetrics", () => {
       contatosSemana: 0,
       taxaResposta: 0,
       demosCriadas: 0,
+      fechamentosMes: 0,
     });
   });
 
@@ -121,5 +122,41 @@ describe("getMetrics", () => {
     const metrics = await getMetrics(db, NOW);
 
     expect(metrics.demosCriadas).toBe(1);
+  });
+
+  it("fechamentosMes conta só fechados NESTE mês corrente (UTC)", async () => {
+    const db = new FakeFirestore();
+    seedLead(db, "A", { fechadoEm: "2026-07-15T00:00:00.000Z", fechadoPor: "ana" });
+    seedLead(db, "B", { fechadoEm: "2026-06-30T23:59:59.000Z", fechadoPor: "ana" }); // mês anterior
+    seedLead(db, "C"); // nunca fechado
+
+    const metrics = await getMetrics(db, NOW);
+
+    expect(metrics.fechamentosMes).toBe(1);
+  });
+
+  it("fechamentosMes escopado por usuário (fechadoPor)", async () => {
+    const db = new FakeFirestore();
+    seedLead(db, "A", { fechadoEm: "2026-07-15T00:00:00.000Z", fechadoPor: "ana" });
+    seedLead(db, "B", { fechadoEm: "2026-07-15T00:00:00.000Z", fechadoPor: "beto" });
+
+    expect((await getMetrics(db, NOW, "ana")).fechamentosMes).toBe(1);
+    expect((await getMetrics(db, NOW, "beto")).fechamentosMes).toBe(1);
+    expect((await getMetrics(db, NOW, "carla")).fechamentosMes).toBe(0);
+  });
+});
+
+describe("getMetricsPorUsuario", () => {
+  it("fechamentosMes só soma fechamentos deste mês, por vendedor", async () => {
+    const db = new FakeFirestore();
+    seedLead(db, "A", { fechadoEm: "2026-07-15T00:00:00.000Z", fechadoPor: "ana" });
+    seedLead(db, "B", { fechadoEm: "2026-07-16T00:00:00.000Z", fechadoPor: "ana" });
+    seedLead(db, "C", { fechadoEm: "2026-06-01T00:00:00.000Z", fechadoPor: "ana" }); // mês anterior
+    seedLead(db, "D", { fechadoEm: "2026-07-10T00:00:00.000Z", fechadoPor: "beto" });
+
+    const rollup = await getMetricsPorUsuario(db, NOW);
+
+    expect(rollup.ana.fechamentosMes).toBe(2);
+    expect(rollup.beto.fechamentosMes).toBe(1);
   });
 });

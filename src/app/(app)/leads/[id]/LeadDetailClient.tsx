@@ -4,19 +4,23 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
+import { SeloContato } from "@/components/SeloContato";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
+import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import type { UsoUsuario } from "@/lib/costs";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { formatDateTime } from "@/lib/format";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
+import { useWhatsAppContato } from "@/lib/useWhatsAppContato";
 import { buildWhatsAppLink } from "@/lib/wa";
 
 const TRANSITION_LABELS: Record<LeadStatus, string> = {
@@ -51,10 +55,18 @@ export function LeadDetailClient({ id }: { id: string }) {
   const [buscandoHorarios, setBuscandoHorarios] = useState(false);
   const [horariosErro, setHorariosErro] = useState<string | null>(null);
   const [changingTo, setChangingTo] = useState<LeadStatus | null>(null);
+  const [salvandoVendedor, setSalvandoVendedor] = useState(false);
+  const [vendedorErro, setVendedorErro] = useState<string | null>(null);
   const [descartando, setDescartando] = useState(false);
   const [demoErro, setDemoErro] = useState<string | null>(null);
   const [demoAviso, setDemoAviso] = useState<string | null>(null);
   const [argumentoAviso, setArgumentoAviso] = useState<string | null>(null);
+
+  // Selo de contato (item independente do status): quem sou eu + nomes pra
+  // resolver o selo/badge, e se sou admin (ajuste do vendedor do fechamento).
+  const [meuId, setMeuId] = useState<string | null>(null);
+  const [souAdmin, setSouAdmin] = useState(false);
+  const [nomes, setNomes] = useState<NomesUsuarios>({});
 
   // Cota individual de enriquecimentos — indicador permanente junto do botão.
   const [cotaEnrich, setCotaEnrich] = useState<UsoUsuario | null>(null);
@@ -97,10 +109,33 @@ export function LeadDetailClient({ id }: { id: string }) {
       .catch(() => {
         // indicador é cortesia — o bloqueio real é do servidor
       });
+    api
+      .me()
+      .then(({ usuario }) => {
+        if (ignore) return;
+        setMeuId(usuario.id);
+        setSouAdmin(usuario.papel === "admin");
+      })
+      .catch(() => {
+        // sem sessão identificável: selo/ajuste ficam indisponíveis, sem erro fatal
+      });
+    api
+      .listNomesUsuarios()
+      .then(({ usuarios }) => {
+        if (!ignore) setNomes(Object.fromEntries(usuarios.map((u) => [u.id, u.nome])));
+      })
+      .catch(() => {
+        // selo cai no fallback "usuário removido" — não é bloqueante
+      });
     return () => {
       ignore = true;
     };
   }, [id]);
+
+  const { pendente, clicar, confirmar, cancelar, mensagemConfirmacao } = useWhatsAppContato(
+    meuId,
+    setLead,
+  );
 
   async function handleEnrich() {
     setEnriching(true);
@@ -156,6 +191,20 @@ export function LeadDetailClient({ id }: { id: string }) {
       setErro(error instanceof ApiError ? error.message : "Falha ao trocar o status.");
     } finally {
       setChangingTo(null);
+    }
+  }
+
+  async function handleVendidoPor(novoId: string) {
+    if (!novoId) return;
+    setSalvandoVendedor(true);
+    setVendedorErro(null);
+    try {
+      const { lead: updated } = await api.patchLead(id, { vendidoPor: novoId });
+      setLead(updated);
+    } catch (error) {
+      setVendedorErro(error instanceof ApiError ? error.message : "Falha ao ajustar o vendedor.");
+    } finally {
+      setSalvandoVendedor(false);
     }
   }
 
@@ -385,10 +434,13 @@ export function LeadDetailClient({ id }: { id: string }) {
 
       <PrecificacaoCard nicho={lead.busca?.nicho ?? ""} regiaoTexto={lead.busca?.regiao} />
 
+      <SeloContato lead={lead} nomes={nomes} />
+
       {waLink && (
         <div className="flex flex-col gap-1.5">
           <a
             href={waLink}
+            onClick={(event) => clicar(event, lead, waLink)}
             target="_blank"
             rel="noopener noreferrer"
             className={`rounded px-3 py-2 text-center text-sm font-semibold text-good-ink transition ${
@@ -408,6 +460,15 @@ export function LeadDetailClient({ id }: { id: string }) {
           )}
         </div>
       )}
+
+      <ConfirmModal
+        aberto={pendente !== null}
+        titulo="Lead já contatado"
+        mensagem={mensagemConfirmacao(nomes) ?? ""}
+        confirmarLabel="Contatar mesmo assim"
+        onConfirmar={confirmar}
+        onCancelar={cancelar}
+      />
 
       <section className="rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center justify-between gap-2">
@@ -498,7 +559,34 @@ export function LeadDetailClient({ id }: { id: string }) {
             {lead.contato.fechadoEm && (
               <Row label="Fechado" value={formatDateTime(lead.contato.fechadoEm)} compact />
             )}
+            {lead.contato.fechadoEm && lead.contato.fechadoPor && (
+              <Row label="Vendedor" value={nomeUsuario(nomes, lead.contato.fechadoPor)} compact />
+            )}
           </dl>
+        )}
+        {lead.status === "fechado" && souAdmin && (
+          <div className="mt-3 flex items-center gap-2">
+            <label className="text-xs text-ink-muted" htmlFor="vendidoPor">
+              Ajustar vendedor:
+            </label>
+            <select
+              id="vendidoPor"
+              value={lead.contato?.fechadoPor ?? ""}
+              disabled={salvandoVendedor}
+              onChange={(event) => handleVendidoPor(event.target.value)}
+              className="rounded border border-line bg-surface-2 px-2 py-1 text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+            >
+              <option value="" disabled>
+                Selecione…
+              </option>
+              {Object.entries(nomes).map(([id, nome]) => (
+                <option key={id} value={id}>
+                  {nome}
+                </option>
+              ))}
+            </select>
+            {vendedorErro && <span className="text-xs text-critical">{vendedorErro}</span>}
+          </div>
         )}
       </section>
 

@@ -7,6 +7,7 @@ import {
   CAMPOS_LIMITE_USUARIO,
   PAPEIS,
   atualizarUsuario,
+  excluirUsuario,
   publico,
   requireAdmin,
   type LimitesPatch,
@@ -90,6 +91,26 @@ export async function PATCH(req: Request, { params }: Params) {
       limites: limitesPatch,
     });
     return NextResponse.json({ usuario: publico(usuario) });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+
+/**
+ * Exclusão real (admin), além de desativar (ver ARCHITECTURE.md e
+ * excluirUsuario): leads/contatos/mensagens registrados por ele continuam
+ * intactos — só deixam de resolver o nome ("usuário removido" na UI).
+ * Contadores de cota individual dele são apagados. Bloqueado para si mesmo
+ * e para o último admin.
+ */
+export async function DELETE(req: Request, { params }: Params) {
+  try {
+    const { id } = await params;
+    const db = getDb();
+    const requisitante = await requireAdmin(db, req);
+
+    await excluirUsuario(db, id, requisitante.id);
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     return handleRouteError(error);
   }

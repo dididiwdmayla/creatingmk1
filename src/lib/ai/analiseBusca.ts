@@ -11,6 +11,11 @@ import { AiError, gerarJson } from "./gemini";
  * aiGeneration, mesma cota das demais chamadas de IA — ver ./sugestao).
  * Ao contrário da sugestão de demo, NÃO há retry em resposta inválida:
  * o pedido é "uma chamada só" — falhar de novo é AiError direto.
+ *
+ * Ao contrário de ./sugestao (idioma do PAÍS do lead), esta análise é
+ * SEMPRE em português do Brasil, mesmo para grupos de região não-lusófona:
+ * é leitura interna do time, não texto entregue ao lead — decisão
+ * deliberada ("Idioma da IA na demo").
  */
 
 const ANALISE_MAX = 1500;

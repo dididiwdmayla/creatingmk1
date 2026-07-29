@@ -39,6 +39,10 @@ class FakeDocRef implements AppDocRef {
   set(data: Record<string, unknown>, options?: { merge?: boolean }): void {
     this.db.applyWrite(this.path, data, options?.merge ?? false);
   }
+
+  delete(): void {
+    this.db.deleteDoc(this.path);
+  }
 }
 
 class FakeTransaction implements UsageTransaction {
@@ -123,6 +127,10 @@ export class FakeFirestore implements AppDb {
   applyWrite(path: string, data: Record<string, unknown>, merge: boolean): void {
     const current = merge ? (this.docs.get(path) ?? {}) : {};
     this.docs.set(path, { ...current, ...structuredClone(data) });
+  }
+
+  deleteDoc(path: string): void {
+    this.docs.delete(path);
   }
 
   private listDocs(collection: string): AppQueryDocSnapshot[] {
