@@ -3,6 +3,7 @@ import { fontesPorPapel } from "@/lib/demos/fontes";
 import { HEX_RE } from "@/lib/demos/tema";
 import { ANIMACOES, type Animacao, type SkinDefinition } from "@/lib/demos/types";
 import type { UsageDb } from "@/lib/firestore-like";
+import { IDIOMA_PADRAO, idiomaLabel } from "@/lib/geo/geocode";
 import type { Lead } from "@/lib/leads/types";
 import { AiError, gerarJson } from "./gemini";
 
@@ -53,25 +54,6 @@ const CHAVES_SUGESTAO = [
   "idioma",
 ] as const;
 
-/** Default do idioma-alvo (ver "Idioma da IA na demo") — região desconhecida ou pré-feature. */
-export const IDIOMA_PADRAO = "pt-BR";
-
-/** Rótulo em português do idioma-alvo, pra instruir o Gemini (raiz do BCP-47; pt-BR tem rótulo próprio). */
-const IDIOMA_RAIZ_LABEL: Record<string, string> = {
-  pt: "português",
-  en: "inglês",
-  es: "espanhol",
-  fr: "francês",
-  de: "alemão",
-  it: "italiano",
-  nl: "holandês",
-};
-
-function idiomaLabel(idioma: string): string {
-  if (idioma === "pt-BR") return "português do Brasil";
-  const raiz = idioma.split("-")[0];
-  return IDIOMA_RAIZ_LABEL[raiz] ?? idioma;
-}
 
 /**
  * Seções que a IA pode intitular: só as NÃO-fixas. O título da fixa (hero)
