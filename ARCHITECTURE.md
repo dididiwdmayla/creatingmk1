@@ -258,12 +258,31 @@ src/
           FaqAccordion.tsx           # acordeão com um item aberto por vez (primeiro já aberto, fiel ao original)
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+      imobiliaria/
+        Skin.tsx                    # composição { data, theme }, sem hooks próprios
+        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
+        secoes.ts                   # contrato SkinSecaoDef[]
+        themes.ts                   # default + presets de tema
+        exemplo.ts                  # DemoData de exemplo (base da ficha)
+        propriedade.ts              # parseImovel (convenção "Selo • especificações") + formatarPreco ("Sob consulta")
+        interactive/                # ✅ subcomponentes "use client" (animações/interação)
+          SectionReveal.tsx          # entrada de seção por scroll, intensidade = theme.animacao (+ className p/ item de grid)
+          Reveal.tsx                  # stagger fino fiel ao data-reveal original (fade+translateY, atraso em ms)
+          Nav.tsx                     # nav fixa que troca claro/escuro conforme a seção sob ela (data-nav-theme)
+          ParallaxHero.tsx            # parallax sutil da imagem do hero no scroll, gateado por theme.animacao
+          ManifestoReveal.tsx        # manifesto que "acende" palavra a palavra no scroll (roda mesmo com animacao "nenhuma", fiel ao original)
+          Carousel.tsx                # vitrine de bairros arrastável por pointer events puros
+          CustomCursor.tsx           # ponto na cor de destaque que cresce sobre card de imóvel, gateado por theme.animacao
+          ContatoForm.tsx             # captação de e-mail com submit fake (sem request de verdade, fiel ao original)
+          IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
+          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
 public/
   demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/tatuagem/*.svg              # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/lancheria/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/barbearia2/*.svg            # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/tatuagem2/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
+  demos/imobiliaria/*.svg           # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).

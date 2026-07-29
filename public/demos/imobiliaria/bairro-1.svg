@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1140" role="img" aria-label="Placeholder: rua arborizada">
+  <defs>
+    <linearGradient id="b1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F1E4CC"/>
+      <stop offset="1" stop-color="#DCCBA8"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1140" fill="url(#b1)"/>
+  <rect y="820" width="800" height="320" fill="#C9B78E"/>
+  <rect y="820" width="800" height="26" fill="#F7F1E8" opacity="0.7"/>
+  <g fill="#3E4A34">
+    <circle cx="140" cy="560" r="110"/>
+    <rect x="128" y="640" width="24" height="180"/>
+    <circle cx="660" cy="520" r="130"/>
+    <rect x="646" y="620" width="28" height="200"/>
+    <circle cx="380" cy="480" r="90"/>
+    <rect x="370" y="550" width="20" height="270"/>
+  </g>
+  <g fill="#C4572E" opacity="0.9">
+    <circle cx="120" cy="530" r="10"/>
+    <circle cx="170" cy="580" r="8"/>
+    <circle cx="640" cy="490" r="10"/>
+  </g>
+</svg>

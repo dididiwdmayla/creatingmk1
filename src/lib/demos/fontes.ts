@@ -140,6 +140,18 @@ export const DEMO_FONTES: readonly DemoFonte[] = [
     css: "var(--font-demo-archivo), Arial, sans-serif",
     papeis: ["display", "corpo"],
   },
+  {
+    id: "fraunces",
+    nome: "Fraunces (serif editorial calorosa)",
+    css: "var(--font-demo-fraunces), Georgia, serif",
+    papeis: ["display"],
+  },
+  {
+    id: "hanken-grotesk",
+    nome: "Hanken Grotesk (sans neutra e legível)",
+    css: "var(--font-demo-hanken), system-ui, sans-serif",
+    papeis: ["corpo"],
+  },
 ];
 
 export function getFonte(id: string | undefined): DemoFonte | undefined {

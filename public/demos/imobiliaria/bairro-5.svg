@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1140" role="img" aria-label="Placeholder: fachada modernista">
+  <defs>
+    <linearGradient id="b5" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#E7DCC8"/>
+      <stop offset="1" stop-color="#D6C39C"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1140" fill="url(#b5)"/>
+  <rect x="120" y="220" width="560" height="700" fill="#F7F1E8"/>
+  <g fill="#3E4A34">
+    <rect x="160" y="280" width="480" height="16"/>
+    <rect x="160" y="440" width="480" height="16"/>
+    <rect x="160" y="600" width="480" height="16"/>
+    <rect x="160" y="760" width="480" height="16"/>
+  </g>
+  <g fill="#F2B33D" opacity="0.85">
+    <rect x="190" y="316" width="90" height="100"/>
+    <rect x="360" y="316" width="90" height="100"/>
+    <rect x="530" y="316" width="90" height="100"/>
+    <rect x="190" y="476" width="90" height="100"/>
+    <rect x="360" y="476" width="90" height="100"/>
+    <rect x="530" y="476" width="90" height="100"/>
+    <rect x="190" y="636" width="90" height="100"/>
+    <rect x="360" y="636" width="90" height="100"/>
+    <rect x="530" y="636" width="90" height="100"/>
+  </g>
+  <rect x="330" y="820" width="140" height="100" fill="#C4572E"/>
+</svg>
