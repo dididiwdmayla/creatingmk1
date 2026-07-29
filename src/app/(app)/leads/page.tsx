@@ -4,12 +4,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/Button";
+import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { LeadCard } from "@/components/LeadCard";
+import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api } from "@/lib/api-client";
+import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import type { Busca } from "@/lib/buscas/types";
 import type { FiltroPresenca } from "@/lib/config";
+import type { UsoUsuario } from "@/lib/costs";
 import { formatDateTime } from "@/lib/format";
+import { argumentoForte } from "@/lib/leads/penetracao";
 import { calculaScore } from "@/lib/leads/score";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
 
@@ -138,6 +143,12 @@ function agruparPorBusca(leads: Lead[], buscas: Busca[]): Grupo[] {
   return grupos;
 }
 
+/** Penetração do nicho dele é >60% — badge "argumento forte" no card. */
+function leadArgumentoForte(lead: Lead, buscas: Busca[]): boolean {
+  const info = penetracaoParaLead(lead, buscas);
+  return info !== undefined && argumentoForte(info.penetracao);
+}
+
 export default function LeadsPage() {
   return (
     <Suspense fallback={<p className="text-sm text-ink-muted">Carregando…</p>}>
@@ -188,7 +199,7 @@ function LeadsPageInner() {
   const [regiao, setRegiao] = useState("");
   const [nomeBusca, setNomeBusca] = useState("");
   const [quantidade, setQuantidade] = useState(20);
-  const [qualificada, setQualificada] = useState(false);
+  const [soSemSite, setSoSemSite] = useState(false);
   const [autoEnrich, setAutoEnrich] = useState(false);
   const [autoEnrichN, setAutoEnrichN] = useState(3);
   const [buscando, setBuscando] = useState(false);
@@ -205,6 +216,17 @@ function LeadsPageInner() {
   const [iaDisponivel, setIaDisponivel] = useState(false);
   const [analisando, setAnalisando] = useState(false);
   const [iaErro, setIaErro] = useState<string | null>(null);
+
+  // Cota individual de buscas — indicador permanente, atualizado após cada busca.
+  const [cotaBuscas, setCotaBuscas] = useState<UsoUsuario | null>(null);
+  function recarregarCotaBuscas() {
+    api
+      .getCotas()
+      .then(({ buscas: uso }) => setCotaBuscas(uso))
+      .catch(() => {
+        // indicador é cortesia — o bloqueio real é do servidor
+      });
+  }
 
   const filters: LeadFiltersState = { status, temSite, temTelefone, soFavoritos, buscaId };
 
@@ -250,6 +272,14 @@ function LeadsPageInner() {
       })
       .catch(() => {
         if (!ignore) setIaDisponivel(false);
+      });
+    api
+      .getCotas()
+      .then(({ buscas: uso }) => {
+        if (!ignore) setCotaBuscas(uso);
+      })
+      .catch(() => {
+        // indicador é cortesia — o bloqueio real é do servidor
       });
     return () => {
       ignore = true;
@@ -354,8 +384,15 @@ function LeadsPageInner() {
     setParam("fechados", [...next].join(","));
   }
 
+  // Guarda sincrona contra reenvio (toque duplo/triplo no mobile antes do
+  // re-render desabilitar o botão): checada e setada ANTES de qualquer
+  // await, então nenhuma segunda chamada síncrona passa.
+  const buscandoRef = useRef(false);
+
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (buscandoRef.current) return;
+    buscandoRef.current = true;
     setBuscando(true);
     setBuscaMsg(null);
     setBuscaAviso(null);
@@ -367,7 +404,7 @@ function LeadsPageInner() {
       if (regiao.trim()) body.regiao = regiao.trim();
       if (nomeBusca.trim()) body.nome = nomeBusca.trim();
       body.quantidade = Math.min(Math.max(quantidade, 1), QUANTIDADE_MAX);
-      if (qualificada) body.qualificada = true;
+      if (soSemSite) body.soSemSite = true;
       const result = await api.search(body);
       setRegiaoResolvida(result.regiaoResolvida);
 
@@ -401,6 +438,13 @@ function LeadsPageInner() {
         setBuscaErro(
           `Teto mensal atingido para ${error.extra.sku} (${error.extra.used}/${error.extra.cap} em ${error.extra.period}).`,
         );
+      } else if (error instanceof ApiError && error.code === "user_quota_exceeded") {
+        const janela = error.extra.janela as string;
+        const janelaLabel = janela === "dia" ? "diário" : janela === "semana" ? "semanal" : "mensal";
+        setBuscaErro(
+          `Limite ${janelaLabel} de buscas atingido (${error.extra.used}/${error.extra.limite}). ` +
+            `Reseta em ${formatDateTime(error.extra.resetaEm as string)}.`,
+        );
       } else if (error instanceof ApiError && error.code === "places_error") {
         setBuscaErro(`Erro do Google: ${error.extra.detail ?? error.message}`);
       } else if (error instanceof ApiError && error.code === "validation_error") {
@@ -409,7 +453,9 @@ function LeadsPageInner() {
         setBuscaErro(error instanceof ApiError ? error.message : "Falha na busca.");
       }
     } finally {
+      buscandoRef.current = false;
       setBuscando(false);
+      recarregarCotaBuscas();
     }
   }
 
@@ -427,9 +473,12 @@ function LeadsPageInner() {
   return (
     <div className="flex flex-col gap-6">
       <form onSubmit={handleSearch} className="rounded-lg border border-line bg-surface p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Nova busca
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Nova busca
+          </h2>
+          {cotaBuscas && <CotaIndicador titulo="Sua cota" uso={cotaBuscas} />}
+        </div>
         <div className="mt-3 flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2">
             <input
@@ -489,14 +538,15 @@ function LeadsPageInner() {
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={qualificada}
-                onChange={(event) => setQualificada(event.target.checked)}
+                checked={soSemSite}
+                onChange={(event) => setSoSemSite(event.target.checked)}
                 className="h-4 w-4 accent-[var(--accent)]"
               />
               <span>
                 Só sem site{" "}
                 <span className="text-xs text-ink-muted">
-                  (qualificada: site + telefone de graça, tier Enterprise)
+                  (qualificada: site + telefone de graça, tier Enterprise — quem tem site
+                  próprio nem entra no resultado)
                 </span>
               </span>
             </label>
@@ -524,7 +574,7 @@ function LeadsPageInner() {
             />
             <span>automaticamente (máx. {AUTO_ENRICH_MAX})</span>
           </label>
-          <Button type="submit" loading={buscando}>
+          <Button type="submit" loading={buscando} disabled={cotaEsgotada(cotaBuscas)}>
             Buscar
           </Button>
         </div>
@@ -565,6 +615,40 @@ function LeadsPageInner() {
             </button>
           </div>
 
+          {buscaAtual?.penetracao && (
+            <div className="border-t border-accent/20 pt-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Penetração de site
+              </h3>
+              {buscaAtual.penetracao.percentuais ? (
+                <p className="mt-1 text-sm text-ink-secondary">
+                  Neste nicho nesta cidade:{" "}
+                  <strong className="font-semibold text-foreground">
+                    {buscaAtual.penetracao.percentuais.comSiteProprio}%
+                  </strong>{" "}
+                  têm site próprio · {buscaAtual.penetracao.percentuais.soRedeSocial}% só rede
+                  social · {buscaAtual.penetracao.percentuais.semNada}% sem presença{" "}
+                  <span className="text-xs text-ink-muted">
+                    (base: {buscaAtual.penetracao.total} estabelecimento
+                    {buscaAtual.penetracao.total === 1 ? "" : "s"})
+                  </span>
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-ink-muted">
+                  Base pequena demais ({buscaAtual.penetracao.total} estabelecimento
+                  {buscaAtual.penetracao.total === 1 ? "" : "s"} mapeado
+                  {buscaAtual.penetracao.total === 1 ? "" : "s"}) para mostrar percentual.
+                </p>
+              )}
+              {buscaAtual.penetracao.desconhecidos > 0 && (
+                <p className="mt-1 text-xs text-ink-muted">
+                  + {buscaAtual.penetracao.desconhecidos} lead(s) com site desconhecido (ainda
+                  não enriquecido nem de busca qualificada).
+                </p>
+              )}
+            </div>
+          )}
+
           {iaDisponivel && (
             <div className="border-t border-accent/20 pt-2">
               {analisando ? (
@@ -598,6 +682,14 @@ function LeadsPageInner() {
             </div>
           )}
         </div>
+      )}
+
+      {buscaAtual && (
+        <PrecificacaoCard
+          key={buscaAtual.id}
+          nicho={buscaAtual.nicho}
+          regiaoTexto={buscaAtual.regiao}
+        />
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -716,6 +808,7 @@ function LeadsPageInner() {
                           cores={cores}
                           score={calculaScore(lead)}
                           destaque={topDoGrupo.has(lead.placeId)}
+                          argumentoForte={leadArgumentoForte(lead, buscas)}
                           onChange={onLeadChange}
                         />
                       </li>
@@ -735,6 +828,7 @@ function LeadsPageInner() {
                 cores={cores}
                 score={calculaScore(lead)}
                 destaque={topFlat.has(lead.placeId)}
+                argumentoForte={leadArgumentoForte(lead, buscas)}
                 onChange={onLeadChange}
               />
             </li>

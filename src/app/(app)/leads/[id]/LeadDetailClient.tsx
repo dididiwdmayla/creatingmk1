@@ -4,13 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
+import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
+import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
+import type { UsoUsuario } from "@/lib/costs";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { formatDateTime } from "@/lib/format";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
+import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
 import { buildWhatsAppLink } from "@/lib/wa";
 
@@ -49,6 +54,18 @@ export function LeadDetailClient({ id }: { id: string }) {
   const [descartando, setDescartando] = useState(false);
   const [demoErro, setDemoErro] = useState<string | null>(null);
   const [demoAviso, setDemoAviso] = useState<string | null>(null);
+  const [argumentoAviso, setArgumentoAviso] = useState<string | null>(null);
+
+  // Cota individual de enriquecimentos — indicador permanente junto do botão.
+  const [cotaEnrich, setCotaEnrich] = useState<UsoUsuario | null>(null);
+  function recarregarCotaEnrich() {
+    api
+      .getCotas()
+      .then(({ enriquecimentos }) => setCotaEnrich(enriquecimentos))
+      .catch(() => {
+        // indicador é cortesia — o bloqueio real é do servidor
+      });
+  }
 
   useEffect(() => {
     let ignore = false;
@@ -72,6 +89,14 @@ export function LeadDetailClient({ id }: { id: string }) {
       .finally(() => {
         if (!ignore) setLoading(false);
       });
+    api
+      .getCotas()
+      .then(({ enriquecimentos }) => {
+        if (!ignore) setCotaEnrich(enriquecimentos);
+      })
+      .catch(() => {
+        // indicador é cortesia — o bloqueio real é do servidor
+      });
     return () => {
       ignore = true;
     };
@@ -88,6 +113,13 @@ export function LeadDetailClient({ id }: { id: string }) {
         setEnrichErro(
           `Teto mensal atingido para ${error.extra.sku} (${error.extra.used}/${error.extra.cap} em ${error.extra.period}).`,
         );
+      } else if (error instanceof ApiError && error.code === "user_quota_exceeded") {
+        const janela = error.extra.janela as string;
+        const janelaLabel = janela === "dia" ? "diário" : janela === "semana" ? "semanal" : "mensal";
+        setEnrichErro(
+          `Limite ${janelaLabel} de enriquecimentos atingido (${error.extra.used}/${error.extra.limite}). ` +
+            `Reseta em ${formatDateTime(error.extra.resetaEm as string)}.`,
+        );
       } else if (error instanceof ApiError && error.code === "places_error") {
         setEnrichErro(`Erro do Google: ${error.extra.detail ?? error.message}`);
       } else {
@@ -95,6 +127,7 @@ export function LeadDetailClient({ id }: { id: string }) {
       }
     } finally {
       setEnriching(false);
+      recarregarCotaEnrich();
     }
   }
 
@@ -133,6 +166,15 @@ export function LeadDetailClient({ id }: { id: string }) {
       setDemoErro(null);
     } catch {
       setDemoErro("Não deu pra copiar — copie da barra de endereço da demo.");
+    }
+  }
+
+  async function handleCopyArgumento(texto: string) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setArgumentoAviso("Copiado!");
+    } catch {
+      setArgumentoAviso(null);
     }
   }
 
@@ -177,21 +219,29 @@ export function LeadDetailClient({ id }: { id: string }) {
   const telefoneIntl = detalhes?.telefoneIntl ?? lead.telefoneIntl;
   // Só renderiza com lead carregado (client), então window existe.
   const demoUrl = `${window.location.origin}/demo/${lead.placeId}`;
-  const waLink =
-    telefoneIntl && config
-      ? buildWhatsAppLink(
-          mensagemParaLead(lead, buscas, config),
-          lead.nome,
-          telefoneIntl,
-          demoUrl,
-        )
-      : null;
   const skinAtual = getSkin(lead.demo?.skinId);
   // Derivado no servidor (asLead): true = site próprio; false = sem site OU
   // só rede social/agregador; undefined = desconhecido.
   const siteEhProprio = lead.siteProprio;
   const estado = estadoAtual(lead.horarios);
   const momento = melhorMomento(lead.horarios);
+
+  // Argumento de venda pronto: só para leads sem site próprio, e só quando
+  // a penetração do nicho+região dele já foi calculada (busca que o trouxe
+  // já rodou pelo menos uma vez com o agregado cacheado).
+  const penetracaoInfo = penetracaoParaLead(lead, buscas);
+  const argumento =
+    penetracaoInfo && siteEhProprio === false
+      ? argumentoPenetracao(penetracaoInfo.nicho, penetracaoInfo.regiao, penetracaoInfo.penetracao, lead.nome)
+      : undefined;
+
+  const waLink =
+    telefoneIntl && config
+      ? buildWhatsAppLink(mensagemParaLead(lead, buscas, config), lead.nome, telefoneIntl, {
+          demoUrl,
+          penetracao: argumento,
+        })
+      : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -231,6 +281,11 @@ export function LeadDetailClient({ id }: { id: string }) {
             </button>
           )}
         </div>
+        {cotaEnrich && (
+          <div className="mt-1.5">
+            <CotaIndicador titulo="Sua cota de enriquecimento" uso={cotaEnrich} />
+          </div>
+        )}
         {estado && (
           <p className={`mt-2 text-sm font-medium ${estado.aberto ? "text-good" : "text-ink-muted"}`}>
             {estado.texto}
@@ -286,13 +341,49 @@ export function LeadDetailClient({ id }: { id: string }) {
             <p className="text-sm text-ink-muted">
               Ainda não enriquecido{lead.temTelefone ? " (rating e mais no enriquecimento)" : ""}.
             </p>
-            <Button onClick={handleEnrich} loading={enriching} className="mt-3">
+            <Button
+              onClick={handleEnrich}
+              loading={enriching}
+              disabled={cotaEsgotada(cotaEnrich)}
+              className="mt-3"
+            >
               Enriquecer
             </Button>
             {enrichErro && <p className="mt-2 text-sm text-critical">{enrichErro}</p>}
           </div>
         )}
       </section>
+
+      {argumento && penetracaoInfo && (
+        <section className="rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              Argumento de venda
+            </h2>
+            {argumentoForte(penetracaoInfo.penetracao) && (
+              <span
+                title="Mais de 60% da concorrência do nicho já tem site — argumento forte"
+                className="shrink-0 rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning"
+              >
+                argumento forte
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-sm text-ink-secondary">{argumento}</p>
+          <div className="mt-2 flex items-center gap-2">
+            <Button variant="secondary" onClick={() => handleCopyArgumento(argumento)}>
+              Copiar
+            </Button>
+            {argumentoAviso && <span className="text-xs text-good">{argumentoAviso}</span>}
+          </div>
+          <p className="mt-2 text-xs text-ink-muted">
+            Use <code className="font-mono">{"{penetracao}"}</code> na mensagem do WhatsApp para
+            incluir esta linha automaticamente.
+          </p>
+        </section>
+      )}
+
+      <PrecificacaoCard nicho={lead.busca?.nicho ?? ""} regiaoTexto={lead.busca?.regiao} />
 
       {waLink && (
         <div className="flex flex-col gap-1.5">

@@ -3,6 +3,7 @@ import {
   Bebas_Neue,
   Cormorant_Garamond,
   Crimson_Pro,
+  DM_Serif_Display,
   Fraunces,
   Fugaz_One,
   Inter,
@@ -93,14 +94,6 @@ const fraunces = Fraunces({
   weight: ["400", "500"],
 });
 
-// Sans neutra do corpo de texto da skin de barbearia2 — igual ao material
-// bruto (Archivo 400/500, nunca itálico).
-const archivo = Archivo({
-  variable: "--font-demo-archivo",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-});
-
 // Pesos 400/900, estilo normal only — igual ao material bruto (que também
 // não carrega itálico real: o "font-light italic" do Manifesto usa itálico
 // SINTÉTICO sobre a face normal, e peso 300 sem face própria cai no 400
@@ -112,6 +105,30 @@ const playfairBlack = Playfair_Display({
   weight: ["400", "900"],
 });
 
+// Dupla tipográfica da skin "Tatuagem Pigmento Vivo" (CROMA Tattoo Studio):
+// DM Serif Display cobre títulos/citações/wordmark; Archivo cobre corpo,
+// rótulos e preços — o material bruto não tem uma família monoespaçada
+// separada, então `mono`/`destaque` reaproveitam a mesma Archivo (ver
+// components/demos/tatuagem2/themes.ts).
+const dmSerif = DM_Serif_Display({
+  variable: "--font-demo-dm-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+});
+
+// Sans neutra compartilhada por duas skins: corpo de texto da barbearia2
+// (Archivo 400/500, nunca itálico no material bruto dela) e corpo/rótulos/
+// preços da "Tatuagem Pigmento Vivo" (400/500/600/700 + itálico — sem
+// família monoespaçada separada lá, `mono`/`destaque` reaproveitam esta
+// mesma fonte). Pesos e itálico somados cobrem os dois usos.
+const archivo = Archivo({
+  variable: "--font-demo-archivo",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+});
+
 /** Ids da lista curada (fontes.ts) já cobertos por este pacote estático. */
 export const CORE_FONT_IDS: readonly string[] = [
   "bebas",
@@ -121,6 +138,8 @@ export const CORE_FONT_IDS: readonly string[] = [
   "limelight",
   "pirata",
   "fugaz",
+  "dm-serif",
+  "archivo",
 ];
 
 export const demoCoreFontsClassName = [
@@ -135,5 +154,6 @@ export const demoCoreFontsClassName = [
   playfairBlack.variable,
   fugaz.variable,
   fraunces.variable,
+  dmSerif.variable,
   archivo.variable,
 ].join(" ");

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { QuotaExceededError } from "../errors";
+import { QuotaExceededError, UserQuotaExceededError } from "../errors";
+import { saoPauloWeekStartKey, saoPauloDateKey } from "../periodoUsuario";
 import { DEFAULT_CAPS, type UsageCounts } from "../skus";
 import { getUsage, reserveQuota } from "../usage";
 import { FakeFirestore } from "../../testing/fake-firestore";
@@ -184,9 +185,9 @@ describe("reserveQuota", () => {
   it("com userId, incrementa também a quebra porUsuario (teto continua agregado)", async () => {
     const db = new FakeFirestore();
 
-    await reserveQuota(db, "textSearch", caps(), NOW, "ana");
-    await reserveQuota(db, "textSearch", caps(), NOW, "ana");
-    await reserveQuota(db, "textSearch", caps(), NOW, "beto");
+    await reserveQuota(db, "textSearch", caps(), NOW, { userId: "ana" });
+    await reserveQuota(db, "textSearch", caps(), NOW, { userId: "ana" });
+    await reserveQuota(db, "textSearch", caps(), NOW, { userId: "beto" });
     await reserveQuota(db, "textSearch", caps(), NOW); // sem usuário identificado
 
     const doc = db.getDoc(DOC);
@@ -194,6 +195,100 @@ describe("reserveQuota", () => {
     const porUsuario = doc?.porUsuario as Record<string, Record<string, number>>;
     expect(porUsuario.ana.textSearch).toBe(2);
     expect(porUsuario.beto.textSearch).toBe(1);
+  });
+
+  it("admin ignora o teto GLOBAL mas o contador ainda incrementa", async () => {
+    const db = new FakeFirestore();
+    db.seed(DOC, { textSearch: 100 });
+
+    const result = await reserveQuota(db, "textSearch", caps({ textSearch: 100 }), NOW, {
+      userId: "admin",
+      isAdmin: true,
+    });
+
+    expect(result.usage.textSearch).toBe(101);
+  });
+
+  it("sem userQuota, comportamento de membro é o de sempre (só o teto global)", async () => {
+    const db = new FakeFirestore();
+    const result = await reserveQuota(db, "textSearch", caps(), NOW, { userId: "membro-1" });
+    expect(result.usage.textSearch).toBe(1);
+  });
+
+  it("bloqueia no limite DIÁRIO individual, sem gravar nada na tentativa que estoura", async () => {
+    const db = new FakeFirestore();
+    const opts = {
+      userId: "membro-1",
+      userQuota: { tipo: "buscas" as const, limites: { buscasDia: 2 } },
+    };
+
+    await reserveQuota(db, "textSearch", caps(), NOW, opts);
+    await reserveQuota(db, "textSearch", caps(), NOW, opts);
+    await expect(reserveQuota(db, "textSearch", caps(), NOW, opts)).rejects.toThrow(
+      UserQuotaExceededError,
+    );
+
+    // a 3ª tentativa não gravou nem o contador global nem o do usuário
+    expect(db.getDoc(DOC)?.textSearch).toBe(2);
+    expect(db.getDoc(`usage_users/membro-1/dias/${saoPauloDateKey(NOW)}`)?.buscas).toBe(2);
+  });
+
+  it("admin nunca é bloqueado por limite individual, mesmo com userQuota presente", async () => {
+    const db = new FakeFirestore();
+    const opts = {
+      userId: "admin",
+      isAdmin: true,
+      userQuota: { tipo: "buscas" as const, limites: { buscasDia: 1 } },
+    };
+
+    await reserveQuota(db, "textSearch", caps(), NOW, opts);
+    const result = await reserveQuota(db, "textSearch", caps(), NOW, opts);
+
+    expect(result.usage.textSearch).toBe(2);
+  });
+
+  it("sem limite configurado em nenhuma janela, nunca bloqueia — mas grava o dia", async () => {
+    const db = new FakeFirestore();
+
+    await reserveQuota(db, "textSearch", caps(), NOW, {
+      userId: "membro-1",
+      userQuota: { tipo: "buscas", limites: undefined },
+    });
+
+    expect(db.getDoc(`usage_users/membro-1/dias/${saoPauloDateKey(NOW)}`)).toMatchObject({
+      buscas: 1,
+      enriquecimentos: 0,
+    });
+  });
+
+  it("limite SEMANAL soma os dias já gravados na semana (segunda a hoje)", async () => {
+    const db = new FakeFirestore();
+    const segunda = saoPauloWeekStartKey(saoPauloDateKey(NOW));
+    db.seed(`usage_users/membro-1/dias/${segunda}`, { buscas: 5 });
+
+    await expect(
+      reserveQuota(db, "textSearch", caps(), NOW, {
+        userId: "membro-1",
+        userQuota: { tipo: "buscas", limites: { buscasSemana: 5 } },
+      }),
+    ).rejects.toThrow(UserQuotaExceededError);
+  });
+
+  it("busca e enriquecimento são cotas independentes do mesmo usuário", async () => {
+    const db = new FakeFirestore();
+    const limites = { buscasDia: 1, enriquecimentosDia: 5 };
+
+    await reserveQuota(db, "textSearch", caps(), NOW, {
+      userId: "membro-1",
+      userQuota: { tipo: "buscas", limites },
+    });
+
+    // busca já no limite, mas enriquecimento é outro contador — não bloqueia
+    const result = await reserveQuota(db, "detailsEnterprise", caps(), NOW, {
+      userId: "membro-1",
+      userQuota: { tipo: "enriquecimentos", limites },
+    });
+    expect(result.usage.detailsEnterprise).toBe(1);
   });
 });
 

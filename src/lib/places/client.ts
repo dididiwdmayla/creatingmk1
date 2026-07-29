@@ -1,6 +1,14 @@
-import { QuotaExceededError, reserveQuota, FIELD_MASKS, type Sku, type UsageCounts } from "@/lib/costs";
+import {
+  QuotaExceededError,
+  UserQuotaExceededError,
+  reserveQuota,
+  FIELD_MASKS,
+  type Sku,
+  type UsageCounts,
+} from "@/lib/costs";
 import type { UsageDb } from "@/lib/firestore-like";
 import { isSiteProprio } from "@/lib/site-proprio";
+import type { LimitesUsuario } from "@/lib/usuarios/types";
 
 /**
  * Cliente da Google Places API (New). Único ponto do app que fala com o
@@ -93,6 +101,13 @@ export interface SearchTextOptions {
   quantidade?: number;
   /** Busca qualificada: mask com websiteUri/telefones → SKU textSearchEnterprise. */
   qualificada?: boolean;
+  /**
+   * "Só sem site": filtro pós-resposta que descarta (nem entra no
+   * resultado) quem tem siteProprio true — implica qualificada (precisa do
+   * mask com websiteUri para classificar). Continua paginando até juntar
+   * `quantidade` leads que passem no filtro, ou os limites de sempre.
+   */
+  soSemSite?: boolean;
   /** Localização dura: retângulo (viewport geocodificado) da região. */
   locationRestriction?: LatLngRect;
   /**
@@ -103,6 +118,10 @@ export interface SearchTextOptions {
   isNovo?: (placeId: string) => Promise<boolean>;
   /** Usuário logado — cada reserva de cota registra a quebra por usuário. */
   userId?: string;
+  /** Sessão admin: ignora o teto global E a cota individual de "buscas". */
+  isAdmin?: boolean;
+  /** Limites individuais do dono da busca — cota "buscas" (dia/semana/mês). */
+  limitesUsuario?: LimitesUsuario;
 }
 
 export interface SearchTextResult {
@@ -186,6 +205,12 @@ function toPlaceBasico(place: GooglePlace, qualificada: boolean): PlaceBasico | 
  * Se o teto (ou o Google) falhar a partir da 2ª página, devolve o que já
  * foi obtido com `aviso` — a cota da 1ª página já foi consumida, então
  * jogar os resultados fora seria pagar sem receber.
+ *
+ * Guarda "N = N": o `places` devolvido NUNCA passa de `quantidade`, mesmo
+ * que a caçada por inéditos tenha varrido 3 páginas cheias de duplicados
+ * (repetidos de buscas anteriores). Inéditos têm prioridade pelas vagas;
+ * duplicados só preenchem o que sobrar — se os inéditos já fecham a
+ * quantidade, nenhum duplicado entra (não ocupam vaga do N).
  */
 export async function searchText(
   db: UsageDb,
@@ -198,13 +223,15 @@ export async function searchText(
     Math.max(Math.floor(options.quantidade ?? PAGE_SIZE_MAX), 1),
     SEARCH_MAX_RESULTS,
   );
-  const qualificada = options.qualificada ?? false;
+  const soSemSite = options.soSemSite ?? false;
+  // "Só sem site" precisa classificar siteProprio pra filtrar → força o mask qualificado.
+  const qualificada = (options.qualificada ?? false) || soSemSite;
   const sku: Sku = qualificada ? "textSearchEnterprise" : "textSearch";
   // pageSize constante entre as páginas: a API exige os mesmos parâmetros
   // (fora o pageToken) nas chamadas de continuação.
   const pageSize = Math.min(quantidade, PAGE_SIZE_MAX);
 
-  const places: PlaceBasico[] = [];
+  const entradas: Array<{ place: PlaceBasico; novo: boolean }> = [];
   const vistos = new Set<string>();
   let novos = 0;
   let paginas = 0;
@@ -213,11 +240,20 @@ export async function searchText(
 
   while (paginas < SEARCH_MAX_PAGES) {
     try {
-      await reserveQuota(db, sku, caps, undefined, options.userId);
+      await reserveQuota(db, sku, caps, undefined, {
+        userId: options.userId,
+        isAdmin: options.isAdmin,
+        userQuota: { tipo: "buscas", limites: options.limitesUsuario },
+      });
     } catch (error) {
+      const estourouCota =
+        error instanceof QuotaExceededError || error instanceof UserQuotaExceededError;
       // 1ª página: nada foi consumido, o erro sobe (rota → 429).
-      if (paginas === 0 || !(error instanceof QuotaExceededError)) throw error;
-      aviso = `teto mensal de "${sku}" atingido após ${paginas} página(s)`;
+      if (paginas === 0 || !estourouCota) throw error;
+      aviso =
+        error instanceof UserQuotaExceededError
+          ? `limite individual de "${sku}" atingido após ${paginas} página(s)`
+          : `teto mensal de "${sku}" atingido após ${paginas} página(s)`;
       break;
     }
 
@@ -251,10 +287,13 @@ export async function searchText(
       const place = toPlaceBasico(raw, qualificada);
       if (!place || vistos.has(place.placeId)) continue;
       vistos.add(place.placeId);
-      places.push(place);
-      if ((await options.isNovo?.(place.placeId)) ?? true) {
-        novos += 1;
-      }
+      // Filtro pós-resposta do "só sem site": quem tem site próprio nem
+      // entra no resultado da busca qualificada (pode existir na base de
+      // outra busca, mas não é resultado desta).
+      if (soSemSite && place.siteProprio === true) continue;
+      const novo = (await options.isNovo?.(place.placeId)) ?? true;
+      if (novo) novos += 1;
+      entradas.push({ place, novo });
     }
 
     pageToken = data.nextPageToken;
@@ -267,7 +306,28 @@ export async function searchText(
       : `resultados esgotados: ${novos} novo(s) em ${paginas} página(s)`;
   }
 
+  // Inéditos primeiro (as vagas do N são deles); duplicados só preenchem
+  // sobra. slice(0, quantidade) é a guarda dura: o resultado desta execução
+  // nunca passa do N pedido, nem quando 3 páginas cheias de duplicados
+  // foram varridas atrás dos inéditos.
+  const places = [
+    ...entradas.filter((e) => e.novo).map((e) => e.place),
+    ...entradas.filter((e) => !e.novo).map((e) => e.place),
+  ].slice(0, quantidade);
+
   return { places, paginas, novos, aviso };
+}
+
+export interface PlaceDetailsCtx {
+  userId?: string;
+  /** Sessão admin: ignora o teto global E a cota individual de "enriquecimentos". */
+  isAdmin?: boolean;
+  /**
+   * Presente só quando esta chamada deve contar para a cota individual de
+   * enriquecimentos — hoje, só o clique em "Enriquecer" (não o horário
+   * avulso/embutido, que só reserva o SKU global).
+   */
+  limitesUsuario?: LimitesUsuario;
 }
 
 /** Place Details (New) com o field mask Enterprise, SKU detailsEnterprise. */
@@ -275,10 +335,14 @@ export async function placeDetails(
   db: UsageDb,
   placeId: string,
   caps: UsageCounts,
-  userId?: string,
+  ctx: PlaceDetailsCtx = {},
 ): Promise<DetalhesLugar> {
   const key = requireApiKey();
-  await reserveQuota(db, "detailsEnterprise", caps, undefined, userId);
+  await reserveQuota(db, "detailsEnterprise", caps, undefined, {
+    userId: ctx.userId,
+    isAdmin: ctx.isAdmin,
+    userQuota: { tipo: "enriquecimentos", limites: ctx.limitesUsuario },
+  });
 
   const url = `${BASE_URL}/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`;
   const res = await fetch(url, {
@@ -343,16 +407,21 @@ function toFaixas(
  * Horário de funcionamento (New) com o field mask Pro, SKU detailsProHours
  * — contador PRÓPRIO, separado do enriquecimento Enterprise (placeDetails).
  * Chamado JUNTO do enriquecimento (2 requests distintos) ou sozinho pelo
- * botão "buscar horários" de leads já enriquecidos.
+ * botão "buscar horários" de leads já enriquecidos. NUNCA conta para a cota
+ * individual de "enriquecimentos" (decisão de produto) — só o teto GLOBAL
+ * do SKU se aplica, com o mesmo bypass de admin dos demais.
  */
 export async function placeHours(
   db: UsageDb,
   placeId: string,
   caps: UsageCounts,
-  userId?: string,
+  ctx: { userId?: string; isAdmin?: boolean } = {},
 ): Promise<HorariosLugar> {
   const key = requireApiKey();
-  await reserveQuota(db, "detailsProHours", caps, undefined, userId);
+  await reserveQuota(db, "detailsProHours", caps, undefined, {
+    userId: ctx.userId,
+    isAdmin: ctx.isAdmin,
+  });
 
   const url = `${BASE_URL}/places/${encodeURIComponent(placeId)}?languageCode=pt-BR`;
   const res = await fetch(url, {

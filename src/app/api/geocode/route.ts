@@ -5,6 +5,7 @@ import { ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { geocodeRegion } from "@/lib/geo/geocode";
 import { handleRouteError } from "@/lib/http";
+import { usuarioDaRequest } from "@/lib/usuarios";
 
 /**
  * Resolve a região da busca ("Buscando em: X" na UI, antes de confirmar).
@@ -15,6 +16,7 @@ export async function GET(req: Request) {
   try {
     const db = getDb();
     const param = new URL(req.url).searchParams.get("regiao");
+    const usuario = await usuarioDaRequest(db, req);
     const config = await loadConfig(db);
     const regiao = (param ?? config.regiao).trim();
     if (!regiao) {
@@ -22,7 +24,9 @@ export async function GET(req: Request) {
         "informe ?regiao= ou preencha a região default na config",
       ]);
     }
-    const geo = await geocodeRegion(db, regiao, config.caps);
+    const geo = await geocodeRegion(db, regiao, config.caps, {
+      isAdmin: usuario?.papel === "admin",
+    });
     return NextResponse.json({
       regiao: geo.regiao,
       endereco: geo.endereco,

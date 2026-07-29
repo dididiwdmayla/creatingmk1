@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { AiError, AiIndisponivelError } from "@/lib/ai/gemini";
-import { QuotaExceededError } from "@/lib/costs";
+import { QuotaExceededError, UserQuotaExceededError } from "@/lib/costs";
 import {
   ForbiddenError,
   InvalidTransitionError,
@@ -32,6 +32,15 @@ export function handleRouteError(error: unknown): NextResponse {
       used: error.used,
       cap: error.cap,
       period: error.period,
+    });
+  }
+  if (error instanceof UserQuotaExceededError) {
+    return jsonError(429, error.code, error.message, {
+      tipo: error.tipo,
+      janela: error.janela,
+      used: error.used,
+      limite: error.limite,
+      resetaEm: error.resetaEm,
     });
   }
   if (error instanceof PlacesError) {

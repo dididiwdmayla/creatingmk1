@@ -5,6 +5,30 @@ export const PAPEIS = ["admin", "membro"] as const;
 export type Papel = (typeof PAPEIS)[number];
 
 /**
+ * Limites individuais de cota (buscas/enriquecimentos), três janelas
+ * independentes por tipo. Campo ausente = sem limite naquela janela.
+ * Nunca editável pelo próprio usuário — só via rota admin
+ * (atualizarUsuario/PATCH /api/usuarios/[id]).
+ */
+export interface LimitesUsuario {
+  buscasDia?: number;
+  buscasSemana?: number;
+  buscasMes?: number;
+  enriquecimentosDia?: number;
+  enriquecimentosSemana?: number;
+  enriquecimentosMes?: number;
+}
+
+export const CAMPOS_LIMITE_USUARIO = [
+  "buscasDia",
+  "buscasSemana",
+  "buscasMes",
+  "enriquecimentosDia",
+  "enriquecimentosSemana",
+  "enriquecimentosMes",
+] as const satisfies readonly (keyof LimitesUsuario)[];
+
+/**
  * Um usuário do app (coleção /usuarios). O seed inicial (primeiro login
  * após a migração) cria o admin — com a APP_PASSWORD atual como senha — e
  * dois membros SEM senha (o admin define via /config). Usuário sem
@@ -31,6 +55,14 @@ export interface Usuario {
    * Atualizado pelo próprio GET /api/hoje.
    */
   ultimaVisitaEm?: string;
+  /** Cotas individuais de buscas/enriquecimentos. Ausente = sem limite algum. */
+  limites?: LimitesUsuario;
+  /**
+   * Última posição do slider da calculadora de precificação (700–10.000,
+   * BRL) — self-service, atualizado pelo próprio PUT /api/precificacao/slider
+   * a cada mudança. Ausente = ainda não mexeu no slider.
+   */
+  ultimoPrecoBaseSlider?: number;
   criadoEm: string;
   atualizadoEm: string;
 }

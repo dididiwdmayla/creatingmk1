@@ -3,10 +3,45 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
-import { ApiError, api } from "@/lib/api-client";
-import { DEFAULT_CONFIG, type AppConfig, type FiltroPresenca } from "@/lib/config";
+import { UsageMeter } from "@/components/UsageMeter";
+import { ApiError, api, type CotasUsuariosResponse, type UsageResponse } from "@/lib/api-client";
+import {
+  DEFAULT_CONFIG,
+  type AppConfig,
+  type FiltroPresenca,
+  type PresetPrecificacao,
+} from "@/lib/config";
+import type { Sku, UsoUsuario } from "@/lib/costs";
+import { SLIDER_MAX_BRL, SLIDER_MIN_BRL, SLIDER_STEP_BRL } from "@/lib/precificacao/calc";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
-import type { Papel, UsuarioPublico } from "@/lib/usuarios/types";
+import type { LimitesUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
+
+/** SKUs relevantes à cota individual — resumo compacto no topo da seção de cotas. */
+const SKUS_COTA_INDIVIDUAL: Sku[] = [
+  "textSearch",
+  "textSearchEnterprise",
+  "detailsEnterprise",
+  "detailsProHours",
+];
+
+type CampoLimite = keyof LimitesUsuario;
+
+const JANELAS: Array<{ chave: "dia" | "semana" | "mes"; label: string; sufixo: "Dia" | "Semana" | "Mes" }> = [
+  { chave: "dia", label: "Hoje", sufixo: "Dia" },
+  { chave: "semana", label: "Semana", sufixo: "Semana" },
+  { chave: "mes", label: "Mês", sufixo: "Mes" },
+];
+
+/** Fetcher puro (não mexe em estado) — reaproveitado pela carga inicial e por "zerar dia". */
+async function fetchCotasData(): Promise<{ cotas: CotasUsuariosResponse; usage: UsageResponse }> {
+  const [cotas, usage] = await Promise.all([api.getCotasUsuarios(), api.getUsage()]);
+  return { cotas, usage };
+}
+
+/** Mensagem de erro com o `code` da API — sem isso, um 500 inesperado vira só "falha genérica". */
+function mensagemErroCotas(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? `${fallback} (${error.code}): ${error.message}` : fallback;
+}
 
 const PRESENCA_OPTIONS: Array<{ value: FiltroPresenca; label: string }> = [
   { value: "qualquer", label: "Qualquer" },
@@ -60,6 +95,7 @@ export default function ConfigPage() {
   return (
     <div className="flex flex-col gap-6 pb-6">
       <UsuariosSection />
+      <CotasUsuariosSection />
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Busca</h2>
@@ -129,8 +165,10 @@ export default function ConfigPage() {
           Mensagem padrão
         </h2>
         <p className="mt-1 text-xs text-ink-muted">
-          Use <code className="font-mono">{"{nome}"}</code> para o nome do lead e{" "}
-          <code className="font-mono">{"{demo}"}</code> para o link da demo personalizada.
+          Use <code className="font-mono">{"{nome}"}</code> para o nome do lead,{" "}
+          <code className="font-mono">{"{demo}"}</code> para o link da demo personalizada e{" "}
+          <code className="font-mono">{"{penetracao}"}</code> para a linha de argumento de
+          penetração de site (só quando o lead não tem site próprio).
         </p>
         <textarea
           value={form.mensagemPadrao}
@@ -268,6 +306,85 @@ export default function ConfigPage() {
               </Field>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Precificação
+        </h2>
+        <p className="mt-1 text-xs text-ink-muted">
+          Parâmetros da calculadora do card &quot;Precificação&quot; (ficha do lead e grupo de
+          busca): preço sugerido = preço-base × índice efetivo da região × multiplicador do
+          nicho, nunca abaixo do piso.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Field label="Piso (R$)">
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={form.precificacao.pisoPrecificacao}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  precificacao: {
+                    ...form.precificacao,
+                    pisoPrecificacao: Number(e.target.value) || 0,
+                  },
+                })
+              }
+              className={INPUT_CLS}
+            />
+          </Field>
+          <Field label="Fator mínimo do índice">
+            <input
+              type="number"
+              min={0.01}
+              step={0.05}
+              value={form.precificacao.fatorMinimoIndice}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  precificacao: {
+                    ...form.precificacao,
+                    fatorMinimoIndice: Number(e.target.value) || 0,
+                  },
+                })
+              }
+              className={INPUT_CLS}
+            />
+          </Field>
+        </div>
+        <p className="mt-1 text-xs text-ink-muted">
+          Regiões baratas reduzem o preço em no máximo (1 − fator mínimo); regiões caras (índice
+          &gt; 1) sobem sem teto.
+        </p>
+
+        <div className="mt-4">
+          <h3 className="text-xs font-medium text-ink-secondary">Multiplicador por nicho</h3>
+          <p className="mt-1 text-xs text-ink-muted">
+            Nicho sem entrada aqui usa multiplicador 1.0 (neutro).
+          </p>
+          <MultiplicadoresNichoEditor
+            value={form.precificacao.multiplicadoresNicho}
+            onChange={(multiplicadoresNicho) =>
+              setForm({ ...form, precificacao: { ...form.precificacao, multiplicadoresNicho } })
+            }
+          />
+        </div>
+
+        <div className="mt-4">
+          <h3 className="text-xs font-medium text-ink-secondary">Presets do slider</h3>
+          <p className="mt-1 text-xs text-ink-muted">
+            Atalhos que reposicionam o preço-base no card de precificação.
+          </p>
+          <PresetsEditor
+            value={form.precificacao.presets}
+            onChange={(presets) =>
+              setForm({ ...form, precificacao: { ...form.precificacao, presets } })
+            }
+          />
         </div>
       </section>
 
@@ -481,5 +598,423 @@ function UsuariosSection() {
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
       {aviso && <p className="mt-2 text-sm text-good">{aviso}</p>}
     </section>
+  );
+}
+
+/**
+ * Cotas individuais (admin): tabela usado/limite × dia/semana/mês, por
+ * usuário, para os dois tipos (buscas/enriquecimentos) — reserveQuota já
+ * garante o bloqueio no servidor; esta seção só edita os limites e mostra
+ * o uso. Edição inline com efeito imediato (cada campo salva sozinho no
+ * blur, sem botão "Salvar" à parte — a config é lida fresca a cada
+ * request, então vale na busca/enriquecimento seguinte). "Zerar dia" refaz
+ * a leitura inteira: mais simples e correto que tentar ajustar local a
+ * soma de semana/mês, que é agregação pura sobre os dias.
+ */
+function CotasUsuariosSection() {
+  const [linhas, setLinhas] = useState<CotasUsuariosResponse["usuarios"] | null>(null);
+  const [usoGlobal, setUsoGlobal] = useState<UsageResponse | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    fetchCotasData()
+      .then(({ cotas, usage }) => {
+        if (ignore) return;
+        setLinhas(cotas.usuarios);
+        setUsoGlobal(usage);
+        setErro(null);
+      })
+      .catch((error) => {
+        if (ignore) return;
+        setErro(
+          error instanceof ApiError && error.status === 403
+            ? "Cotas são restritas ao admin."
+            : mensagemErroCotas(error, "Falha ao carregar as cotas"),
+        );
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function salvarLimite(id: string, campo: CampoLimite, valor: number | null) {
+    const chave = `${id}:${campo}`;
+    setOcupado(chave);
+    setErro(null);
+    try {
+      const { usuario } = await api.patchUsuario(id, { limites: { [campo]: valor } });
+      setLinhas((atual) =>
+        (atual ?? []).map((linha) =>
+          linha.id === id ? { ...linha, limites: usuario.limites ?? {} } : linha,
+        ),
+      );
+    } catch (error) {
+      setErro(mensagemErroCotas(error, "Falha ao salvar o limite"));
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  async function zerarDia(id: string, nome: string) {
+    setOcupado(`${id}:zerar`);
+    setErro(null);
+    setAviso(null);
+    try {
+      await api.zerarCotaDiaUsuario(id);
+      const { cotas, usage } = await fetchCotasData();
+      setLinhas(cotas.usuarios);
+      setUsoGlobal(usage);
+      setAviso(`Dia de "${nome}" zerado.`);
+    } catch (error) {
+      setErro(mensagemErroCotas(error, "Falha ao zerar o dia"));
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  if (erro && linhas === null) {
+    return (
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Cotas por usuário
+        </h2>
+        <p className="mt-2 text-sm text-ink-muted">{erro}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+        Cotas por usuário
+      </h2>
+      <p className="mt-1 text-xs text-ink-muted">
+        Vazio = sem limite naquela janela. Admin nunca é bloqueado — os limites dele aqui são só
+        informativos.
+      </p>
+
+      {usoGlobal && (
+        <div className="mt-3 flex flex-col gap-3 rounded border border-line p-3">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+            Teto global do mês (bloqueia membros; admin passa direto)
+          </p>
+          {SKUS_COTA_INDIVIDUAL.map((sku) => (
+            <UsageMeter
+              key={sku}
+              label={SKU_LABELS[sku]}
+              used={usoGlobal.usage[sku]}
+              cap={usoGlobal.caps[sku]}
+              freeQuota={usoGlobal.cotaGratis[sku]}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-col gap-3">
+        {linhas === null && <p className="text-sm text-ink-muted">Carregando…</p>}
+        {(linhas ?? []).map((linha) => (
+          <div key={linha.id} className="rounded border border-line p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`text-sm ${linha.ativo ? "text-foreground" : "text-ink-muted line-through"}`}>
+                {linha.nome}
+              </span>
+              <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-secondary">
+                {linha.papel}
+              </span>
+              <button
+                type="button"
+                disabled={ocupado === `${linha.id}:zerar`}
+                onClick={() => zerarDia(linha.id, linha.nome)}
+                className="ml-auto text-xs text-accent hover:underline disabled:opacity-50"
+              >
+                Zerar dia
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <LinhaCota
+                label="Buscas"
+                uso={linha.buscas}
+                prefixo="buscas"
+                userId={linha.id}
+                ocupado={ocupado}
+                onSalvar={salvarLimite}
+              />
+              <LinhaCota
+                label="Enriquecimentos"
+                uso={linha.enriquecimentos}
+                prefixo="enriquecimentos"
+                userId={linha.id}
+                ocupado={ocupado}
+                onSalvar={salvarLimite}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
+      {aviso && <p className="mt-2 text-sm text-good">{aviso}</p>}
+    </section>
+  );
+}
+
+function LinhaCota({
+  label,
+  uso,
+  prefixo,
+  userId,
+  ocupado,
+  onSalvar,
+}: {
+  label: string;
+  uso: UsoUsuario;
+  prefixo: "buscas" | "enriquecimentos";
+  userId: string;
+  ocupado: string | null;
+  onSalvar: (id: string, campo: CampoLimite, valor: number | null) => void;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-wide text-ink-muted">{label}</p>
+      <div className="mt-1.5 flex flex-col gap-1.5">
+        {JANELAS.map(({ chave, label: janelaLabel, sufixo }) => {
+          const campo = `${prefixo}${sufixo}` as CampoLimite;
+          const { usado, limite } = uso[chave];
+          return (
+            <div key={chave} className="flex items-center gap-2 text-xs text-ink-secondary">
+              <span className="w-14 shrink-0">{janelaLabel}</span>
+              <span className="font-mono text-foreground">{usado}</span>
+              <span className="text-ink-muted">/</span>
+              <LimiteInput
+                valor={limite}
+                disabled={ocupado === `${userId}:${campo}`}
+                onSalvar={(valor) => onSalvar(userId, campo, valor)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Input controlado: vazio = sem limite (null), número = limite. Salva no blur. */
+function LimiteInput({
+  valor,
+  disabled,
+  onSalvar,
+}: {
+  valor: number | undefined;
+  disabled: boolean;
+  onSalvar: (valor: number | null) => void;
+}) {
+  const [texto, setTexto] = useState(valor !== undefined ? String(valor) : "");
+  // Ressincroniza quando o valor vem de fora (salvo com sucesso ou recarga)
+  // — ajuste de estado durante a renderização, não em efeito (o valor pode
+  // mudar sem esta instância ter disparado a mudança, ex.: outra aba).
+  const [ultimoValor, setUltimoValor] = useState(valor);
+  if (valor !== ultimoValor) {
+    setUltimoValor(valor);
+    setTexto(valor !== undefined ? String(valor) : "");
+  }
+
+  function commit() {
+    const trimmed = texto.trim();
+    if (trimmed === "") {
+      if (valor !== undefined) onSalvar(null);
+      return;
+    }
+    const n = Number(trimmed);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+      setTexto(valor !== undefined ? String(valor) : ""); // inválido: reverte
+      return;
+    }
+    if (n !== valor) onSalvar(n);
+  }
+
+  return (
+    <input
+      type="number"
+      min={0}
+      step={1}
+      inputMode="numeric"
+      value={texto}
+      placeholder="∞"
+      disabled={disabled}
+      onChange={(event) => setTexto(event.target.value)}
+      onBlur={commit}
+      className="w-16 rounded border border-line bg-surface-2 px-2 py-1 text-center font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+    />
+  );
+}
+
+interface NichoRow {
+  id: string;
+  nicho: string;
+  multiplicador: string;
+}
+
+function linhasIniciais(value: Record<string, number>): NichoRow[] {
+  return Object.entries(value).map(([nicho, multiplicador]) => ({
+    id: crypto.randomUUID(),
+    nicho,
+    multiplicador: String(multiplicador),
+  }));
+}
+
+/**
+ * Lista chave-valor livre (nicho → multiplicador). Estado local em linhas
+ * (com id estável pra key do React, já que a chave em si é editável);
+ * sincroniza para `onChange` como Record a cada edição, ignorando linhas
+ * com nicho vazio (rascunho ainda sendo digitado).
+ */
+function MultiplicadoresNichoEditor({
+  value,
+  onChange,
+}: {
+  value: Record<string, number>;
+  onChange: (value: Record<string, number>) => void;
+}) {
+  const [linhas, setLinhas] = useState<NichoRow[]>(() => linhasIniciais(value));
+
+  function propagar(novas: NichoRow[]) {
+    setLinhas(novas);
+    const record: Record<string, number> = {};
+    for (const linha of novas) {
+      const nome = linha.nicho.trim();
+      const numero = Number(linha.multiplicador);
+      if (nome && Number.isFinite(numero) && numero > 0) record[nome] = numero;
+    }
+    onChange(record);
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      {linhas.map((linha) => (
+        <div key={linha.id} className="flex items-center gap-2">
+          <input
+            value={linha.nicho}
+            onChange={(e) =>
+              propagar(
+                linhas.map((l) => (l.id === linha.id ? { ...l, nicho: e.target.value } : l)),
+              )
+            }
+            placeholder="ex.: dentista"
+            className={`${INPUT_CLS} flex-1`}
+          />
+          <input
+            type="number"
+            min={0}
+            step={0.05}
+            value={linha.multiplicador}
+            onChange={(e) =>
+              propagar(
+                linhas.map((l) =>
+                  l.id === linha.id ? { ...l, multiplicador: e.target.value } : l,
+                ),
+              )
+            }
+            className="w-24 rounded border border-line bg-surface-2 px-2 py-2 text-sm text-foreground outline-none focus:border-accent"
+          />
+          <button
+            type="button"
+            onClick={() => propagar(linhas.filter((l) => l.id !== linha.id))}
+            className="shrink-0 text-xs text-critical hover:underline"
+          >
+            Remover
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() =>
+          propagar([...linhas, { id: crypto.randomUUID(), nicho: "", multiplicador: "1" }])
+        }
+        className="self-start text-xs font-medium text-accent hover:underline"
+      >
+        + Adicionar nicho
+      </button>
+    </div>
+  );
+}
+
+interface PresetRow {
+  id: string;
+  nome: string;
+  valorBRL: string;
+}
+
+/** Presets do slider (nome + valor em BRL) — mesmo padrão de edição em linhas do editor acima. */
+function PresetsEditor({
+  value,
+  onChange,
+}: {
+  value: PresetPrecificacao[];
+  onChange: (value: PresetPrecificacao[]) => void;
+}) {
+  const [linhas, setLinhas] = useState<PresetRow[]>(() =>
+    value.map((preset) => ({
+      id: crypto.randomUUID(),
+      nome: preset.nome,
+      valorBRL: String(preset.valorBRL),
+    })),
+  );
+
+  function propagar(novas: PresetRow[]) {
+    setLinhas(novas);
+    onChange(
+      novas
+        .map((linha) => ({ nome: linha.nome.trim(), valorBRL: Number(linha.valorBRL) }))
+        .filter((preset) => preset.nome && Number.isFinite(preset.valorBRL) && preset.valorBRL > 0),
+    );
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      {linhas.map((linha) => (
+        <div key={linha.id} className="flex items-center gap-2">
+          <input
+            value={linha.nome}
+            onChange={(e) =>
+              propagar(linhas.map((l) => (l.id === linha.id ? { ...l, nome: e.target.value } : l)))
+            }
+            placeholder="ex.: Vitrine"
+            className={`${INPUT_CLS} flex-1`}
+          />
+          <input
+            type="number"
+            min={SLIDER_MIN_BRL}
+            max={SLIDER_MAX_BRL}
+            step={SLIDER_STEP_BRL}
+            value={linha.valorBRL}
+            onChange={(e) =>
+              propagar(
+                linhas.map((l) => (l.id === linha.id ? { ...l, valorBRL: e.target.value } : l)),
+              )
+            }
+            className="w-28 rounded border border-line bg-surface-2 px-2 py-2 text-sm text-foreground outline-none focus:border-accent"
+          />
+          <button
+            type="button"
+            onClick={() => propagar(linhas.filter((l) => l.id !== linha.id))}
+            className="shrink-0 text-xs text-critical hover:underline"
+          >
+            Remover
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() =>
+          propagar([...linhas, { id: crypto.randomUUID(), nome: "", valorBRL: "1000" }])
+        }
+        className="self-start text-xs font-medium text-accent hover:underline"
+      >
+        + Adicionar preset
+      </button>
+    </div>
   );
 }

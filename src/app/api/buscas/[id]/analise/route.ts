@@ -32,7 +32,10 @@ export async function POST(req: Request, { params }: Params) {
 
     const usuario = await usuarioDaRequest(db, req);
     const config = await loadConfig(db);
-    const analise = await gerarAnaliseBusca(db, busca, leads, config.caps, usuario?.id);
+    const analise = await gerarAnaliseBusca(db, busca, leads, config.caps, {
+      userId: usuario?.id,
+      isAdmin: usuario?.papel === "admin",
+    });
     const atualizada = await salvarAnaliseIA(db, id, analise);
     return NextResponse.json({ busca: atualizada });
   } catch (error) {

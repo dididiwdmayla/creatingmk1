@@ -52,16 +52,23 @@ src/
       logout/route.ts               # ✅ POST limpa o cookie de sessão
       me/route.ts                   # ✅ GET usuário logado (id, nome, papel) — a UI escopa por papel
       usuarios/route.ts             # ✅ GET lista / POST cria usuário (admin)
-      usuarios/[id]/route.ts        # ✅ PATCH nome/papel/ativo/senha (admin; sem DELETE — desativa)
+      usuarios/[id]/route.ts        # ✅ PATCH nome/papel/ativo/senha/limites (admin; sem DELETE — desativa)
+      usuarios/[id]/zerar-dia/route.ts # ✅ POST zera o contador do dia corrente do usuário (admin)
+      usuarios/cotas/route.ts       # ✅ GET uso × limite de todos os usuários (admin, tabela do painel)
+      cotas/route.ts                # ✅ GET uso × limite do PRÓPRIO usuário (indicador em /leads e na ficha)
       config/route.ts               # ✅ GET config (qualquer sessão) / PUT (admin)
-      search/route.ts               # ✅ POST busca (geocode + Text Search paginado/qualificado) + registra em /buscas
+      search/route.ts               # ✅ POST busca (geocode + Text Search paginado/qualificado) + registra em /buscas — exige sessão (cota individual)
       geocode/route.ts              # ✅ GET região resolvida ("Buscando em: X"), cache em /geocache
+      regioes/route.ts              # ✅ GET índice de mercado da região (geocodifica + gera via IA se ainda não tiver)
+      regioes/regenerar/route.ts    # ✅ POST regenera o índice (admin; reaproveita cidade/país já salvos)
+      regioes/ajustar/route.ts      # ✅ PATCH indiceAjustado (admin; number seta, null limpa)
+      precificacao/slider/route.ts  # ✅ GET/PUT última posição do slider da calculadora (self-service, por usuário)
       buscas/route.ts               # ✅ GET buscas salvas
       buscas/[id]/route.ts          # ✅ PATCH cor / mensagem do grupo
       leads/route.ts                # ✅ GET lista de leads com filtros
       leads/[id]/route.ts           # ✅ GET ficha / PATCH status·notas·favorito·descartado
-      leads/[id]/enrich/route.ts    # ✅ POST enriquecimento (Place Details Enterprise + Pro/horários JUNTO)
-      leads/[id]/horarios/route.ts  # ✅ POST busca só o horário (SKU detailsProHours) — botão "buscar horários"
+      leads/[id]/enrich/route.ts    # ✅ POST enriquecimento (Place Details Enterprise + Pro/horários JUNTO) — exige sessão (cota individual)
+      leads/[id]/horarios/route.ts  # ✅ POST busca só o horário (SKU detailsProHours) — botão "buscar horários" — exige sessão
       leads/[id]/demo/route.ts      # ✅ PUT configuração da demo / DELETE exclui demo + imagens
       leads/[id]/demo/imagens/route.ts # ✅ POST upload de imagem de slot / DELETE volta ao placeholder
       leads/[id]/demo/videos/route.ts  # ✅ POST upload de vídeo-no-título / DELETE volta ao fallback (opt-in por skin)
@@ -87,16 +94,27 @@ src/
       session.ts                    #    usuarioDaRequest (atribuição/escopo) + requireAdmin (403)
     api-client.ts                   # ✅ fetch tipado do cliente (ApiError, um método por rota)
     format.ts                       # ✅ formatBRL/USD/percent/int/dateTime (pt-BR)
-    wa.ts                           # ✅ monta o link wa.me a partir de dados já persistidos
+    wa.ts                           # ✅ monta o link wa.me a partir de dados já persistidos ({nome}/{demo}/{penetracao})
     site-proprio.ts                 # ✅ classifica websiteUri: rede social/agregador ≠ site próprio
     sku-labels.ts                   # ✅ rótulos pt-BR dos SKUs (dashboard e config)
     geo/
       geocode.ts                    # ✅ geocodeRegion() com cache permanente em /geocache
-    costs/                          # ✅ ver seção "Módulo de custos"
+    regioes/                        # ✅ índice de mercado por cidade/região (ver "Precificação regional por IA")
+      types.ts                      #    RegiaoIndice (slug = regiaoCacheKey reaproveitado do geocoding)
+      ia.ts                         #    parseCidadePais + prompt/schema/validação + gerarIndiceRegiao (1 chamada, sem retry)
+      repo.ts                       #    get/salvar/setIndiceAjustado em /regioes/{slug} — cache PERMANENTE
+      index.ts
+      __tests__/
+    precificacao/                   # ✅ calculadora de precificação (card "Precificação")
+      calc.ts                       #    funções puras: índice efetivo, preço sugerido, multiplicador por nicho, câmbio
+      __tests__/
+    costs/                          # ✅ ver seções "Módulo de custos" e "Cotas individuais por usuário"
       skus.ts                       # SKUs, field masks, cotas grátis, preços default
-      period.ts                     # chave do período mensal (YYYY-MM, UTC)
-      errors.ts                     # QuotaExceededError
-      usage.ts                      # reserveQuota / getUsage (transação Firestore)
+      period.ts                     # chave do período mensal (YYYY-MM, UTC) — teto global
+      periodoUsuario.ts             # ✅ chaves de data em America/Sao_Paulo (dia/semana/mês) — cota individual
+      errors.ts                     # QuotaExceededError, UserQuotaExceededError
+      usage.ts                      # reserveQuota / getUsage (transação Firestore; admin bypass + cota individual)
+      userQuota.ts                  # ✅ checarCotaUsuario/getUsoUsuario/zerarCotaDia (usage_users/{userId}/dias/{data})
       cost.ts                       # projeção de custo (funções puras)
       index.ts
       __tests__/
@@ -122,10 +140,12 @@ src/
       score.ts                      # ✅ score de priorização por regras (ordenação + badge)
       horarios.ts                   # ✅ estadoAtual/melhorMomento: funções puras sobre lead.horarios (fuso do lead)
       hoje.ts                       # ✅ montarFilaDoDia: seleção pura das 3 seções de /hoje
+      penetracao.ts                 # ✅ calcularPenetracaoSite/argumentoPenetracao/argumentoForte (ver "Penetração de site")
     buscas/                         # ✅ registro das buscas executadas
-      types.ts                      #    + recorrente/qualificada/quantidade e BuscaExecucao
-      repo.ts                       #    + listBuscasRecorrentes (ordem determinística) e registrarExecucao
+      types.ts                      #    + recorrente/qualificada/quantidade, BuscaExecucao e penetracao (cache)
+      repo.ts                       #    + listBuscasRecorrentes (ordem determinística), registrarExecucao e salvarPenetracao
       cron.ts                       # ✅ executarBuscasRecorrentes: pipeline diário + resumo em /cron/ultima
+      penetracao.ts                 # ✅ calcularPenetracaoGrupo/recalcularPenetracao/penetracaoParaLead (ver "Penetração de site")
     demos/                          # ✅ Forja de Demos (ver seção própria)
       types.ts                      # DemoData, Theme, SkinDefinition (+secoes), LeadDemo (+tema), TemaPatch
       montar.ts                     # montarDemoData: exemplo ← lead ← edições
@@ -138,14 +158,17 @@ src/
       imagens.ts                    # upload/remoção no Storage sobre interface mínima (DemoStorage)
       videos.ts                     # vídeo-no-título: upload/remoção (mesma DemoStorage, prefixo "video-", sem placeholder)
     testing/
-      fake-firestore.ts             # ✅ fake em memória com semântica de transação
+      fake-firestore.ts             # ✅ fake em memória com semântica de transação + paridade de path de coleção
+      fake-firestore.test.ts        # ✅ paridade de segmentos do path (.collection() ímpar, como o SDK real)
       fake-storage.ts               # ✅ fake em memória do DemoStorage (rotas de imagens)
   components/                       # ✅ UI compartilhada
     Button.tsx                      # variantes + estado de loading
     Nav.tsx                         # bottom nav + logout (client)
     StatusBadge.tsx                 # badge ordinal do status do lead (cor + forma + marcador)
     UsageMeter.tsx                  # meter de uso vs teto (accent/warning/critical), anima ao montar
-    LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site
+    CotaIndicador.tsx               # ✅ "usado/limite" por janela (cota individual) + cotaEsgotada() p/ desabilitar botão
+    PrecificacaoCard.tsx            # ✅ card "Precificação": slider + cálculo ao vivo + edição de índice (admin) — ver seção própria
+    LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site, badge "argumento forte"
     PageTransition.tsx              # fade-in de página por troca de rota (client)
     RadarSweep.tsx                  # decoração de sweep de radar (CSS puro)
     demos/                          # ✅ skins da Forja de Demos (um pacote por skin)
@@ -215,11 +238,32 @@ src/
           DragGallery.tsx             # galeria com arraste por mouse + momentum ao soltar (pointer events puros)
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+      tatuagem2/
+        Skin.tsx                    # composição { data, theme }, sem hooks próprios
+        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
+        secoes.ts                   # contrato SkinSecaoDef[]
+        themes.ts                   # default + presets de tema
+        exemplo.ts                  # DemoData de exemplo (base da ficha)
+        interactive/                # ✅ subcomponentes "use client" (animações/interação)
+          SectionReveal.tsx          # entrada de seção por scroll, intensidade = theme.animacao
+          FadeUp.tsx                 # stagger granular item a item
+          Parallax.tsx               # parallax sutil de imagem/blob (fiel ao <Parallax> original)
+          Nav.tsx                    # header translúcido fixo + ponto de pigmento da seção + CTA com gradiente no hover
+          CustomCursor.tsx           # ponto sólido mix-blend-multiply, cor = pigmento da seção atual
+          PigmentTracker.tsx         # observa a seção em foco e escreve a cor dela em --d-pigment (nav dot + cursor)
+          SplashTitle.tsx            # título com hover letra-a-letra + última palavra em itálico na cor de acento
+          ManifestoReveal.tsx        # manifesto que "acende" palavra a palavra conforme o progresso do scroll
+          ScrollGallery.tsx          # portfólio em trilha horizontal pinada (scroll vertical → translateX); scroll nativo em touch
+          LineDraw.tsx               # traço SVG que se desenha ao entrar no viewport (rabiscos de artista, linha do processo)
+          FaqAccordion.tsx           # acordeão com um item aberto por vez (primeiro já aberto, fiel ao original)
+          IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
+          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
 public/
   demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/tatuagem/*.svg              # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/lancheria/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/barbearia2/*.svg            # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
+  demos/tatuagem2/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
 ```
 
 Tudo na árvore acima está implementado e testado (testes automatizados para tudo em `lib/` e `app/api/`; as páginas em `app/(app)/` e `app/login/` foram verificadas navegando o app real — ver "Verificação da UI" abaixo — e não têm suíte de componente própria, já que é UI fina sobre rotas já testadas).
@@ -237,6 +281,11 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
   "senhaHash": "pbkdf2:100000:<salt>:<hash>", // ausente = senha não definida (não loga)
   "sessao": 0,                      // versão de sessão: redefinir senha/desativar/trocar papel incrementa
   "ultimaVisitaEm": "<ISO 8601>",   // última carga de /hoje DESTE usuário (o delta de "novos" é por usuário)
+  "limites": {                      // ✅ opcional: cotas individuais (ver "Cotas individuais por usuário")
+    "buscasDia": 30, "buscasSemana": 150, "buscasMes": 500,
+    "enriquecimentosDia": 20, "enriquecimentosSemana": 100, "enriquecimentosMes": 300
+  },
+  "ultimoPrecoBaseSlider": 2500,     // ✅ opcional: última posição do slider da calculadora de precificação (self-service)
   "criadoEm": "<ISO 8601>",
   "atualizadoEm": "<ISO 8601>"
 }
@@ -245,6 +294,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
 - **Seed/migração da senha única**: na primeira tentativa de login com a coleção vazia, o app cria `admin` (senha = `APP_PASSWORD` atual — quem já usava continua entrando igual) + `membro-1`/`membro-2` **sem senha** (o admin define em /config antes de eles conseguirem logar). Depois do seed, o doc é a fonte da verdade: trocar a senha do admin em /config faz a `APP_PASSWORD` valer só como segredo de assinatura.
 - **Sem DELETE**: desativar preserva a atribuição histórica (buscas/demos/contatos apontam para o id). Guarda-corpo: o último admin ativo não pode ser desativado nem rebaixado.
 - Hash de senha: PBKDF2 (Web Crypto, 100k iterações, salt aleatório) — sem dependência nova, roda em Node e Edge.
+- `limites`: cada campo é opcional e independente (ausente = sem limite naquela janela); editável só via `PATCH /api/usuarios/[id]` (admin) — nunca pelo próprio usuário, nenhum caminho client-side escreve nele. Não revoga sessão (não é credencial).
 
 ### `/config/app` — documento único de configuração
 
@@ -270,6 +320,17 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
     "usdPor1000": { "textSearch": 32, "textSearchEnterprise": 35, "detailsEssentials": 5, "detailsEnterprise": 20, "detailsProHours": 17 },
     "cotaGratis": { "textSearch": 5000, "textSearchEnterprise": 1000, "detailsEssentials": 10000, "detailsEnterprise": 1000, "detailsProHours": 5000 },
     "usdBrl": 5.50                              // câmbio para custo projetado em R$
+  },
+  "precificacao": {                             // ✅ calculadora de precificação regional (ver seção própria)
+    "multiplicadoresNicho": { "dentista": 1.4 }, // chave-valor livre; nicho ausente → multiplicador 1.0
+    "pisoPrecificacao": 900,                    // preço sugerido nunca abaixo disto (R$)
+    "fatorMinimoIndice": 0.7,                   // índice efetivo nunca abaixo disto (regiões caras sobem sem teto)
+    "presets": [                                // atalhos que reposicionam o slider (700–10.000, passo 100)
+      { "nome": "Vitrine", "valorBRL": 1000 },
+      { "nome": "Presença", "valorBRL": 2000 },
+      { "nome": "Autoridade", "valorBRL": 3500 },
+      { "nome": "Sistema", "valorBRL": 5000 }
+    ]
   },
   "atualizadoEm": "<timestamp>"
 }
@@ -366,6 +427,18 @@ Regras de escrita:
 
 `websiteUri` apontando para **rede social, WhatsApp ou agregador de links** (instagram.com, facebook.com, wa.me, api.whatsapp.com, linktr.ee, bio.link, tiktok.com etc. — lista fixa no módulo, comparada por hostname com subdomínios) **não conta como site próprio**: o lead recebe `siteProprio: false` e continua aparecendo no filtro "sem site próprio" — é prospect válido. A URL fica preservada em `siteUrl` (útil para contato). Estados de `siteProprio`: `true` = site próprio · `false` = sem site nenhum OU só rede social · ausente = desconhecido. Docs antigos sem o campo são derivados na leitura (de `detalhes.site` ou `temSite`/`siteUrl`); URL ilegível classifica como site próprio (lado conservador — não polui a lista de prospects).
 
+### Penetração de site por nicho e cidade
+
+100% sobre dados já salvos — **nenhum request novo ao Google**. `src/lib/leads/penetracao.ts` tem a agregação pura: `calcularPenetracaoSite(leads)` classifica cada lead pelo `siteProprio` já existente (com site próprio / só rede social — `siteProprio: false` com `temSite: true` / sem nada — `siteProprio: false` com `temSite` falso) e soma. Leads com `siteProprio` indefinido (nunca enriquecidos nem de busca qualificada) ficam de fora do "total conhecido" e voltam à parte em `desconhecidos`. Com menos de `PENETRACAO_BASE_MINIMA` (5) leads conhecidos, `percentuais` fica `undefined` — a UI mostra a contagem, nunca um percentual sobre base pequena demais pra significar algo.
+
+`src/lib/buscas/penetracao.ts` faz a parte com Firestore: **"neste nicho nesta cidade" é o grupo lógico de TODAS as buscas com o mesmo nicho+região** (normalizado: minúsculas, espaços colapsados), não só a busca corrente — `calcularPenetracaoGrupo` reúne os leads de todas elas. `recalcularPenetracao(db, buscaId)` recalcula e cacheia o agregado no campo `penetracao` do doc da busca (ver `/buscas/{id}`); é chamado **toda vez que a busca roda de novo** — em `POST /api/search` (logo após criar o doc) e no cron (`executarBusca`, logo após `registrarExecucao`). Cada busca doc reflete o agregado de quando ELA rodou por último — buscas irmãs (mesmo nicho+região) que não rodaram desde então ficam com o cache defasado até rodarem de novo; é uma leitura, não uma fonte de verdade em tempo real.
+
+Onde aparece:
+- **Grupo de busca** (`/leads?buscaId=`): card "Penetração de site" com `buscaAtual?.penetracao` — "Neste nicho nesta cidade: X% têm site próprio · Y% só rede social · Z% sem presença (base: N estabelecimentos)"; base pequena mostra só a contagem.
+- **Ficha do lead sem site próprio** (`siteProprio === false`): `argumentoPenetracao(nicho, regiao, penetracao, nome)` monta a linha pronta ("X% dos estabelecimentos de {nicho} em {regiao} que mapeamos já têm site — a {nome} está entre os que ainda não têm.") com botão copiar; usa "estabelecimentos de {nicho}" (em vez de flexionar o nicho em gênero/plural) porque o texto do nicho é livre e imprevisível. `penetracaoParaLead(lead, buscas)` escolhe, entre as buscas em que o lead apareceu (mais recente primeiro), a primeira que já tem `penetracao` cacheada.
+- **Variável `{penetracao}`** na mensagem padrão do WhatsApp (`src/lib/wa.ts`, `buildWhatsAppLink`): mesma linha de argumento, substituída só quando calculada (ausência não apaga a variável em silêncio) — mesmo padrão de `{nome}`/`{demo}`.
+- **Badge "argumento forte"** (`argumentoForte(penetracao)`, `percentuais.comSiteProprio > 60`) em `/hoje` e no `LeadCard` da lista de leads — discreto, não bloqueia nada, só sinaliza que o argumento é forte.
+
 ### `/buscas/{id}` — um doc por busca executada
 
 **O ID do documento é um UUID gerado na rota de busca** (o mesmo valor anexado ao `buscaId` dos leads).
@@ -385,7 +458,11 @@ Regras de escrita:
   "criadaEm": "<ISO 8601>",
   "totalCriados": 12,                           // leads novos que esta busca criou (o cron SOMA os deltas aqui)
   "totalExistentes": 8,                         // leads que já estavam na base
-  "userId": "admin"                             // quem executou (ausente em docs pré-multiusuário)
+  "userId": "admin",                            // quem executou (ausente em docs pré-multiusuário)
+  "penetracao": {                               // ✅ opcional: penetração de site do GRUPO nicho+região (ver seção própria)
+    "total": 14, "comSiteProprio": 9, "soRedeSocial": 3, "semNada": 2, "desconhecidos": 4,
+    "percentuais": { "comSiteProprio": 64, "soRedeSocial": 21, "semNada": 14 } // ausente se total < 5
+  }
 }
 ```
 
@@ -438,6 +515,31 @@ Sobre a **cor**: paleta fixa de 10 (validada contra a superfície escura: banda 
 
 ID = região normalizada (minúsculas, espaços colapsados, URL-encoded). Doc: `{ regiao, endereco, location, viewport, criadoEm }`. Cada região digitada só custa **1 request de geocoding na vida** — o viewport cacheado alimenta o `locationRestriction` de todas as buscas seguintes. Sem expiração: limites geográficos de cidade não mudam em escala relevante para prospecção.
 
+### `/regioes/{slug}` — índice de mercado por cidade/região (ver "Precificação regional por IA")
+
+**O `slug` é a MESMA chave normalizada do `/geocache`** (`regiaoCacheKey`, reaproveitada de `src/lib/geo/geocode.ts`) — uma região só é geocodificada uma vez na vida e o índice de precificação usa exatamente essa identidade, sem geocodificar de novo.
+
+```jsonc
+{
+  "slug": "zurique",                            // = ID do doc; regiaoCacheKey(regiaoTexto)
+  "regiaoTexto": "Zurique",                     // texto original (mesmo valor salvo no geocache)
+  "cidade": "Zürich",                           // cidade ESPECÍFICA (extraída do endereço do geocoding, não o país)
+  "pais": "Suíça",
+  "indice": 3.5,                                // índice RELATIVO gerado por IA (cidade média do interior do Brasil = 1.0)
+  "indiceAjustado": 2.8,                        // ✅ opcional: edição manual do admin — quando presente, VENCE `indice`
+  "moedaLocal": "CHF",
+  "cambioAproxBRL": 6.1,                        // ✅ opcional: estimativa (1 unidade da moeda local ≈ N reais)
+  "faixaMercadoLocal": "300–800 CHF",           // faixa típica local de um site simples
+  "justificativa": "Zurique tem alto custo de vida e forte poder aquisitivo.",
+  "confianca": "alta",                          // "alta" | "media" | "baixa"
+  "geradoEm": "<ISO 8601>"
+}
+```
+
+- **Cache PERMANENTE**: gerado sob demanda na primeira vez que a calculadora abre para aquela região (`GET /api/regioes?regiao=`) e nunca expira — só regenera por clique explícito do admin (`POST /api/regioes/regenerar`), que reaproveita `cidade`/`pais`/`regiaoTexto` já salvos (não geocodifica de novo).
+- **`indiceAjustado` é preservado na regeneração**: regenerar só atualiza a base sugerida pela IA; a edição manual do admin (`PATCH /api/regioes/ajustar`, só na UI da região) é uma decisão separada, limpa apenas com `indiceAjustado: null`.
+- Docs sem índice gerado ainda simplesmente não existem — não há doc "vazio" de placeholder.
+
 ### `/usage/{YYYY-MM}` — um doc por mês (contadores de custo)
 
 ```jsonc
@@ -457,6 +559,16 @@ ID = região normalizada (minúsculas, espaços colapsados, URL-encoded). Doc: `
 - Período em **UTC** (`2026-07`). O reset da cota grátis do Google segue o fuso da conta de billing; algumas horas de deriva são irrelevantes para um teto de segurança, e UTC evita bugs de horário de verão.
 - Incremento é **transacional** (ler → verificar teto → incrementar) — ver "Módulo de custos". Quando a rota identifica a sessão, a mesma transação incrementa a quebra `porUsuario` (o objeto inteiro é reescrito dentro da transação). **O teto continua um só, agregado** — a quebra é atribuição de uso, não cota por usuário.
 - **Migração**: docs de meses antigos podem ter o campo `detailsPro`; a leitura usa o valor legado enquanto `detailsEnterprise` não existir no doc — assim que a primeira reserva nova grava o nome atual, o legado é ignorado.
+
+### `/usage_users/{userId}/dias/{YYYY-MM-DD}` — cota individual, um doc por usuário por dia
+
+```jsonc
+{ "buscas": 3, "enriquecimentos": 1, "atualizadoEm": "<ISO 8601>" }
+```
+
+- Chave de data em **America/Sao_Paulo** (não UTC) — ver "Cotas individuais por usuário". Semana/mês são somas puras dos docs diários dentro da janela; não existe doc de semana/mês próprio, então "zerar dia" (zera só o doc de hoje) já reduz a soma de quebra.
+- Existe (é escrito) sempre que a sessão é identificável, mesmo sem nenhum limite configurado — é o que permite ao painel admin mostrar "usado" mesmo antes de qualquer limite existir. Nunca escrito para reservas do admin (ele não tem cota individual).
+- **O path tem 3 segmentos (`usage_users` / `{userId}` / `dias`), nunca 2**: toda coleção do Firestore precisa de um número ÍMPAR de segmentos (`collection`, `collection/doc/collection`, ...) — `usage_users/{userId}` sozinho tem 2 (par) e o SDK real recusa com "must point to a collection... does not contain an odd number of components". Esse exato bug chegou a produção (a seção "Cotas por usuário" de `/config` quebrava com 500) porque o `FakeFirestore` dos testes não validava a paridade do path — corrigido dos dois lados: o path ganhou o terceiro segmento (`dias`) e o fake agora recusa paths de coleção com número par de segmentos, igual ao SDK real (`src/lib/testing/fake-firestore.test.ts`).
 
 ### Métricas de prospecção
 
@@ -478,11 +590,19 @@ Formato de erro padrão em todas as rotas:
 | `/api/me` | GET | — | `200 { usuario }` (sem hash) · `401` | — |
 | `/api/usuarios` | GET | — (admin) | `200 { usuarios[] }` · `401` · `403 forbidden` | — |
 | `/api/usuarios` | POST | `{ nome, papel?, senha? }` (admin) | `200 { usuario }` · `400` · `401` · `403` | — |
-| `/api/usuarios/[id]` | PATCH | `{ nome?, papel?, ativo?, senha? }` (≥1 campo, admin) | `200 { usuario }` · `400` · `401` · `403` · `404` | — |
+| `/api/usuarios/[id]` | PATCH | `{ nome?, papel?, ativo?, senha?, limites? }` (≥1 campo, admin) | `200 { usuario }` · `400` · `401` · `403` · `404` | — |
+| `/api/usuarios/[id]/zerar-dia` | POST | — (admin) | `204` (zera o contador do dia corrente do usuário) · `401` · `403` · `404` | — |
+| `/api/usuarios/cotas` | GET | — (admin) | `200 { usuarios: [{ id, nome, papel, ativo, limites, buscas, enriquecimentos }] }` · `401` · `403` | — |
+| `/api/cotas` | GET | — (qualquer sessão) | `200 { buscas, enriquecimentos }` (uso × limite do PRÓPRIO usuário; admin sempre sem limite) · `401` | — |
 | `/api/config` | GET | — | `200 { config }` (defaults se doc não existe) | — |
 | `/api/config` | PUT | config parcial ou completa (admin) | `200 { config }` · `400 validation_error` · `401` · `403` | — |
-| `/api/search` | POST | `{ nicho?, subNicho?, regiao?, nome?, quantidade? (1–40), qualificada? }` (nicho/regiao default: config) | `200 { criados, existentes, leads[], busca, paginas, regiaoResolvida, aviso? }` · `400` · `429 quota_exceeded` · `502 places_error` | Geocoding (com cache) + Text Search · **geocoding** + **textSearch** ou **textSearchEnterprise** |
+| `/api/search` | POST | `{ nicho?, subNicho?, regiao?, nome?, quantidade? (1–40), qualificada? }` (nicho/regiao default: config; exige sessão identificável) | `200 { criados, existentes, leads[], busca, paginas, regiaoResolvida, aviso? }` · `400` · `401` · `429 quota_exceeded` · `429 user_quota_exceeded` · `502 places_error` | Geocoding (com cache) + Text Search · **geocoding** + **textSearch** ou **textSearchEnterprise** |
 | `/api/geocode` | GET | query: `regiao` (default: config) | `200 { regiao, endereco, location, viewport, cached }` · `400` · `429` · `502` | Geocoding · **geocoding** (só em cache miss) |
+| `/api/regioes` | GET | query: `regiao` (default: config) | `200 { regiao, cached }` · `400` · `429 quota_exceeded` · `502 places_error` · `502 ai_error` · `503 ai_unavailable` | Geocoding (cache) + Gemini na 1ª vez · **geocoding** + **aiGeneration** (só em cache miss) |
+| `/api/regioes/regenerar` | POST | `{ regiao }` (admin) | `200 { regiao }` · `400` · `401` · `403` · `404` (sem índice gerado ainda) · `429 quota_exceeded` · `502 ai_error` · `503 ai_unavailable` | Gemini generateContent · **aiGeneration** (reaproveita cidade/país já salvos, não geocodifica de novo) |
+| `/api/regioes/ajustar` | PATCH | `{ regiao, indiceAjustado }` (number seta, `null` limpa; admin) | `200 { regiao }` · `400` · `401` · `403` · `404` | — |
+| `/api/precificacao/slider` | GET | — (exige sessão identificável) | `200 { precoBase }` (`null` = ainda não mexeu) · `401` | — |
+| `/api/precificacao/slider` | PUT | `{ precoBase }` (inteiro 700–10.000) | `200 { precoBase }` · `400` · `401` | — |
 | `/api/buscas` | GET | — | `200 { buscas[] }` (mais recentes primeiro) | — |
 | `/api/buscas/[id]` | PATCH | `{ cor? (da paleta), mensagemPadrao? (≤1000, "" limpa), recorrente? }` (≥1 campo; ligar recorrente respeita o teto `maxBuscasRecorrentes`) | `200 { busca }` · `400` · `404` | — |
 | `/api/hoje` | GET | — (exige sessão identificável) | `200 { novos[], followUps[], demosParadas[], novosDesde, followUpDias, mensagemPadrao, buscas[] }` · `401` | — |
@@ -491,8 +611,8 @@ Formato de erro padrão em todas as rotas:
 | `/api/leads` | GET | query: `status`, `temSite`, `temTelefone`, `buscaId`, `favorito` | `200 { leads[] }` · `400` | — |
 | `/api/leads/[id]` | GET | — | `200 { lead }` · `404` | — |
 | `/api/leads/[id]` | PATCH | `{ status?, notas? (≤500), favorito?, descartado? }` (≥1 campo) | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
-| `/api/leads/[id]/enrich` | POST | — | `200 { lead }` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsEnterprise** + **detailsProHours** (horário, chamado junto — falha nele não derruba o enriquecimento) |
-| `/api/leads/[id]/horarios` | POST | — | `200 { lead }` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsProHours** (só o horário — botão "buscar horários" de leads já enriquecidos) |
+| `/api/leads/[id]/enrich` | POST | — (exige sessão identificável) | `200 { lead }` · `401` · `404` · `429 quota_exceeded` · `429 user_quota_exceeded` · `502 places_error` | Place Details · **detailsEnterprise** + **detailsProHours** (horário, chamado junto — falha nele não derruba o enriquecimento; nunca conta pra cota individual) |
+| `/api/leads/[id]/horarios` | POST | — (exige sessão identificável) | `200 { lead }` · `401` · `404` · `429 quota_exceeded` · `502 places_error` | Place Details · **detailsProHours** (só o horário — botão "buscar horários" de leads já enriquecidos; nunca conta pra cota individual) |
 | `/api/leads/[id]/demo` | PUT | `{ skinId, themeId, dados?, tema? }` | `200 { lead }` · `400` · `404` | — |
 | `/api/leads/[id]/demo` | DELETE | — | `200 { lead }` (idempotente; apaga demo + imagens do Storage) · `404` | — |
 | `/api/leads/[id]/demo/imagens` | POST | multipart `slot` + `arquivo` (+`skinId?`) | `200 { slot, url }` · `400` (formato/tamanho/slot) · `404` | — |
@@ -511,8 +631,9 @@ Formato de erro padrão em todas as rotas:
 Todas as rotas do contrato estão implementadas e testadas.
 
 Semântica fixa:
-- **Atribuição de usuário**: as rotas de ação-chave (`/api/search`, `/api/leads/[id]/enrich`, PATCH de status "contactado", PUT da demo) identificam a sessão via `usuarioDaRequest` e carimbam o `userId` (busca, `enriquecidoPor`, `primeiroContatoPor`, `criadoPor`) e a quebra `porUsuario` de cada reserva de cota. A identificação é *best-effort* dentro da rota (o proxy é quem bloqueia anônimos): sessão irreconhecível → a ação funciona sem carimbo, nunca quebra.
-- **`429 quota_exceeded`**: corpo `{ error: { code: "quota_exceeded", sku, used, cap, period, message } }`. Emitido **antes** de qualquer chamada ao Google (a reserva de cota falhou). Nenhum custo foi incorrido.
+- **Atribuição de usuário**: as rotas de ação-chave (`/api/search`, `/api/leads/[id]/enrich`, PATCH de status "contactado", PUT da demo) identificam a sessão via `usuarioDaRequest` e carimbam o `userId` (busca, `enriquecidoPor`, `primeiroContatoPor`, `criadoPor`) e a quebra `porUsuario` de cada reserva de cota. A identificação é *best-effort* dentro da rota (o proxy é quem bloqueia anônimos): sessão irreconhecível → a ação funciona sem carimbo, nunca quebra. **Exceção**: `/api/search`, `/api/leads/[id]/enrich` e `/api/leads/[id]/horarios` exigem sessão identificável (401 sem ela) — a cota individual (ver "Cotas individuais por usuário") não existe sem saber quem é o usuário.
+- **`429 quota_exceeded`**: corpo `{ error: { code: "quota_exceeded", sku, used, cap, period, message } }`. Emitido **antes** de qualquer chamada ao Google (a reserva de cota falhou). Nenhum custo foi incorrido. Nunca se aplica ao admin.
+- **`429 user_quota_exceeded`**: corpo `{ error: { code: "user_quota_exceeded", tipo, janela, used, limite, resetaEm, message } }` — limite INDIVIDUAL (dia/semana/mês de buscas ou enriquecimentos) do usuário logado, também emitido antes de qualquer chamada ao Google. Nunca se aplica ao admin.
 - **`502 places_error`**: o Google respondeu erro. A cota **já foi consumida** (reservamos antes de chamar) — decisão deliberada: superestimar uso é seguro, subestimar não.
 - `/api/search` faz upsert em `/leads` com `status: "novo"` para novos e reporta `existentes` para os que já estavam na base. A query enviada ao Google é **`"{nicho} {subNicho} {regiao}"`** (partes vazias omitidas). Cada busca gera um doc em `/buscas` (nome default `"{nicho} {DD/MM}"`, data em UTC) e anexa o id ao `buscaId` dos leads retornados.
 - **Região geocodificada com localização dura**: antes do Text Search, a região é resolvida pela Geocoding API (SKU `geocoding`, com **cache permanente em `/geocache`** — cada região só custa 1 request na vida) e o viewport vira `locationRestriction` — sem resultados de fora da região. Região não encontrada → 400 com dica de grafia. A resposta traz `regiaoResolvida` (endereço formatado) e a UI mostra "Buscando em: X" via `GET /api/geocode` antes de confirmar.
@@ -552,9 +673,11 @@ O Google cobra a chamada pelo **campo de tier mais alto presente no field mask**
 Tudo que depende de request pago passa por aqui. API:
 
 ```ts
-// Reserva 1 request do SKU no mês corrente, ou lança QuotaExceededError.
-// Transacional: ler doc de uso → verificar teto → incrementar. Atômico no Firestore.
-reserveQuota(db, sku, caps?, now?): Promise<{ period, usage }>
+// Reserva 1 request do SKU no mês corrente, ou lança QuotaExceededError
+// (teto global) / UserQuotaExceededError (limite individual do usuário).
+// Transacional: ler doc(s) → verificar teto(s) → incrementar. Atômico no
+// Firestore — a reserva global e a individual são a MESMA transação.
+reserveQuota(db, sku, caps?, now?, opts?: { userId?, isAdmin?, userQuota? }): Promise<{ period, usage }>
 
 // Leitura do uso do mês (para o dashboard).
 getUsage(db, now?): Promise<{ period, usage }>
@@ -566,10 +689,34 @@ projectedCostBRL(usage, usdBrl, pricing?): number
 
 Decisões de projeto:
 - **Reserva antes do request**: o contador incrementa antes de chamar o Google. Se o Google falhar, o contador fica 1 acima do real — erro do lado seguro. O inverso (chamar e depois contar) poderia estourar o teto em caso de falha na gravação.
-- **Teto (`cap`) = máximo de requests permitidas no mês**. `used + 1 > cap` → recusa com `QuotaExceededError` (mensagem em pt-BR com SKU, uso, teto e período). Teto `0` (ou negativo) bloqueia o SKU por completo.
+- **Teto (`cap`) = máximo de requests permitidas no mês**. `used + 1 > cap` → recusa com `QuotaExceededError` (mensagem em pt-BR com SKU, uso, teto e período). Teto `0` (ou negativo) bloqueia o SKU por completo. **Exceto para admin** (`opts.isAdmin`): a checagem é pulada, mas o contador ainda incrementa — ver "Cotas individuais por usuário" abaixo.
 - **`src/lib/firestore-like.ts`**: o app inteiro depende de uma interface estrutural mínima do Firestore (`UsageDb` para custos, `AppDb` ampliada para o resto), não do `firebase-admin` — o Firestore real satisfaz a interface por tipagem estrutural (há um static assert em `admin.ts`), e os testes usam um fake em memória que reproduz a semântica de transação (leituras veem o estado pré-transação; escritas só aplicam no commit; exceção → nada aplicado).
 - Contadores malformados no doc (string, negativo, NaN) são lidos como `0` — o módulo nunca quebra por dado sujo, só fica mais conservador.
 - `atualizadoEm` gravado como ISO string (evita dependência do `FieldValue` do admin dentro do módulo puro).
+
+## Cotas individuais por usuário (`src/lib/costs/{periodoUsuario,userQuota}.ts`)
+
+Além do teto global mensal (segurança contra a fatura, UTC), cada usuário pode ter limites PRÓPRIOS de **buscas** (cada página do Text Search conta) e **enriquecimentos** (só o clique em "Enriquecer" — Place Details do enriquecimento principal; o horário de funcionamento, avulso ou embutido no enrich, nunca conta contra essa cota), em três janelas independentes e opcionais: dia, semana (começa segunda) e mês. Campo ausente = sem limite naquela janela.
+
+Decisões:
+- **Admin nunca é bloqueado** — nem pelo teto global, nem pelo limite individual. A trava absoluta de fatura passa a ser só a cota configurada no console do Google; `caps`/limites individuais são "para todo mundo, menos quem loga como admin". O uso do admin continua incrementando os contadores (dashboard/projeção corretos).
+- **Fuso de Brasília, nunca UTC** (`periodoUsuario.ts`): chaves de data via `Intl.DateTimeFormat` com `timeZone: "America/Sao_Paulo"` (não offset fixo) — 23h59 em Brasília ainda é o dia corrente mesmo já sendo o dia seguinte em UTC. Reset por composição de chave com a data, **sem cron**: semana/mês são somas puras dos docs diários dentro da janela.
+- **Contador por usuário/dia**: `usage_users/{userId}/dias` (coleção — 3 segmentos, nunca 2, ver nota de paridade acima) → doc `{YYYY-MM-DD}` → `{ buscas, enriquecimentos }`. Mapa aberto de propósito — um terceiro tipo (ex.: item 2 do roadmap, fotos/reviews) encaixa sem redesenho.
+- **Atomicidade**: a checagem/incremento do limite individual (`checarCotaUsuario`) roda na MESMA transação Firestore do `reserveQuota` global — ou os dois passam, ou nenhum conta. Só busca os docs de semana/mês quando aquela janela tem limite configurado (evita até 31 leituras à toa).
+- **Sessão obrigatória**: `/api/search`, `/api/leads/[id]/enrich` e `/api/leads/[id]/horarios` passam a exigir sessão identificável (401 sem ela) — diferente do resto do app, que é best-effort (ver "Proteção por sessão" abaixo). Sem saber quem é o usuário não dá pra aplicar o limite dele.
+- **Cron**: a busca recorrente conta no usuário que a marcou como recorrente (`busca.userId`, resolvido por id, sem sessão HTTP). Dono sem cota individual pula **só aquela busca** (`pulada`, fila continua) — diferente do teto global, que interrompe a fila inteira (mesmo espírito de "erro do Google não trava as demais").
+- `UserQuotaExceededError` (código `user_quota_exceeded`, HTTP 429) carrega `tipo`/`janela`/`used`/`limite`/`resetaEm` — distinto do `QuotaExceededError` do teto global.
+
+Rotas novas:
+
+| Rota | Método | Quem | Devolve |
+|---|---|---|---|
+| `/api/cotas` | GET | qualquer sessão | uso × limite (dia/semana/mês) do PRÓPRIO usuário, buscas + enriquecimentos |
+| `/api/usuarios/cotas` | GET | admin | o mesmo, de todos os usuários (tabela do painel) |
+| `/api/usuarios/[id]/zerar-dia` | POST | admin | `204`; zera o contador do dia corrente daquele usuário |
+| `/api/usuarios/[id]` | PATCH | admin | ganhou o campo `limites` (number seta, `null` limpa uma janela) |
+
+UI: `/config` ganhou a seção "Cotas por usuário" (resumo do teto global relevante + um cartão por usuário com edição inline dos limites e botão "Zerar dia"); `/leads` e a ficha do lead mostram `CotaIndicador` (componente compartilhado em `src/components/CotaIndicador.tsx`) — permanente, atualizado após cada busca/enriquecimento, com o botão desabilitado como cortesia quando a cota esgota (o bloqueio real é sempre do servidor).
 
 ## Forja de Demos (`src/lib/demos` + `src/components/demos`)
 
@@ -667,6 +814,23 @@ Botão "✨ Gerar com IA" no editor de demos (e checkbox "Começar com sugestõe
 6. **Nunca sobrescreve sem confirmar**: a rota só GERA — quem escreve é o usuário. O editor mostra a sugestão num preview (preset, amostra da cor, fonte, animação, textos) com **Aplicar/Descartar**; aplicar muda apenas o rascunho em memória e nada é publicado sem o "Salvar" normal (PUT com a validação estrita de sempre). O fluxo `?ia=1` da criação usa o MESMO preview — a demo nova "começa com sugestões", mas ainda atrás de um Aplicar explícito.
 7. **Prompt** (`montarPromptSugestao`): nicho (da busca do lead, fallback no nicho da skin), sub-nicho, nome, endereço e rating/total de avaliações JÁ salvos (nunca dispara busca/enriquecimento novo), mais as escolhas permitidas. Dados públicos do lead, nenhum dado sensível.
 
+## Precificação regional por IA (`src/lib/regioes` + `src/lib/precificacao` + card "Precificação")
+
+Calculadora interativa na ficha do lead e no grupo de busca: quanto cobrar por um site, ajustado pelo mercado LOCAL da cidade do lead (não a média do país) e pelo nicho. Dois módulos separados — geração/cache do índice (`src/lib/regioes`, precisa de Firestore/Gemini) e a matemática da calculadora (`src/lib/precificacao/calc.ts`, 100% puro, testado isoladamente):
+
+1. **Slug reaproveita o cache de geocoding**: `/regioes/{slug}` usa a MESMA `regiaoCacheKey` de `/geocache` (`src/lib/geo/geocode.ts`) — uma região só é geocodificada uma vez na vida, e o índice de mercado é da **cidade/região específica** que o geocoding resolveu (`cidade`/`pais`, extraídos do `endereco` formatado — `parseCidadePais`), nunca a média do país (Zurique ≠ interior da Suíça).
+2. **Geração: 1 chamada Gemini, sem retry** (`gerarIndiceRegiao`, mesmo SKU `aiGeneration` e mesma postura de `gerarAnaliseBusca` — resposta fora do schema já é `502 ai_error` direto, sem tentar de novo sozinho). O prompt pede: índice relativo do mercado de sites para pequenos negócios NAQUELA cidade (referência explícita: cidade média do interior do Brasil = 1.0), moeda local, câmbio aproximado para BRL (rotulado como estimativa — omitido se a moeda local já for o Real), faixa típica local de um site simples, justificativa (1-2 frases) e confiança (`alta`/`media`/`baixa`).
+3. **Cache PERMANENTE, regenera só por clique do admin**: `GET /api/regioes?regiao=` geocodifica (cache de geocoding) e, se `/regioes/{slug}` ainda não existir, gera e salva — chamadas seguintes de QUALQUER usuário vêm do cache, sem custo. `POST /api/regioes/regenerar` (admin) força uma nova geração reaproveitando `cidade`/`pais`/`regiaoTexto` já salvos (não geocodifica de novo) e **preserva** `indiceAjustado` — regenerar só atualiza a base sugerida pela IA.
+4. **`indiceAjustado`** (`PATCH /api/regioes/ajustar`, admin, só na UI da região onde o card aparece): number seta e VENCE `indice` nos cálculos; `null` limpa. A UI sempre mostra os dois quando o ajustado existe.
+5. **Cálculo (funções puras, `src/lib/precificacao/calc.ts`)**:
+   - `calcularIndiceEfetivo(indice, indiceAjustado, fatorMinimoIndice)` — `indiceAjustado` vence `indice` quando presente; depois aplica o piso do fator mínimo (`Math.max(base, fatorMinimoIndice)`): regiões baratas reduzem o preço em no máximo `1 − fatorMinimoIndice` (default 0.7 → no máximo 30%), regiões caras (índice > 1) sobem sem teto.
+   - `multiplicadorParaNicho(nicho, multiplicadoresNicho)` — chave-valor livre da config (normalizado minúsculas/espaços, mesmo padrão de `src/lib/buscas/penetracao.ts`); nicho sem entrada → 1.0 (neutro).
+   - `calcularPrecoSugerido(precoBase, indiceEfetivo, multiplicadorNicho, piso)` — `precoBase × indiceEfetivo × multiplicadorNicho`, nunca abaixo do `piso` (default R$900).
+   - `converterMoedaLocal(precoBRL, cambioAproxBRL)` — `precoBRL / cambioAproxBRL` (mesma convenção de `precos.usdBrl`: 1 unidade da moeda local ≈ N reais); câmbio ausente/inválido → `undefined`, a UI mostra só BRL.
+6. **Config admin** (`/config/app`, campo `precificacao`): `multiplicadoresNicho` (lista chave-valor editável, default vazio), `pisoPrecificacao` (default 900), `fatorMinimoIndice` (default 0.7), `presets` (atalhos do slider, default Vitrine 1000 / Presença 2000 / Autoridade 3500 / Sistema 5000 — editáveis, nome + valor em BRL).
+7. **Card "Precificação"** (`src/components/PrecificacaoCard.tsx`, na ficha do lead e no grupo de busca — `/leads?buscaId=`): slider 700–10.000 BRL (passo 100) posiciona o preço-base; botões de preset reposicionam o slider; abaixo, ao vivo: preço sugerido em BRL e (quando há câmbio) na moeda local rotulado "≈ estimado", faixa de mercado local, confiança e justificativa. Membros veem e usam a calculadora; só o admin vê os controles de editar/regenerar o índice. Todos os membros disparam a geração inicial (primeira vez que a região é aberta) — regenerar é ação exclusiva do admin.
+8. **Última posição do slider é por usuário** (`GET`/`PUT /api/precificacao/slider`, self-service — qualquer sessão lê/grava a PRÓPRIA posição): persistida em `usuarios/{id}.ultimoPrecoBaseSlider`, carregada ao abrir o card. Debounce de 500ms no cliente evita gravar a cada pixel arrastado do slider.
+
 ## Mensagens entre usuários (`src/lib/mensagens` + `/mensagens`)
 
 Chat interno de texto simples entre os usuários do time (coleção `/mensagens` — ver modelo de dados). Decisões:
@@ -720,12 +884,12 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
 - **`(app)/` (route group)**: layout com nav inferior fixa (Hoje/Painel/Leads/Buscas/Demos/Chat/Config) + botão Sair; a aba Chat carrega o badge de não-lidas (polling leve de `/api/mensagens/nao-lidas`); todas as páginas autenticadas vivem aqui.
   - **`/hoje` (Fila do dia)**: contadores no topo + as 3 seções de `GET /api/hoje` (novos por score com badge da busca de origem, follow-ups com "Xd sem resposta", demos paradas), cada item com WhatsApp/Ficha/Demo diretos e, quando `lead.horarios` existe, "melhor momento pra contatar" ao lado do item — ver "Operação diária".
   - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite"), um KPI row de prospecção com `/api/metrics`, o widget "Buscas recorrentes" (última execução do cron via `/api/cron/status`: quando rodou, quanto achou, interrupção/erros e quantas recorrentes estão ligadas) e o card "Demos criadas" (total de `metrics.demosCriadas`, linka para `/demos`). **Membro vê os números escopados a ele** (a API já escopa); **admin ganha a seção "Por usuário"** (requests por SKU, buscas, demos, contatos de cada um).
-  - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (toggle, header com dot da cor + nome + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto). Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha —, os dots de cor das buscas, destaque "sem site (lead quente)" e, quando `lead.horarios` existe, o estado atual ("Aberto agora · fecha 18h" / "Fechado · abre 9h", `estadoAtual` de `lib/leads/horarios.ts`). Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
+  - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`user_quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5), o indicador `CotaIndicador` de cota individual de buscas (permanente, atualizado após cada busca, botão desabilitado como cortesia ao esgotar) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (toggle, header com dot da cor + nome + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto). Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha —, os dots de cor das buscas, destaque "sem site (lead quente)" e, quando `lead.horarios` existe, o estado atual ("Aberto agora · fecha 18h" / "Fechado · abre 9h", `estadoAtual` de `lib/leads/horarios.ts`). Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
   - **`/buscas`**: buscas salvas (dot de cor, nome, nicho/sub-nicho, região, data, totais); tocar no dot cicla a cor pela paleta e persiste (`PATCH /api/buscas/[id]`); clicar no card navega para `/leads?buscaId=…`; toggle "tornar recorrente"/"recorrente ✓" por card (mesmo PATCH — o 400 do teto de recorrentes aparece como erro na página) com badge "recorrente" no nome.
   - **`/demos`**: todas as demos ativas (leads com `demo` salva) — nome do lead, skin, data de criação/edição (`demo.criadoEm`/`atualizadoEm`), link público copiável e atalhos "Editar" (`/leads/{id}/demo/editar`) e "Excluir" (confirmação inline, mesmo `DELETE /api/leads/[id]/demo` do editor). Reaproveita `GET /api/leads` (sem filtros) e filtra client-side pelos leads com `demo` — mesma escala de "centenas de leads" do resto do app, sem rota nova.
-  - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior. A seção **Demo** é um resumo (skin, preset, atualizado em) com "Criar/Editar demo" apontando para o **editor visual** `/leads/{id}/demo/editar` (ver seção da Forja), além de abrir/copiar o link público. Sem demo salva, deixa claro que `/demo/{id}` responde 404. A mensagem do WhatsApp aceita `{demo}` além de `{nome}`. A seção **Detalhes** mostra o estado atual ("Aberto agora · fecha 18h" / "Fechado · abre 9h") quando `lead.horarios` existe, com o botão discreto "buscar horários" (`POST /api/leads/[id]/horarios`) para leads enriquecidos antes desta feature; "melhor momento pra contatar" (`melhorMomento`) aparece junto do botão WhatsApp, com destaque verde quando o lead está aberto agora.
+  - **`/leads/[id]`**: ficha do lead; a página server é só um wrapper fino que extrai `params.id` e monta `<LeadDetailClient key={id} id={id} />` — o `key={id}` força remontar o client component ao trocar de lead, resetando o estado em vez de arrastar dado do lead anterior. A seção **Demo** é um resumo (skin, preset, atualizado em) com "Criar/Editar demo" apontando para o **editor visual** `/leads/{id}/demo/editar` (ver seção da Forja), além de abrir/copiar o link público. Sem demo salva, deixa claro que `/demo/{id}` responde 404. A mensagem do WhatsApp aceita `{demo}` além de `{nome}`. A seção **Detalhes** mostra o `CotaIndicador` de cota individual de enriquecimento (permanente — visível antes E depois de enriquecer, já que a cota é do usuário, não do lead), o estado atual ("Aberto agora · fecha 18h" / "Fechado · abre 9h") quando `lead.horarios` existe, com o botão discreto "buscar horários" (`POST /api/leads/[id]/horarios`) para leads enriquecidos antes desta feature; "melhor momento pra contatar" (`melhorMomento`) aparece junto do botão WhatsApp, com destaque verde quando o lead está aberto agora.
   - **`/mensagens`**: chat privado entre os usuários — lista de conversas e conversa aberta com envio de texto simples (ver seção "Mensagens entre usuários").
-  - **`/config`** (restrita a admin — o proxy manda membro de volta ao painel): seção **Usuários** (criar, ativar/desativar, redefinir senha; membro sem senha definida aparece marcado) + formulário completo (busca, filtros, mensagem padrão, **operação diária** — dias de follow-up e teto de buscas recorrentes —, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
+  - **`/config`** (restrita a admin — o proxy manda membro de volta ao painel): seção **Usuários** (criar, ativar/desativar, redefinir senha; membro sem senha definida aparece marcado) + seção **Cotas por usuário** (resumo do teto global relevante via `UsageMeter` + um cartão por usuário com uso × limite de dia/semana/mês, edição inline com efeito imediato — salva no blur, sem botão "Salvar" à parte — e botão "Zerar dia") + formulário completo (busca, filtros, mensagem padrão, **operação diária** — dias de follow-up e teto de buscas recorrentes —, tetos por SKU, preços/cota grátis/câmbio), mostra a lista de `problemas` de validação devolvida pela API.
 - **Paleta**: sempre escura (sem alternância clara/escura — é um painel de operação pessoal), tema "radar/sonar": fundo em gradiente azul-profundo → quase-preto (`--background-2` → `--background`), surface com leve tingimento azul (`#121b24`), acento vibrante verde-radar (`--accent`, com `--accent-ink` preto para texto sobre ele — o verde não passa em contraste com texto branco). Tokens centralizados em `globals.css` como `@theme` do Tailwind v4. Validada com a skill de dataviz: status do lead é **ordinal** (posição no funil novo→fechado), não identidade — por isso um único hue em degraus de luminância (`--status-novo` … `--status-fechado`), não cores categóricas distintas, reforçado por forma (quadrado→pill) e marcador (○◐◑●); o meter de uso segue o contrato "accent → warning → critical" com a trilha em wash neutro. A paleta das 10 cores de busca (`BUSCA_CORES`) foi revalidada (mais saturada) contra a nova surface. Textos sobre `good`/`critical`/`warning` usam preto (não branco) — o contraste do branco falha nesses tons vibrantes.
 - **Tipografia**: Space Grotesk (`font-display`, via `next/font/google`) para títulos e números grandes do dashboard; Inter (`font-sans`) para o corpo; JetBrains Mono (`font-mono`) para dados tabulares/valores.
 - **Animações** (CSS puro, sem lib): fade-in sutil de página (`.page-transition`, disparado por `PageTransition.tsx` que troca a `key` pelo pathname), barra do `UsageMeter` cresce de 0 ao montar, pulso (`.pulse-warning`/`.pulse-critical`) no preenchimento do meter perto do teto/no limite, elevação no hover dos cards clicáveis (`.card-lift`), sweep de radar rotativo (`RadarSweep.tsx` + `.radar-sweep`) no carregamento do dashboard. Tudo respeita `prefers-reduced-motion`.
@@ -766,7 +930,20 @@ A skin de barbearia da Forja de Demos foi verificada **lado a lado com o materia
 - **Fonte nova**: Fugaz One (display "poster" do material bruto) virou fonte core (`--font-demo-fugaz`) e entrou na lista curada do editor (`lib/demos/fontes.ts`) — nenhuma das skins anteriores tinha essa família.
 - Responsivo confirmado em mobile (390px): título do hero quebra em duas linhas naturalmente (sem split manual), grade de lanches vira coluna única, listas de bebidas/acompanhamentos mantêm rolagem horizontal, rodapé empilha.
 
+**Skin "Tatuagem Pigmento Vivo"** (conversão de `skins-raw/tatuagem2`, CROMA Tattoo Studio — fundo claro, blobs coloridos, manifesto scroll-driven e portfólio em trilha horizontal): clonado com `git clone` (o material bruto é um componente único auto-bootstrapping via CDN — React/ReactDOM/Babel carregados em runtime pelo próprio `support.js`), renderizado localmente (interceptando as 3 URLs de CDN e servindo os pacotes equivalentes do `node_modules` via Playwright `page.route`, já que o CDN não é alcançável no sandbox) e comparado lado a lado com a conversão através de uma página temporária (`/qa-tatuagem2-preview`, fora da proteção por sessão via uma exceção EXATA em `src/proxy.ts`) — ambas revertidas antes do commit, sem sobra no resultado final.
+
+- **Dois bugs reais de layout encontrados e corrigidos**: (1) os blobs decorativos do hero, embrulhados direto em `<Parallax>`, herdavam a classe `relative` do próprio wrapper do Parallax por cima do `absolute` que a skin passava — como as duas utilities Tailwind têm a mesma especificidade, a ordem de geração do CSS decidiu a disputa a favor de `relative`, jogando os três blobs (cada um ~46vw de altura) para dentro do fluxo normal do documento e empurrando o hero inteiro ~1900px pra baixo da dobra; corrigido envolvendo cada blob num `<div>` absolutamente posicionado PRÓPRIO, com o `<Parallax>` só por dentro (`h-full w-full`, sem position). (2) O CTA da nav mobile (classe utilitária `.d-nav-cta` com `display: inline-flex` fixo no `<style>` do componente) duplicava visualmente o CTA desktop em vez de somente aparecer abaixo de 768px: a tag `<style>` do componente é renderizada no `<body>`, depois do CSS compilado do Tailwind no `<head>` — com a mesma especificidade de seletor, a regra que vem depois no documento ganha o cascade, então o `display` fixo do `.d-nav-cta` vencia o `md:hidden` do Tailwind independente do viewport; corrigido tirando `display` da classe custom e deixando cada uso decidir via utility Tailwind (`inline-flex` / `inline-flex md:hidden`). Ambos reproduzidos e confirmados corrigidos via Playwright (`getBoundingClientRect`/screenshot) antes e depois da mudança.
+- Um terceiro problema, de hidratação (não de layout): um comentário de código dentro do template string do `<style>` continha a substring literal `<style>`, e o sanitizador de conteúdo de tags `<style>`/`<script>` do React escapa essa sequência de formas diferentes entre o HTML gerado no servidor e a renderização no cliente — causando "Hydration failed" nesse texto. Corrigido reescrevendo o comentário sem a substring `<style>` verbatim.
+- **Manifesto scroll-driven** (`ManifestoReveal.tsx`, DOM direto + rAF, mesmo padrão de `LedEdges.tsx`): confirmado rolando a página real — palavras "acendem" progressivamente da cor esmaecida (`color-mix` entre texto e fundo, funciona em qualquer preset) para a cor final conforme o scroll alcança o índice de cada uma; a cada 5 palavras, uma ganha itálico + cor do ciclo de acentos do tema, reproduzindo o efeito do original sem depender de quais palavras específicas o texto de exemplo usa.
+- **Trilha horizontal do portfólio** (`ScrollGallery.tsx`): confirmada em desktop (ponteiro fino) com pin real — a seção fica "presa" enquanto a trilha desliza horizontalmente conforme o scroll vertical avança — e em mobile (390px) com o fallback de scroll nativo (sem pin, `overflow-x-auto`), mesmo comportamento do material bruto em `coarse` pointers.
+- **Cartões de "Estilos"**: hover real confirmado — o blob de cor por trás do cartão expande (`scale(2.1)`) e o cartão inclina em 3D (`perspective`/`rotateX`/`rotateY`, alternando o sinal por posição par/ímpar), fiel ao original; o último cartão da lista sempre nasce com o esquema invertido (fundo escuro, texto claro usando os mesmos tokens de tema — funciona em preset claro OU escuro) no lugar do "Blackwork" fixo do original.
+- **FAQ** (`FaqAccordion.tsx`): primeiro item nasce aberto (`state = { open: 0 }` do original), clicar em outro item fecha o anterior e abre o novo, ponto colorido só preenche quando aberto.
+- **Preset escuro** ("Meia-noite"): confirmado visualmente com boa legibilidade e as micro-interações opcionais da Forja ligadas nesse preset (LED sutil, partículas de fundo) renderizando por cima do conteúdo sem atrapalhar leitura — mesma verificação de contraste feita nos outros presets claros ("Aquarela", "Boreal", "Terra").
+- Sem foto no hero nem nos cartões de "Estilos"/"Artistas" — fiel ao material bruto, que também não usa nenhuma imagem ali (só blobs de cor e rabiscos SVG); só o Portfólio tem slot de imagem de verdade.
+
 **Layout do chat `/mensagens`** (mesmo esquema de fake Firestore via `RADAR_FAKE_DB=1`, `next dev`, revertido antes do commit; Playwright em viewport mobile 390×844, dois usuários logados em contextos de browser separados): conversa com 18 mensagens confirmando header RADAR + mini-header da conversa no topo, lista preenchendo `flex-1` com scroll (sem colapsar), input colado acima da nav com as 6 abas sempre visíveis (checado por geometria via `getBoundingClientRect`, não só visual). Teclado mobile simulado por resize real do Chromium (390×844 → 390×400, o efeito equivalente ao `interactiveWidget:"resizes-content"` abrindo o teclado): input permaneceu dentro da viewport reduzida e a última mensagem visível acima dele, nunca escondida. Reabrir a conversa (nova navegação) e o lado do destinatário confirmados abrindo já com o scroll no fundo.
+
+**Cotas por usuário** (fake Firestore via `RADAR_FAKE_DB=1` + um mock HTTP local do Text Search/Place Details/Geocoding — os fetches ao Google acontecem no servidor Next.js, não no browser, então a interceptação via `page.route` do Playwright não alcança; `BASE_URL`/`GEOCODE_URL` foram temporariamente parametrizados por env var pra apontar pro mock, revertido antes do commit junto do patch do `admin.ts`). `next dev` com Turbopack não hidratou neste sandbox (o client bundle carregava, mas nenhum listener React anexava — WebSocket de HMR falhando no handshake, possivelmente por causa do proxy do ambiente; sem diagnóstico definitivo, contornado usando `next build && next start`, que não depende de HMR): login como admin, definir senha e limites (`buscasDia`/`enriquecimentosDia` = 1) de um membro pela própria UI, confirmado persistindo após reload; login como o membro, indicador de cota em `/leads` saindo de "hoje: 0/1", uma busca bem-sucedida levando a "hoje: 1/1" com o botão "Buscar" desabilitando (cortesia client-side) e uma 2ª tentativa via `fetch` direto (fora do botão) confirmando o bloqueio real do servidor (`429 user_quota_exceeded`, `janela: "dia"`, `resetaEm` batendo com meia-noite em Brasília — `03:00Z` no dia seguinte); o mesmo fluxo na ficha do lead pro indicador de enriquecimento (permanente antes/depois de enriquecer); de volta como admin, teto global de `textSearch` zerado em `/config` e a busca do admin ainda respondendo `200` (bypass confirmado), e "Zerar dia" no cartão do membro zerando o "usado" de hoje sem sessão nova.
 
 ## Variáveis de ambiente
 
@@ -788,3 +965,4 @@ Ver `.env.example`. Na Vercel, cadastrar todas em Project Settings → Environme
 - **Proteção de acesso**: multiusuário simples sobre `/usuarios` (papéis admin/membro, PBKDF2) + cookie de sessão ASSINADO com `APP_PASSWORD` (ver seção acima). Sem Firebase Auth — a escala é um punhado de usuários de confiança e a autorização se resume a "admin vs membro".
 - **Paginação do Text Search**: só a 1ª página (até 20 resultados). `nextPageToken` nem é lido.
 - **Re-enriquecimento**: não existe. Lead enriquecido retorna do cache sempre; um novo Place Details para o mesmo lead nunca é disparado.
+- **Cotas por usuário vs. teto global**: o teto global (`/config/app.caps`) deixou de ser um limite absoluto de conta — desde as cotas individuais, ele é "vale pra todo mundo, menos admin". A trava absoluta de fatura passa a ser só a cota configurada no console do Google. Decisão deliberada (não um efeito colateral): ver "Cotas individuais por usuário".

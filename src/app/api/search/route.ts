@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { recalcularPenetracao } from "@/lib/buscas/penetracao";
 import { createBusca } from "@/lib/buscas/repo";
 import { loadConfig } from "@/lib/config";
-import { ValidationError } from "@/lib/errors";
+import { UnauthorizedError, ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { geocodeRegion } from "@/lib/geo/geocode";
 import { handleRouteError, readJsonBody } from "@/lib/http";
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
         problemas.push(`${key} deve ser string`);
       }
     }
-    const { quantidade, qualificada } = body;
+    const { quantidade, qualificada, soSemSite } = body;
     if (
       quantidade !== undefined &&
       (typeof quantidade !== "number" ||
@@ -49,14 +50,19 @@ export async function POST(req: Request) {
     if (qualificada !== undefined && typeof qualificada !== "boolean") {
       problemas.push("qualificada deve ser booleano");
     }
+    if (soSemSite !== undefined && typeof soSemSite !== "boolean") {
+      problemas.push("soSemSite deve ser booleano");
+    }
     if (problemas.length > 0) {
       throw new ValidationError(problemas);
     }
 
     const db = getDb();
-    // Ação-chave: a busca (e cada reserva de cota dela) é atribuída ao
-    // usuário logado. O proxy garante sessão; aqui só a identificamos.
+    // Ação-chave sujeita a cota INDIVIDUAL: diferente do resto do app (onde
+    // atribuição é best-effort), aqui a sessão precisa resolver de verdade —
+    // sem saber quem é o usuário não dá pra aplicar o limite dele.
     const usuario = await usuarioDaRequest(db, req);
+    if (!usuario) throw new UnauthorizedError();
     const config = await loadConfig(db);
     const nicho = ((body.nicho as string | undefined) ?? config.nicho).trim();
     const regiao = ((body.regiao as string | undefined) ?? config.regiao).trim();
@@ -71,14 +77,18 @@ export async function POST(req: Request) {
     const nome = ((body.nome as string | undefined) ?? "").trim() || defaultNome(nicho, now);
     const query = [nicho, subNicho, regiao].filter(Boolean).join(" ");
 
-    const geo = await geocodeRegion(db, regiao, config.caps, usuario?.id);
+    const isAdmin = usuario.papel === "admin";
+    const geo = await geocodeRegion(db, regiao, config.caps, { userId: usuario.id, isAdmin });
 
     const resultado = await searchText(db, query, config.caps, {
       quantidade: quantidade as number | undefined,
       qualificada: qualificada as boolean | undefined,
+      soSemSite: soSemSite as boolean | undefined,
       locationRestriction: geo.viewport,
       isNovo: async (placeId) => !(await getLead(db, placeId)),
-      userId: usuario?.id,
+      userId: usuario.id,
+      isAdmin,
+      limitesUsuario: usuario.limites,
     });
 
     const buscaId = crypto.randomUUID();
@@ -100,19 +110,23 @@ export async function POST(req: Request) {
         // Parâmetros da execução, guardados para o cron re-executar o
         // MESMO pipeline caso a busca vire recorrente.
         ...(qualificada === true && { qualificada: true }),
+        ...(soSemSite === true && { soSemSite: true }),
         ...(quantidade !== undefined && { quantidade: quantidade as number }),
         totalCriados: criados,
         totalExistentes: existentes,
-        ...(usuario && { userId: usuario.id }),
+        userId: usuario.id,
       },
       now,
     );
+    // Recalcula a penetração de site do nicho+região (todas as buscas do
+    // grupo, não só esta) e cacheia no doc — 100% sobre dados já salvos.
+    const buscaAtualizada = await recalcularPenetracao(db, busca.id);
 
     return NextResponse.json({
       criados,
       existentes,
       leads,
-      busca,
+      busca: buscaAtualizada,
       paginas: resultado.paginas,
       regiaoResolvida: geo.endereco,
       ...(resultado.aviso && { aviso: resultado.aviso }),

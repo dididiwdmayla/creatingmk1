@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { saoPauloDateKey } from "@/lib/costs";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { cookieDeSessao } from "@/lib/testing/sessao";
 import { POST } from "../leads/[id]/enrich/route";
@@ -25,7 +26,10 @@ const GOOGLE_DETAILS = {
   },
 };
 
-beforeEach(() => {
+/** Sessão default de todos os testes deste arquivo — enrich agora EXIGE sessão identificável. */
+let membroCookie: string;
+
+beforeEach(async () => {
   db = new FakeFirestore();
   db.seed("leads/ChIJ001", {
     placeId: "ChIJ001",
@@ -42,6 +46,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   vi.stubEnv("GOOGLE_PLACES_API_KEY", "chave-teste");
   vi.stubEnv("APP_PASSWORD", "segredo123");
+  membroCookie = await cookieDeSessao(db, { id: "membro-1", papel: "membro" });
 });
 
 afterEach(() => {
@@ -49,7 +54,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function enrich(id: string, cookie?: string): Promise<Response> {
+/** cookie: null explicitamente pede request SEM sessão (default = membro). */
+function enrich(id: string, cookie: string | null = membroCookie): Promise<Response> {
   return POST(
     new Request(`http://localhost/api/leads/${id}/enrich`, {
       method: "POST",
@@ -210,5 +216,78 @@ describe("POST /api/leads/[id]/enrich", () => {
     expect(error.detail).toBe("boom");
     expect(db.getDoc("leads/ChIJ001")).toMatchObject({ enriquecido: false });
     expect(usageDoc()).toMatchObject({ detailsEnterprise: 1 });
+  });
+
+  it("sem sessão identificável → 401 (cota individual exige saber quem é o usuário)", async () => {
+    const res = await enrich("ChIJ001", null);
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("admin ignora o teto GLOBAL mensal (mas o contador ainda incrementa)", async () => {
+    const adminCookie = await cookieDeSessao(db, { id: "chefe", papel: "admin" });
+    db.seed("config/app", { caps: { detailsEnterprise: 0 } });
+
+    const res = await enrich("ChIJ001", adminCookie);
+
+    expect(res.status).toBe(200);
+    expect(usageDoc()).toMatchObject({ detailsEnterprise: 1 });
+  });
+
+  it("limite diário individual de enriquecimentos bloqueia com 429 user_quota_exceeded", async () => {
+    db.seed("leads/ChIJ002", {
+      placeId: "ChIJ002",
+      nome: "Odonto Vida",
+      status: "novo",
+      enriquecido: false,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+    const cookie = await cookieDeSessao(db, { id: "membro-2", papel: "membro" });
+    db.seed("usuarios/membro-2", {
+      id: "membro-2",
+      nome: "membro-2",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      limites: { enriquecimentosDia: 1 },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    await enrich("ChIJ001", cookie);
+    const res = await enrich("ChIJ002", cookie);
+
+    expect(res.status).toBe(429);
+    const { error } = await res.json();
+    expect(error).toMatchObject({
+      code: "user_quota_exceeded",
+      tipo: "enriquecimentos",
+      janela: "dia",
+    });
+  });
+
+  it("horário embutido no enrich NÃO desconta da cota individual de enriquecimentos", async () => {
+    const cookie = await cookieDeSessao(db, { id: "membro-2", papel: "membro" });
+    db.seed("usuarios/membro-2", {
+      id: "membro-2",
+      nome: "membro-2",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      limites: { enriquecimentosDia: 1 },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const res = await enrich("ChIJ001", cookie);
+
+    // 1 enriquecimento (com horário embutido) não estoura um limite de 1/dia.
+    expect(res.status).toBe(200);
+    const hojeKey = saoPauloDateKey(new Date());
+    expect(db.getDoc(`usage_users/membro-2/dias/${hojeKey}`)).toMatchObject({
+      enriquecimentos: 1,
+    });
   });
 });

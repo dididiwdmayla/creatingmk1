@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Placeholder: tatuagem aquarela">
+  <defs>
+    <linearGradient id="bg" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#D6336C"/>
+      <stop offset="0.55" stop-color="#FF6B35"/>
+      <stop offset="1" stop-color="#FAF6F0"/>
+    </linearGradient>
+    <pattern id="grain" width="26" height="26" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="6" r="1" fill="#FAF6F0" opacity="0.12"/>
+      <circle cx="18" cy="19" r="1" fill="#141414" opacity="0.05"/>
+    </pattern>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg)"/>
+  <rect width="800" height="1000" fill="url(#grain)"/>
+  <text x="40" y="940" font-family="Georgia, serif" fill="#FAF6F0" font-size="26" letter-spacing="2">Aquarela</text>
+</svg>

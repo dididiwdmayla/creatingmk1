@@ -1,3 +1,5 @@
+import type { PenetracaoSite } from "@/lib/leads/penetracao";
+
 export const BUSCAS_COLLECTION = "buscas";
 
 /**
@@ -53,12 +55,22 @@ export interface Busca {
   recorrente?: boolean;
   /** Parâmetros da execução original, reusados pelo cron ("mesmo pipeline"). */
   qualificada?: boolean;
+  /** "Só sem site": filtro pós-resposta (implica qualificada). */
+  soSemSite?: boolean;
   quantidade?: number;
   criadaEm: string;
   totalCriados: number;
   totalExistentes: number;
   /** Usuário que executou a busca (ausente em docs anteriores ao multiusuário). */
   userId?: string;
+  /**
+   * Penetração de site próprio do nicho+região deste grupo (todas as
+   * buscas com o MESMO nicho+região, não só esta — "neste nicho nesta
+   * cidade" é o grupo lógico). Cacheada aqui, recalculada toda vez que
+   * ESTA busca roda de novo (manual ou cron). 100% sobre dados já salvos:
+   * nunca dispara request ao Google.
+   */
+  penetracao?: PenetracaoSite;
 }
 
 /**

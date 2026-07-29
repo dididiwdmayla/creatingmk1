@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api, type HojeResponse } from "@/lib/api-client";
+import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import { formatDateTime, formatInt } from "@/lib/format";
 import { melhorMomento } from "@/lib/leads/horarios";
+import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { calculaScore } from "@/lib/leads/score";
 import type { Lead } from "@/lib/leads/types";
 import { buildWhatsAppLink } from "@/lib/wa";
@@ -223,8 +225,18 @@ function ItemHoje({
     lead.demo && typeof window !== "undefined"
       ? `${window.location.origin}/demo/${lead.placeId}`
       : undefined;
+  // Penetração de site do nicho+região do lead (cacheada no doc da busca) —
+  // alimenta a variável {penetracao} e o badge "argumento forte" (>60%).
+  const penetracaoInfo = penetracaoParaLead(lead, [...porId.values()]);
+  const argumentoTexto =
+    penetracaoInfo && lead.siteProprio === false
+      ? argumentoPenetracao(penetracaoInfo.nicho, penetracaoInfo.regiao, penetracaoInfo.penetracao, lead.nome)
+      : undefined;
   const waHref = telefoneIntl
-    ? buildWhatsAppLink(mensagemParaLead(lead, porId, mensagemGlobal), lead.nome, telefoneIntl, demoUrl)
+    ? buildWhatsAppLink(mensagemParaLead(lead, porId, mensagemGlobal), lead.nome, telefoneIntl, {
+        demoUrl,
+        penetracao: argumentoTexto,
+      })
     : undefined;
 
   return (
@@ -238,6 +250,14 @@ function ItemHoje({
         </Link>
         <div className="flex shrink-0 items-center gap-2">
           {extra}
+          {penetracaoInfo && argumentoForte(penetracaoInfo.penetracao) && (
+            <span
+              title="Mais de 60% da concorrência do nicho já tem site — argumento forte"
+              className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning"
+            >
+              argumento forte
+            </span>
+          )}
           <StatusBadge status={lead.status} />
         </div>
       </div>
