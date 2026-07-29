@@ -124,6 +124,16 @@ function validaDados(
       if (servico.descricao !== undefined) {
         validaTexto(servico.descricao, `dados.servicos[${i}].descricao`, problemas);
       }
+      if (servico.categoria !== undefined) {
+        validaTexto(servico.categoria, `dados.servicos[${i}].categoria`, problemas);
+      }
+      if (servico.destaques !== undefined) {
+        if (validaLista(servico.destaques, `dados.servicos[${i}].destaques`, problemas)) {
+          (servico.destaques as unknown[]).forEach((destaque, j) => {
+            validaTexto(destaque, `dados.servicos[${i}].destaques[${j}]`, problemas);
+          });
+        }
+      }
     });
   }
 
@@ -140,6 +150,9 @@ function validaDados(
       validaTexto(dep.texto, `dados.depoimentos[${i}].texto`, problemas);
       if (dep.nota !== undefined && (typeof dep.nota !== "number" || dep.nota < 1 || dep.nota > 5)) {
         problemas.push(`dados.depoimentos[${i}].nota deve ser número entre 1 e 5`);
+      }
+      if (dep.contexto !== undefined) {
+        validaTexto(dep.contexto, `dados.depoimentos[${i}].contexto`, problemas);
       }
     });
   }

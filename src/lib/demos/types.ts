@@ -16,6 +16,14 @@ export interface DemoServico {
   nome: string;
   preco: string;
   descricao?: string;
+  /**
+   * Categoria/etiqueta curta do item — usada por skins com filtro (ex.:
+   * corpo do veículo num catálogo de carros). Ausente = item some do
+   * agrupamento, mas continua na lista "todos".
+   */
+  categoria?: string;
+  /** Badges curtos exibidos como chips (ex.: ano, km, câmbio — specs rápidas). */
+  destaques?: string[];
 }
 
 /** Depoimento/avaliação exibido na seção de prova social. */
@@ -24,6 +32,8 @@ export interface DemoDepoimento {
   texto: string;
   /** 1–5 estrelas; ausente = depoimento sem nota. */
   nota?: number;
+  /** Segunda linha curta sob o autor (ex.: o que comprou/contratou). Opcional. */
+  contexto?: string;
 }
 
 /**

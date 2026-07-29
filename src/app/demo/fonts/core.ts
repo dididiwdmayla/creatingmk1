@@ -1,6 +1,7 @@
 import {
   Archivo,
   Bebas_Neue,
+  Bodoni_Moda,
   Cormorant_Garamond,
   Crimson_Pro,
   DM_Serif_Display,
@@ -9,6 +10,7 @@ import {
   Inter,
   JetBrains_Mono,
   Limelight,
+  Oswald,
   Pirata_One,
   Playfair_Display,
 } from "next/font/google";
@@ -129,6 +131,27 @@ const archivo = Archivo({
   style: ["normal", "italic"],
 });
 
+// Display dramática da skin "Multimarcas Vórtice" — títulos, wordmark e
+// logo do preloader/rodapé. Pesos 700/800 normal only, igual ao material
+// bruto (que não usa itálico nem os pesos 400/500/600/900 da família).
+const bodoni = Bodoni_Moda({
+  variable: "--font-demo-bodoni",
+  subsets: ["latin"],
+  weight: ["700", "800"],
+});
+
+// Condensada tabular da mesma skin — preços, contadores e o velocímetro
+// do preloader (font-variant-numeric: tabular-nums no material bruto).
+// Promovida de dynamic/ pra core: é o papel `mono` FIXO do preset (não
+// patchável via TemaPatch), então precisa estar sempre disponível — ver
+// ARCHITECTURE.md "Padrão para adicionar uma nova skin". Continua na
+// lista curada (fontes.ts) para quem quiser escolhê-la como display.
+const oswald = Oswald({
+  variable: "--font-demo-oswald",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
 /** Ids da lista curada (fontes.ts) já cobertos por este pacote estático. */
 export const CORE_FONT_IDS: readonly string[] = [
   "bebas",
@@ -140,6 +163,7 @@ export const CORE_FONT_IDS: readonly string[] = [
   "fugaz",
   "dm-serif",
   "archivo",
+  "oswald",
 ];
 
 export const demoCoreFontsClassName = [
@@ -156,4 +180,6 @@ export const demoCoreFontsClassName = [
   fraunces.variable,
   dmSerif.variable,
   archivo.variable,
+  bodoni.variable,
+  oswald.variable,
 ].join(" ");

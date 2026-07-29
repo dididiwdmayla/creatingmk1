@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 275" role="img" aria-label="Placeholder de veículo esportivo">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="120%">
+      <stop offset="0%" stop-color="#F3E3CC"/>
+      <stop offset="60%" stop-color="#EAD6B8"/>
+      <stop offset="100%" stop-color="#E0C8A4"/>
+    </radialGradient>
+  </defs>
+  <rect width="440" height="275" fill="url(#bg)"/>
+  <g transform="translate(0,57)" opacity="0.82">
+    
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M16 116 C16 104 28 98 54 94 L98 88 C124 62 158 50 198 48 L242 48 C284 50 316 64 338 86 L358 94 C398 98 420 104 424 112 L426 118"/>
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M148 86 L182 58 L252 58 L306 84"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="114" cy="118" r="23"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="114" cy="118" r="9"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="344" cy="118" r="23"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="344" cy="118" r="9"/>
+    
+  </g>
+</svg>
