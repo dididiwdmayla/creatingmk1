@@ -140,6 +140,18 @@ export const DEMO_FONTES: readonly DemoFonte[] = [
     css: "var(--font-demo-archivo), Arial, sans-serif",
     papeis: ["display", "corpo"],
   },
+  {
+    id: "instrument-serif",
+    nome: "Instrument Serif (editorial itálica)",
+    css: "var(--font-demo-instrument-serif), Georgia, serif",
+    papeis: ["display"],
+  },
+  {
+    id: "instrument-sans",
+    nome: "Instrument Sans (sans neutra arredondada)",
+    css: "var(--font-demo-instrument-sans), system-ui, sans-serif",
+    papeis: ["corpo"],
+  },
 ];
 
 export function getFonte(id: string | undefined): DemoFonte | undefined {
