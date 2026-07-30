@@ -586,7 +586,7 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
             </FadeUp>
           )}
 
-          {(data.endereco || data.horarios) && (
+          {(data.endereco || data.horarios || (data.telefone && data.telefone !== data.whatsapp)) && (
             <FadeUp animacao={theme.animacao} delay={0.3} className="mb-12 flex flex-col gap-1">
               {data.endereco && (
                 <p data-demo-slot="endereco" className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]">
@@ -596,6 +596,11 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
               {data.horarios && (
                 <p data-demo-slot="horarios" className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]">
                   {data.horarios}
+                </p>
+              )}
+              {data.telefone && data.telefone !== data.whatsapp && (
+                <p data-demo-slot="telefone" className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]">
+                  {data.telefone}
                 </p>
               )}
             </FadeUp>

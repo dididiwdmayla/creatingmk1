@@ -382,9 +382,14 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
             >
               {s.contato?.titulo ?? "Contato"}
             </h3>
-            {(data.cidade || data.endereco) && (
-              <p data-demo-slot={data.cidade ? "cidade" : "endereco"} className="mb-4 font-[family-name:var(--d-corpo)] text-sm text-[var(--d-text)]">
-                {data.cidade ?? data.endereco}
+            {(data.endereco || data.cidade) && (
+              <p data-demo-slot={data.endereco ? "endereco" : "cidade"} className="mb-4 font-[family-name:var(--d-corpo)] text-sm text-[var(--d-text)]">
+                {data.endereco ?? data.cidade}
+              </p>
+            )}
+            {data.telefone && data.telefone !== data.whatsapp && (
+              <p data-demo-slot="telefone" className="mb-4 font-[family-name:var(--d-corpo)] text-sm text-[var(--d-text)]">
+                {data.telefone}
               </p>
             )}
             {s.contato?.cta && (

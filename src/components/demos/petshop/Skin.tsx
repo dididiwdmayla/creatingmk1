@@ -851,9 +851,9 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
                 {data.telefone}
               </a>
             )}
-            {(data.cidade || data.endereco) && (
-              <p data-demo-slot={data.cidade ? "cidade" : "endereco"} className="text-[15px]" style={{ color: "color-mix(in srgb, var(--d-bg) 75%, transparent)" }}>
-                {data.cidade ?? data.endereco}
+            {(data.endereco || data.cidade) && (
+              <p data-demo-slot={data.endereco ? "endereco" : "cidade"} className="text-[15px]" style={{ color: "color-mix(in srgb, var(--d-bg) 75%, transparent)" }}>
+                {data.endereco ?? data.cidade}
               </p>
             )}
             {s.contato?.cta && (

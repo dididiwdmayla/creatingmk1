@@ -653,6 +653,11 @@ export function TatuagemPigmentoVivo({ data, theme }: SkinProps) {
               {data.horarios}
             </span>
           )}
+          {data.telefone && data.telefone !== data.whatsapp && (
+            <span data-demo-slot="telefone" className="text-sm text-[var(--d-muted)]">
+              {data.telefone}
+            </span>
+          )}
           {data.instagram && (
             <span data-demo-slot="instagram" className="text-sm font-semibold text-[var(--d-text)]">
               {data.instagram}
