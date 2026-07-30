@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { estadoAtual, melhorMomento } from "../horarios";
+import { estadoAtual, melhorMomento, resumirHorarios } from "../horarios";
 import type { Lead } from "../types";
 
 type Faixa = NonNullable<Lead["horarios"]>["faixas"][number];
+
+function faixa(dia: number, horaAbre: number, horaFecha: number, minAbre = 0, minFecha = 0): Faixa {
+  return { diaAbre: dia, horaAbre, minAbre, diaFecha: dia, horaFecha, minFecha };
+}
 
 function horarios(faixas: Faixa[], utcOffsetMinutes: number | undefined): Lead["horarios"] {
   return { faixas, utcOffsetMinutes, obtidoEm: "2026-07-01T00:00:00.000Z" };
@@ -139,5 +143,34 @@ describe("melhorMomento", () => {
     expect(melhorMomento(horarios(COMERCIAL, undefined), new Date())).toBeNull();
     expect(melhorMomento(horarios([], -180), new Date())).toBeNull();
     expect(melhorMomento(undefined, new Date())).toBeNull();
+  });
+});
+
+describe("resumirHorarios", () => {
+  it("dias agrupados: SEG-SEX iguais, SÁB diferente, DOM fechado", () => {
+    const faixas = [
+      ...[1, 2, 3, 4, 5].map((dia) => faixa(dia, 9, 20)),
+      faixa(6, 9, 18),
+    ];
+    expect(resumirHorarios(faixas)).toBe("SEG-SEX 9h-20h · SÁB 9h-18h · DOM fechado");
+  });
+
+  it("dia isolado no meio da semana, resto fechado", () => {
+    const faixas = [faixa(3, 14, 19)];
+    expect(resumirHorarios(faixas)).toBe(
+      "SEG-TER fechado · QUA 14h-19h · QUI-DOM fechado",
+    );
+  });
+
+  it("faixa dupla no mesmo dia (pausa de almoço)", () => {
+    const faixas = [1, 2, 3, 4, 5].map((dia) => dia).flatMap((dia) => [
+      faixa(dia, 9, 12),
+      faixa(dia, 14, 18),
+    ]);
+    expect(resumirHorarios(faixas)).toBe("SEG-SEX 9h-12h/14h-18h · SÁB-DOM fechado");
+  });
+
+  it("sem faixas → undefined", () => {
+    expect(resumirHorarios([])).toBeUndefined();
   });
 });
