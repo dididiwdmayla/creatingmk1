@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Lead } from "@/lib/leads/types";
 import { aplicarPatch, dadosDoLead, montarDemoData } from "../montar";
+import { getSkin } from "../registry";
 import type { DemoData } from "../types";
 
 const exemplo: DemoData = {
@@ -194,5 +195,50 @@ describe("montarDemoData", () => {
 
   it("sem lead nem patch devolve o exemplo do template", () => {
     expect(montarDemoData(exemplo)).toEqual(exemplo);
+  });
+
+  describe("varredura de demos salvas: defaults históricos de identidade ignorados na leitura", () => {
+    it('demo salva com o antigo "BARBEARIA & SUL" no hero cai pro nome real do lead, não pro texto congelado', () => {
+      const skin = getSkin("barbearia2-sul")!;
+      const lead = makeLead({ nome: "Barbearia do Zé", endereco: undefined });
+      const patchSalvo = {
+        // Persistido por uma demo salva ANTES de secoes.hero.titulo virar
+        // "ausente fica ausente" — valor idêntico ao antigo exemplo.ts.
+        secoes: { hero: { titulo: "BARBEARIA\n& SUL" } },
+        cidade: "Sua Cidade — UF",
+        instagram: "@suabarbearia",
+      };
+
+      const data = montarDemoData(skin.demoDataExemplo, lead, patchSalvo, skin.id);
+
+      // O título antigo não sobrevive: cai pro nome REAL do lead (quebrado
+      // em título), nunca fica preso no texto de exemplo congelado.
+      expect(data.secoes.hero?.titulo).toBe("Barbearia do Zé");
+      expect(data.secoes.hero?.titulo).not.toBe("BARBEARIA\n& SUL");
+      // cidade/instagram: o lead não tem nenhum dos dois — ausente fica
+      // ausente, não volta ao default antigo persistido.
+      expect(data.cidade).toBeUndefined();
+      expect(data.instagram).toBeUndefined();
+    });
+
+    it("edição real do usuário (diferente do default histórico) continua valendo", () => {
+      const skin = getSkin("barbearia2-sul")!;
+      const lead = makeLead();
+      const patchSalvo = {
+        secoes: { hero: { titulo: "NOVA\nIDENTIDADE" } },
+        cidade: "Curitiba — PR",
+      };
+
+      const data = montarDemoData(skin.demoDataExemplo, lead, patchSalvo, skin.id);
+
+      expect(data.secoes.hero?.titulo).toBe("NOVA\nIDENTIDADE");
+      expect(data.cidade).toBe("Curitiba — PR");
+    });
+
+    it("sem skinId (fixture avulsa, sem skin real) não filtra nada, mesmo com valor igual a um default histórico de outra skin", () => {
+      const lead = makeLead();
+      const data = montarDemoData(exemplo, lead, { cidade: "Sua Cidade — UF" });
+      expect(data.cidade).toBe("Sua Cidade — UF");
+    });
   });
 });

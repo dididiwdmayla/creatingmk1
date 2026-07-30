@@ -19,11 +19,6 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
   nome: "MATIZ STUDIO",
   slogan: "Cor que você carrega pra vida toda.",
   endereco: "Rua das Aquarelas, 88 — Centro",
-  telefone: "(00) 0000-0000",
-  whatsapp: "(00) 90000-0000",
-  instagram: "@matiz.studio",
-  cidade: "Curitiba - PR",
-  horarios: "Terça a sábado, 11h às 20h. Atendimento por agendamento.",
   servicos: [
     {
       nome: "SESSÃO — PEQUENA",
@@ -70,8 +65,7 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
   ],
   secoes: {
     hero: {
-      rotulo: "Estúdio de tatuagem · Curitiba",
-      titulo: "Sua história,\nnossa tinta.",
+      rotulo: "Estúdio de tatuagem autoral",
       texto: "Cor viva, traço autoral. Sessões por agendamento, desde 2018.",
       cta: "Agendar sessão",
     },

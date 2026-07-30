@@ -6,6 +6,7 @@ import { useRef, type ChangeEvent, type ReactNode } from "react";
 
 import { ordemEfetiva } from "@/lib/demos/estrutura";
 import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
+import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
 import { SKINS } from "@/lib/demos/registry";
 import { TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
 import type {
@@ -117,6 +118,12 @@ const CAMPOS_NEGOCIO = [
   { chave: "horarios", rotulo: "Horários" },
 ] as const;
 
+const ROTULOS_IDENTIDADE = CAMPOS_NEGOCIO.filter((c) =>
+  (CAMPOS_IDENTIDADE_DEMO as readonly string[]).includes(c.chave),
+)
+  .map((c) => c.rotulo)
+  .join(", ");
+
 const CAMPOS_SECAO = [
   { chave: "rotulo", rotulo: "Etiqueta" },
   { chave: "titulo", rotulo: "Título" },
@@ -177,7 +184,9 @@ export function PainelConteudo({
           />
         ))}
         <p className="text-[11px] text-ink-muted">
-          Campo esvaziado volta ao padrão do template ao salvar.
+          Nome, slogan e endereço esvaziados voltam ao padrão do template ao
+          salvar. Já {ROTULOS_IDENTIDADE} esvaziados não voltam ao texto de
+          exemplo — o elemento correspondente some da demo.
         </p>
       </Grupo>
 

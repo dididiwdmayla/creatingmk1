@@ -648,6 +648,11 @@ export function TatuagemPigmentoVivo({ data, theme }: SkinProps) {
               {data.endereco}
             </span>
           )}
+          {data.cidade && (
+            <span data-demo-slot="cidade" className="text-sm text-[var(--d-muted)]">
+              {data.cidade}
+            </span>
+          )}
           {data.horarios && (
             <span data-demo-slot="horarios" className="text-sm text-[var(--d-muted)]">
               {data.horarios}

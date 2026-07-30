@@ -2,6 +2,8 @@ import { cidadeDoEndereco } from "@/lib/leads/cidade";
 import { resumirHorarios } from "@/lib/leads/horarios";
 import { handleInstagram } from "@/lib/leads/instagram";
 import type { Lead } from "@/lib/leads/types";
+import { CAMPOS_IDENTIDADE_DEMO } from "./patch";
+import { DEFAULTS_HISTORICOS } from "./legado";
 import type { DemoData, DemoDataPatch, DemoSecao } from "./types";
 
 /**
@@ -98,14 +100,52 @@ export function aplicarPatch(base: DemoData, patch: DemoDataPatch | undefined): 
 }
 
 /**
+ * Remove do patch SALVO qualquer campo de identidade cujo valor seja
+ * idêntico ao default histórico daquela skin (ver ./legado.ts) — demos
+ * salvas antes desses campos virarem "ausente fica ausente" podem ter o
+ * texto de exemplo antigo persistido como se fosse edição real; na
+ * leitura, esse valor é tratado como se nunca tivesse sido setado (a demo
+ * cai pro dado do lead/nome, não pro texto de exemplo congelado). Nunca
+ * usado na escrita — só filtra o que já está salvo.
+ */
+function semDefaultsHistoricos(
+  patch: DemoDataPatch | undefined,
+  skinId: string | undefined,
+): DemoDataPatch | undefined {
+  if (!patch || !skinId) return patch;
+  const legado = DEFAULTS_HISTORICOS[skinId];
+  if (!legado) return patch;
+
+  const limpo: DemoDataPatch = { ...patch };
+  for (const campo of CAMPOS_IDENTIDADE_DEMO) {
+    const chave = campo as keyof DemoDataPatch;
+    if (limpo[chave] !== undefined && limpo[chave] === legado[chave as keyof typeof legado]) {
+      delete limpo[chave];
+    }
+  }
+
+  if (limpo.secoes?.hero?.titulo !== undefined && limpo.secoes.hero.titulo === legado.heroTitulo) {
+    const restoHero = { ...limpo.secoes.hero };
+    delete restoHero.titulo;
+    limpo.secoes = { ...limpo.secoes, hero: restoHero };
+  }
+
+  return limpo;
+}
+
+/**
  * DemoData efetivo do lead: exemplo do template ← dados do lead ← edições.
  * `lead` opcional (a ficha monta a prévia dos campos antes de salvar).
+ * `skinId` opcional: só é usado pra filtrar defaults históricos do patch
+ * salvo (ver semDefaultsHistoricos) — ausente = sem filtragem (fixtures de
+ * teste com DemoData avulso, sem skin real, continuam funcionando).
  */
 export function montarDemoData(
   exemplo: DemoData,
   lead?: Lead,
   patch?: DemoDataPatch,
+  skinId?: string,
 ): DemoData {
   const comLead = lead ? aplicarPatch(exemplo, dadosDoLead(lead)) : exemplo;
-  return aplicarPatch(comLead, patch);
+  return aplicarPatch(comLead, semDefaultsHistoricos(patch, skinId));
 }

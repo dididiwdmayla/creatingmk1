@@ -18,11 +18,6 @@ export const IMOBILIARIA_EXEMPLO: DemoData = {
   nome: "RAIZ IMÓVEIS",
   slogan: "Curadoria de casas com história.",
   endereco: "Rua Principal, 100 — Centro",
-  telefone: "(00) 0000-0000",
-  whatsapp: "(00) 90000-0000",
-  instagram: "@suaimobiliaria",
-  cidade: "Sua Cidade — UF",
-  horarios: "Seg–Sex · 9h às 19h · Sáb · 9h às 14h",
   servicos: [
     {
       nome: "Casa-jardim em Alto de Pinheiros",
@@ -59,8 +54,7 @@ export const IMOBILIARIA_EXEMPLO: DemoData = {
   ],
   secoes: {
     hero: {
-      rotulo: "Imobiliária boutique · Sua Cidade",
-      titulo: "Morar bem é uma arte.",
+      rotulo: "Imobiliária boutique",
       texto:
         "Curadoria de casas e apartamentos com história, luz e lugar. Poucos imóveis, escolhidos a dedo — e uma conversa de verdade antes de qualquer visita.",
       cta: "Ver imóveis",

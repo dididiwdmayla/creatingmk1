@@ -392,6 +392,17 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
                 {data.telefone}
               </p>
             )}
+            {data.instagram && (
+              <a
+                href={`https://instagram.com/${data.instagram.replace(/^@/, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-demo-slot="instagram"
+                className="mb-4 font-[family-name:var(--d-corpo)] text-sm text-[var(--d-text)] transition-colors hover:text-[var(--d-accent-2)]"
+              >
+                {data.instagram}
+              </a>
+            )}
             {s.contato?.cta && (
               <OrderCta
                 whatsapp={data.whatsapp}
