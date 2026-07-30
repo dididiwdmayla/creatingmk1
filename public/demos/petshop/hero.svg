@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-label="Placeholder: pet feliz (herói)">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF9F0"/>
+      <stop offset="1" stop-color="#FFEFDD"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="38%" r="60%">
+      <stop offset="0" stop-color="#EFEBFF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#FFF6EA" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect width="1600" height="1000" fill="url(#glow)"/>
+
+  <!-- silhueta de cão + gato lado a lado, formas simples arredondadas -->
+  <g transform="translate(560 620)">
+    <ellipse cx="0" cy="40" rx="220" ry="150" fill="#FF6B2C" opacity="0.16"/>
+    <path d="M-150 60 C -150 -60 -60 -140 0 -140 C 60 -140 150 -60 150 60 C 150 160 70 210 0 210 C -70 210 -150 160 -150 60 Z" fill="#2B2277"/>
+    <ellipse cx="-70" cy="-150" rx="34" ry="46" fill="#2B2277"/>
+    <ellipse cx="70" cy="-150" rx="34" ry="46" fill="#2B2277"/>
+    <circle cx="-38" cy="-10" r="9" fill="#FFF6EA"/>
+    <circle cx="38" cy="-10" r="9" fill="#FFF6EA"/>
+    <ellipse cx="0" cy="30" rx="16" ry="11" fill="#FF6B2C"/>
+  </g>
+  <g transform="translate(1020 660)">
+    <path d="M-120 40 C -120 -60 -50 -120 0 -120 C 50 -120 120 -60 120 40 C 120 130 60 170 0 170 C -60 170 -120 130 -120 40 Z" fill="#FFC93C"/>
+    <path d="M-90 -110 L -60 -50 L -30 -110 Z" fill="#FFC93C"/>
+    <path d="M90 -110 L 60 -50 L 30 -110 Z" fill="#FFC93C"/>
+    <circle cx="-30" cy="0" r="7" fill="#2B2277"/>
+    <circle cx="30" cy="0" r="7" fill="#2B2277"/>
+    <path d="M-10 26 L 10 26 L 0 38 Z" fill="#2B2277"/>
+  </g>
+
+  <!-- pegadas decorativas -->
+  <g fill="#4535E8" opacity="0.35">
+    <g transform="translate(300 260) scale(1.4)"><circle cx="0" cy="20" r="10"/><circle cx="-16" cy="0" r="6"/><circle cx="0" cy="-6" r="6"/><circle cx="16" cy="0" r="6"/></g>
+    <g transform="translate(1300 300) scale(1.1) rotate(18)"><circle cx="0" cy="20" r="10"/><circle cx="-16" cy="0" r="6"/><circle cx="0" cy="-6" r="6"/><circle cx="16" cy="0" r="6"/></g>
+  </g>
+
+  <text x="800" y="920" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="30" fill="#6A64A8">Foto de um pet feliz (herói)</text>
+</svg>

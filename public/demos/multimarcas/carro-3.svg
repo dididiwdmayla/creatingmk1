@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 275" role="img" aria-label="Placeholder de veículo sedan">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="0%" r="120%">
+      <stop offset="0%" stop-color="#EEE6D8"/>
+      <stop offset="60%" stop-color="#E5DAC6"/>
+      <stop offset="100%" stop-color="#DCCEB2"/>
+    </radialGradient>
+  </defs>
+  <rect width="440" height="275" fill="url(#bg)"/>
+  <g transform="translate(0,57)" opacity="0.82">
+    
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M18 116 C18 106 26 100 46 96 L72 92 C90 68 112 58 142 54 L170 34 C186 26 232 26 258 34 L292 56 C330 60 366 74 388 92 C404 98 416 104 420 112 L422 116"/>
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M176 52 L196 36 L250 36 L280 54"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="110" cy="116" r="23"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="110" cy="116" r="9"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="340" cy="116" r="23"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="340" cy="116" r="9"/>
+    
+  </g>
+</svg>

@@ -1,6 +1,7 @@
 import {
   Archivo,
   Bebas_Neue,
+  Bodoni_Moda,
   Cormorant_Garamond,
   Crimson_Pro,
   DM_Serif_Display,
@@ -8,8 +9,11 @@ import {
   Fugaz_One,
   Hanken_Grotesk,
   Inter,
+  Instrument_Sans,
+  Instrument_Serif,
   JetBrains_Mono,
   Limelight,
+  Oswald,
   Pirata_One,
   Playfair_Display,
 } from "next/font/google";
@@ -144,6 +148,47 @@ const hankenGrotesk = Hanken_Grotesk({
   weight: ["400", "500", "600", "700"],
 });
 
+// Display dramática da skin "Multimarcas Vórtice" — títulos, wordmark e
+// logo do preloader/rodapé. Pesos 700/800 normal only, igual ao material
+// bruto (que não usa itálico nem os pesos 400/500/600/900 da família).
+const bodoni = Bodoni_Moda({
+  variable: "--font-demo-bodoni",
+  subsets: ["latin"],
+  weight: ["700", "800"],
+});
+
+// Condensada tabular da mesma skin — preços, contadores e o velocímetro
+// do preloader (font-variant-numeric: tabular-nums no material bruto).
+// Promovida de dynamic/ pra core: é o papel `mono` FIXO do preset (não
+// patchável via TemaPatch), então precisa estar sempre disponível — ver
+// ARCHITECTURE.md "Padrão para adicionar uma nova skin". Continua na
+// lista curada (fontes.ts) para quem quiser escolhê-la como display.
+const oswald = Oswald({
+  variable: "--font-demo-oswald",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+// Dupla tipográfica da skin de petshop (Focinho Feliz): Instrument Serif
+// cobre display/números/citações/flutuantes (o material bruto usa o
+// itálico dela em quase todo destaque de marca); Instrument Sans cobre
+// corpo, nav e botões — mesmo critério de reaproveitamento de
+// mono/serif/decorativa/citacao/destaque já usado em lancheria/tatuagem2
+// (não existe família separada pra preço ou logotipo no original).
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-demo-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+});
+
+const instrumentSans = Instrument_Sans({
+  variable: "--font-demo-instrument-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+});
+
 /** Ids da lista curada (fontes.ts) já cobertos por este pacote estático. */
 export const CORE_FONT_IDS: readonly string[] = [
   "bebas",
@@ -157,6 +202,9 @@ export const CORE_FONT_IDS: readonly string[] = [
   "archivo",
   "fraunces",
   "hanken-grotesk",
+  "oswald",
+  "instrument-serif",
+  "instrument-sans",
 ];
 
 export const demoCoreFontsClassName = [
@@ -174,4 +222,8 @@ export const demoCoreFontsClassName = [
   dmSerif.variable,
   archivo.variable,
   hankenGrotesk.variable,
+  bodoni.variable,
+  oswald.variable,
+  instrumentSerif.variable,
+  instrumentSans.variable,
 ].join(" ");
