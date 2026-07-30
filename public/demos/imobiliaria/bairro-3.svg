@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1140" role="img" aria-label="Placeholder: esquina de bairro movimentado">
+  <defs>
+    <linearGradient id="b3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F1E4CC"/>
+      <stop offset="1" stop-color="#E1D2AE"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1140" fill="url(#b3)"/>
+  <rect y="760" width="800" height="380" fill="#CBB98F"/>
+  <g fill="#3E4A34">
+    <rect x="90" y="360" width="260" height="420"/>
+    <rect x="420" y="260" width="290" height="520"/>
+  </g>
+  <g fill="#F2B33D" opacity="0.85">
+    <rect x="120" y="410" width="46" height="46"/>
+    <rect x="200" y="410" width="46" height="46"/>
+    <rect x="280" y="410" width="46" height="46"/>
+    <rect x="120" y="500" width="46" height="46"/>
+    <rect x="200" y="500" width="46" height="46"/>
+    <rect x="280" y="500" width="46" height="46"/>
+    <rect x="460" y="320" width="50" height="50"/>
+    <rect x="550" y="320" width="50" height="50"/>
+    <rect x="640" y="320" width="50" height="50"/>
+    <rect x="460" y="420" width="50" height="50"/>
+    <rect x="550" y="420" width="50" height="50"/>
+    <rect x="640" y="420" width="50" height="50"/>
+  </g>
+  <rect x="90" y="360" width="260" height="20" fill="#C4572E"/>
+  <rect x="420" y="260" width="290" height="20" fill="#C4572E"/>
+</svg>

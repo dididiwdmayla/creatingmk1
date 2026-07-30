@@ -141,6 +141,18 @@ export const DEMO_FONTES: readonly DemoFonte[] = [
     papeis: ["display", "corpo"],
   },
   {
+    id: "fraunces",
+    nome: "Fraunces (serif editorial calorosa)",
+    css: "var(--font-demo-fraunces), Georgia, serif",
+    papeis: ["display"],
+  },
+  {
+    id: "hanken-grotesk",
+    nome: "Hanken Grotesk (sans neutra e legível)",
+    css: "var(--font-demo-hanken), system-ui, sans-serif",
+    papeis: ["corpo"],
+  },
+  {
     id: "instrument-serif",
     nome: "Instrument Serif (editorial itálica)",
     css: "var(--font-demo-instrument-serif), Georgia, serif",

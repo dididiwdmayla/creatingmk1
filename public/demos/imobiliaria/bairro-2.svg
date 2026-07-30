@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1140" role="img" aria-label="Placeholder: viela colorida">
+  <defs>
+    <linearGradient id="b2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EADFC6"/>
+      <stop offset="1" stop-color="#D6C39C"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1140" fill="url(#b2)"/>
+  <rect y="900" width="800" height="240" fill="#B7A377"/>
+  <g>
+    <rect x="60" y="500" width="220" height="420" fill="#C4572E"/>
+    <rect x="300" y="440" width="200" height="480" fill="#F2B33D"/>
+    <rect x="520" y="560" width="220" height="360" fill="#3E4A34"/>
+  </g>
+  <g fill="#F7F1E8" opacity="0.85">
+    <rect x="100" y="560" width="50" height="70"/>
+    <rect x="190" y="560" width="50" height="70"/>
+    <rect x="340" y="500" width="50" height="70"/>
+    <rect x="420" y="500" width="50" height="70"/>
+    <rect x="560" y="620" width="50" height="70"/>
+    <rect x="650" y="620" width="50" height="70"/>
+  </g>
+</svg>

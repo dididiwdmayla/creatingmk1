@@ -7,6 +7,7 @@ import {
   DM_Serif_Display,
   Fraunces,
   Fugaz_One,
+  Hanken_Grotesk,
   Inter,
   Instrument_Sans,
   Instrument_Serif,
@@ -87,15 +88,19 @@ const fugaz = Fugaz_One({
   weight: "400",
 });
 
-// Serif variável (eixo óptico) da skin de barbearia2 — display do hero,
-// headlines editoriais e o logotipo do rodapé. O material bruto usa pesos
-// finos (330-400) ao longo do eixo `opsz`; aproximamos para os cortes
-// estáticos 400/500 do next/font (mesmo critério do peso 340→400 já usado
-// alhures neste arquivo).
+// Serif variável (eixo óptico), compartilhada por duas skins: display do
+// hero/headlines/logotipo do rodapé da barbearia2 (pesos 400/500, normal
+// only) e da imobiliária (pesos 300/400/500/600 + itálico — o material
+// bruto dela usa Fraunces variável ital,opsz,wght@0,9..144,300..700;1,
+// 9..144,300..700, com itálico de verdade nos destaques do H1/citações e
+// peso 300 nos números/preços; aproximamos para os cortes estáticos do
+// next/font que cobrem esse intervalo, igual ao critério do peso 340→400
+// já usado alhures neste arquivo).
 const fraunces = Fraunces({
   variable: "--font-demo-fraunces",
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["300", "400", "500", "600"],
+  style: ["normal", "italic"],
 });
 
 // Pesos 400/900, estilo normal only — igual ao material bruto (que também
@@ -131,6 +136,16 @@ const archivo = Archivo({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
+});
+
+// Sans neutra da skin de imobiliária — corpo de texto, nav, botões e
+// etiquetas (o material bruto usa só "Hanken Grotesk" pro corpo inteiro,
+// Fraunces cobre todo o display). Pesos 400/500/600/700, igual ao
+// `@family=Hanken+Grotesk:wght@400;500;600;700` do original.
+const hankenGrotesk = Hanken_Grotesk({
+  variable: "--font-demo-hanken",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 // Display dramática da skin "Multimarcas Vórtice" — títulos, wordmark e
@@ -185,6 +200,8 @@ export const CORE_FONT_IDS: readonly string[] = [
   "fugaz",
   "dm-serif",
   "archivo",
+  "fraunces",
+  "hanken-grotesk",
   "oswald",
   "instrument-serif",
   "instrument-sans",
@@ -204,6 +221,7 @@ export const demoCoreFontsClassName = [
   fraunces.variable,
   dmSerif.variable,
   archivo.variable,
+  hankenGrotesk.variable,
   bodoni.variable,
   oswald.variable,
   instrumentSerif.variable,

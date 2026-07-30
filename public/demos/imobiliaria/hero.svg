@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500" role="img" aria-label="Placeholder: fachada de casa com luz de fim de tarde">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F1E4CC"/>
+      <stop offset="1" stop-color="#E7DCC8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="30%" r="60%">
+      <stop offset="0" stop-color="#F2B33D" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#F2B33D" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="1500" fill="url(#bg)"/>
+  <rect width="1200" height="1500" fill="url(#glow)"/>
+  <rect y="1180" width="1200" height="320" fill="#DCCBA8"/>
+  <g transform="translate(600 980)">
+    <polygon points="-320,120 0,-220 320,120" fill="#C4572E"/>
+    <rect x="-260" y="120" width="520" height="360" fill="#3E4A34"/>
+    <rect x="-60" y="280" width="120" height="200" fill="#2B2318"/>
+    <rect x="-190" y="180" width="90" height="90" fill="#F7F1E8" opacity="0.85"/>
+    <rect x="100" y="180" width="90" height="90" fill="#F7F1E8" opacity="0.85"/>
+    <rect x="-16" y="-90" width="32" height="70" fill="#3E4A34"/>
+  </g>
+  <g fill="#3E4A34" opacity="0.5">
+    <ellipse cx="150" cy="1350" rx="110" ry="40"/>
+    <ellipse cx="1040" cy="1380" rx="140" ry="46"/>
+  </g>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-label="Placeholder: studio de pé-direito alto">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F1E4CC"/>
+      <stop offset="1" stop-color="#E7DCC8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg3)"/>
+  <rect x="480" y="120" width="640" height="760" fill="#F7F1E8"/>
+  <rect x="480" y="120" width="640" height="18" fill="#C4572E"/>
+  <g fill="#3E4A34" opacity="0.28">
+    <rect x="540" y="200" width="180" height="600"/>
+    <rect x="880" y="200" width="180" height="600"/>
+  </g>
+  <g fill="#F2B33D">
+    <circle cx="800" cy="500" r="6"/>
+    <circle cx="800" cy="540" r="6"/>
+    <circle cx="800" cy="580" r="6"/>
+  </g>
+</svg>

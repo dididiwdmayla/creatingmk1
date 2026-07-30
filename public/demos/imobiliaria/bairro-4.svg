@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1140" role="img" aria-label="Placeholder: rua residencial calma">
+  <defs>
+    <linearGradient id="b4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F1E4CC"/>
+      <stop offset="1" stop-color="#DCCBA8"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1140" fill="url(#b4)"/>
+  <rect y="880" width="800" height="260" fill="#C9B78E"/>
+  <g transform="translate(260 760)">
+    <polygon points="-150,0 0,-120 150,0" fill="#3E4A34"/>
+    <rect x="-130" y="0" width="260" height="180" fill="#F7F1E8"/>
+    <rect x="-30" y="80" width="60" height="100" fill="#2B2318"/>
+  </g>
+  <g transform="translate(560 780)">
+    <polygon points="-130,0 0,-100 130,0" fill="#C4572E"/>
+    <rect x="-110" y="0" width="220" height="160" fill="#F7F1E8"/>
+    <rect x="-24" y="70" width="48" height="90" fill="#2B2318"/>
+  </g>
+  <circle cx="120" cy="620" r="70" fill="#3E4A34" opacity="0.6"/>
+  <rect x="112" y="680" width="16" height="140" fill="#3E4A34" opacity="0.6"/>
+</svg>

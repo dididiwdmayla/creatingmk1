@@ -12,6 +12,13 @@ import {
   BARBEARIA2_THEME_DEFAULT,
   BARBEARIA2_THEME_PRESETS,
 } from "@/components/demos/barbearia2/themes";
+import { IMOBILIARIA_EXEMPLO } from "@/components/demos/imobiliaria/exemplo";
+import { IMOBILIARIA_SECOES } from "@/components/demos/imobiliaria/secoes";
+import { ImobiliariaCurada } from "@/components/demos/imobiliaria/Skin";
+import {
+  IMOBILIARIA_THEME_DEFAULT,
+  IMOBILIARIA_THEME_PRESETS,
+} from "@/components/demos/imobiliaria/themes";
 import { LANCHERIA_DECORATIVE_FLOATS } from "@/components/demos/lancheria/decorativeFloats";
 import { LANCHERIA_EXEMPLO } from "@/components/demos/lancheria/exemplo";
 import { LANCHERIA_SECOES } from "@/components/demos/lancheria/secoes";
@@ -145,6 +152,23 @@ export const SKINS: SkinDefinition[] = [
     fontesRecomendadas: ["fugaz", "archivo-black", "poppins", "montserrat", "bebas", "dm-sans"],
     // Comida flutuando nas laterais (bacon/queijo/bebida), fiel ao material bruto.
     decorativeFloats: LANCHERIA_DECORATIVE_FLOATS,
+  },
+  {
+    id: "imobiliaria-curada",
+    nicho: "imobiliaria",
+    nome: "Imobiliária Curada",
+    descricao:
+      "Imobiliária boutique editorial: serif calorosa + sans neutra, nav que troca de tema claro/escuro no scroll, manifesto revelado palavra a palavra, bento de imóveis com selo e vitrine de bairros arrastável.",
+    componente: ImobiliariaCurada,
+    themeDefault: IMOBILIARIA_THEME_DEFAULT,
+    themePresets: IMOBILIARIA_THEME_PRESETS,
+    demoDataExemplo: IMOBILIARIA_EXEMPLO,
+    secoes: IMOBILIARIA_SECOES,
+    heroEscalaLimites: { min: 0.75, max: 1.3 },
+    thumbnail: "/demos/imobiliaria/thumb.svg",
+    // Sem videoSlots: o material bruto não tem vídeo-no-título.
+    // Serifs editoriais calorosas + sans neutra — o par tipográfico do material bruto.
+    fontesRecomendadas: ["fraunces", "cormorant", "playfair", "dm-serif", "hanken-grotesk", "lora"],
   },
   {
     id: "multimarcas-vortice",
