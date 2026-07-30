@@ -1,3 +1,6 @@
+import { cidadeDoEndereco } from "@/lib/leads/cidade";
+import { resumirHorarios } from "@/lib/leads/horarios";
+import { handleInstagram } from "@/lib/leads/instagram";
 import type { Lead } from "@/lib/leads/types";
 import type { DemoData, DemoDataPatch, DemoSecao } from "./types";
 
@@ -19,13 +22,47 @@ function definidos<T extends object>(obj: T): Partial<T> {
   ) as Partial<T>;
 }
 
+const HERO_TITULO_LIMIAR = 20;
+
+/**
+ * Quebra `nome` em no máximo duas linhas ("\n" — mesma convenção de
+ * `whitespace-pre-line` usada pelas skins no título hero). Nomes curtos
+ * (ou de uma palavra só) ficam numa linha; nomes longos quebram no espaço
+ * mais próximo do meio, sem partir palavra.
+ */
+export function quebrarTitulo(nome: string): string {
+  const texto = nome.trim();
+  const palavras = texto.split(/\s+/);
+  if (texto.length <= HERO_TITULO_LIMIAR || palavras.length <= 1) return texto;
+
+  const metade = texto.length / 2;
+  let acumulado = 0;
+  let corte = palavras.length - 1;
+  for (let i = 0; i < palavras.length - 1; i++) {
+    acumulado += palavras[i].length + 1;
+    if (acumulado >= metade) {
+      corte = i + 1;
+      break;
+    }
+  }
+
+  const linha1 = palavras.slice(0, corte).join(" ");
+  const linha2 = palavras.slice(corte).join(" ");
+  return `${linha1}\n${linha2}`;
+}
+
 /** Slots de DemoData que os dados já persistidos do lead preenchem. */
 export function dadosDoLead(lead: Lead): Partial<DemoData> {
+  const websiteUri = lead.detalhes?.site ?? lead.siteUrl;
   return definidos({
     nome: lead.nome,
     endereco: lead.endereco,
     telefone: lead.detalhes?.telefone ?? lead.telefone,
     whatsapp: lead.detalhes?.telefoneIntl ?? lead.telefoneIntl,
+    horarios: lead.horarios ? resumirHorarios(lead.horarios.faixas) : undefined,
+    cidade: lead.endereco ? cidadeDoEndereco(lead.endereco) : undefined,
+    instagram: handleInstagram(websiteUri),
+    secoes: { hero: { titulo: quebrarTitulo(lead.nome) } },
   });
 }
 

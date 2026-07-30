@@ -28,7 +28,7 @@ function makeLead(extra: Partial<Lead> = {}): Lead {
   return {
     placeId: "abc",
     nome: "Barbearia do Zé",
-    endereco: "Av. Brasil, 2785 — Maringá, PR",
+    endereco: "Av. Brasil, 2785, Maringá, PR",
     status: "novo",
     telefone: "(44) 3222-1111",
     telefoneIntl: "+55 44 3222-1111",
@@ -40,12 +40,14 @@ function makeLead(extra: Partial<Lead> = {}): Lead {
 }
 
 describe("dadosDoLead", () => {
-  it("extrai nome, endereço e telefones já persistidos", () => {
+  it("extrai nome, endereço, telefones, cidade e o título hero já persistidos", () => {
     expect(dadosDoLead(makeLead())).toEqual({
       nome: "Barbearia do Zé",
-      endereco: "Av. Brasil, 2785 — Maringá, PR",
+      endereco: "Av. Brasil, 2785, Maringá, PR",
       telefone: "(44) 3222-1111",
       whatsapp: "+55 44 3222-1111",
+      cidade: "Maringá",
+      secoes: { hero: { titulo: "Barbearia do Zé" } },
     });
   });
 
@@ -64,9 +66,46 @@ describe("dadosDoLead", () => {
     });
   });
 
+  it("prefere o site do enriquecimento ao siteUrl da busca qualificada, extraindo o instagram", () => {
+    const lead = makeLead({
+      siteUrl: "https://www.instagram.com/site-antigo",
+      enriquecido: true,
+      detalhes: {
+        site: "https://www.instagram.com/barbearia.doze/",
+        enriquecidoEm: "2026-07-02T00:00:00.000Z",
+      },
+    });
+    expect(dadosDoLead(lead)).toMatchObject({ instagram: "barbearia.doze" });
+  });
+
+  it("resume os horários estruturados do lead (SKU detailsProHours)", () => {
+    const lead = makeLead({
+      horarios: {
+        faixas: [
+          { diaAbre: 1, horaAbre: 9, minAbre: 0, diaFecha: 1, horaFecha: 18, minFecha: 0 },
+        ],
+        utcOffsetMinutes: -180,
+        obtidoEm: "2026-07-01T00:00:00.000Z",
+      },
+    });
+    expect(dadosDoLead(lead)).toMatchObject({
+      horarios: "SEG 9h-18h · TER-DOM fechado",
+    });
+  });
+
+  it("quebra nomes longos em duas linhas no título hero", () => {
+    const lead = makeLead({ nome: "Barbearia e Salão de Beleza Estilo Moderno" });
+    expect(dadosDoLead(lead).secoes?.hero?.titulo).toBe(
+      "Barbearia e Salão de\nBeleza Estilo Moderno",
+    );
+  });
+
   it("omite slots que o lead não tem (não apaga o default do template)", () => {
     const lead = makeLead({ endereco: undefined, telefone: undefined, telefoneIntl: undefined });
-    expect(dadosDoLead(lead)).toEqual({ nome: "Barbearia do Zé" });
+    expect(dadosDoLead(lead)).toEqual({
+      nome: "Barbearia do Zé",
+      secoes: { hero: { titulo: "Barbearia do Zé" } },
+    });
   });
 });
 
@@ -145,7 +184,7 @@ describe("montarDemoData", () => {
     // edição da ficha vence o nome real do lead
     expect(out.nome).toBe("Zé Barbeiro Premium");
     // dado do lead vence o exemplo
-    expect(out.endereco).toBe("Av. Brasil, 2785 — Maringá, PR");
+    expect(out.endereco).toBe("Av. Brasil, 2785, Maringá, PR");
     // edição vence o exemplo
     expect(out.horarios).toBe("Ter a sáb, 10h às 20h");
     // exemplo permanece onde ninguém mexeu
