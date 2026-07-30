@@ -558,6 +558,14 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
               </p>
             </div>
           )}
+          {data.telefone && data.telefone !== data.whatsapp && (
+            <div>
+              <Etiqueta texto="Telefone" />
+              <p data-demo-slot="telefone" className="mt-1 leading-relaxed text-[var(--d-text)]">
+                {data.telefone}
+              </p>
+            </div>
+          )}
           {data.instagram && (
             <div>
               <Etiqueta texto={s.contato?.rotulo ?? "Siga"} slot="secoes.contato.rotulo" />

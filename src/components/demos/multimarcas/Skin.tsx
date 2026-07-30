@@ -372,6 +372,14 @@ export function MultimarcasVortice({ data, theme }: SkinProps) {
                   {data.horarios}
                 </p>
               )}
+              {data.telefone && data.telefone !== data.whatsapp && (
+                <p
+                  data-demo-slot="telefone"
+                  className="mt-3 font-[family-name:var(--d-corpo)] text-sm font-medium text-[var(--d-muted)]"
+                >
+                  {data.telefone}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-3">
               {data.endereco && (
