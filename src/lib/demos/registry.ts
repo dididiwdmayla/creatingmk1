@@ -27,6 +27,13 @@ import {
   MULTIMARCAS_THEME_DEFAULT,
   MULTIMARCAS_THEME_PRESETS,
 } from "@/components/demos/multimarcas/themes";
+import { PETSHOP_EXEMPLO } from "@/components/demos/petshop/exemplo";
+import { PETSHOP_SECOES } from "@/components/demos/petshop/secoes";
+import { PetshopFocinhoFeliz } from "@/components/demos/petshop/Skin";
+import {
+  PETSHOP_THEME_DEFAULT,
+  PETSHOP_THEME_PRESETS,
+} from "@/components/demos/petshop/themes";
 import { TATUAGEM_EXEMPLO } from "@/components/demos/tatuagem/exemplo";
 import { TATUAGEM_SECOES } from "@/components/demos/tatuagem/secoes";
 import { TatuagemEditorial } from "@/components/demos/tatuagem/Skin";
@@ -155,6 +162,23 @@ export const SKINS: SkinDefinition[] = [
     // Sem videoSlots: o material bruto não tem vídeo-no-título.
     // Serifas dramáticas/condensadas — o tom editorial-premium da skin.
     fontesRecomendadas: ["cinzel", "abril", "playfair", "oswald", "archivo-black", "montserrat"],
+  },
+  {
+    id: "petshop-focinho-feliz",
+    nicho: "petshop",
+    nome: "Petshop Focinho Feliz",
+    descricao:
+      "Banho, tosa e day care num pastel bem-humorado: formas orgânicas tipo blob, badge de avaliação flutuante, fita de frases em marquee e contadores animados.",
+    componente: PetshopFocinhoFeliz,
+    themeDefault: PETSHOP_THEME_DEFAULT,
+    themePresets: PETSHOP_THEME_PRESETS,
+    demoDataExemplo: PETSHOP_EXEMPLO,
+    secoes: PETSHOP_SECOES,
+    heroEscalaLimites: { min: 0.75, max: 1.25 },
+    thumbnail: "/demos/petshop/thumb.svg",
+    // Sem videoSlots: o material bruto não tem vídeo-no-título.
+    // Editorial itálica + sans arredondada — o par tipográfico do material bruto.
+    fontesRecomendadas: ["instrument-serif", "poppins", "cormorant", "montserrat", "josefin", "dm-sans"],
   },
 ];
 

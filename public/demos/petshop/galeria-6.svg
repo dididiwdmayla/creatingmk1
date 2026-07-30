@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Placeholder: foto de cliente da semana">
+  <rect width="600" height="600" fill="#FFEFDD"/>
+  <path d="M185 235 L 225 130 L 265 235 Z" fill="#FF6B2C"/>
+  <path d="M415 235 L 375 130 L 335 235 Z" fill="#FF6B2C"/>
+  <circle cx="300" cy="330" r="150" fill="#FF6B2C"/>
+  <circle cx="255" cy="310" r="12" fill="#FFF6EA"/>
+  <circle cx="345" cy="310" r="12" fill="#FFF6EA"/>
+  <path d="M280 365 Q300 380 320 365" stroke="#FFF6EA" stroke-width="6" fill="none" stroke-linecap="round"/>
+</svg>

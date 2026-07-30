@@ -8,6 +8,8 @@ import {
   Fraunces,
   Fugaz_One,
   Inter,
+  Instrument_Sans,
+  Instrument_Serif,
   JetBrains_Mono,
   Limelight,
   Oswald,
@@ -152,6 +154,26 @@ const oswald = Oswald({
   weight: ["400", "500", "600"],
 });
 
+// Dupla tipográfica da skin de petshop (Focinho Feliz): Instrument Serif
+// cobre display/números/citações/flutuantes (o material bruto usa o
+// itálico dela em quase todo destaque de marca); Instrument Sans cobre
+// corpo, nav e botões — mesmo critério de reaproveitamento de
+// mono/serif/decorativa/citacao/destaque já usado em lancheria/tatuagem2
+// (não existe família separada pra preço ou logotipo no original).
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-demo-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+});
+
+const instrumentSans = Instrument_Sans({
+  variable: "--font-demo-instrument-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+});
+
 /** Ids da lista curada (fontes.ts) já cobertos por este pacote estático. */
 export const CORE_FONT_IDS: readonly string[] = [
   "bebas",
@@ -164,6 +186,8 @@ export const CORE_FONT_IDS: readonly string[] = [
   "dm-serif",
   "archivo",
   "oswald",
+  "instrument-serif",
+  "instrument-sans",
 ];
 
 export const demoCoreFontsClassName = [
@@ -182,4 +206,6 @@ export const demoCoreFontsClassName = [
   archivo.variable,
   bodoni.variable,
   oswald.variable,
+  instrumentSerif.variable,
+  instrumentSans.variable,
 ].join(" ");
