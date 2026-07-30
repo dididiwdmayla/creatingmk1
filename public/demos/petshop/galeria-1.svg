@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Placeholder: foto de cliente da semana">
+  <rect width="600" height="600" fill="#EFEBFF"/>
+  <ellipse cx="200" cy="180" rx="60" ry="90" fill="#2B2277" transform="rotate(-24 200 180)"/>
+  <ellipse cx="400" cy="180" rx="60" ry="90" fill="#2B2277" transform="rotate(24 400 180)"/>
+  <circle cx="300" cy="320" r="150" fill="#FF6B2C"/>
+  <circle cx="255" cy="300" r="14" fill="#2B2277"/>
+  <circle cx="345" cy="300" r="14" fill="#2B2277"/>
+  <ellipse cx="300" cy="350" rx="20" ry="14" fill="#2B2277"/>
+</svg>

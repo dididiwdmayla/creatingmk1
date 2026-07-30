@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="Placeholder: banho e tosa">
+  <rect width="800" height="600" fill="#EFEBFF"/>
+  <g transform="translate(400 340)">
+    <ellipse cx="0" cy="80" rx="220" ry="60" fill="#2B2277" opacity="0.12"/>
+    <path d="M-190 40 Q -190 130 -60 140 L 60 140 Q 190 130 190 40 L 190 -10 L -190 -10 Z" fill="#FFF6EA" stroke="#2B2277" stroke-width="6"/>
+    <rect x="-200" y="-24" width="20" height="60" rx="8" fill="#4535E8"/>
+    <circle cx="-60" cy="-60" r="34" fill="#FF6B2C"/>
+    <circle cx="10" cy="-90" r="24" fill="#FFC93C"/>
+    <circle cx="60" cy="-55" r="18" fill="#FF6B2C"/>
+    <circle cx="-10" cy="-30" r="46" fill="#FFF6EA" stroke="#2B2277" stroke-width="5"/>
+    <circle cx="-24" cy="-38" r="4" fill="#2B2277"/>
+    <circle cx="4" cy="-38" r="4" fill="#2B2277"/>
+    <path d="M-14 -20 Q -10 -14 -6 -20" stroke="#2B2277" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </g>
+  <text x="400" y="560" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="24" fill="#6A64A8">Foto: banho e tosa</text>
+</svg>

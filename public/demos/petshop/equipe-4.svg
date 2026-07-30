@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Placeholder: foto da equipe">
+  <rect width="400" height="400" fill="#FFF6EA"/>
+  <circle cx="200" cy="200" r="180" fill="#FFEFDD"/>
+  <circle cx="200" cy="160" r="70" fill="#FF6F91"/>
+  <path d="M90 340 Q90 230 200 230 Q310 230 310 340 Z" fill="#FF6F91"/>
+  <g fill="#FFC93C"><circle cx="200" cy="60" r="16"/><circle cx="172" cy="72" r="10"/><circle cx="228" cy="72" r="10"/></g>
+</svg>
