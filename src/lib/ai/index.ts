@@ -11,7 +11,9 @@ export {
   schemaSugestao,
   validarSugestao,
   type SugestaoDemo,
+  type SugestaoSecaoTexto,
 } from "./sugestao";
+export { NIVEIS_IA, NIVEL_IA_PADRAO, nivelIaValido, type NivelIA } from "./nivel";
 export {
   gerarAnaliseBusca,
   montarPromptAnaliseBusca,

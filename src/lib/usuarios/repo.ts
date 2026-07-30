@@ -1,3 +1,4 @@
+import type { NivelIA } from "@/lib/ai/nivel";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import { usageUsuariosCollection } from "@/lib/costs/userQuota";
@@ -169,6 +170,17 @@ export async function salvarPrecoBaseSlider(
   const usuario = await getUsuario(db, id);
   if (!usuario) return;
   await docRef(db, id).set(toDoc({ ...usuario, ultimoPrecoBaseSlider: precoBase }));
+}
+
+/**
+ * Salva o último nível de intervenção da IA escolhido na Forja
+ * (self-service, mesmo espírito de salvarPrecoBaseSlider: não mexe em
+ * atualizadoEm/sessao — escolher um nível não é edição administrativa).
+ */
+export async function salvarNivelIA(db: AppDb, id: string, nivel: NivelIA): Promise<void> {
+  const usuario = await getUsuario(db, id);
+  if (!usuario) return;
+  await docRef(db, id).set(toDoc({ ...usuario, ultimoNivelIA: nivel }));
 }
 
 /** Patch de limites: number seta, null LIMPA (sem limite naquela janela), ausente não mexe. */

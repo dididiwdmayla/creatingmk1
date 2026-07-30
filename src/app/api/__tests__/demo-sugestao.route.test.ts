@@ -196,4 +196,51 @@ describe("POST /api/leads/[id]/demo/sugestao", () => {
       (usage?.porUsuario as Record<string, { aiGeneration: number }>).ana.aiGeneration,
     ).toBe(1);
   });
+
+  it("nivel fora de toque-leve/equilibrado/completo → 400 sem cota nem rede", async () => {
+    const res = await sugerir("ChIJ001", {
+      skinId: "barbearia-editorial",
+      nivel: "extremo",
+    });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("validation_error");
+    expect(usageDoc()).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("nivel toque-leve: schema/prompt só pedem tema, sem slogan/descricao/titulosSecoes", async () => {
+    fetchMock.mockImplementation(async () =>
+      respostaGemini({
+        themeId: "meia-noite",
+        destaque: "#8c4a2b",
+        fonteDisplay: "playfair",
+        animacao: "sutil",
+      }),
+    );
+
+    const res = await sugerir("ChIJ001", {
+      skinId: "barbearia-editorial",
+      nivel: "toque-leve",
+    });
+
+    expect(res.status).toBe(200);
+    const { sugestao } = await res.json();
+    expect(sugestao).toEqual({
+      themeId: "meia-noite",
+      destaque: "#8c4a2b",
+      fonteDisplay: "playfair",
+      animacao: "sutil",
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const corpo = JSON.parse(init.body as string);
+    expect(corpo.generationConfig.responseJsonSchema.required).toEqual([
+      "themeId",
+      "destaque",
+      "fonteDisplay",
+      "animacao",
+    ]);
+    expect(corpo.contents[0].parts[0].text).not.toContain("slogan");
+  });
 });

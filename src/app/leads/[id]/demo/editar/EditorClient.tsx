@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { NIVEIS_IA, NIVEL_IA_PADRAO, nivelIaValido, type NivelIA } from "@/lib/ai/nivel";
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import { ApiError, api } from "@/lib/api-client";
 import { getFonte } from "@/lib/demos/fontes";
@@ -35,6 +36,20 @@ import {
 const MSG_PREVIEW = "radar-demo-preview";
 const MSG_SLOT = "radar-demo-slot";
 const MSG_PRONTO = "radar-demo-preview-pronto";
+
+/** Rótulo + explicação curta de cada nível de intervenção da IA (ver lib/ai/nivel.ts). */
+const NIVEL_INFO: Record<NivelIA, { rotulo: string; descricao: string }> = {
+  "toque-leve": { rotulo: "Toque leve", descricao: "Só paleta e fonte — nenhum texto." },
+  equilibrado: {
+    rotulo: "Equilibrado",
+    descricao: "Paleta, fonte, animação + slogan e descrições curtas.",
+  },
+  completo: {
+    rotulo: "Completo",
+    descricao:
+      "Tudo do equilibrado + reescreve os textos de todas as seções no tom do nicho e no idioma da região.",
+  },
+};
 
 /** Estado inicial do editor a partir do lead (ou ao trocar de skin). */
 function estadoInicial(lead: Lead, skinPedida?: string) {
@@ -91,6 +106,22 @@ export function DemoEditorClient({ id }: { id: string }) {
   // IA na Forja: sem GEMINI_API_KEY o botão fica oculto (nada quebra).
   const [iaDisponivel, setIaDisponivel] = useState<boolean | null>(null);
   const [mostrarIA, setMostrarIA] = useState(false);
+  // Nível de intervenção (toque-leve/equilibrado/completo): escolhido ANTES
+  // da chamada — o modal abre nesta etapa antes de gerar (exceto no fluxo
+  // ?ia=1, que já chega com o nível escolhido no passo de escolha de skin).
+  const [escolhendoNivel, setEscolhendoNivel] = useState(false);
+  // ?nivel= vem do passo de escolha (checkbox "começar com sugestões de
+  // IA") — lido já no valor inicial (sem setState num efeito) porque
+  // useSearchParams resolve de forma síncrona no client.
+  const [nivelIA, setNivelIA] = useState<NivelIA>(() => {
+    const nivelDaUrl = searchParams.get("nivel");
+    return nivelIaValido(nivelDaUrl) ? nivelDaUrl : NIVEL_IA_PADRAO;
+  });
+  // Fica true assim que ?nivel= (URL) ou o último nível salvo (GET /api/ia/nivel)
+  // resolver — o fluxo ?ia=1 espera isso pra não gerar com o padrão errado.
+  const [nivelResolvido, setNivelResolvido] = useState(() =>
+    nivelIaValido(searchParams.get("nivel")),
+  );
   const [gerandoIA, setGerandoIA] = useState(false);
   const [sugestao, setSugestao] = useState<SugestaoDemo | null>(null);
   const [iaErro, setIaErro] = useState<string | null>(null);
@@ -143,9 +174,25 @@ export function DemoEditorClient({ id }: { id: string }) {
       .catch(() => {
         if (!ignore) setIaDisponivel(false);
       });
+    // Sem ?nivel= na URL (já aplicado no valor inicial do estado), busca o
+    // último nível que o próprio usuário escolheu.
+    if (!nivelIaValido(searchParams.get("nivel"))) {
+      api
+        .iaNivel()
+        .then(({ nivel }) => {
+          if (!ignore) setNivelIA(nivel);
+        })
+        .catch(() => {
+          /* sem sessão/erro: mantém o padrão já no estado inicial. */
+        })
+        .finally(() => {
+          if (!ignore) setNivelResolvido(true);
+        });
+    }
     return () => {
       ignore = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams só é lido no load inicial.
   }, []);
 
   const skin = getSkin(skinId) ?? DEFAULT_SKIN;
@@ -209,22 +256,24 @@ export function DemoEditorClient({ id }: { id: string }) {
     return () => window.removeEventListener("message", onMessage);
   }, [enviarPreview]);
 
-  // Chegou com ?ia=1: gera a sugestão assim que lead + disponibilidade
-  // resolverem, abrindo o MESMO preview aplicar/descartar do botão — a
-  // demo "começa com sugestões", mas nada entra sem confirmação.
+  // Chegou com ?ia=1: o nível já foi escolhido no passo de escolha de skin
+  // (?nivel= na URL) — gera direto assim que lead + disponibilidade + nível
+  // resolverem, abrindo o MESMO preview aplicar/descartar do botão: a demo
+  // "começa com sugestões", mas nada entra sem confirmação.
   useEffect(() => {
-    if (!iaAuto || iaDisponivel !== true || !lead || iaAutoDisparadaRef.current) return;
+    if (!iaAuto || iaDisponivel !== true || !lead || !nivelResolvido || iaAutoDisparadaRef.current)
+      return;
     iaAutoDisparadaRef.current = true;
     setMostrarIA(true);
     setGerandoIA(true);
     api
-      .gerarSugestaoDemo(lead.placeId, skinId)
+      .gerarSugestaoDemo(lead.placeId, skinId, nivelIA)
       .then(({ sugestao: nova }) => setSugestao(nova))
       .catch((error) =>
         setIaErro(error instanceof ApiError ? error.message : "Falha ao gerar sugestões."),
       )
       .finally(() => setGerandoIA(false));
-  }, [iaAuto, iaDisponivel, lead, skinId]);
+  }, [iaAuto, iaDisponivel, lead, skinId, nivelResolvido, nivelIA]);
 
   // Rede de segurança contra fechar a aba com edição não salva.
   useEffect(() => {
@@ -364,13 +413,24 @@ export function DemoEditorClient({ id }: { id: string }) {
     }
   }
 
-  function handleGerarIA() {
+  /** Botão "Gerar com IA": abre o escolhedor de nível ANTES de chamar o Gemini. */
+  function handleAbrirGerarIA() {
     setMostrarIA(true);
+    setEscolhendoNivel(true);
     setIaErro(null);
     setSugestao(null);
+  }
+
+  /** Confirma o nível escolhido (persiste como último nível) e gera. */
+  function handleConfirmarNivel() {
+    setEscolhendoNivel(false);
+    setIaErro(null);
     setGerandoIA(true);
+    api.salvarIaNivel(nivelIA).catch(() => {
+      /* preferência não salvou — não impede a geração desta vez. */
+    });
     api
-      .gerarSugestaoDemo(id, skin.id)
+      .gerarSugestaoDemo(id, skin.id, nivelIA)
       .then(({ sugestao: nova }) => setSugestao(nova))
       .catch((error) =>
         setIaErro(error instanceof ApiError ? error.message : "Falha ao gerar sugestões."),
@@ -389,14 +449,40 @@ export function DemoEditorClient({ id }: { id: string }) {
       fonteDisplay: aplicada.fonteDisplay,
       animacao: aplicada.animacao,
     }));
-    atualizar((d) => {
-      const secoes = { ...d.secoes };
-      for (const [idSecao, titulo] of Object.entries(aplicada.titulosSecoes)) {
-        secoes[idSecao] = { ...secoes[idSecao], titulo };
-      }
-      secoes.hero = { ...secoes.hero, texto: aplicada.descricao };
-      return { ...d, slogan: aplicada.slogan, secoes };
-    });
+
+    const temTextos =
+      aplicada.slogan !== undefined ||
+      aplicada.descricao !== undefined ||
+      aplicada.titulosSecoes !== undefined ||
+      aplicada.textosSecoes !== undefined;
+
+    if (temTextos) {
+      atualizar((d) => {
+        const secoes = { ...d.secoes };
+        for (const [idSecao, titulo] of Object.entries(aplicada.titulosSecoes ?? {})) {
+          secoes[idSecao] = { ...secoes[idSecao], titulo };
+        }
+        for (const [idSecao, textos] of Object.entries(aplicada.textosSecoes ?? {})) {
+          secoes[idSecao] = {
+            ...secoes[idSecao],
+            ...(textos.rotulo !== undefined && { rotulo: textos.rotulo }),
+            ...(textos.titulo !== undefined && { titulo: textos.titulo }),
+            ...(textos.texto !== undefined && { texto: textos.texto }),
+            ...(textos.cta !== undefined && { cta: textos.cta }),
+            ...(textos.ctaSecundaria !== undefined && { ctaSecundaria: textos.ctaSecundaria }),
+          };
+        }
+        if (aplicada.descricao !== undefined) {
+          secoes.hero = { ...secoes.hero, texto: aplicada.descricao };
+        }
+        return {
+          ...d,
+          ...(aplicada.slogan !== undefined && { slogan: aplicada.slogan }),
+          secoes,
+        };
+      });
+    }
+
     setMostrarIA(false);
     setSugestao(null);
     setAviso("Sugestões de IA aplicadas — salve para publicar.");
@@ -404,6 +490,7 @@ export function DemoEditorClient({ id }: { id: string }) {
 
   function handleDescartarSugestao() {
     setMostrarIA(false);
+    setEscolhendoNivel(false);
     setSugestao(null);
     setIaErro(null);
   }
@@ -493,7 +580,7 @@ export function DemoEditorClient({ id }: { id: string }) {
           {iaDisponivel && (
             <button
               type="button"
-              onClick={handleGerarIA}
+              onClick={handleAbrirGerarIA}
               disabled={gerandoIA}
               className="rounded border border-line px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-accent disabled:opacity-50"
             >
@@ -662,12 +749,16 @@ export function DemoEditorClient({ id }: { id: string }) {
       </div>
 
       {/* Preview das sugestões de IA: aplicar ou descartar — nunca escreve
-          por cima sem confirmação, e nada persiste sem o Salvar normal. */}
+          por cima sem confirmação, e nada persiste sem o Salvar normal.
+          Antes de chamar o Gemini, o usuário escolhe o nível de intervenção
+          (toque-leve/equilibrado/completo — ver lib/ai/nivel.ts). */}
       {mostrarIA && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-2xl">
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
-              <h2 className="text-sm font-semibold text-foreground">✨ Sugestões de IA</h2>
+              <h2 className="text-sm font-semibold text-foreground">
+                {escolhendoNivel ? "✨ Gerar com IA" : "✨ Sugestões de IA"}
+              </h2>
               <button
                 type="button"
                 onClick={handleDescartarSugestao}
@@ -677,98 +768,186 @@ export function DemoEditorClient({ id }: { id: string }) {
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm">
-              {gerandoIA && (
-                <p className="py-6 text-center text-ink-muted">
-                  Gerando sugestões para {lead.nome}…
-                </p>
-              )}
-              {iaErro && !gerandoIA && (
-                <p className="rounded border border-critical/30 bg-critical/10 px-3 py-2 text-xs text-critical">
-                  {iaErro}
-                </p>
-              )}
-              {sugestao && !gerandoIA && (
-                <div className="flex flex-col gap-3">
-                  <div className="rounded border border-line bg-surface-2 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                      Tema
-                    </p>
-                    <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
-                      <li>
-                        Preset:{" "}
-                        {skin.themePresets.find((p) => p.id === sugestao.themeId)?.nome ??
-                          sugestao.themeId}
-                      </li>
-                      <li className="flex items-center gap-1.5">
-                        Cor primária:
-                        <span
-                          className="inline-block h-3.5 w-3.5 rounded-full border border-line"
-                          style={{ backgroundColor: sugestao.destaque }}
+            {escolhendoNivel ? (
+              <>
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm">
+                  <p className="mb-3 text-xs text-ink-muted">
+                    Quanto a IA pode mexer nesta geração?
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {NIVEIS_IA.map((valor) => (
+                      <label
+                        key={valor}
+                        className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm text-foreground transition-colors ${
+                          nivelIA === valor
+                            ? "border-accent bg-surface-2"
+                            : "border-line hover:border-accent/50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="nivel-ia"
+                          checked={nivelIA === valor}
+                          onChange={() => setNivelIA(valor)}
+                          className="mt-0.5 accent-[var(--accent)]"
                         />
-                        <code className="font-mono">{sugestao.destaque}</code>
-                      </li>
-                      <li>
-                        Fonte dos títulos:{" "}
-                        {getFonte(sugestao.fonteDisplay)?.nome ?? sugestao.fonteDisplay}
-                      </li>
-                      <li>Animação: {sugestao.animacao}</li>
-                    </ul>
+                        <span>
+                          {NIVEL_INFO[valor].rotulo}
+                          <span className="block text-xs text-ink-muted">
+                            {NIVEL_INFO[valor].descricao}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
                   </div>
-                  <div className="rounded border border-line bg-surface-2 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                      Textos
+                </div>
+                <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={handleDescartarSugestao}
+                    className="rounded border border-line px-3 py-1.5 text-xs text-ink-muted hover:text-foreground"
+                  >
+                    Cancelar
+                  </button>
+                  <Button onClick={handleConfirmarNivel} className="!px-3 !py-1.5 text-xs">
+                    Gerar sugestões
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm">
+                  {gerandoIA && (
+                    <p className="py-6 text-center text-ink-muted">
+                      Gerando sugestões para {lead.nome}…
                     </p>
-                    <p className="mt-1.5 text-xs text-foreground">
-                      <span className="text-ink-muted">Slogan:</span> {sugestao.slogan}
+                  )}
+                  {iaErro && !gerandoIA && (
+                    <p className="rounded border border-critical/30 bg-critical/10 px-3 py-2 text-xs text-critical">
+                      {iaErro}
                     </p>
-                    <p className="mt-1 text-xs text-foreground">
-                      <span className="text-ink-muted">Descrição:</span> {sugestao.descricao}
-                    </p>
-                  </div>
-                  {Object.keys(sugestao.titulosSecoes).length > 0 && (
-                    <div className="rounded border border-line bg-surface-2 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                        Títulos de seções
-                      </p>
-                      <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
-                        {Object.entries(sugestao.titulosSecoes).map(([idSecao, titulo]) => (
-                          <li key={idSecao}>
-                            <span className="text-ink-muted">
-                              {skin.secoes.find((s) => s.id === idSecao)?.nome ?? idSecao}:
-                            </span>{" "}
-                            {titulo}
+                  )}
+                  {sugestao && !gerandoIA && (
+                    <div className="flex flex-col gap-3">
+                      <div className="rounded border border-line bg-surface-2 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                          Tema
+                        </p>
+                        <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                          <li>
+                            Preset:{" "}
+                            {skin.themePresets.find((p) => p.id === sugestao.themeId)?.nome ??
+                              sugestao.themeId}
                           </li>
-                        ))}
-                      </ul>
+                          <li className="flex items-center gap-1.5">
+                            Cor primária:
+                            <span
+                              className="inline-block h-3.5 w-3.5 rounded-full border border-line"
+                              style={{ backgroundColor: sugestao.destaque }}
+                            />
+                            <code className="font-mono">{sugestao.destaque}</code>
+                          </li>
+                          <li>
+                            Fonte dos títulos:{" "}
+                            {getFonte(sugestao.fonteDisplay)?.nome ?? sugestao.fonteDisplay}
+                          </li>
+                          <li>Animação: {sugestao.animacao}</li>
+                        </ul>
+                      </div>
+                      {(sugestao.slogan !== undefined || sugestao.descricao !== undefined) && (
+                        <div className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            Textos
+                          </p>
+                          {sugestao.slogan !== undefined && (
+                            <p className="mt-1.5 text-xs text-foreground">
+                              <span className="text-ink-muted">Slogan:</span> {sugestao.slogan}
+                            </p>
+                          )}
+                          {sugestao.descricao !== undefined && (
+                            <p className="mt-1 text-xs text-foreground">
+                              <span className="text-ink-muted">Descrição:</span>{" "}
+                              {sugestao.descricao}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {sugestao.titulosSecoes &&
+                        Object.keys(sugestao.titulosSecoes).length > 0 && (
+                          <div className="rounded border border-line bg-surface-2 p-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                              Títulos de seções
+                            </p>
+                            <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                              {Object.entries(sugestao.titulosSecoes).map(([idSecao, titulo]) => (
+                                <li key={idSecao}>
+                                  <span className="text-ink-muted">
+                                    {skin.secoes.find((s) => s.id === idSecao)?.nome ?? idSecao}:
+                                  </span>{" "}
+                                  {titulo}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      {sugestao.textosSecoes &&
+                        Object.keys(sugestao.textosSecoes).length > 0 && (
+                          <div className="rounded border border-line bg-surface-2 p-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                              Textos de seções
+                            </p>
+                            <ul className="mt-1.5 flex flex-col gap-2 text-xs text-foreground">
+                              {Object.entries(sugestao.textosSecoes).map(([idSecao, textos]) => (
+                                <li key={idSecao}>
+                                  <span className="font-medium">
+                                    {skin.secoes.find((s) => s.id === idSecao)?.nome ?? idSecao}
+                                  </span>
+                                  <ul className="mt-0.5 flex flex-col gap-0.5 pl-2 text-ink-muted">
+                                    {textos.rotulo !== undefined && (
+                                      <li>Rótulo: {textos.rotulo}</li>
+                                    )}
+                                    {textos.titulo !== undefined && (
+                                      <li>Título: {textos.titulo}</li>
+                                    )}
+                                    {textos.texto !== undefined && <li>Texto: {textos.texto}</li>}
+                                    {textos.cta !== undefined && <li>CTA: {textos.cta}</li>}
+                                    {textos.ctaSecundaria !== undefined && (
+                                      <li>CTA secundária: {textos.ctaSecundaria}</li>
+                                    )}
+                                  </ul>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      <p className="text-[11px] text-ink-muted">
+                        Aplicar só muda o rascunho do editor — nada é publicado sem Salvar.
+                      </p>
                     </div>
                   )}
-                  <p className="text-[11px] text-ink-muted">
-                    Aplicar só muda o rascunho do editor — nada é publicado sem Salvar.
-                  </p>
                 </div>
-              )}
-            </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
-              {iaErro && !gerandoIA && (
-                <Button onClick={handleGerarIA} className="!px-3 !py-1.5 text-xs">
-                  Tentar de novo
-                </Button>
-              )}
-              <button
-                type="button"
-                onClick={handleDescartarSugestao}
-                className="rounded border border-line px-3 py-1.5 text-xs text-ink-muted hover:text-foreground"
-              >
-                Descartar
-              </button>
-              {sugestao && !gerandoIA && (
-                <Button onClick={handleAplicarSugestao} className="!px-3 !py-1.5 text-xs">
-                  Aplicar sugestões
-                </Button>
-              )}
-            </div>
+                <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+                  {iaErro && !gerandoIA && (
+                    <Button onClick={handleConfirmarNivel} className="!px-3 !py-1.5 text-xs">
+                      Tentar de novo
+                    </Button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDescartarSugestao}
+                    className="rounded border border-line px-3 py-1.5 text-xs text-ink-muted hover:text-foreground"
+                  >
+                    Descartar
+                  </button>
+                  {sugestao && !gerandoIA && (
+                    <Button onClick={handleAplicarSugestao} className="!px-3 !py-1.5 text-xs">
+                      Aplicar sugestões
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

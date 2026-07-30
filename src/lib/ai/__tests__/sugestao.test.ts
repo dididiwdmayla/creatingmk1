@@ -53,7 +53,7 @@ describe("montarPromptSugestao", () => {
   });
 
   it("idioma não-pt-BR instrui o Gemini a escrever nesse idioma (item 'Idioma da IA na demo')", () => {
-    const prompt = montarPromptSugestao(DEFAULT_SKIN, LEAD, "en-US");
+    const prompt = montarPromptSugestao(DEFAULT_SKIN, LEAD, "equilibrado", "en-US");
 
     expect(prompt).toContain("inglês");
     expect(prompt).toContain('"idioma" do JSON com exatamente "en-US"');
@@ -82,7 +82,7 @@ describe("schemaSugestao", () => {
     const padrao = schemaSugestao(DEFAULT_SKIN) as { properties: { idioma: { enum: string[] } } };
     expect(padrao.properties.idioma.enum).toEqual(["pt-BR"]);
 
-    const ingles = schemaSugestao(DEFAULT_SKIN, "en-US") as {
+    const ingles = schemaSugestao(DEFAULT_SKIN, "equilibrado", "en-US") as {
       properties: { idioma: { enum: string[] } };
     };
     expect(ingles.properties.idioma.enum).toEqual(["en-US"]);
@@ -165,11 +165,130 @@ describe("validarSugestao", () => {
   it("idioma divergente do esperado é rejeitado (não aceita pt-BR quando o alvo é outro)", () => {
     const bruto = sugestaoValida();
 
-    const semAjuste = validarSugestao(bruto, DEFAULT_SKIN, "en-US");
+    const semAjuste = validarSugestao(bruto, DEFAULT_SKIN, "equilibrado", "en-US");
     expect(semAjuste.sugestao).toBeUndefined();
     expect(semAjuste.problemas).toContain('idioma deve ser exatamente "en-US"');
 
-    const ajustado = validarSugestao({ ...bruto, idioma: "en-US" }, DEFAULT_SKIN, "en-US");
+    const ajustado = validarSugestao(
+      { ...bruto, idioma: "en-US" },
+      DEFAULT_SKIN,
+      "equilibrado",
+      "en-US",
+    );
     expect(ajustado.problemas).toEqual([]);
+  });
+});
+
+describe("nível de intervenção (toque-leve/equilibrado/completo)", () => {
+  it("toque-leve: schema só pede tema, sem nenhum campo de texto", () => {
+    const schema = schemaSugestao(DEFAULT_SKIN, "toque-leve") as {
+      required: string[];
+      properties: Record<string, unknown>;
+    };
+
+    expect(schema.required).toEqual(["themeId", "destaque", "fonteDisplay", "animacao"]);
+    expect(schema.properties.slogan).toBeUndefined();
+    expect(schema.properties.descricao).toBeUndefined();
+    expect(schema.properties.titulosSecoes).toBeUndefined();
+    expect(schema.properties.textosSecoes).toBeUndefined();
+    expect(schema.properties.idioma).toBeUndefined();
+  });
+
+  it("toque-leve: aceita resposta só com tema (sem slogan/descricao/idioma)", () => {
+    const bruto = {
+      themeId: "meia-noite",
+      destaque: "#8C4A2B",
+      fonteDisplay: "playfair",
+      animacao: "sutil",
+    };
+
+    const resultado = validarSugestao(bruto, DEFAULT_SKIN, "toque-leve");
+
+    expect(resultado.problemas).toEqual([]);
+    expect(resultado.sugestao).toEqual({
+      themeId: "meia-noite",
+      destaque: "#8c4a2b",
+      fonteDisplay: "playfair",
+      animacao: "sutil",
+    });
+  });
+
+  it("toque-leve: rejeita slogan/titulosSecoes como chave desconhecida (nível não pediu texto)", () => {
+    const bruto = { ...sugestaoValida() };
+
+    const { sugestao, problemas } = validarSugestao(bruto, DEFAULT_SKIN, "toque-leve");
+
+    expect(sugestao).toBeUndefined();
+    expect(problemas).toContain("chave desconhecida: slogan");
+    expect(problemas).toContain("chave desconhecida: descricao");
+    expect(problemas).toContain("chave desconhecida: titulosSecoes");
+    expect(problemas).toContain("chave desconhecida: idioma");
+  });
+
+  it("completo: schema pede textosSecoes (não titulosSecoes) para as seções não-fixas", () => {
+    const schema = schemaSugestao(DEFAULT_SKIN, "completo") as {
+      required: string[];
+      properties: {
+        textosSecoes: { properties: Record<string, unknown> };
+        titulosSecoes?: unknown;
+      };
+    };
+
+    expect(schema.required).toContain("textosSecoes");
+    expect(schema.properties.titulosSecoes).toBeUndefined();
+    expect(Object.keys(schema.properties.textosSecoes.properties)).not.toContain("hero");
+    expect(Object.keys(schema.properties.textosSecoes.properties)).toContain("filosofia");
+  });
+
+  it("completo: aceita textosSecoes com rótulo/título/texto/CTAs por seção", () => {
+    const bruto = {
+      themeId: "meia-noite",
+      destaque: "#8C4A2B",
+      fonteDisplay: "playfair",
+      animacao: "sutil",
+      slogan: "Tradição de navalha desde sempre.",
+      descricao: "Cortes clássicos no coração de Sarandi.",
+      idioma: "pt-BR",
+      textosSecoes: {
+        filosofia: { rotulo: "FILOSOFIA", titulo: "Nossa filosofia", texto: "O que nos guia." },
+        servicos: { cta: "AGENDAR AGORA" },
+      },
+    };
+
+    const resultado = validarSugestao(bruto, DEFAULT_SKIN, "completo");
+
+    expect(resultado.problemas).toEqual([]);
+    expect(resultado.sugestao?.textosSecoes).toEqual({
+      filosofia: { rotulo: "FILOSOFIA", titulo: "Nossa filosofia", texto: "O que nos guia." },
+      servicos: { cta: "AGENDAR AGORA" },
+    });
+    expect(resultado.sugestao?.titulosSecoes).toBeUndefined();
+  });
+
+  it("completo: rejeita textosSecoes de seção fixa ou fora do contrato", () => {
+    const bruto: Record<string, unknown> = {
+      ...sugestaoValida(),
+      textosSecoes: { hero: { titulo: "Novo hero" }, inventada: { titulo: "X" } },
+    };
+    delete bruto.titulosSecoes;
+
+    const { sugestao, problemas } = validarSugestao(bruto, DEFAULT_SKIN, "completo");
+
+    expect(sugestao).toBeUndefined();
+    expect(problemas.some((p) => p.startsWith("textosSecoes.hero"))).toBe(true);
+    expect(problemas.some((p) => p.startsWith("textosSecoes.inventada"))).toBe(true);
+  });
+
+  it("completo: rejeita seção sem nenhum campo de texto não vazio", () => {
+    const bruto: Record<string, unknown> = {
+      ...sugestaoValida(),
+      textosSecoes: { filosofia: {} },
+    };
+    delete bruto.titulosSecoes;
+
+    const { sugestao, problemas } = validarSugestao(bruto, DEFAULT_SKIN, "completo");
+
+    expect(sugestao).toBeUndefined();
+    expect(problemas).toContain("textosSecoes.filosofia deve ter ao menos um campo de texto não vazio");
   });
 });
