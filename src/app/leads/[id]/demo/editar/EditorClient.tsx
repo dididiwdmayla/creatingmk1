@@ -62,7 +62,7 @@ function estadoInicial(lead: Lead, skinPedida?: string) {
       ? (themeSalvo as string)
       : skin.themeDefault.id,
     tema: (daSkin ? lead.demo?.tema : undefined) ?? {},
-    dados: montarDemoData(skin.demoDataExemplo, lead, daSkin ? lead.demo?.dados : undefined),
+    dados: montarDemoData(skin.demoDataExemplo, lead, daSkin ? lead.demo?.dados : undefined, skin.id),
   };
 }
 

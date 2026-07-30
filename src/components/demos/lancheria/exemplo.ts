@@ -10,11 +10,6 @@ export const LANCHERIA_EXEMPLO: DemoData = {
   nome: "CHAPA BURGER",
   slogan: "Hambúrgueres artesanais feitos com obsessão.",
   endereco: "Av. Principal, 500 — Centro",
-  telefone: "(00) 0000-0000",
-  whatsapp: "(00) 90000-0000",
-  instagram: "@sualancheria",
-  cidade: "Sua Cidade — Seu Estado",
-  horarios: "Terça a domingo, 18h às 23h",
   servicos: [
     {
       nome: "Smash Clássico",
@@ -53,7 +48,6 @@ export const LANCHERIA_EXEMPLO: DemoData = {
   depoimentos: [],
   secoes: {
     hero: {
-      titulo: "CHAPA BURGER",
       texto: "Hambúrgueres artesanais feitos com obsessão.",
       cta: "VER CARDÁPIO",
     },

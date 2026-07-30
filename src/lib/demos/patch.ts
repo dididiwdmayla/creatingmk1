@@ -8,21 +8,30 @@ import type {
 /**
  * Diff do editor: o painel edita o DemoData EFETIVO (exemplo ← dados do
  * lead ← edições) e, na hora de salvar, só o que difere da base
- * (exemplo ← lead) vira patch — o mesmo princípio da ficha antiga: campo
- * esvaziado/igual ao padrão volta a seguir o template. Função pura,
- * testada em __tests__/patch.test.ts.
+ * (exemplo ← lead) vira patch. Função pura, testada em
+ * __tests__/patch.test.ts.
+ *
+ * A regra de esvaziar difere por tipo de campo:
+ *
+ *   - **Conteúdo** (`CAMPOS_CONTEUDO`) — campo esvaziado sai do patch e
+ *     volta a seguir a base (exemplo ← lead), o mesmo princípio da ficha
+ *     antiga.
+ *   - **Identidade** (`CAMPOS_IDENTIDADE`) — dados que identificam ESTE
+ *     negócio (telefone, whatsapp, instagram, cidade, horários). Esvaziar
+ *     entra no patch como string vazia explícita: o usuário está dizendo
+ *     "não mostre isso", não "volte pro texto de exemplo" — sem essa
+ *     distinção, limpar um instagram errado do lead faria a demo voltar a
+ *     mostrar o instagram REAL (vindo do lead), que é exatamente o que o
+ *     usuário queria esconder. `aplicarPatch`/`montarDemoData` tratam string
+ *     vazia como valor definido (o elemento correspondente da skin já é
+ *     condicional e some sem quebrar o layout — ver Skin.tsx de cada skin).
  */
 
-const CAMPOS_TEXTO = [
-  "nome",
-  "slogan",
-  "endereco",
-  "telefone",
-  "whatsapp",
-  "instagram",
-  "cidade",
-  "horarios",
-] as const;
+const CAMPOS_CONTEUDO = ["nome", "slogan", "endereco"] as const;
+
+const CAMPOS_IDENTIDADE = ["telefone", "whatsapp", "instagram", "cidade", "horarios"] as const;
+
+export const CAMPOS_IDENTIDADE_DEMO: readonly string[] = CAMPOS_IDENTIDADE;
 
 const CAMPOS_SECAO = ["rotulo", "titulo", "texto", "cta", "ctaSecundaria"] as const;
 
@@ -75,9 +84,17 @@ export function montarPatch(
 ): DemoDataPatch {
   const patch: DemoDataPatch = {};
 
-  for (const campo of CAMPOS_TEXTO) {
+  for (const campo of CAMPOS_CONTEUDO) {
     const valor = atual[campo]?.trim() ?? "";
     if (valor && valor !== (base[campo] ?? "")) patch[campo] = valor;
+  }
+
+  for (const campo of CAMPOS_IDENTIDADE) {
+    const valor = atual[campo]?.trim() ?? "";
+    const baseValor = base[campo] ?? "";
+    // Ao contrário de CAMPOS_CONTEUDO: valor vazio TAMBÉM entra no patch
+    // quando difere da base — representa "esconder", não "seguir o padrão".
+    if (valor !== baseValor) patch[campo] = valor;
   }
 
   if (!igualJson(atual.servicos, base.servicos)) patch.servicos = atual.servicos;

@@ -15,11 +15,6 @@ export const TATUAGEM_EXEMPLO: DemoData = {
   nome: "ÓSSEA STUDIO",
   slogan: "A pele é o registro.",
   endereco: "Rua das Palmeiras, 512 — Zona 07",
-  telefone: "(00) 0000-0000",
-  whatsapp: "(00) 90000-0000",
-  instagram: "@ossea.studio",
-  cidade: "Maringá - PR",
-  horarios: "Terça a sábado, 13h às 21h. Atendimento por agendamento.",
   servicos: [
     {
       nome: "SESSÃO — PEQUENA",
@@ -71,7 +66,6 @@ export const TATUAGEM_EXEMPLO: DemoData = {
   ],
   secoes: {
     hero: {
-      titulo: "ÓSSEA STUDIO",
       texto: "Estúdio de tatuagem autoral. Blackwork, realismo dark e iconografia.",
       cta: "INICIAR CONVERSA",
     },
@@ -120,7 +114,7 @@ export const TATUAGEM_EXEMPLO: DemoData = {
         { titulo: "ICONOGRAFIA" },
         { titulo: "DOTWORK" },
         { titulo: "LINEWORK PESADO" },
-        { titulo: "MARINGÁ" },
+        { titulo: "AUTORAL" },
         { titulo: "2026" },
       ],
     },

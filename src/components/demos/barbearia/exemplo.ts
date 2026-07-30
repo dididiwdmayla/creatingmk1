@@ -10,10 +10,6 @@ export const BARBEARIA_EXEMPLO: DemoData = {
   nome: "BARBEARIA NORTE",
   slogan: "Ofício, tesoura e navalha.",
   endereco: "Av. Principal, 100 — Centro",
-  telefone: "(00) 0000-0000",
-  whatsapp: "(00) 90000-0000",
-  instagram: "@suabarbearia",
-  horarios: "Terça a sábado, 10h às 20h. Atendimento por agendamento.",
   servicos: [
     {
       nome: "CORTE CLÁSSICO",
@@ -69,7 +65,6 @@ export const BARBEARIA_EXEMPLO: DemoData = {
   ],
   secoes: {
     hero: {
-      titulo: "OFÍCIO. TESOURA. NAVALHA.",
       texto:
         "Cortes clássicos, barbas artesanais e atendimento sob agendamento. Sem fila, sem pressa.",
       cta: "AGENDAR HORÁRIO",

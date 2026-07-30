@@ -16,11 +16,6 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
   nome: "Vórtice Motors",
   slogan: "Seminovos premium com procedência auditada e garantia de 12 meses.",
   endereco: "Av. Principal, 1000 — Centro",
-  telefone: "(00) 0000-0000",
-  whatsapp: "(00) 90000-0000",
-  instagram: "@suamultimarcas",
-  cidade: "Sua Cidade — Seu Estado",
-  horarios: "Seg–Sex 9h às 19h · Sáb 9h às 16h",
   servicos: [
     {
       nome: "Hyundai HB20 Platinum",
@@ -118,7 +113,6 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
   secoes: {
     hero: {
       rotulo: "SEMINOVOS PREMIUM",
-      titulo: "Seu próximo carro já está aqui",
       texto:
         "Procedência auditada, revisão de 150 itens e garantia de 12 meses. Sem surpresa, sem letra miúda — só carro bom.",
       cta: "Ver estoque",

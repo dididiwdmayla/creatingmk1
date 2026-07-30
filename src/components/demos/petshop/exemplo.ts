@@ -11,11 +11,6 @@ export const PETSHOP_EXEMPLO: DemoData = {
   nome: "Focinho Feliz",
   slogan: "Banho, tosa, spa e mimos para quem te recebe abanando o rabo.",
   endereco: "Rua das Begônias, 240 — Jardim das Flores",
-  telefone: "(00) 3456-7890",
-  whatsapp: "(00) 90000-0000",
-  instagram: "@seupetshop",
-  cidade: "Sua Cidade — Seu Estado",
-  horarios: "Seg a Sex · 8h às 19h · Sáb · 8h às 17h",
   servicos: [
     {
       nome: "Banho & Tosa",
@@ -60,7 +55,6 @@ export const PETSHOP_EXEMPLO: DemoData = {
   secoes: {
     hero: {
       rotulo: "Banho · Tosa · Spa · Day care",
-      titulo: "Seu pet merece o melhor dia da semana.",
       texto: "Banho quentinho, tosa com estilo e um time que trata cada pet como o pet favorito. Spoiler: aqui, são todos.",
       cta: "Agendar horário",
       ctaSecundaria: "Conhecer serviços",

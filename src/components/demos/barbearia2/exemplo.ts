@@ -11,11 +11,6 @@ export const BARBEARIA2_EXEMPLO: DemoData = {
   nome: "BARBEARIA SUL",
   slogan: "Navalha, tesoura e tempo.",
   endereco: "Av. Brasil, 500 — Zona 3",
-  telefone: "(00) 0000-0000",
-  whatsapp: "(00) 90000-0000",
-  instagram: "@suabarbearia",
-  cidade: "Sua Cidade — UF",
-  horarios: "SEG–SEX 9H–20H · SÁB 9H–18H · DOM FECHADO",
   servicos: [
     {
       nome: "Corte clássico",
@@ -40,9 +35,7 @@ export const BARBEARIA2_EXEMPLO: DemoData = {
   ],
   depoimentos: [],
   secoes: {
-    hero: {
-      titulo: "BARBEARIA\n& SUL",
-    },
+    hero: {},
     manifesto: {
       titulo: "Um corte não se apressa.",
       texto: "Trinta e cinco anos afiando o mesmo ofício.",
