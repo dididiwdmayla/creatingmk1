@@ -1,3 +1,5 @@
+import type { NivelIA } from "@/lib/ai/nivel";
+
 export const USUARIOS_COLLECTION = "usuarios";
 
 export const PAPEIS = ["admin", "membro"] as const;
@@ -63,6 +65,13 @@ export interface Usuario {
    * a cada mudança. Ausente = ainda não mexeu no slider.
    */
   ultimoPrecoBaseSlider?: number;
+  /**
+   * Último nível de intervenção da IA escolhido na Forja ("toque-leve" |
+   * "equilibrado" | "completo") — self-service, atualizado a cada geração
+   * (checkbox do passo de escolha ou botão "Gerar com IA" do editor).
+   * Ausente = ainda não escolheu (a UI cai no padrão de ./ai/nivel.ts).
+   */
+  ultimoNivelIA?: NivelIA;
   criadoEm: string;
   atualizadoEm: string;
 }

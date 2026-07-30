@@ -1,3 +1,4 @@
+import type { NivelIA } from "@/lib/ai/nivel";
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
@@ -342,10 +343,16 @@ export const api = {
   mensagensNaoLidas: () => request<{ total: number }>("/api/mensagens/nao-lidas"),
 
   iaStatus: () => request<{ disponivel: boolean; modelo: string }>("/api/ia"),
-  gerarSugestaoDemo: (id: string, skinId: string) =>
+  iaNivel: () => request<{ nivel: NivelIA }>("/api/ia/nivel"),
+  salvarIaNivel: (nivel: NivelIA) =>
+    request<{ nivel: NivelIA }>("/api/ia/nivel", {
+      method: "PUT",
+      body: JSON.stringify({ nivel }),
+    }),
+  gerarSugestaoDemo: (id: string, skinId: string, nivel: NivelIA) =>
     request<{ sugestao: SugestaoDemo }>(`/api/leads/${id}/demo/sugestao`, {
       method: "POST",
-      body: JSON.stringify({ skinId }),
+      body: JSON.stringify({ skinId, nivel }),
     }),
   deleteDemoVideo: (id: string, slot: string, skinId?: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/demo/videos`, {

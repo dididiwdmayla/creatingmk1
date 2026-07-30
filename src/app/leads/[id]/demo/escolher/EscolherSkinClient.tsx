@@ -5,9 +5,24 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { NIVEIS_IA, NIVEL_IA_PADRAO, type NivelIA } from "@/lib/ai/nivel";
 import { ApiError, api } from "@/lib/api-client";
 import { SKINS } from "@/lib/demos/registry";
 import type { Lead } from "@/lib/leads/types";
+
+/** Rótulo + explicação curta de cada nível de intervenção da IA (ver lib/ai/nivel.ts). */
+const NIVEL_INFO: Record<NivelIA, { rotulo: string; descricao: string }> = {
+  "toque-leve": { rotulo: "Toque leve", descricao: "Só paleta e fonte — nenhum texto." },
+  equilibrado: {
+    rotulo: "Equilibrado",
+    descricao: "Paleta, fonte, animação + slogan e descrições curtas.",
+  },
+  completo: {
+    rotulo: "Completo",
+    descricao:
+      "Tudo do equilibrado + reescreve os textos de todas as seções no tom do nicho e no idioma da região.",
+  },
+};
 
 /**
  * Passo de escolha da skin base, antes de criar a demo (ver Skin.tsx dos
@@ -24,6 +39,9 @@ export function EscolherSkinClient({ id }: { id: string }) {
   // IA na Forja: checkbox só aparece com GEMINI_API_KEY configurada.
   const [iaDisponivel, setIaDisponivel] = useState<boolean | null>(null);
   const [comIA, setComIA] = useState(false);
+  // Nível de intervenção escolhido — pré-selecionado com o último que o
+  // próprio usuário usou (GET /api/ia/nivel); persistido a cada troca.
+  const [nivelIA, setNivelIA] = useState<NivelIA>(NIVEL_IA_PADRAO);
 
   useEffect(() => {
     let ignore = false;
@@ -35,10 +53,25 @@ export function EscolherSkinClient({ id }: { id: string }) {
       .catch(() => {
         if (!ignore) setIaDisponivel(false);
       });
+    api
+      .iaNivel()
+      .then(({ nivel }) => {
+        if (!ignore) setNivelIA(nivel);
+      })
+      .catch(() => {
+        /* sem sessão/erro: mantém o padrão já no estado inicial. */
+      });
     return () => {
       ignore = true;
     };
   }, []);
+
+  function handleNivelChange(nivel: NivelIA) {
+    setNivelIA(nivel);
+    api.salvarIaNivel(nivel).catch(() => {
+      /* preferência não salvou — a escolha desta sessão continua valendo. */
+    });
+  }
 
   useEffect(() => {
     let ignore = false;
@@ -94,21 +127,51 @@ export function EscolherSkinClient({ id }: { id: string }) {
         </p>
 
         {iaDisponivel === true ? (
-          <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-lg border border-line bg-surface p-3 text-sm text-foreground">
-            <input
-              type="checkbox"
-              checked={comIA}
-              onChange={(e) => setComIA(e.target.checked)}
-              className="mt-0.5 accent-[var(--accent)]"
-            />
-            <span>
-              ✨ Começar com sugestões de IA
-              <span className="block text-xs text-ink-muted">
-                O Gemini sugere paleta, fonte, animação e textos pelo nicho do negócio — você
-                revisa e aplica (ou descarta) antes de salvar.
+          <div className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-foreground">
+            <label className="flex cursor-pointer items-start gap-2">
+              <input
+                type="checkbox"
+                checked={comIA}
+                onChange={(e) => setComIA(e.target.checked)}
+                className="mt-0.5 accent-[var(--accent)]"
+              />
+              <span>
+                ✨ Começar com sugestões de IA
+                <span className="block text-xs text-ink-muted">
+                  O Gemini sugere um ponto de partida pra demo — você escolhe o quanto ele pode
+                  mexer, revisa e aplica (ou descarta) antes de salvar.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+            {comIA && (
+              <div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
+                {NIVEIS_IA.map((valor) => (
+                  <label
+                    key={valor}
+                    className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-sm transition-colors ${
+                      nivelIA === valor
+                        ? "border-accent bg-surface-2"
+                        : "border-line hover:border-accent/50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="nivel-ia"
+                      checked={nivelIA === valor}
+                      onChange={() => handleNivelChange(valor)}
+                      className="mt-0.5 accent-[var(--accent)]"
+                    />
+                    <span>
+                      {NIVEL_INFO[valor].rotulo}
+                      <span className="block text-xs text-ink-muted">
+                        {NIVEL_INFO[valor].descricao}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           iaDisponivel === false && (
             <p className="mt-4 text-xs text-ink-muted">
@@ -121,7 +184,7 @@ export function EscolherSkinClient({ id }: { id: string }) {
           {SKINS.map((skin) => (
             <Link
               key={skin.id}
-              href={`/leads/${id}/demo/editar?skin=${skin.id}${comIA ? "&ia=1" : ""}`}
+              href={`/leads/${id}/demo/editar?skin=${skin.id}${comIA ? `&ia=1&nivel=${nivelIA}` : ""}`}
               className="group flex flex-col overflow-hidden rounded-lg border border-line bg-surface transition-colors hover:border-accent"
             >
               <span className="relative aspect-[4/3] w-full overflow-hidden bg-surface-2">

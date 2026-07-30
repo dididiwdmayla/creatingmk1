@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { AiIndisponivelError, aiDisponivel, gerarSugestaoDemo } from "@/lib/ai";
+import { NIVEIS_IA, NIVEL_IA_PADRAO, nivelIaValido } from "@/lib/ai/nivel";
 import { loadConfig } from "@/lib/config";
 import { getSkin } from "@/lib/demos/registry";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -30,6 +31,10 @@ export async function POST(req: Request, { params }: Params) {
     if (!skin) {
       throw new ValidationError(["skinId deve ser uma skin do registro"]);
     }
+    if (body.nivel !== undefined && !nivelIaValido(body.nivel)) {
+      throw new ValidationError([`nivel deve ser um de: ${NIVEIS_IA.join(", ")}`]);
+    }
+    const nivel = nivelIaValido(body.nivel) ? body.nivel : NIVEL_IA_PADRAO;
 
     const lead = await getLead(db, id);
     if (!lead) {
@@ -38,7 +43,7 @@ export async function POST(req: Request, { params }: Params) {
 
     const usuario = await usuarioDaRequest(db, req);
     const config = await loadConfig(db);
-    const sugestao = await gerarSugestaoDemo(db, lead, skin, config.caps, {
+    const sugestao = await gerarSugestaoDemo(db, lead, skin, config.caps, nivel, {
       userId: usuario?.id,
       isAdmin: usuario?.papel === "admin",
     });

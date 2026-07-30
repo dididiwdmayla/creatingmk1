@@ -6,6 +6,7 @@ export {
   getUsuario,
   getUsuarioPorNome,
   listUsuarios,
+  salvarNivelIA,
   salvarPrecoBaseSlider,
   seedUsuariosSeVazio,
   type LimitesPatch,

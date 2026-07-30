@@ -74,6 +74,7 @@ src/
       leads/[id]/demo/videos/route.ts  # ✅ POST upload de vídeo-no-título / DELETE volta ao fallback (opt-in por skin)
       leads/[id]/demo/sugestao/route.ts # ✅ POST sugestão de IA da demo (Gemini; SKU aiGeneration)
       ia/route.ts                   # ✅ GET disponibilidade da IA (GEMINI_API_KEY configurada?)
+      ia/nivel/route.ts             # ✅ GET/PUT último nível de intervenção da IA (self-service, por usuário)
       mensagens/route.ts            # ✅ GET resumo/conversa (escopado à sessão) / POST envia texto
       mensagens/nao-lidas/route.ts  # ✅ GET total de não-lidas (badge do menu, polling leve)
       hoje/route.ts                 # ✅ GET fila do dia (delta por usuário; carimba ultimaVisitaEm)
@@ -124,7 +125,8 @@ src/
       storage.ts                    # ✅ adaptador do Firebase Storage p/ DemoStorage (bucket via env)
     ai/                             # ✅ IA na Forja (ver seção própria)
       gemini.ts                     # cliente do Gemini (flash atual, GEMINI_API_KEY só server-side)
-      sugestao.ts                   # prompt + schema estrito + validação + retry 1x (via reserveQuota)
+      nivel.ts                      # ✅ NivelIA (toque-leve/equilibrado/completo) — sem dependências, usado por usuarios/
+      sugestao.ts                   # prompt + schema estrito + validação (por nível) + retry 1x (via reserveQuota)
       index.ts
       __tests__/
     mensagens/                      # ✅ mensagens privadas entre usuários
@@ -347,6 +349,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
     "enriquecimentosDia": 20, "enriquecimentosSemana": 100, "enriquecimentosMes": 300
   },
   "ultimoPrecoBaseSlider": 2500,     // ✅ opcional: última posição do slider da calculadora de precificação (self-service)
+  "ultimoNivelIA": "equilibrado",    // ✅ opcional: último nível de intervenção da IA na Forja (self-service, ver "IA na Forja")
   "criadoEm": "<ISO 8601>",
   "atualizadoEm": "<ISO 8601>"
 }
@@ -681,7 +684,9 @@ Formato de erro padrão em todas as rotas:
 | `/api/leads/[id]/demo/videos` | POST | multipart `slot` + `arquivo` (+`skinId?`) | `200 { slot, url }` · `400` (formato/tamanho/slot fora de `videoSlots`) · `404` | — |
 | `/api/leads/[id]/demo/videos` | DELETE | `{ slot, skinId? }` | `200 { lead }` (apaga arquivos do slot + override salvo) · `400` · `404` | — |
 | `/api/ia` | GET | — | `200 { disponivel, modelo }` (nunca expõe a chave) | — |
-| `/api/leads/[id]/demo/sugestao` | POST | `{ skinId }` | `200 { sugestao }` · `400` · `404` · `429 quota_exceeded` · `502 ai_error` · `503 ai_unavailable` | Gemini generateContent · **aiGeneration** (1 por tentativa; retry de resposta inválida = 2) |
+| `/api/ia/nivel` | GET | — (exige sessão) | `200 { nivel }` (default `"equilibrado"`) · `401` | — |
+| `/api/ia/nivel` | PUT | `{ nivel }` (`toque-leve`\|`equilibrado`\|`completo`) | `200 { nivel }` · `400` · `401` | — |
+| `/api/leads/[id]/demo/sugestao` | POST | `{ skinId, nivel? }` (`nivel` default `"equilibrado"`) | `200 { sugestao }` · `400` · `404` · `429 quota_exceeded` · `502 ai_error` · `503 ai_unavailable` | Gemini generateContent · **aiGeneration** (1 por tentativa; retry de resposta inválida = 2) |
 | `/api/mensagens` | GET | query opcional `com` | sem `com`: `200 { usuarios[], conversas[], totalNaoLidas }` · com `com`: `200 { mensagens[] }` (marca recebidas como lidas) · `401` | — |
 | `/api/mensagens` | POST | `{ paraUserId, texto (≤2000) }` | `200 { mensagem }` · `400` · `401` · `404` (destinatário) | — |
 | `/api/mensagens/nao-lidas` | GET | — | `200 { total }` · `401` | — |
@@ -870,10 +875,16 @@ Botão "✨ Gerar com IA" no editor de demos (e checkbox "Começar com sugestõe
 1. **Chave só em env** (`GEMINI_API_KEY`), chamadas exclusivamente server-side (`src/lib/ai/gemini.ts` é o único ponto que fala com `generativelanguage.googleapis.com`). Modelo: `gemini-3.5-flash` (o flash mais atual, GA em jul/2026 — constante `GEMINI_MODEL`).
 2. **Sem a chave, nada quebra**: `GET /api/ia` devolve `{ disponivel: false }`, o editor oculta o botão, o passo de escolha troca o checkbox por um aviso e a rota de sugestão responde `503 ai_unavailable`.
 3. **Mesma mecânica de custos das APIs pagas**: cada chamada real ao Gemini passa por `reserveQuota(sku "aiGeneration")` ANTES do fetch. Teto default 50/mês (configurável em /config como qualquer SKU), preço default US$0 (free tier do flash) — o meter aparece no dashboard como os demais.
-4. **JSON validado com schema estrito, retry 1x**: a rota envia `responseMimeType: application/json` + `responseJsonSchema` (orientação ao modelo) e valida localmente contra o contrato da skin (`validarSugestao`): preset entre os `themePresets` da skin (paleta dentro dos tokens do Theme), `destaque` hex (o único token de cor patchável via `TemaPatch`), fonte da lista curada (papel display, recomendadas da skin primeiro), `animacao` de `ANIMACOES`, e textos curtos pt-BR (slogan ≤120, descrição ≤400, título ≤80 — comprimento é recortado, não motivo de rejeição). Chave desconhecida/enum inválido/seção fora do contrato → UM retry com os problemas anexados ao prompt (nova reserva de cota); inválido de novo → `502 ai_error`.
-5. **Só as seções NÃO-fixas recebem título** — o título da fixa (hero) é o nome/wordmark do negócio; a `descricao` vai para `secoes.hero.texto` (apresentação, não identidade) e o `slogan` para `dados.slogan`.
-6. **Nunca sobrescreve sem confirmar**: a rota só GERA — quem escreve é o usuário. O editor mostra a sugestão num preview (preset, amostra da cor, fonte, animação, textos) com **Aplicar/Descartar**; aplicar muda apenas o rascunho em memória e nada é publicado sem o "Salvar" normal (PUT com a validação estrita de sempre). O fluxo `?ia=1` da criação usa o MESMO preview — a demo nova "começa com sugestões", mas ainda atrás de um Aplicar explícito.
-7. **Prompt** (`montarPromptSugestao`): nicho (da busca do lead, fallback no nicho da skin), sub-nicho, nome, endereço e rating/total de avaliações JÁ salvos (nunca dispara busca/enriquecimento novo), mais as escolhas permitidas. Dados públicos do lead, nenhum dado sensível.
+4. **Nível de intervenção escolhido ANTES da chamada** (`src/lib/ai/nivel.ts`, `NivelIA`): clicar em "Gerar com IA" (ou marcar "Começar com sugestões de IA" no passo de escolha) abre um seletor com 3 opções ANTES de qualquer request ao Gemini —
+   - **Toque leve**: só `themeId`/`destaque`/`fonteDisplay`/`animacao`, nenhum texto.
+   - **Equilibrado** (default, comportamento histórico): tudo do toque leve + `slogan`/`descricao` (hero) + `titulosSecoes` (título de cada seção não-fixa).
+   - **Completo**: tudo do equilibrado + `textosSecoes` — rótulo/título/texto/CTAs de CADA seção não-fixa, reescritos no tom do nicho e no idioma da região do lead (`textosSecoes` substitui `titulosSecoes` neste nível; nunca os dois juntos).
+
+   O nível entra tanto na INSTRUÇÃO (`montarPromptSugestao`) quanto no SCHEMA (`schemaSugestao`) enviados ao Gemini — o modelo só recebe/devolve os campos daquele nível (chave de nível mais largo na resposta é sempre "chave desconhecida", rejeitada igual a qualquer desvio de schema). **Persistido por usuário**: `Usuario.ultimoNivelIA` (`GET`/`PUT /api/ia/nivel`, self-service — mesmo espírito de `ultimoPrecoBaseSlider`), lido para pré-selecionar o seletor e salvo a cada troca.
+5. **JSON validado com schema estrito, retry 1x**: a rota envia `responseMimeType: application/json` + `responseJsonSchema` (orientação ao modelo) e valida localmente contra o contrato da skin E o nível escolhido (`validarSugestao`): preset entre os `themePresets` da skin (paleta dentro dos tokens do Theme), `destaque` hex (o único token de cor patchável via `TemaPatch`), fonte da lista curada (papel display, recomendadas da skin primeiro), `animacao` de `ANIMACOES`, e textos curtos pt-BR (slogan ≤120, descrição ≤400, título ≤80, rótulo ≤40, CTA ≤60 — comprimento é recortado, não motivo de rejeição). Chave desconhecida/enum inválido/seção fora do contrato → UM retry com os problemas anexados ao prompt (nova reserva de cota); inválido de novo → `502 ai_error`.
+6. **Só as seções NÃO-fixas recebem texto novo** — o título da fixa (hero) é o nome/wordmark do negócio, nunca tocado; a `descricao` (equilibrado/completo) vai para `secoes.hero.texto` (apresentação, não identidade) e o `slogan` para `dados.slogan`. No nível completo, o mesmo limite vale para `textosSecoes`: hero fica de fora, só ganha slogan/descrição como nos outros níveis.
+7. **Nunca sobrescreve sem confirmar**: a rota só GERA — quem escreve é o usuário. O editor mostra a sugestão num preview (preset, amostra da cor, fonte, animação, textos) com **Aplicar/Descartar**; aplicar muda apenas o rascunho em memória e nada é publicado sem o "Salvar" normal (PUT com a validação estrita de sempre). O fluxo `?ia=1` da criação usa o MESMO preview — a demo nova "começa com sugestões" no nível já escolhido no passo de escolha (`?nivel=` na URL), mas ainda atrás de um Aplicar explícito.
+8. **Prompt** (`montarPromptSugestao`): nicho (da busca do lead, fallback no nicho da skin), sub-nicho, nome, endereço e rating/total de avaliações JÁ salvos (nunca dispara busca/enriquecimento novo), mais as escolhas permitidas do nível escolhido. Dados públicos do lead, nenhum dado sensível.
 
 ## Precificação regional por IA (`src/lib/regioes` + `src/lib/precificacao` + card "Precificação")
 
