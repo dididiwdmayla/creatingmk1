@@ -102,6 +102,58 @@ export function estadoAtual(
   return { aberto: false, texto: `Fechado · abre ${formatHora(proxima.horaAbre, proxima.minAbre)}` };
 }
 
+const DIAS_ORDEM = [1, 2, 3, 4, 5, 6, 0] as const;
+
+const ABREV_DIA: Record<number, string> = {
+  0: "DOM",
+  1: "SEG",
+  2: "TER",
+  3: "QUA",
+  4: "QUI",
+  5: "SEX",
+  6: "SÁB",
+};
+
+/** "9h-18h" | "9h-12h/14h-18h" (faixas do mesmo dia) | "fechado". */
+function textoFaixasDoDia(faixas: Faixa[], dia: number): string {
+  const doDia = faixas
+    .filter((faixa) => faixa.diaAbre === dia)
+    .sort((a, b) => abreMinuto(a) - abreMinuto(b));
+  if (doDia.length === 0) return "fechado";
+  return doDia
+    .map((faixa) => `${formatHora(faixa.horaAbre, faixa.minAbre)}-${formatHora(faixa.horaFecha, faixa.minFecha)}`)
+    .join("/");
+}
+
+/**
+ * Resumo legível de `lead.horarios.faixas`, agrupando dias consecutivos
+ * (SEG→DOM) com a mesma faixa: "SEG-SEX 9h-20h · SÁB 9h-18h · DOM fechado".
+ * Dias sem nenhuma faixa entram como "fechado" no agrupamento. Sem faixas
+ * (nunca buscado, ou lugar sem horário conhecido) → undefined.
+ */
+export function resumirHorarios(faixas: Faixa[]): string | undefined {
+  if (faixas.length === 0) return undefined;
+
+  const dias = DIAS_ORDEM.map((dia) => ({ dia, texto: textoFaixasDoDia(faixas, dia) }));
+
+  const grupos: { inicio: number; fim: number; texto: string }[] = [];
+  for (const { dia, texto } of dias) {
+    const atual = grupos[grupos.length - 1];
+    if (atual && atual.texto === texto) {
+      atual.fim = dia;
+    } else {
+      grupos.push({ inicio: dia, fim: dia, texto });
+    }
+  }
+
+  return grupos
+    .map(({ inicio, fim, texto }) => {
+      const rotulo = inicio === fim ? ABREV_DIA[inicio] : `${ABREV_DIA[inicio]}-${ABREV_DIA[fim]}`;
+      return `${rotulo} ${texto}`;
+    })
+    .join(" · ");
+}
+
 export function melhorMomento(
   horarios: Lead["horarios"] | undefined,
   now: Date = new Date(),
