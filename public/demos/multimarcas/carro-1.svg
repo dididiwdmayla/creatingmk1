@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 275" role="img" aria-label="Placeholder de veículo hatch">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="0%" r="120%">
+      <stop offset="0%" stop-color="#F1E8D4"/>
+      <stop offset="60%" stop-color="#E9DEC4"/>
+      <stop offset="100%" stop-color="#E1D4B4"/>
+    </radialGradient>
+  </defs>
+  <rect width="440" height="275" fill="url(#bg)"/>
+  <g transform="translate(0,57)" opacity="0.82">
+    
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M24 116 C24 106 32 98 52 94 L74 90 C92 64 116 52 148 48 L208 44 C246 44 280 54 304 76 L318 90 C356 94 384 100 392 108 L394 116"/>
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M136 66 L162 50 L262 52 L296 76"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="112" cy="116" r="23"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="112" cy="116" r="9"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="326" cy="116" r="23"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="326" cy="116" r="9"/>
+    
+  </g>
+</svg>

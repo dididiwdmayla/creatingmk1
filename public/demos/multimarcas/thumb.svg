@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="Miniatura da skin Multimarcas Vórtice">
+  <rect width="400" height="300" fill="#F5F0E6"/>
+  <rect x="-40" y="150" width="480" height="4" fill="#D40000" opacity="0.5" transform="rotate(-7 200 150)"/>
+  <rect x="-40" y="162" width="480" height="10" fill="#D40000" opacity="0.5" transform="rotate(-7 200 150)"/>
+  <text x="200" y="185" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="800" font-size="120" fill="#1E1712">M<tspan fill="#D40000">.</tspan></text>
+  <text x="200" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-weight="600" font-size="16" letter-spacing="4" fill="#1E1712" opacity="0.75">MULTIMARCAS</text>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 275" role="img" aria-label="Placeholder de veículo picape">
+  <defs>
+    <radialGradient id="bg" cx="70%" cy="0%" r="120%">
+      <stop offset="0%" stop-color="#EFE7D6"/>
+      <stop offset="60%" stop-color="#E6DCC4"/>
+      <stop offset="100%" stop-color="#DBCEB0"/>
+    </radialGradient>
+  </defs>
+  <rect width="440" height="275" fill="url(#bg)"/>
+  <g transform="translate(0,57)" opacity="0.82">
+    
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M20 118 C20 106 28 100 48 96 L62 92 L74 60 C78 48 90 42 108 40 L206 40 L228 62 L360 62 L368 66 L372 96 C400 100 416 106 418 114 L420 118"/>
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M92 60 L98 48 L196 48 L214 62"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="110" cy="118" r="24"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="110" cy="118" r="9"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="330" cy="118" r="24"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="330" cy="118" r="9"/>
+    
+  </g>
+</svg>

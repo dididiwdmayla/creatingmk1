@@ -20,6 +20,13 @@ import {
   LANCHERIA_THEME_DEFAULT,
   LANCHERIA_THEME_PRESETS,
 } from "@/components/demos/lancheria/themes";
+import { MULTIMARCAS_EXEMPLO } from "@/components/demos/multimarcas/exemplo";
+import { MULTIMARCAS_SECOES } from "@/components/demos/multimarcas/secoes";
+import { MultimarcasVortice } from "@/components/demos/multimarcas/Skin";
+import {
+  MULTIMARCAS_THEME_DEFAULT,
+  MULTIMARCAS_THEME_PRESETS,
+} from "@/components/demos/multimarcas/themes";
 import { PETSHOP_EXEMPLO } from "@/components/demos/petshop/exemplo";
 import { PETSHOP_SECOES } from "@/components/demos/petshop/secoes";
 import { PetshopFocinhoFeliz } from "@/components/demos/petshop/Skin";
@@ -138,6 +145,23 @@ export const SKINS: SkinDefinition[] = [
     fontesRecomendadas: ["fugaz", "archivo-black", "poppins", "montserrat", "bebas", "dm-sans"],
     // Comida flutuando nas laterais (bacon/queijo/bebida), fiel ao material bruto.
     decorativeFloats: LANCHERIA_DECORATIVE_FLOATS,
+  },
+  {
+    id: "multimarcas-vortice",
+    nicho: "multimarcas",
+    nome: "Multimarcas Vórtice",
+    descricao:
+      "Concessionária de seminovos premium: estoque filtrável por categoria, simulador de financiamento com odômetro de dígitos, velocímetro no preloader e carrossel de depoimentos arrastável.",
+    componente: MultimarcasVortice,
+    themeDefault: MULTIMARCAS_THEME_DEFAULT,
+    themePresets: MULTIMARCAS_THEME_PRESETS,
+    demoDataExemplo: MULTIMARCAS_EXEMPLO,
+    secoes: MULTIMARCAS_SECOES,
+    heroEscalaLimites: { min: 0.75, max: 1.25 },
+    thumbnail: "/demos/multimarcas/thumb.svg",
+    // Sem videoSlots: o material bruto não tem vídeo-no-título.
+    // Serifas dramáticas/condensadas — o tom editorial-premium da skin.
+    fontesRecomendadas: ["cinzel", "abril", "playfair", "oswald", "archivo-black", "montserrat"],
   },
   {
     id: "petshop-focinho-feliz",

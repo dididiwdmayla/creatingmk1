@@ -258,6 +258,32 @@ src/
           FaqAccordion.tsx           # acordeão com um item aberto por vez (primeiro já aberto, fiel ao original)
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+      multimarcas/
+        Skin.tsx                    # composição { data, theme }, sem hooks próprios
+        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
+        secoes.ts                   # contrato SkinSecaoDef[]
+        themes.ts                   # default + presets de tema
+        exemplo.ts                  # DemoData de exemplo (base da ficha)
+        interactive/                # ✅ subcomponentes "use client" (animações/interação)
+          logic.ts                    # funções puras (parse de número formatado, wa.me, categorias) — testadas isoladamente
+          SectionReveal.tsx          # entrada de seção por scroll, intensidade = theme.animacao
+          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+          introContext.tsx           # sinaliza pro Hero quando o preloader terminou (revelação escalonada do título)
+          Preloader.tsx              # velocímetro que sobe -120°→120° com mola simples, fiel ao original
+          IntroExperience.tsx        # orquestra cursor + preloader + sessionStorage
+          CustomCursor.tsx           # ponto + anel com spring, cresce sobre link/botão/card de veículo
+          Nav.tsx                    # nav fixa (fundo ao rolar) + burger fullscreen; links a partir das seções visíveis
+          Hero.tsx                   # título revelado palavra a palavra + velocímetro decorativo reage à velocidade do scroll
+          ProgressBar.tsx            # barra de progresso de leitura no topo
+          ThemeColorSync.tsx         # sincroniza <meta theme-color> com a seção mais próxima do topo
+          CarFilterGrid.tsx          # pills de filtro (pílula ativa desliza via layoutId) + grid com reflow animado
+          CarCard.tsx                # card do veículo: imagem do slot, chips, painel "detalhes", preço com contagem
+          StatCounter.tsx            # contador do zero ao alvo no viewport (prefixo/sufixo na cor de destaque)
+          Simulador.tsx              # calculadora de financiamento com odômetro de dígitos
+          Marquee.tsx                # faixa de marcas em loop, pausa no hover/touch
+          TestimonialCarousel.tsx    # carrossel de depoimentos arrastável + autoplay
+          WhatsAppFloat.tsx          # botão flutuante que aparece após o hero, pulsa a cada 8s
+          FooterEgg.tsx              # easter egg: 3 cliques na marca do rodapé
       petshop/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
         BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
@@ -278,6 +304,7 @@ public/
   demos/lancheria/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/barbearia2/*.svg            # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/tatuagem2/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
+  demos/multimarcas/*.svg           # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/petshop/*.svg               # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
 ```
 
@@ -739,7 +766,7 @@ Prévia de site personalizada por lead, servida pelo próprio Radar em **`/demo/
 
 Contratos centrais (`src/lib/demos/types.ts`):
 
-- **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição), `depoimentos[]` (autor/texto/nota), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes), `imagens` (caminho por slot), `videos` (opcional — URL por slot de **vídeo-no-título**, ver seção própria) e a **estrutura editável**: `ordemSecoes` (ordem das seções não-fixas) e, por seção, `oculta` e `alinhamento`.
+- **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição, + `categoria`/`destaques[]` opcionais — ex.: filtro e chips do catálogo de veículos da skin de multimarcas), `depoimentos[]` (autor/texto/nota, + `contexto` opcional — segunda linha curta sob o autor, ex.: "Toyota Hilux SRX 2021"), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes), `imagens` (caminho por slot), `videos` (opcional — URL por slot de **vídeo-no-título**, ver seção própria) e a **estrutura editável**: `ordemSecoes` (ordem das seções não-fixas) e, por seção, `oculta` e `alinhamento`.
 - **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda, e dois acentos raros `acentoSecundario`/`acentoTerciario` para detalhes decorativos que não seguem o acento principal), `fontes` (display/corpo/mono/serif/decorativa/**citacao**/**destaque** como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts/`), `raio`, `densidade` (compacta/confortável/arejada → espaçamento vertical das seções), `animacao` (`nenhuma`/`sutil`/`marcante` → intensidade de entrada de seção, hover e transição; ver "Animação" abaixo), as **micro-interações**: `intro` (splash de abertura ligada?), `hover` (`lift`/`zoom`/`brilho`), `clique` (`nenhum`/`pressao`/`pulso`), `fundoEfeito` (`nenhum`/`gradiente`/`particulas`) e `led` (`desligado`/`sutil`/`marcante` — ver "Micro-interações" abaixo), e `heroTitulo` (`{ fonte, escala, alinhamento }` — estilo do título principal, ver "Título hero" abaixo; o **texto** continua em `dados.secoes.hero.titulo`/`dados.nome`, que é conteúdo, não tema).
 - **`TemaPatch`** (`LeadDemo.tema`) — ajustes por cima do preset: `fonteDisplay`/`fonteCorpo` (ids da **lista curada** em `fontes.ts`, ~16 fontes via `next/font`, cada uma com os papéis onde funciona — só as fontes que são default de algum preset são carregadas sempre; as demais entram **sob demanda**, via `import()` dinâmico, só quando o editor escolhe uma delas — ver `src/app/demo/fonts/registry.ts`), `destaque` (cor primária hex; `destaqueInk` é **recalculado por contraste** em `tema.ts`), `raio` (um de `TEMA_RAIOS`), `densidade`, `animacao`, `intro`, `hover`, `clique`, `fundoEfeito`, `led` e `heroTitulo` (`{ fonte?, escala?, alinhamento? }`, todos opcionais). `aplicarTema(preset, patch, heroEscalaLimites?)` é puro e usado pela rota pública E pelo preview — o editor nunca mostra algo diferente do publicado; o 3º argumento (default de `tema.ts` se omitido) recorta `heroTitulo.escala` aos limites da skin.
 - **`SkinDefinition`** — entrada do registro: `{ id, nicho, nome, componente, themeDefault, themePresets, demoDataExemplo, secoes, heroEscalaLimites, thumbnail, videoSlots? }`. **`secoes`** é o contrato do editor: lista ordenada de `SkinSecaoDef` (`{ id, nome, fixa?, alignOptions?, entradaOptions? }`) — `fixa` não reordena nem oculta (ex.: hero); `alignOptions` diz onde a skin aceita alinhamento (validado no PUT; a primeira opção é o natural da skin); `entradaOptions` diz quais animações de entrada por seção a skin aceita ali (validado no PUT; ausente = sem seletor). `heroEscalaLimites` (`{ min, max }`) delimita o slider de tamanho do título hero no editor. `thumbnail` (caminho local em `/public`) alimenta o passo de escolha de skin. `videoSlots` (opcional, **opt-in por skin**) lista os slots de `dados.videos` que a skin suporta — ausente/vazio = a skin não oferece vídeo-no-título. Sem posicionamento livre por pixel: o template continua responsivo.

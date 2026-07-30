@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 275" role="img" aria-label="Placeholder de veículo suv">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="0%" r="120%">
+      <stop offset="0%" stop-color="#F1E6CE"/>
+      <stop offset="60%" stop-color="#E8DBBE"/>
+      <stop offset="100%" stop-color="#DECFAC"/>
+    </radialGradient>
+  </defs>
+  <rect width="440" height="275" fill="url(#bg)"/>
+  <g transform="translate(0,57)" opacity="0.82">
+    
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M22 118 C22 106 30 98 50 94 L64 90 L76 56 C80 44 92 38 110 36 L280 36 C300 38 314 46 326 60 L342 88 C382 92 412 100 418 110 L420 118"/>
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M96 56 L100 44 L272 44 L292 58"/>
+      <path fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" d="M104 30 L268 30"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="112" cy="118" r="24"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="112" cy="118" r="9"/>
+      <circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="336" cy="118" r="24"/><circle fill="none" stroke="#1E1712" stroke-width="3" stroke-linecap="round" cx="336" cy="118" r="9"/>
+    
+  </g>
+</svg>

@@ -9,7 +9,6 @@ import { CORE_FONT_IDS } from "./core";
  * o custo dela — nem preload, nem download.
  */
 const DYNAMIC_FONT_LOADERS: Record<string, () => Promise<string>> = {
-  oswald: () => import("./dynamic/oswald").then((m) => m.default.variable),
   poppins: () => import("./dynamic/poppins").then((m) => m.default.variable),
   lora: () => import("./dynamic/lora").then((m) => m.default.variable),
   abril: () => import("./dynamic/abril").then((m) => m.default.variable),
