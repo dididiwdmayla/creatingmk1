@@ -252,6 +252,34 @@ describe("GET /api/leads/[id]", () => {
     const { error } = await res.json();
     expect(error.code).toBe("not_found");
   });
+
+  it("self-heal: demo sem token de envio ganha um antes de responder", async () => {
+    db.seed("leads/D", {
+      placeId: "D",
+      nome: "Demo sem token",
+      status: "novo",
+      enriquecido: false,
+      demo: {
+        skinId: "s",
+        themeId: "t",
+        dados: {},
+        criadoEm: "2026-07-01T00:00:00.000Z",
+        atualizadoEm: "2026-07-01T00:00:00.000Z",
+      },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const res = await GET_ONE(new Request("http://localhost/api/leads/D"), params("D"));
+
+    expect(res.status).toBe(200);
+    const { lead } = await res.json();
+    expect(lead.demo.envios).toHaveLength(1);
+    expect(lead.demo.envios[0].token).toBeTruthy();
+    expect((db.getDoc("leads/D")?.demo as { envios?: unknown[] } | undefined)?.envios).toHaveLength(
+      1,
+    );
+  });
 });
 
 describe("PATCH /api/leads/[id]", () => {

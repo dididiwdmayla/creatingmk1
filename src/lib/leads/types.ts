@@ -107,6 +107,34 @@ export interface Lead {
     userId: string;
     em: string;
   };
+  /**
+   * Visitas à demo pública (/demo/{placeId}) — só cresce, uma entrada por
+   * carregamento com um `?t=` de envio válido (URL sem token, de "Copiar
+   * link"/"Abrir demo", nunca gera entrada). `interna` = o navegador tinha
+   * cookie de sessão válido (provável preview de alguém do time, não o
+   * lead) — ver registrarVisitaDemo em repo.ts. `duracaoSegundos` e
+   * `scrollPercent` chegam depois, via beacon no unload da página
+   * (POST /api/demo-visita), e podem nunca chegar (aba fechada à força,
+   * navegador sem sendBeacon).
+   */
+  demoVisitas?: DemoVisita[];
   criadoEm: string;
   atualizadoEm: string;
+}
+
+/** Uma visita registrada à demo pública do lead — ver `Lead.demoVisitas`. */
+export interface DemoVisita {
+  id: string;
+  /** Início da visita (ISO). */
+  em: string;
+  interna: boolean;
+  /**
+   * `geradoEm` do envio (LeadDemo.envios) cujo token esta visita consumiu —
+   * ausente se a URL não trazia um token reconhecido (ex.: token de antes
+   * de uma exclusão/recriação da demo).
+   */
+  envioEm?: string;
+  duracaoSegundos?: number;
+  /** 0–100, maior profundidade de scroll atingida na visita. */
+  scrollPercent?: number;
 }

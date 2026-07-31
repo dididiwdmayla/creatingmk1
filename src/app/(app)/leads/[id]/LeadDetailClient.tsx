@@ -15,6 +15,7 @@ import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import type { UsoUsuario } from "@/lib/costs";
+import { envioVigente } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { formatDateTime } from "@/lib/format";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
@@ -267,7 +268,12 @@ export function LeadDetailClient({ id }: { id: string }) {
   // Telefone da busca qualificada já sustenta o botão — sem enriquecer.
   const telefoneIntl = detalhes?.telefoneIntl ?? lead.telefoneIntl;
   // Só renderiza com lead carregado (client), então window existe.
+  // "Copiar link"/"Abrir demo" sempre usam a URL sem token — só a
+  // variável {demo} da mensagem carrega o token do envio vigente, já
+  // pronto no GET do lead (sem fetch no clique).
   const demoUrl = `${window.location.origin}/demo/${lead.placeId}`;
+  const tokenVigente = envioVigente(lead.demo)?.token;
+  const demoUrlParaEnvio = tokenVigente ? `${demoUrl}?t=${tokenVigente}` : demoUrl;
   const skinAtual = getSkin(lead.demo?.skinId);
   // Derivado no servidor (asLead): true = site próprio; false = sem site OU
   // só rede social/agregador; undefined = desconhecido.
@@ -287,7 +293,7 @@ export function LeadDetailClient({ id }: { id: string }) {
   const waLink =
     telefoneIntl && config
       ? buildWhatsAppLink(mensagemParaLead(lead, buscas, config), lead.nome, telefoneIntl, {
-          demoUrl,
+          demoUrl: demoUrlParaEnvio,
           penetracao: argumento,
         })
       : null;
