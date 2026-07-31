@@ -28,6 +28,8 @@ src/
         index.ts                     #    reexporta demoCoreFontsClassName + resolveExtraFontClassNames
       [leadId]/page.tsx             # ✅ demo PÚBLICA do lead (única rota sem senha; só Firestore; 404 sem demo salva)
     demo-preview/page.tsx           # ✅ preview do editor (iframe; estado via postMessage; protegida por senha)
+    interno/
+      efeitos/page.tsx              # ✅ harness de teste dos efeitos registrados: fundo claro/escuro, slider de intensidade — fora do (app) e do registro de skins, protegida por sessão (default do proxy.ts)
     leads/[id]/demo/escolher/       # ✅ passo de escolha da skin base, ANTES de criar a demo
       page.tsx                      #    wrapper server fino (params.id → client)
       EscolherSkinClient.tsx        #    cards (miniatura + nicho) de todas as skins do registro; pula se já tem demo
@@ -161,6 +163,15 @@ src/
       estrutura.ts                  # ordem efetiva/visibilidade de seções (skin + editor usam a mesma)
       imagens.ts                    # upload/remoção no Storage sobre interface mínima (DemoStorage)
       videos.ts                     # vídeo-no-título: upload/remoção (mesma DemoStorage, prefixo "video-", sem placeholder)
+      efeitos/                      # ✅ registro de efeitos visuais (camada decorativa opcional por cima de uma skin)
+        types.ts                    #    EfeitoProps (intensidade 0-3, cores do tema, pausado) + EfeitoDefinition (metadado puro)
+        registry.ts                 #    EFEITOS: id/nome/nichosRecomendados — sem o componente (ver dynamicComponents.ts)
+        useEfeitoAtivo.ts           #    hook client: pausa por IntersectionObserver + visibilitychange + prop pausado + reduced-motion
+        dpr.ts                      #    devicePixelRatioClamped: limita a 2 qualquer rasterização em canvas
+        dynamicComponents.ts        #    getEfeitoComponenteDinamico(id): next/dynamic({ssr:false}) por efeito — nunca bloqueia o first paint
+        aura/Aura.tsx                #    dois blobs radiais (blur assado, só translate3d anima); ponteiro no desktop, scroll+deriva no celular; mix-blend-mode
+        grao/Grao.tsx                #    textura de ruído via canvas (dpr clamped), gerada uma vez — sem loop de JS
+        __tests__/registry.test.ts  #    contrato: campos obrigatórios, ids únicos, intensidade 0 não renderiza nada
     testing/
       fake-firestore.ts             # ✅ fake em memória com semântica de transação + paridade de path de coleção
       fake-firestore.test.ts        # ✅ paridade de segmentos do path (.collection() ímpar, como o SDK real)
@@ -869,6 +880,17 @@ A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta 
 5. Se o original usa uma lib de animação (ex.: `motion`), adicione a dependência e port fielmente o timing/easing em vez de recriar com CSS aproximado — o objetivo é a demo parecer idêntica ao original com os dados de exemplo, exceto o que é slot/tema por design. `interactive/LedEdges.tsx` pode ser copiado como está (nenhuma dependência do nicho); se o original tinha vídeo-no-texto/logo, considere declarar `videoSlots` (opt-in — ver "Vídeo-no-título" acima) e portar a técnica de `VideoNoTitulo.tsx`.
 6. Acrescente a entrada em `src/lib/demos/registry.ts` (incluindo `heroEscalaLimites` e `thumbnail`, obrigatórios) — rota pública, ficha e editor passam a conhecê-la sem mais mudanças.
 7. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo, existência física dos placeholders e da miniatura, `heroEscalaLimites` coerentes, `heroTitulo`/`led` resolvidos em todo preset, `videos` ausente no exemplo (vídeo nunca tem placeholder) e o contrato de seções (ids únicos, presentes no exemplo, `alignOptions` válidos, ao menos uma seção reordenável).
+
+### Efeitos visuais (`src/lib/demos/efeitos`) — camada decorativa opcional
+
+Registro **separado** do registro de skins (mesmo padrão: metadado central + contrato + testes), pra uma camada decorativa opcional que uma skin pode somar por cima de si — hoje só o registro + o harness de teste existem; nenhuma skin consome ainda (nenhum `Skin.tsx`/painel Tema foi tocado por esta feature).
+
+- **Contrato do componente** (`types.ts`): `EfeitoProps { intensidade: 0|1|2|3, cores: ThemePaleta, pausado? }` — `0` desliga por completo (sem nada no DOM); `cores` é a paleta do tema vigente (nunca cor hardcoded); `pausado` é o sinal externo (ex.: o editor esconde o preview) somado às pausas automáticas do próprio efeito. Regras fixas pra todo efeito: renderiza **estático** (sem listener/rAF de movimento) em `prefers-reduced-motion`; pausa via `IntersectionObserver` fora da viewport e via `visibilitychange` com a aba oculta (`useEfeitoAtivo.ts` implementa as três fontes de pausa + a leitura de reduced-motion, reutilizado por todo efeito); `devicePixelRatioClamped` (`dpr.ts`) limita a 2 qualquer rasterização em canvas; a propriedade `filter` **nunca** é animada (blur/etc. é fixo no elemento — só `transform`/`opacity` mudam por frame).
+- **`registry.ts`** guarda só metadado (`{ id, nome, nichosRecomendados }`) — **sem** o componente, pra quem só precisa listar efeitos (ex.: um futuro seletor no editor) nunca puxar código de nenhum. O componente em si é resolvido por `getEfeitoComponenteDinamico(id)` (`dynamicComponents.ts`), sempre via `next/dynamic(() => import(...), { ssr: false })` — nunca bloqueia o first paint da demo nem entra no HTML pré-renderizado (confirmado em `next build`: `/interno/efeitos` gera estático sem nenhum efeito no HTML).
+- **`aura/Aura.tsx`** — dois blobs de gradiente radial com blur assado (fixo, nunca animado) misturados por `mix-blend-mode`, movidos só por `transform: translate3d` com interpolação (lerp) em direção a um alvo: no desktop (`pointer: fine`) o alvo segue o ponteiro; no celular segue o progresso de scroll somado a uma deriva lenta autônoma (senoidal), pra não morrer parado.
+- **`grao/Grao.tsx`** — textura de ruído: um tile é desenhado num `<canvas>` **uma única vez** (`devicePixelRatioClamped(2)` no tamanho), virado data URL e usado como `background-image` repetido — sem loop de JS nenhum a partir daí, opacidade baixa escalada pela intensidade.
+- **Teste de contrato** (`__tests__/registry.test.ts`): ids únicos, campos obrigatórios (`nome`/`nichosRecomendados`) e — renderizando cada componente RAW direto via `react-dom/server` (fora do wrapper `next/dynamic`, que sempre devolve `null` no server) — intensidade `0` não renderiza nada, intensidade `1` renderiza o overlay.
+- **Harness de teste** (`/interno/efeitos`, fora do `(app)` e fora do passo de escolha de skin, protegida por sessão como o resto do app): cada efeito registrado sobre fundo claro e escuro, com slider de intensidade (0–3) e toggle do sinal `pausado`, pra avaliação visual no celular e no desktop.
 
 ## IA na Forja (`src/lib/ai`) — sugestões de demo via Gemini
 
