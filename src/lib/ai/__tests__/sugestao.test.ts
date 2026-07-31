@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SKIN } from "@/lib/demos/registry";
+import { DEFAULT_SKIN, SKINS } from "@/lib/demos/registry";
 import type { Lead } from "@/lib/leads/types";
 import { montarPromptSugestao, schemaSugestao, validarSugestao } from "../sugestao";
+
+/** Campos de IDENTIDADE do lead — a IA nunca pode recebê-los como slot editável. */
+const CAMPOS_IDENTIDADE_LEAD = [
+  "nome",
+  "endereco",
+  "cidade",
+  "telefone",
+  "whatsapp",
+  "horarios",
+  "instagram",
+] as const;
 
 const LEAD: Lead = {
   placeId: "ChIJ001",
@@ -19,6 +30,21 @@ const LEAD: Lead = {
   criadoEm: "2026-07-01T00:00:00.000Z",
   atualizadoEm: "2026-07-01T00:00:00.000Z",
 };
+
+/** servicos/depoimentos válidos (quantidade == exemplo da skin default). */
+function servicosValidos(): Array<{ nome: string; descricao: string }> {
+  return DEFAULT_SKIN.demoDataExemplo.servicos.map((_, i) => ({
+    nome: `Serviço traduzido ${i + 1}`,
+    descricao: `Descrição traduzida ${i + 1}.`,
+  }));
+}
+
+function depoimentosValidos(): Array<{ autor: string; texto: string }> {
+  return DEFAULT_SKIN.demoDataExemplo.depoimentos.map((_, i) => ({
+    autor: `Autor ${i + 1}`,
+    texto: `Depoimento traduzido ${i + 1}.`,
+  }));
+}
 
 /** Resposta válida mínima contra a skin default (barbearia). */
 function sugestaoValida(): Record<string, unknown> {
@@ -253,6 +279,8 @@ describe("nível de intervenção (toque-leve/equilibrado/completo)", () => {
         filosofia: { rotulo: "FILOSOFIA", titulo: "Nossa filosofia", texto: "O que nos guia." },
         servicos: { cta: "AGENDAR AGORA" },
       },
+      servicos: servicosValidos(),
+      depoimentos: depoimentosValidos(),
     };
 
     const resultado = validarSugestao(bruto, DEFAULT_SKIN, "completo");
@@ -263,6 +291,8 @@ describe("nível de intervenção (toque-leve/equilibrado/completo)", () => {
       servicos: { cta: "AGENDAR AGORA" },
     });
     expect(resultado.sugestao?.titulosSecoes).toBeUndefined();
+    expect(resultado.sugestao?.servicos).toEqual(servicosValidos());
+    expect(resultado.sugestao?.depoimentos).toEqual(depoimentosValidos());
   });
 
   it("completo: rejeita textosSecoes de seção fixa ou fora do contrato", () => {
@@ -291,4 +321,125 @@ describe("nível de intervenção (toque-leve/equilibrado/completo)", () => {
     expect(sugestao).toBeUndefined();
     expect(problemas).toContain("textosSecoes.filosofia deve ter ao menos um campo de texto não vazio");
   });
+
+  it("completo: rejeita servicos/depoimentos com quantidade diferente da skin (nunca inventa nem remove item)", () => {
+    const bruto: Record<string, unknown> = {
+      ...sugestaoValida(),
+      textosSecoes: {},
+      servicos: servicosValidos().slice(1),
+      depoimentos: depoimentosValidos(),
+    };
+    delete bruto.titulosSecoes;
+
+    const { sugestao, problemas } = validarSugestao(bruto, DEFAULT_SKIN, "completo");
+
+    expect(sugestao).toBeUndefined();
+    expect(problemas).toContain(
+      `servicos deve ser uma lista com ${DEFAULT_SKIN.demoDataExemplo.servicos.length} item(ns)`,
+    );
+  });
+
+  it("completo: rejeita item de servicos/depoimentos sem os campos exigidos", () => {
+    const bruto: Record<string, unknown> = {
+      ...sugestaoValida(),
+      textosSecoes: {},
+      servicos: servicosValidos().map((s, i) => (i === 0 ? { ...s, nome: "" } : s)),
+      depoimentos: depoimentosValidos().map((d, i) => (i === 0 ? { ...d, texto: "" } : d)),
+    };
+    delete bruto.titulosSecoes;
+
+    const { sugestao, problemas } = validarSugestao(bruto, DEFAULT_SKIN, "completo");
+
+    expect(sugestao).toBeUndefined();
+    expect(problemas).toContain("servicos[0].nome deve ser string não vazia");
+    expect(problemas).toContain("depoimentos[0].texto deve ser string não vazia");
+  });
+
+  it("completo: preço nunca faz parte do schema/validação de servicos (é dado do lead)", () => {
+    const schema = schemaSugestao(DEFAULT_SKIN, "completo") as {
+      properties: { servicos: { items: { properties: Record<string, unknown> } } };
+    };
+    expect(Object.keys(schema.properties.servicos.items.properties)).toEqual([
+      "nome",
+      "descricao",
+    ]);
+  });
+});
+
+describe("schemaSugestao — completude dinâmica por skin (todas as skins do registro)", () => {
+  it.each(SKINS.map((skin) => [skin.id, skin] as const))(
+    "%s: todo slot de CONTEÚDO da skin ativa está no schema montado (nível completo)",
+    (_id, skin) => {
+      const schema = schemaSugestao(skin, "completo") as {
+        properties: {
+          textosSecoes: { properties: Record<string, unknown> };
+          servicos?: { minItems: number; maxItems: number };
+          depoimentos?: { minItems: number; maxItems: number };
+        };
+      };
+
+      // Toda seção NÃO-fixa (rótulo/título/texto/CTA/CTA secundária) — o
+      // schema é montado a partir DESTA skin, não de uma união hardcoded.
+      const idsNaoFixas = skin.secoes.filter((secao) => !secao.fixa).map((secao) => secao.id);
+      for (const id of idsNaoFixas) {
+        expect(Object.keys(schema.properties.textosSecoes.properties)).toContain(id);
+      }
+
+      // Serviços: array de tamanho FIXO igual à quantidade de exemplo desta skin.
+      if (skin.demoDataExemplo.servicos.length > 0) {
+        expect(schema.properties.servicos?.minItems).toBe(skin.demoDataExemplo.servicos.length);
+        expect(schema.properties.servicos?.maxItems).toBe(skin.demoDataExemplo.servicos.length);
+      } else {
+        expect(schema.properties.servicos).toBeUndefined();
+      }
+
+      // Depoimentos: algumas skins (lancheria, barbearia2) não têm nenhum de
+      // exemplo — aí a propriedade nem entra no schema (nada pra gerar).
+      if (skin.demoDataExemplo.depoimentos.length > 0) {
+        expect(schema.properties.depoimentos?.minItems).toBe(
+          skin.demoDataExemplo.depoimentos.length,
+        );
+        expect(schema.properties.depoimentos?.maxItems).toBe(
+          skin.demoDataExemplo.depoimentos.length,
+        );
+      } else {
+        expect(schema.properties.depoimentos).toBeUndefined();
+      }
+    },
+  );
+});
+
+describe("schemaSugestao — nenhum campo de IDENTIDADE do lead entra no schema", () => {
+  it.each(SKINS.map((skin) => [skin.id, skin] as const))(
+    "%s: nome/endereço/cidade/telefone/whatsapp/horários/instagram nunca são propriedade do schema (nenhum nível)",
+    (_id, skin) => {
+      for (const nivel of ["toque-leve", "equilibrado", "completo"] as const) {
+        const schema = schemaSugestao(skin, nivel) as { properties: Record<string, unknown> };
+        const chavesTopo = Object.keys(schema.properties);
+        for (const campo of CAMPOS_IDENTIDADE_LEAD) {
+          expect(chavesTopo).not.toContain(campo);
+        }
+      }
+    },
+  );
+
+  it.each(SKINS.map((skin) => [skin.id, skin] as const))(
+    "%s: o título do hero (seção fixa) nunca é slot da IA, em nenhum nível",
+    (_id, skin) => {
+      for (const nivel of ["equilibrado", "completo"] as const) {
+        const schema = schemaSugestao(skin, nivel) as {
+          properties: {
+            titulosSecoes?: { properties: Record<string, unknown> };
+            textosSecoes?: { properties: Record<string, unknown> };
+          };
+        };
+        const chavesSecoes = Object.keys(
+          schema.properties.titulosSecoes?.properties ??
+            schema.properties.textosSecoes?.properties ??
+            {},
+        );
+        expect(chavesSecoes).not.toContain("hero");
+      }
+    },
+  );
 });

@@ -7,6 +7,7 @@ import { getSkin } from "@/lib/demos/registry";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, readJsonBody } from "@/lib/http";
+import { IDIOMAS_SUPORTADOS } from "@/lib/idioma";
 import { getLead } from "@/lib/leads/repo";
 import { usuarioDaRequest } from "@/lib/usuarios";
 
@@ -36,6 +37,14 @@ export async function POST(req: Request, { params }: Params) {
     }
     const nivel = nivelIaValido(body.nivel) ? body.nivel : NIVEL_IA_PADRAO;
 
+    if (body.idioma !== undefined && !IDIOMAS_SUPORTADOS.includes(body.idioma as string)) {
+      throw new ValidationError([`idioma deve ser um de: ${IDIOMAS_SUPORTADOS.join(", ")}`]);
+    }
+    // Idioma escolhido AGORA no seletor do editor (pode ainda não ter sido
+    // salvo) — ver gerarSugestaoDemo. Ausente/inválido cai no default
+    // persistido/derivado do endereço do lead.
+    const idioma = typeof body.idioma === "string" ? body.idioma : undefined;
+
     const lead = await getLead(db, id);
     if (!lead) {
       throw new NotFoundError(`Lead "${id}" não encontrado.`);
@@ -43,10 +52,18 @@ export async function POST(req: Request, { params }: Params) {
 
     const usuario = await usuarioDaRequest(db, req);
     const config = await loadConfig(db);
-    const sugestao = await gerarSugestaoDemo(db, lead, skin, config.caps, nivel, {
-      userId: usuario?.id,
-      isAdmin: usuario?.papel === "admin",
-    });
+    const sugestao = await gerarSugestaoDemo(
+      db,
+      lead,
+      skin,
+      config.caps,
+      nivel,
+      {
+        userId: usuario?.id,
+        isAdmin: usuario?.papel === "admin",
+      },
+      idioma,
+    );
     return NextResponse.json({ sugestao });
   } catch (error) {
     return handleRouteError(error);

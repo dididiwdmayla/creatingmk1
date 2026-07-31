@@ -272,13 +272,13 @@ export function DemoEditorClient({ id }: { id: string }) {
     setMostrarIA(true);
     setGerandoIA(true);
     api
-      .gerarSugestaoDemo(lead.placeId, skinId, nivelIA)
+      .gerarSugestaoDemo(lead.placeId, skinId, nivelIA, idioma)
       .then(({ sugestao: nova }) => setSugestao(nova))
       .catch((error) =>
         setIaErro(error instanceof ApiError ? error.message : "Falha ao gerar sugestões."),
       )
       .finally(() => setGerandoIA(false));
-  }, [iaAuto, iaDisponivel, lead, skinId, nivelResolvido, nivelIA]);
+  }, [iaAuto, iaDisponivel, lead, skinId, nivelResolvido, nivelIA, idioma]);
 
   // Rede de segurança contra fechar a aba com edição não salva.
   useEffect(() => {
@@ -438,7 +438,7 @@ export function DemoEditorClient({ id }: { id: string }) {
       /* preferência não salvou — não impede a geração desta vez. */
     });
     api
-      .gerarSugestaoDemo(id, skin.id, nivelIA)
+      .gerarSugestaoDemo(id, skin.id, nivelIA, idioma)
       .then(({ sugestao: nova }) => setSugestao(nova))
       .catch((error) =>
         setIaErro(error instanceof ApiError ? error.message : "Falha ao gerar sugestões."),
@@ -462,7 +462,9 @@ export function DemoEditorClient({ id }: { id: string }) {
       aplicada.slogan !== undefined ||
       aplicada.descricao !== undefined ||
       aplicada.titulosSecoes !== undefined ||
-      aplicada.textosSecoes !== undefined;
+      aplicada.textosSecoes !== undefined ||
+      aplicada.servicos !== undefined ||
+      aplicada.depoimentos !== undefined;
 
     if (temTextos) {
       atualizar((d) => {
@@ -483,10 +485,33 @@ export function DemoEditorClient({ id }: { id: string }) {
         if (aplicada.descricao !== undefined) {
           secoes.hero = { ...secoes.hero, texto: aplicada.descricao };
         }
+        // servicos/depoimentos: só nome/descricao (ou autor/texto) mudam —
+        // preço, categoria, destaques e nota/contexto do item atual são
+        // preservados (não vêm da IA, são dado do lead/editor).
+        const servicos = aplicada.servicos
+          ? d.servicos.map((servico, i) => {
+              const novo = aplicada.servicos?.[i];
+              if (!novo) return servico;
+              return {
+                ...servico,
+                nome: novo.nome,
+                ...(novo.descricao !== undefined && { descricao: novo.descricao }),
+              };
+            })
+          : d.servicos;
+        const depoimentos = aplicada.depoimentos
+          ? d.depoimentos.map((depoimento, i) => {
+              const novo = aplicada.depoimentos?.[i];
+              if (!novo) return depoimento;
+              return { ...depoimento, autor: novo.autor, texto: novo.texto };
+            })
+          : d.depoimentos;
         return {
           ...d,
           ...(aplicada.slogan !== undefined && { slogan: aplicada.slogan }),
           secoes,
+          servicos,
+          depoimentos,
         };
       });
     }
@@ -934,6 +959,37 @@ export function DemoEditorClient({ id }: { id: string }) {
                             </ul>
                           </div>
                         )}
+                      {sugestao.servicos && sugestao.servicos.length > 0 && (
+                        <div className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            Serviços
+                          </p>
+                          <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                            {sugestao.servicos.map((servico, i) => (
+                              <li key={i}>
+                                <span className="font-medium">{servico.nome}</span>
+                                {servico.descricao && (
+                                  <span className="text-ink-muted"> — {servico.descricao}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {sugestao.depoimentos && sugestao.depoimentos.length > 0 && (
+                        <div className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            Depoimentos
+                          </p>
+                          <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                            {sugestao.depoimentos.map((dep, i) => (
+                              <li key={i}>
+                                <span className="text-ink-muted">{dep.autor}:</span> {dep.texto}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       <p className="text-[11px] text-ink-muted">
                         Aplicar só muda o rascunho do editor — nada é publicado sem Salvar.
                       </p>

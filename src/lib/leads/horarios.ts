@@ -115,17 +115,6 @@ const ABREV_DIA: Record<number, string> = {
   6: "SÁB",
 };
 
-/** "9h-18h" | "9h-12h/14h-18h" (faixas do mesmo dia) | "fechado". */
-function textoFaixasDoDia(faixas: Faixa[], dia: number): string {
-  const doDia = faixas
-    .filter((faixa) => faixa.diaAbre === dia)
-    .sort((a, b) => abreMinuto(a) - abreMinuto(b));
-  if (doDia.length === 0) return "fechado";
-  return doDia
-    .map((faixa) => `${formatHora(faixa.horaAbre, faixa.minAbre)}-${formatHora(faixa.horaFecha, faixa.minFecha)}`)
-    .join("/");
-}
-
 /**
  * Localização (determinística, sem IA) de `resumirHorarios`: rótulos de
  * dia (abreviação) e formato de hora por idioma-alvo (ver

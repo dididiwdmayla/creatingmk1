@@ -355,10 +355,10 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ nivel }),
     }),
-  gerarSugestaoDemo: (id: string, skinId: string, nivel: NivelIA) =>
+  gerarSugestaoDemo: (id: string, skinId: string, nivel: NivelIA, idioma?: string) =>
     request<{ sugestao: SugestaoDemo }>(`/api/leads/${id}/demo/sugestao`, {
       method: "POST",
-      body: JSON.stringify({ skinId, nivel }),
+      body: JSON.stringify({ skinId, nivel, ...(idioma && { idioma }) }),
     }),
   deleteDemoVideo: (id: string, slot: string, skinId?: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/demo/videos`, {

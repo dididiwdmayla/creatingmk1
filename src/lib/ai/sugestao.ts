@@ -1,9 +1,10 @@
 import { reserveQuota, type UsageCounts } from "@/lib/costs";
 import { fontesPorPapel } from "@/lib/demos/fontes";
+import { idiomaEfetivoDemo } from "@/lib/demos/idioma";
 import { HEX_RE } from "@/lib/demos/tema";
 import { ANIMACOES, type Animacao, type SkinDefinition } from "@/lib/demos/types";
 import type { UsageDb } from "@/lib/firestore-like";
-import { IDIOMA_PADRAO, idiomaLabel } from "@/lib/geo/geocode";
+import { IDIOMA_PADRAO, idiomaLabel } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
 import { AiError, gerarJson } from "./gemini";
 import { NIVEL_IA_PADRAO, type NivelIA } from "./nivel";
@@ -38,6 +39,18 @@ export interface SugestaoSecaoTexto {
   ctaSecundaria?: string;
 }
 
+/** Nome/descrição de UM serviço no nível "completo" (ver `servicos`). Preço NUNCA entra — é dado, não conteúdo. */
+export interface SugestaoServico {
+  nome: string;
+  descricao?: string;
+}
+
+/** Autor/texto de UM depoimento no nível "completo" (ver `depoimentos`). */
+export interface SugestaoDepoimento {
+  autor: string;
+  texto: string;
+}
+
 export interface SugestaoDemo {
   /** Preset de tema da skin (paleta/base dentro dos tokens do Theme). */
   themeId: string;
@@ -63,23 +76,36 @@ export interface SugestaoDemo {
    * `titulosSecoes` (nunca os dois juntos na mesma sugestão).
    */
   textosSecoes?: Record<string, SugestaoSecaoTexto>;
+  /**
+   * Nível "completo": nome/descrição de CADA serviço do contrato da skin
+   * (`skin.demoDataExemplo.servicos`, na mesma ordem/quantidade — preço
+   * nunca entra, é dado do lead). Ausente quando a skin não tem serviços
+   * (nunca acontece hoje — o registro exige ao menos um).
+   */
+  servicos?: SugestaoServico[];
+  /**
+   * Nível "completo": autor/texto de CADA depoimento do contrato da skin
+   * (`skin.demoDataExemplo.depoimentos`, mesma ordem/quantidade). Ausente
+   * quando a skin não tem depoimentos de exemplo (ex.: lancheria,
+   * barbearia2 — ver `schemaListaDepoimentos`).
+   */
+  depoimentos?: SugestaoDepoimento[];
 }
 
-/** Chaves de topo aceitas na resposta do Gemini, de acordo com o nível escolhido. */
+/** Chaves de topo aceitas na resposta do Gemini, de acordo com o nível e a SKIN ATIVA (não a união de todas). */
 const CHAVES_BASE = ["themeId", "destaque", "fonteDisplay", "animacao"] as const;
-const CHAVES_EQUILIBRADO = [
-  ...CHAVES_BASE,
-  "slogan",
-  "descricao",
-  "titulosSecoes",
-  "idioma",
-] as const;
-const CHAVES_COMPLETO = [...CHAVES_BASE, "slogan", "descricao", "textosSecoes", "idioma"] as const;
 
-function chavesParaNivel(nivel: NivelIA): readonly string[] {
-  if (nivel === "toque-leve") return CHAVES_BASE;
-  if (nivel === "equilibrado") return CHAVES_EQUILIBRADO;
-  return CHAVES_COMPLETO;
+function chavesParaNivel(skin: SkinDefinition, nivel: NivelIA): string[] {
+  if (nivel === "toque-leve") return [...CHAVES_BASE];
+  const chaves: string[] = [...CHAVES_BASE, "slogan", "descricao", "idioma"];
+  if (nivel === "equilibrado") {
+    chaves.push("titulosSecoes");
+    return chaves;
+  }
+  chaves.push("textosSecoes");
+  if (skin.demoDataExemplo.servicos.length > 0) chaves.push("servicos");
+  if (skin.demoDataExemplo.depoimentos.length > 0) chaves.push("depoimentos");
+  return chaves;
 }
 
 /**
@@ -109,6 +135,55 @@ function schemaSecaoTexto(): Record<string, unknown> {
       texto: { type: "string", maxLength: DESCRICAO_MAX },
       cta: { type: "string", maxLength: CTA_MAX },
       ctaSecundaria: { type: "string", maxLength: CTA_MAX },
+    },
+  };
+}
+
+/**
+ * Schema de `servicos`: array de comprimento FIXO (== quantidade de
+ * serviços da skin ativa, `skin.demoDataExemplo.servicos` — nunca a união
+ * de todas as skins), nome+descrição por item. `undefined` só quando a
+ * skin não tem nenhum serviço de exemplo (não acontece hoje).
+ */
+function schemaListaServicos(skin: SkinDefinition): Record<string, unknown> | undefined {
+  const quantidade = skin.demoDataExemplo.servicos.length;
+  if (quantidade === 0) return undefined;
+  return {
+    type: "array",
+    minItems: quantidade,
+    maxItems: quantidade,
+    items: {
+      type: "object",
+      additionalProperties: false,
+      required: ["nome"],
+      properties: {
+        nome: { type: "string", maxLength: TITULO_MAX },
+        descricao: { type: "string", maxLength: DESCRICAO_MAX },
+      },
+    },
+  };
+}
+
+/**
+ * Schema de `depoimentos`: array de comprimento FIXO (== quantidade de
+ * depoimentos de exemplo da skin ativa). `undefined` quando a skin não
+ * tem depoimentos de exemplo (ex.: lancheria, barbearia2).
+ */
+function schemaListaDepoimentos(skin: SkinDefinition): Record<string, unknown> | undefined {
+  const quantidade = skin.demoDataExemplo.depoimentos.length;
+  if (quantidade === 0) return undefined;
+  return {
+    type: "array",
+    minItems: quantidade,
+    maxItems: quantidade,
+    items: {
+      type: "object",
+      additionalProperties: false,
+      required: ["autor", "texto"],
+      properties: {
+        autor: { type: "string", maxLength: TITULO_MAX },
+        texto: { type: "string", maxLength: DESCRICAO_MAX },
+      },
     },
   };
 }
@@ -168,12 +243,16 @@ export function schemaSugestao(
         secoesTitulaveis(skin).map((secao) => [secao.id, schemaSecaoTexto()]),
       ),
     };
+    const servicos = schemaListaServicos(skin);
+    if (servicos) properties.servicos = servicos;
+    const depoimentos = schemaListaDepoimentos(skin);
+    if (depoimentos) properties.depoimentos = depoimentos;
   }
 
   return {
     type: "object",
     additionalProperties: false,
-    required: [...chavesParaNivel(nivel)],
+    required: chavesParaNivel(skin, nivel),
     properties,
   };
 }
@@ -228,6 +307,20 @@ export function montarPromptSugestao(
                 )
                   .map((secao) => `"${secao.id}" (${secao.nome})`)
                   .join(", ")}.`,
+                ...(skin.demoDataExemplo.servicos.length > 0
+                  ? [
+                      `- servicos: reescreva nome (≤${TITULO_MAX} caracteres) e descrição (≤${DESCRICAO_MAX}, quando fizer sentido) de CADA um dos ${skin.demoDataExemplo.servicos.length} serviços abaixo, na MESMA ordem (não invente nem remova item; preço não entra, é dado do lead): ${skin.demoDataExemplo.servicos
+                        .map((servico, i) => `${i + 1}. "${servico.nome}"${servico.descricao ? ` — ${servico.descricao}` : ""}`)
+                        .join("; ")}.`,
+                    ]
+                  : []),
+                ...(skin.demoDataExemplo.depoimentos.length > 0
+                  ? [
+                      `- depoimentos: reescreva autor e texto (≤${DESCRICAO_MAX}) de CADA um dos ${skin.demoDataExemplo.depoimentos.length} depoimentos abaixo, na MESMA ordem (mantenha nome plausível pro idioma-alvo, sem inventar dados do negócio): ${skin.demoDataExemplo.depoimentos
+                        .map((dep, i) => `${i + 1}. ${dep.autor}: "${dep.texto}"`)
+                        .join("; ")}.`,
+                    ]
+                  : []),
               ]),
         ];
 
@@ -290,7 +383,7 @@ export function validarSugestao(
     return { problemas: ["resposta deve ser um objeto JSON"] };
   }
 
-  const chavesPermitidas = chavesParaNivel(nivel);
+  const chavesPermitidas = chavesParaNivel(skin, nivel);
   for (const chave of Object.keys(bruto)) {
     if (!chavesPermitidas.includes(chave)) {
       problemas.push(`chave desconhecida: ${chave}`);
@@ -396,6 +489,45 @@ export function validarSugestao(
     }
   }
 
+  let servicos: SugestaoServico[] | undefined;
+  const quantidadeServicos = skin.demoDataExemplo.servicos.length;
+  if (nivel === "completo" && quantidadeServicos > 0) {
+    if (!Array.isArray(bruto.servicos) || bruto.servicos.length !== quantidadeServicos) {
+      problemas.push(`servicos deve ser uma lista com ${quantidadeServicos} item(ns)`);
+    } else {
+      servicos = bruto.servicos.map((item, i) => {
+        if (!isRecord(item)) {
+          problemas.push(`servicos[${i}] deve ser um objeto`);
+          return { nome: "" };
+        }
+        const nome = textoCurto(item.nome, TITULO_MAX);
+        if (!nome) problemas.push(`servicos[${i}].nome deve ser string não vazia`);
+        const desc = textoCurto(item.descricao, DESCRICAO_MAX);
+        return { nome: nome ?? "", ...(desc !== undefined && { descricao: desc }) };
+      });
+    }
+  }
+
+  let depoimentos: SugestaoDepoimento[] | undefined;
+  const quantidadeDepoimentos = skin.demoDataExemplo.depoimentos.length;
+  if (nivel === "completo" && quantidadeDepoimentos > 0) {
+    if (!Array.isArray(bruto.depoimentos) || bruto.depoimentos.length !== quantidadeDepoimentos) {
+      problemas.push(`depoimentos deve ser uma lista com ${quantidadeDepoimentos} item(ns)`);
+    } else {
+      depoimentos = bruto.depoimentos.map((item, i) => {
+        if (!isRecord(item)) {
+          problemas.push(`depoimentos[${i}] deve ser um objeto`);
+          return { autor: "", texto: "" };
+        }
+        const autor = textoCurto(item.autor, TITULO_MAX);
+        if (!autor) problemas.push(`depoimentos[${i}].autor deve ser string não vazia`);
+        const texto = textoCurto(item.texto, DESCRICAO_MAX);
+        if (!texto) problemas.push(`depoimentos[${i}].texto deve ser string não vazia`);
+        return { autor: autor ?? "", texto: texto ?? "" };
+      });
+    }
+  }
+
   if (problemas.length > 0) return { problemas };
   return {
     sugestao: {
@@ -407,6 +539,8 @@ export function validarSugestao(
       ...(descricao !== undefined && { descricao }),
       ...(titulos !== undefined && { titulosSecoes: titulos }),
       ...(textos !== undefined && { textosSecoes: textos }),
+      ...(servicos !== undefined && { servicos }),
+      ...(depoimentos !== undefined && { depoimentos }),
     },
     problemas: [],
   };
@@ -425,10 +559,17 @@ export async function gerarSugestaoDemo(
   caps: UsageCounts,
   nivel: NivelIA = NIVEL_IA_PADRAO,
   ctx: { userId?: string; isAdmin?: boolean } = {},
+  /**
+   * Idioma escolhido AGORA no seletor do editor (pode ainda não ter sido
+   * salvo) — vence o default. Ausente → `LeadDemo.idioma` já persistido ou,
+   * na falta dele, o derivado do país do ENDEREÇO DO PRÓPRIO LEAD (mais
+   * preciso que o idioma da região da busca, `lead.busca.idioma`, uma
+   * aproximação de mercado). Nunca o idioma do usuário logado — ver
+   * "Idioma da IA na demo". Default pt-BR.
+   */
+  idiomaEscolhido?: string,
 ): Promise<SugestaoDemo> {
-  // Idioma do PAÍS/REGIÃO do lead (geocodificada na busca que o trouxe),
-  // não do usuário logado — ver "Idioma da IA na demo". Default pt-BR.
-  const idioma = lead.busca?.idioma ?? IDIOMA_PADRAO;
+  const idioma = idiomaEscolhido ?? idiomaEfetivoDemo(lead);
   const prompt = montarPromptSugestao(skin, lead, nivel, idioma);
   const schema = schemaSugestao(skin, nivel, idioma);
 

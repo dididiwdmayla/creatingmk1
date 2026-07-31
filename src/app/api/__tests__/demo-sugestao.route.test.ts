@@ -209,6 +209,45 @@ describe("POST /api/leads/[id]/demo/sugestao", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("idioma fora de IDIOMAS_SUPORTADOS → 400 sem cota nem rede", async () => {
+    const res = await sugerir("ChIJ001", {
+      skinId: "barbearia-editorial",
+      idioma: "klingon",
+    });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("validation_error");
+    expect(usageDoc()).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("idioma escolhido AGORA no editor (não salvo ainda) vence o default do endereço do lead", async () => {
+    db.seed("leads/ChIJ001", {
+      placeId: "ChIJ001",
+      nome: "Barbearia do Zé",
+      endereco: "Bahnhofstrasse 1, 8001 Zürich, Suíça",
+      status: "novo",
+      enriquecido: false,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+    fetchMock.mockImplementation(async () =>
+      respostaGemini({ ...SUGESTAO_VALIDA, idioma: "en-US" }),
+    );
+
+    const res = await sugerir("ChIJ001", {
+      skinId: "barbearia-editorial",
+      idioma: "en-US",
+    });
+
+    expect(res.status).toBe(200);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const corpo = JSON.parse(init.body as string);
+    // Endereço é da Suíça (de-CH), mas o override explícito "en-US" venceu.
+    expect(corpo.contents[0].parts[0].text).toContain("inglês");
+    expect(corpo.generationConfig.responseJsonSchema.properties.idioma.enum).toEqual(["en-US"]);
+  });
+
   it("nivel toque-leve: schema/prompt só pedem tema, sem slogan/descricao/titulosSecoes", async () => {
     fetchMock.mockImplementation(async () =>
       respostaGemini({
