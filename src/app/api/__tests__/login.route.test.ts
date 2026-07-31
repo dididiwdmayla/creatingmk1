@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { lerSessaoToken } from "@/lib/auth";
+import { deviceIdValido } from "@/lib/device";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { hashSenha } from "@/lib/usuarios";
 import { POST } from "../login/route";
@@ -30,6 +31,11 @@ function login(body: unknown): Promise<Response> {
 function cookieToken(res: Response): string {
   const cookie = res.headers.get("set-cookie") ?? "";
   return /radar_session=([^;]+)/.exec(cookie)?.[1] ?? "";
+}
+
+function deviceCookie(res: Response): string {
+  const cookie = res.headers.get("set-cookie") ?? "";
+  return /radar_device=([^;,]+)/.exec(cookie)?.[1] ?? "";
 }
 
 describe("POST /api/login (multiusuário)", () => {
@@ -137,6 +143,34 @@ describe("POST /api/login (multiusuário)", () => {
     const ok = await login({ nome: "admin", senha: "nova-senha" });
     expect(ok.status).toBe(204);
     expect((await lerSessaoToken(cookieToken(ok), "segredo123"))?.versao).toBe(1);
+  });
+
+  it("grava um marcador de dispositivo (cookie NÃO-httpOnly, persistente)", async () => {
+    const res = await login({ nome: "admin", senha: "segredo123" });
+
+    const cookie = res.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain("radar_device=");
+    const device = deviceCookie(res);
+    expect(deviceIdValido(device)).toBe(true);
+    // Precisa ser legível pelo JS do login (mirror pro localStorage) — diferente do de sessão.
+    const trechoDevice = cookie.slice(cookie.indexOf("radar_device="));
+    expect(trechoDevice.toLowerCase().split(";")[0]).not.toContain("httponly");
+  });
+
+  it("login de novo no mesmo navegador mantém o mesmo marcador de dispositivo", async () => {
+    const primeiro = await login({ nome: "admin", senha: "segredo123" });
+    const device1 = deviceCookie(primeiro);
+
+    const segundo = await POST(
+      new Request("http://localhost/api/login", {
+        method: "POST",
+        headers: { cookie: `radar_device=${device1}` },
+        body: JSON.stringify({ nome: "admin", senha: "segredo123" }),
+      }),
+    );
+    const device2 = deviceCookie(segundo);
+
+    expect(device2).toBe(device1);
   });
 
   it("sem APP_PASSWORD no servidor → 503 config_error", async () => {

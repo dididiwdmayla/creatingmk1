@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 
-import { SESSION_COOKIE, appPassword, lerSessaoToken } from "@/lib/auth";
+import { SESSION_COOKIE } from "@/lib/auth";
+import { classificarVisitaInterna, DEVICE_COOKIE } from "@/lib/device";
 import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { montarDemoData } from "@/lib/demos/montar";
@@ -61,16 +62,37 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * "Interna" = o navegador que abriu a demo tem cookie de sessão válido do
- * app — ou seja, alguém do time (preview/QA), não o lead de verdade. Só
- * essa distinção separa "visita real" de "abri pra conferir" na timeline
- * da ficha e na fila "abriram e não responderam".
+ * "Interna" = sessão válida do app OU marcador de dispositivo (ver
+ * lib/device.ts) — alguém do time (preview/QA), não o lead de verdade. A
+ * sessão sozinha falha sempre que o navegador que abre o link não é o
+ * mesmo/não manda o cookie httpOnly (ex.: navegador embutido de um app,
+ * segunda aba sem sessão, sessão expirada) mesmo sendo um dispositivo do
+ * time — o marcador cobre esse caso, sobrevivendo bem além da sessão.
  */
 async function requestEhInterna(): Promise<boolean> {
-  const secret = appPassword();
-  if (!secret) return false;
-  const valor = (await cookies()).get(SESSION_COOKIE)?.value;
-  return (await lerSessaoToken(valor, secret)) !== null;
+  const jar = await cookies();
+  return classificarVisitaInterna({
+    sessionCookie: jar.get(SESSION_COOKIE)?.value,
+    deviceCookie: jar.get(DEVICE_COOKIE)?.value,
+  });
+}
+
+/**
+ * Cabeçalhos de geolocalização por IP que a Vercel injeta em produção
+ * (`x-vercel-ip-*` — ausentes em dev/self-host). Só INFORMATIVO na timeline
+ * da ficha — nunca entra na classificação de interna/externa (ver
+ * requestEhInterna acima, que não os usa). Logado pra diagnosticar em
+ * produção quais chegam de verdade (ver ARCHITECTURE.md).
+ */
+async function geoDaVisita(): Promise<{ pais?: string; regiao?: string; cidade?: string } | undefined> {
+  const h = await headers();
+  const pais = h.get("x-vercel-ip-country") ?? undefined;
+  const regiao = h.get("x-vercel-ip-country-region") ?? undefined;
+  const cidadeRaw = h.get("x-vercel-ip-city") ?? undefined;
+  const cidade = cidadeRaw ? decodeURIComponent(cidadeRaw) : undefined;
+  console.log("[radar] cabeçalhos de geolocalização da visita:", { pais, regiao, cidade });
+  if (!pais && !regiao && !cidade) return undefined;
+  return { pais, regiao, cidade };
 }
 
 export default async function DemoPage({ params, searchParams }: Props) {
@@ -84,7 +106,8 @@ export default async function DemoPage({ params, searchParams }: Props) {
   if (token) {
     try {
       const interna = await requestEhInterna();
-      const registro = await registrarVisitaDemo(getDb(), leadId, { token, interna });
+      const geo = await geoDaVisita();
+      const registro = await registrarVisitaDemo(getDb(), leadId, { token, interna, geo });
       visitaId = registro.visitaId;
     } catch (error) {
       // Tracking nunca derruba a demo pública — o link do lead tem que abrir.

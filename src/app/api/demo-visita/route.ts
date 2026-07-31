@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { deviceIdValido } from "@/lib/device";
 import { ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, readJsonBody } from "@/lib/http";
@@ -18,7 +19,7 @@ const DURACAO_MAX_SEGUNDOS = 24 * 60 * 60;
 export async function POST(req: Request) {
   try {
     const body = await readJsonBody(req);
-    const { leadId, visitaId, duracaoSegundos, scrollPercent } = body;
+    const { leadId, visitaId, duracaoSegundos, scrollPercent, deviceId } = body;
 
     const problemas: string[] = [];
     if (typeof leadId !== "string" || !leadId) problemas.push("leadId deve ser string");
@@ -43,6 +44,7 @@ export async function POST(req: Request) {
     await atualizarVisitaDemo(getDb(), leadId as string, visitaId as string, {
       duracaoSegundos: duracaoSegundos as number | undefined,
       scrollPercent: scrollPercent as number | undefined,
+      marcadorDispositivo: deviceIdValido(typeof deviceId === "string" ? deviceId : undefined),
     });
     return new NextResponse(null, { status: 204 });
   } catch (error) {

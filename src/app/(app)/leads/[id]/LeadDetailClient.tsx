@@ -563,6 +563,13 @@ export function LeadDetailClient({ id }: { id: string }) {
                       ? `envio de ${formatDateTime(visita.envioEm)}`
                       : "envio não identificado"}
                   </p>
+                  {visita.geo && (visita.geo.cidade || visita.geo.regiao || visita.geo.pais) && (
+                    <p className="text-xs text-ink-muted">
+                      {[visita.geo.cidade, visita.geo.regiao, visita.geo.pais]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  )}
                 </div>
                 <div className="text-right text-xs text-ink-secondary">
                   <p>

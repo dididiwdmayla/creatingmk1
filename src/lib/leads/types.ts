@@ -137,4 +137,15 @@ export interface DemoVisita {
   duracaoSegundos?: number;
   /** 0–100, maior profundidade de scroll atingida na visita. */
   scrollPercent?: number;
+  /**
+   * Geolocalização por IP dos cabeçalhos `x-vercel-ip-*` (só em produção na
+   * Vercel — ausente em dev/self-host). Puramente INFORMATIVO na timeline
+   * da ficha, nunca usado pra classificar `interna` (ver requestEhInterna
+   * em app/demo/[leadId]/page.tsx). Ausente = nenhum cabeçalho chegou.
+   */
+  geo?: {
+    pais?: string;
+    regiao?: string;
+    cidade?: string;
+  };
 }

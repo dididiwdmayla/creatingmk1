@@ -6,6 +6,13 @@ import {
   appPassword,
   criarSessaoToken,
 } from "@/lib/auth";
+import {
+  DEVICE_COOKIE,
+  DEVICE_COOKIE_OPTIONS,
+  deviceIdValido,
+  gerarDeviceId,
+  lerCookieDoRequest,
+} from "@/lib/device";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, jsonError, readJsonBody } from "@/lib/http";
 import { getUsuarioPorNome, seedUsuariosSeVazio, verificarSenha } from "@/lib/usuarios";
@@ -58,6 +65,15 @@ export async function POST(req: Request) {
       ),
       { ...SESSION_COOKIE_OPTIONS },
     );
+
+    // Marcador de dispositivo (ver lib/device.ts): mantém o id existente se
+    // o navegador já tiver um (não precisa trocar a cada login), só gera um
+    // novo quando ausente/malformado. Sobrevive além da sessão — é o sinal
+    // usado pra classificar visitas da demo como internas sem sessão válida.
+    const deviceAtual = lerCookieDoRequest(req, DEVICE_COOKIE);
+    const deviceId = deviceIdValido(deviceAtual) ? deviceAtual : gerarDeviceId();
+    res.cookies.set(DEVICE_COOKIE, deviceId, { ...DEVICE_COOKIE_OPTIONS });
+
     return res;
   } catch (error) {
     return handleRouteError(error);

@@ -165,4 +165,67 @@ describe("atualizarVisitaDemo", () => {
       atualizarVisitaDemo(db, "A", "visita-fantasma", { duracaoSegundos: 1 }),
     ).resolves.toMatchObject({ placeId: "A" });
   });
+
+  it("marcadorDispositivo promove a visita a interna (beacon com marcador de dispositivo)", async () => {
+    const salvo = await saveDemo(db, "A", DEMO_INPUT);
+    const token = salvo.demo?.envios?.[0].token as string;
+    const { visitaId } = await registrarVisitaDemo(db, "A", { token, interna: false });
+
+    await atualizarVisitaDemo(db, "A", visitaId as string, { marcadorDispositivo: true });
+
+    const lead = await getLead(db, "A");
+    expect(lead?.demoVisitas?.[0].interna).toBe(true);
+  });
+
+  it("sem marcadorDispositivo não mexe na classificação já gravada", async () => {
+    const salvo = await saveDemo(db, "A", DEMO_INPUT);
+    const token = salvo.demo?.envios?.[0].token as string;
+    const { visitaId } = await registrarVisitaDemo(db, "A", { token, interna: true });
+
+    await atualizarVisitaDemo(db, "A", visitaId as string, { duracaoSegundos: 10 });
+
+    const lead = await getLead(db, "A");
+    expect(lead?.demoVisitas?.[0].interna).toBe(true);
+  });
+});
+
+describe("registrarVisitaDemo — regressão classificação interna/marcador", () => {
+  it("visita com sessão ativa (interna=true) é registrada como interna", async () => {
+    const salvo = await saveDemo(db, "A", DEMO_INPUT);
+    const token = salvo.demo?.envios?.[0].token as string;
+
+    const { lead } = await registrarVisitaDemo(db, "A", { token, interna: true });
+
+    expect(lead.demoVisitas?.[0].interna).toBe(true);
+  });
+
+  it("visita com token, sem sessão e sem marcador é contada (registrada, não-interna)", async () => {
+    const salvo = await saveDemo(db, "A", DEMO_INPUT);
+    const token = salvo.demo?.envios?.[0].token as string;
+
+    const { lead, visitaId } = await registrarVisitaDemo(db, "A", { token, interna: false });
+
+    expect(visitaId).toBeTruthy();
+    expect(lead.demoVisitas).toHaveLength(1);
+    expect(lead.demoVisitas?.[0].interna).toBe(false);
+  });
+
+  it("grava geo só quando algum campo vier preenchido — nunca usado pra classificar", async () => {
+    const salvo = await saveDemo(db, "A", DEMO_INPUT);
+    const token = salvo.demo?.envios?.[0].token as string;
+
+    const comGeo = await registrarVisitaDemo(db, "A", {
+      token,
+      interna: false,
+      geo: { pais: "BR", regiao: "SP", cidade: "São Paulo" },
+    });
+    expect(comGeo.lead.demoVisitas?.[0]).toMatchObject({
+      interna: false,
+      geo: { pais: "BR", regiao: "SP", cidade: "São Paulo" },
+    });
+
+    db.seed("leads/A", { ...db.getDoc("leads/A"), demoVisitas: [] });
+    const semGeo = await registrarVisitaDemo(db, "A", { token, interna: false });
+    expect(semGeo.lead.demoVisitas?.[0].geo).toBeUndefined();
+  });
 });
