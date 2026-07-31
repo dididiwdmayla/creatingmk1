@@ -28,15 +28,19 @@ export function useEfeitoAtivo(
   ref: RefObject<HTMLElement | null>,
   pausadoExterno = false,
 ): EfeitoAtivoState {
-  const [reducedMotion, setReducedMotion] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  });
   // Otimista até o observer/documento confirmarem — evita um frame de
   // "pausado" no primeiro paint (o elemento normalmente já nasce visível).
   const [intersecting, setIntersecting] = useState(true);
-  const [abaVisivel, setAbaVisivel] = useState(true);
+  const [abaVisivel, setAbaVisivel] = useState(() =>
+    typeof document === "undefined" ? true : document.visibilityState === "visible",
+  );
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReducedMotion(mq.matches);
     const onChange = () => setReducedMotion(mq.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
@@ -55,7 +59,6 @@ export function useEfeitoAtivo(
 
   useEffect(() => {
     const onVisibility = () => setAbaVisivel(document.visibilityState === "visible");
-    onVisibility();
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
