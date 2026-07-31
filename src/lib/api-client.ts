@@ -297,7 +297,13 @@ export const api = {
     request<{ lead: Lead }>(`/api/leads/${id}/horarios`, { method: "POST" }),
   putLeadDemo: (
     id: string,
-    demo: { skinId: string; themeId: string; dados: DemoDataPatch; tema?: TemaPatch },
+    demo: {
+      skinId: string;
+      themeId: string;
+      dados: DemoDataPatch;
+      tema?: TemaPatch;
+      idioma?: string;
+    },
   ) =>
     request<{ lead: Lead }>(`/api/leads/${id}/demo`, {
       method: "PUT",

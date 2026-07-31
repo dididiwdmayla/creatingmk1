@@ -9,6 +9,7 @@ import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
 import { SKINS } from "@/lib/demos/registry";
 import { TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
+import { IDIOMAS_SUPORTADOS, idiomaLabel } from "@/lib/idioma";
 import type {
   Alinhamento,
   Animacao,
@@ -810,6 +811,9 @@ export function PainelTema({
   setThemeId,
   tema,
   setTema,
+  idioma,
+  idiomaPadrao,
+  setIdioma,
 }: {
   skinId: string;
   onSkinChange: (skinId: string) => void;
@@ -818,6 +822,10 @@ export function PainelTema({
   setThemeId: (themeId: string) => void;
   tema: TemaPatch;
   setTema: (tema: TemaPatch) => void;
+  idioma: string;
+  /** Idioma derivado do país do endereço do lead — mostrado como referência do default. */
+  idiomaPadrao: string;
+  setIdioma: (idioma: string) => void;
 }) {
   const preset = skin.themePresets.find((t) => t.id === themeId) ?? skin.themeDefault;
   const destaque = tema.destaque ?? preset.paleta.destaque;
@@ -830,6 +838,22 @@ export function PainelTema({
           {SKINS.map((s) => (
             <option key={s.id} value={s.id}>
               {s.nome} ({s.nicho})
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className={LABEL_CLS}>
+        Idioma dos textos (gerados por IA)
+        <select
+          value={idioma}
+          onChange={(e) => setIdioma(e.target.value)}
+          className={INPUT_CLS}
+        >
+          {IDIOMAS_SUPORTADOS.map((id) => (
+            <option key={id} value={id}>
+              {idiomaLabel(id)}
+              {id === idiomaPadrao ? " (do endereço do lead)" : ""}
             </option>
           ))}
         </select>

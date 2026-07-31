@@ -9,11 +9,13 @@ import { NIVEIS_IA, NIVEL_IA_PADRAO, nivelIaValido, type NivelIA } from "@/lib/a
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import { ApiError, api } from "@/lib/api-client";
 import { getFonte } from "@/lib/demos/fontes";
+import { idiomaPadraoDoLead } from "@/lib/demos/idioma";
 import { montarDemoData } from "@/lib/demos/montar";
 import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
 import type { DemoData, TemaPatch } from "@/lib/demos/types";
+import { IDIOMA_PADRAO } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
 import { prepararImagem } from "./comprimir";
 import {
@@ -63,6 +65,7 @@ function estadoInicial(lead: Lead, skinPedida?: string) {
       : skin.themeDefault.id,
     tema: (daSkin ? lead.demo?.tema : undefined) ?? {},
     dados: montarDemoData(skin.demoDataExemplo, lead, daSkin ? lead.demo?.dados : undefined, skin.id),
+    idioma: lead.demo?.idioma ?? idiomaPadraoDoLead(lead),
   };
 }
 
@@ -86,6 +89,7 @@ export function DemoEditorClient({ id }: { id: string }) {
   const [themeId, setThemeId] = useState(DEFAULT_SKIN.themeDefault.id);
   const [tema, setTema] = useState<TemaPatch>({});
   const [dados, setDados] = useState<DemoData | null>(null);
+  const [idioma, setIdioma] = useState<string>(IDIOMA_PADRAO);
   const [sujo, setSujo] = useState(false);
 
   const [aba, setAba] = useState<Aba>("conteudo");
@@ -147,6 +151,7 @@ export function DemoEditorClient({ id }: { id: string }) {
         setThemeId(inicial.themeId);
         setTema(inicial.tema);
         setDados(inicial.dados);
+        setIdioma(inicial.idioma);
         // Só demo NOVA começa com sugestões de IA — nunca por cima de algo salvo.
         if (!leadData.demo && searchParams.get("ia") === "1") setIaAuto(true);
       })
@@ -297,6 +302,8 @@ export function DemoEditorClient({ id }: { id: string }) {
     setSalvarErro(null);
   }
 
+  const idiomaPadrao = lead ? idiomaPadraoDoLead(lead) : IDIOMA_PADRAO;
+
   async function handleSalvar() {
     if (!lead || !dados) return;
     setSalvando(true);
@@ -311,6 +318,7 @@ export function DemoEditorClient({ id }: { id: string }) {
         themeId,
         dados: montarPatch(base, dados, skin),
         ...(Object.keys(temaLimpo).length > 0 && { tema: temaLimpo }),
+        ...(idioma !== idiomaPadrao && { idioma }),
       });
       setLead(updated);
       setSujo(false);
@@ -694,6 +702,12 @@ export function DemoEditorClient({ id }: { id: string }) {
                 tema={tema}
                 setTema={(patch) => {
                   setTema(patch);
+                  setSujo(true);
+                }}
+                idioma={idioma}
+                idiomaPadrao={idiomaPadrao}
+                setIdioma={(valor) => {
+                  setIdioma(valor);
                   setSujo(true);
                 }}
               />

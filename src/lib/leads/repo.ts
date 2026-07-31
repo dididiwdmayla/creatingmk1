@@ -320,7 +320,13 @@ export async function updateLeadExtras(
 export async function saveDemo(
   db: AppDb,
   placeId: string,
-  demo: { skinId: string; themeId: string; dados: DemoDataPatch; tema?: TemaPatch },
+  demo: {
+    skinId: string;
+    themeId: string;
+    dados: DemoDataPatch;
+    tema?: TemaPatch;
+    idioma?: string;
+  },
   now: Date = new Date(),
   userId?: string,
 ): Promise<Lead> {
