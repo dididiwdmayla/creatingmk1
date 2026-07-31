@@ -14,9 +14,11 @@ import type { EfeitoComponente } from "./types";
  * node_modules/next/dist/docs/01-app/02-guides/lazy-loading.md).
  */
 const AuraDinamico = dynamic(() => import("./aura/Aura").then((m) => m.Aura), { ssr: false });
+const GraoDinamico = dynamic(() => import("./grao/Grao").then((m) => m.Grao), { ssr: false });
 
 const COMPONENTES_DINAMICOS: Record<string, EfeitoComponente> = {
   aura: AuraDinamico,
+  grao: GraoDinamico,
 };
 
 export function getEfeitoComponenteDinamico(id: string): EfeitoComponente | undefined {
