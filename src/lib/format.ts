@@ -25,3 +25,30 @@ export function formatDateTime(iso: string): string {
 export function formatDateShort(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
+
+/** "45s" / "2min" / "2min 30s" — duração de uma visita à demo. */
+export function formatDuracao(segundos: number): string {
+  if (segundos < 60) return `${segundos}s`;
+  const minutos = Math.floor(segundos / 60);
+  const resto = segundos % 60;
+  return resto > 0 ? `${minutos}min ${resto}s` : `${minutos}min`;
+}
+
+const MINUTO_MS = 60 * 1000;
+const HORA_MS = 60 * MINUTO_MS;
+const DIA_MS = 24 * HORA_MS;
+
+/**
+ * "agora mesmo" / "há Xmin" / "há Xh" / "há X dia(s)" — tempo relativo a
+ * `agora` (instante fixo pego no carregamento, nunca Date.now() direto no
+ * render — ver nota do React Compiler em ARCHITECTURE.md). Usado no selo
+ * "aberta há X" de /demos.
+ */
+export function formatTempoRelativo(iso: string, agora: number): string {
+  const diffMs = Math.max(0, agora - new Date(iso).getTime());
+  if (diffMs < MINUTO_MS) return "agora mesmo";
+  if (diffMs < HORA_MS) return `há ${Math.floor(diffMs / MINUTO_MS)}min`;
+  if (diffMs < DIA_MS) return `há ${Math.floor(diffMs / HORA_MS)}h`;
+  const dias = Math.floor(diffMs / DIA_MS);
+  return `há ${dias} dia${dias === 1 ? "" : "s"}`;
+}
