@@ -51,6 +51,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Beacon de visita da demo pública (VisitaTracker, sendBeacon no unload
+  // de /demo/{leadId}) — o navegador do lead não tem cookie de sessão.
+  // Mesma lógica de exceção do /demo acima: fica depois do APP_PASSWORD.
+  if (pathname === "/api/demo-visita") {
+    return NextResponse.next();
+  }
+
   const sessao = await lerSessaoToken(request.cookies.get(SESSION_COOKIE)?.value, secret);
   if (sessao) {
     if (pathname === "/config" && sessao.papel !== "admin") {

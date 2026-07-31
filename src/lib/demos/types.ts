@@ -387,6 +387,12 @@ export interface SkinDefinition {
  */
 export type DemoDataPatch = Partial<DemoData>;
 
+/** Um token de envio gerado — ver `LeadDemo.envios`. */
+export interface EnvioDemo {
+  token: string;
+  geradoEm: string;
+}
+
 /** Configuração da demo de um lead (campo `demo` do doc /leads/{id}). */
 export interface LeadDemo {
   skinId: string;
@@ -407,4 +413,17 @@ export interface LeadDemo {
   /** Usuário do primeiro save — preservado entre edições (métricas por usuário). */
   criadoPor?: string;
   atualizadoEm: string;
+  /**
+   * Histórico de tokens do envio (mais recente = vigente, primeiro do
+   * array). A variável `{demo}` da mensagem de WhatsApp resolve para a URL
+   * pública com `?t=` do token vigente — montada já no carregamento da
+   * ficha, nunca por um fetch no clique (bloqueio de popup em mobile). Uma
+   * visita não-interna que bate o token vigente "consome" o envio e
+   * empurra um token novo para o início (ver lib/demos/envio.ts e
+   * registrarVisitaDemo em lib/leads/repo.ts); `geradoEm` de cada entrada é
+   * a data do "envio" mostrada na timeline de visitas. "Copiar link" e
+   * "Abrir demo" sempre usam a URL SEM token. Ausente = nunca gerado
+   * (demos de antes desta feature — self-heal no próximo save/leitura).
+   */
+  envios?: EnvioDemo[];
 }

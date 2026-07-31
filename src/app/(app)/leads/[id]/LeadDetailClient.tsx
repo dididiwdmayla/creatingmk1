@@ -15,8 +15,9 @@ import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import type { UsoUsuario } from "@/lib/costs";
+import { envioVigente } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatDuracao } from "@/lib/format";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
@@ -267,8 +268,18 @@ export function LeadDetailClient({ id }: { id: string }) {
   // Telefone da busca qualificada já sustenta o botão — sem enriquecer.
   const telefoneIntl = detalhes?.telefoneIntl ?? lead.telefoneIntl;
   // Só renderiza com lead carregado (client), então window existe.
+  // "Copiar link"/"Abrir demo" sempre usam a URL sem token — só a
+  // variável {demo} da mensagem carrega o token do envio vigente, já
+  // pronto no GET do lead (sem fetch no clique).
   const demoUrl = `${window.location.origin}/demo/${lead.placeId}`;
+  const tokenVigente = envioVigente(lead.demo)?.token;
+  const demoUrlParaEnvio = tokenVigente ? `${demoUrl}?t=${tokenVigente}` : demoUrl;
   const skinAtual = getSkin(lead.demo?.skinId);
+  // Timeline: só visitas de fora do time (preview do próprio time não conta
+  // como "o lead abriu"), a mais recente primeiro.
+  const visitasExternas = [...(lead.demoVisitas ?? [])]
+    .filter((visita) => !visita.interna)
+    .sort((a, b) => b.em.localeCompare(a.em));
   // Derivado no servidor (asLead): true = site próprio; false = sem site OU
   // só rede social/agregador; undefined = desconhecido.
   const siteEhProprio = lead.siteProprio;
@@ -287,7 +298,7 @@ export function LeadDetailClient({ id }: { id: string }) {
   const waLink =
     telefoneIntl && config
       ? buildWhatsAppLink(mensagemParaLead(lead, buscas, config), lead.nome, telefoneIntl, {
-          demoUrl,
+          demoUrl: demoUrlParaEnvio,
           penetracao: argumento,
         })
       : null;
@@ -530,6 +541,46 @@ export function LeadDetailClient({ id }: { id: string }) {
         )}
         {demoErro && <p className="mt-2 text-sm text-critical">{demoErro}</p>}
       </section>
+
+      {visitasExternas.length > 0 && (
+        <section className="rounded-lg border border-line bg-surface p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Visitas à demo
+          </h2>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            aberturas de fora do time — preview do próprio time não entra aqui
+          </p>
+          <ul className="mt-3 flex flex-col gap-3">
+            {visitasExternas.map((visita) => (
+              <li
+                key={visita.id}
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm"
+              >
+                <div>
+                  <p className="text-foreground">{formatDateTime(visita.em)}</p>
+                  <p className="text-xs text-ink-muted">
+                    {visita.envioEm
+                      ? `envio de ${formatDateTime(visita.envioEm)}`
+                      : "envio não identificado"}
+                  </p>
+                </div>
+                <div className="text-right text-xs text-ink-secondary">
+                  <p>
+                    {visita.duracaoSegundos !== undefined
+                      ? formatDuracao(visita.duracaoSegundos)
+                      : "duração desconhecida"}
+                  </p>
+                  <p>
+                    {visita.scrollPercent !== undefined
+                      ? `${visita.scrollPercent}% da página`
+                      : "scroll desconhecido"}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Status</h2>

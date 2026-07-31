@@ -3,7 +3,13 @@ import { NextResponse } from "next/server";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, readJsonBody } from "@/lib/http";
-import { ajustarVendidoPor, changeStatus, getLead, updateLeadExtras } from "@/lib/leads/repo";
+import {
+  ajustarVendidoPor,
+  changeStatus,
+  garantirEnvioToken,
+  getLead,
+  updateLeadExtras,
+} from "@/lib/leads/repo";
 import { LEAD_STATUSES, type Lead, type LeadStatus } from "@/lib/leads/types";
 import { getUsuario, usuarioDaRequest } from "@/lib/usuarios";
 
@@ -14,9 +20,16 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const lead = await getLead(getDb(), id);
+    const db = getDb();
+    let lead = await getLead(db, id);
     if (!lead) {
       throw new NotFoundError(`Lead "${id}" não encontrado.`);
+    }
+    // Self-heal: garante o token de envio ANTES de responder — a ficha
+    // monta o link do WhatsApp com {demo} direto do que este GET devolve,
+    // sem fetch algum no clique (bloqueio de popup em mobile).
+    if (lead.demo && (!lead.demo.envios || lead.demo.envios.length === 0)) {
+      lead = await garantirEnvioToken(db, id);
     }
     return NextResponse.json({ lead });
   } catch (error) {

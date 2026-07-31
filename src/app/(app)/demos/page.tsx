@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { ApiError, api } from "@/lib/api-client";
 import { getSkin } from "@/lib/demos/registry";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatTempoRelativo } from "@/lib/format";
+import { ultimaAberturaNaoInterna } from "@/lib/leads/hoje";
 import type { Lead } from "@/lib/leads/types";
 
 /**
@@ -21,13 +22,19 @@ export default function DemosPage() {
   const [copiado, setCopiado] = useState<string | null>(null);
   const [confirmaExcluir, setConfirmaExcluir] = useState<string | null>(null);
   const [excluindo, setExcluindo] = useState<string | null>(null);
+  // Instante fixo da carga, pro selo "aberta há X" (Date.now() no render é
+  // impuro pro React Compiler — mesmo padrão de /hoje).
+  const [agora, setAgora] = useState(0);
 
   useEffect(() => {
     let ignore = false;
     api
       .listLeads({})
       .then(({ leads: data }) => {
-        if (!ignore) setLeads(data);
+        if (!ignore) {
+          setLeads(data);
+          setAgora(Date.now());
+        }
       })
       .catch((error) => {
         if (!ignore) {
@@ -96,6 +103,7 @@ export default function DemosPage() {
       <ul className="flex flex-col gap-2">
         {demos.map((lead) => {
           const skin = getSkin(lead.demo.skinId);
+          const ultimaAbertura = ultimaAberturaNaoInterna(lead);
           return (
             <li
               key={lead.placeId}
@@ -104,9 +112,23 @@ export default function DemosPage() {
               <div className="flex items-start justify-between gap-2">
                 <Link href={`/leads/${lead.placeId}`} className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-foreground">{lead.nome}</p>
-                  <p className="mt-0.5 truncate text-xs text-ink-secondary">
-                    {skin?.nome ?? lead.demo.skinId}
-                  </p>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <p className="truncate text-xs text-ink-secondary">
+                      {skin?.nome ?? lead.demo.skinId}
+                    </p>
+                    {ultimaAbertura ? (
+                      <span
+                        title={formatDateTime(ultimaAbertura)}
+                        className="shrink-0 rounded-full bg-good/15 px-1.5 py-0.5 text-[10px] font-semibold text-good"
+                      >
+                        aberta {agora > 0 ? formatTempoRelativo(ultimaAbertura, agora) : ""}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
+                        não aberta
+                      </span>
+                    )}
+                  </div>
                 </Link>
                 <div className="shrink-0 text-right text-[11px] text-ink-muted">
                   <p>Criada {formatDateTime(lead.demo.criadoEm)}</p>

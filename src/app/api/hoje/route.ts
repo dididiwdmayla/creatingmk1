@@ -6,7 +6,8 @@ import { UnauthorizedError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError } from "@/lib/http";
 import { montarFilaDoDia } from "@/lib/leads/hoje";
-import { listLeads } from "@/lib/leads/repo";
+import { garantirEnvioToken, listLeads } from "@/lib/leads/repo";
+import type { Lead } from "@/lib/leads/types";
 import { carimbarVisita, usuarioDaRequest } from "@/lib/usuarios";
 
 /**
@@ -35,6 +36,34 @@ export async function GET(req: Request) {
       now,
     });
     await carimbarVisita(db, usuario.id, now);
+
+    // Self-heal do token de envio: o link do WhatsApp com {demo} é montado
+    // aqui, sem fetch no clique — precisa do token já pronto na resposta.
+    const semToken = new Map<string, Lead>();
+    for (const lead of [
+      ...fila.novos,
+      ...fila.followUps,
+      ...fila.demosParadas,
+      ...fila.abriramNaoResponderam,
+    ]) {
+      if (lead.demo && (!lead.demo.envios || lead.demo.envios.length === 0)) {
+        semToken.set(lead.placeId, lead);
+      }
+    }
+    if (semToken.size > 0) {
+      const atualizados = new Map(
+        await Promise.all(
+          [...semToken.keys()].map(
+            async (placeId) => [placeId, await garantirEnvioToken(db, placeId)] as const,
+          ),
+        ),
+      );
+      const substituir = (lista: Lead[]) => lista.map((l) => atualizados.get(l.placeId) ?? l);
+      fila.novos = substituir(fila.novos);
+      fila.followUps = substituir(fila.followUps);
+      fila.demosParadas = substituir(fila.demosParadas);
+      fila.abriramNaoResponderam = substituir(fila.abriramNaoResponderam);
+    }
 
     return NextResponse.json({
       ...fila,

@@ -151,6 +151,7 @@ describe("montarFilaDoDia", () => {
         criadoEm: "2026-07-01T00:00:00.000Z",
         atualizadoEm: "2026-07-01T00:00:00.000Z",
       },
+      demoVisitas: [{ id: "v1", em: "2026-07-19T00:00:00.000Z", interna: false }],
     });
 
     const fila = montarFilaDoDia([descartado], { followUpDias: 4, now: NOW });
@@ -158,5 +159,42 @@ describe("montarFilaDoDia", () => {
     expect(fila.novos).toHaveLength(0);
     expect(fila.followUps).toHaveLength(0);
     expect(fila.demosParadas).toHaveLength(0);
+    expect(fila.abriramNaoResponderam).toHaveLength(0);
+  });
+
+  it("abriramNaoResponderam = contactado com visita não-interna, abertura mais recente primeiro", () => {
+    const abriuCedo = lead({
+      placeId: "abriu-cedo",
+      status: "contactado",
+      contato: { primeiroContatoEm: "2026-07-18T00:00:00.000Z" },
+      demoVisitas: [{ id: "v1", em: "2026-07-18T10:00:00.000Z", interna: false }],
+    });
+    const abriuTarde = lead({
+      placeId: "abriu-tarde",
+      status: "contactado",
+      contato: { primeiroContatoEm: "2026-07-18T00:00:00.000Z" },
+      demoVisitas: [{ id: "v2", em: "2026-07-19T10:00:00.000Z", interna: false }],
+    });
+    // Só visita INTERNA (preview do time) não conta.
+    const soInterna = lead({
+      placeId: "so-interna",
+      status: "contactado",
+      demoVisitas: [{ id: "v3", em: "2026-07-19T00:00:00.000Z", interna: true }],
+    });
+    // Já respondeu → status mudou, sai da seção mesmo tendo aberto.
+    const jaRespondeu = lead({
+      placeId: "ja-respondeu",
+      status: "respondeu",
+      demoVisitas: [{ id: "v4", em: "2026-07-19T00:00:00.000Z", interna: false }],
+    });
+    // Nunca abriu.
+    const naoAbriu = lead({ placeId: "nao-abriu", status: "contactado" });
+
+    const fila = montarFilaDoDia([abriuCedo, abriuTarde, soInterna, jaRespondeu, naoAbriu], {
+      followUpDias: 4,
+      now: NOW,
+    });
+
+    expect(fila.abriramNaoResponderam.map((l) => l.placeId)).toEqual(["abriu-tarde", "abriu-cedo"]);
   });
 });

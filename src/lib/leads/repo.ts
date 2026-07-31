@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
+
 import type { FiltroPresenca } from "@/lib/config";
+import { gerarEnvioToken } from "@/lib/demos/envio";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import { InvalidTransitionError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
@@ -8,6 +11,7 @@ import {
   LEADS_COLLECTION,
   LEAD_STATUSES,
   VALID_TRANSITIONS,
+  type DemoVisita,
   type Lead,
   type LeadStatus,
 } from "./types";
@@ -334,16 +338,116 @@ export async function saveDemo(
   const em = now.toISOString();
   // criadoEm/criadoPor são do PRIMEIRO save; edições seguintes preservam.
   const criadoPor = lead.demo?.criadoEm ? lead.demo.criadoPor : userId;
+  // O primeiro token de envio nasce junto da demo (self-heal se por algum
+  // motivo uma demo antiga chegasse aqui sem `envios` — ver envio.ts).
+  const envios =
+    lead.demo?.envios && lead.demo.envios.length > 0
+      ? lead.demo.envios
+      : [{ token: gerarEnvioToken(), geradoEm: em }];
   const updated: Lead = {
     ...lead,
     demo: {
       ...demo,
       criadoEm: lead.demo?.criadoEm ?? em,
       ...(criadoPor && { criadoPor }),
+      envios,
       atualizadoEm: em,
     },
     atualizadoEm: em,
   };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/**
+ * Garante que o lead com demo tenha ao menos um token de envio (self-heal
+ * para demos salvas antes desta feature) — chamado no GET da ficha, nunca
+ * no clique: o valor precisa já estar pronto quando a página monta o link
+ * do WhatsApp (bloqueio de popup em fetch-no-clique).
+ */
+export async function garantirEnvioToken(
+  db: AppDb,
+  placeId: string,
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  if (!lead.demo || (lead.demo.envios && lead.demo.envios.length > 0)) return lead;
+  const updated: Lead = {
+    ...lead,
+    demo: {
+      ...lead.demo,
+      envios: [{ token: gerarEnvioToken(), geradoEm: now.toISOString() }],
+    },
+  };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/**
+ * Registra uma visita à demo pública (rota /demo/{leadId}, chamada pelo
+ * Server Component a cada carregamento COM `?t=` na URL — sem token, é
+ * "Copiar link"/"Abrir demo" e não vira visita). Se o token bater o envio
+ * VIGENTE e a visita não for interna, consome o envio: gera o próximo
+ * token, empurrado para o início de `envios` (o antigo continua no
+ * histórico, então revisitas do mesmo link antigo ainda resolvem o envio
+ * correto). QA interno (cookie de sessão válido no navegador) nunca
+ * consome o token vigente — não queima o envio real antes do lead abrir.
+ */
+export async function registrarVisitaDemo(
+  db: AppDb,
+  placeId: string,
+  opts: { token?: string; interna: boolean },
+  now: Date = new Date(),
+): Promise<{ lead: Lead; visitaId?: string }> {
+  const lead = await requireLead(db, placeId);
+  if (!lead.demo || !opts.token) return { lead };
+
+  const em = now.toISOString();
+  const envios = lead.demo.envios ?? [];
+  const envioCorrespondente = envios.find((envio) => envio.token === opts.token);
+  const visita: DemoVisita = {
+    id: randomUUID(),
+    em,
+    interna: opts.interna,
+    ...(envioCorrespondente && { envioEm: envioCorrespondente.geradoEm }),
+  };
+
+  const vigente = envios[0];
+  const consome = !opts.interna && vigente !== undefined && vigente.token === opts.token;
+  const novosEnvios = consome ? [{ token: gerarEnvioToken(), geradoEm: em }, ...envios] : envios;
+
+  const updated: Lead = {
+    ...lead,
+    demo: { ...lead.demo, envios: novosEnvios },
+    demoVisitas: [...(lead.demoVisitas ?? []), visita],
+  };
+  await docRef(db, placeId).set(toDoc(updated));
+  return { lead: updated, visitaId: visita.id };
+}
+
+/**
+ * Atualiza duração/scroll de uma visita já registrada — chamado pelo
+ * beacon disparado no unload da página pública da demo. Visita/lead
+ * inexistente é no-op silencioso (o beacon é best-effort, sem retorno pro
+ * cliente que importe).
+ */
+export async function atualizarVisitaDemo(
+  db: AppDb,
+  placeId: string,
+  visitaId: string,
+  dados: { duracaoSegundos?: number; scrollPercent?: number },
+): Promise<Lead | undefined> {
+  const lead = await getLead(db, placeId);
+  const idx = lead?.demoVisitas?.findIndex((visita) => visita.id === visitaId) ?? -1;
+  if (!lead?.demoVisitas || idx === -1) return lead;
+
+  const visitas = [...lead.demoVisitas];
+  visitas[idx] = {
+    ...visitas[idx],
+    ...(dados.duracaoSegundos !== undefined && { duracaoSegundos: dados.duracaoSegundos }),
+    ...(dados.scrollPercent !== undefined && { scrollPercent: dados.scrollPercent }),
+  };
+  const updated: Lead = { ...lead, demoVisitas: visitas };
   await docRef(db, placeId).set(toDoc(updated));
   return updated;
 }

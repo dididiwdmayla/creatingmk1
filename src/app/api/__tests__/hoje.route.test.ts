@@ -142,4 +142,37 @@ describe("GET /api/hoje", () => {
     expect(data.followUpDias).toBe(30);
     expect(data.followUps).toHaveLength(0);
   });
+
+  it("abriramNaoResponderam: contactado com visita não-interna registrada", async () => {
+    const cookie = await cookieDeSessao(db, { id: "ana" });
+    seedLead("abriu", {
+      status: "contactado",
+      demoVisitas: [{ id: "v1", em: "2026-07-19T00:00:00.000Z", interna: false }],
+    });
+    seedLead("so-preview-do-time", {
+      status: "contactado",
+      demoVisitas: [{ id: "v2", em: "2026-07-19T00:00:00.000Z", interna: true }],
+    });
+
+    const data = await (await GET(hojeRequest(cookie))).json();
+
+    expect(data.abriramNaoResponderam.map((l: { placeId: string }) => l.placeId)).toEqual([
+      "abriu",
+    ]);
+    // Status NUNCA é alterado por esta rota.
+    expect(db.getDoc("leads/abriu")?.status).toBe("contactado");
+  });
+
+  it("self-heal do token de envio também cobre abriramNaoResponderam", async () => {
+    const cookie = await cookieDeSessao(db, { id: "ana" });
+    seedLead("abriu-sem-token", {
+      status: "contactado",
+      demo: { skinId: "s", themeId: "t", dados: {}, criadoEm: "x", atualizadoEm: "x" },
+      demoVisitas: [{ id: "v1", em: "2026-07-19T00:00:00.000Z", interna: false }],
+    });
+
+    const data = await (await GET(hojeRequest(cookie))).json();
+
+    expect(data.abriramNaoResponderam[0].demo.envios).toHaveLength(1);
+  });
 });

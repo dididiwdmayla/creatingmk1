@@ -111,11 +111,13 @@ export interface GeocodeResponse {
   cached: boolean;
 }
 
-/** Fila do dia (/hoje): as 3 seções + contexto para badges e WhatsApp. */
+/** Fila do dia (/hoje): as 4 seções + contexto para badges e WhatsApp. */
 export interface HojeResponse {
   novos: Lead[];
   followUps: Lead[];
   demosParadas: Lead[];
+  /** Contactado, abriu a demo (visita não-interna) e ainda não respondeu. */
+  abriramNaoResponderam: Lead[];
   /** Carimbo anterior usado no delta de novos (null = primeira visita). */
   novosDesde: string | null;
   followUpDias: number;
