@@ -396,7 +396,12 @@ export async function garantirEnvioToken(
 export async function registrarVisitaDemo(
   db: AppDb,
   placeId: string,
-  opts: { token?: string; interna: boolean },
+  opts: {
+    token?: string;
+    interna: boolean;
+    /** Geolocalização por IP, só informativa — ver DemoVisita.geo. */
+    geo?: { pais?: string; regiao?: string; cidade?: string };
+  },
   now: Date = new Date(),
 ): Promise<{ lead: Lead; visitaId?: string }> {
   const lead = await requireLead(db, placeId);
@@ -410,6 +415,7 @@ export async function registrarVisitaDemo(
     em,
     interna: opts.interna,
     ...(envioCorrespondente && { envioEm: envioCorrespondente.geradoEm }),
+    ...(opts.geo && { geo: opts.geo }),
   };
 
   const vigente = envios[0];
@@ -429,13 +435,16 @@ export async function registrarVisitaDemo(
  * Atualiza duração/scroll de uma visita já registrada — chamado pelo
  * beacon disparado no unload da página pública da demo. Visita/lead
  * inexistente é no-op silencioso (o beacon é best-effort, sem retorno pro
- * cliente que importe).
+ * cliente que importe). `marcadorDispositivo` promove a visita pra interna
+ * quando o beacon manda o marcador de dispositivo válido (ver
+ * lib/device.ts) — só PARA CIMA, nunca derruba uma visita já marcada
+ * interna pela sessão no carregamento (ver registrarVisitaDemo).
  */
 export async function atualizarVisitaDemo(
   db: AppDb,
   placeId: string,
   visitaId: string,
-  dados: { duracaoSegundos?: number; scrollPercent?: number },
+  dados: { duracaoSegundos?: number; scrollPercent?: number; marcadorDispositivo?: boolean },
 ): Promise<Lead | undefined> {
   const lead = await getLead(db, placeId);
   const idx = lead?.demoVisitas?.findIndex((visita) => visita.id === visitaId) ?? -1;
@@ -446,6 +455,7 @@ export async function atualizarVisitaDemo(
     ...visitas[idx],
     ...(dados.duracaoSegundos !== undefined && { duracaoSegundos: dados.duracaoSegundos }),
     ...(dados.scrollPercent !== undefined && { scrollPercent: dados.scrollPercent }),
+    ...(dados.marcadorDispositivo && { interna: true }),
   };
   const updated: Lead = { ...lead, demoVisitas: visitas };
   await docRef(db, placeId).set(toDoc(updated));

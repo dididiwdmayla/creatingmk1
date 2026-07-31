@@ -4,6 +4,25 @@ import { useState, type FormEvent } from "react";
 
 import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api } from "@/lib/api-client";
+import { DEVICE_COOKIE, DEVICE_STORAGE_KEY } from "@/lib/device";
+
+/**
+ * Espelha o marcador de dispositivo (cookie de primeira parte gravado pelo
+ * POST /api/login — ver lib/device.ts) no localStorage: o beacon da demo
+ * pública lê daqui, já que localStorage sobrevive a bloqueios de cookie que
+ * às vezes atingem só o navegador embutido de apps (ver ARCHITECTURE.md).
+ */
+function espelharMarcadorDispositivo(): void {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${DEVICE_COOKIE}=([^;]+)`));
+  if (match) {
+    try {
+      localStorage.setItem(DEVICE_STORAGE_KEY, decodeURIComponent(match[1]));
+    } catch {
+      // localStorage indisponível (modo privado restrito etc.) — o cookie
+      // sozinho já cobre a classificação no carregamento da demo.
+    }
+  }
+}
 
 export default function LoginPage() {
   const [nome, setNome] = useState("");
@@ -17,6 +36,7 @@ export default function LoginPage() {
     setErro(null);
     try {
       await api.login(nome, senha);
+      espelharMarcadorDispositivo();
       // A fila do dia é a home pós-login (o painel continua em /).
       window.location.href = "/hoje";
     } catch (error) {

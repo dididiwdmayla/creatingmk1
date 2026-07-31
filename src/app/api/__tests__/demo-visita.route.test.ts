@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { gerarDeviceId } from "@/lib/device";
 import { DEFAULT_SKIN } from "@/lib/demos/registry";
 import { registrarVisitaDemo, saveDemo } from "@/lib/leads/repo";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
@@ -61,5 +62,35 @@ describe("POST /api/demo-visita", () => {
   it("lead/visita inexistente responde 204 do mesmo jeito (best-effort)", async () => {
     const res = await post({ leadId: "nao-existe", visitaId: "v1" });
     expect(res.status).toBe(204);
+  });
+
+  it("marcador de dispositivo válido no beacon promove a visita a interna", async () => {
+    const salvo = await saveDemo(db, "A", {
+      skinId: DEFAULT_SKIN.id,
+      themeId: DEFAULT_SKIN.themeDefault.id,
+      dados: {},
+    });
+    const token = salvo.demo?.envios?.[0].token as string;
+    const { visitaId } = await registrarVisitaDemo(db, "A", { token, interna: false });
+
+    const res = await post({ leadId: "A", visitaId, deviceId: gerarDeviceId() });
+
+    expect(res.status).toBe(204);
+    expect(db.getDoc("leads/A")?.demoVisitas).toMatchObject([{ id: visitaId, interna: true }]);
+  });
+
+  it("marcador de dispositivo malformado no beacon não promove a visita", async () => {
+    const salvo = await saveDemo(db, "A", {
+      skinId: DEFAULT_SKIN.id,
+      themeId: DEFAULT_SKIN.themeDefault.id,
+      dados: {},
+    });
+    const token = salvo.demo?.envios?.[0].token as string;
+    const { visitaId } = await registrarVisitaDemo(db, "A", { token, interna: false });
+
+    const res = await post({ leadId: "A", visitaId, deviceId: "lixo" });
+
+    expect(res.status).toBe(204);
+    expect(db.getDoc("leads/A")?.demoVisitas).toMatchObject([{ id: visitaId, interna: false }]);
   });
 });
