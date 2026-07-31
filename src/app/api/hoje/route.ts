@@ -40,7 +40,12 @@ export async function GET(req: Request) {
     // Self-heal do token de envio: o link do WhatsApp com {demo} é montado
     // aqui, sem fetch no clique — precisa do token já pronto na resposta.
     const semToken = new Map<string, Lead>();
-    for (const lead of [...fila.novos, ...fila.followUps, ...fila.demosParadas]) {
+    for (const lead of [
+      ...fila.novos,
+      ...fila.followUps,
+      ...fila.demosParadas,
+      ...fila.abriramNaoResponderam,
+    ]) {
       if (lead.demo && (!lead.demo.envios || lead.demo.envios.length === 0)) {
         semToken.set(lead.placeId, lead);
       }
@@ -57,6 +62,7 @@ export async function GET(req: Request) {
       fila.novos = substituir(fila.novos);
       fila.followUps = substituir(fila.followUps);
       fila.demosParadas = substituir(fila.demosParadas);
+      fila.abriramNaoResponderam = substituir(fila.abriramNaoResponderam);
     }
 
     return NextResponse.json({

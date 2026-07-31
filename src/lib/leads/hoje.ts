@@ -14,6 +14,25 @@ export interface FilaDoDia {
   followUps: Lead[];
   /** Demo pronta mas lead ainda "novo" (demo criada e não enviada). */
   demosParadas: Lead[];
+  /**
+   * Contactado, abriu a demo (visita não-interna registrada) e ainda não
+   * respondeu — status continua "contactado" por design: esta fila só
+   * SINALIZA, nunca muda status sozinha. A abertura mais recente primeiro.
+   */
+  abriramNaoResponderam: Lead[];
+}
+
+/**
+ * Instante (ISO) da visita não-interna mais recente do lead, se houver —
+ * exportada porque a página /hoje reusa pro badge "abriu há X" (via
+ * formatTempoRelativo).
+ */
+export function ultimaAberturaNaoInterna(lead: Lead): string | undefined {
+  return (lead.demoVisitas ?? [])
+    .filter((visita) => !visita.interna)
+    .map((visita) => visita.em)
+    .sort()
+    .at(-1);
 }
 
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -54,5 +73,11 @@ export function montarFilaDoDia(
     .filter((lead) => lead.demo !== undefined && lead.status === "novo")
     .sort((a, b) => (a.demo?.criadoEm ?? "").localeCompare(b.demo?.criadoEm ?? ""));
 
-  return { novos, followUps, demosParadas };
+  const abriramNaoResponderam = ativos
+    .filter((lead) => lead.status === "contactado" && ultimaAberturaNaoInterna(lead) !== undefined)
+    .sort((a, b) =>
+      (ultimaAberturaNaoInterna(b) ?? "").localeCompare(ultimaAberturaNaoInterna(a) ?? ""),
+    );
+
+  return { novos, followUps, demosParadas, abriramNaoResponderam };
 }

@@ -10,7 +10,8 @@ import { ApiError, api, type HojeResponse } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import { envioVigente } from "@/lib/demos/envio";
 import type { NomesUsuarios } from "@/lib/contato-selo";
-import { formatDateTime, formatInt } from "@/lib/format";
+import { formatDateTime, formatInt, formatTempoRelativo } from "@/lib/format";
+import { ultimaAberturaNaoInterna } from "@/lib/leads/hoje";
 import { melhorMomento } from "@/lib/leads/horarios";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { calculaScore } from "@/lib/leads/score";
@@ -110,6 +111,7 @@ export default function HojePage() {
         novos: substituir(atual.novos),
         followUps: substituir(atual.followUps),
         demosParadas: substituir(atual.demosParadas),
+        abriramNaoResponderam: substituir(atual.abriramNaoResponderam),
       };
     });
   }
@@ -130,7 +132,8 @@ export default function HojePage() {
   const vazia =
     dados.novos.length === 0 &&
     dados.followUps.length === 0 &&
-    dados.demosParadas.length === 0;
+    dados.demosParadas.length === 0 &&
+    dados.abriramNaoResponderam.length === 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -138,7 +141,8 @@ export default function HojePage() {
         <h1 className="font-display text-2xl font-bold text-foreground">Hoje</h1>
         <p className="mt-1 text-sm text-ink-secondary">
           {formatInt(dados.novos.length)} novo(s) · {formatInt(dados.followUps.length)}{" "}
-          follow-up(s) · {formatInt(dados.demosParadas.length)} demo(s) parada(s)
+          follow-up(s) · {formatInt(dados.demosParadas.length)} demo(s) parada(s) ·{" "}
+          {formatInt(dados.abriramNaoResponderam.length)} abriram e não responderam
         </p>
         {dados.novosDesde && (
           <p className="mt-0.5 text-xs text-ink-muted">
@@ -226,6 +230,29 @@ export default function HojePage() {
                     demo de {formatDateTime(lead.demo.criadoEm)}
                   </span>
                 )
+              }
+            />
+          ))}
+        </Secao>
+      )}
+
+      {dados.abriramNaoResponderam.length > 0 && (
+        <Secao
+          titulo={`Abriram e não responderam (${dados.abriramNaoResponderam.length})`}
+          subtitulo="abriram a demo, mas o status continua contactado — nada muda sozinho aqui"
+        >
+          {dados.abriramNaoResponderam.map((lead) => (
+            <ItemHoje
+              key={lead.placeId}
+              lead={lead}
+              porId={porId}
+              mensagemGlobal={dados.mensagemPadrao}
+              nomes={nomes}
+              onWhatsAppClick={clicar}
+              extra={
+                <span className="rounded-full bg-good/15 px-1.5 py-0.5 text-[10px] font-semibold text-good">
+                  abriu {formatTempoRelativo(ultimaAberturaNaoInterna(lead) ?? lead.criadoEm, agora)}
+                </span>
               }
             />
           ))}
