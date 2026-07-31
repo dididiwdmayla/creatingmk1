@@ -1,3 +1,4 @@
+import { IDIOMA_PADRAO } from "@/lib/idioma";
 import type { Lead } from "./types";
 
 /**
@@ -114,27 +115,99 @@ const ABREV_DIA: Record<number, string> = {
   6: "SÁB",
 };
 
-/** "9h-18h" | "9h-12h/14h-18h" (faixas do mesmo dia) | "fechado". */
-function textoFaixasDoDia(faixas: Faixa[], dia: number): string {
+/**
+ * Localização (determinística, sem IA) de `resumirHorarios`: rótulos de
+ * dia (abreviação) e formato de hora por idioma-alvo (ver
+ * "Idioma da IA na demo" — o mesmo idioma que a IA usa no resto da demo).
+ * Chave por RAIZ do BCP-47 (ex.: "de" cobre de-CH/de-DE/de-AT); idioma sem
+ * entrada cai no padrão pt-BR.
+ */
+interface LocaleHorario {
+  dias: Record<number, string>;
+  fechado: string;
+  formatHora(hora: number, minuto: number): string;
+}
+
+const LOCALE_PT: LocaleHorario = {
+  dias: ABREV_DIA,
+  fechado: "fechado",
+  formatHora,
+};
+
+function formatHora24h(hora: number, minuto: number): string {
+  return `${String(hora).padStart(2, "0")}:${String(minuto).padStart(2, "0")}`;
+}
+
+const LOCALES_HORARIO: Record<string, LocaleHorario> = {
+  pt: LOCALE_PT,
+  de: {
+    dias: { 0: "SO", 1: "MO", 2: "DI", 3: "MI", 4: "DO", 5: "FR", 6: "SA" },
+    fechado: "geschlossen",
+    formatHora: formatHora24h,
+  },
+  en: {
+    dias: { 0: "SUN", 1: "MON", 2: "TUE", 3: "WED", 4: "THU", 5: "FRI", 6: "SAT" },
+    fechado: "closed",
+    formatHora: formatHora24h,
+  },
+  es: {
+    dias: { 0: "DOM", 1: "LUN", 2: "MAR", 3: "MIÉ", 4: "JUE", 5: "VIE", 6: "SÁB" },
+    fechado: "cerrado",
+    formatHora: formatHora24h,
+  },
+  fr: {
+    dias: { 0: "DIM", 1: "LUN", 2: "MAR", 3: "MER", 4: "JEU", 5: "VEN", 6: "SAM" },
+    fechado: "fermé",
+    formatHora: formatHora24h,
+  },
+  it: {
+    dias: { 0: "DOM", 1: "LUN", 2: "MAR", 3: "MER", 4: "GIO", 5: "VEN", 6: "SAB" },
+    fechado: "chiuso",
+    formatHora: formatHora24h,
+  },
+  nl: {
+    dias: { 0: "ZO", 1: "MA", 2: "DI", 3: "WO", 4: "DO", 5: "VR", 6: "ZA" },
+    fechado: "gesloten",
+    formatHora: formatHora24h,
+  },
+};
+
+function localeDoIdioma(idioma: string): LocaleHorario {
+  const raiz = idioma.split("-")[0];
+  return LOCALES_HORARIO[raiz] ?? LOCALE_PT;
+}
+
+/** "09:00-18:00" | "09:00-12:00/14:00-18:00" (faixas do mesmo dia) | locale.fechado. */
+function textoFaixasDoDiaLocalizado(faixas: Faixa[], dia: number, locale: LocaleHorario): string {
   const doDia = faixas
     .filter((faixa) => faixa.diaAbre === dia)
     .sort((a, b) => abreMinuto(a) - abreMinuto(b));
-  if (doDia.length === 0) return "fechado";
+  if (doDia.length === 0) return locale.fechado;
   return doDia
-    .map((faixa) => `${formatHora(faixa.horaAbre, faixa.minAbre)}-${formatHora(faixa.horaFecha, faixa.minFecha)}`)
+    .map(
+      (faixa) =>
+        `${locale.formatHora(faixa.horaAbre, faixa.minAbre)}-${locale.formatHora(faixa.horaFecha, faixa.minFecha)}`,
+    )
     .join("/");
 }
 
 /**
  * Resumo legível de `lead.horarios.faixas`, agrupando dias consecutivos
- * (SEG→DOM) com a mesma faixa: "SEG-SEX 9h-20h · SÁB 9h-18h · DOM fechado".
- * Dias sem nenhuma faixa entram como "fechado" no agrupamento. Sem faixas
- * (nunca buscado, ou lugar sem horário conhecido) → undefined.
+ * (SEG→DOM) com a mesma faixa: "SEG-SEX 9h-20h · SÁB 9h-18h · DOM fechado"
+ * (pt-BR) ou "MO-FR 09:00-20:00 · SA 09:00-18:00 · SO geschlossen" (de-CH).
+ * `idioma` (BCP-47, default pt-BR) é o mesmo idioma-alvo da IA na demo —
+ * puramente determinístico, sem chamada de IA (ver `@/lib/idioma`). Dias
+ * sem nenhuma faixa entram como "fechado"/`locale.fechado` no agrupamento.
+ * Sem faixas (nunca buscado, ou lugar sem horário conhecido) → undefined.
  */
-export function resumirHorarios(faixas: Faixa[]): string | undefined {
+export function resumirHorarios(faixas: Faixa[], idioma: string = IDIOMA_PADRAO): string | undefined {
   if (faixas.length === 0) return undefined;
 
-  const dias = DIAS_ORDEM.map((dia) => ({ dia, texto: textoFaixasDoDia(faixas, dia) }));
+  const locale = localeDoIdioma(idioma);
+  const dias = DIAS_ORDEM.map((dia) => ({
+    dia,
+    texto: textoFaixasDoDiaLocalizado(faixas, dia, locale),
+  }));
 
   const grupos: { inicio: number; fim: number; texto: string }[] = [];
   for (const { dia, texto } of dias) {
@@ -148,7 +221,8 @@ export function resumirHorarios(faixas: Faixa[]): string | undefined {
 
   return grupos
     .map(({ inicio, fim, texto }) => {
-      const rotulo = inicio === fim ? ABREV_DIA[inicio] : `${ABREV_DIA[inicio]}-${ABREV_DIA[fim]}`;
+      const rotulo =
+        inicio === fim ? locale.dias[inicio] : `${locale.dias[inicio]}-${locale.dias[fim]}`;
       return `${rotulo} ${texto}`;
     })
     .join(" · ");

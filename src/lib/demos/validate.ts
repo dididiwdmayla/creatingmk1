@@ -1,4 +1,5 @@
 import { ValidationError } from "@/lib/errors";
+import { IDIOMAS_SUPORTADOS } from "@/lib/idioma";
 import { getFonte } from "./fontes";
 import { getSkin } from "./registry";
 import { HEX_RE, TEMA_RAIOS } from "./tema";
@@ -393,15 +394,24 @@ export interface LeadDemoInput {
   themeId: string;
   dados: DemoDataPatch;
   tema?: TemaPatch;
+  /** Idioma-alvo da IA (sobrescrita manual do editor) — ver LeadDemo.idioma. */
+  idioma?: string;
 }
 
 export function validateLeadDemoInput(body: Record<string, unknown>): LeadDemoInput {
   const problemas: string[] = [];
 
   for (const chave of Object.keys(body)) {
-    if (!["skinId", "themeId", "dados", "tema"].includes(chave)) {
+    if (!["skinId", "themeId", "dados", "tema", "idioma"].includes(chave)) {
       problemas.push(`chave desconhecida: ${chave}`);
     }
+  }
+
+  if (
+    body.idioma !== undefined &&
+    (typeof body.idioma !== "string" || !IDIOMAS_SUPORTADOS.includes(body.idioma))
+  ) {
+    problemas.push(`idioma deve ser um de: ${IDIOMAS_SUPORTADOS.join(", ")}`);
   }
 
   const skin = typeof body.skinId === "string" ? getSkin(body.skinId) : undefined;
@@ -433,5 +443,6 @@ export function validateLeadDemoInput(body: Record<string, unknown>): LeadDemoIn
     themeId: body.themeId as string,
     dados,
     ...(tema && Object.keys(tema).length > 0 && { tema }),
+    ...(typeof body.idioma === "string" && { idioma: body.idioma }),
   };
 }

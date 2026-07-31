@@ -297,7 +297,13 @@ export const api = {
     request<{ lead: Lead }>(`/api/leads/${id}/horarios`, { method: "POST" }),
   putLeadDemo: (
     id: string,
-    demo: { skinId: string; themeId: string; dados: DemoDataPatch; tema?: TemaPatch },
+    demo: {
+      skinId: string;
+      themeId: string;
+      dados: DemoDataPatch;
+      tema?: TemaPatch;
+      idioma?: string;
+    },
   ) =>
     request<{ lead: Lead }>(`/api/leads/${id}/demo`, {
       method: "PUT",
@@ -349,10 +355,10 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ nivel }),
     }),
-  gerarSugestaoDemo: (id: string, skinId: string, nivel: NivelIA) =>
+  gerarSugestaoDemo: (id: string, skinId: string, nivel: NivelIA, idioma?: string) =>
     request<{ sugestao: SugestaoDemo }>(`/api/leads/${id}/demo/sugestao`, {
       method: "POST",
-      body: JSON.stringify({ skinId, nivel }),
+      body: JSON.stringify({ skinId, nivel, ...(idioma && { idioma }) }),
     }),
   deleteDemoVideo: (id: string, slot: string, skinId?: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/demo/videos`, {

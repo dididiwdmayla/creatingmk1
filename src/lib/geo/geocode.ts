@@ -1,7 +1,10 @@
 import { reserveQuota, type UsageCounts } from "@/lib/costs";
 import { ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
+import { idiomaDoPais } from "@/lib/idioma";
 import { PlacesError, requireApiKey, type LatLngRect } from "@/lib/places/client";
+
+export { IDIOMA_PADRAO, idiomaEhLusofono, idiomaLabel } from "@/lib/idioma";
 
 /**
  * Geocodificação da região da busca (Geocoding API), com cache permanente
@@ -46,79 +49,13 @@ function paisDoEndereco(endereco: string): string {
 }
 
 /**
- * Mapa país (nome em pt-BR, como o Google devolve) → idioma BCP-47 dos
- * textos gerados pela IA na demo. Só os países mais prováveis de aparecer
- * numa busca de prospecção; qualquer país fora da lista (incluindo Brasil)
- * cai no default pt-BR.
+ * Idioma-alvo a partir do país da REGIÃO geocodificada (mapa país→idioma
+ * em `@/lib/idioma`). Default "pt-BR" — inclui Brasil e qualquer país não
+ * mapeado. Ver também `@/lib/demos/idioma` para o idioma do LEAD
+ * específico (endereço do estabelecimento, não da região da busca).
  */
-const IDIOMA_POR_PAIS: Record<string, string> = {
-  portugal: "pt-PT",
-  angola: "pt-AO",
-  moçambique: "pt-MZ",
-  "estados unidos": "en-US",
-  "reino unido": "en-GB",
-  irlanda: "en-IE",
-  austrália: "en-AU",
-  "nova zelândia": "en-NZ",
-  canadá: "en-CA",
-  espanha: "es-ES",
-  méxico: "es-MX",
-  argentina: "es-AR",
-  chile: "es-CL",
-  colômbia: "es-CO",
-  peru: "es-PE",
-  uruguai: "es-UY",
-  paraguai: "es-PY",
-  bolívia: "es-BO",
-  equador: "es-EC",
-  venezuela: "es-VE",
-  "costa rica": "es-CR",
-  panamá: "es-PA",
-  guatemala: "es-GT",
-  honduras: "es-HN",
-  nicarágua: "es-NI",
-  "el salvador": "es-SV",
-  "república dominicana": "es-DO",
-  frança: "fr-FR",
-  bélgica: "fr-BE",
-  suíça: "de-CH",
-  alemanha: "de-DE",
-  áustria: "de-AT",
-  itália: "it-IT",
-  holanda: "nl-NL",
-  "países baixos": "nl-NL",
-};
-
-/** Default do idioma-alvo — Brasil e qualquer país não mapeado acima. */
-export const IDIOMA_PADRAO = "pt-BR";
-
-/** Default "pt-BR" — inclui Brasil e qualquer país não mapeado acima. */
 export function idiomaDoEndereco(endereco: string): string {
-  const pais = paisDoEndereco(endereco).toLowerCase();
-  return IDIOMA_POR_PAIS[pais] ?? IDIOMA_PADRAO;
-}
-
-/** true para pt-BR/pt-PT/pt-AO/pt-MZ — a busca não ganha dicas de idioma pra esses. */
-export function idiomaEhLusofono(idioma: string): boolean {
-  return idioma.startsWith("pt");
-}
-
-/** Rótulo em português do idioma-alvo (raiz do BCP-47; pt-BR tem rótulo próprio). */
-const IDIOMA_RAIZ_LABEL: Record<string, string> = {
-  pt: "português",
-  en: "inglês",
-  es: "espanhol",
-  fr: "francês",
-  de: "alemão",
-  it: "italiano",
-  nl: "holandês",
-};
-
-/** "português do Brasil" / "inglês" / "espanhol" etc. — usado nos prompts de IA e na UI. */
-export function idiomaLabel(idioma: string): string {
-  if (idioma === IDIOMA_PADRAO) return "português do Brasil";
-  const raiz = idioma.split("-")[0];
-  return IDIOMA_RAIZ_LABEL[raiz] ?? idioma;
+  return idiomaDoPais(paisDoEndereco(endereco));
 }
 
 /** ID do doc de cache: minúsculas, espaços colapsados, URL-encoded (sem "/"). */

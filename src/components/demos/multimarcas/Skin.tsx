@@ -64,11 +64,13 @@ const ANIM_HOVER_LIFT: Record<Animacao, string> = {
 };
 
 /**
- * Rótulo curto da nav por seção — estrutura fixa do template (como a
- * numeração "01/FILOSOFIA" de outras skins), DIFERENTE do `rotulo` de
- * `DemoSecao` (a etiqueta editorial em cima do título de cada seção, que
- * pode ser mais longa, ex.: "POR QUE A VÓRTICE"). Fiel ao material bruto,
- * cuja nav usava palavras curtas próprias, não o texto do olho da seção.
+ * Rótulo curto DEFAULT da nav por seção — estrutura do template (como a
+ * numeração "01/FILOSOFIA" de outras skins), usado só quando a seção não
+ * tem `rotulo` próprio definido (DemoSecao.rotulo, a etiqueta editorial em
+ * cima do título, ex.: "POR QUE A VÓRTICE"). `rotulo` vence este default
+ * quando presente — é conteúdo (slot da IA/editor, traduzível pro idioma
+ * do lead — ver "Idioma da IA na demo"), enquanto este mapa é só o
+ * fallback fiel ao material bruto para quem nunca editou a seção.
  */
 const NAV_LABEL: Record<string, string> = {
   estoque: "Estoque",
@@ -133,7 +135,7 @@ export function MultimarcasVortice({ data, theme }: SkinProps) {
 
   const navLinks: NavLink[] = visiveis
     .filter((id) => id !== "hero" && id !== "numeros")
-    .map((id) => ({ id, rotulo: NAV_LABEL[id] ?? s[id]?.titulo ?? id }));
+    .map((id) => ({ id, rotulo: s[id]?.rotulo ?? NAV_LABEL[id] ?? s[id]?.titulo ?? id }));
 
   const linkWaMain = waHref(data.whatsapp, `Olá! Vim pelo site da ${data.nome} e quero mais informações.`);
 

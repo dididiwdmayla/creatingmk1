@@ -173,4 +173,26 @@ describe("resumirHorarios", () => {
   it("sem faixas → undefined", () => {
     expect(resumirHorarios([])).toBeUndefined();
   });
+
+  it("locale de-CH: dias e hora em alemão/24h (determinístico, sem IA)", () => {
+    const faixas = [
+      ...[1, 2, 3, 4, 5].map((dia) => faixa(dia, 9, 20)),
+      faixa(6, 9, 18),
+    ];
+    expect(resumirHorarios(faixas, "de-CH")).toBe(
+      "MO-FR 09:00-20:00 · SA 09:00-18:00 · SO geschlossen",
+    );
+  });
+
+  it("locale de-CH: faixa dupla no mesmo dia (pausa de almoço)", () => {
+    const faixas = [1, 2, 3, 4, 5].flatMap((dia) => [faixa(dia, 9, 12), faixa(dia, 14, 18)]);
+    expect(resumirHorarios(faixas, "de-CH")).toBe(
+      "MO-FR 09:00-12:00/14:00-18:00 · SA-SO geschlossen",
+    );
+  });
+
+  it("sem idioma explícito, o default continua pt-BR (compat)", () => {
+    const faixas = [faixa(3, 14, 19)];
+    expect(resumirHorarios(faixas, "pt-BR")).toBe(resumirHorarios(faixas));
+  });
 });

@@ -394,6 +394,14 @@ export interface LeadDemo {
   dados: DemoDataPatch;
   /** Ajustes de tema por cima do preset (fontes, cor primária, raio, densidade). */
   tema?: TemaPatch;
+  /**
+   * Idioma-alvo (BCP-47) dos textos gerados pela IA — sobrescrita manual do
+   * seletor do editor por cima do default derivado do país do endereço do
+   * lead (ver `lib/demos/idioma.ts#idiomaPadraoDoLead`). Ausente = usa o
+   * default derivado (não precisa persistir o caso comum). Um de
+   * `IDIOMAS_SUPORTADOS` (`@/lib/idioma`).
+   */
+  idioma?: string;
   /** Primeiro save da demo — preservado entre edições (ver saveDemo em repo.ts). */
   criadoEm: string;
   /** Usuário do primeiro save — preservado entre edições (métricas por usuário). */
