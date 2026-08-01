@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { SESSION_COOKIE } from "@/lib/auth";
 import { classificarVisitaInterna, DEVICE_COOKIE } from "@/lib/device";
-import { getEfeitoComponenteDinamico } from "@/lib/demos/efeitos/dynamicComponents";
+import { EfeitoDinamico } from "@/lib/demos/efeitos/dynamicComponents";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
@@ -49,12 +49,19 @@ async function loadDemo(leadId: string) {
     lead.demo.tema?.fonteCorpo,
   ]);
   // Efeito de fundo (registro de efeitos) + intensidade — undefined cobre
-  // tanto "nenhum" quanto um id que não existe mais no registro.
-  const efeitoFundo = resolverEfeitoFundo(
-    theme.fundoEfeito,
-    lead.demo.tema?.fundoEfeitoIntensidade,
-    skin.nicho,
-  );
+  // tanto "nenhum" quanto um id que não existe mais no registro. Nunca deve
+  // derrubar a demo: um efeito é decoração opcional, a ficha/skin em si
+  // continuam válidas mesmo se a resolução do efeito falhar.
+  let efeitoFundo: ReturnType<typeof resolverEfeitoFundo> | undefined;
+  try {
+    efeitoFundo = resolverEfeitoFundo(
+      theme.fundoEfeito,
+      lead.demo.tema?.fundoEfeitoIntensidade,
+      skin.nicho,
+    );
+  } catch (error) {
+    console.error("[radar] falha ao resolver o efeito de fundo da demo:", error);
+  }
   return { skin, theme, data, extraFontClassName, efeitoFundo };
 }
 
@@ -125,20 +132,21 @@ export default async function DemoPage({ params, searchParams }: Props) {
   }
 
   const Skin = demo.skin.componente;
-  // Import dinâmico sem SSR (getEfeitoComponenteDinamico): o efeito nunca
-  // entra no HTML pré-renderizado nem atrasa o first paint — monta depois,
-  // no cliente, como uma camada decorativa por cima da skin já visível.
-  const EfeitoFundo = demo.efeitoFundo
-    ? getEfeitoComponenteDinamico(demo.efeitoFundo.efeito.id)
-    : undefined;
   return (
     <div className={`${demoCoreFontsClassName} ${demo.extraFontClassName}`}>
       <Skin data={demo.data} theme={demo.theme} />
-      {EfeitoFundo && demo.efeitoFundo && (
-        // EfeitoFundo vem de um lookup em mapa de componentes já criados
-        // (dynamicComponents.ts, module scope) — não é criado a cada render.
-        // eslint-disable-next-line react-hooks/static-components
-        <EfeitoFundo intensidade={demo.efeitoFundo.intensidade} cores={demo.theme.paleta} />
+      {demo.efeitoFundo && (
+        // EfeitoDinamico (client component) resolve E renderiza o efeito —
+        // nunca chamar getEfeitoComponenteDinamico direto aqui: é uma
+        // função comum exportada de um módulo "use client", e invocá-la
+        // como função (fora de JSX) a partir deste Server Component lança
+        // em runtime ("Attempted to call ... from the server"), derrubando
+        // a rota pública inteira. Ver dynamicComponents.tsx.
+        <EfeitoDinamico
+          id={demo.efeitoFundo.efeito.id}
+          intensidade={demo.efeitoFundo.intensidade}
+          cores={demo.theme.paleta}
+        />
       )}
       {visitaId && <VisitaTracker leadId={leadId} visitaId={visitaId} />}
     </div>
