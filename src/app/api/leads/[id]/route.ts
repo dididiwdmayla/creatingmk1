@@ -6,6 +6,7 @@ import { handleRouteError, readJsonBody } from "@/lib/http";
 import {
   ajustarVendidoPor,
   changeStatus,
+  envioTokenIncompleto,
   garantirEnvioToken,
   getLead,
   updateLeadExtras,
@@ -25,10 +26,11 @@ export async function GET(_req: Request, { params }: Params) {
     if (!lead) {
       throw new NotFoundError(`Lead "${id}" não encontrado.`);
     }
-    // Self-heal: garante o token de envio ANTES de responder — a ficha
-    // monta o link do WhatsApp com {demo} direto do que este GET devolve,
-    // sem fetch algum no clique (bloqueio de popup em mobile).
-    if (lead.demo && (!lead.demo.envios || lead.demo.envios.length === 0)) {
+    // Self-heal: garante o token de envio de CADA canal ANTES de
+    // responder — a ficha monta o link do WhatsApp com {demo} e o de
+    // "Copiar link" direto do que este GET devolve, sem fetch algum no
+    // clique (bloqueio de popup em mobile para o primeiro).
+    if (envioTokenIncompleto(lead)) {
       lead = await garantirEnvioToken(db, id);
     }
     return NextResponse.json({ lead });

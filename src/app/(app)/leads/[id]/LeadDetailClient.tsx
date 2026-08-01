@@ -15,7 +15,7 @@ import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import type { UsoUsuario } from "@/lib/costs";
-import { envioVigente } from "@/lib/demos/envio";
+import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { formatDateTime, formatDuracao } from "@/lib/format";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
@@ -211,7 +211,12 @@ export function LeadDetailClient({ id }: { id: string }) {
 
   async function handleCopyDemoLink() {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/demo/${id}`);
+      // Canal "link", separado do "whatsapp" — copiar o link não queima o
+      // token que já pode estar na mensagem de WhatsApp montada (ver
+      // EnvioDemo.canal em lib/demos/types.ts).
+      const tokenLink = lead ? envioVigente(lead.demo, "link")?.token : undefined;
+      const url = demoUrlComToken(window.location.origin, id, tokenLink);
+      await navigator.clipboard.writeText(url);
       setDemoAviso("Link copiado!");
       setDemoErro(null);
     } catch {
@@ -268,11 +273,11 @@ export function LeadDetailClient({ id }: { id: string }) {
   // Telefone da busca qualificada já sustenta o botão — sem enriquecer.
   const telefoneIntl = detalhes?.telefoneIntl ?? lead.telefoneIntl;
   // Só renderiza com lead carregado (client), então window existe.
-  // "Copiar link"/"Abrir demo" sempre usam a URL sem token — só a
-  // variável {demo} da mensagem carrega o token do envio vigente, já
-  // pronto no GET do lead (sem fetch no clique).
+  // "Abrir demo" (preview) sempre usa a URL sem token. "Copiar link" e a
+  // variável {demo} da mensagem de WhatsApp usam, cada um, o token vigente
+  // do seu próprio canal — já prontos no GET do lead (sem fetch no clique).
   const demoUrl = `${window.location.origin}/demo/${lead.placeId}`;
-  const tokenVigente = envioVigente(lead.demo)?.token;
+  const tokenVigente = envioVigente(lead.demo, "whatsapp")?.token;
   const demoUrlParaEnvio = tokenVigente ? `${demoUrl}?t=${tokenVigente}` : demoUrl;
   const skinAtual = getSkin(lead.demo?.skinId);
   // Timeline: só visitas de fora do time (preview do próprio time não conta

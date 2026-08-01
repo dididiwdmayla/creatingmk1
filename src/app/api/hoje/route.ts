@@ -6,7 +6,7 @@ import { UnauthorizedError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError } from "@/lib/http";
 import { montarFilaDoDia } from "@/lib/leads/hoje";
-import { garantirEnvioToken, listLeads } from "@/lib/leads/repo";
+import { envioTokenIncompleto, garantirEnvioToken, listLeads } from "@/lib/leads/repo";
 import type { Lead } from "@/lib/leads/types";
 import { carimbarVisita, usuarioDaRequest } from "@/lib/usuarios";
 
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
       ...fila.demosParadas,
       ...fila.abriramNaoResponderam,
     ]) {
-      if (lead.demo && (!lead.demo.envios || lead.demo.envios.length === 0)) {
+      if (envioTokenIncompleto(lead)) {
         semToken.set(lead.placeId, lead);
       }
     }

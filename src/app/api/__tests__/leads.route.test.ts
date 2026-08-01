@@ -274,10 +274,15 @@ describe("GET /api/leads/[id]", () => {
 
     expect(res.status).toBe(200);
     const { lead } = await res.json();
-    expect(lead.demo.envios).toHaveLength(1);
-    expect(lead.demo.envios[0].token).toBeTruthy();
+    // Um token vigente por canal (link + whatsapp).
+    expect(lead.demo.envios).toHaveLength(2);
+    expect(lead.demo.envios.map((e: { canal: string }) => e.canal).sort()).toEqual([
+      "link",
+      "whatsapp",
+    ]);
+    expect(lead.demo.envios.every((e: { token: string }) => e.token)).toBe(true);
     expect((db.getDoc("leads/D")?.demo as { envios?: unknown[] } | undefined)?.envios).toHaveLength(
-      1,
+      2,
     );
   });
 });

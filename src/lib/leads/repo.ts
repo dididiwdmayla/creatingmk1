@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import type { FiltroPresenca } from "@/lib/config";
-import { gerarEnvioToken } from "@/lib/demos/envio";
-import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
+import { canalDoEnvio, envioVigente, gerarEnvioToken } from "@/lib/demos/envio";
+import { ENVIO_CANAIS, type DemoDataPatch, type EnvioDemo, type TemaPatch } from "@/lib/demos/types";
 import { InvalidTransitionError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import type { DetalhesLugar, HorariosLugar, PlaceBasico } from "@/lib/places/client";
@@ -320,6 +320,27 @@ export async function updateLeadExtras(
   return updated;
 }
 
+/**
+ * Garante um token vigente para CADA canal (link/whatsapp) — gera só os que
+ * faltarem, preserva os já existentes (self-heal incremental; idempotente).
+ * Entradas antigas sem `canal` contam como "whatsapp" (ver canalDoEnvio).
+ */
+function garantirEnviosCanais(envios: EnvioDemo[], geradoEm: string): EnvioDemo[] {
+  const faltando = ENVIO_CANAIS.filter(
+    (canal) => !envios.some((envio) => canalDoEnvio(envio) === canal),
+  );
+  if (faltando.length === 0) return envios;
+  const novos = faltando.map((canal) => ({ token: gerarEnvioToken(), geradoEm, canal }));
+  return [...novos, ...envios];
+}
+
+/** True quando falta o token vigente de algum canal — dispara self-heal na leitura. */
+export function envioTokenIncompleto(lead: Lead): boolean {
+  if (!lead.demo) return false;
+  const envios = lead.demo.envios ?? [];
+  return ENVIO_CANAIS.some((canal) => !envios.some((envio) => canalDoEnvio(envio) === canal));
+}
+
 /** Salva a configuração da demo do lead (Forja de Demos). */
 export async function saveDemo(
   db: AppDb,
@@ -338,12 +359,9 @@ export async function saveDemo(
   const em = now.toISOString();
   // criadoEm/criadoPor são do PRIMEIRO save; edições seguintes preservam.
   const criadoPor = lead.demo?.criadoEm ? lead.demo.criadoPor : userId;
-  // O primeiro token de envio nasce junto da demo (self-heal se por algum
-  // motivo uma demo antiga chegasse aqui sem `envios` — ver envio.ts).
-  const envios =
-    lead.demo?.envios && lead.demo.envios.length > 0
-      ? lead.demo.envios
-      : [{ token: gerarEnvioToken(), geradoEm: em }];
+  // Os tokens de envio (um por canal) nascem junto da demo (self-heal se
+  // por algum motivo uma demo antiga chegasse aqui sem algum — ver envio.ts).
+  const envios = garantirEnviosCanais(lead.demo?.envios ?? [], em);
   const updated: Lead = {
     ...lead,
     demo: {
@@ -360,10 +378,12 @@ export async function saveDemo(
 }
 
 /**
- * Garante que o lead com demo tenha ao menos um token de envio (self-heal
- * para demos salvas antes desta feature) — chamado no GET da ficha, nunca
- * no clique: o valor precisa já estar pronto quando a página monta o link
- * do WhatsApp (bloqueio de popup em fetch-no-clique).
+ * Garante que o lead com demo tenha um token vigente de CADA canal
+ * (self-heal para demos salvas antes desta feature, ou de antes do canal
+ * "link" existir) — chamado no GET da ficha/fila/lista, nunca no clique: o
+ * valor precisa já estar pronto quando a página monta o link do WhatsApp
+ * ou o de "Copiar link" (bloqueio de popup em fetch-no-clique para o
+ * primeiro; consistência simples para o segundo).
  */
 export async function garantirEnvioToken(
   db: AppDb,
@@ -371,12 +391,12 @@ export async function garantirEnvioToken(
   now: Date = new Date(),
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
-  if (!lead.demo || (lead.demo.envios && lead.demo.envios.length > 0)) return lead;
+  if (!lead.demo || !envioTokenIncompleto(lead)) return lead;
   const updated: Lead = {
     ...lead,
     demo: {
       ...lead.demo,
-      envios: [{ token: gerarEnvioToken(), geradoEm: now.toISOString() }],
+      envios: garantirEnviosCanais(lead.demo.envios ?? [], now.toISOString()),
     },
   };
   await docRef(db, placeId).set(toDoc(updated));
@@ -385,13 +405,15 @@ export async function garantirEnvioToken(
 
 /**
  * Registra uma visita à demo pública (rota /demo/{leadId}, chamada pelo
- * Server Component a cada carregamento COM `?t=` na URL — sem token, é
- * "Copiar link"/"Abrir demo" e não vira visita). Se o token bater o envio
- * VIGENTE e a visita não for interna, consome o envio: gera o próximo
- * token, empurrado para o início de `envios` (o antigo continua no
- * histórico, então revisitas do mesmo link antigo ainda resolvem o envio
- * correto). QA interno (cookie de sessão válido no navegador) nunca
- * consome o token vigente — não queima o envio real antes do lead abrir.
+ * Server Component a cada carregamento COM `?t=` na URL — sem token, é o
+ * "Abrir demo" do EDITOR (preview durante a edição) e não vira visita). Se
+ * o token bater o envio VIGENTE **do mesmo canal** e a visita não for
+ * interna, consome o envio: gera o próximo token DAQUELE canal, empurrado
+ * para o início de `envios` (o antigo continua no histórico, então
+ * revisitas do mesmo link antigo ainda resolvem o envio e o canal
+ * corretos). QA interno (cookie de sessão válido no navegador ou marcador
+ * de dispositivo — ver classificarVisitaInterna) nunca consome o token
+ * vigente — não queima o envio real antes do lead abrir.
  */
 export async function registrarVisitaDemo(
   db: AppDb,
@@ -410,17 +432,25 @@ export async function registrarVisitaDemo(
   const em = now.toISOString();
   const envios = lead.demo.envios ?? [];
   const envioCorrespondente = envios.find((envio) => envio.token === opts.token);
+  const canalCorrespondente = envioCorrespondente ? canalDoEnvio(envioCorrespondente) : undefined;
   const visita: DemoVisita = {
     id: randomUUID(),
     em,
     interna: opts.interna,
     ...(envioCorrespondente && { envioEm: envioCorrespondente.geradoEm }),
+    ...(canalCorrespondente && { canal: canalCorrespondente }),
     ...(opts.geo && { geo: opts.geo }),
   };
 
-  const vigente = envios[0];
-  const consome = !opts.interna && vigente !== undefined && vigente.token === opts.token;
-  const novosEnvios = consome ? [{ token: gerarEnvioToken(), geradoEm: em }, ...envios] : envios;
+  // Vigente é POR CANAL: um link copiado não queima o token do WhatsApp e
+  // vice-versa (ver EnvioDemo.canal em lib/demos/types.ts).
+  const vigenteDoCanal = canalCorrespondente
+    ? envioVigente({ envios }, canalCorrespondente)
+    : undefined;
+  const consome = !opts.interna && vigenteDoCanal !== undefined && vigenteDoCanal.token === opts.token;
+  const novosEnvios = consome
+    ? [{ token: gerarEnvioToken(), geradoEm: em, canal: canalCorrespondente! }, ...envios]
+    : envios;
 
   const updated: Lead = {
     ...lead,

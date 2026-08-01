@@ -397,10 +397,28 @@ export interface SkinDefinition {
  */
 export type DemoDataPatch = Partial<DemoData>;
 
+/**
+ * Canal pelo qual um token de envio é disponibilizado — ver `EnvioDemo.canal`.
+ * Cada canal mantém seu próprio token "vigente", consumido de forma
+ * independente (ver `envioVigente` em ./envio.ts e `registrarVisitaDemo` em
+ * lib/leads/repo.ts): copiar o link não queima o token que está na mensagem
+ * de WhatsApp já montada, e vice-versa.
+ */
+export type EnvioCanal = "link" | "whatsapp";
+
+export const ENVIO_CANAIS: readonly EnvioCanal[] = ["link", "whatsapp"];
+
 /** Um token de envio gerado — ver `LeadDemo.envios`. */
 export interface EnvioDemo {
   token: string;
   geradoEm: string;
+  /**
+   * Canal que gerou este token ("Copiar link" da ficha/lista de demos vs.
+   * botão "Chamar no WhatsApp"). Entradas gravadas ANTES desta feature não
+   * têm o campo — tratadas como "whatsapp" na leitura (era o único canal
+   * que de fato usava token antes; ver `canalDoEnvio` em lib/leads/repo.ts).
+   */
+  canal: EnvioCanal;
 }
 
 /** Configuração da demo de um lead (campo `demo` do doc /leads/{id}). */
@@ -424,16 +442,22 @@ export interface LeadDemo {
   criadoPor?: string;
   atualizadoEm: string;
   /**
-   * Histórico de tokens do envio (mais recente = vigente, primeiro do
-   * array). A variável `{demo}` da mensagem de WhatsApp resolve para a URL
-   * pública com `?t=` do token vigente — montada já no carregamento da
-   * ficha, nunca por um fetch no clique (bloqueio de popup em mobile). Uma
-   * visita não-interna que bate o token vigente "consome" o envio e
-   * empurra um token novo para o início (ver lib/demos/envio.ts e
-   * registrarVisitaDemo em lib/leads/repo.ts); `geradoEm` de cada entrada é
-   * a data do "envio" mostrada na timeline de visitas. "Copiar link" e
-   * "Abrir demo" sempre usam a URL SEM token. Ausente = nunca gerado
-   * (demos de antes desta feature — self-heal no próximo save/leitura).
+   * Histórico de tokens de envio, de TODOS os canais misturados no mesmo
+   * array (mais recente primeiro); o "vigente" de um canal é a entrada mais
+   * recente com aquele `canal` (ver `envioVigente(demo, canal)` em
+   * ./envio.ts). O botão "Copiar link" (ficha e lista de demos) usa o
+   * vigente do canal `"link"`; a variável `{demo}` da mensagem de WhatsApp
+   * usa o vigente do canal `"whatsapp"` — cada canal consome (rotaciona)
+   * seu próprio token independentemente, montado já no carregamento da
+   * página, nunca por um fetch no clique (bloqueio de popup em mobile). Uma
+   * visita não-interna que bate o token vigente do seu canal "consome" o
+   * envio e empurra um token novo (mesmo canal) para o início (ver
+   * lib/demos/envio.ts e registrarVisitaDemo em lib/leads/repo.ts);
+   * `geradoEm` de cada entrada é a data do "envio" mostrada na timeline de
+   * visitas. "Abrir demo" do EDITOR (preview durante a edição) é o único
+   * link que continua sem token, de propósito — evita registrar uma visita
+   * a cada refresh de preview. Ausente = nunca gerado (demos de antes desta
+   * feature — self-heal no próximo save/leitura, ver garantirEnvioToken).
    */
   envios?: EnvioDemo[];
 }

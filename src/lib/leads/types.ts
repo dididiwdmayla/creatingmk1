@@ -1,4 +1,4 @@
-import type { LeadDemo } from "@/lib/demos/types";
+import type { EnvioCanal, LeadDemo } from "@/lib/demos/types";
 import type { DetalhesLugar, FaixaHorario } from "@/lib/places/client";
 
 export const LEADS_COLLECTION = "leads";
@@ -134,6 +134,8 @@ export interface DemoVisita {
    * de uma exclusão/recriação da demo).
    */
   envioEm?: string;
+  /** Canal do envio correspondente (ver `envioEm`) — mesma ausência-condição. */
+  canal?: EnvioCanal;
   duracaoSegundos?: number;
   /** 0–100, maior profundidade de scroll atingida na visita. */
   scrollPercent?: number;

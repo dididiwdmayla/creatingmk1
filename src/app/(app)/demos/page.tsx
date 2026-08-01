@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { ApiError, api } from "@/lib/api-client";
+import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getSkin } from "@/lib/demos/registry";
 import { formatDateTime, formatTempoRelativo } from "@/lib/format";
 import { ultimaAberturaNaoInterna } from "@/lib/leads/hoje";
@@ -46,11 +47,15 @@ export default function DemosPage() {
     };
   }, []);
 
-  async function copiarLink(id: string) {
+  async function copiarLink(lead: Lead) {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/demo/${id}`);
-      setCopiado(id);
-      setTimeout(() => setCopiado((atual) => (atual === id ? null : atual)), 2000);
+      // Canal "link" — independente do token que possa estar numa mensagem
+      // de WhatsApp já montada pra este mesmo lead (ver EnvioDemo.canal).
+      const token = envioVigente(lead.demo, "link")?.token;
+      const url = demoUrlComToken(window.location.origin, lead.placeId, token);
+      await navigator.clipboard.writeText(url);
+      setCopiado(lead.placeId);
+      setTimeout(() => setCopiado((atual) => (atual === lead.placeId ? null : atual)), 2000);
     } catch {
       setErro("Não deu pra copiar — copie da barra de endereço da demo.");
     }
@@ -147,7 +152,7 @@ export default function DemosPage() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => copiarLink(lead.placeId)}
+                  onClick={() => copiarLink(lead)}
                   className="text-xs text-ink-muted hover:text-foreground"
                 >
                   {copiado === lead.placeId ? "Copiado!" : "Copiar link"}
