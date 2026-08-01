@@ -4,22 +4,23 @@ import { useEffect, useRef } from "react";
 
 import type { EfeitoProps } from "../types";
 import { useEfeitoAtivo } from "../useEfeitoAtivo";
+import { alvoPonteiro, alvoScroll, deriva, fatorLerp, lerpPonto } from "./alvo";
 
 /**
  * Dois blobs de gradiente radial com blur assado (filter fixo, NUNCA
  * animado — só transform muda a cada frame) misturados por
  * mix-blend-mode. No desktop (pointer:fine) o alvo segue o ponteiro; no
- * celular segue o progresso de scroll da página somado a uma deriva lenta
- * autônoma (senoidal), pra não morrer parado enquanto o usuário não rola.
- * Interpolação (lerp) suaviza o movimento em direção ao alvo.
+ * celular o alvo é o CENTRO da viewport, deslocado pelo progresso de
+ * scroll e somado a uma deriva lenta autônoma (senoidal), pra não morrer
+ * parado enquanto o usuário não rola nem move o dedo. Interpolação (lerp)
+ * suaviza o movimento em direção ao alvo — nunca posição colada. Matemática
+ * do alvo isolada em ./alvo.ts (testável sem DOM).
  *
  * A posição é escrita direto no DOM via ref a cada frame (nunca via
  * estado React) — mesmo padrão de custo baixo do LedEdges. O loop só
  * avança quando `ativo` (viewport + aba + sem pausa externa); reduced
  * motion nem registra listener/rAF, só posiciona os blobs uma vez.
  */
-const ESCALA_POR_INTENSIDADE: Record<1 | 2 | 3, number> = { 1: 0.55, 2: 0.8, 3: 1 };
-const DERIVA_VELOCIDADE = 0.00012; // rad/ms — deriva lenta autônoma no celular
 
 export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,21 +48,17 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
     }
 
     const isDesktop = window.matchMedia("(pointer: fine)").matches;
-    const target = { x: 0, y: 0 };
-    const current1 = { x: -10, y: -10 };
-    const current2 = { x: 10, y: 10 };
+    let target = { x: 0, y: 0 };
+    let current1 = { x: -10, y: -10 };
+    let current2 = { x: 10, y: 10 };
 
     function onPointerMove(event: PointerEvent) {
-      const rect = container!.getBoundingClientRect();
-      target.x = ((event.clientX - rect.left) / rect.width - 0.5) * 40;
-      target.y = ((event.clientY - rect.top) / rect.height - 0.5) * 40;
+      target = alvoPonteiro(event.clientX, event.clientY, container!.getBoundingClientRect());
     }
 
     function onScroll() {
       const max = document.documentElement.scrollHeight - window.innerHeight;
-      const pct = max > 0 ? window.scrollY / max : 0;
-      target.x = (pct - 0.5) * 30;
-      target.y = (pct - 0.5) * 30;
+      target = alvoScroll(window.scrollY, max);
     }
 
     if (isDesktop) {
@@ -71,24 +68,21 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
       window.addEventListener("scroll", onScroll, { passive: true });
     }
 
-    const lerp = ESCALA_POR_INTENSIDADE[intensidade] * 0.06 + 0.02;
+    const lerp = fatorLerp(intensidade);
     let raf = 0;
 
     function tick(now: number) {
       raf = requestAnimationFrame(tick);
       if (!ativoRef.current) return; // pausado: congela na última posição
 
-      let tx = target.x;
-      let ty = target.y;
+      let alvo = target;
       if (!isDesktop) {
-        tx += Math.sin(now * DERIVA_VELOCIDADE) * 8;
-        ty += Math.cos(now * DERIVA_VELOCIDADE * 0.7) * 8;
+        const d = deriva(now);
+        alvo = { x: target.x + d.x, y: target.y + d.y };
       }
 
-      current1.x += (tx - current1.x) * lerp;
-      current1.y += (ty - current1.y) * lerp;
-      current2.x += (-tx - current2.x) * lerp;
-      current2.y += (-ty - current2.y) * lerp;
+      current1 = lerpPonto(current1, alvo, lerp);
+      current2 = lerpPonto(current2, { x: -alvo.x, y: -alvo.y }, lerp);
 
       blob1!.style.transform = `translate3d(${current1.x}%, ${current1.y}%, 0)`;
       blob2!.style.transform = `translate3d(${current2.x}%, ${current2.y}%, 0)`;
