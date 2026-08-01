@@ -8,7 +8,7 @@ import { handleRouteError } from "@/lib/http";
 import { montarFilaDoDia } from "@/lib/leads/hoje";
 import { envioTokenIncompleto, garantirEnvioToken, listLeads } from "@/lib/leads/repo";
 import type { Lead } from "@/lib/leads/types";
-import { carimbarVisita, usuarioDaRequest } from "@/lib/usuarios";
+import { carimbarVisita, getProgressoMetaUsuario, usuarioDaRequest } from "@/lib/usuarios";
 
 /**
  * Fila do dia. O delta de "novos" é POR USUÁRIO: a seção usa o carimbo
@@ -36,6 +36,7 @@ export async function GET(req: Request) {
       now,
     });
     await carimbarVisita(db, usuario.id, now);
+    const metaProspeccao = await getProgressoMetaUsuario(db, usuario.id, usuario.metas, now);
 
     // Self-heal do token de envio: o link do WhatsApp com {demo} é montado
     // aqui, sem fetch no clique — precisa do token já pronto na resposta.
@@ -70,6 +71,8 @@ export async function GET(req: Request) {
       /** Carimbo usado no delta (null = primeira visita do usuário). */
       novosDesde: usuario.ultimaVisitaEm ?? null,
       followUpDias: config.followUpDias,
+      /** Meta de prospecção do PRÓPRIO usuário logado — só entra `meta` na janela configurada. */
+      metaProspeccao,
       /** Para o botão WhatsApp e o badge da busca de origem, sem outra chamada. */
       mensagemPadrao: config.mensagemPadrao,
       buscas: buscas.map(({ id, nome, cor, mensagemPadrao, nicho, regiao, penetracao }) => ({

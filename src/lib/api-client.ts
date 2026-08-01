@@ -10,7 +10,8 @@ import type { PenetracaoSite } from "@/lib/leads/penetracao";
 import type { Metrics, MetricsUsuario } from "@/lib/leads/metrics";
 import type { ConversaResumo, Mensagem } from "@/lib/mensagens/types";
 import type { RegiaoIndice } from "@/lib/regioes";
-import type { LimitesUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
+import type { ProgressoMetas } from "@/lib/usuarios/metas";
+import type { LimitesUsuario, MetasUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
 
 /** Espelha o formato de erro padrão das rotas (ver ARCHITECTURE.md). */
 export class ApiError extends Error {
@@ -82,6 +83,21 @@ export interface CotasUsuariosResponse {
   }>;
 }
 
+/**
+ * Tabela do painel admin (/config): meta × progresso de prospecção de cada
+ * usuário. Mesma resposta alimenta a visão consolidada do time no painel.
+ */
+export interface MetasUsuariosResponse {
+  usuarios: Array<{
+    id: string;
+    nome: string;
+    papel: Papel;
+    ativo: boolean;
+    metas: MetasUsuario;
+    prospeccao: ProgressoMetas;
+  }>;
+}
+
 /** Métricas + (para admin) rollup de ações-chave por usuário. */
 export type MetricsResponse = Metrics & {
   porUsuario?: Array<{ userId: string; nome: string } & MetricsUsuario>;
@@ -123,6 +139,8 @@ export interface HojeResponse {
   followUpDias: number;
   /** Mensagem global do WhatsApp (fallback quando o grupo não tem própria). */
   mensagemPadrao: string;
+  /** Meta de prospecção do PRÓPRIO usuário logado (dia/semana); janela sem `meta` não exibe nada. */
+  metaProspeccao: ProgressoMetas;
   buscas: Array<{
     id: string;
     nome: string;
@@ -182,6 +200,8 @@ export const api = {
       senha?: string;
       /** number seta o limite; null limpa (sem limite naquela janela). */
       limites?: Partial<Record<keyof LimitesUsuario, number | null>>;
+      /** number seta a meta; null limpa (sem meta naquela janela). */
+      metas?: Partial<Record<keyof MetasUsuario, number | null>>;
     },
   ) =>
     request<{ usuario: UsuarioPublico }>(`/api/usuarios/${id}`, {
@@ -191,6 +211,7 @@ export const api = {
   zerarCotaDiaUsuario: (id: string) =>
     request<void>(`/api/usuarios/${id}/zerar-dia`, { method: "POST" }),
   getCotasUsuarios: () => request<CotasUsuariosResponse>("/api/usuarios/cotas"),
+  getMetasUsuarios: () => request<MetasUsuariosResponse>("/api/usuarios/metas"),
 
   getConfig: () => request<{ config: AppConfig }>("/api/config"),
   putConfig: (patch: Partial<AppConfig>) =>

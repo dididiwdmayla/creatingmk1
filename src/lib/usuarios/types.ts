@@ -31,6 +31,23 @@ export const CAMPOS_LIMITE_USUARIO = [
 ] as const satisfies readonly (keyof LimitesUsuario)[];
 
 /**
+ * Meta de prospecção por integrante (opcional, dia/semana — sem mês: é
+ * indicador de ritmo, não teto de custo). "Prospecção" reaproveita o
+ * contador `buscas` de usage_users (cada busca executada é uma prospecção
+ * nova) — mesma convenção de fuso/semana das cotas individuais
+ * (America/Sao_Paulo, semana começa na segunda). Nunca bloqueia nada.
+ */
+export interface MetasUsuario {
+  prospeccoesDia?: number;
+  prospeccoesSemana?: number;
+}
+
+export const CAMPOS_META_USUARIO = [
+  "prospeccoesDia",
+  "prospeccoesSemana",
+] as const satisfies readonly (keyof MetasUsuario)[];
+
+/**
  * Um usuário do app (coleção /usuarios). O seed inicial (primeiro login
  * após a migração) cria o admin — com a APP_PASSWORD atual como senha — e
  * dois membros SEM senha (o admin define via /config). Usuário sem
@@ -59,6 +76,8 @@ export interface Usuario {
   ultimaVisitaEm?: string;
   /** Cotas individuais de buscas/enriquecimentos. Ausente = sem limite algum. */
   limites?: LimitesUsuario;
+  /** Meta de prospecção (dia/semana), definida pelo admin. Ausente = sem meta. */
+  metas?: MetasUsuario;
   /**
    * Última posição do slider da calculadora de precificação (700–10.000,
    * BRL) — self-service, atualizado pelo próprio PUT /api/precificacao/slider

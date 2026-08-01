@@ -5,40 +5,57 @@ import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, readJsonBody } from "@/lib/http";
 import {
   CAMPOS_LIMITE_USUARIO,
+  CAMPOS_META_USUARIO,
   PAPEIS,
   atualizarUsuario,
   excluirUsuario,
   publico,
   requireAdmin,
   type LimitesPatch,
+  type MetasPatch,
   type Papel,
 } from "@/lib/usuarios";
 
-function validarLimites(valor: unknown, problemas: string[]): LimitesPatch | undefined {
+/** Valida um patch numérico genérico (number ≥ 0 seta, null limpa) contra a lista de campos conhecidos. */
+function validarPatchNumerico<T extends string>(
+  valor: unknown,
+  campos: readonly T[],
+  chaveBody: string,
+  rotuloCampo: string,
+  problemas: string[],
+): Partial<Record<T, number | null>> | undefined {
   if (valor === undefined) return undefined;
   if (typeof valor !== "object" || valor === null || Array.isArray(valor)) {
-    problemas.push("limites deve ser um objeto");
+    problemas.push(`${chaveBody} deve ser um objeto`);
     return undefined;
   }
   const obj = valor as Record<string, unknown>;
   for (const chave of Object.keys(obj)) {
-    if (!(CAMPOS_LIMITE_USUARIO as readonly string[]).includes(chave)) {
-      problemas.push(`limites.${chave} não é um campo de limite conhecido`);
+    if (!(campos as readonly string[]).includes(chave)) {
+      problemas.push(`${chaveBody}.${chave} não é um campo de ${rotuloCampo} conhecido`);
     }
   }
-  const limites: LimitesPatch = {};
-  for (const campo of CAMPOS_LIMITE_USUARIO) {
+  const resultado: Partial<Record<T, number | null>> = {};
+  for (const campo of campos) {
     const v = obj[campo];
     if (v === undefined) continue;
     if (v === null) {
-      limites[campo] = null;
+      resultado[campo] = null;
     } else if (typeof v === "number" && Number.isInteger(v) && v >= 0) {
-      limites[campo] = v;
+      resultado[campo] = v;
     } else {
-      problemas.push(`limites.${campo} deve ser inteiro ≥ 0 ou null (sem limite)`);
+      problemas.push(`${chaveBody}.${campo} deve ser inteiro ≥ 0 ou null (sem limite)`);
     }
   }
-  return limites;
+  return resultado;
+}
+
+function validarLimites(valor: unknown, problemas: string[]): LimitesPatch | undefined {
+  return validarPatchNumerico(valor, CAMPOS_LIMITE_USUARIO, "limites", "limite", problemas);
+}
+
+function validarMetas(valor: unknown, problemas: string[]): MetasPatch | undefined {
+  return validarPatchNumerico(valor, CAMPOS_META_USUARIO, "metas", "meta", problemas);
 }
 
 type Params = { params: Promise<{ id: string }> };
@@ -57,15 +74,16 @@ export async function PATCH(req: Request, { params }: Params) {
     const body = await readJsonBody(req);
 
     const problemas: string[] = [];
-    const { nome, papel, ativo, senha, limites } = body;
+    const { nome, papel, ativo, senha, limites, metas } = body;
     if (
       nome === undefined &&
       papel === undefined &&
       ativo === undefined &&
       senha === undefined &&
-      limites === undefined
+      limites === undefined &&
+      metas === undefined
     ) {
-      problemas.push("informe ao menos um de: nome, papel, ativo, senha, limites");
+      problemas.push("informe ao menos um de: nome, papel, ativo, senha, limites, metas");
     }
     if (nome !== undefined && typeof nome !== "string") problemas.push("nome deve ser string");
     if (papel !== undefined && !(PAPEIS as readonly unknown[]).includes(papel)) {
@@ -76,11 +94,12 @@ export async function PATCH(req: Request, { params }: Params) {
     }
     if (senha !== undefined && typeof senha !== "string") problemas.push("senha deve ser string");
     for (const chave of Object.keys(body)) {
-      if (!["nome", "papel", "ativo", "senha", "limites"].includes(chave)) {
+      if (!["nome", "papel", "ativo", "senha", "limites", "metas"].includes(chave)) {
         problemas.push(`chave desconhecida: ${chave}`);
       }
     }
     const limitesPatch = validarLimites(limites, problemas);
+    const metasPatch = validarMetas(metas, problemas);
     if (problemas.length > 0) throw new ValidationError(problemas);
 
     const usuario = await atualizarUsuario(db, id, {
@@ -89,6 +108,7 @@ export async function PATCH(req: Request, { params }: Params) {
       ativo: ativo as boolean | undefined,
       senha: senha as string | undefined,
       limites: limitesPatch,
+      metas: metasPatch,
     });
     return NextResponse.json({ usuario: publico(usuario) });
   } catch (error) {
