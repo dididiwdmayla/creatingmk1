@@ -1,4 +1,4 @@
-import type { Animacao, FundoEfeito } from "@/lib/demos/types";
+import type { Animacao } from "@/lib/demos/types";
 
 /**
  * Efeito sutil de fundo do tema (Theme.fundoEfeito): overlay fixo,
@@ -21,7 +21,7 @@ export function BackgroundEffect({
   efeito,
   animacao,
 }: {
-  efeito: FundoEfeito;
+  efeito: string;
   animacao: Animacao;
 }) {
   if (efeito === "nenhum" || animacao === "nenhuma") return null;

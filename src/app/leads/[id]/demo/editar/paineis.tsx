@@ -4,6 +4,8 @@ import Image from "next/image";
 import { Reorder, useDragControls } from "motion/react";
 import { useRef, type ChangeEvent, type ReactNode } from "react";
 
+import { EFEITOS, getEfeito, intensidadePadrao } from "@/lib/demos/efeitos/registry";
+import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { ordemEfetiva } from "@/lib/demos/estrutura";
 import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
@@ -18,7 +20,6 @@ import type {
   DemoData,
   DemoItem,
   Densidade,
-  FundoEfeito,
   HoverEstilo,
   LedPreset,
   SkinDefinition,
@@ -682,10 +683,15 @@ const CLIQUES: Array<{ id: CliqueEstilo; rotulo: string }> = [
   { id: "pulso", rotulo: "Pulso" },
 ];
 
-const FUNDOS: Array<{ id: FundoEfeito; rotulo: string }> = [
+/**
+ * Opções do seletor "Efeito de fundo": montadas a partir do registro de
+ * efeitos (`src/lib/demos/efeitos/registry.ts`), não de uma lista fixa —
+ * um efeito novo no registro aparece aqui sem tocar o editor. "Nenhum"
+ * continua fixo no topo (não é um efeito do registro).
+ */
+const FUNDOS: Array<{ id: string; rotulo: string }> = [
   { id: "nenhum", rotulo: "Nenhum" },
-  { id: "gradiente", rotulo: "Gradiente animado" },
-  { id: "particulas", rotulo: "Partículas" },
+  ...EFEITOS.map((efeito) => ({ id: efeito.id, rotulo: efeito.nome })),
 ];
 
 const LEDS: Array<{ id: LedPreset; rotulo: string }> = [

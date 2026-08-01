@@ -1,13 +1,18 @@
+import { getEfeito } from "./efeitos/registry";
 import { getFonte } from "./fontes";
 import {
   ALINHAMENTOS,
   CLIQUE_ESTILOS,
-  FUNDO_EFEITOS,
   HOVER_ESTILOS,
   LED_PRESETS,
   type TemaPatch,
   type Theme,
 } from "./types";
+
+/** "nenhum" (desligado) ou id de um efeito existente no registro (ver ./efeitos/registry.ts). */
+function fundoEfeitoValido(id: string): boolean {
+  return id === "nenhum" || getEfeito(id) !== undefined;
+}
 
 /** Limites de escala do título hero quando a skin não declara os dela. */
 const ESCALA_LIMITES_PADRAO = { min: 0.75, max: 1.3 };
@@ -101,7 +106,7 @@ export function aplicarTema(
     clique:
       patch.clique && CLIQUE_ESTILOS.includes(patch.clique) ? patch.clique : preset.clique,
     fundoEfeito:
-      patch.fundoEfeito && FUNDO_EFEITOS.includes(patch.fundoEfeito)
+      patch.fundoEfeito && fundoEfeitoValido(patch.fundoEfeito)
         ? patch.fundoEfeito
         : preset.fundoEfeito,
     heroTitulo: {
