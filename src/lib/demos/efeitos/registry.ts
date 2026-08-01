@@ -53,3 +53,29 @@ export function intensidadePadrao(
 ): Exclude<EfeitoIntensidade, 0> {
   return efeito.nichosRecomendados.includes(nicho) ? 2 : 1;
 }
+
+/** Efeito de fundo já resolvido — pronto pra passar direto ao componente dinâmico. */
+export interface EfeitoFundoResolvido {
+  efeito: EfeitoDefinition;
+  intensidade: EfeitoIntensidade;
+}
+
+/**
+ * Resolve o efeito de fundo efetivo de uma demo: `fundoEfeitoId` (já
+ * validado/resolvido pelo preset ← TemaPatch em `aplicarTema`, ver
+ * ./tema.ts) + a intensidade persistida (`TemaPatch.fundoEfeitoIntensidade`)
+ * ou o default do nicho quando ausente. `undefined` = nada a renderizar —
+ * cobre tanto "nenhum" quanto um id que não existe mais no registro (ex.:
+ * um efeito removido depois de uma demo antiga tê-lo escolhido; a demo
+ * simplesmente some do fundo, sem erro).
+ */
+export function resolverEfeitoFundo(
+  fundoEfeitoId: string,
+  intensidadePersistida: EfeitoIntensidade | undefined,
+  nicho: string,
+): EfeitoFundoResolvido | undefined {
+  const efeito = getEfeito(fundoEfeitoId);
+  if (!efeito) return undefined;
+  const intensidade = intensidadePersistida ?? intensidadePadrao(efeito, nicho);
+  return { efeito, intensidade };
+}

@@ -836,6 +836,13 @@ export function PainelTema({
   const preset = skin.themePresets.find((t) => t.id === themeId) ?? skin.themeDefault;
   const destaque = tema.destaque ?? preset.paleta.destaque;
 
+  // Efeito de fundo efetivo (patch ou preset) — governa se o slider de
+  // intensidade aparece e qual o default (nicho recomendado do efeito).
+  const efeitoFundoAtivo = getEfeito(tema.fundoEfeito ?? preset.fundoEfeito);
+  const efeitoFundoIntensidadePadrao = efeitoFundoAtivo
+    ? intensidadePadrao(efeitoFundoAtivo, skin.nicho)
+    : undefined;
+
   return (
     <div className="flex flex-col gap-4">
       <label className={LABEL_CLS}>
@@ -1056,6 +1063,36 @@ export function PainelTema({
         valor={tema.fundoEfeito}
         onChange={(fundoEfeito) => setTema({ ...tema, fundoEfeito })}
       />
+
+      {efeitoFundoAtivo && (
+        <label className={LABEL_CLS}>
+          Intensidade do efeito de fundo (
+          {tema.fundoEfeitoIntensidade ?? efeitoFundoIntensidadePadrao})
+          <input
+            type="range"
+            min={0}
+            max={3}
+            step={1}
+            value={tema.fundoEfeitoIntensidade ?? efeitoFundoIntensidadePadrao}
+            onChange={(e) =>
+              setTema({
+                ...tema,
+                fundoEfeitoIntensidade: Number(e.target.value) as EfeitoIntensidade,
+              })
+            }
+            className="accent-accent"
+          />
+        </label>
+      )}
+      {tema.fundoEfeitoIntensidade !== undefined && (
+        <button
+          type="button"
+          onClick={() => setTema({ ...tema, fundoEfeitoIntensidade: undefined })}
+          className="self-start text-[11px] text-ink-muted hover:text-foreground"
+        >
+          usar o padrão do nicho ({efeitoFundoIntensidadePadrao})
+        </button>
+      )}
 
       <Escolha
         titulo="LED (bordas laterais, reage a scroll e clique)"
