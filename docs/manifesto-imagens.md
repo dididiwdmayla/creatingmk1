@@ -35,6 +35,18 @@ Total: **7 slots**.
 | `equipe-3` | `equipe-3.webp` | nome do membro (TeamCard) | `aspect-[3/4]` | Equipe |
 | `mapa` | `mapa.webp` | "Mapa de {endereço}" | `aspect-square` mobile → `aspect-[4/5]` desktop | Contato/rodapé |
 
+**Lista de produção:**
+
+| Arquivo a criar | Assunto da foto | Orientação e proporção | Largura recomendada | Tonalidade |
+|---|---|---|---|---|
+| `hero.webp` | Interior de barbearia vazia, cadeiras de couro e espelhos, luz quente pontual, sem pessoas | Retrato, ~3:4 a 4:5 | 1600px | Escura/quente (harmoniza com o fundo #1A1411) |
+| `agendamento-rapido.webp` | Barbeiro cortando cabelo de cliente na cadeira, ângulo lateral, rosto do cliente fora de foco | Quadrada a 4:3 | 1200px | Escura/quente |
+| `servicos.webp` | Navalha, tesoura e pente apoiados numa bancada de couro, close, luz lateral | Retrato 3:4 | 1200px | Escura |
+| `equipe-1.webp` | Barbeiro de perfil, rosto fora de foco, avental de couro, luz de estúdio quente | Retrato 3:4 | 1000px | Escura/quente, tom médio |
+| `equipe-2.webp` | Barbeiro visto de costas ajustando a máquina de corte, luz de estúdio quente | Retrato 3:4 | 1000px | Escura/quente, tom médio |
+| `equipe-3.webp` | Mãos de barbeiro segurando pente e tesoura, close, sem rosto no quadro | Retrato 3:4 | 1000px | Escura/quente, tom médio |
+| `mapa.webp` | Textura de mapa urbano estilizado, sem nomes de rua legíveis, tom sépia | Quadrada a 4:5 | 1000px | Escura, sépia |
+
 ---
 
 ## Barbearia Sul (`barbearia2-sul`)
@@ -59,6 +71,18 @@ Total: **7 slots**.
 | `galeria-5` | `galeria-5.webp` | título do corte ("CORTE Nº 058") | `aspect-[4/5]` | Galeria (arraste) |
 | `equipe-1` | `equipe-1.webp` | nome do barbeiro ("Seu Vicente") | `aspect-[3/4]` | Barbeiros |
 | `equipe-2` | `equipe-2.webp` | nome do barbeiro ("Bruno") | `aspect-[3/4]` | Barbeiros |
+
+**Lista de produção:**
+
+| Arquivo a criar | Assunto da foto | Orientação e proporção | Largura recomendada | Tonalidade |
+|---|---|---|---|---|
+| `galeria-1.webp` | Nuca recém-cortada com acabamento na navalha, close, sem rosto no quadro | Retrato 4:5 | 1000px | Tom médio, bom contraste (a skin converte para P&B) |
+| `galeria-2.webp` | Lateral da cabeça com degradê recém-feito, close, sem rosto no quadro | Retrato 4:5 | 1000px | Tom médio, bom contraste |
+| `galeria-3.webp` | Barba aparada com navalha, close no queixo, sem rosto completo | Retrato 4:5 | 1000px | Tom médio, bom contraste |
+| `galeria-4.webp` | Corte clássico finalizado visto de cima, sem rosto no quadro | Retrato 4:5 | 1000px | Tom médio, bom contraste |
+| `galeria-5.webp` | Detalhe de risco/desenho raspado na lateral do cabelo, close | Retrato 4:5 | 1000px | Tom médio, bom contraste |
+| `equipe-1.webp` | Barbeiro fundador, visto de perfil sem foco no rosto, avental de trabalho | Retrato 3:4 | 1000px | Tom médio, bom contraste |
+| `equipe-2.webp` | Barbeiro mais jovem, mãos ajustando a máquina, sem rosto em foco | Retrato 3:4 | 1000px | Tom médio, bom contraste |
 
 ---
 
@@ -87,6 +111,21 @@ Total: **10 slots**.
 | `portfolio-7` | `portfolio-7.webp` | idem | `aspect-[4/5]` | Portfólio (masonry) |
 | `portfolio-8` | `portfolio-8.webp` | idem | `aspect-[4/5]` | Portfólio (masonry) |
 
+**Lista de produção:**
+
+| Arquivo a criar | Assunto da foto | Orientação e proporção | Largura recomendada | Tonalidade |
+|---|---|---|---|---|
+| `hero.webp` | Estúdio de tatuagem em penumbra, maca profissional e luminária de trabalho, luz pontual dramática, sem pessoas | Paisagem ampla, preenche a tela | 2400px | Escura (fica em cor na tela, harmoniza com o fundo #0A0A0A) |
+| `sobre.webp` | Mãos de tatuador segurando a máquina sobre a pele, close, luz dramática lateral | Retrato 3:4 | 1200px | Boa faixa tonal, evitar estouro de luz (converte para P&B de alto contraste) |
+| `portfolio-1.webp` | Tatuagem blackwork de antebraço, close na pele | Retrato 4:5 | 1200px | Boa faixa tonal, evitar estouro de luz |
+| `portfolio-2.webp` | Tatuagem de realismo dark nas costelas, close na pele | Retrato 4:5 | 1200px | Boa faixa tonal, evitar estouro de luz |
+| `portfolio-3.webp` | Tatuagem de iconografia na panturrilha, close na pele | Retrato 4:5 | 1200px | Boa faixa tonal, evitar estouro de luz |
+| `portfolio-4.webp` | Fechamento blackwork de braço, ângulo lateral, close na pele | Retrato 4:5 | 1200px | Boa faixa tonal, evitar estouro de luz |
+| `portfolio-5.webp` | Tatuagem dotwork nas costas, close na pele | Retrato 4:5 | 1200px | Boa faixa tonal, evitar estouro de luz |
+| `portfolio-6.webp` | Tatuagem linework no peito, close na pele | Retrato 4:5 | 1200px | Boa faixa tonal, evitar estouro de luz |
+| `portfolio-7.webp` | Fechamento de realismo dark na perna, close na pele | Retrato 4:5 | 1200px | Boa faixa tonal, evitar estouro de luz |
+| `portfolio-8.webp` | Tatuagem blackwork pequena na mão, close na pele | Retrato 4:5 | 1200px | Boa faixa tonal, evitar estouro de luz |
+
 ---
 
 ## Tatuagem Pigmento Vivo (`tatuagem-pigmento-vivo`)
@@ -107,6 +146,19 @@ Total: **8 slots**.
 | `portfolio-6` | `portfolio-6.webp` | idem | retrato ~17:22 (340×440) | Portfólio (trilha arrastável) |
 | `portfolio-7` | `portfolio-7.webp` | idem | retrato 4:5 (420×520) | Portfólio (trilha arrastável) |
 | `portfolio-8` | `portfolio-8.webp` | idem | retrato 3:4 (300×400) | Portfólio (trilha arrastável) |
+
+**Lista de produção:**
+
+| Arquivo a criar | Assunto da foto | Orientação e proporção | Largura recomendada | Tonalidade |
+|---|---|---|---|---|
+| `portfolio-1.webp` | Tatuagem estilo aquarela colorida no antebraço, close na pele, fundo neutro | Retrato ~4:5 | 1200px | Clara, cores vivas (harmoniza com o fundo #FAF6F0) |
+| `portfolio-2.webp` | Tatuagem neo-tradicional colorida no braço, close na pele | Retrato 3:4 | 1200px | Clara, cores vivas |
+| `portfolio-3.webp` | Tatuagem fineline botânica delicada, close na pele | Retrato 3:4 | 1200px | Clara |
+| `portfolio-4.webp` | Tatuagem old school (âncora ou andorinha), close na pele | Retrato ~7:9 | 1200px | Clara, cores vivas |
+| `portfolio-5.webp` | Tatuagem blackwork de traço fino, close na pele, fundo claro | Retrato 4:5 | 1200px | Clara |
+| `portfolio-6.webp` | Tatuagem aquarela abstrata, close na pele | Retrato ~17:22 | 1200px | Clara, cores vivas |
+| `portfolio-7.webp` | Tatuagem neo-tradicional em outra área do corpo, close na pele | Retrato 4:5 | 1200px | Clara, cores vivas |
+| `portfolio-8.webp` | Tatuagem fineline pequena, close na pele | Retrato 3:4 | 1200px | Clara |
 
 ---
 
@@ -141,6 +193,31 @@ Total: **20 slots**.
 | `flutuante-queijo` | `flutuante-queijo.webp` | (decorativo, `alt=""`) | `aspect-square`, ~200px, `object-contain` | Flutuante na borda de Bebidas |
 | `flutuante-bebida` | `flutuante-bebida.webp` | (decorativo, `alt=""`) | `aspect-square`, ~220px, `object-contain` | Flutuante na borda de Acompanhamentos |
 
+**Lista de produção:**
+
+| Arquivo a criar | Assunto da foto | Orientação e proporção | Largura recomendada | Tonalidade |
+|---|---|---|---|---|
+| `hero.webp` | Interior de hamburgueria em luz baixa, chapa quente ao fundo desfocada, sem pessoas nem placas | Paisagem ampla | 2400px | Escura/quente (harmoniza com o fundo #1A0F0A) |
+| `prato-vazio.webp` | Prato branco vazio fotografado de cima, isolado, sem marca | Quadrada/paisagem leve | 1200px | Clara e neutra (contrasta com o fundo escuro) |
+| `lanche-1.webp` | Hambúrguer artesanal clássico isolado, vista em 3/4, fundo neutro liso | Paisagem/quadrada leve | 1000px | Clara e vívida (destaca contra o fundo escuro) |
+| `lanche-2.webp` | Hambúrguer com bacon crocante isolado, vista em 3/4, fundo neutro liso | Paisagem/quadrada leve | 1000px | Clara e vívida |
+| `lanche-3.webp` | Hambúrguer com onion rings isolado, vista em 3/4, fundo neutro liso | Paisagem/quadrada leve | 1000px | Clara e vívida |
+| `lanche-4.webp` | Hambúrguer tradicional com alface e tomate isolado, vista em 3/4 | Paisagem/quadrada leve | 1000px | Clara e vívida |
+| `lanche-5.webp` | Sanduíche de frango empanado crocante isolado, vista em 3/4 | Paisagem/quadrada leve | 1000px | Clara e vívida |
+| `lanche-6.webp` | Hambúrguer vegetariano isolado, vista em 3/4, fundo neutro liso | Paisagem/quadrada leve | 1000px | Clara e vívida |
+| `bebida-1.webp` | Milkshake isolado em copo alto, fundo neutro/transparente | Quadrada | 800px | Clara e vívida |
+| `bebida-2.webp` | Suco natural isolado em copo, fundo neutro/transparente | Quadrada | 800px | Clara e vívida |
+| `bebida-3.webp` | Lata ou copo de refrigerante cola isolado, fundo neutro/transparente | Quadrada | 800px | Clara e vívida |
+| `bebida-4.webp` | Lata ou copo de refrigerante guaraná isolado, fundo neutro/transparente | Quadrada | 800px | Clara e vívida |
+| `bebida-5.webp` | Copo d'água com gelo isolado, fundo neutro/transparente | Quadrada | 800px | Clara e vívida |
+| `acompanhamento-1.webp` | Porção de batata frita grande isolada, fundo neutro/transparente | Quadrada | 800px | Clara e vívida |
+| `acompanhamento-2.webp` | Porção de onion rings isolada, fundo neutro/transparente | Quadrada | 800px | Clara e vívida |
+| `acompanhamento-3.webp` | Porção de nuggets isolada, fundo neutro/transparente | Quadrada | 800px | Clara e vívida |
+| `acompanhamento-4.webp` | Porção de batata frita pequena isolada, fundo neutro/transparente | Quadrada | 800px | Clara e vívida |
+| `flutuante-bacon.webp` | Tira de bacon crocante recortada, fundo transparente | Quadrada | 600px | Clara e vívida |
+| `flutuante-queijo.webp` | Fatia de queijo derretendo recortada, fundo transparente | Quadrada | 600px | Clara e vívida |
+| `flutuante-bebida.webp` | Copo de bebida com gelo recortado, fundo transparente | Quadrada | 600px | Clara e vívida |
+
 ---
 
 ## Imobiliária Curada (`imobiliaria-curada`)
@@ -166,6 +243,23 @@ Total: **12 slots**.
 | `bairro-5` | `bairro-5.webp` | nome do bairro | idem | Bairros |
 | `depoimento-1` | `depoimento-1.webp` | nome do autor do depoimento | círculo 72×72px (`aspect-square`) | Depoimento |
 
+**Lista de produção:**
+
+| Arquivo a criar | Assunto da foto | Orientação e proporção | Largura recomendada | Tonalidade |
+|---|---|---|---|---|
+| `hero.webp` | Fachada de casa genérica contemporânea, jardim frontal, luz de tarde, sem número de rua ou placa visível | Retrato 4:5 | 1400px | Clara/quente (harmoniza com o fundo #F7F1E8) |
+| `imovel-1.webp` | Casa térrea genérica com jardim e piscina, fachada ou área externa, luz de fim de tarde | Paisagem/quadrada (varia por card) | 1400px | Clara |
+| `imovel-2.webp` | Terraço de cobertura genérico ao pôr do sol, vista aberta | Paisagem/quadrada | 1400px | Clara |
+| `imovel-3.webp` | Interior de studio genérico com pé-direito duplo e luz natural | Paisagem/quadrada | 1400px | Clara |
+| `imovel-4.webp` | Sala de apartamento reformado genérico, piso de taco, luz natural | Paisagem/quadrada | 1400px | Clara |
+| `imovel-5.webp` | Cobertura duplex genérica com vista para área verde | Paisagem/quadrada | 1400px | Clara |
+| `bairro-1.webp` | Rua residencial arborizada e clássica, sem placas de nome legíveis | Retrato ~7:10 | 1000px | Clara |
+| `bairro-2.webp` | Viela estreita com ateliês e fachadas coloridas genéricas | Retrato ~7:10 | 1000px | Clara |
+| `bairro-3.webp` | Esquina de bairro movimentado, cafés e calçada arborizada | Retrato ~7:10 | 1000px | Clara |
+| `bairro-4.webp` | Rua residencial calma perto de um parque | Retrato ~7:10 | 1000px | Clara |
+| `bairro-5.webp` | Prédio modernista genérico com padaria de esquina | Retrato ~7:10 | 1000px | Clara |
+| `depoimento-1.webp` | Mãos segurando um molho de chaves novas, close, sem rosto no quadro | Quadrada (avatar circular) | 600px | Clara |
+
 ---
 
 ## Multimarcas Vórtice (`multimarcas-vortice`)
@@ -187,6 +281,20 @@ Total: **9 slots**.
 | `carro-7` | `carro-7.webp` | nome do veículo (ex.: "Toyota Hilux SRX") | `aspect-[16/10]` | Estoque |
 | `carro-8` | `carro-8.webp` | nome do veículo (ex.: "Ford Ranger Limited") | `aspect-[16/10]` | Estoque |
 | `carro-9` | `carro-9.webp` | nome do veículo (ex.: "BMW M240i Coupé") | `aspect-[16/10]` | Estoque |
+
+**Lista de produção:**
+
+| Arquivo a criar | Assunto da foto | Orientação e proporção | Largura recomendada | Tonalidade |
+|---|---|---|---|---|
+| `carro-1.webp` | Hatch compacto em estúdio, ângulo 3/4 frontal, fundo neutro, placa não legível | Paisagem 16:10 | 1600px | Clara/neutra (harmoniza com o fundo #F5F0E6) |
+| `carro-2.webp` | Hatch esportivo em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
+| `carro-3.webp` | Sedan executivo em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
+| `carro-4.webp` | Sedan híbrido em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
+| `carro-5.webp` | SUV médio em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
+| `carro-6.webp` | SUV compacto em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
+| `carro-7.webp` | Picape robusta em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
+| `carro-8.webp` | Picape de trabalho em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
+| `carro-9.webp` | Cupê esportivo premium em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
 
 ---
 
@@ -215,6 +323,26 @@ Total: **15 slots**.
 | `galeria-4` | `galeria-4.webp` | nome do pet (ex.: "Simba") | `aspect-square` | Clientes da semana |
 | `galeria-5` | `galeria-5.webp` | nome do pet (ex.: "Olívia") | `aspect-square` | Clientes da semana |
 | `galeria-6` | `galeria-6.webp` | nome do pet (ex.: "Jorge") | `aspect-square` | Clientes da semana |
+
+**Lista de produção:**
+
+| Arquivo a criar | Assunto da foto | Orientação e proporção | Largura recomendada | Tonalidade |
+|---|---|---|---|---|
+| `hero.webp` | Cão de porte médio recém-tomado banho, pelagem limpa e fofa, still em fundo neutro claro, sem tutor no quadro | Quase quadrada (~0.92:1) | 1400px | Clara (harmoniza com o fundo #FFF6EA) |
+| `servico-1.webp` | Cão sendo enxaguado numa banheira de pet shop, sem rosto de tutor no quadro | Paisagem | 1000px | Clara |
+| `servico-2.webp` | Pet recebendo escovação/hidratação, still com produtos de spa ao redor | Paisagem | 1000px | Clara |
+| `servico-3.webp` | Cães brincando juntos num espaço de day care, still | Paisagem | 1000px | Clara |
+| `servico-4.webp` | Pet sendo acomodado num transporte pet com cinto de segurança | Paisagem | 1000px | Clara |
+| `equipe-1.webp` | Mãos de tosadora cuidando de um pet, close, sem rosto no quadro | Círculo (quadrada) | 800px | Clara |
+| `equipe-2.webp` | Groomer visto de costas segurando tesoura de tosa, sem rosto no quadro | Círculo (quadrada) | 800px | Clara |
+| `equipe-3.webp` | Mãos de veterinária examinando a pata de um pet, close, sem rosto no quadro | Círculo (quadrada) | 800px | Clara |
+| `equipe-4.webp` | Recreador de costas brincando com um cão no pátio, sem rosto no quadro | Círculo (quadrada) | 800px | Clara |
+| `galeria-1.webp` | Cachorro pequeno de pelagem clara, still sorridente, fundo neutro | Quadrada | 1000px | Clara |
+| `galeria-2.webp` | Cachorro de porte médio, still, fundo neutro | Quadrada | 1000px | Clara |
+| `galeria-3.webp` | Gato de pelagem longa, still, fundo neutro | Quadrada | 1000px | Clara |
+| `galeria-4.webp` | Cachorro de porte grande, still, fundo neutro | Quadrada | 1000px | Clara |
+| `galeria-5.webp` | Gato de pelagem curta, still, fundo neutro | Quadrada | 1000px | Clara |
+| `galeria-6.webp` | Cachorro filhote, still, fundo neutro | Quadrada | 1000px | Clara |
 
 ---
 
