@@ -165,13 +165,17 @@ src/
       videos.ts                     # vídeo-no-título: upload/remoção (mesma DemoStorage, prefixo "video-", sem placeholder)
       efeitos/                      # ✅ registro de efeitos visuais (camada decorativa opcional por cima de uma skin)
         types.ts                    #    EfeitoProps (intensidade 0-3, cores do tema, pausado) + EfeitoDefinition (metadado puro)
-        registry.ts                 #    EFEITOS: id/nome/nichosRecomendados — sem o componente (ver dynamicComponents.ts)
+        registry.ts                 #    EFEITOS: id/nome/nichosRecomendados + intensidadePadrao(efeito, nicho) — sem o componente (ver dynamicComponents.ts)
         useEfeitoAtivo.ts           #    hook client: pausa por IntersectionObserver + visibilitychange + prop pausado + reduced-motion
         dpr.ts                      #    devicePixelRatioClamped: limita a 2 qualquer rasterização em canvas
         dynamicComponents.ts        #    getEfeitoComponenteDinamico(id): next/dynamic({ssr:false}) por efeito — nunca bloqueia o first paint
         aura/Aura.tsx                #    dois blobs radiais (blur assado, só translate3d anima); ponteiro no desktop, scroll+deriva no celular; mix-blend-mode
         grao/Grao.tsx                #    textura de ruído via canvas (dpr clamped), gerada uma vez — sem loop de JS
-        __tests__/registry.test.ts  #    contrato: campos obrigatórios, ids únicos, intensidade 0 não renderiza nada
+        gradiente/Gradiente.tsx     #    ✅ dois radiais derivando devagar (transform); migrado do antigo Theme.fundoEfeito "gradiente" por skin
+        gradiente/estilo.ts         #    ✅ estilo puro (opacidade por intensidade, animationName/PlayState) — testável sem DOM
+        particulas/Particulas.tsx   #    ✅ pontos subindo em loop; migrado do antigo Theme.fundoEfeito "particulas" por skin
+        particulas/estilo.ts        #    ✅ contagem/opacidade por intensidade + estilo do ponto — testável sem DOM
+        __tests__/registry.test.ts  #    contrato: campos obrigatórios, ids únicos, intensidade 0 não renderiza nada, intensidadePadrao por nicho
     testing/
       fake-firestore.ts             # ✅ fake em memória com semântica de transação + paridade de path de coleção
       fake-firestore.test.ts        # ✅ paridade de segmentos do path (.collection() ímpar, como o SDK real)
@@ -189,7 +193,6 @@ src/
     demos/                          # ✅ skins da Forja de Demos (um pacote por skin)
       barbearia/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
-        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
         themes.ts                   # default + presets de tema
         exemplo.ts                  # DemoData de exemplo (base da ficha)
         interactive/                # ✅ subcomponentes "use client" (animações/interação)
@@ -208,7 +211,6 @@ src/
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
       tatuagem/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
-        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
         GothicLetters.tsx           # letras góticas gigantes atrás do conteúdo (chrome fixo)
         Wordmark.tsx                # assinatura tipográfica (gradiente + contorno multicor, CSS puro) + overlay de vídeo-no-título
         secoes.ts                   # contrato SkinSecaoDef[]
@@ -226,7 +228,6 @@ src/
           VideoNoTitulo.tsx          # ✅ vídeo/imagem mascarados pelas letras do wordmark (SVG mask + foreignObject)
       lancheria/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
-        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
         secoes.ts                   # contrato SkinSecaoDef[]
         themes.ts                   # default + presets de tema
         exemplo.ts                  # DemoData de exemplo (base da ficha)
@@ -242,7 +243,6 @@ src/
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
       barbearia2/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
-        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
         secoes.ts                   # contrato SkinSecaoDef[]
         themes.ts                   # default + presets de tema
         exemplo.ts                  # DemoData de exemplo (base da ficha)
@@ -255,7 +255,6 @@ src/
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
       tatuagem2/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
-        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
         secoes.ts                   # contrato SkinSecaoDef[]
         themes.ts                   # default + presets de tema
         exemplo.ts                  # DemoData de exemplo (base da ficha)
@@ -275,7 +274,6 @@ src/
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
       imobiliaria/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
-        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
         secoes.ts                   # contrato SkinSecaoDef[]
         themes.ts                   # default + presets de tema
         exemplo.ts                  # DemoData de exemplo (base da ficha)
@@ -293,7 +291,6 @@ src/
           LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
       multimarcas/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
-        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
         secoes.ts                   # contrato SkinSecaoDef[]
         themes.ts                   # default + presets de tema
         exemplo.ts                  # DemoData de exemplo (base da ficha)
@@ -319,7 +316,6 @@ src/
           FooterEgg.tsx              # easter egg: 3 cliques na marca do rodapé
       petshop/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
-        BackgroundEffect.tsx        # efeito de fundo do tema (gradiente/partículas, CSS puro)
         secoes.ts                   # contrato SkinSecaoDef[]
         themes.ts                   # default + presets de tema
         exemplo.ts                  # DemoData de exemplo (base da ficha)
@@ -478,7 +474,8 @@ Observações:
       "intro": false,                           // toggle da splash de abertura do template
       "hover": "brilho",                        // estilo do hover de cards/botões: lift | zoom | brilho
       "clique": "pressao",                      // animação de clique: nenhum | pressao | pulso
-      "fundoEfeito": "particulas"               // efeito sutil de fundo: nenhum | gradiente | particulas
+      "fundoEfeito": "particulas",               // efeito sutil de fundo: "nenhum" ou id do registro de efeitos (efeitos/registry.ts)
+      "fundoEfeitoIntensidade": 2                // opcional (0-3); ausente = default do nicho recomendado do efeito
     },
     "criadoEm": "<timestamp>",                  // 1º save; preservado nas edições seguintes (ver saveDemo)
     "criadoPor": "<userId>",                    // usuário do 1º save; preservado nas edições (métricas por usuário)
@@ -805,7 +802,7 @@ Contratos centrais (`src/lib/demos/types.ts`):
 
 - **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição, + `categoria`/`destaques[]` opcionais — ex.: filtro e chips do catálogo de veículos da skin de multimarcas), `depoimentos[]` (autor/texto/nota, + `contexto` opcional — segunda linha curta sob o autor, ex.: "Toyota Hilux SRX 2021"), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes), `imagens` (caminho por slot), `videos` (opcional — URL por slot de **vídeo-no-título**, ver seção própria) e a **estrutura editável**: `ordemSecoes` (ordem das seções não-fixas) e, por seção, `oculta` e `alinhamento`.
 - **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda, e dois acentos raros `acentoSecundario`/`acentoTerciario` para detalhes decorativos que não seguem o acento principal), `fontes` (display/corpo/mono/serif/decorativa/**citacao**/**destaque** como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts/`), `raio`, `densidade` (compacta/confortável/arejada → espaçamento vertical das seções), `animacao` (`nenhuma`/`sutil`/`marcante` → intensidade de entrada de seção, hover e transição; ver "Animação" abaixo), as **micro-interações**: `intro` (splash de abertura ligada?), `hover` (`lift`/`zoom`/`brilho`), `clique` (`nenhum`/`pressao`/`pulso`), `fundoEfeito` (`nenhum`/`gradiente`/`particulas`) e `led` (`desligado`/`sutil`/`marcante` — ver "Micro-interações" abaixo), e `heroTitulo` (`{ fonte, escala, alinhamento }` — estilo do título principal, ver "Título hero" abaixo; o **texto** continua em `dados.secoes.hero.titulo`/`dados.nome`, que é conteúdo, não tema).
-- **`TemaPatch`** (`LeadDemo.tema`) — ajustes por cima do preset: `fonteDisplay`/`fonteCorpo` (ids da **lista curada** em `fontes.ts`, ~16 fontes via `next/font`, cada uma com os papéis onde funciona — só as fontes que são default de algum preset são carregadas sempre; as demais entram **sob demanda**, via `import()` dinâmico, só quando o editor escolhe uma delas — ver `src/app/demo/fonts/registry.ts`), `destaque` (cor primária hex; `destaqueInk` é **recalculado por contraste** em `tema.ts`), `raio` (um de `TEMA_RAIOS`), `densidade`, `animacao`, `intro`, `hover`, `clique`, `fundoEfeito`, `led` e `heroTitulo` (`{ fonte?, escala?, alinhamento? }`, todos opcionais). `aplicarTema(preset, patch, heroEscalaLimites?)` é puro e usado pela rota pública E pelo preview — o editor nunca mostra algo diferente do publicado; o 3º argumento (default de `tema.ts` se omitido) recorta `heroTitulo.escala` aos limites da skin.
+- **`TemaPatch`** (`LeadDemo.tema`) — ajustes por cima do preset: `fonteDisplay`/`fonteCorpo` (ids da **lista curada** em `fontes.ts`, ~16 fontes via `next/font`, cada uma com os papéis onde funciona — só as fontes que são default de algum preset são carregadas sempre; as demais entram **sob demanda**, via `import()` dinâmico, só quando o editor escolhe uma delas — ver `src/app/demo/fonts/registry.ts`), `destaque` (cor primária hex; `destaqueInk` é **recalculado por contraste** em `tema.ts`), `raio` (um de `TEMA_RAIOS`), `densidade`, `animacao`, `intro`, `hover`, `clique`, `fundoEfeito` (id de um efeito do **registro de efeitos**, `src/lib/demos/efeitos/registry.ts`, ou `"nenhum"`), `fundoEfeitoIntensidade` (0-3; ausente = default do nicho recomendado do efeito, ver `intensidadePadrao`), `led` e `heroTitulo` (`{ fonte?, escala?, alinhamento? }`, todos opcionais). `aplicarTema(preset, patch, heroEscalaLimites?)` é puro e usado pela rota pública E pelo preview — o editor nunca mostra algo diferente do publicado; o 3º argumento (default de `tema.ts` se omitido) recorta `heroTitulo.escala` aos limites da skin. `aplicarTema` só resolve o **id** de `fundoEfeito` (contra o registro de efeitos); a intensidade efetiva é resolvida à parte por `resolverEfeitoFundo` (ver "Efeitos visuais" abaixo), que já recebe o patch bruto — não faz parte do `Theme` resolvido, já que depende do nicho da skin, não do preset.
 - **`SkinDefinition`** — entrada do registro: `{ id, nicho, nome, componente, themeDefault, themePresets, demoDataExemplo, secoes, heroEscalaLimites, thumbnail, videoSlots? }`. **`secoes`** é o contrato do editor: lista ordenada de `SkinSecaoDef` (`{ id, nome, fixa?, alignOptions?, entradaOptions? }`) — `fixa` não reordena nem oculta (ex.: hero); `alignOptions` diz onde a skin aceita alinhamento (validado no PUT; a primeira opção é o natural da skin); `entradaOptions` diz quais animações de entrada por seção a skin aceita ali (validado no PUT; ausente = sem seletor). `heroEscalaLimites` (`{ min, max }`) delimita o slider de tamanho do título hero no editor. `thumbnail` (caminho local em `/public`) alimenta o passo de escolha de skin. `videoSlots` (opcional, **opt-in por skin**) lista os slots de `dados.videos` que a skin suporta — ausente/vazio = a skin não oferece vídeo-no-título. Sem posicionamento livre por pixel: o template continua responsivo.
 
 Regras do sistema:
@@ -834,7 +831,7 @@ Opcionais, escolhidas na aba Tema, todas CSS puro (transform/opacity/box-shadow 
 - **`intro`** — liga/desliga a splash de abertura do template (na barbearia, a navalha de `IntroAnimation`; o cursor contextual continua). Default `true` em todos os presets (fiel ao original).
 - **`hover`** (`lift` default / `zoom` / `brilho`) — estilo do hover de cards/botões, aplicado por atributo `data-d-hover` no wrapper + seletores no `<style>` da skin; a intensidade escala com `--d-hover-*` do nível global (em `nenhuma`, zoom/lift neutralizam; o brilho vira mudança instantânea de sombra, coerente com "cor/borda continuam").
 - **`clique`** (`nenhum` default / `pressao` / `pulso`) — animação de clique em links/botões (`:active`), via `data-d-clique`; suprimida por completo em nível global `nenhuma` e em `prefers-reduced-motion`.
-- **`fundoEfeito`** (`nenhum` default / `gradiente` / `particulas`) — overlay fixo por cima do conteúdo com opacidade baixa (mesmo padrão do noise-overlay da skin, que é z-50/0.04): gradiente radial borrado derivando devagar (1 elemento, `transform` GPU) ou 14 partículas subindo em loop (posições determinísticas por índice — sem `Math.random`, sem mismatch de hidratação). `animacao: "nenhuma"` nem renderiza o efeito; `prefers-reduced-motion` esconde via CSS. Componente: `src/components/demos/barbearia/BackgroundEffect.tsx`.
+- **`fundoEfeito`** (`"nenhum"` default, ou id de um efeito do **registro de efeitos** — ver "Efeitos visuais" abaixo) — camada decorativa opcional resolvida por `resolverEfeitoFundo` (intensidade persistida ou default do nicho) e renderizada na rota pública/preview por import dinâmico sem SSR, como sibling da skin (não é mais um componente por skin — ver histórico: até esta feature cada skin tinha seu próprio `BackgroundEffect.tsx` em CSS puro, fixo em "gradiente"/"partículas" sem intensidade).
 - **`led`** (`desligado` default / `sutil` / `marcante`) — bordas laterais (esquerda/direita) com luz na cor de destaque do tema. CSS puro (opacity/box-shadow, sem transform de layout): a posição do ponto mais brilhante ao longo da barra acompanha o progresso do scroll via uma custom property (`--d-led-scroll`, 0–1) escrita **direto no DOM por um ref** dentro de um listener de scroll passivo throttled por `requestAnimationFrame` — nenhum estado React por frame, custo baixo em mobile por design. Clique em qualquer lugar da página dispara um pulso (`.d-led-pulse`, `filter: brightness()` reiniciado por toggle de classe). `desligado` nem monta o componente; `prefers-reduced-motion` mantém as barras estáticas (sem listener de scroll/click). Componente: `interactive/LedEdges.tsx` (idêntico nas duas skins).
 
 ### Vídeo-no-título (`DemoData.videos` + `SkinDefinition.videoSlots`)
@@ -883,14 +880,17 @@ A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta 
 
 ### Efeitos visuais (`src/lib/demos/efeitos`) — camada decorativa opcional
 
-Registro **separado** do registro de skins (mesmo padrão: metadado central + contrato + testes), pra uma camada decorativa opcional que uma skin pode somar por cima de si — hoje só o registro + o harness de teste existem; nenhuma skin consome ainda (nenhum `Skin.tsx`/painel Tema foi tocado por esta feature).
+Registro **separado** do registro de skins (mesmo padrão: metadado central + contrato + testes), pra uma camada decorativa opcional que uma skin pode somar por cima de si. Alimenta o seletor "Efeito de fundo" da aba Tema do editor (`Theme.fundoEfeito`/`TemaPatch.fundoEfeito`, ver "Micro-interações do tema" acima) e é renderizado como sibling da skin (não por dentro dela) tanto na rota pública quanto no preview.
 
 - **Contrato do componente** (`types.ts`): `EfeitoProps { intensidade: 0|1|2|3, cores: ThemePaleta, pausado? }` — `0` desliga por completo (sem nada no DOM); `cores` é a paleta do tema vigente (nunca cor hardcoded); `pausado` é o sinal externo (ex.: o editor esconde o preview) somado às pausas automáticas do próprio efeito. Regras fixas pra todo efeito: renderiza **estático** (sem listener/rAF de movimento) em `prefers-reduced-motion`; pausa via `IntersectionObserver` fora da viewport e via `visibilitychange` com a aba oculta (`useEfeitoAtivo.ts` implementa as três fontes de pausa + a leitura de reduced-motion, reutilizado por todo efeito); `devicePixelRatioClamped` (`dpr.ts`) limita a 2 qualquer rasterização em canvas; a propriedade `filter` **nunca** é animada (blur/etc. é fixo no elemento — só `transform`/`opacity` mudam por frame).
-- **`registry.ts`** guarda só metadado (`{ id, nome, nichosRecomendados }`) — **sem** o componente, pra quem só precisa listar efeitos (ex.: um futuro seletor no editor) nunca puxar código de nenhum. O componente em si é resolvido por `getEfeitoComponenteDinamico(id)` (`dynamicComponents.ts`), sempre via `next/dynamic(() => import(...), { ssr: false })` — nunca bloqueia o first paint da demo nem entra no HTML pré-renderizado (confirmado em `next build`: `/interno/efeitos` gera estático sem nenhum efeito no HTML).
+- **`registry.ts`** guarda só metadado (`{ id, nome, nichosRecomendados }`) — **sem** o componente, pra quem só precisa listar efeitos (ex.: o seletor "Efeito de fundo" do editor) nunca puxar código de nenhum. `getEfeito(id)` resolve por id (ou `"nenhum"`/desconhecido → `undefined`); `intensidadePadrao(efeito, nicho)` devolve 2 se o nicho da skin está entre os recomendados do efeito, 1 caso contrário; `resolverEfeitoFundo(fundoEfeitoId, intensidadePersistida, nicho)` combina os dois (mais a intensidade persistida em `TemaPatch.fundoEfeitoIntensidade`) num resultado pronto pra render (`undefined` = nada a mostrar). O componente em si é resolvido por `getEfeitoComponenteDinamico(id)` (`dynamicComponents.ts`), sempre via `next/dynamic(() => import(...), { ssr: false })` — nunca bloqueia o first paint da demo nem entra no HTML pré-renderizado (confirmado em `next build`: `/interno/efeitos` gera estático sem nenhum efeito no HTML).
 - **`aura/Aura.tsx`** — dois blobs de gradiente radial com blur assado (fixo, nunca animado) misturados por `mix-blend-mode`, movidos só por `transform: translate3d` com interpolação (lerp) em direção a um alvo: no desktop (`pointer: fine`) o alvo segue o ponteiro; no celular segue o progresso de scroll somado a uma deriva lenta autônoma (senoidal), pra não morrer parado.
 - **`grao/Grao.tsx`** — textura de ruído: um tile é desenhado num `<canvas>` **uma única vez** (`devicePixelRatioClamped(2)` no tamanho), virado data URL e usado como `background-image` repetido — sem loop de JS nenhum a partir daí, opacidade baixa escalada pela intensidade.
-- **Teste de contrato** (`__tests__/registry.test.ts`): ids únicos, campos obrigatórios (`nome`/`nichosRecomendados`) e — renderizando cada componente RAW direto via `react-dom/server` (fora do wrapper `next/dynamic`, que sempre devolve `null` no server) — intensidade `0` não renderiza nada, intensidade `1` renderiza o overlay.
+- **`gradiente/Gradiente.tsx`** e **`particulas/Particulas.tsx`** — migrados do antigo `Theme.fundoEfeito` fixo por skin (cada skin tinha seu próprio `BackgroundEffect.tsx` em CSS puro, sem intensidade nem pausa automática): mesma técnica visual (dois radiais derivando devagar / pontos subindo em loop, posições determinísticas por índice), agora um componente único por efeito que só depende de `cores` e escala com `intensidade` (contagem/opacidade). Estilo separado em `estilo.ts` por pacote — puro, testável sem DOM (`__tests__/estilo.test.ts`), inclusive o fallback estático de `prefers-reduced-motion` (`animationName: "none"`, não só pausado).
+- **Teste de contrato** (`__tests__/registry.test.ts`): ids únicos, campos obrigatórios (`nome`/`nichosRecomendados`) e — renderizando cada componente RAW direto via `react-dom/server` (fora do wrapper `next/dynamic`, que sempre devolve `null` no server) — intensidade `0` não renderiza nada, intensidade `1` renderiza o overlay; mais `intensidadePadrao`/`resolverEfeitoFundo` (inclusive o caso de compatibilidade: id antigo sem intensidade persistida cai no default do nicho, nunca em "nada").
+- **Teste de compatibilidade** (`__tests__/compat.test.ts`): o preset "ouro-da-meia-noite" da barbearia sul tinha `fundoEfeito: "particulas"` hardcoded desde antes deste registro existir — roda o pipeline real (`aplicarTema` ← preset/patch, depois `resolverEfeitoFundo`) sem `TemaPatch`/intensidade nenhuma (o formato mais antigo possível) e confirma que ainda resolve pro mesmo efeito.
 - **Harness de teste** (`/interno/efeitos`, fora do `(app)` e fora do passo de escolha de skin, protegida por sessão como o resto do app): cada efeito registrado sobre fundo claro e escuro, com slider de intensidade (0–3) e toggle do sinal `pausado`, pra avaliação visual no celular e no desktop.
+- **Render na demo** (`src/app/demo/[leadId]/page.tsx` e `src/app/demo-preview/page.tsx`): `resolverEfeitoFundo` roda no `loadDemo`/postMessage (mesmo dado que resolve `theme`), e o componente dinâmico é renderizado como **sibling** de `<Skin>` (nunca por dentro dela) — `cores={theme.paleta}`. Import dinâmico sem SSR: não atrasa o first paint (a skin já está visível quando o chunk do efeito carrega) e não toca no `VisitaTracker` (componente separado, sem overlap de listeners/DOM).
 
 ## IA na Forja (`src/lib/ai`) — sugestões de demo via Gemini
 

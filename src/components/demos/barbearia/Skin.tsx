@@ -3,7 +3,6 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
-import { BackgroundEffect } from "./BackgroundEffect";
 import { AnimatedScissors } from "./interactive/AnimatedScissors";
 import { IntroExperience } from "./interactive/IntroExperience";
 import { LedEdges } from "./interactive/LedEdges";
@@ -967,53 +966,6 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           }
         }
 
-        /* ── Efeito de fundo (Theme.fundoEfeito) ─────────────────
-           Overlay fixo por cima do conteúdo (mesmo padrão do noise, que é
-           z-50/opacity 0.04) — só transform/opacity, GPU-friendly. */
-        .d-bg-gradiente {
-          position: fixed;
-          inset: -25%;
-          z-index: 40;
-          pointer-events: none;
-          opacity: 0.1;
-          background:
-            radial-gradient(circle at 30% 30%, var(--d-accent) 0%, transparent 40%),
-            radial-gradient(circle at 70% 65%, var(--d-accent-3) 0%, transparent 38%);
-          filter: blur(80px);
-          animation: d-bg-drift 26s ease-in-out infinite alternate;
-          will-change: transform;
-        }
-        @keyframes d-bg-drift {
-          from { transform: translate3d(-3%, -2%, 0) scale(1); }
-          to { transform: translate3d(3%, 2%, 0) scale(1.08); }
-        }
-        .d-bg-particulas {
-          position: fixed;
-          inset: 0;
-          z-index: 40;
-          pointer-events: none;
-          overflow: hidden;
-        }
-        .d-bg-particulas span {
-          position: absolute;
-          bottom: -10px;
-          border-radius: 9999px;
-          background: var(--d-accent);
-          opacity: 0;
-          animation-name: d-bg-flutua;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-        }
-        @keyframes d-bg-flutua {
-          0% { transform: translateY(0); opacity: 0; }
-          8% { opacity: 0.35; }
-          85% { opacity: 0.12; }
-          100% { transform: translateY(-105vh); opacity: 0; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .d-bg-gradiente, .d-bg-particulas { display: none; }
-        }
-
         /* Bordas laterais com luz LED (Theme.led) — ver LedEdges.tsx.
            --d-led-scroll (0–1, escrito via ref/rAF) desloca o ponto mais
            brilhante do gradiente ao longo da barra conforme o progresso do
@@ -1053,8 +1005,6 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
         }
       `}</style>
 
-      {/* Efeito sutil de fundo do tema (overlay fixo; ver BackgroundEffect). */}
-      <BackgroundEffect efeito={theme.fundoEfeito} animacao={theme.animacao} />
       <LedEdges preset={theme.led} />
 
       <IntroExperience

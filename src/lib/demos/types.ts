@@ -166,11 +166,6 @@ export type CliqueEstilo = "nenhum" | "pressao" | "pulso";
 
 export const CLIQUE_ESTILOS: readonly CliqueEstilo[] = ["nenhum", "pressao", "pulso"];
 
-/** Efeito sutil de fundo (overlay fixo, GPU-friendly). */
-export type FundoEfeito = "nenhum" | "gradiente" | "particulas";
-
-export const FUNDO_EFEITOS: readonly FundoEfeito[] = ["nenhum", "gradiente", "particulas"];
-
 export interface ThemePaleta {
   fundo: string;
   fundoAlt: string;
@@ -246,8 +241,15 @@ export interface Theme {
   hover: HoverEstilo;
   /** Animação de clique em botões/CTAs. */
   clique: CliqueEstilo;
-  /** Efeito sutil de fundo (gradiente animado / partículas leves). */
-  fundoEfeito: FundoEfeito;
+  /**
+   * Efeito sutil de fundo: id de um efeito do registro
+   * (`src/lib/demos/efeitos/registry.ts`, ex.: "gradiente"/"particulas"/
+   * "aura"/"grao") ou "nenhum" (desligado). A intensidade (0-3) NÃO mora
+   * aqui — é resolvida à parte, a partir de `TemaPatch.fundoEfeitoIntensidade`
+   * com default vindo do nicho recomendado do efeito (ver
+   * `intensidadePadrao` no registro) — presets não precisam declará-la.
+   */
+  fundoEfeito: string;
   /** Estilo/escala/alinhamento do título hero (texto continua em DemoData). */
   heroTitulo: HeroTituloTema;
   /**
@@ -328,7 +330,15 @@ export interface TemaPatch {
   intro?: boolean;
   hover?: HoverEstilo;
   clique?: CliqueEstilo;
-  fundoEfeito?: FundoEfeito;
+  /** Id de um efeito do registro (ver Theme.fundoEfeito) ou "nenhum". */
+  fundoEfeito?: string;
+  /**
+   * Intensidade (0-3) do efeito escolhido em `fundoEfeito`. Ausente =
+   * default calculado do nicho da skin (`intensidadePadrao` no registro
+   * de efeitos) — não precisa persistir o caso comum. Ignorado quando
+   * `fundoEfeito` é "nenhum"/ausente.
+   */
+  fundoEfeitoIntensidade?: 0 | 1 | 2 | 3;
   /** Ajustes do título hero por cima do preset (fonte/escala/alinhamento). */
   heroTitulo?: Partial<HeroTituloTema>;
   led?: LedPreset;

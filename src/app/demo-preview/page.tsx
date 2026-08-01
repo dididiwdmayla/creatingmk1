@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { getEfeitoComponenteDinamico } from "@/lib/demos/efeitos/dynamicComponents";
+import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { getSkin } from "@/lib/demos/registry";
 import type { DemoData, TemaPatch, Theme } from "@/lib/demos/types";
 import { demoCoreFontsClassName, resolveExtraFontClassNames } from "../demo/fonts";
@@ -88,6 +90,14 @@ export default function DemoPreviewPage() {
   }
 
   const Skin = skin.componente;
+  // Mesma resolução da rota pública (ver /demo/[leadId]/page.tsx) — o
+  // preview fica fiel ao que será publicado, inclusive o efeito de fundo.
+  const efeitoFundo = resolverEfeitoFundo(
+    estado.theme.fundoEfeito,
+    estado.tema?.fundoEfeitoIntensidade,
+    skin.nicho,
+  );
+  const EfeitoFundo = efeitoFundo ? getEfeitoComponenteDinamico(efeitoFundo.efeito.id) : undefined;
   return (
     <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
       {/* Affordance de edição: qualquer slot clicável ganha contorno no hover. */}
@@ -99,6 +109,12 @@ export default function DemoPreviewPage() {
         }
       `}</style>
       <Skin data={estado.data} theme={estado.theme} />
+      {EfeitoFundo && efeitoFundo && (
+        // EfeitoFundo vem de um lookup em mapa de componentes já criados
+        // (dynamicComponents.ts, module scope) — não é criado a cada render.
+        // eslint-disable-next-line react-hooks/static-components
+        <EfeitoFundo intensidade={efeitoFundo.intensidade} cores={estado.theme.paleta} />
+      )}
     </div>
   );
 }

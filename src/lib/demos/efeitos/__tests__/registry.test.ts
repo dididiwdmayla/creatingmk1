@@ -5,8 +5,10 @@ import { describe, expect, it } from "vitest";
 import type { ThemePaleta } from "@/lib/demos/types";
 
 import { Aura } from "../aura/Aura";
+import { Gradiente } from "../gradiente/Gradiente";
 import { Grao } from "../grao/Grao";
-import { EFEITOS, getEfeito } from "../registry";
+import { Particulas } from "../particulas/Particulas";
+import { EFEITOS, getEfeito, intensidadePadrao, resolverEfeitoFundo } from "../registry";
 import type { EfeitoComponente } from "../types";
 
 /**
@@ -18,6 +20,8 @@ import type { EfeitoComponente } from "../types";
 const COMPONENTES_PARA_TESTE: Record<string, EfeitoComponente> = {
   aura: Aura,
   grao: Grao,
+  gradiente: Gradiente,
+  particulas: Particulas,
 };
 
 const CORES_TESTE: ThemePaleta = {
@@ -80,4 +84,43 @@ describe("registro de efeitos", () => {
       expect(ligado.length).toBeGreaterThan(0);
     },
   );
+});
+
+describe("intensidadePadrao", () => {
+  const efeito = getEfeito("gradiente")!;
+
+  it("2 quando o nicho está entre os recomendados do efeito", () => {
+    expect(efeito.nichosRecomendados).toContain("imobiliaria");
+    expect(intensidadePadrao(efeito, "imobiliaria")).toBe(2);
+  });
+
+  it("1 quando o nicho não é recomendado pelo efeito", () => {
+    expect(efeito.nichosRecomendados).not.toContain("petshop");
+    expect(intensidadePadrao(efeito, "petshop")).toBe(1);
+  });
+});
+
+describe("resolverEfeitoFundo", () => {
+  it('"nenhum" não resolve nada', () => {
+    expect(resolverEfeitoFundo("nenhum", undefined, "barbearia")).toBeUndefined();
+  });
+
+  it("id desconhecido (ex.: efeito removido do registro) não resolve nada", () => {
+    expect(resolverEfeitoFundo("nao-existe", 2, "barbearia")).toBeUndefined();
+  });
+
+  it("intensidade persistida vence sobre o default do nicho", () => {
+    expect(resolverEfeitoFundo("particulas", 3, "barbearia")?.intensidade).toBe(3);
+    expect(resolverEfeitoFundo("particulas", 0, "petshop")?.intensidade).toBe(0);
+  });
+
+  it("sem intensidade persistida cai no default do nicho — demo salva com efeito antigo (sem intensidade) continua com o mesmo efeito", () => {
+    const resolvido = resolverEfeitoFundo("particulas", undefined, "petshop");
+    expect(resolvido?.efeito.id).toBe("particulas");
+    expect(resolvido?.intensidade).toBe(2); // petshop é recomendado p/ particulas
+
+    const naoRecomendado = resolverEfeitoFundo("particulas", undefined, "imobiliaria");
+    expect(naoRecomendado?.efeito.id).toBe("particulas");
+    expect(naoRecomendado?.intensidade).toBe(1);
+  });
 });

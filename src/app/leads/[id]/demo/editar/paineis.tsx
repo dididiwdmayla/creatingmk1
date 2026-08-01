@@ -4,6 +4,8 @@ import Image from "next/image";
 import { Reorder, useDragControls } from "motion/react";
 import { useRef, type ChangeEvent, type ReactNode } from "react";
 
+import { EFEITOS, getEfeito, intensidadePadrao } from "@/lib/demos/efeitos/registry";
+import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { ordemEfetiva } from "@/lib/demos/estrutura";
 import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
@@ -18,7 +20,6 @@ import type {
   DemoData,
   DemoItem,
   Densidade,
-  FundoEfeito,
   HoverEstilo,
   LedPreset,
   SkinDefinition,
@@ -682,10 +683,15 @@ const CLIQUES: Array<{ id: CliqueEstilo; rotulo: string }> = [
   { id: "pulso", rotulo: "Pulso" },
 ];
 
-const FUNDOS: Array<{ id: FundoEfeito; rotulo: string }> = [
+/**
+ * Opções do seletor "Efeito de fundo": montadas a partir do registro de
+ * efeitos (`src/lib/demos/efeitos/registry.ts`), não de uma lista fixa —
+ * um efeito novo no registro aparece aqui sem tocar o editor. "Nenhum"
+ * continua fixo no topo (não é um efeito do registro).
+ */
+const FUNDOS: Array<{ id: string; rotulo: string }> = [
   { id: "nenhum", rotulo: "Nenhum" },
-  { id: "gradiente", rotulo: "Gradiente animado" },
-  { id: "particulas", rotulo: "Partículas" },
+  ...EFEITOS.map((efeito) => ({ id: efeito.id, rotulo: efeito.nome })),
 ];
 
 const LEDS: Array<{ id: LedPreset; rotulo: string }> = [
@@ -829,6 +835,13 @@ export function PainelTema({
 }) {
   const preset = skin.themePresets.find((t) => t.id === themeId) ?? skin.themeDefault;
   const destaque = tema.destaque ?? preset.paleta.destaque;
+
+  // Efeito de fundo efetivo (patch ou preset) — governa se o slider de
+  // intensidade aparece e qual o default (nicho recomendado do efeito).
+  const efeitoFundoAtivo = getEfeito(tema.fundoEfeito ?? preset.fundoEfeito);
+  const efeitoFundoIntensidadePadrao = efeitoFundoAtivo
+    ? intensidadePadrao(efeitoFundoAtivo, skin.nicho)
+    : undefined;
 
   return (
     <div className="flex flex-col gap-4">
@@ -1050,6 +1063,36 @@ export function PainelTema({
         valor={tema.fundoEfeito}
         onChange={(fundoEfeito) => setTema({ ...tema, fundoEfeito })}
       />
+
+      {efeitoFundoAtivo && (
+        <label className={LABEL_CLS}>
+          Intensidade do efeito de fundo (
+          {tema.fundoEfeitoIntensidade ?? efeitoFundoIntensidadePadrao})
+          <input
+            type="range"
+            min={0}
+            max={3}
+            step={1}
+            value={tema.fundoEfeitoIntensidade ?? efeitoFundoIntensidadePadrao}
+            onChange={(e) =>
+              setTema({
+                ...tema,
+                fundoEfeitoIntensidade: Number(e.target.value) as EfeitoIntensidade,
+              })
+            }
+            className="accent-accent"
+          />
+        </label>
+      )}
+      {tema.fundoEfeitoIntensidade !== undefined && (
+        <button
+          type="button"
+          onClick={() => setTema({ ...tema, fundoEfeitoIntensidade: undefined })}
+          className="self-start text-[11px] text-ink-muted hover:text-foreground"
+        >
+          usar o padrão do nicho ({efeitoFundoIntensidadePadrao})
+        </button>
+      )}
 
       <Escolha
         titulo="LED (bordas laterais, reage a scroll e clique)"

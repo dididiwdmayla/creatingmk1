@@ -1,5 +1,7 @@
 import { ValidationError } from "@/lib/errors";
 import { IDIOMAS_SUPORTADOS } from "@/lib/idioma";
+import { getEfeito } from "./efeitos/registry";
+import type { EfeitoIntensidade } from "./efeitos/types";
 import { getFonte } from "./fontes";
 import { getSkin } from "./registry";
 import { HEX_RE, TEMA_RAIOS } from "./tema";
@@ -8,7 +10,6 @@ import {
   ANIMACOES,
   ANIMACOES_ENTRADA,
   CLIQUE_ESTILOS,
-  FUNDO_EFEITOS,
   HOVER_ESTILOS,
   LED_PRESETS,
   type AnimacaoEntrada,
@@ -16,6 +17,11 @@ import {
   type SkinDefinition,
   type TemaPatch,
 } from "./types";
+
+/** "nenhum" (desligado) ou id de um efeito existente no registro. */
+function fundoEfeitoValido(id: string): boolean {
+  return id === "nenhum" || getEfeito(id) !== undefined;
+}
 
 /**
  * Validação do corpo do PUT /api/leads/[id]/demo. Devolve a configuração
@@ -275,6 +281,7 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
         "hover",
         "clique",
         "fundoEfeito",
+        "fundoEfeitoIntensidade",
         "heroTitulo",
         "led",
       ].includes(chave)
@@ -376,13 +383,25 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
   for (const [campo, lista] of [
     ["hover", HOVER_ESTILOS],
     ["clique", CLIQUE_ESTILOS],
-    ["fundoEfeito", FUNDO_EFEITOS],
   ] as const) {
     if (
       value[campo] !== undefined &&
       !(lista as readonly string[]).includes(value[campo] as string)
     ) {
       problemas.push(`tema.${campo} deve ser um de: ${lista.join(", ")}`);
+    }
+  }
+
+  if (value.fundoEfeito !== undefined) {
+    if (typeof value.fundoEfeito !== "string" || !fundoEfeitoValido(value.fundoEfeito)) {
+      problemas.push('tema.fundoEfeito deve ser "nenhum" ou um id do registro de efeitos');
+    }
+  }
+
+  if (value.fundoEfeitoIntensidade !== undefined) {
+    const intensidades: readonly EfeitoIntensidade[] = [0, 1, 2, 3];
+    if (!intensidades.includes(value.fundoEfeitoIntensidade as EfeitoIntensidade)) {
+      problemas.push("tema.fundoEfeitoIntensidade deve ser 0, 1, 2 ou 3");
     }
   }
 

@@ -205,6 +205,24 @@ describe("PUT /api/leads/[id]/demo", () => {
     expect(texto).toContain("tema.fundoEfeito");
   });
 
+  it("salva fundoEfeitoIntensidade (0-3); fora da faixa → 400", async () => {
+    const ok = await put("A", {
+      ...VALIDO,
+      tema: { fundoEfeito: "particulas", fundoEfeitoIntensidade: 3 },
+    });
+    expect(ok.status).toBe(200);
+    const { lead } = await ok.json();
+    expect(lead.demo.tema).toEqual({ fundoEfeito: "particulas", fundoEfeitoIntensidade: 3 });
+
+    const ruim = await put("A", {
+      ...VALIDO,
+      tema: { fundoEfeitoIntensidade: 4 },
+    });
+    expect(ruim.status).toBe(400);
+    const { error } = await ruim.json();
+    expect(error.problemas.join(" | ")).toContain("tema.fundoEfeitoIntensidade");
+  });
+
   it("salva heroTitulo (fonte/escala/alinhamento) e led; valores inválidos → 400", async () => {
     const ok = await put("A", {
       ...VALIDO,

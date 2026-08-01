@@ -15,10 +15,19 @@ import type { EfeitoComponente } from "./types";
  */
 const AuraDinamico = dynamic(() => import("./aura/Aura").then((m) => m.Aura), { ssr: false });
 const GraoDinamico = dynamic(() => import("./grao/Grao").then((m) => m.Grao), { ssr: false });
+const GradienteDinamico = dynamic(() => import("./gradiente/Gradiente").then((m) => m.Gradiente), {
+  ssr: false,
+});
+const ParticulasDinamico = dynamic(
+  () => import("./particulas/Particulas").then((m) => m.Particulas),
+  { ssr: false },
+);
 
 const COMPONENTES_DINAMICOS: Record<string, EfeitoComponente> = {
   aura: AuraDinamico,
   grao: GraoDinamico,
+  gradiente: GradienteDinamico,
+  particulas: ParticulasDinamico,
 };
 
 export function getEfeitoComponenteDinamico(id: string): EfeitoComponente | undefined {
