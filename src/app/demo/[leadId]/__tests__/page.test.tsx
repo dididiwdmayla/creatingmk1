@@ -194,3 +194,75 @@ describe("/demo/[leadId] — selo de visita interna", () => {
     expect(html).toContain("Vendo como membro");
   });
 });
+
+/**
+ * <html lang> do layout raiz é fixo "pt-BR" (o app é uma ferramenta interna
+ * em pt-BR) — a demo pública é a única rota cujo idioma de CONTEÚDO varia
+ * por lead (ver "Idioma da IA na demo"). Um script síncrono (mesmo padrão
+ * do THEME_INIT) ajusta document.documentElement.lang antes do resto da
+ * página pintar — este teste confirma que ele reflete o idioma EFETIVO
+ * da demo (override salvo > país do endereço > default pt-BR).
+ */
+describe("/demo/[leadId] — <html lang> reflete o idioma efetivo da demo", () => {
+  it("lead sem país reconhecido (endereço brasileiro): script ajusta para pt-BR", async () => {
+    await seedDemo();
+    const { default: DemoPage } = await import("../page");
+
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(elemento as never);
+
+    expect(html).toContain('document.documentElement.lang="pt-BR"');
+  });
+
+  it("lead com endereço suíço: script ajusta para de-CH (derivado do país)", async () => {
+    db.seed("leads/A", {
+      placeId: "A",
+      nome: "Barbearia do Zé",
+      endereco: "Bahnhofstrasse 1, 8001 Zürich, Suíça",
+      status: "novo",
+      enriquecido: false,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+    await seedDemo();
+    const { default: DemoPage } = await import("../page");
+
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(elemento as never);
+
+    expect(html).toContain('document.documentElement.lang="de-CH"');
+  });
+
+  it("override manual (LeadDemo.idioma) vence o derivado do endereço", async () => {
+    db.seed("leads/A", {
+      placeId: "A",
+      nome: "Barbearia do Zé",
+      endereco: "Bahnhofstrasse 1, 8001 Zürich, Suíça",
+      status: "novo",
+      enriquecido: false,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+    await saveDemo(db, "A", {
+      skinId: DEFAULT_SKIN.id,
+      themeId: DEFAULT_SKIN.themeDefault.id,
+      dados: {},
+      idioma: "en-US",
+    });
+    const { default: DemoPage } = await import("../page");
+
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(elemento as never);
+
+    expect(html).toContain('document.documentElement.lang="en-US"');
+  });
+});

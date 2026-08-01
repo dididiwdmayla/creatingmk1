@@ -8,6 +8,7 @@ import { paletaParaAura } from "@/lib/demos/efeitos/aura/cores";
 import { EfeitoDinamico } from "@/lib/demos/efeitos/dynamicComponents";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
+import { idiomaEfetivoDemo } from "@/lib/demos/idioma";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { montarDemoData } from "@/lib/demos/montar";
 import { aplicarTema } from "@/lib/demos/tema";
@@ -46,6 +47,7 @@ async function loadDemo(leadId: string) {
   if (!skin) return undefined;
   const theme = aplicarTema(getTheme(skin, lead.demo.themeId), lead.demo.tema, skin.heroEscalaLimites);
   const data = montarDemoData(skin.demoDataExemplo, lead, lead.demo.dados, skin.id);
+  const idioma = idiomaEfetivoDemo(lead);
   // Só busca (import dinâmico) as fontes curadas que o editor de fato
   // escolheu — o resto da lista nunca chega a ser fetched pelo cliente.
   const extraFontClassName = await resolveExtraFontClassNames([
@@ -73,7 +75,7 @@ async function loadDemo(leadId: string) {
     efeitoFundo?.efeito.id === "aura"
       ? paletaParaAura(theme.paleta, lead.demo.tema?.auraCores)
       : theme.paleta;
-  return { skin, theme, data, extraFontClassName, efeitoFundo, coresEfeito };
+  return { skin, theme, data, idioma, extraFontClassName, efeitoFundo, coresEfeito };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -176,6 +178,18 @@ export default async function DemoPage({ params, searchParams }: Props) {
   const Skin = demo.skin.componente;
   return (
     <div className={`${demoCoreFontsClassName} ${demo.extraFontClassName}`}>
+      {/*
+        O layout raiz fixa <html lang="pt-BR"> (compartilhado por todo o
+        app — Radar é uma ferramenta interna em pt-BR). A demo pública é a
+        ÚNICA rota cujo idioma de CONTEÚDO varia por lead (ver "Idioma da
+        IA na demo"): este script síncrono ajusta o atributo antes do resto
+        da página pintar, mesmo padrão do THEME_INIT em app/layout.tsx.
+      */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `document.documentElement.lang=${JSON.stringify(demo.idioma)}`,
+        }}
+      />
       <Skin data={demo.data} theme={demo.theme} />
       {demo.efeitoFundo && (
         // EfeitoDinamico (client component) resolve E renderiza o efeito —
