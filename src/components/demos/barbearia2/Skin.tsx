@@ -54,10 +54,6 @@ const ANIM_HOVER_LIFT: Record<Animacao, string> = {
   marcante: "-8px",
 };
 
-/** Textura de ruído do material bruto (feTurbulence) — fiel ao original. */
-const GRAO_SVG =
-  "url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22240%22 height=%22240%22%3E%3Cfilter id=%22n%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22240%22 height=%22240%22 filter=%22url(%23n)%22/%3E%3C/svg%3E')";
-
 /** Link wa.me a partir do número exibido; sem número, âncora pro agendamento. */
 function waHref(whatsapp: string | undefined, mensagem?: string): string {
   const digitos = (whatsapp ?? "").replace(/\D/g, "");
@@ -604,13 +600,6 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
       data-d-anim={theme.animacao}
       className="min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)] selection:bg-[var(--d-accent)] selection:text-[var(--d-accent-ink)]"
     >
-      {/* Textura de grão — mesma técnica (feTurbulence) do material bruto. */}
-      <div
-        className="pointer-events-none fixed inset-0 z-50 opacity-[0.04]"
-        style={{ backgroundImage: GRAO_SVG }}
-        aria-hidden="true"
-      />
-
       <style>{`
         /* "Chop" da segunda linha do título hero — flourish de carga única,
            independente de theme.animacao (só prefers-reduced-motion desliga),
