@@ -54,10 +54,14 @@ export function Grao({ intensidade, pausado }: EfeitoProps) {
   return (
     <div
       ref={containerRef}
-      // fixed + z-index negativo: cobre a viewport inteira em qualquer
-      // scroll, sempre atrás do conteúdo normal da demo — ver Aura.tsx
-      // (mesmo raciocínio) e ARCHITECTURE.md.
-      className="pointer-events-none fixed inset-0 -z-10"
+      // fixed cobre a viewport inteira em qualquer scroll. z-index POSITIVO
+      // (mesma convenção de aura/gradiente/particulas): seções da demo têm
+      // fundo sólido próprio cobrindo 100% da largura, então um z-index
+      // negativo pintaria o efeito atrás desse fundo e ele nunca
+      // apareceria — ver Aura.tsx e ARCHITECTURE.md. Opacidade baixíssima
+      // (ver OPACIDADE_POR_INTENSIDADE) garante que não atrapalha a
+      // legibilidade por cima do conteúdo.
+      className="pointer-events-none fixed inset-0 z-40"
       aria-hidden="true"
       style={{
         backgroundImage: tile ? `url(${tile})` : undefined,

@@ -47,7 +47,10 @@ export function Particulas({ intensidade, cores, pausado }: EfeitoProps) {
           className="absolute rounded-full"
           style={{
             left: `${p.left}%`,
-            bottom: "-10px",
+            // reduced motion: sem @keyframes rodando, "bottom: -10px" (o
+            // ponto de partida da subida animada) fica parado FORA da
+            // viewport — usa uma posição estática própria em vez disso.
+            ...(reducedMotion ? { top: `${p.topEstatico}%` } : { bottom: "-10px" }),
             width: p.grande ? 3 : 2,
             height: p.grande ? 3 : 2,
             background: cores.destaque,
