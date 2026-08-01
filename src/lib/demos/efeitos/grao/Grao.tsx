@@ -54,7 +54,10 @@ export function Grao({ intensidade, pausado }: EfeitoProps) {
   return (
     <div
       ref={containerRef}
-      className="pointer-events-none absolute inset-0"
+      // fixed + z-index negativo: cobre a viewport inteira em qualquer
+      // scroll, sempre atrás do conteúdo normal da demo — ver Aura.tsx
+      // (mesmo raciocínio) e ARCHITECTURE.md.
+      className="pointer-events-none fixed inset-0 -z-10"
       aria-hidden="true"
       style={{
         backgroundImage: tile ? `url(${tile})` : undefined,

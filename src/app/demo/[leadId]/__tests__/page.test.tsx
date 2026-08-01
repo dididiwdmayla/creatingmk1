@@ -106,6 +106,31 @@ describe("/demo/[leadId] — resiliência a falha de efeito/rastreio", () => {
 });
 
 /**
+ * A rota pública renderiza sem sessão nenhuma (cookieJar vazio no
+ * beforeEach) — cobre o efeito "aura" com o preset "fumaça colorida" de
+ * ponta a ponta (loadDemo -> paletaParaAura -> EfeitoDinamico), o único
+ * caminho que não passa por nenhum outro teste deste arquivo.
+ */
+describe("/demo/[leadId] — efeito aura com cores customizadas, sem sessão", () => {
+  it("renderiza com fundoEfeito 'aura' + auraCores 'fumaca-colorida'", async () => {
+    await saveDemo(db, "A", {
+      skinId: DEFAULT_SKIN.id,
+      themeId: DEFAULT_SKIN.themeDefault.id,
+      dados: {},
+      tema: { fundoEfeito: "aura", auraCores: "fumaca-colorida" },
+    });
+    const { default: DemoPage } = await import("../page");
+
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+
+    expect(elemento).toBeTruthy();
+  });
+});
+
+/**
  * Selo "Vendo como membro" (ver SeloVisitaInterna.tsx): decisão sempre no
  * SERVIDOR, a partir da mesma classificação interna/externa do tracking —
  * sem sessão nem marcador de dispositivo, sem certeza nenhuma, não deve

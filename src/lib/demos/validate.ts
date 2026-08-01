@@ -282,6 +282,7 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
         "clique",
         "fundoEfeito",
         "fundoEfeitoIntensidade",
+        "auraCores",
         "heroTitulo",
         "led",
       ].includes(chave)
@@ -402,6 +403,26 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
     const intensidades: readonly EfeitoIntensidade[] = [0, 1, 2, 3];
     if (!intensidades.includes(value.fundoEfeitoIntensidade as EfeitoIntensidade)) {
       problemas.push("tema.fundoEfeitoIntensidade deve ser 0, 1, 2 ou 3");
+    }
+  }
+
+  if (value.auraCores !== undefined) {
+    if (value.auraCores === "fumaca-colorida") {
+      // preset fixo, nada a validar.
+    } else if (isRecord(value.auraCores)) {
+      for (const chave of Object.keys(value.auraCores)) {
+        if (!["primaria", "secundaria"].includes(chave)) {
+          problemas.push(`tema.auraCores.${chave}: chave desconhecida`);
+        }
+      }
+      for (const campo of ["primaria", "secundaria"] as const) {
+        const cor = value.auraCores[campo];
+        if (cor !== undefined && (typeof cor !== "string" || !HEX_RE.test(cor))) {
+          problemas.push(`tema.auraCores.${campo} deve ser cor hex (#rrggbb)`);
+        }
+      }
+    } else {
+      problemas.push('tema.auraCores deve ser "fumaca-colorida" ou um objeto { primaria?, secundaria? }');
     }
   }
 

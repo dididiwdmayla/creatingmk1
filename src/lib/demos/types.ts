@@ -224,6 +224,24 @@ export type LedPreset = "desligado" | "sutil" | "marcante";
 
 export const LED_PRESETS: readonly LedPreset[] = ["desligado", "sutil", "marcante"];
 
+/**
+ * Cores dos dois blobs do efeito "aura" (ver
+ * `src/lib/demos/efeitos/aura/cores.ts`), independentes da paleta do tema.
+ * Cada campo ausente cai no default derivado do tema (`paleta.destaque`/
+ * `paleta.acentoSecundario`) — mesmo princípio de `TemaPatch.destaque`.
+ */
+export interface AuraCoresPatch {
+  /** Cor do 1º blob (#rrggbb); ausente = paleta.destaque do tema. */
+  primaria?: string;
+  /** Cor do 2º blob (#rrggbb); ausente = paleta.acentoSecundario do tema. */
+  secundaria?: string;
+}
+
+/** Preset fixo de cores da aura, deliberadamente independente do tema. */
+export type AuraCoresPreset = "fumaca-colorida";
+
+export type AuraCoresValor = AuraCoresPatch | AuraCoresPreset;
+
 /** Tokens visuais de um tema de skin. */
 export interface Theme {
   id: string;
@@ -339,6 +357,13 @@ export interface TemaPatch {
    * `fundoEfeito` é "nenhum"/ausente.
    */
   fundoEfeitoIntensidade?: 0 | 1 | 2 | 3;
+  /**
+   * Cores do efeito "aura" — ver AuraCoresValor. Só tem efeito quando
+   * `fundoEfeito` é "aura"; ignorado (mas ainda válido de persistir) pros
+   * demais efeitos. Ausente = deriva do tema (paleta.destaque/
+   * acentoSecundario), como antes deste controle existir.
+   */
+  auraCores?: AuraCoresValor;
   /** Ajustes do título hero por cima do preset (fonte/escala/alinhamento). */
   heroTitulo?: Partial<HeroTituloTema>;
   led?: LedPreset;
