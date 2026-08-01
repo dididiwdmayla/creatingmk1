@@ -107,10 +107,14 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
       // fixed (não absolute): cobre a viewport inteira em qualquer scroll,
       // em vez de ficar preso à altura do bloco inicial do documento — ver
       // ARCHITECTURE.md ("efeitos de fundo cobrem a viewport inteira").
-      // z-index negativo garante que fica atrás de TODO conteúdo normal da
-      // demo, inclusive seções sem position (que, sem isso, pintariam
-      // atrás de um elemento posicionado com z-index:auto).
-      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+      // z-index POSITIVO (mesma convenção de gradiente/particulas): toda
+      // seção da demo tem fundo sólido próprio (--d-bg/--d-bg-alt cobrindo
+      // 100% da largura, sem gaps), então um z-index negativo pinta o
+      // efeito atrás desse fundo e ele nunca aparece — ver ARCHITECTURE.md.
+      // mix-blend-mode: screen nos blobs faz o efeito se somar à cor por
+      // baixo (nunca cobrir/escurecer), então ficar por cima é seguro em
+      // tema claro e escuro; pointer-events: none garante que não bloqueia clique.
+      className="pointer-events-none fixed inset-0 z-40 overflow-hidden"
       aria-hidden="true"
     >
       <div

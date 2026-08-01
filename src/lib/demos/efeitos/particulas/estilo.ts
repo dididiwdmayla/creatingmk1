@@ -17,6 +17,14 @@ export interface PontoParticula {
   duracaoSegundos: number;
   atrasoSegundos: number;
   grande: boolean;
+  /**
+   * Posição vertical (% da viewport) usada só em `prefers-reduced-motion`
+   * (ver Particulas.tsx): sem @keyframes rodando, a partícula fica parada
+   * na posição CSS estática — `bottom: -10px` (o ponto de partida da
+   * subida animada) fica sempre fora da viewport, então o fallback
+   * estático precisa de uma posição própria dentro dela.
+   */
+  topEstatico: number;
 }
 
 /** Posições/tempos determinísticos por índice — nada de Math.random (mesmo HTML no server e no client). */
@@ -26,6 +34,7 @@ export function pontosParticulas(intensidade: Exclude<EfeitoIntensidade, 0>): Po
     duracaoSegundos: 14 + ((i * 5) % 9),
     atrasoSegundos: -((i * 3.7) % 14),
     grande: i % 3 === 0,
+    topEstatico: (i * 29 + 7) % 100,
   }));
 }
 
