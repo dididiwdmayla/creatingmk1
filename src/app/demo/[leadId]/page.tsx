@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 
 import { SESSION_COOKIE } from "@/lib/auth";
 import { classificarVisitaInterna, DEVICE_COOKIE } from "@/lib/device";
+import { getEfeitoComponenteDinamico } from "@/lib/demos/efeitos/dynamicComponents";
+import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { montarDemoData } from "@/lib/demos/montar";
@@ -46,7 +48,14 @@ async function loadDemo(leadId: string) {
     lead.demo.tema?.fonteDisplay,
     lead.demo.tema?.fonteCorpo,
   ]);
-  return { skin, theme, data, extraFontClassName };
+  // Efeito de fundo (registro de efeitos) + intensidade — undefined cobre
+  // tanto "nenhum" quanto um id que não existe mais no registro.
+  const efeitoFundo = resolverEfeitoFundo(
+    theme.fundoEfeito,
+    lead.demo.tema?.fundoEfeitoIntensidade,
+    skin.nicho,
+  );
+  return { skin, theme, data, extraFontClassName, efeitoFundo };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -116,9 +125,21 @@ export default async function DemoPage({ params, searchParams }: Props) {
   }
 
   const Skin = demo.skin.componente;
+  // Import dinâmico sem SSR (getEfeitoComponenteDinamico): o efeito nunca
+  // entra no HTML pré-renderizado nem atrasa o first paint — monta depois,
+  // no cliente, como uma camada decorativa por cima da skin já visível.
+  const EfeitoFundo = demo.efeitoFundo
+    ? getEfeitoComponenteDinamico(demo.efeitoFundo.efeito.id)
+    : undefined;
   return (
     <div className={`${demoCoreFontsClassName} ${demo.extraFontClassName}`}>
       <Skin data={demo.data} theme={demo.theme} />
+      {EfeitoFundo && demo.efeitoFundo && (
+        // EfeitoFundo vem de um lookup em mapa de componentes já criados
+        // (dynamicComponents.ts, module scope) — não é criado a cada render.
+        // eslint-disable-next-line react-hooks/static-components
+        <EfeitoFundo intensidade={demo.efeitoFundo.intensidade} cores={demo.theme.paleta} />
+      )}
       {visitaId && <VisitaTracker leadId={leadId} visitaId={visitaId} />}
     </div>
   );

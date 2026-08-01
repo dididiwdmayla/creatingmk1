@@ -3,7 +3,6 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
 import type { Alinhamento, Animacao, Densidade, SkinProps } from "@/lib/demos/types";
-import { BackgroundEffect } from "./BackgroundEffect";
 import { GothicLetters } from "./GothicLetters";
 import { FadeUp } from "./interactive/FadeUp";
 import { IntroExperience } from "./interactive/IntroExperience";
@@ -818,43 +817,6 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
           white-space: nowrap;
         }
 
-        /* Efeito de fundo OPCIONAL (Theme.fundoEfeito) — camada extra por
-           cima do chrome fixo acima, desligada por default (ver themes.ts). */
-        .d-bg-gradiente {
-          position: fixed; inset: -25%; z-index: 20; pointer-events: none; opacity: 0.12;
-          background: radial-gradient(circle at 28% 30%, var(--d-accent) 0%, transparent 42%),
-            radial-gradient(circle at 72% 68%, var(--d-accent-2) 0%, transparent 40%);
-          filter: blur(90px);
-          animation: d-bg-drift 28s ease-in-out infinite alternate;
-          will-change: transform;
-        }
-        @keyframes d-bg-drift {
-          from { transform: translate3d(-3%, -2%, 0) scale(1); }
-          to { transform: translate3d(3%, 2%, 0) scale(1.08); }
-        }
-        .d-bg-particulas {
-          position: fixed; inset: 0; z-index: 20; pointer-events: none; overflow: hidden;
-        }
-        .d-bg-particulas span {
-          position: absolute;
-          bottom: -10px;
-          border-radius: 9999px;
-          background: var(--d-accent);
-          opacity: 0;
-          animation-name: d-bg-flutua;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-        }
-        @keyframes d-bg-flutua {
-          0% { transform: translateY(0); opacity: 0; }
-          8% { opacity: 0.35; }
-          85% { opacity: 0.12; }
-          100% { transform: translateY(-105vh); opacity: 0; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .d-bg-gradiente, .d-bg-particulas { animation: none; display: none; }
-        }
-
         /* Bordas laterais com luz LED (Theme.led) — ver LedEdges.tsx.
            --d-led-scroll (0–1, escrito via ref/rAF) desloca o ponto mais
            brilhante do gradiente ao longo da barra conforme o progresso do
@@ -895,7 +857,6 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
       `}</style>
 
       <GothicLetters nome={data.nome} />
-      <BackgroundEffect efeito={theme.fundoEfeito} animacao={theme.animacao} />
       <LedEdges preset={theme.led} />
 
       <IntroExperience nome={data.nome} accent={paleta.destaque} ativa={theme.intro !== false}>

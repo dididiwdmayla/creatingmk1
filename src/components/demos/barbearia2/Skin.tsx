@@ -3,7 +3,6 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
-import { BackgroundEffect } from "./BackgroundEffect";
 import { DragGallery } from "./interactive/DragGallery";
 import { FadeUp } from "./interactive/FadeUp";
 import { IntroExperience } from "./interactive/IntroExperience";
@@ -689,22 +688,6 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
           [data-d-clique] a:active, [data-d-clique] button:active { transform: none; animation: none; }
         }
 
-        /* ── Efeito de fundo (Theme.fundoEfeito) ── */
-        .d-bg-gradiente {
-          position: fixed; inset: -25%; z-index: 40; pointer-events: none; opacity: 0.1;
-          background: radial-gradient(circle at 30% 30%, var(--d-accent) 0%, transparent 40%),
-            radial-gradient(circle at 70% 65%, var(--d-accent-3) 0%, transparent 38%);
-          filter: blur(80px); animation: d-bg-drift 26s ease-in-out infinite alternate; will-change: transform;
-        }
-        @keyframes d-bg-drift { from { transform: translate3d(-3%, -2%, 0) scale(1); } to { transform: translate3d(3%, 2%, 0) scale(1.08); } }
-        .d-bg-particulas { position: fixed; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
-        .d-bg-particulas span {
-          position: absolute; bottom: -10px; border-radius: 9999px; background: var(--d-accent); opacity: 0;
-          animation-name: d-bg-flutua; animation-timing-function: linear; animation-iteration-count: infinite;
-        }
-        @keyframes d-bg-flutua { 0% { transform: translateY(0); opacity: 0; } 8% { opacity: 0.35; } 85% { opacity: 0.12; } 100% { transform: translateY(-105vh); opacity: 0; } }
-        @media (prefers-reduced-motion: reduce) { .d-bg-gradiente, .d-bg-particulas { display: none; } }
-
         /* Bordas laterais com luz LED — ver LedEdges.tsx. */
         .d-led-edges { position: fixed; inset: 0; z-index: 45; pointer-events: none; --d-led-scroll: 0; }
         .d-led-bar {
@@ -724,7 +707,6 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
         @media (prefers-reduced-motion: reduce) { .d-led-bar { transition: none; } .d-led-pulse .d-led-bar { animation: none; } }
       `}</style>
 
-      <BackgroundEffect efeito={theme.fundoEfeito} animacao={theme.animacao} />
       <LedEdges preset={theme.led} />
 
       <IntroExperience
