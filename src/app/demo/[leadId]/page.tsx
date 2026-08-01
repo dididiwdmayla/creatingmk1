@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 
-import { SESSION_COOKIE } from "@/lib/auth";
+import { appPassword, lerSessaoToken, SESSION_COOKIE } from "@/lib/auth";
 import { classificarVisitaInterna, DEVICE_COOKIE } from "@/lib/device";
 import { EfeitoDinamico } from "@/lib/demos/efeitos/dynamicComponents";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
@@ -10,10 +10,13 @@ import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { montarDemoData } from "@/lib/demos/montar";
 import { aplicarTema } from "@/lib/demos/tema";
+import type { AppDb } from "@/lib/firestore-like";
 import { getDb } from "@/lib/firebase/admin";
 import { getLead, registrarVisitaDemo } from "@/lib/leads/repo";
 import type { Lead } from "@/lib/leads/types";
+import { getUsuario } from "@/lib/usuarios/repo";
 import { demoCoreFontsClassName, resolveExtraFontClassNames } from "../fonts";
+import { SeloVisitaInterna } from "../SeloVisitaInterna";
 import { VisitaTracker } from "../VisitaTracker";
 
 /**
@@ -77,27 +80,53 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+interface VisitanteInterno {
+  /**
+   * Sessão válida do app OU marcador de dispositivo (ver lib/device.ts) —
+   * alguém do time (preview/QA), não o lead de verdade. A sessão sozinha
+   * falha sempre que o navegador que abre o link não é o mesmo/não manda o
+   * cookie httpOnly (ex.: navegador embutido de um app, segunda aba sem
+   * sessão, sessão expirada) mesmo sendo um dispositivo do time — o
+   * marcador cobre esse caso, sobrevivendo bem além da sessão.
+   */
+  interna: boolean;
+  /** Nome de quem está logado — só quando a SESSÃO (não só o marcador de dispositivo) é válida. */
+  nomeUsuario?: string;
+}
+
 /**
- * "Interna" = sessão válida do app OU marcador de dispositivo (ver
- * lib/device.ts) — alguém do time (preview/QA), não o lead de verdade. A
- * sessão sozinha falha sempre que o navegador que abre o link não é o
- * mesmo/não manda o cookie httpOnly (ex.: navegador embutido de um app,
- * segunda aba sem sessão, sessão expirada) mesmo sendo um dispositivo do
- * time — o marcador cobre esse caso, sobrevivendo bem além da sessão.
+ * Classificação de "interna" (usada tanto pro tracking quanto pelo selo
+ * "Vendo como membro") + o nome de quem está logado, quando dá pra saber.
+ * Decisão sempre no servidor. Qualquer falha na resolução (Firestore fora
+ * do ar, cookie corrompido etc.) cai no lado seguro — `interna: false` —
+ * igual ao princípio do resto da página: sem certeza, não renderiza nada.
  */
-async function requestEhInterna(): Promise<boolean> {
-  const jar = await cookies();
-  return classificarVisitaInterna({
-    sessionCookie: jar.get(SESSION_COOKIE)?.value,
-    deviceCookie: jar.get(DEVICE_COOKIE)?.value,
-  });
+async function visitanteInterno(db: AppDb): Promise<VisitanteInterno> {
+  try {
+    const jar = await cookies();
+    const sessionCookie = jar.get(SESSION_COOKIE)?.value;
+    const deviceCookie = jar.get(DEVICE_COOKIE)?.value;
+    const interna = await classificarVisitaInterna({ sessionCookie, deviceCookie });
+    if (!interna) return { interna: false };
+
+    const secret = appPassword();
+    const sessao = secret ? await lerSessaoToken(sessionCookie, secret) : null;
+    if (!sessao) return { interna: true };
+    const usuario = await getUsuario(db, sessao.userId);
+    const nomeUsuario =
+      usuario && usuario.ativo && usuario.sessao === sessao.versao ? usuario.nome : undefined;
+    return { interna: true, nomeUsuario };
+  } catch (error) {
+    console.error("[radar] falha ao classificar visitante interno:", error);
+    return { interna: false };
+  }
 }
 
 /**
  * Cabeçalhos de geolocalização por IP que a Vercel injeta em produção
  * (`x-vercel-ip-*` — ausentes em dev/self-host). Só INFORMATIVO na timeline
  * da ficha — nunca entra na classificação de interna/externa (ver
- * requestEhInterna acima, que não os usa). Logado pra diagnosticar em
+ * visitanteInterno acima, que não os usa). Logado pra diagnosticar em
  * produção quais chegam de verdade (ver ARCHITECTURE.md).
  */
 async function geoDaVisita(): Promise<{ pais?: string; regiao?: string; cidade?: string } | undefined> {
@@ -116,14 +145,19 @@ export default async function DemoPage({ params, searchParams }: Props) {
   const demo = await loadDemo(leadId);
   if (!demo) notFound();
 
+  const db = getDb();
+  // Calculada uma vez, reaproveitada pelo tracking (abaixo, só com token) e
+  // pelo selo "Vendo como membro" (independe de token — cobre também
+  // "Abrir demo" da ficha/editor, que abre sem token de propósito).
+  const visitante = await visitanteInterno(db);
+
   const tokenParam = (await searchParams)[TOKEN_QUERY_PARAM];
   const token = typeof tokenParam === "string" ? tokenParam : undefined;
   let visitaId: string | undefined;
   if (token) {
     try {
-      const interna = await requestEhInterna();
       const geo = await geoDaVisita();
-      const registro = await registrarVisitaDemo(getDb(), leadId, { token, interna, geo });
+      const registro = await registrarVisitaDemo(db, leadId, { token, interna: visitante.interna, geo });
       visitaId = registro.visitaId;
     } catch (error) {
       // Tracking nunca derruba a demo pública — o link do lead tem que abrir.
@@ -148,6 +182,7 @@ export default async function DemoPage({ params, searchParams }: Props) {
           cores={demo.theme.paleta}
         />
       )}
+      {visitante.interna && <SeloVisitaInterna nomeUsuario={visitante.nomeUsuario} />}
       {visitaId && <VisitaTracker leadId={leadId} visitaId={visitaId} />}
     </div>
   );

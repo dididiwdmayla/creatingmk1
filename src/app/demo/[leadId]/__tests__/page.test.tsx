@@ -1,14 +1,20 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { criarSessaoToken, SESSION_COOKIE } from "@/lib/auth";
+import { DEVICE_COOKIE, gerarDeviceId } from "@/lib/device";
 import { DEFAULT_SKIN } from "@/lib/demos/registry";
 import { saveDemo } from "@/lib/leads/repo";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 
 let db: FakeFirestore;
+let cookieJar: Record<string, string>;
 
 vi.mock("@/lib/firebase/admin", () => ({ getDb: () => db }));
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ get: () => undefined }),
+  cookies: async () => ({
+    get: (nome: string) => (cookieJar[nome] !== undefined ? { value: cookieJar[nome] } : undefined),
+  }),
   headers: async () => new Headers(),
 }));
 // next/font/google exige o plugin SWC do Next (não roda sob vitest puro) —
@@ -21,6 +27,8 @@ vi.mock("../../fonts", () => ({
 
 beforeEach(() => {
   db = new FakeFirestore();
+  cookieJar = {};
+  vi.stubEnv("APP_PASSWORD", "segredo123");
   db.seed("leads/A", {
     placeId: "A",
     nome: "Barbearia do Zé",
@@ -94,5 +102,70 @@ describe("/demo/[leadId] — resiliência a falha de efeito/rastreio", () => {
 
     expect(elemento).toBeTruthy();
     vi.doUnmock("@/lib/demos/efeitos/registry");
+  });
+});
+
+/**
+ * Selo "Vendo como membro" (ver SeloVisitaInterna.tsx): decisão sempre no
+ * SERVIDOR, a partir da mesma classificação interna/externa do tracking —
+ * sem sessão nem marcador de dispositivo, sem certeza nenhuma, não deve
+ * renderizar nada.
+ */
+describe("/demo/[leadId] — selo de visita interna", () => {
+  it("sem sessão e sem marcador de dispositivo, não renderiza o selo", async () => {
+    await seedDemo();
+    vi.resetModules();
+    const { default: DemoPage } = await import("../page");
+
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(elemento as never);
+
+    expect(html).not.toContain("Vendo como membro");
+  });
+
+  it("com sessão válida, renderiza o selo com o nome do usuário", async () => {
+    await seedDemo();
+    db.seed("usuarios/ana", {
+      id: "ana",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+    cookieJar[SESSION_COOKIE] = await criarSessaoToken(
+      { userId: "ana", papel: "membro", versao: 0 },
+      "segredo123",
+    );
+    vi.resetModules();
+    const { default: DemoPage } = await import("../page");
+
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(elemento as never);
+
+    expect(html).toContain("Vendo como membro");
+    expect(html).toContain("Ana");
+  });
+
+  it("só com marcador de dispositivo (sem sessão), renderiza o selo sem nome", async () => {
+    await seedDemo();
+    cookieJar[DEVICE_COOKIE] = gerarDeviceId();
+    vi.resetModules();
+    const { default: DemoPage } = await import("../page");
+
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(elemento as never);
+
+    expect(html).toContain("Vendo como membro");
   });
 });
