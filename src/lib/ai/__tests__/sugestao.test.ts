@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SKIN, SKINS } from "@/lib/demos/registry";
+import { DEFAULT_SKIN, getSkin, SKINS } from "@/lib/demos/registry";
 import type { Lead } from "@/lib/leads/types";
 import { montarPromptSugestao, schemaSugestao, validarSugestao } from "../sugestao";
 
@@ -55,6 +55,8 @@ function sugestaoValida(): Record<string, unknown> {
     animacao: "sutil",
     slogan: "Tradição de navalha desde sempre.",
     descricao: "Cortes clássicos e barba feita com calma, no coração de Sarandi.",
+    heroCta: "Agendar horário",
+    heroCtaSecundaria: "Ver serviços",
     titulosSecoes: { filosofia: "Nossa filosofia", servicos: "Serviços e preços" },
     idioma: "pt-BR",
   };
@@ -267,6 +269,11 @@ describe("nível de intervenção (toque-leve/equilibrado/completo)", () => {
   });
 
   it("completo: aceita textosSecoes com rótulo/título/texto/CTAs por seção", () => {
+    const itensFilosofia = [
+      { titulo: "CRAFT", subtitulo: "01", texto: "Cada corte é decidido junto ao cliente." },
+      { titulo: "RITUAL", subtitulo: "02", texto: "Toalha quente, conversa baixa, café preto." },
+      { titulo: "TEMPO", subtitulo: "03", texto: "Sob agendamento. Sem fila, sem pressa." },
+    ];
     const bruto = {
       themeId: "meia-noite",
       destaque: "#8C4A2B",
@@ -274,9 +281,16 @@ describe("nível de intervenção (toque-leve/equilibrado/completo)", () => {
       animacao: "sutil",
       slogan: "Tradição de navalha desde sempre.",
       descricao: "Cortes clássicos no coração de Sarandi.",
+      heroCta: "Agendar horário",
+      heroCtaSecundaria: "Ver serviços",
       idioma: "pt-BR",
       textosSecoes: {
-        filosofia: { rotulo: "FILOSOFIA", titulo: "Nossa filosofia", texto: "O que nos guia." },
+        filosofia: {
+          rotulo: "FILOSOFIA",
+          titulo: "Nossa filosofia",
+          texto: "O que nos guia.",
+          itens: itensFilosofia,
+        },
         servicos: { cta: "AGENDAR AGORA" },
       },
       servicos: servicosValidos(),
@@ -287,9 +301,16 @@ describe("nível de intervenção (toque-leve/equilibrado/completo)", () => {
 
     expect(resultado.problemas).toEqual([]);
     expect(resultado.sugestao?.textosSecoes).toEqual({
-      filosofia: { rotulo: "FILOSOFIA", titulo: "Nossa filosofia", texto: "O que nos guia." },
+      filosofia: {
+        rotulo: "FILOSOFIA",
+        titulo: "Nossa filosofia",
+        texto: "O que nos guia.",
+        itens: itensFilosofia,
+      },
       servicos: { cta: "AGENDAR AGORA" },
     });
+    expect(resultado.sugestao?.heroCta).toBe("Agendar horário");
+    expect(resultado.sugestao?.heroCtaSecundaria).toBe("Ver serviços");
     expect(resultado.sugestao?.titulosSecoes).toBeUndefined();
     expect(resultado.sugestao?.servicos).toEqual(servicosValidos());
     expect(resultado.sugestao?.depoimentos).toEqual(depoimentosValidos());
@@ -442,4 +463,122 @@ describe("schemaSugestao — nenhum campo de IDENTIDADE do lead entra no schema"
       }
     },
   );
+});
+
+describe("schema dinâmico — secoes.*.itens[] e exceções do hero (secoes.hero.rotulo/cta)", () => {
+  const TATUAGEM2 = getSkin("tatuagem-pigmento-vivo")!;
+
+  it("hero.rotulo e hero.cta entram no schema (nível equilibrado e completo) — a fixa não some inteira", () => {
+    for (const nivel of ["equilibrado", "completo"] as const) {
+      const schema = schemaSugestao(TATUAGEM2, nivel) as {
+        required: string[];
+        properties: { heroRotulo?: { maxLength: number }; heroCta?: { maxLength: number } };
+      };
+      expect(schema.properties.heroRotulo).toBeDefined();
+      expect(schema.properties.heroCta).toBeDefined();
+      expect(schema.required).toContain("heroRotulo");
+      expect(schema.required).toContain("heroCta");
+    }
+  });
+
+  it("hero.rotulo/cta ausentes na skin (toque-leve, ou skin sem esses campos) não entram no schema", () => {
+    const toqueLeve = schemaSugestao(TATUAGEM2, "toque-leve") as {
+      properties: Record<string, unknown>;
+    };
+    expect(toqueLeve.properties.heroRotulo).toBeUndefined();
+    expect(toqueLeve.properties.heroCta).toBeUndefined();
+
+    // tatuagem-editorial: hero sem rotulo (só texto/cta) — heroRotulo fica de fora.
+    const tatuagem1 = schemaSugestao(getSkin("tatuagem-editorial")!, "completo") as {
+      properties: Record<string, unknown>;
+    };
+    expect(tatuagem1.properties.heroRotulo).toBeUndefined();
+    expect(tatuagem1.properties.heroCta).toBeDefined();
+  });
+
+  it("secoes.*.itens[]: schema de array de tamanho FIXO igual ao exemplo, por seção", () => {
+    const schema = schemaSugestao(TATUAGEM2, "completo") as {
+      properties: {
+        textosSecoes: {
+          properties: Record<string, { properties: { itens?: { minItems: number; maxItems: number } } }>;
+        };
+      };
+    };
+    const estilos = TATUAGEM2.demoDataExemplo.secoes.estilos.itens!;
+    const portfolio = TATUAGEM2.demoDataExemplo.secoes.portfolio.itens!;
+    expect(schema.properties.textosSecoes.properties.estilos.properties.itens).toMatchObject({
+      minItems: estilos.length,
+      maxItems: estilos.length,
+    });
+    expect(schema.properties.textosSecoes.properties.portfolio.properties.itens).toMatchObject({
+      minItems: portfolio.length,
+      maxItems: portfolio.length,
+    });
+    // "investimento" não tem itens de exemplo — a propriedade nem aparece.
+    expect(schema.properties.textosSecoes.properties.investimento.properties.itens).toBeUndefined();
+  });
+
+  it("validarSugestao aceita hero.rotulo/cta + itens por seção, no formato/quantidade do exemplo", () => {
+    const estilos = TATUAGEM2.demoDataExemplo.secoes.estilos.itens!;
+    const fonteValida = (
+      schemaSugestao(TATUAGEM2, "completo") as {
+        properties: { fonteDisplay: { enum: string[] } };
+      }
+    ).properties.fonteDisplay.enum[0];
+    const bruto = {
+      themeId: TATUAGEM2.themePresets[0].id,
+      destaque: "#ff0055",
+      fonteDisplay: fonteValida,
+      animacao: "sutil",
+      slogan: "Cor que fica.",
+      descricao: "Estúdio autoral.",
+      heroRotulo: "Studio autoral traduzido",
+      heroCta: "Book a session",
+      idioma: "pt-BR",
+      textosSecoes: {
+        estilos: {
+          titulo: "Five languages",
+          itens: estilos.map((item, i) => ({ titulo: `Style ${i}`, texto: item.texto })),
+        },
+      },
+      servicos: TATUAGEM2.demoDataExemplo.servicos.map((s, i) => ({ nome: `Service ${i}` })),
+      depoimentos: TATUAGEM2.demoDataExemplo.depoimentos.map((d, i) => ({
+        autor: `Author ${i}`,
+        texto: `Testimonial ${i}`,
+      })),
+    };
+
+    const resultado = validarSugestao(bruto, TATUAGEM2, "completo");
+
+    expect(resultado.problemas).toEqual([]);
+    expect(resultado.sugestao?.heroRotulo).toBe("Studio autoral traduzido");
+    expect(resultado.sugestao?.heroCta).toBe("Book a session");
+    expect(resultado.sugestao?.textosSecoes?.estilos.itens).toHaveLength(estilos.length);
+  });
+
+  it("validarSugestao rejeita itens com quantidade diferente do exemplo (nunca inventa nem remove item)", () => {
+    const bruto = {
+      themeId: TATUAGEM2.themePresets[0].id,
+      destaque: "#ff0055",
+      fonteDisplay: (schemaSugestao(TATUAGEM2, "completo") as {
+        properties: { fonteDisplay: { enum: string[] } };
+      }).properties.fonteDisplay.enum[0],
+      animacao: "sutil",
+      slogan: "Cor que fica.",
+      descricao: "Estúdio autoral.",
+      heroRotulo: "Studio",
+      heroCta: "Book",
+      idioma: "pt-BR",
+      textosSecoes: {
+        estilos: { itens: [{ titulo: "Só um item" }] },
+      },
+    };
+
+    const { sugestao, problemas } = validarSugestao(bruto, TATUAGEM2, "completo");
+
+    expect(sugestao).toBeUndefined();
+    expect(problemas).toContain(
+      `textosSecoes.estilos.itens deve ser uma lista com ${TATUAGEM2.demoDataExemplo.secoes.estilos.itens!.length} item(ns)`,
+    );
+  });
 });

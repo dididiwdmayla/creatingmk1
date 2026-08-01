@@ -462,6 +462,10 @@ export function DemoEditorClient({ id }: { id: string }) {
     const temTextos =
       aplicada.slogan !== undefined ||
       aplicada.descricao !== undefined ||
+      aplicada.heroRotulo !== undefined ||
+      aplicada.heroCta !== undefined ||
+      aplicada.heroCtaSecundaria !== undefined ||
+      aplicada.heroItens !== undefined ||
       aplicada.titulosSecoes !== undefined ||
       aplicada.textosSecoes !== undefined ||
       aplicada.servicos !== undefined ||
@@ -481,10 +485,26 @@ export function DemoEditorClient({ id }: { id: string }) {
             ...(textos.texto !== undefined && { texto: textos.texto }),
             ...(textos.cta !== undefined && { cta: textos.cta }),
             ...(textos.ctaSecundaria !== undefined && { ctaSecundaria: textos.ctaSecundaria }),
+            ...(textos.itens !== undefined && { itens: textos.itens }),
           };
         }
-        if (aplicada.descricao !== undefined) {
-          secoes.hero = { ...secoes.hero, texto: aplicada.descricao };
+        if (
+          aplicada.descricao !== undefined ||
+          aplicada.heroRotulo !== undefined ||
+          aplicada.heroCta !== undefined ||
+          aplicada.heroCtaSecundaria !== undefined ||
+          aplicada.heroItens !== undefined
+        ) {
+          secoes.hero = {
+            ...secoes.hero,
+            ...(aplicada.descricao !== undefined && { texto: aplicada.descricao }),
+            ...(aplicada.heroRotulo !== undefined && { rotulo: aplicada.heroRotulo }),
+            ...(aplicada.heroCta !== undefined && { cta: aplicada.heroCta }),
+            ...(aplicada.heroCtaSecundaria !== undefined && {
+              ctaSecundaria: aplicada.heroCtaSecundaria,
+            }),
+            ...(aplicada.heroItens !== undefined && { itens: aplicada.heroItens }),
+          };
         }
         // servicos/depoimentos: só nome/descricao (ou autor/texto) mudam —
         // preço, categoria, destaques e nota/contexto do item atual são
@@ -898,7 +918,11 @@ export function DemoEditorClient({ id }: { id: string }) {
                           <li>Animação: {sugestao.animacao}</li>
                         </ul>
                       </div>
-                      {(sugestao.slogan !== undefined || sugestao.descricao !== undefined) && (
+                      {(sugestao.slogan !== undefined ||
+                        sugestao.descricao !== undefined ||
+                        sugestao.heroRotulo !== undefined ||
+                        sugestao.heroCta !== undefined ||
+                        sugestao.heroCtaSecundaria !== undefined) && (
                         <div className="rounded border border-line bg-surface-2 p-3">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                             Textos
@@ -913,6 +937,35 @@ export function DemoEditorClient({ id }: { id: string }) {
                               <span className="text-ink-muted">Descrição:</span>{" "}
                               {sugestao.descricao}
                             </p>
+                          )}
+                          {sugestao.heroRotulo !== undefined && (
+                            <p className="mt-1 text-xs text-foreground">
+                              <span className="text-ink-muted">Rótulo do hero:</span>{" "}
+                              {sugestao.heroRotulo}
+                            </p>
+                          )}
+                          {sugestao.heroCta !== undefined && (
+                            <p className="mt-1 text-xs text-foreground">
+                              <span className="text-ink-muted">CTA do hero:</span>{" "}
+                              {sugestao.heroCta}
+                            </p>
+                          )}
+                          {sugestao.heroCtaSecundaria !== undefined && (
+                            <p className="mt-1 text-xs text-foreground">
+                              <span className="text-ink-muted">CTA secundária do hero:</span>{" "}
+                              {sugestao.heroCtaSecundaria}
+                            </p>
+                          )}
+                          {sugestao.heroItens && sugestao.heroItens.length > 0 && (
+                            <ul className="mt-1 flex flex-col gap-0.5 pl-2 text-xs text-ink-muted">
+                              {sugestao.heroItens.map((item, i) => (
+                                <li key={i}>
+                                  {[item.titulo, item.subtitulo, item.detalhe, item.texto]
+                                    .filter(Boolean)
+                                    .join(" — ")}
+                                </li>
+                              ))}
+                            </ul>
                           )}
                         </div>
                       )}
@@ -957,6 +1010,20 @@ export function DemoEditorClient({ id }: { id: string }) {
                                     {textos.cta !== undefined && <li>CTA: {textos.cta}</li>}
                                     {textos.ctaSecundaria !== undefined && (
                                       <li>CTA secundária: {textos.ctaSecundaria}</li>
+                                    )}
+                                    {textos.itens && textos.itens.length > 0 && (
+                                      <li>
+                                        Itens:
+                                        <ul className="pl-2">
+                                          {textos.itens.map((item, i) => (
+                                            <li key={i}>
+                                              {[item.titulo, item.subtitulo, item.detalhe, item.texto]
+                                                .filter(Boolean)
+                                                .join(" — ")}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </li>
                                     )}
                                   </ul>
                                 </li>

@@ -18,6 +18,8 @@ const SUGESTAO_VALIDA = {
   animacao: "sutil",
   slogan: "Tradição de navalha.",
   descricao: "Cortes clássicos no coração de Sarandi.",
+  heroCta: "Agendar horário",
+  heroCtaSecundaria: "Ver serviços",
   titulosSecoes: { filosofia: "Nossa filosofia" },
   idioma: "pt-BR",
 };
@@ -30,6 +32,8 @@ const SUGESTAO_ESPERADA = {
   animacao: SUGESTAO_VALIDA.animacao,
   slogan: SUGESTAO_VALIDA.slogan,
   descricao: SUGESTAO_VALIDA.descricao,
+  heroCta: SUGESTAO_VALIDA.heroCta,
+  heroCtaSecundaria: SUGESTAO_VALIDA.heroCtaSecundaria,
   titulosSecoes: SUGESTAO_VALIDA.titulosSecoes,
 };
 

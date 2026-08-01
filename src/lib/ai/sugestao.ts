@@ -2,7 +2,7 @@ import { reserveQuota, type UsageCounts } from "@/lib/costs";
 import { fontesPorPapel } from "@/lib/demos/fontes";
 import { idiomaEfetivoDemo } from "@/lib/demos/idioma";
 import { HEX_RE } from "@/lib/demos/tema";
-import { ANIMACOES, type Animacao, type SkinDefinition } from "@/lib/demos/types";
+import { ANIMACOES, type Animacao, type DemoItem, type SkinDefinition } from "@/lib/demos/types";
 import type { UsageDb } from "@/lib/firestore-like";
 import { IDIOMA_PADRAO, idiomaLabel } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
@@ -30,6 +30,14 @@ const TITULO_MAX = 80;
 const ROTULO_MAX = 40;
 const CTA_MAX = 60;
 
+/** Título/subtítulo/detalhe/texto de UM item de `DemoSecao.itens` (nível "completo"). */
+export interface SugestaoItem {
+  titulo: string;
+  subtitulo?: string;
+  detalhe?: string;
+  texto?: string;
+}
+
 /** Textos de UMA seção não-fixa no nível "completo" (ver textosSecoes). */
 export interface SugestaoSecaoTexto {
   rotulo?: string;
@@ -37,6 +45,13 @@ export interface SugestaoSecaoTexto {
   texto?: string;
   cta?: string;
   ctaSecundaria?: string;
+  /**
+   * `DemoSecao.itens` da seção, na MESMA ordem/quantidade do exemplo
+   * (`skin.demoDataExemplo.secoes[id].itens` — nunca inventa nem remove
+   * item, mesmo critério de `servicos`/`depoimentos`). Presente (e
+   * obrigatório) só quando a seção tem itens de exemplo.
+   */
+  itens?: SugestaoItem[];
 }
 
 /** Nome/descrição de UM serviço no nível "completo" (ver `servicos`). Preço NUNCA entra — é dado, não conteúdo. */
@@ -64,6 +79,23 @@ export interface SugestaoDemo {
   slogan?: string;
   /** Descrição curta do negócio (texto do hero) — ausente em "toque-leve". */
   descricao?: string;
+  /**
+   * Etiqueta pequena do hero (`DemoData.secoes.hero.rotulo`) — ausente em
+   * "toque-leve"; só existe quando a skin tem `rotulo` no hero de exemplo
+   * (a fixa não some do schema inteira: só o `titulo`, identidade, fica de
+   * fora — ver "Idioma da IA na demo" / correção do schema dinâmico).
+   */
+  heroRotulo?: string;
+  /** CTA principal do hero (`DemoData.secoes.hero.cta`) — mesmo critério de `heroRotulo`. */
+  heroCta?: string;
+  /** CTA secundário do hero (`DemoData.secoes.hero.ctaSecundaria`) — mesmo critério de `heroRotulo`. */
+  heroCtaSecundaria?: string;
+  /**
+   * Nível "completo": `DemoData.secoes.hero.itens` (ex.: chips de avaliação
+   * no hero da skin de petshop), na mesma ordem/quantidade do exemplo — só
+   * existe quando o hero da skin ativa TEM itens de exemplo.
+   */
+  heroItens?: SugestaoItem[];
   /**
    * Título por seção do contrato da skin (DemoData.secoes[id].titulo) — só
    * no nível "equilibrado"; no "completo" o mesmo papel é coberto (com mais
@@ -95,14 +127,28 @@ export interface SugestaoDemo {
 /** Chaves de topo aceitas na resposta do Gemini, de acordo com o nível e a SKIN ATIVA (não a união de todas). */
 const CHAVES_BASE = ["themeId", "destaque", "fonteDisplay", "animacao"] as const;
 
+/**
+ * `DemoSecao` de exemplo do hero da skin ativa — nunca undefined na
+ * prática (toda skin declara `secoes.hero`), mas o contrato é
+ * `Record<string, DemoSecao>` então o acesso é opcional.
+ */
+function heroExemplo(skin: SkinDefinition) {
+  return skin.demoDataExemplo.secoes.hero;
+}
+
 function chavesParaNivel(skin: SkinDefinition, nivel: NivelIA): string[] {
   if (nivel === "toque-leve") return [...CHAVES_BASE];
   const chaves: string[] = [...CHAVES_BASE, "slogan", "descricao", "idioma"];
+  const hero = heroExemplo(skin);
+  if (hero?.rotulo) chaves.push("heroRotulo");
+  if (hero?.cta) chaves.push("heroCta");
+  if (hero?.ctaSecundaria) chaves.push("heroCtaSecundaria");
   if (nivel === "equilibrado") {
     chaves.push("titulosSecoes");
     return chaves;
   }
   chaves.push("textosSecoes");
+  if (hero?.itens && hero.itens.length > 0) chaves.push("heroItens");
   if (skin.demoDataExemplo.servicos.length > 0) chaves.push("servicos");
   if (skin.demoDataExemplo.depoimentos.length > 0) chaves.push("depoimentos");
   return chaves;
@@ -111,10 +157,21 @@ function chavesParaNivel(skin: SkinDefinition, nivel: NivelIA): string[] {
 /**
  * Seções que a IA pode intitular: só as NÃO-fixas. O título da fixa (hero)
  * é o nome/wordmark do negócio nas skins atuais — a IA não mexe nele; a
- * `descricao` vai pro texto do hero, que é apresentação, não identidade.
+ * `descricao` vai pro texto do hero (rótulo/CTAs/itens do hero entram à
+ * parte, via `heroRotulo`/`heroCta`/`heroCtaSecundaria`/`heroItens`).
  */
 function secoesTitulaveis(skin: SkinDefinition) {
   return skin.secoes.filter((secao) => !secao.fixa);
+}
+
+/** Descrição compacta de `DemoItem[]` de exemplo, pro prompt (ver `itens`/`heroItens`). */
+function descreverItens(itens: DemoItem[]): string {
+  return itens
+    .map((item, i) => {
+      const partes = [item.titulo, item.subtitulo, item.detalhe, item.texto].filter(Boolean);
+      return `${i + 1}. "${partes.join(" / ")}"`;
+    })
+    .join("; ");
 }
 
 function idsFontesDisplay(skin: SkinDefinition): string[] {
@@ -124,19 +181,49 @@ function idsFontesDisplay(skin: SkinDefinition): string[] {
   return [...recomendadas, ...curadas.filter((id) => !recomendadas.includes(id))];
 }
 
-/** Schema de UMA seção não-fixa no nível "completo" (ver SugestaoSecaoTexto). */
-function schemaSecaoTexto(): Record<string, unknown> {
+/**
+ * Schema de `itens`: array de comprimento FIXO (== quantidade de itens de
+ * exemplo daquela seção — nunca inventa nem remove item, mesmo critério de
+ * `servicos`/`depoimentos`), com título/subtítulo/detalhe/texto por item
+ * (`DemoItem` — só `titulo` é obrigatório). `undefined` quando a seção não
+ * tem itens de exemplo.
+ */
+function schemaListaItens(itensExemplo: DemoItem[] | undefined): Record<string, unknown> | undefined {
+  const quantidade = itensExemplo?.length ?? 0;
+  if (quantidade === 0) return undefined;
   return {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      rotulo: { type: "string", maxLength: ROTULO_MAX },
-      titulo: { type: "string", maxLength: TITULO_MAX },
-      texto: { type: "string", maxLength: DESCRICAO_MAX },
-      cta: { type: "string", maxLength: CTA_MAX },
-      ctaSecundaria: { type: "string", maxLength: CTA_MAX },
+    type: "array",
+    minItems: quantidade,
+    maxItems: quantidade,
+    items: {
+      type: "object",
+      additionalProperties: false,
+      required: ["titulo"],
+      properties: {
+        titulo: { type: "string", maxLength: TITULO_MAX },
+        subtitulo: { type: "string", maxLength: TITULO_MAX },
+        detalhe: { type: "string", maxLength: ROTULO_MAX },
+        texto: { type: "string", maxLength: DESCRICAO_MAX },
+      },
     },
   };
+}
+
+/** Schema de UMA seção não-fixa no nível "completo" (ver SugestaoSecaoTexto). */
+function schemaSecaoTexto(itensExemplo: DemoItem[] | undefined): Record<string, unknown> {
+  const properties: Record<string, unknown> = {
+    rotulo: { type: "string", maxLength: ROTULO_MAX },
+    titulo: { type: "string", maxLength: TITULO_MAX },
+    texto: { type: "string", maxLength: DESCRICAO_MAX },
+    cta: { type: "string", maxLength: CTA_MAX },
+    ctaSecundaria: { type: "string", maxLength: CTA_MAX },
+  };
+  const itens = schemaListaItens(itensExemplo);
+  if (!itens) {
+    return { type: "object", additionalProperties: false, properties };
+  }
+  properties.itens = itens;
+  return { type: "object", additionalProperties: false, required: ["itens"], properties };
 }
 
 /**
@@ -212,6 +299,8 @@ export function schemaSugestao(
     animacao: { type: "string", enum: [...ANIMACOES] },
   };
 
+  const hero = heroExemplo(skin);
+
   if (nivel !== "toque-leve") {
     properties.slogan = { type: "string", maxLength: SLOGAN_MAX };
     properties.descricao = { type: "string", maxLength: DESCRICAO_MAX };
@@ -220,6 +309,9 @@ export function schemaSugestao(
       enum: [idioma],
       description: "Idioma-alvo dos textos — repita este valor.",
     };
+    if (hero?.rotulo) properties.heroRotulo = { type: "string", maxLength: ROTULO_MAX };
+    if (hero?.cta) properties.heroCta = { type: "string", maxLength: CTA_MAX };
+    if (hero?.ctaSecundaria) properties.heroCtaSecundaria = { type: "string", maxLength: CTA_MAX };
   }
 
   if (nivel === "equilibrado") {
@@ -240,9 +332,14 @@ export function schemaSugestao(
       type: "object",
       additionalProperties: false,
       properties: Object.fromEntries(
-        secoesTitulaveis(skin).map((secao) => [secao.id, schemaSecaoTexto()]),
+        secoesTitulaveis(skin).map((secao) => [
+          secao.id,
+          schemaSecaoTexto(skin.demoDataExemplo.secoes[secao.id]?.itens),
+        ]),
       ),
     };
+    const heroItens = schemaListaItens(hero?.itens);
+    if (heroItens) properties.heroItens = heroItens;
     const servicos = schemaListaServicos(skin);
     if (servicos) properties.servicos = servicos;
     const depoimentos = schemaListaDepoimentos(skin);
@@ -285,6 +382,8 @@ export function montarPromptSugestao(
       : []),
   ];
 
+  const hero = heroExemplo(skin);
+
   const linhasTextos: string[] =
     nivel === "toque-leve"
       ? []
@@ -293,6 +392,11 @@ export function montarPromptSugestao(
           "Textos (curtos, diretos, sem emojis, sem inventar dados que não estão acima):",
           `- slogan: frase de efeito com até ${SLOGAN_MAX} caracteres.`,
           `- descricao: apresentação do negócio com até ${DESCRICAO_MAX} caracteres.`,
+          ...(hero?.rotulo ? [`- heroRotulo: etiqueta pequena do hero, até ${ROTULO_MAX} caracteres (ex.: "${hero.rotulo}").`] : []),
+          ...(hero?.cta ? [`- heroCta: CTA principal do hero, até ${CTA_MAX} caracteres (ex.: "${hero.cta}").`] : []),
+          ...(hero?.ctaSecundaria
+            ? [`- heroCtaSecundaria: CTA secundário do hero, até ${CTA_MAX} caracteres (ex.: "${hero.ctaSecundaria}").`]
+            : []),
           ...(nivel === "equilibrado"
             ? [
                 `- titulosSecoes: um título (até ${TITULO_MAX} caracteres) para cada seção: ${secoesTitulaveis(
@@ -307,6 +411,18 @@ export function montarPromptSugestao(
                 )
                   .map((secao) => `"${secao.id}" (${secao.nome})`)
                   .join(", ")}.`,
+                ...secoesTitulaveis(skin).flatMap((secao) => {
+                  const itens = skin.demoDataExemplo.secoes[secao.id]?.itens;
+                  if (!itens || itens.length === 0) return [];
+                  return [
+                    `- textosSecoes.${secao.id}.itens: reescreva título/subtítulo/detalhe/texto de CADA um dos ${itens.length} itens abaixo, na MESMA ordem (não invente nem remova item): ${descreverItens(itens)}.`,
+                  ];
+                }),
+                ...(hero?.itens && hero.itens.length > 0
+                  ? [
+                      `- heroItens: reescreva título/subtítulo/detalhe/texto de CADA um dos ${hero.itens.length} itens do hero abaixo, na MESMA ordem (não invente nem remova item): ${descreverItens(hero.itens)}.`,
+                    ]
+                  : []),
                 ...(skin.demoDataExemplo.servicos.length > 0
                   ? [
                       `- servicos: reescreva nome (≤${TITULO_MAX} caracteres) e descrição (≤${DESCRICAO_MAX}, quando fizer sentido) de CADA um dos ${skin.demoDataExemplo.servicos.length} serviços abaixo, na MESMA ordem (não invente nem remova item; preço não entra, é dado do lead): ${skin.demoDataExemplo.servicos
@@ -366,6 +482,46 @@ function textoCurto(value: unknown, max: number): string | undefined {
 }
 
 /**
+ * Valida uma lista de `DemoItem` (título obrigatório; subtítulo/detalhe/
+ * texto opcionais) contra a quantidade FIXA de itens de exemplo daquela
+ * seção — mesmo critério de `servicos`/`depoimentos`. `path` é o prefixo
+ * das mensagens de erro (ex.: "textosSecoes.estilos.itens", "heroItens").
+ */
+function validarItens(
+  bruto: unknown,
+  quantidade: number,
+  path: string,
+  problemas: string[],
+): SugestaoItem[] | undefined {
+  if (!Array.isArray(bruto) || bruto.length !== quantidade) {
+    problemas.push(`${path} deve ser uma lista com ${quantidade} item(ns)`);
+    return undefined;
+  }
+  return bruto.map((item, i) => {
+    if (!isRecord(item)) {
+      problemas.push(`${path}[${i}] deve ser um objeto`);
+      return { titulo: "" };
+    }
+    for (const chave of Object.keys(item)) {
+      if (!["titulo", "subtitulo", "detalhe", "texto"].includes(chave)) {
+        problemas.push(`${path}[${i}].${chave}: chave desconhecida`);
+      }
+    }
+    const titulo = textoCurto(item.titulo, TITULO_MAX);
+    if (!titulo) problemas.push(`${path}[${i}].titulo deve ser string não vazia`);
+    const subtitulo = textoCurto(item.subtitulo, TITULO_MAX);
+    const detalhe = textoCurto(item.detalhe, ROTULO_MAX);
+    const texto = textoCurto(item.texto, DESCRICAO_MAX);
+    return {
+      titulo: titulo ?? "",
+      ...(subtitulo !== undefined && { subtitulo }),
+      ...(detalhe !== undefined && { detalhe }),
+      ...(texto !== undefined && { texto }),
+    };
+  });
+}
+
+/**
  * Validação estrita da resposta do Gemini contra o contrato da skin.
  * Qualquer desvio de forma (chave desconhecida, enum fora da lista, hex
  * inválido, seção que a skin não tem) vira lista de problemas — o chamador
@@ -418,9 +574,14 @@ export function validarSugestao(
 
   let slogan: string | undefined;
   let descricao: string | undefined;
+  let heroRotulo: string | undefined;
+  let heroCta: string | undefined;
+  let heroCtaSecundaria: string | undefined;
+  let heroItens: SugestaoItem[] | undefined;
   let titulos: Record<string, string> | undefined;
   let textos: Record<string, SugestaoSecaoTexto> | undefined;
   const idsSecoes = secoesTitulaveis(skin).map((secao) => secao.id);
+  const hero = heroExemplo(skin);
 
   if (nivel !== "toque-leve") {
     slogan = textoCurto(bruto.slogan, SLOGAN_MAX);
@@ -431,6 +592,23 @@ export function validarSugestao(
     if (bruto.idioma !== idioma) {
       problemas.push(`idioma deve ser exatamente "${idioma}"`);
     }
+
+    if (hero?.rotulo) {
+      heroRotulo = textoCurto(bruto.heroRotulo, ROTULO_MAX);
+      if (!heroRotulo) problemas.push("heroRotulo deve ser string não vazia");
+    }
+    if (hero?.cta) {
+      heroCta = textoCurto(bruto.heroCta, CTA_MAX);
+      if (!heroCta) problemas.push("heroCta deve ser string não vazia");
+    }
+    if (hero?.ctaSecundaria) {
+      heroCtaSecundaria = textoCurto(bruto.heroCtaSecundaria, CTA_MAX);
+      if (!heroCtaSecundaria) problemas.push("heroCtaSecundaria deve ser string não vazia");
+    }
+  }
+
+  if (nivel === "completo" && hero?.itens && hero.itens.length > 0) {
+    heroItens = validarItens(bruto.heroItens, hero.itens.length, "heroItens", problemas);
   }
 
   if (nivel === "equilibrado") {
@@ -468,9 +646,17 @@ export function validarSugestao(
           continue;
         }
         for (const chave of Object.keys(valor)) {
-          if (!["rotulo", "titulo", "texto", "cta", "ctaSecundaria"].includes(chave)) {
+          if (!["rotulo", "titulo", "texto", "cta", "ctaSecundaria", "itens"].includes(chave)) {
             problemas.push(`textosSecoes.${id}.${chave} não é um campo de texto válido`);
           }
+        }
+        const itensExemplo = skin.demoDataExemplo.secoes[id]?.itens;
+        const quantidadeItens = itensExemplo?.length ?? 0;
+        let itens: SugestaoItem[] | undefined;
+        if (quantidadeItens > 0) {
+          itens = validarItens(valor.itens, quantidadeItens, `textosSecoes.${id}.itens`, problemas);
+        } else if (valor.itens !== undefined) {
+          problemas.push(`textosSecoes.${id}.itens: a seção não tem itens no exemplo`);
         }
         const secaoTexto: SugestaoSecaoTexto = {
           rotulo: textoCurto(valor.rotulo, ROTULO_MAX),
@@ -478,6 +664,7 @@ export function validarSugestao(
           texto: textoCurto(valor.texto, DESCRICAO_MAX),
           cta: textoCurto(valor.cta, CTA_MAX),
           ctaSecundaria: textoCurto(valor.ctaSecundaria, CTA_MAX),
+          ...(itens !== undefined && { itens }),
         };
         const semTextoAlgum = Object.values(secaoTexto).every((v) => v === undefined);
         if (semTextoAlgum) {
@@ -537,6 +724,10 @@ export function validarSugestao(
       animacao: animacao as Animacao,
       ...(slogan !== undefined && { slogan }),
       ...(descricao !== undefined && { descricao }),
+      ...(heroRotulo !== undefined && { heroRotulo }),
+      ...(heroCta !== undefined && { heroCta }),
+      ...(heroCtaSecundaria !== undefined && { heroCtaSecundaria }),
+      ...(heroItens !== undefined && { heroItens }),
       ...(titulos !== undefined && { titulosSecoes: titulos }),
       ...(textos !== undefined && { textosSecoes: textos }),
       ...(servicos !== undefined && { servicos }),
