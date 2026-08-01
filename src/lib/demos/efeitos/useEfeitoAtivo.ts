@@ -1,6 +1,6 @@
 "use client";
 
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 /** Estado de "deve rodar agora?" que todo componente de efeito consulta. */
 export interface EfeitoAtivoState {
@@ -46,8 +46,19 @@ export function useEfeitoAtivo(
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
+  // Sem dependency array (roda depois de todo commit): efeitos que só
+  // montam o próprio elemento quando `intensidade` passa de 0 pra >0
+  // (ver Grao/Aura/Gradiente/Particulas) têm `ref.current` null no
+  // commit inicial — um efeito preso a `[ref]` (identidade estável do
+  // objeto, nunca muda) rodaria só nesse commit e nunca mais, deixando o
+  // observer pra sempre desconectado do elemento real. O guard contra
+  // `elementoObservado` evita reobservar o mesmo nó em renders sem
+  // mudança (custo O(1) por commit).
+  const elementoObservadoRef = useRef<Element | null>(null);
   useEffect(() => {
     const el = ref.current;
+    if (el === elementoObservadoRef.current) return;
+    elementoObservadoRef.current = el;
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => setIntersecting(entry?.isIntersecting ?? false),
@@ -55,7 +66,7 @@ export function useEfeitoAtivo(
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [ref]);
+  });
 
   useEffect(() => {
     const onVisibility = () => setAbaVisivel(document.visibilityState === "visible");
