@@ -32,7 +32,10 @@ export const EFEITOS: EfeitoDefinition[] = [
   {
     id: "particulas",
     nome: "Partículas",
-    nichosRecomendados: ["barbearia2", "lancheria", "multimarcas", "petshop", "tatuagem2"],
+    // Ids de SkinDefinition.nicho (não de skin) — "barbearia2-sul" e
+    // "tatuagem-pigmento-vivo" declaram nicho "barbearia"/"tatuagem",
+    // os mesmos das skins "-editorial" (ver src/lib/demos/registry.ts).
+    nichosRecomendados: ["barbearia", "lancheria", "multimarcas", "petshop", "tatuagem"],
   },
 ];
 
