@@ -223,6 +223,51 @@ describe("PUT /api/leads/[id]/demo", () => {
     expect(error.problemas.join(" | ")).toContain("tema.fundoEfeitoIntensidade");
   });
 
+  it("salva auraCores (custom ou preset 'fumaca-colorida'); valores inválidos → 400", async () => {
+    const custom = await put("A", {
+      ...VALIDO,
+      tema: { fundoEfeito: "aura", auraCores: { primaria: "#ff00aa", secundaria: "#00ffaa" } },
+    });
+    expect(custom.status).toBe(200);
+    const { lead: leadCustom } = await custom.json();
+    expect(leadCustom.demo.tema).toEqual({
+      fundoEfeito: "aura",
+      auraCores: { primaria: "#ff00aa", secundaria: "#00ffaa" },
+    });
+
+    const preset = await put("A", {
+      ...VALIDO,
+      tema: { fundoEfeito: "aura", auraCores: "fumaca-colorida" },
+    });
+    expect(preset.status).toBe(200);
+    const { lead: leadPreset } = await preset.json();
+    expect(leadPreset.demo.tema).toEqual({ fundoEfeito: "aura", auraCores: "fumaca-colorida" });
+
+    const corInvalida = await put("A", {
+      ...VALIDO,
+      tema: { auraCores: { primaria: "não-é-hex" } },
+    });
+    expect(corInvalida.status).toBe(400);
+    const { error: errorCor } = await corInvalida.json();
+    expect(errorCor.problemas.join(" | ")).toContain("tema.auraCores.primaria");
+
+    const chaveDesconhecida = await put("A", {
+      ...VALIDO,
+      tema: { auraCores: { terciaria: "#000000" } },
+    });
+    expect(chaveDesconhecida.status).toBe(400);
+    const { error: errorChave } = await chaveDesconhecida.json();
+    expect(errorChave.problemas.join(" | ")).toContain("tema.auraCores.terciaria");
+
+    const valorInvalido = await put("A", {
+      ...VALIDO,
+      tema: { auraCores: "fumaca-cinza" },
+    });
+    expect(valorInvalido.status).toBe(400);
+    const { error: errorValor } = await valorInvalido.json();
+    expect(errorValor.problemas.join(" | ")).toContain("tema.auraCores");
+  });
+
   it("salva heroTitulo (fonte/escala/alinhamento) e led; valores inválidos → 400", async () => {
     const ok = await put("A", {
       ...VALIDO,

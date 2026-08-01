@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { appPassword, lerSessaoToken, SESSION_COOKIE } from "@/lib/auth";
 import { classificarVisitaInterna, DEVICE_COOKIE } from "@/lib/device";
+import { paletaParaAura } from "@/lib/demos/efeitos/aura/cores";
 import { EfeitoDinamico } from "@/lib/demos/efeitos/dynamicComponents";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
@@ -65,7 +66,14 @@ async function loadDemo(leadId: string) {
   } catch (error) {
     console.error("[radar] falha ao resolver o efeito de fundo da demo:", error);
   }
-  return { skin, theme, data, extraFontClassName, efeitoFundo };
+  // Cores da aura (só tem efeito quando o efeito ativo é "aura"; ver
+  // paletaParaAura) — resolvidas aqui, fora do JSX, iguais na rota
+  // pública e no preview (ver demo-preview/page.tsx).
+  const coresEfeito =
+    efeitoFundo?.efeito.id === "aura"
+      ? paletaParaAura(theme.paleta, lead.demo.tema?.auraCores)
+      : theme.paleta;
+  return { skin, theme, data, extraFontClassName, efeitoFundo, coresEfeito };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -179,7 +187,7 @@ export default async function DemoPage({ params, searchParams }: Props) {
         <EfeitoDinamico
           id={demo.efeitoFundo.efeito.id}
           intensidade={demo.efeitoFundo.intensidade}
-          cores={demo.theme.paleta}
+          cores={demo.coresEfeito}
         />
       )}
       {visitante.interna && <SeloVisitaInterna nomeUsuario={visitante.nomeUsuario} />}

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Reorder, useDragControls } from "motion/react";
 import { useRef, type ChangeEvent, type ReactNode } from "react";
 
+import { FUMACA_COLORIDA, resolverCoresAura } from "@/lib/demos/efeitos/aura/cores";
 import { EFEITOS, getEfeito, intensidadePadrao } from "@/lib/demos/efeitos/registry";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { ordemEfetiva } from "@/lib/demos/estrutura";
@@ -16,6 +17,7 @@ import type {
   Alinhamento,
   Animacao,
   AnimacaoEntrada,
+  AuraCoresPatch,
   CliqueEstilo,
   DemoData,
   DemoItem,
@@ -752,6 +754,113 @@ function Escolha<T extends string>({
   );
 }
 
+/** Remove campos vazios/undefined; devolve undefined se não sobrar nada (volta a seguir o tema). */
+function auraCoresLimpo(patch: AuraCoresPatch): AuraCoresPatch | undefined {
+  const limpo: AuraCoresPatch = {};
+  if (patch.primaria) limpo.primaria = patch.primaria;
+  if (patch.secundaria) limpo.secundaria = patch.secundaria;
+  return Object.keys(limpo).length > 0 ? limpo : undefined;
+}
+
+/**
+ * Controle de cores do efeito "aura" (aba Tema, só aparece com "aura"
+ * selecionado como efeito de fundo): duas cores editáveis (uma por blob —
+ * ver Aura.tsx), cada uma cai no default do tema (`paleta.destaque`/
+ * `acentoSecundario`) quando ausente, mais o preset fixo "Fumaça
+ * colorida" (independente da paleta do tema — ver
+ * efeitos/aura/cores.ts#FUMACA_COLORIDA). Editar uma cor manualmente
+ * enquanto o preset está ativo parte das cores do preset (não do tema),
+ * pra não perder a outra cor escolhida.
+ */
+function AuraCoresControl({
+  auraCores,
+  paletaTema,
+  onChange,
+}: {
+  auraCores: TemaPatch["auraCores"];
+  paletaTema: { destaque: string; acentoSecundario: string };
+  onChange: (valor: TemaPatch["auraCores"]) => void;
+}) {
+  const presetAtivo = auraCores === "fumaca-colorida";
+  const base: AuraCoresPatch = presetAtivo ? FUMACA_COLORIDA : (auraCores ?? {});
+  const resolvido = resolverCoresAura(auraCores, paletaTema);
+
+  function setCor(campo: "primaria" | "secundaria", valor: string) {
+    onChange(auraCoresLimpo({ ...base, [campo]: valor }));
+  }
+
+  function limparCor(campo: "primaria" | "secundaria") {
+    onChange(auraCoresLimpo({ ...base, [campo]: undefined }));
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded border border-line p-3">
+      <span className="text-xs text-ink-muted">Cores da aura</span>
+
+      <div className="flex flex-wrap gap-4">
+        {(
+          [
+            ["primaria", "Primária"],
+            ["secundaria", "Secundária"],
+          ] as const
+        ).map(([campo, rotulo]) => (
+          <div key={campo} className="flex items-end gap-2">
+            <label className={LABEL_CLS}>
+              {rotulo}
+              <span className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={resolvido[campo]}
+                  onChange={(e) => setCor(campo, e.target.value)}
+                  className="h-9 w-12 cursor-pointer rounded border border-line bg-surface-2 p-1"
+                />
+                <code className="font-mono text-xs text-ink-secondary">{resolvido[campo]}</code>
+              </span>
+            </label>
+            {!presetAtivo && base[campo] && (
+              <button
+                type="button"
+                onClick={() => limparCor(campo)}
+                className="pb-2 text-[11px] text-ink-muted hover:text-foreground"
+              >
+                usar a do tema
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-pressed={presetAtivo}
+          onClick={() => onChange(presetAtivo ? undefined : "fumaca-colorida")}
+          className={`flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs transition-colors ${
+            presetAtivo
+              ? "border-accent text-foreground"
+              : "border-line text-ink-muted hover:border-accent/50"
+          }`}
+        >
+          <span className="flex overflow-hidden rounded-sm border border-line">
+            <span className="h-3 w-3" style={{ background: FUMACA_COLORIDA.primaria }} />
+            <span className="h-3 w-3" style={{ background: FUMACA_COLORIDA.secundaria }} />
+          </span>
+          Fumaça colorida
+        </button>
+        {auraCores !== undefined && (
+          <button
+            type="button"
+            onClick={() => onChange(undefined)}
+            className="text-[11px] text-ink-muted hover:text-foreground"
+          >
+            usar cores do tema
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Seletor de fonte (título/corpo/hero) com as fontes curadas do nicho da
  * skin (`SkinDefinition.fontesRecomendadas`, ver registry.ts) destacadas no
@@ -1092,6 +1201,14 @@ export function PainelTema({
         >
           usar o padrão do nicho ({efeitoFundoIntensidadePadrao})
         </button>
+      )}
+
+      {efeitoFundoAtivo?.id === "aura" && (
+        <AuraCoresControl
+          auraCores={tema.auraCores}
+          paletaTema={preset.paleta}
+          onChange={(auraCores) => setTema({ ...tema, auraCores })}
+        />
       )}
 
       <Escolha

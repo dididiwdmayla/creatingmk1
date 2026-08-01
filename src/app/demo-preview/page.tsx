@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { paletaParaAura } from "@/lib/demos/efeitos/aura/cores";
 import { getEfeitoComponenteDinamico } from "@/lib/demos/efeitos/dynamicComponents";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { getSkin } from "@/lib/demos/registry";
@@ -98,6 +99,11 @@ export default function DemoPreviewPage() {
     skin.nicho,
   );
   const EfeitoFundo = efeitoFundo ? getEfeitoComponenteDinamico(efeitoFundo.efeito.id) : undefined;
+  // Mesma resolução da rota pública (ver /demo/[leadId]/page.tsx#loadDemo).
+  const coresEfeito =
+    efeitoFundo?.efeito.id === "aura"
+      ? paletaParaAura(estado.theme.paleta, estado.tema?.auraCores)
+      : estado.theme.paleta;
   return (
     <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
       {/* Affordance de edição: qualquer slot clicável ganha contorno no hover. */}
@@ -113,7 +119,7 @@ export default function DemoPreviewPage() {
         // EfeitoFundo vem de um lookup em mapa de componentes já criados
         // (dynamicComponents.ts, module scope) — não é criado a cada render.
         // eslint-disable-next-line react-hooks/static-components
-        <EfeitoFundo intensidade={efeitoFundo.intensidade} cores={estado.theme.paleta} />
+        <EfeitoFundo intensidade={efeitoFundo.intensidade} cores={coresEfeito} />
       )}
     </div>
   );
