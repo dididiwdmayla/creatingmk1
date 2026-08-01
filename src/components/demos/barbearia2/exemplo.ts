@@ -76,6 +76,7 @@ export const BARBEARIA2_EXEMPLO: DemoData = {
     },
     contato: {
       rotulo: "Siga",
+      texto: "Feito à mão, como tudo aqui.",
     },
   },
   imagens: {

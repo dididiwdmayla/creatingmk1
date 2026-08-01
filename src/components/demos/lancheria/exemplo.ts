@@ -80,6 +80,7 @@ export const LANCHERIA_EXEMPLO: DemoData = {
       rotulo: "CONTATO",
       titulo: "Onde a chapa esquenta.",
       cta: "Fazer Pedido",
+      texto: "FEITO COM OBSESSÃO",
     },
   },
   ordemSecoes: ["cardapio", "bebidas", "acompanhamentos", "contato"],

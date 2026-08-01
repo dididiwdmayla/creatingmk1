@@ -876,7 +876,10 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
           style={{ borderColor: "color-mix(in srgb, var(--d-bg) 15%, transparent)" }}
         >
           <p className="text-xs" style={{ color: "color-mix(in srgb, var(--d-bg) 55%, transparent)" }}>
-            © {new Date().getFullYear()} {data.nome}. Feito com carinho e pelos de pet no teclado.
+            © {new Date().getFullYear()} {data.nome}.{" "}
+            <span data-demo-slot="secoes.contato.texto">
+              {s.contato?.texto ?? "Feito com carinho e pelos de pet no teclado."}
+            </span>
           </p>
         </div>
       </footer>

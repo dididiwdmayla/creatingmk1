@@ -147,6 +147,7 @@ export const TATUAGEM_EXEMPLO: DemoData = {
     contato: {
       titulo: "AGENDAR SESSÃO",
       cta: "INICIAR CONVERSA",
+      texto: "Todos os direitos reservados.",
     },
   },
   imagens: {

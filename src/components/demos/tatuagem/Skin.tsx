@@ -611,8 +611,10 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
             className="flex w-full flex-col items-center justify-between border-t border-[var(--d-border)] pt-8 font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)] md:flex-row"
           >
             <div className="mb-4 md:mb-0">
-              © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>. Todos os direitos
-              reservados.
+              © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>.{" "}
+              <span data-demo-slot="secoes.contato.texto">
+                {s.contato?.texto ?? "Todos os direitos reservados."}
+              </span>
             </div>
             <div className="flex gap-6">
               {data.instagram && (
@@ -855,11 +857,11 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
         <ScrollHeader
           nome={data.nome}
           ctaHref={agendar}
-          ctaLabel="Agendar"
+          ctaLabel={s.hero?.cta ?? "Agendar"}
           links={[
-            s.sobre?.rotulo && { href: "#sobre", label: "Sobre" },
-            s.portfolio?.rotulo && { href: "#portfolio", label: "Portfólio" },
-            s.processo?.rotulo && { href: "#processo", label: "Processo" },
+            s.sobre?.rotulo && { href: "#sobre", label: s.sobre.rotulo },
+            s.portfolio?.rotulo && { href: "#portfolio", label: s.portfolio.rotulo },
+            s.processo?.rotulo && { href: "#processo", label: s.processo.rotulo },
           ].filter((link): link is { href: string; label: string } => Boolean(link))}
         />
 

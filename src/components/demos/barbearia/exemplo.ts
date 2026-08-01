@@ -166,6 +166,7 @@ export const BARBEARIA_EXEMPLO: DemoData = {
       rotulo: "CONTATO",
       titulo: "ONDE A MÁGICA ACONTECE.",
       cta: "TRAÇAR ROTA",
+      texto: "TODOS OS DIREITOS RESERVADOS.",
     },
   },
   imagens: {

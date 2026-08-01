@@ -188,6 +188,7 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
       rotulo: "ONDE ESTAMOS",
       titulo: "Vem tomar um café",
       cta: "Chamar no WhatsApp",
+      texto: "Conteúdo ilustrativo.",
     },
   },
   ordemSecoes: ["estoque", "vantagens", "numeros", "simulador", "avaliacao", "depoimentos", "contato"],
