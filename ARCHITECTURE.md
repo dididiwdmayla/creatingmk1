@@ -42,15 +42,15 @@ src/
       comprimir.ts                  #    compressão client-side (canvas → WebP ≤1600px) antes do upload
     (app)/                          # route group: páginas autenticadas, com Nav
       layout.tsx                    # ✅ header + bottom nav (Hoje/Painel/Leads/Buscas/Demos/Chat/Config) + Sair
-      page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas, widget do cron, card "Demos criadas"
-      hoje/page.tsx                 # ✅ fila do dia (home pós-login): novos por score, follow-ups, demos paradas
+      page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas, "Metas do time" (admin, só quem tem meta), widget do cron, card "Demos criadas"
+      hoje/page.tsx                 # ✅ fila do dia (home pós-login): novos por score, follow-ups, demos paradas, progresso da PRÓPRIA meta de prospecção (se configurada)
       leads/page.tsx                # ✅ lista de leads com filtros + nova busca (com auto-enriquecimento)
       leads/[id]/page.tsx           # ✅ wrapper server (extrai params.id, key={id})
       leads/[id]/LeadDetailClient.tsx # ✅ ficha: enriquecer, WhatsApp, transições de status
-      buscas/page.tsx               # ✅ buscas salvas → clique filtra os leads da busca
+      buscas/page.tsx               # ✅ buscas salvas → clique filtra os leads da busca; mostra autor (busca.userId → nome via /api/usuarios/nomes)
       demos/page.tsx                # ✅ todas as demos ativas: skin, datas, link copiável, editar/excluir
       mensagens/page.tsx            # ✅ chat privado entre usuários: conversas, envio, polling leve
-      config/page.tsx               # ✅ config completa + gestão de usuários (página restrita a admin)
+      config/page.tsx               # ✅ config completa + gestão de usuários + cotas e metas por integrante (página restrita a admin)
     api/
       login/route.ts                # ✅ POST { nome, senha } → cookie de sessão assinado (+ seed de /usuarios)
       logout/route.ts               # ✅ POST limpa o cookie de sessão
@@ -59,6 +59,7 @@ src/
       usuarios/[id]/route.ts        # ✅ PATCH nome/papel/ativo/senha/limites (admin; sem DELETE — desativa)
       usuarios/[id]/zerar-dia/route.ts # ✅ POST zera o contador do dia corrente do usuário (admin)
       usuarios/cotas/route.ts       # ✅ GET uso × limite de todos os usuários (admin, tabela do painel)
+      usuarios/metas/route.ts       # ✅ GET meta × progresso de prospecção de todos os usuários (admin; mesma fonte da visão consolidada do painel)
       cotas/route.ts                # ✅ GET uso × limite do PRÓPRIO usuário (indicador em /leads e na ficha)
       config/route.ts               # ✅ GET config (qualquer sessão) / PUT (admin)
       search/route.ts               # ✅ POST busca (geocode + Text Search paginado/qualificado) + registra em /buscas — exige sessão (cota individual)
@@ -98,6 +99,7 @@ src/
       senha.ts                      #    hash PBKDF2 via Web Crypto (sem dependência nova)
       repo.ts                       #    CRUD + seed (migra APP_PASSWORD → admin) + guarda-corpo do último admin
       session.ts                    #    usuarioDaRequest (atribuição/escopo) + requireAdmin (403)
+      metas.ts                      # ✅ getProgressoMetaUsuario: progresso dia/semana da meta de prospecção (lê o contador `buscas` de usage_users via getUsoUsuario)
     api-client.ts                   # ✅ fetch tipado do cliente (ApiError, um método por rota)
     format.ts                       # ✅ formatBRL/USD/percent/int/dateTime (pt-BR)
     wa.ts                           # ✅ monta o link wa.me a partir de dados já persistidos ({nome}/{demo}/{penetracao})
@@ -188,6 +190,7 @@ src/
     StatusBadge.tsx                 # badge ordinal do status do lead (cor + forma + marcador)
     UsageMeter.tsx                  # meter de uso vs teto (accent/warning/critical), anima ao montar
     CotaIndicador.tsx               # ✅ "usado/limite" por janela (cota individual) + cotaEsgotada() p/ desabilitar botão
+    MetaProgresso.tsx               # ✅ barra de progresso de UMA meta (dia OU semana) — polaridade oposta ao UsageMeter (mais uso é melhor, nunca "crítico"); só renderiza quando a janela tem `meta`
     PrecificacaoCard.tsx            # ✅ card "Precificação": slider + cálculo ao vivo + edição de índice (admin) — ver seção própria
     LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site, badge "argumento forte"
     PageTransition.tsx              # fade-in de página por troca de rota (client)
@@ -359,6 +362,9 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
     "buscasDia": 30, "buscasSemana": 150, "buscasMes": 500,
     "enriquecimentosDia": 20, "enriquecimentosSemana": 100, "enriquecimentosMes": 300
   },
+  "metas": {                        // ✅ opcional: meta de prospecção (ver "Metas de prospecção por integrante")
+    "prospeccoesDia": 5, "prospeccoesSemana": 25
+  },
   "ultimoPrecoBaseSlider": 2500,     // ✅ opcional: última posição do slider da calculadora de precificação (self-service)
   "ultimoNivelIA": "equilibrado",    // ✅ opcional: último nível de intervenção da IA na Forja (self-service, ver "IA na Forja")
   "criadoEm": "<ISO 8601>",
@@ -370,6 +376,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
 - **Sem DELETE**: desativar preserva a atribuição histórica (buscas/demos/contatos apontam para o id). Guarda-corpo: o último admin ativo não pode ser desativado nem rebaixado.
 - Hash de senha: PBKDF2 (Web Crypto, 100k iterações, salt aleatório) — sem dependência nova, roda em Node e Edge.
 - `limites`: cada campo é opcional e independente (ausente = sem limite naquela janela); editável só via `PATCH /api/usuarios/[id]` (admin) — nunca pelo próprio usuário, nenhum caminho client-side escreve nele. Não revoga sessão (não é credencial).
+- `metas`: mesma semântica de edição de `limites` (só admin, `PATCH /api/usuarios/[id]`, não revoga sessão) mas indicador puro — nunca bloqueia uma busca. Ver "Metas de prospecção por integrante".
 
 ### `/config/app` — documento único de configuração
 
@@ -667,9 +674,10 @@ Formato de erro padrão em todas as rotas:
 | `/api/me` | GET | — | `200 { usuario }` (sem hash) · `401` | — |
 | `/api/usuarios` | GET | — (admin) | `200 { usuarios[] }` · `401` · `403 forbidden` | — |
 | `/api/usuarios` | POST | `{ nome, papel?, senha? }` (admin) | `200 { usuario }` · `400` · `401` · `403` | — |
-| `/api/usuarios/[id]` | PATCH | `{ nome?, papel?, ativo?, senha?, limites? }` (≥1 campo, admin) | `200 { usuario }` · `400` · `401` · `403` · `404` | — |
+| `/api/usuarios/[id]` | PATCH | `{ nome?, papel?, ativo?, senha?, limites?, metas? }` (≥1 campo, admin) | `200 { usuario }` · `400` · `401` · `403` · `404` | — |
 | `/api/usuarios/[id]/zerar-dia` | POST | — (admin) | `204` (zera o contador do dia corrente do usuário) · `401` · `403` · `404` | — |
 | `/api/usuarios/cotas` | GET | — (admin) | `200 { usuarios: [{ id, nome, papel, ativo, limites, buscas, enriquecimentos }] }` · `401` · `403` | — |
+| `/api/usuarios/metas` | GET | — (admin) | `200 { usuarios: [{ id, nome, papel, ativo, metas, prospeccao: { dia, semana } }] }` · `401` · `403` | — |
 | `/api/cotas` | GET | — (qualquer sessão) | `200 { buscas, enriquecimentos }` (uso × limite do PRÓPRIO usuário; admin sempre sem limite) · `401` | — |
 | `/api/config` | GET | — | `200 { config }` (defaults se doc não existe) | — |
 | `/api/config` | PUT | config parcial ou completa (admin) | `200 { config }` · `400 validation_error` · `401` · `403` | — |
@@ -682,7 +690,7 @@ Formato de erro padrão em todas as rotas:
 | `/api/precificacao/slider` | PUT | `{ precoBase }` (inteiro 700–10.000) | `200 { precoBase }` · `400` · `401` | — |
 | `/api/buscas` | GET | — | `200 { buscas[] }` (mais recentes primeiro) | — |
 | `/api/buscas/[id]` | PATCH | `{ cor? (da paleta), mensagemPadrao? (≤1000, "" limpa), recorrente? }` (≥1 campo; ligar recorrente respeita o teto `maxBuscasRecorrentes`) | `200 { busca }` · `400` · `404` | — |
-| `/api/hoje` | GET | — (exige sessão identificável) | `200 { novos[], followUps[], demosParadas[], novosDesde, followUpDias, mensagemPadrao, buscas[] }` · `401` | — |
+| `/api/hoje` | GET | — (exige sessão identificável) | `200 { novos[], followUps[], demosParadas[], novosDesde, followUpDias, mensagemPadrao, metaProspeccao: { dia, semana }, buscas[] }` · `401` | — |
 | `/api/cron` | GET | header `Authorization: Bearer ${CRON_SECRET}` (fora da sessão — exceção no proxy) | `200 { execucao }` · `401` · `503 config_error` (sem CRON_SECRET) | mesmo pipeline de `/api/search`, por busca recorrente |
 | `/api/cron/status` | GET | — | `200 { ultima, recorrentes }` | — |
 | `/api/leads` | GET | query: `status`, `temSite`, `temTelefone`, `buscaId`, `favorito` | `200 { leads[] }` · `400` | — |
@@ -796,6 +804,24 @@ Rotas novas:
 | `/api/usuarios/[id]` | PATCH | admin | ganhou o campo `limites` (number seta, `null` limpa uma janela) |
 
 UI: `/config` ganhou a seção "Cotas por usuário" (resumo do teto global relevante + um cartão por usuário com edição inline dos limites e botão "Zerar dia"); `/leads` e a ficha do lead mostram `CotaIndicador` (componente compartilhado em `src/components/CotaIndicador.tsx`) — permanente, atualizado após cada busca/enriquecimento, com o botão desabilitado como cortesia quando a cota esgota (o bloqueio real é sempre do servidor).
+
+## Metas de prospecção por integrante (`src/lib/usuarios/metas.ts`)
+
+O admin define, por integrante, uma meta de prospecção diária e/ou semanal (`Usuario.metas.prospeccoesDia`/`prospeccoesSemana`) — mesmo fuso/convenção de semana das cotas individuais (America/Sao_Paulo, semana começa segunda), mas só duas janelas (sem mês: é indicador de ritmo, não teto de custo) e **nunca bloqueia nada**, nem pra quem está zerado.
+
+- **"Prospecção" reaproveita o contador `buscas` de `usage_users`** (o mesmo que as cotas individuais já leem) — cada busca executada é uma prospecção nova. Não é um contador novo: `getProgressoMetaUsuario` (`src/lib/usuarios/metas.ts`) chama o mesmo `getUsoUsuario(db, userId, "buscas", …)` das cotas, só que compara contra `metas` em vez de `limites`. Decisão deliberada: enriquecimento qualifica um lead que já existe, não é a ação que abre prospect novo; leads contactados também foram cogitados, mas não vivem em `usage_users` — usá-los exigiria um contador novo, contra a instrução de reaproveitar o que já existe.
+- **Opcional e sem efeito colateral**: campo ausente numa janela = sem meta ali; `getProgressoMetaUsuario` sempre devolve `usado` (mesmo sem meta) e `meta` só quando configurada — é quem consome (UI) que decide não renderizar a janela sem meta. Um usuário sem NENHUMA meta configurada não aparece na visão consolidada do painel (filtrada), nem mostra a seção em `/hoje`.
+- Editável só via `PATCH /api/usuarios/[id]` (admin, campo `metas`, mesma semântica de `limites`: number seta, `null` limpa uma janela) — nunca revoga sessão (não é credencial).
+
+Rotas novas:
+
+| Rota | Método | Quem | Devolve |
+|---|---|---|---|
+| `/api/usuarios/metas` | GET | admin | meta × progresso (dia/semana) de todos os usuários — mesma fonte de dados da seção de edição em `/config` e da visão consolidada do painel |
+| `/api/hoje` | GET | qualquer sessão | ganhou `metaProspeccao: { dia, semana }` — progresso do PRÓPRIO usuário logado |
+| `/api/usuarios/[id]` | PATCH | admin | ganhou o campo `metas` (number seta, `null` limpa uma janela) |
+
+UI: `/config` ganhou a seção "Metas por integrante" (mesmo padrão de edição inline de "Cotas por usuário" — `LimiteInput` reaproveitado, salva no blur); `/hoje` mostra a barra de progresso da PRÓPRIA meta do usuário logado (some por completo se ele não tem meta); o painel (`/`, dashboard) mostra "Metas do time" pro admin — só os integrantes com pelo menos uma janela configurada aparecem. `MetaProgresso` (`src/components/MetaProgresso.tsx`) é a barra de progresso compartilhada entre `/hoje` e o painel — polaridade oposta ao `UsageMeter` das cotas (aqui mais uso é melhor; o preenchimento nunca vira crítico, só fica verde ao bater a meta).
 
 ## Forja de Demos (`src/lib/demos` + `src/components/demos`)
 
@@ -1084,6 +1110,8 @@ A skin de barbearia da Forja de Demos foi verificada **lado a lado com o materia
 **Cotas por usuário** (fake Firestore via `RADAR_FAKE_DB=1` + um mock HTTP local do Text Search/Place Details/Geocoding — os fetches ao Google acontecem no servidor Next.js, não no browser, então a interceptação via `page.route` do Playwright não alcança; `BASE_URL`/`GEOCODE_URL` foram temporariamente parametrizados por env var pra apontar pro mock, revertido antes do commit junto do patch do `admin.ts`). `next dev` com Turbopack não hidratou neste sandbox (o client bundle carregava, mas nenhum listener React anexava — WebSocket de HMR falhando no handshake, possivelmente por causa do proxy do ambiente; sem diagnóstico definitivo, contornado usando `next build && next start`, que não depende de HMR): login como admin, definir senha e limites (`buscasDia`/`enriquecimentosDia` = 1) de um membro pela própria UI, confirmado persistindo após reload; login como o membro, indicador de cota em `/leads` saindo de "hoje: 0/1", uma busca bem-sucedida levando a "hoje: 1/1" com o botão "Buscar" desabilitando (cortesia client-side) e uma 2ª tentativa via `fetch` direto (fora do botão) confirmando o bloqueio real do servidor (`429 user_quota_exceeded`, `janela: "dia"`, `resetaEm` batendo com meia-noite em Brasília — `03:00Z` no dia seguinte); o mesmo fluxo na ficha do lead pro indicador de enriquecimento (permanente antes/depois de enriquecer); de volta como admin, teto global de `textSearch` zerado em `/config` e a busca do admin ainda respondendo `200` (bypass confirmado), e "Zerar dia" no cartão do membro zerando o "usado" de hoje sem sessão nova.
 
 **Token de envio por canal + classificação interna/externa, ponta a ponta com demo real** (fake Firestore via `RADAR_FAKE_DB=1`, backed por ARQUIVO em `/tmp` em vez de módulo em memória — o build de produção separa cada route handler em seu próprio bundle, então um singleton em memória não é compartilhado entre rotas; `next build && next start`, Playwright com DOIS contextos de browser, tudo revertido antes do commit): logado como admin num contexto (sessão + marcador de dispositivo estabelecidos), clique real em "Copiar link" na ficha do lead confirmou (via `navigator.clipboard.readText()`) que a URL copiada já vem com `?t=` — corrigindo o bug em que só o botão de WhatsApp emitia token. Essa URL foi aberta num SEGUNDO contexto de browser totalmente limpo (sem cookies, sem localStorage — sem sessão e sem marcador de dispositivo, simulando o navegador real de um lead). O documento gravado em `lead.demoVisitas` teve exatamente uma entrada: `{ interna: false, canal: "link", envioEm: <geradoEm do token copiado> }` — confirmando que uma visita sem sessão/marcador entra como NÃO-interna. Em `lead.demo.envios`, só o token do canal `"link"` foi consumido (rotacionado para um novo); o token do canal `"whatsapp"`, gerado no mesmo save, permaneceu intocado — confirmando que os dois canais consomem de forma independente.
+
+**Autor da busca + metas de prospecção** (fake Firestore via `RADAR_FAKE_DB=1`, seed de uma busca com `userId` e um doc `usage_users/membro-1/dias/{hoje}` com `buscas: 3` direto no patch do `admin.ts`, já que gerar isso de verdade exigiria a Google Places API; `next build && next start`, Playwright com dois contextos de browser, tudo revertido antes do commit): login como admin, "Redefinir senha" de `membro-1` pela própria UI; seção "Metas por integrante" em `/config` mostrando "3" de uso ao lado do campo vazio, digitar `5` (dia) e `20` (semana) e confirmar persistência após reload; `/buscas` mostrando "por membro-1" tanto pro admin quanto, depois, logado como o próprio `membro-1`; painel (`/`) do admin mostrando a seção "Metas do time" com a barra de `membro-1` em "3 / 5" e "3 / 20"; login como `membro-1` e `/hoje` mostrando "Sua meta de prospecção" com as mesmas barras; confirmado que `membro-1` NÃO vê "Metas do time" no painel (seção exclusiva do admin, 403 silencioso na UI).
 
 ## Variáveis de ambiente
 
