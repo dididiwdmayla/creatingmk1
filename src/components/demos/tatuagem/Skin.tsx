@@ -642,17 +642,9 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="d-noise relative min-h-screen overflow-x-clip font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
+      className="relative min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
       <style>{`
-        /* Grão de ruído sutil sobre o fundo — mesmo filtro SVG do original (body). */
-        .d-noise {
-          background-color: var(--d-bg);
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-          background-repeat: repeat;
-          background-blend-mode: overlay;
-        }
-
         /* Assinatura tipográfica (Wordmark): preenchimento em gradiente +
            contorno multicor NO MESMO elemento (background-clip:text e
            -webkit-text-stroke coexistem numa única caixa) — ver

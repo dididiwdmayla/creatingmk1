@@ -855,13 +855,6 @@ export function ImobiliariaCurada({ data, theme }: SkinProps) {
         @media (prefers-reduced-motion: reduce) { .d-led-bar { transition: none; } .d-led-pulse .d-led-bar { animation: none; } }
       `}</style>
 
-      {/* Textura de ruído sutil no fundo — mesmo padrão das demais skins. */}
-      <div
-        className="pointer-events-none fixed inset-0 z-50 opacity-[0.04]"
-        style={{ backgroundImage: `radial-gradient(var(--d-text) 1px, transparent 1px)`, backgroundSize: "24px 24px" }}
-        aria-hidden="true"
-      />
-
       <LedEdges preset={theme.led} />
       <CustomCursor animacao={theme.animacao} />
 

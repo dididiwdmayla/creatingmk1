@@ -478,16 +478,6 @@ export function MultimarcasVortice({ data, theme }: SkinProps) {
       data-d-anim={theme.animacao}
       className="min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)] selection:bg-[var(--d-accent)] selection:text-[var(--d-accent-ink)]"
     >
-      {/* Textura de ruído sutil no fundo — mesmo padrão das demais skins. */}
-      <div
-        className="pointer-events-none fixed inset-0 z-50 opacity-[0.04]"
-        style={{
-          backgroundImage: "radial-gradient(var(--d-text) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
-        aria-hidden="true"
-      />
-
       <style>{`
         html { scroll-behavior: smooth; }
         ::selection { background: var(--d-accent); color: var(--d-accent-ink); }

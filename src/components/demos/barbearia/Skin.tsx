@@ -866,16 +866,6 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
       data-d-anim={theme.animacao}
       className="min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
-      {/* Textura de ruído sutil no fundo — mesmo .noise-overlay do original (body). */}
-      <div
-        className="pointer-events-none fixed inset-0 z-50 opacity-[0.04]"
-        style={{
-          backgroundImage: `radial-gradient(var(--d-text) 1px, transparent 1px)`,
-          backgroundSize: "24px 24px",
-        }}
-        aria-hidden="true"
-      />
-
       {/* Keyframes do poste de barbeiro — escopo próprio da skin. */}
       <style>{`
         @keyframes d-pole { 0% { background-position: 0 0; } 100% { background-position: 40px 0; } }
