@@ -8,6 +8,7 @@ import { Button } from "@/components/Button";
 import { NIVEIS_IA, NIVEL_IA_PADRAO, nivelIaValido, type NivelIA } from "@/lib/ai/nivel";
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import { ApiError, api } from "@/lib/api-client";
+import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getFonte } from "@/lib/demos/fontes";
 import { idiomaPadraoDoLead } from "@/lib/demos/idioma";
 import { montarDemoData } from "@/lib/demos/montar";
@@ -537,7 +538,11 @@ export function DemoEditorClient({ id }: { id: string }) {
 
   async function handleCopiarLink() {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/demo/${id}`);
+      // Canal "link", igual à ficha e a /demos — não queima o token que
+      // possa estar numa mensagem de WhatsApp já montada (EnvioDemo.canal).
+      const tokenLink = lead ? envioVigente(lead.demo, "link")?.token : undefined;
+      const url = demoUrlComToken(window.location.origin, id, tokenLink);
+      await navigator.clipboard.writeText(url);
       setAviso("Link copiado!");
     } catch {
       setSalvarErro("Não deu pra copiar — copie da barra de endereço da demo.");
