@@ -5,7 +5,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { UsageMeter } from "@/components/UsageMeter";
-import { ApiError, api, type CotasUsuariosResponse, type UsageResponse } from "@/lib/api-client";
+import {
+  ApiError,
+  api,
+  type CotasUsuariosResponse,
+  type MetasUsuariosResponse,
+  type UsageResponse,
+} from "@/lib/api-client";
 import {
   DEFAULT_CONFIG,
   type AppConfig,
@@ -15,7 +21,7 @@ import {
 import type { Sku, UsoUsuario } from "@/lib/costs";
 import { SLIDER_MAX_BRL, SLIDER_MIN_BRL, SLIDER_STEP_BRL } from "@/lib/precificacao/calc";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
-import type { LimitesUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
+import type { LimitesUsuario, MetasUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
 
 /** SKUs relevantes à cota individual — resumo compacto no topo da seção de cotas. */
 const SKUS_COTA_INDIVIDUAL: Sku[] = [
@@ -97,6 +103,7 @@ export default function ConfigPage() {
     <div className="flex flex-col gap-6 pb-6">
       <UsuariosSection />
       <CotasUsuariosSection />
+      <MetasUsuariosSection />
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Busca</h2>
@@ -814,6 +821,128 @@ function CotasUsuariosSection() {
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
       {aviso && <p className="mt-2 text-sm text-good">{aviso}</p>}
+    </section>
+  );
+}
+
+const JANELAS_META: Array<{ chave: "dia" | "semana"; label: string; campo: keyof MetasUsuario }> = [
+  { chave: "dia", label: "Hoje", campo: "prospeccoesDia" },
+  { chave: "semana", label: "Semana", campo: "prospeccoesSemana" },
+];
+
+/** Mensagem de erro com o `code` da API — mesmo padrão de mensagemErroCotas. */
+function mensagemErroMetas(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? `${fallback} (${error.code}): ${error.message}` : fallback;
+}
+
+/**
+ * Metas de prospecção por integrante (admin): meta diária e semanal,
+ * editáveis inline no mesmo padrão de CotasUsuariosSection (LimiteInput
+ * reaproveitado, salva no blur). "Prospecção" = contador `buscas` de
+ * usage_users (ver src/lib/usuarios/metas.ts) — o mesmo dado que a busca
+ * já grava, sem nenhum contador novo. Meta é opcional: campo vazio = sem
+ * meta, e a linha do usuário sem NENHUMA meta configurada não aparece em
+ * lugar nenhum fora daqui (/hoje e o painel do admin escondem a janela sem
+ * meta) — mas aqui ela continua listada, para o admin poder configurar.
+ */
+function MetasUsuariosSection() {
+  const [linhas, setLinhas] = useState<MetasUsuariosResponse["usuarios"] | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .getMetasUsuarios()
+      .then(({ usuarios }) => {
+        if (!ignore) setLinhas(usuarios);
+      })
+      .catch((error) => {
+        if (ignore) return;
+        setErro(
+          error instanceof ApiError && error.status === 403
+            ? "Metas são restritas ao admin."
+            : mensagemErroMetas(error, "Falha ao carregar as metas"),
+        );
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function salvarMeta(id: string, campo: keyof MetasUsuario, valor: number | null) {
+    const chave = `${id}:${campo}`;
+    setOcupado(chave);
+    setErro(null);
+    try {
+      const { usuario } = await api.patchUsuario(id, { metas: { [campo]: valor } });
+      setLinhas((atual) =>
+        (atual ?? []).map((linha) =>
+          linha.id === id ? { ...linha, metas: usuario.metas ?? {} } : linha,
+        ),
+      );
+    } catch (error) {
+      setErro(mensagemErroMetas(error, "Falha ao salvar a meta"));
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  if (erro && linhas === null) {
+    return (
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Metas por integrante
+        </h2>
+        <p className="mt-2 text-sm text-ink-muted">{erro}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+        Metas por integrante
+      </h2>
+      <p className="mt-1 text-xs text-ink-muted">
+        Vazio = sem meta naquela janela. Indicador de ritmo — nunca bloqueia uma busca. O
+        próprio integrante vê o progresso em /hoje; a visão do time fica no painel.
+      </p>
+
+      <div className="mt-3 flex flex-col gap-3">
+        {linhas === null && <p className="text-sm text-ink-muted">Carregando…</p>}
+        {(linhas ?? []).map((linha) => (
+          <div key={linha.id} className="rounded border border-line p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`text-sm ${linha.ativo ? "text-foreground" : "text-ink-muted line-through"}`}>
+                {linha.nome}
+              </span>
+              <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-ink-secondary">
+                {linha.papel}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-col gap-1.5">
+              {JANELAS_META.map(({ chave, label, campo }) => {
+                const { usado } = linha.prospeccao[chave];
+                return (
+                  <div key={chave} className="flex items-center gap-2 text-xs text-ink-secondary">
+                    <span className="w-14 shrink-0">{label}</span>
+                    <span className="font-mono text-foreground">{usado}</span>
+                    <span className="text-ink-muted">/</span>
+                    <LimiteInput
+                      valor={linha.metas[campo]}
+                      disabled={ocupado === `${linha.id}:${campo}`}
+                      onSalvar={(valor) => salvarMeta(linha.id, campo, valor)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </section>
   );
 }

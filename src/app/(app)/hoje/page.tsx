@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { MetaProgresso } from "@/components/MetaProgresso";
 import { SeloContato } from "@/components/SeloContato";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api, type HojeResponse } from "@/lib/api-client";
@@ -150,6 +151,31 @@ export default function HojePage() {
           </p>
         )}
       </section>
+
+      {(dados.metaProspeccao.dia.meta !== undefined ||
+        dados.metaProspeccao.semana.meta !== undefined) && (
+        <section className="rounded-lg border border-line bg-surface p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Sua meta de prospecção
+          </h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {dados.metaProspeccao.dia.meta !== undefined && (
+              <MetaProgresso
+                label="Hoje"
+                usado={dados.metaProspeccao.dia.usado}
+                meta={dados.metaProspeccao.dia.meta}
+              />
+            )}
+            {dados.metaProspeccao.semana.meta !== undefined && (
+              <MetaProgresso
+                label="Semana"
+                usado={dados.metaProspeccao.semana.usado}
+                meta={dados.metaProspeccao.semana.meta}
+              />
+            )}
+          </div>
+        </section>
+      )}
 
       {vazia && (
         <p className="rounded-lg border border-line bg-surface p-4 text-sm text-ink-muted">
