@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { ApiError, api } from "@/lib/api-client";
 import { BUSCA_CORES, type Busca } from "@/lib/buscas/types";
+import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import { formatDateTime, formatInt } from "@/lib/format";
 
 const MENSAGEM_MAX = 1000; // espelha o limite da rota PATCH
@@ -17,6 +18,7 @@ function proximaCor(atual: string): string {
 
 export default function BuscasPage() {
   const [buscas, setBuscas] = useState<Busca[] | null>(null);
+  const [nomes, setNomes] = useState<NomesUsuarios>({});
   const [erro, setErro] = useState<string | null>(null);
   const [trocandoCor, setTrocandoCor] = useState<string | null>(null);
   const [editandoMsg, setEditandoMsg] = useState<string | null>(null);
@@ -37,6 +39,14 @@ export default function BuscasPage() {
             error instanceof ApiError ? error.message : "Falha ao carregar as buscas.",
           );
         }
+      });
+    api
+      .listNomesUsuarios()
+      .then(({ usuarios }) => {
+        if (!ignore) setNomes(Object.fromEntries(usuarios.map((u) => [u.id, u.nome])));
+      })
+      .catch(() => {
+        // autor cai no fallback "usuário removido" — não é bloqueante
       });
     return () => {
       ignore = true;
@@ -160,6 +170,9 @@ export default function BuscasPage() {
                   <p className="mt-1 truncate text-xs text-ink-secondary">
                     {[busca.nicho, busca.subNicho].filter(Boolean).join(" · ")} —{" "}
                     {busca.regiao}
+                  </p>
+                  <p className="mt-1 truncate text-xs text-ink-muted">
+                    por {busca.userId ? nomeUsuario(nomes, busca.userId) : "autor não registrado"}
                   </p>
                   <p className="mt-2 text-xs text-ink-muted">
                     {formatInt(busca.totalCriados)} novo(s) ·{" "}

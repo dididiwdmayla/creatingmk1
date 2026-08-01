@@ -5,9 +5,11 @@ import { usageUsuariosCollection } from "@/lib/costs/userQuota";
 import { hashSenha } from "./senha";
 import {
   CAMPOS_LIMITE_USUARIO,
+  CAMPOS_META_USUARIO,
   PAPEIS,
   USUARIOS_COLLECTION,
   type LimitesUsuario,
+  type MetasUsuario,
   type Papel,
   type Usuario,
 } from "./types";
@@ -186,6 +188,9 @@ export async function salvarNivelIA(db: AppDb, id: string, nivel: NivelIA): Prom
 /** Patch de limites: number seta, null LIMPA (sem limite naquela janela), ausente não mexe. */
 export type LimitesPatch = Partial<Record<keyof LimitesUsuario, number | null>>;
 
+/** Patch de metas: mesma semântica de LimitesPatch (number seta, null limpa). */
+export type MetasPatch = Partial<Record<keyof MetasUsuario, number | null>>;
+
 export interface UsuarioPatch {
   nome?: string;
   papel?: Papel;
@@ -194,16 +199,19 @@ export interface UsuarioPatch {
   senha?: string;
   /** Nunca vem de sessão do próprio usuário — só de requireAdmin. */
   limites?: LimitesPatch;
+  /** Meta de prospecção (dia/semana) — nunca vem de sessão do próprio usuário. */
+  metas?: MetasPatch;
 }
 
-/** Aplica o patch de limites sobre o atual; campo totalmente limpo → undefined (não {}). */
-function mergeLimites(
-  atual: LimitesUsuario | undefined,
-  patch: LimitesPatch | undefined,
-): LimitesUsuario | undefined {
+/** Aplica um patch genérico (number seta, null limpa) sobre o objeto atual. */
+function mergePatch(
+  campos: readonly string[],
+  atual: Record<string, number> | undefined,
+  patch: Record<string, number | null | undefined> | undefined,
+): Record<string, number> | undefined {
   if (!patch) return atual;
-  const resultado: LimitesUsuario = { ...atual };
-  for (const campo of CAMPOS_LIMITE_USUARIO) {
+  const resultado: Record<string, number> = { ...atual };
+  for (const campo of campos) {
     if (!(campo in patch)) continue;
     const valor = patch[campo];
     if (valor === null) {
@@ -213,6 +221,30 @@ function mergeLimites(
     }
   }
   return Object.keys(resultado).length > 0 ? resultado : undefined;
+}
+
+/** Aplica o patch de limites sobre o atual; campo totalmente limpo → undefined (não {}). */
+function mergeLimites(
+  atual: LimitesUsuario | undefined,
+  patch: LimitesPatch | undefined,
+): LimitesUsuario | undefined {
+  return mergePatch(
+    CAMPOS_LIMITE_USUARIO,
+    atual as Record<string, number> | undefined,
+    patch,
+  ) as LimitesUsuario | undefined;
+}
+
+/** Aplica o patch de metas sobre o atual; campo totalmente limpo → undefined (não {}). */
+function mergeMetas(
+  atual: MetasUsuario | undefined,
+  patch: MetasPatch | undefined,
+): MetasUsuario | undefined {
+  return mergePatch(
+    CAMPOS_META_USUARIO,
+    atual as Record<string, number> | undefined,
+    patch,
+  ) as MetasUsuario | undefined;
 }
 
 /**
@@ -259,6 +291,7 @@ export async function atualizarUsuario(
     (patch.papel !== undefined && patch.papel !== usuario.papel);
 
   const limites = mergeLimites(usuario.limites, patch.limites);
+  const metas = mergeMetas(usuario.metas, patch.metas);
   const atualizado: Usuario = {
     ...usuario,
     ...(nome !== undefined && { nome }),
@@ -266,6 +299,7 @@ export async function atualizarUsuario(
     ...(patch.ativo !== undefined && { ativo: patch.ativo }),
     ...(patch.senha !== undefined && { senhaHash: await hashSenha(patch.senha) }),
     limites,
+    metas,
     sessao: revoga ? usuario.sessao + 1 : usuario.sessao,
     atualizadoEm: now.toISOString(),
   };

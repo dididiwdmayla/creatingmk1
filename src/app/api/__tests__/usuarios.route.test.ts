@@ -256,6 +256,117 @@ describe("PATCH /api/usuarios/[id] — limites individuais (admin)", () => {
   });
 });
 
+describe("PATCH /api/usuarios/[id] — meta de prospecção (admin)", () => {
+  it("admin define meta e ela persiste no doc", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const res = await editar(
+      request("PATCH", cookie, { metas: { prospeccoesDia: 5, prospeccoesSemana: 25 } }),
+      params("m1"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(db.getDoc("usuarios/m1")?.metas).toEqual({
+      prospeccoesDia: 5,
+      prospeccoesSemana: 25,
+    });
+    // Meta não é credencial: não revoga a sessão do usuário.
+    expect(db.getDoc("usuarios/m1")?.sessao).toBe(0);
+  });
+
+  it("null limpa só o campo indicado, mantendo o outro", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      metas: { prospeccoesDia: 5, prospeccoesSemana: 25 },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    await editar(request("PATCH", cookie, { metas: { prospeccoesDia: null } }), params("m1"));
+
+    expect(db.getDoc("usuarios/m1")?.metas).toEqual({ prospeccoesSemana: 25 });
+  });
+
+  it("limpar todos os campos remove o objeto metas por completo (ausente = sem meta)", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      metas: { prospeccoesDia: 5 },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    await editar(request("PATCH", cookie, { metas: { prospeccoesDia: null } }), params("m1"));
+
+    expect(db.getDoc("usuarios/m1")).not.toHaveProperty("metas");
+  });
+
+  it("metas inválidas (negativo, não-inteiro, chave desconhecida) → 400", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const res = await editar(
+      request("PATCH", cookie, { metas: { prospeccoesDia: -1, prospeccoesSemana: 1.5, chuta: 1 } }),
+      params("m1"),
+    );
+
+    expect(res.status).toBe(400);
+    const { error } = await res.json();
+    expect(error.problemas).toEqual([
+      "metas.chuta não é um campo de meta conhecido",
+      "metas.prospeccoesDia deve ser inteiro ≥ 0 ou null (sem limite)",
+      "metas.prospeccoesSemana deve ser inteiro ≥ 0 ou null (sem limite)",
+    ]);
+  });
+
+  it("membro não altera a própria meta por nenhum caminho (403, nada muda)", async () => {
+    const cookie = await cookieDeSessao(db, { id: "m1", papel: "membro" });
+    db.seed("usuarios/m1", {
+      id: "m1",
+      nome: "Ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+
+    const res = await editar(
+      request("PATCH", cookie, { metas: { prospeccoesDia: 999 } }),
+      params("m1"),
+    );
+
+    expect(res.status).toBe(403);
+    expect(db.getDoc("usuarios/m1")).not.toHaveProperty("metas");
+  });
+});
+
 describe("DELETE /api/usuarios/[id] — excluir usuário (item 3)", () => {
   function seedMembro(id: string, nome = id): void {
     db.seed(`usuarios/${id}`, {

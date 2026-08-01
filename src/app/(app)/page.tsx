@@ -7,11 +7,13 @@ import {
   ApiError,
   api,
   type CronStatusResponse,
+  type MetasUsuariosResponse,
   type MetricsResponse,
   type UsageResponse,
 } from "@/lib/api-client";
 import { formatBRL, formatDateTime, formatInt, formatPercent, formatUSD } from "@/lib/format";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
+import { MetaProgresso } from "@/components/MetaProgresso";
 import { RadarSweep } from "@/components/RadarSweep";
 import { UsageMeter } from "@/components/UsageMeter";
 
@@ -33,6 +35,9 @@ export default function DashboardPage() {
   const [usage, setUsage] = useState<UsageResponse | null>(null);
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [cron, setCron] = useState<CronStatusResponse | null>(null);
+  // Visão consolidada do time (só admin — membro recebe 403 e a seção
+  // simplesmente não aparece, sem virar erro de página).
+  const [metasTime, setMetasTime] = useState<MetasUsuariosResponse["usuarios"] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -52,6 +57,21 @@ export default function DashboardPage() {
       })
       .finally(() => {
         if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .getMetasUsuarios()
+      .then(({ usuarios }) => {
+        if (!ignore) setMetasTime(usuarios);
+      })
+      .catch(() => {
+        // Membro recebe 403 — a seção some, não é erro do painel.
       });
     return () => {
       ignore = true;
@@ -139,6 +159,45 @@ export default function DashboardPage() {
           <StatTile label="Fechamentos do mês" value={formatInt(metrics.fechamentosMes)} />
         </div>
       </section>
+
+      {/* Visão consolidada do time (admin): só integrantes com meta configurada
+          entram aqui — quem não tem meta não aparece em lugar nenhum. */}
+      {(() => {
+        const comMeta = (metasTime ?? []).filter(
+          (u) => u.prospeccao.dia.meta !== undefined || u.prospeccao.semana.meta !== undefined,
+        );
+        if (comMeta.length === 0) return null;
+        return (
+          <section className="rounded-lg border border-line bg-surface p-4">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              Metas do time
+            </h2>
+            <div className="mt-3 flex flex-col gap-3">
+              {comMeta.map((u) => (
+                <div key={u.id} className="rounded border border-line p-3">
+                  <p className="text-sm font-semibold text-foreground">{u.nome}</p>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    {u.prospeccao.dia.meta !== undefined && (
+                      <MetaProgresso
+                        label="Hoje"
+                        usado={u.prospeccao.dia.usado}
+                        meta={u.prospeccao.dia.meta}
+                      />
+                    )}
+                    {u.prospeccao.semana.meta !== undefined && (
+                      <MetaProgresso
+                        label="Semana"
+                        usado={u.prospeccao.semana.usado}
+                        meta={u.prospeccao.semana.meta}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Só o admin recebe a quebra por usuário (membro vê só o próprio uso acima). */}
       {Boolean(usage.porUsuario?.length || metrics.porUsuario?.length) && (

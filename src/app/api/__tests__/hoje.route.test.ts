@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { saoPauloDateKey } from "@/lib/costs";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { cookieDeSessao } from "@/lib/testing/sessao";
 import { GET } from "../hoje/route";
@@ -96,6 +97,36 @@ describe("GET /api/hoje", () => {
         mensagemPadrao: "msg do grupo",
       },
     ]);
+  });
+
+  it("metaProspeccao: usado vem do contador `buscas` de usage_users, meta só na janela configurada", async () => {
+    const cookie = await cookieDeSessao(db, { id: "ana" });
+    db.seed("usuarios/ana", {
+      id: "ana",
+      nome: "ana",
+      papel: "membro",
+      ativo: true,
+      sessao: 0,
+      metas: { prospeccoesDia: 5 },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+    const hoje = saoPauloDateKey(new Date());
+    db.seed(`usage_users/ana/dias/${hoje}`, { buscas: 2, enriquecimentos: 7 });
+
+    const data = await (await GET(hojeRequest(cookie))).json();
+
+    expect(data.metaProspeccao.dia).toEqual({ usado: 2, meta: 5 });
+    expect(data.metaProspeccao.semana.meta).toBeUndefined();
+  });
+
+  it("metaProspeccao sem meta configurada: usado presente, meta ausente nas duas janelas", async () => {
+    const cookie = await cookieDeSessao(db, { id: "ana" });
+
+    const data = await (await GET(hojeRequest(cookie))).json();
+
+    expect(data.metaProspeccao.dia).toEqual({ usado: 0, meta: undefined });
+    expect(data.metaProspeccao.semana).toEqual({ usado: 0, meta: undefined });
   });
 
   it("carimba ultimaVisitaEm do usuário e o delta seguinte parte dele", async () => {
