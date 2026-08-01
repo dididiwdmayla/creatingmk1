@@ -313,9 +313,10 @@ function ItemHoje({
     lead.demo && typeof window !== "undefined"
       ? `${window.location.origin}/demo/${lead.placeId}`
       : undefined;
-  // A variável {demo} carrega o token do envio vigente (já vem no GET
-  // /api/hoje, sem fetch no clique); "Abrir demo" continua sem token.
-  const tokenVigente = envioVigente(lead.demo)?.token;
+  // A variável {demo} carrega o token vigente do canal "whatsapp" (já vem
+  // no GET /api/hoje, sem fetch no clique); o link "Demo" do item continua
+  // sem token (preview).
+  const tokenVigente = envioVigente(lead.demo, "whatsapp")?.token;
   const demoUrlParaEnvio = demoUrl && tokenVigente ? `${demoUrl}?t=${tokenVigente}` : demoUrl;
   // Penetração de site do nicho+região do lead (cacheada no doc da busca) —
   // alimenta a variável {penetracao} e o badge "argumento forte" (>60%).

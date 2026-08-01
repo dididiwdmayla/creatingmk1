@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import type { EnvioCanal, EnvioDemo } from "@/lib/demos/types";
 import { DEFAULT_SKIN } from "@/lib/demos/registry";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import {
@@ -30,20 +31,33 @@ const DEMO_INPUT = {
   dados: {},
 };
 
+/**
+ * Acha o envio vigente de um canal numa lista — só pra deixar os testes
+ * explícitos sobre qual canal usam. Mesmo fallback de canalDoEnvio (./envio.ts):
+ * entrada sem `canal` (formato legado) conta como "whatsapp".
+ */
+function porCanal(envios: EnvioDemo[] | undefined, canal: EnvioCanal): EnvioDemo | undefined {
+  return envios?.find((envio) => (envio.canal ?? "whatsapp") === canal);
+}
+
 describe("saveDemo — token de envio", () => {
-  it("gera o primeiro token de envio no primeiro save e preserva nas edições", async () => {
+  it("gera um token vigente por canal (link + whatsapp) no primeiro save, preserva nas edições", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    expect(salvo.demo?.envios).toHaveLength(1);
-    const primeiroToken = salvo.demo?.envios?.[0].token;
-    expect(primeiroToken).toBeTruthy();
+    expect(salvo.demo?.envios).toHaveLength(2);
+    const linkToken = porCanal(salvo.demo?.envios, "link")?.token;
+    const waToken = porCanal(salvo.demo?.envios, "whatsapp")?.token;
+    expect(linkToken).toBeTruthy();
+    expect(waToken).toBeTruthy();
+    expect(linkToken).not.toBe(waToken);
 
     const reeditado = await saveDemo(db, "A", { ...DEMO_INPUT, dados: { slogan: "novo" } });
-    expect(reeditado.demo?.envios?.[0].token).toBe(primeiroToken);
+    expect(porCanal(reeditado.demo?.envios, "link")?.token).toBe(linkToken);
+    expect(porCanal(reeditado.demo?.envios, "whatsapp")?.token).toBe(waToken);
   });
 });
 
 describe("garantirEnvioToken", () => {
-  it("gera um token quando a demo não tem nenhum (self-heal de demo antiga)", async () => {
+  it("gera um token por canal quando a demo não tem nenhum (self-heal de demo antiga)", async () => {
     db.seed("leads/B", {
       placeId: "B",
       nome: "Sem token ainda",
@@ -55,15 +69,44 @@ describe("garantirEnvioToken", () => {
     });
 
     const lead = await garantirEnvioToken(db, "B");
-    expect(lead.demo?.envios).toHaveLength(1);
-    expect(lead.demo?.envios?.[0].geradoEm).toBeTruthy();
+    expect(lead.demo?.envios).toHaveLength(2);
+    expect(porCanal(lead.demo?.envios, "link")?.geradoEm).toBeTruthy();
+    expect(porCanal(lead.demo?.envios, "whatsapp")?.geradoEm).toBeTruthy();
   });
 
-  it("é no-op quando já existe token, e quando o lead não tem demo", async () => {
+  it("self-heal incremental: demo antiga com envio sem `canal` (legado) ganha só o token de link", async () => {
+    // Formato de antes do canal "link" existir: um único envio, sem campo
+    // `canal` — tratado como "whatsapp" na leitura (ver canalDoEnvio).
+    db.seed("leads/L", {
+      placeId: "L",
+      nome: "Demo legada",
+      status: "novo",
+      enriquecido: false,
+      demo: {
+        skinId: DEFAULT_SKIN.id,
+        themeId: DEFAULT_SKIN.themeDefault.id,
+        dados: {},
+        criadoEm: "x",
+        atualizadoEm: "x",
+        envios: [{ token: "token-legado", geradoEm: "2026-01-01T00:00:00.000Z" }],
+      },
+      criadoEm: "x",
+      atualizadoEm: "x",
+    });
+
+    const lead = await garantirEnvioToken(db, "L");
+    expect(lead.demo?.envios).toHaveLength(2);
+    // O token legado continua vigente pro whatsapp — não foi substituído.
+    expect(porCanal(lead.demo?.envios, "whatsapp")?.token).toBe("token-legado");
+    expect(porCanal(lead.demo?.envios, "link")?.token).toBeTruthy();
+    expect(porCanal(lead.demo?.envios, "link")?.token).not.toBe("token-legado");
+  });
+
+  it("é no-op quando já existem os dois tokens, e quando o lead não tem demo", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const tokenAntes = salvo.demo?.envios?.[0].token;
+    const enviosAntes = salvo.demo?.envios;
     const depois = await garantirEnvioToken(db, "A");
-    expect(depois.demo?.envios?.[0].token).toBe(tokenAntes);
+    expect(depois.demo?.envios).toEqual(enviosAntes);
 
     db.seed("leads/C", {
       placeId: "C",
@@ -86,13 +129,13 @@ describe("registrarVisitaDemo", () => {
     expect(lead.demoVisitas).toBeUndefined();
   });
 
-  it("visita não-interna com o token vigente: registra e consome (gera o próximo)", async () => {
+  it("visita não-interna com o token vigente do canal 'link': registra com canal e consome só o do link", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const tokenOriginal = salvo.demo?.envios?.[0].token as string;
-    const geradoEmOriginal = salvo.demo?.envios?.[0].geradoEm as string;
+    const linkEnvio = porCanal(salvo.demo?.envios, "link") as EnvioDemo;
+    const waEnvio = porCanal(salvo.demo?.envios, "whatsapp") as EnvioDemo;
 
     const { lead, visitaId } = await registrarVisitaDemo(db, "A", {
-      token: tokenOriginal,
+      token: linkEnvio.token,
       interna: false,
     });
 
@@ -100,53 +143,68 @@ describe("registrarVisitaDemo", () => {
     expect(lead.demoVisitas).toHaveLength(1);
     expect(lead.demoVisitas?.[0]).toMatchObject({
       interna: false,
-      envioEm: geradoEmOriginal,
+      envioEm: linkEnvio.geradoEm,
+      canal: "link",
     });
-    // Consumiu: o token vigente agora é outro.
-    expect(lead.demo?.envios?.[0].token).not.toBe(tokenOriginal);
-    expect(lead.demo?.envios).toHaveLength(2);
+    // Consumiu o token do canal "link"...
+    expect(porCanal(lead.demo?.envios, "link")?.token).not.toBe(linkEnvio.token);
+    // ...mas o do canal "whatsapp" continua intacto (canais independentes).
+    expect(porCanal(lead.demo?.envios, "whatsapp")?.token).toBe(waEnvio.token);
+    expect(lead.demo?.envios).toHaveLength(3);
+  });
+
+  it("visita não-interna com o token vigente do canal 'whatsapp': registra com canal e consome só o do whatsapp", async () => {
+    const salvo = await saveDemo(db, "A", DEMO_INPUT);
+    const linkEnvio = porCanal(salvo.demo?.envios, "link") as EnvioDemo;
+    const waEnvio = porCanal(salvo.demo?.envios, "whatsapp") as EnvioDemo;
+
+    const { lead } = await registrarVisitaDemo(db, "A", { token: waEnvio.token, interna: false });
+
+    expect(lead.demoVisitas?.[0]).toMatchObject({ canal: "whatsapp" });
+    expect(porCanal(lead.demo?.envios, "whatsapp")?.token).not.toBe(waEnvio.token);
+    expect(porCanal(lead.demo?.envios, "link")?.token).toBe(linkEnvio.token);
   });
 
   it("visita INTERNA com o token vigente: registra, mas NÃO consome", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const tokenOriginal = salvo.demo?.envios?.[0].token as string;
+    const linkEnvio = porCanal(salvo.demo?.envios, "link") as EnvioDemo;
 
-    const { lead } = await registrarVisitaDemo(db, "A", { token: tokenOriginal, interna: true });
+    const { lead } = await registrarVisitaDemo(db, "A", { token: linkEnvio.token, interna: true });
 
     expect(lead.demoVisitas).toHaveLength(1);
     expect(lead.demoVisitas?.[0].interna).toBe(true);
-    expect(lead.demo?.envios).toHaveLength(1);
-    expect(lead.demo?.envios?.[0].token).toBe(tokenOriginal);
+    expect(lead.demo?.envios).toHaveLength(2);
+    expect(porCanal(lead.demo?.envios, "link")?.token).toBe(linkEnvio.token);
   });
 
-  it("revisita de um link antigo (token já rotacionado) ainda resolve o envio correto, sem consumir de novo", async () => {
+  it("revisita de um link antigo (token já rotacionado) ainda resolve o envio e o canal corretos, sem consumir de novo", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const tokenOriginal = salvo.demo?.envios?.[0].token as string;
-    const geradoEmOriginal = salvo.demo?.envios?.[0].geradoEm as string;
+    const linkEnvio = porCanal(salvo.demo?.envios, "link") as EnvioDemo;
 
-    await registrarVisitaDemo(db, "A", { token: tokenOriginal, interna: false });
-    const { lead } = await registrarVisitaDemo(db, "A", { token: tokenOriginal, interna: false });
+    await registrarVisitaDemo(db, "A", { token: linkEnvio.token, interna: false });
+    const { lead } = await registrarVisitaDemo(db, "A", { token: linkEnvio.token, interna: false });
 
     expect(lead.demoVisitas).toHaveLength(2);
-    expect(lead.demoVisitas?.[1].envioEm).toBe(geradoEmOriginal);
-    // Só consumiu uma vez — ainda só 2 envios no histórico.
-    expect(lead.demo?.envios).toHaveLength(2);
+    expect(lead.demoVisitas?.[1]).toMatchObject({ envioEm: linkEnvio.geradoEm, canal: "link" });
+    // Só consumiu uma vez — ainda só 3 envios no histórico (1 whatsapp + 2 link).
+    expect(lead.demo?.envios).toHaveLength(3);
   });
 
-  it("token desconhecido: registra a visita sem envio correspondente e não consome", async () => {
+  it("token desconhecido: registra a visita sem envio/canal correspondente e não consome", async () => {
     await saveDemo(db, "A", DEMO_INPUT);
     const { lead } = await registrarVisitaDemo(db, "A", { token: "token-invalido", interna: false });
 
     expect(lead.demoVisitas).toHaveLength(1);
     expect(lead.demoVisitas?.[0].envioEm).toBeUndefined();
-    expect(lead.demo?.envios).toHaveLength(1);
+    expect(lead.demoVisitas?.[0].canal).toBeUndefined();
+    expect(lead.demo?.envios).toHaveLength(2);
   });
 });
 
 describe("atualizarVisitaDemo", () => {
   it("preenche duração e scroll de uma visita já registrada", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const token = salvo.demo?.envios?.[0].token as string;
+    const token = porCanal(salvo.demo?.envios, "link")?.token as string;
     const { visitaId } = await registrarVisitaDemo(db, "A", { token, interna: false });
 
     await atualizarVisitaDemo(db, "A", visitaId as string, {
@@ -168,7 +226,7 @@ describe("atualizarVisitaDemo", () => {
 
   it("marcadorDispositivo promove a visita a interna (beacon com marcador de dispositivo)", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const token = salvo.demo?.envios?.[0].token as string;
+    const token = porCanal(salvo.demo?.envios, "link")?.token as string;
     const { visitaId } = await registrarVisitaDemo(db, "A", { token, interna: false });
 
     await atualizarVisitaDemo(db, "A", visitaId as string, { marcadorDispositivo: true });
@@ -179,7 +237,7 @@ describe("atualizarVisitaDemo", () => {
 
   it("sem marcadorDispositivo não mexe na classificação já gravada", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const token = salvo.demo?.envios?.[0].token as string;
+    const token = porCanal(salvo.demo?.envios, "link")?.token as string;
     const { visitaId } = await registrarVisitaDemo(db, "A", { token, interna: true });
 
     await atualizarVisitaDemo(db, "A", visitaId as string, { duracaoSegundos: 10 });
@@ -192,7 +250,7 @@ describe("atualizarVisitaDemo", () => {
 describe("registrarVisitaDemo — regressão classificação interna/marcador", () => {
   it("visita com sessão ativa (interna=true) é registrada como interna", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const token = salvo.demo?.envios?.[0].token as string;
+    const token = porCanal(salvo.demo?.envios, "link")?.token as string;
 
     const { lead } = await registrarVisitaDemo(db, "A", { token, interna: true });
 
@@ -201,7 +259,7 @@ describe("registrarVisitaDemo — regressão classificação interna/marcador", 
 
   it("visita com token, sem sessão e sem marcador é contada (registrada, não-interna)", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const token = salvo.demo?.envios?.[0].token as string;
+    const token = porCanal(salvo.demo?.envios, "link")?.token as string;
 
     const { lead, visitaId } = await registrarVisitaDemo(db, "A", { token, interna: false });
 
@@ -212,7 +270,7 @@ describe("registrarVisitaDemo — regressão classificação interna/marcador", 
 
   it("grava geo só quando algum campo vier preenchido — nunca usado pra classificar", async () => {
     const salvo = await saveDemo(db, "A", DEMO_INPUT);
-    const token = salvo.demo?.envios?.[0].token as string;
+    const token = porCanal(salvo.demo?.envios, "link")?.token as string;
 
     const comGeo = await registrarVisitaDemo(db, "A", {
       token,

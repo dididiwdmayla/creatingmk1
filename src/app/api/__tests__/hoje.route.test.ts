@@ -173,6 +173,7 @@ describe("GET /api/hoje", () => {
 
     const data = await (await GET(hojeRequest(cookie))).json();
 
-    expect(data.abriramNaoResponderam[0].demo.envios).toHaveLength(1);
+    // Um token vigente por canal (link + whatsapp).
+    expect(data.abriramNaoResponderam[0].demo.envios).toHaveLength(2);
   });
 });
