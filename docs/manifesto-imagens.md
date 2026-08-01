@@ -359,3 +359,134 @@ Total: **15 slots**.
 | `multimarcas-vortice` | 9 |
 | `petshop-focinho-feliz` | 15 |
 | **Total geral** | **88** |
+
+---
+
+## Slots reaproveitáveis entre skins
+
+Skins do mesmo nicho compartilham o propósito de alguns slots — a mesma foto (entregue em cor) pode abastecer as duas, já que cada skin aplica seu próprio tratamento CSS por cima (ver seções acima):
+
+| Slots | Skins | Por quê dá pra reaproveitar |
+|---|---|---|
+| `equipe-1`, `equipe-2` | `barbearia-editorial` ↔ `barbearia2-sul` | Ambas pedem retrato de barbeiro em ambiente de trabalho, sem rosto identificável, proporção próxima (3:4). A editorial aplica só um leve `contrast(0.95) saturate(0.9)`; a Sul converte pra P&B por padrão (`grayscale(1) brightness(0.85)`) e revela cor no hover — a mesma foto em cor serve às duas, cada uma trata do seu jeito. |
+| `portfolio-1` … `portfolio-8` | `tatuagem-editorial` ↔ `tatuagem-pigmento-vivo` | Ambas pedem foto de tatuagem finalizada na pele, close, sem rosto no quadro, proporção retrato próxima (4:5/3:4). A editorial converte tudo pra P&B de alto contraste (`grayscale(100%) contrast(1.25) brightness(0.75)`); a Pigmento Vivo mostra a cor original sem tratamento — a mesma foto colorida e bem exposta funciona nas duas (a editorial "apaga" a cor sozinha). |
+
+Fora esses dois pares (mesmo nicho, mesma pose/objeto), os demais slots de mesmo nome entre skins diferentes (ex.: `hero` em barbearia/tatuagem/lancheria/imobiliária/petshop) **não são intercambiáveis** — o assunto muda por completo de nicho para nicho (ambiente de barbearia ≠ estúdio de tatuagem ≠ fachada de imóvel ≠ pet).
+
+---
+
+## Prompts de geração de imagem, por slot
+
+Um prompt autocontido por slot, em português, pronto para uso em uma ferramenta de geração de imagem — sem citar marca ou pessoa real, respeitando as regras gerais do topo deste documento.
+
+### Barbearia Editorial (`barbearia-editorial`)
+
+- **`hero`** — Interior de uma barbearia vintage-premium, cadeiras de barbeiro em couro escuro alinhadas diante de espelhos emoldurados, madeira escura e detalhes dourados, ambiente vazio sem pessoas. Enquadramento amplo em ângulo levemente baixo, câmera na altura do peito. Iluminação quente e pontual (lâmpadas incandescentes), sombras profundas. Paleta de marrons escuros, couro e toques dourados; tonalidade geral escura e aconchegante.
+- **`agendamento-rapido`** — Barbeiro em avental de couro cortando o cabelo de um cliente sentado na cadeira, visto de lado, o rosto do cliente fora de foco/fora do quadro. Enquadramento médio, plano fechado nas mãos e na tesoura em ação. Luz quente lateral, típica de barbearia. Paleta de marrons e dourado, tonalidade escura.
+- **`servicos`** — Navalha reta, tesoura de aço e pente de madeira apoiados sobre uma bancada de couro gasto. Enquadramento em still life, close extremo, câmera quase no nível da bancada. Luz lateral dura, criando reflexos metálicos e sombras longas. Paleta de couro marrom e aço escovado, tonalidade escura.
+- **`equipe-1`** — Barbeiro visto de perfil, atenção nas mãos e no ombro, rosto propositalmente fora de foco ou cortado do quadro, vestindo avental de trabalho. Enquadramento retrato, plano médio. Luz de estúdio quente e direcional. Paleta terrosa, tonalidade média a escura.
+- **`equipe-2`** — Barbeiro fotografado de costas, ajustando uma máquina de corte na bancada, sem mostrar o rosto. Enquadramento retrato, plano médio. Luz quente lateral. Paleta terrosa, tonalidade média a escura.
+- **`equipe-3`** — Close nas mãos de um barbeiro segurando pente e tesoura em posição de trabalho, sem rosto no quadro. Enquadramento retrato, plano fechado. Luz de estúdio quente. Paleta terrosa, tonalidade média a escura.
+- **`mapa`** — Textura estilizada de um mapa urbano genérico, traçado de ruas sem nomes legíveis, aparência de papel antigo. Enquadramento frontal, plano fechado em uma área do mapa. Luz difusa, uniforme. Paleta sépia/marrom, tonalidade escura.
+
+### Barbearia Sul (`barbearia2-sul`)
+
+- **`galeria-1`** — Nuca recém-cortada com acabamento reto feito na navalha, pele e cabelo em foco, sem rosto no quadro. Enquadramento retrato fechado, câmera próxima. Luz natural suave e neutra. Paleta neutra com bom contraste tonal (a imagem será convertida para preto-e-branco pela interface).
+- **`galeria-2`** — Lateral da cabeça mostrando um degradê recém-feito, textura do corte em destaque, sem rosto no quadro. Enquadramento retrato fechado. Luz suave e direcional. Paleta neutra, bom contraste tonal.
+- **`galeria-3`** — Barba aparada na navalha, close no queixo e pescoço, sem mostrar o rosto completo. Enquadramento retrato fechado. Luz suave lateral. Paleta neutra, bom contraste tonal.
+- **`galeria-4`** — Corte clássico finalizado, visto de cima/de trás, sem rosto no quadro. Enquadramento retrato médio. Luz natural difusa. Paleta neutra, bom contraste tonal.
+- **`galeria-5`** — Detalhe de um risco decorativo raspado na lateral do cabelo, close extremo, sem rosto. Enquadramento retrato fechado. Luz direcional suave. Paleta neutra, bom contraste tonal.
+- **`equipe-1`** — Barbeiro fundador, visto de perfil sem foco no rosto, vestindo roupa de trabalho simples, em ambiente de barbearia. Enquadramento retrato, plano médio. Luz natural suave vinda de uma janela lateral. Paleta neutra em tons terrosos, bom contraste tonal.
+- **`equipe-2`** — Barbeiro mais jovem, mãos ativas ajustando uma máquina de corte, rosto fora de foco. Enquadramento retrato, plano médio. Luz natural suave. Paleta neutra em tons terrosos, bom contraste tonal.
+
+### Tatuagem Editorial Sombria (`tatuagem-editorial`)
+
+- **`hero`** — Estúdio de tatuagem em penumbra, maca profissional de couro preto e luminária articulada de trabalho, ambiente vazio sem pessoas. Enquadramento amplo, câmera ao nível dos olhos. Luz pontual e dramática vinda de um único ponto, sombras profundas ao redor. Paleta de pretos e cinzas-carvão com um leve toque de vermelho escuro; tonalidade muito escura.
+- **`sobre`** — Mãos de um tatuador segurando a máquina de tatuar em posição de trabalho sobre um antebraço, close, sem rosto no quadro. Enquadramento retrato fechado. Luz dramática lateral, alto contraste. Paleta escura, evitando áreas estouradas de luz.
+- **`portfolio-1`** — Tatuagem blackwork geométrica em um antebraço, foto de estúdio, close na pele. Enquadramento retrato fechado. Luz direcional suave, boa faixa tonal, sem estourar os brancos. Paleta neutra sobre pele.
+- **`portfolio-2`** — Tatuagem de realismo dark na lateral do tronco, close na pele, sem rosto no quadro. Enquadramento retrato fechado. Luz direcional suave e uniforme.
+- **`portfolio-3`** — Tatuagem de iconografia detalhada na panturrilha, close na pele. Enquadramento retrato fechado. Luz suave e uniforme, boa faixa tonal.
+- **`portfolio-4`** — Fechamento blackwork de braço inteiro, ângulo lateral, close na pele, sem rosto no quadro. Enquadramento retrato. Luz direcional suave.
+- **`portfolio-5`** — Tatuagem dotwork ornamental nas costas, close na pele. Enquadramento retrato fechado. Luz uniforme e suave.
+- **`portfolio-6`** — Tatuagem de linework fino no peito, close na pele, sem rosto no quadro. Enquadramento retrato. Luz suave e direcional.
+- **`portfolio-7`** — Fechamento de realismo dark na perna, close na pele. Enquadramento retrato. Luz uniforme, boa faixa tonal.
+- **`portfolio-8`** — Tatuagem blackwork pequena no dorso da mão, close extremo. Enquadramento retrato fechado. Luz suave e direcional.
+
+### Tatuagem Pigmento Vivo (`tatuagem-pigmento-vivo`)
+
+- **`portfolio-1`** — Tatuagem estilo aquarela, cores vibrantes escorrendo com bordas soltas, no antebraço, close na pele, fundo neutro claro. Enquadramento retrato. Luz suave e uniforme, sem sombras duras. Paleta viva e colorida, tonalidade geral clara.
+- **`portfolio-2`** — Tatuagem neo-tradicional de traço firme e cor saturada no braço, close na pele. Enquadramento retrato. Luz suave e uniforme. Paleta viva, tonalidade clara.
+- **`portfolio-3`** — Tatuagem fineline botânica delicada, linhas finas de flores e folhas, close na pele. Enquadramento retrato. Luz suave e uniforme. Paleta clara e discreta.
+- **`portfolio-4`** — Tatuagem old school (âncora ou andorinha) com contorno grosso e cores clássicas, close na pele. Enquadramento retrato. Luz suave e uniforme. Paleta viva, tonalidade clara.
+- **`portfolio-5`** — Tatuagem blackwork de traço fino sobre fundo de pele claro, close, sem rosto no quadro. Enquadramento retrato. Luz suave e uniforme. Tonalidade clara.
+- **`portfolio-6`** — Tatuagem aquarela abstrata com respingos de cor, close na pele. Enquadramento retrato. Luz suave e uniforme. Paleta viva, tonalidade clara.
+- **`portfolio-7`** — Tatuagem neo-tradicional em outra parte do corpo, cores saturadas, close na pele. Enquadramento retrato. Luz suave e uniforme. Paleta viva, tonalidade clara.
+- **`portfolio-8`** — Tatuagem fineline pequena e minimalista, close extremo na pele. Enquadramento retrato fechado. Luz suave e uniforme. Tonalidade clara.
+
+### Lancheria Chapa Burger (`lancheria-chapa-burger`)
+
+- **`hero`** — Interior de uma hamburgueria artesanal em luz baixa, chapa de cozinha quente ao fundo desfocada, sem pessoas nem placas visíveis. Enquadramento amplo, câmera na altura do balcão. Luz quente e pontual, ambiente meio escuro. Paleta de marrons escuros com brilhos alaranjados.
+- **`prato-vazio`** — Prato branco redondo vazio, fotografado de cima, isolado sobre fundo neutro claro, sem qualquer marca. Enquadramento centralizado, plano fechado. Luz difusa e uniforme. Tonalidade clara e neutra.
+- **`lanche-1`** — Hambúrguer artesanal clássico com queijo derretido, isolado sobre fundo neutro liso, vista em três quartos. Enquadramento centralizado, close médio. Luz de estúdio suave, realçando textura e vapor. Paleta quente e apetitosa, tonalidade clara.
+- **`lanche-2`** — Hambúrguer com bacon crocante e cheddar cremoso, isolado sobre fundo neutro liso, vista em três quartos. Enquadramento centralizado. Luz de estúdio suave. Paleta quente, tonalidade clara.
+- **`lanche-3`** — Hambúrguer com onion rings crocantes por cima, isolado sobre fundo neutro liso. Enquadramento centralizado. Luz de estúdio suave. Paleta quente, tonalidade clara.
+- **`lanche-4`** — Hambúrguer tradicional com alface, tomate e maionese, isolado sobre fundo neutro liso. Enquadramento centralizado. Luz de estúdio suave. Paleta quente, tonalidade clara.
+- **`lanche-5`** — Sanduíche de frango empanado bem crocante, isolado sobre fundo neutro liso. Enquadramento centralizado. Luz de estúdio suave. Paleta quente, tonalidade clara.
+- **`lanche-6`** — Hambúrguer vegetariano com rúcula fresca, isolado sobre fundo neutro liso. Enquadramento centralizado. Luz de estúdio suave. Paleta quente, tonalidade clara.
+- **`bebida-1`** — Milkshake em copo alto com chantilly, isolado sobre fundo neutro ou transparente. Enquadramento centralizado, plano fechado. Luz de estúdio suave. Paleta vívida, tonalidade clara.
+- **`bebida-2`** — Suco natural colorido em copo alto, isolado sobre fundo neutro ou transparente. Enquadramento centralizado. Luz de estúdio suave. Tonalidade clara.
+- **`bebida-3`** — Copo de refrigerante cola com gelo, isolado sobre fundo neutro ou transparente. Enquadramento centralizado. Luz de estúdio suave. Tonalidade clara.
+- **`bebida-4`** — Copo de refrigerante guaraná com gelo, isolado sobre fundo neutro ou transparente. Enquadramento centralizado. Luz de estúdio suave. Tonalidade clara.
+- **`bebida-5`** — Copo d'água com gelo e rodela de limão, isolado sobre fundo neutro ou transparente. Enquadramento centralizado. Luz de estúdio suave. Tonalidade clara.
+- **`acompanhamento-1`** — Porção grande de batata frita crocante, isolada sobre fundo neutro ou transparente. Enquadramento centralizado. Luz de estúdio suave. Paleta dourada, tonalidade clara.
+- **`acompanhamento-2`** — Porção de onion rings empilhados, isolada sobre fundo neutro ou transparente. Enquadramento centralizado. Luz de estúdio suave. Tonalidade clara.
+- **`acompanhamento-3`** — Porção de nuggets crocantes, isolada sobre fundo neutro ou transparente. Enquadramento centralizado. Luz de estúdio suave. Tonalidade clara.
+- **`acompanhamento-4`** — Porção pequena de batata frita, isolada sobre fundo neutro ou transparente. Enquadramento centralizado. Luz de estúdio suave. Tonalidade clara.
+- **`flutuante-bacon`** — Tira de bacon crocante recortada, sem fundo (fundo transparente), levemente inclinada. Enquadramento centralizado, plano fechado tipo still de produto. Luz de estúdio suave e direcional. Tonalidade clara e vívida.
+- **`flutuante-queijo`** — Fatia triangular de queijo derretendo, recortada, sem fundo (fundo transparente). Enquadramento centralizado, still de produto. Luz de estúdio suave. Tonalidade clara e vívida.
+- **`flutuante-bebida`** — Copo de bebida gelada com gotas de condensação, recortado, sem fundo (fundo transparente). Enquadramento centralizado, still de produto. Luz de estúdio suave. Tonalidade clara e vívida.
+
+### Imobiliária Curada (`imobiliaria-curada`)
+
+- **`hero`** — Fachada de uma casa contemporânea genérica, com jardim frontal bem cuidado, luz de fim de tarde, sem número de rua, placa ou qualquer identificação visível. Enquadramento frontal levemente angulado, câmera na altura dos olhos. Luz quente e dourada de horário próximo do pôr do sol. Paleta terrosa e creme, tonalidade clara e quente.
+- **`imovel-1`** — Área externa genérica de uma casa térrea com jardim e piscina de borda infinita, luz de fim de tarde. Enquadramento amplo. Luz quente e suave. Tonalidade clara.
+- **`imovel-2`** — Terraço genérico de cobertura com vista aberta para o horizonte durante o pôr do sol, sem elementos identificáveis do entorno. Enquadramento amplo. Luz quente e dourada. Tonalidade clara.
+- **`imovel-3`** — Interior genérico de um studio com pé-direito duplo, grandes janelas e luz natural abundante, sem móveis de marca visível. Enquadramento amplo. Luz natural difusa. Tonalidade clara.
+- **`imovel-4`** — Sala de estar genérica de apartamento reformado, piso de taco de madeira original, luz natural entrando pela janela. Enquadramento amplo. Luz natural suave. Tonalidade clara.
+- **`imovel-5`** — Cobertura duplex genérica com vista para uma área verde, ambiente vazio e bem iluminado. Enquadramento amplo. Luz natural suave. Tonalidade clara.
+- **`bairro-1`** — Rua residencial arborizada e clássica, calçada larga, sem placas de nome de rua legíveis. Enquadramento de rua, câmera na altura dos olhos. Luz de dia suave e difusa. Tonalidade clara.
+- **`bairro-2`** — Viela estreita e charmosa com fachadas coloridas genéricas e um pequeno ateliê, sem letreiros legíveis. Enquadramento de rua. Luz de dia suave. Tonalidade clara.
+- **`bairro-3`** — Esquina de bairro movimentado, mesas de café na calçada, árvores, sem nomes de estabelecimentos legíveis. Enquadramento de rua. Luz de dia suave. Tonalidade clara.
+- **`bairro-4`** — Rua residencial calma e arborizada perto de um parque, poucas pessoas ao fundo, irreconhecíveis. Enquadramento de rua. Luz de dia suave. Tonalidade clara.
+- **`bairro-5`** — Fachada genérica de prédio modernista com uma padaria de esquina sem letreiro legível. Enquadramento de rua. Luz de dia suave. Tonalidade clara.
+- **`depoimento-1`** — Mãos segurando um molho de chaves novas em frente a uma porta desfocada ao fundo, close, sem rosto no quadro. Enquadramento fechado, still. Luz natural suave. Tonalidade clara.
+
+### Multimarcas Vórtice (`multimarcas-vortice`)
+
+- **`carro-1`** — Hatch compacto em estúdio fotográfico, ângulo três quartos frontal, fundo neutro cinza-claro, placa do veículo desfocada/ilegível. Enquadramento médio. Luz de estúdio suave e uniforme, com leve reflexo na lataria. Tonalidade clara e neutra.
+- **`carro-2`** — Hatch esportivo em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave. Tonalidade clara e neutra.
+- **`carro-3`** — Sedan executivo em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave. Tonalidade clara e neutra.
+- **`carro-4`** — Sedan híbrido em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave. Tonalidade clara e neutra.
+- **`carro-5`** — SUV médio em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave. Tonalidade clara e neutra.
+- **`carro-6`** — SUV compacto em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave. Tonalidade clara e neutra.
+- **`carro-7`** — Picape robusta em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave. Tonalidade clara e neutra.
+- **`carro-8`** — Picape de trabalho em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave. Tonalidade clara e neutra.
+- **`carro-9`** — Cupê esportivo premium em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave, leve reflexo na lataria. Tonalidade clara e neutra.
+
+### Petshop Focinho Feliz (`petshop-focinho-feliz`)
+
+- **`hero`** — Cão de porte médio recém-banhado, pelagem limpa e fofa, sentado e com expressão alegre, still fotográfico sobre fundo neutro claro, sem tutor no quadro. Enquadramento centralizado, plano médio. Luz suave e difusa, tipo estúdio. Paleta pastel, tonalidade clara.
+- **`servico-1`** — Cão sendo enxaguado com carinho numa banheira de petshop, espuma de shampoo, sem rosto de tutor ou profissional no quadro. Enquadramento médio. Luz suave e difusa. Tonalidade clara.
+- **`servico-2`** — Pet recebendo escovação e hidratação, produtos de spa ao redor, still. Enquadramento médio. Luz suave e difusa. Tonalidade clara.
+- **`servico-3`** — Cães brincando juntos em um espaço de day care amplo e colorido. Enquadramento médio-amplo. Luz suave e difusa. Tonalidade clara.
+- **`servico-4`** — Pet acomodado com cinto de segurança dentro de um veículo de transporte pet. Enquadramento médio. Luz suave e difusa. Tonalidade clara.
+- **`equipe-1`** — Mãos de uma tosadora penteando cuidadosamente o pelo de um cão, close, sem rosto no quadro. Enquadramento fechado. Luz suave e difusa. Tonalidade clara.
+- **`equipe-2`** — Groomer visto de costas, segurando uma tesoura de tosa perto de um cão, sem rosto no quadro. Enquadramento médio, de costas. Luz suave e difusa. Tonalidade clara.
+- **`equipe-3`** — Mãos de uma veterinária examinando gentilmente a pata de um pet, close, sem rosto no quadro. Enquadramento fechado. Luz suave e difusa. Tonalidade clara.
+- **`equipe-4`** — Recreador visto de costas brincando com um cão em um pátio externo, sem rosto no quadro. Enquadramento médio, de costas. Luz natural suave. Tonalidade clara.
+- **`galeria-1`** — Cachorro pequeno de pelagem clara e curta, still fotográfico sorridente, fundo neutro. Enquadramento centralizado. Luz suave e difusa. Tonalidade clara.
+- **`galeria-2`** — Cachorro de porte médio, still fotográfico, fundo neutro. Enquadramento centralizado. Luz suave e difusa. Tonalidade clara.
+- **`galeria-3`** — Gato de pelagem longa, still fotográfico, fundo neutro. Enquadramento centralizado. Luz suave e difusa. Tonalidade clara.
+- **`galeria-4`** — Cachorro de porte grande, still fotográfico, fundo neutro. Enquadramento centralizado. Luz suave e difusa. Tonalidade clara.
+- **`galeria-5`** — Gato de pelagem curta, still fotográfico, fundo neutro. Enquadramento centralizado. Luz suave e difusa. Tonalidade clara.
+- **`galeria-6`** — Cachorro filhote, still fotográfico, fundo neutro. Enquadramento centralizado. Luz suave e difusa. Tonalidade clara.
