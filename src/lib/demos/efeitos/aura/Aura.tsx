@@ -108,7 +108,17 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
   const blur = 40 + intensidade * 20; // 60/80/100px — fixo, nunca animado
 
   return (
-    <div ref={containerRef} className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+    <div
+      ref={containerRef}
+      // fixed (não absolute): cobre a viewport inteira em qualquer scroll,
+      // em vez de ficar preso à altura do bloco inicial do documento — ver
+      // ARCHITECTURE.md ("efeitos de fundo cobrem a viewport inteira").
+      // z-index negativo garante que fica atrás de TODO conteúdo normal da
+      // demo, inclusive seções sem position (que, sem isso, pintariam
+      // atrás de um elemento posicionado com z-index:auto).
+      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+      aria-hidden="true"
+    >
       <div
         ref={blob1Ref}
         className="absolute left-1/4 top-1/4 h-[60vmax] w-[60vmax] rounded-full will-change-transform"
