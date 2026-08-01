@@ -1,4 +1,4 @@
-import type { EfeitoDefinition } from "./types";
+import type { EfeitoDefinition, EfeitoIntensidade } from "./types";
 
 /**
  * Registro de efeitos visuais da Forja de Demos. Para adicionar um efeito:
@@ -7,8 +7,8 @@ import type { EfeitoDefinition } from "./types";
  * acrescente a entrada aqui. Ver ARCHITECTURE.md.
  *
  * Só metadado (id/nome/nichos) — nunca o componente em si, pra este
- * módulo poder ser importado (ex.: um seletor de efeitos) sem puxar o
- * código de nenhum efeito.
+ * módulo poder ser importado (ex.: o seletor "Efeito de fundo" da aba
+ * Tema do editor) sem puxar o código de nenhum efeito.
  */
 export const EFEITOS: EfeitoDefinition[] = [
   {
@@ -21,8 +21,35 @@ export const EFEITOS: EfeitoDefinition[] = [
     nome: "Grão",
     nichosRecomendados: ["barbearia", "tatuagem", "lancheria", "petshop"],
   },
+  {
+    id: "gradiente",
+    nome: "Gradiente animado",
+    // Nichos que já usavam "gradiente" como Theme.fundoEfeito antes deste
+    // registro existir (ver themes.ts de cada skin) — preserva o mesmo
+    // "recomendado" pros presets que já ligavam o efeito.
+    nichosRecomendados: ["imobiliaria", "multimarcas"],
+  },
+  {
+    id: "particulas",
+    nome: "Partículas",
+    nichosRecomendados: ["barbearia2", "lancheria", "multimarcas", "petshop", "tatuagem2"],
+  },
 ];
 
 export function getEfeito(id: string | undefined): EfeitoDefinition | undefined {
   return EFEITOS.find((efeito) => efeito.id === id);
+}
+
+/**
+ * Intensidade default quando a demo não tem uma escolha explícita
+ * persistida (`TemaPatch.fundoEfeitoIntensidade`): mais presente (2) se o
+ * nicho da skin está entre os recomendados do efeito, mais discreta (1)
+ * caso contrário — ver "Adicione controle de intensidade" no editor
+ * (aba Tema) e a rota pública /demo/[leadId].
+ */
+export function intensidadePadrao(
+  efeito: EfeitoDefinition,
+  nicho: string,
+): Exclude<EfeitoIntensidade, 0> {
+  return efeito.nichosRecomendados.includes(nicho) ? 2 : 1;
 }

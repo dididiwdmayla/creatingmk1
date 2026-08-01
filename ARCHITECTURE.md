@@ -165,13 +165,17 @@ src/
       videos.ts                     # vídeo-no-título: upload/remoção (mesma DemoStorage, prefixo "video-", sem placeholder)
       efeitos/                      # ✅ registro de efeitos visuais (camada decorativa opcional por cima de uma skin)
         types.ts                    #    EfeitoProps (intensidade 0-3, cores do tema, pausado) + EfeitoDefinition (metadado puro)
-        registry.ts                 #    EFEITOS: id/nome/nichosRecomendados — sem o componente (ver dynamicComponents.ts)
+        registry.ts                 #    EFEITOS: id/nome/nichosRecomendados + intensidadePadrao(efeito, nicho) — sem o componente (ver dynamicComponents.ts)
         useEfeitoAtivo.ts           #    hook client: pausa por IntersectionObserver + visibilitychange + prop pausado + reduced-motion
         dpr.ts                      #    devicePixelRatioClamped: limita a 2 qualquer rasterização em canvas
         dynamicComponents.ts        #    getEfeitoComponenteDinamico(id): next/dynamic({ssr:false}) por efeito — nunca bloqueia o first paint
         aura/Aura.tsx                #    dois blobs radiais (blur assado, só translate3d anima); ponteiro no desktop, scroll+deriva no celular; mix-blend-mode
         grao/Grao.tsx                #    textura de ruído via canvas (dpr clamped), gerada uma vez — sem loop de JS
-        __tests__/registry.test.ts  #    contrato: campos obrigatórios, ids únicos, intensidade 0 não renderiza nada
+        gradiente/Gradiente.tsx     #    ✅ dois radiais derivando devagar (transform); migrado do antigo Theme.fundoEfeito "gradiente" por skin
+        gradiente/estilo.ts         #    ✅ estilo puro (opacidade por intensidade, animationName/PlayState) — testável sem DOM
+        particulas/Particulas.tsx   #    ✅ pontos subindo em loop; migrado do antigo Theme.fundoEfeito "particulas" por skin
+        particulas/estilo.ts        #    ✅ contagem/opacidade por intensidade + estilo do ponto — testável sem DOM
+        __tests__/registry.test.ts  #    contrato: campos obrigatórios, ids únicos, intensidade 0 não renderiza nada, intensidadePadrao por nicho
     testing/
       fake-firestore.ts             # ✅ fake em memória com semântica de transação + paridade de path de coleção
       fake-firestore.test.ts        # ✅ paridade de segmentos do path (.collection() ímpar, como o SDK real)
