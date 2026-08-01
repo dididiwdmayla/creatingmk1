@@ -144,6 +144,7 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
       ],
     },
     faq: {
+      rotulo: "Cuidados",
       titulo: "Antes de marcar.",
       itens: [
         {
@@ -172,7 +173,9 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
       cta: "Agendar sessão",
       ctaSecundaria: "WhatsApp",
     },
-    contato: {},
+    contato: {
+      texto: "Estúdio fictício, tinta imaginária.",
+    },
   },
   imagens: {
     "portfolio-1": "/demos/tatuagem2/portfolio-1.svg",

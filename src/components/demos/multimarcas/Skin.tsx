@@ -462,7 +462,10 @@ export function MultimarcasVortice({ data, theme }: SkinProps) {
               ))}
             </div>
             <p className="w-full font-[family-name:var(--d-corpo)] text-xs text-[var(--d-muted)]">
-              © {new Date().getFullYear()} {data.nome}. Conteúdo ilustrativo.
+              © {new Date().getFullYear()} {data.nome}.{" "}
+              <span data-demo-slot="secoes.contato.texto">
+                {s.contato?.texto ?? "Conteúdo ilustrativo."}
+              </span>
             </p>
           </div>
         </section>

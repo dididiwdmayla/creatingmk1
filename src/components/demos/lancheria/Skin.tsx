@@ -422,8 +422,11 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
           <p className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]">
             © {new Date().getFullYear()} {data.nome}. Todos os direitos reservados.
           </p>
-          <p className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]/70">
-            FEITO COM OBSESSÃO
+          <p
+            data-demo-slot="secoes.contato.texto"
+            className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]/70"
+          >
+            {s.contato?.texto ?? "FEITO COM OBSESSÃO"}
           </p>
         </div>
       </footer>

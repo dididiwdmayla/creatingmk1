@@ -583,7 +583,9 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
         </div>
 
         <div className="mx-auto flex max-w-6xl flex-wrap justify-between gap-3 px-6 pb-8 font-[family-name:var(--d-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--d-muted)] md:px-12">
-          <span>Feito à mão, como tudo aqui.</span>
+          <span data-demo-slot="secoes.contato.texto">
+            {s.contato?.texto ?? "Feito à mão, como tudo aqui."}
+          </span>
           <span data-demo-slot="nome">
             © {new Date().getFullYear()} {data.nome}
           </span>

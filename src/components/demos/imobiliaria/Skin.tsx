@@ -193,10 +193,10 @@ export function ImobiliariaCurada({ data, theme }: SkinProps) {
 
   const navItens = (
     [
-      ["imoveis", "Imóveis"],
-      ["bairros", "Bairros"],
-      ["como", "Como funciona"],
-      ["contato", "Contato"],
+      ["imoveis", s.imoveis?.rotulo ?? "Imóveis"],
+      ["bairros", s.bairros?.rotulo ?? "Bairros"],
+      ["como", s.como?.rotulo ?? "Como funciona"],
+      ["contato", s.contato?.rotulo ?? "Contato"],
     ] as const
   )
     .filter(([id]) => visiveis.includes(id))
@@ -743,7 +743,9 @@ export function ImobiliariaCurada({ data, theme }: SkinProps) {
             </div>
             <div className="flex flex-wrap justify-between gap-5 pt-7 text-[13px] opacity-50">
               <p>© {new Date().getFullYear()} {data.nome}. Todos os direitos reservados.</p>
-              <p>Feito com calma.</p>
+              <p data-demo-slot="secoes.contato.ctaSecundaria">
+                {s.contato?.ctaSecundaria ?? "Feito com calma."}
+              </p>
             </div>
           </div>
         </div>

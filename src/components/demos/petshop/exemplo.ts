@@ -184,6 +184,7 @@ export const PETSHOP_EXEMPLO: DemoData = {
     },
     contato: {
       cta: "Chamar no WhatsApp",
+      texto: "Feito com carinho e pelos de pet no teclado.",
     },
   },
   ordemSecoes: [

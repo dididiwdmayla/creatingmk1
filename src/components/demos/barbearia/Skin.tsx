@@ -1060,7 +1060,10 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
           )}
           <div className="flex w-full flex-col items-center justify-center border-t border-[var(--d-border)] pt-8 font-[family-name:var(--d-mono)] text-[10px] font-medium tracking-widest text-[var(--d-muted)]">
             <span>
-              © {new Date().getFullYear()} {data.nome}. TODOS OS DIREITOS RESERVADOS.
+              © {new Date().getFullYear()} {data.nome}.{" "}
+              <span data-demo-slot="secoes.contato.texto">
+                {s.contato?.texto ?? "TODOS OS DIREITOS RESERVADOS."}
+              </span>
             </span>
           </div>
         </div>

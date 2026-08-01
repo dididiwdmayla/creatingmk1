@@ -181,7 +181,7 @@ export function TatuagemPigmentoVivo({ data, theme }: SkinProps) {
     s.estilos?.rotulo && { href: "#estilos", label: s.estilos?.rotulo },
     s.portfolio?.rotulo && { href: "#portfolio", label: s.portfolio?.rotulo },
     s.artistas?.rotulo && { href: "#artistas", label: s.artistas?.rotulo },
-    s.faq?.titulo && { href: "#faq", label: "Cuidados" },
+    s.faq?.rotulo && { href: "#faq", label: s.faq.rotulo },
   ].filter((link): link is { href: string; label: string } => Boolean(link));
 
   const secoes: Record<string, () => ReactNode> = {
@@ -589,6 +589,7 @@ export function TatuagemPigmentoVivo({ data, theme }: SkinProps) {
       s.faq && (
         <section id="faq" className="mx-auto max-w-[920px] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
           <div className="mb-14">
+            <Etiqueta texto={s.faq.rotulo} slot="secoes.faq.rotulo" />
             <SplashTitle
               texto={s.faq.titulo}
               slot="secoes.faq.titulo"
@@ -669,7 +670,10 @@ export function TatuagemPigmentoVivo({ data, theme }: SkinProps) {
           )}
         </div>
         <span className="text-xs text-[var(--d-muted)]">
-          © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>. Estúdio fictício, tinta imaginária.
+          © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>.{" "}
+          <span data-demo-slot="secoes.contato.texto">
+            {s.contato?.texto ?? "Estúdio fictício, tinta imaginária."}
+          </span>
         </span>
       </footer>
     ),

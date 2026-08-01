@@ -61,6 +61,7 @@ export const IMOBILIARIA_EXEMPLO: DemoData = {
       ctaSecundaria: "Como trabalhamos",
     },
     imoveis: {
+      rotulo: "Imóveis",
       titulo: "Imóveis em destaque",
       // Texto do bloco "Nosso manifesto" (fundo verde, revelado palavra a
       // palavra no scroll — ver ManifestoReveal.tsx), não descrição da seção.
@@ -77,6 +78,7 @@ export const IMOBILIARIA_EXEMPLO: DemoData = {
       ],
     },
     bairros: {
+      rotulo: "Bairros",
       titulo: "Bairros que a gente conhece pelo nome",
       texto: "Arraste para o lado →",
       itens: [
@@ -88,6 +90,7 @@ export const IMOBILIARIA_EXEMPLO: DemoData = {
       ],
     },
     como: {
+      rotulo: "Como funciona",
       titulo: "Como funciona",
       itens: [
         {
@@ -109,10 +112,12 @@ export const IMOBILIARIA_EXEMPLO: DemoData = {
     },
     depoimento: {},
     contato: {
+      rotulo: "Contato",
       titulo: "Sua próxima casa está te esperando.",
       texto:
         "Deixe seu e-mail e receba a curadoria da semana — poucos imóveis, muita alma, zero spam.",
       cta: "Quero receber",
+      ctaSecundaria: "Feito com calma.",
     },
   },
   ordemSecoes: ["imoveis", "bairros", "como", "depoimento", "contato"],
