@@ -97,21 +97,21 @@ const SALVIA: Theme = {
   animacao: "sutil",
 };
 
-/** Variante "Argila": creme rosado, terracota mais fechada, verde-mata. */
+/** Variante "Cobalto": creme azulado, azul-cobalto no lugar da terracota, mostarda mantida. */
 const ARGILA: Theme = {
   id: "argila",
-  nome: "Argila (creme rosado, terracota e verde-mata)",
+  nome: "Cobalto (creme-azulado, cobalto e mostarda)",
   ...INTERACOES_ORIGINAIS,
   hover: "zoom",
   paleta: {
-    fundo: "#F8EDE3",
-    fundoAlt: "#3B2A22",
-    fundoElevado: "#EAD9C4",
-    destaque: "#A6432A",
-    destaqueInk: "#F8EDE3",
-    texto: "#2A1D14",
-    textoSuave: "rgba(42, 29, 20, 0.66)",
-    borda: "rgba(42, 29, 20, 0.14)",
+    fundo: "#F0F1F6",
+    fundoAlt: "#16223D",
+    fundoElevado: "#E2E5EF",
+    destaque: "#2A4B8C",
+    destaqueInk: "#F0F1F6",
+    texto: "#171C28",
+    textoSuave: "rgba(23, 28, 40, 0.66)",
+    borda: "rgba(23, 28, 40, 0.14)",
     acentoSecundario: "#E0A63A",
     acentoTerciario: "#4B5D46",
   },

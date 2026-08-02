@@ -112,10 +112,10 @@ const MARFIM: Theme = {
   animacao: "sutil",
 };
 
-/** Variante noturna dourada: mostra fundoEfeito/led (recursos da Forja) ligados. */
+/** Variante noturna violeta: mostra fundoEfeito/led (recursos da Forja) ligados. */
 const OURO_DA_MEIA_NOITE: Theme = {
   id: "ouro-da-meia-noite",
-  nome: "Ouro da meia-noite (preto e dourado)",
+  nome: "Ametista da meia-noite (violeta e ametista)",
   ...INTERACOES_ORIGINAIS,
   hover: "brilho",
   clique: "pulso",
@@ -123,16 +123,16 @@ const OURO_DA_MEIA_NOITE: Theme = {
   led: "sutil",
   ledEstilo: "barra",
   paleta: {
-    fundo: "#0B0F0C",
-    fundoAlt: "#141C17",
-    fundoElevado: "#1D2921",
-    destaque: "#D4A94F",
-    destaqueInk: "#0B0F0C",
-    texto: "#F1ECE0",
-    textoSuave: "#93A08F",
-    borda: "rgba(241, 236, 224, 0.10)",
-    acentoSecundario: "#9C4430",
-    acentoTerciario: "#3F5B4E",
+    fundo: "#100A16",
+    fundoAlt: "#1B1322",
+    fundoElevado: "#261A30",
+    destaque: "#9B5DE0",
+    destaqueInk: "#100A16",
+    texto: "#EEE6F5",
+    textoSuave: "#9C8FB0",
+    borda: "rgba(238, 230, 245, 0.10)",
+    acentoSecundario: "#7A2C4A",
+    acentoTerciario: "#2C4A46",
   },
   fontes: FONTES_NAVALHA,
   raio: "0px",

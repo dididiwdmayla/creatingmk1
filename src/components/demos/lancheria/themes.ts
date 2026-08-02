@@ -69,21 +69,21 @@ const CHAPA: Theme = {
   animacao: "marcante",
 };
 
-/** Variante braseiro: marrom mais avermelhado, destaque laranja-fogo. */
+/** Variante "Nebulosa": lilás claro e violeta, destaque bem afastado do laranja das demais. */
 const BRASA: Theme = {
   id: "brasa",
-  nome: "Brasa (vermelho e âmbar)",
+  nome: "Nebulosa (lilás, violeta e neon)",
   ...INTERACOES_ORIGINAIS,
   hover: "lift",
   paleta: {
-    fundo: "#1C0A08",
-    fundoAlt: "#2A100C",
-    fundoElevado: "#3A1712",
-    destaque: "#FF7A29",
+    fundo: "#F4EFFB",
+    fundoAlt: "#E8DFF5",
+    fundoElevado: "#DCCFF0",
+    destaque: "#6C4AB6",
     destaqueInk: "#FFFFFF",
-    texto: "#FBEEE4",
-    textoSuave: "rgba(251, 238, 228, 0.62)",
-    borda: "rgba(251, 238, 228, 0.10)",
+    texto: "#211735",
+    textoSuave: "rgba(33, 23, 53, 0.62)",
+    borda: "rgba(33, 23, 53, 0.14)",
     acentoSecundario: "#FFD93D",
     acentoTerciario: "#7ED957",
   },
@@ -93,18 +93,18 @@ const BRASA: Theme = {
   animacao: "sutil",
 };
 
-/** Variante clara "diner": fundo creme, destaque vermelho queimado — cartaz de lanchonete de esquina. */
+/** Variante clara "diner": fundo creme, destaque ciano-turquesa — cartaz clássico de lanchonete de esquina. */
 const DINER: Theme = {
   id: "diner",
-  nome: "Diner (claro, vermelho e verde)",
+  nome: "Diner (creme, ciano e verde)",
   ...INTERACOES_ORIGINAIS,
   hover: "lift",
   paleta: {
     fundo: "#FAF3E7",
     fundoAlt: "#F1E4CC",
     fundoElevado: "#E7D6B0",
-    destaque: "#D94F2B",
-    destaqueInk: "#FFFFFF",
+    destaque: "#1C8CA0",
+    destaqueInk: "#241407",
     texto: "#241407",
     textoSuave: "rgba(36, 20, 7, 0.62)",
     borda: "rgba(36, 20, 7, 0.14)",

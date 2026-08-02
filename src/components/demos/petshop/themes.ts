@@ -64,22 +64,22 @@ const PASTEL: Theme = {
   animacao: "marcante",
 };
 
-/** Variante "Menta": fresca, verde-menta e coral no lugar de roxo/laranja. */
+/** Variante "Menta": fresca, verde-menta de verdade no lugar do coral. */
 const MENTA: Theme = {
   id: "menta",
-  nome: "Menta (creme, coral e verde-água)",
+  nome: "Menta (creme, verde-menta e coral)",
   ...INTERACOES_ORIGINAIS,
   hover: "zoom",
   paleta: {
     fundo: "#F5FBF4",
     fundoAlt: "#E1F3EA",
     fundoElevado: "#FFD9C7",
-    destaque: "#FF7A5C",
+    destaque: "#0A7D5D",
     destaqueInk: "#FFF9F6",
     texto: "#0F3D33",
     textoSuave: "#3E6B60",
     borda: "rgba(15,61,51,0.14)",
-    acentoSecundario: "#1E9E82",
+    acentoSecundario: "#FF7A5C",
     acentoTerciario: "#FFD23F",
   },
   fontes: FONTES_PETSHOP,
@@ -88,23 +88,23 @@ const MENTA: Theme = {
   animacao: "sutil",
 };
 
-/** Variante "Blush": rosa-claro e terracota, mais suave que o original. */
+/** Variante "Blush": lavanda e violeta, mais afastada do laranja/coral das demais. */
 const BLUSH: Theme = {
   id: "blush",
-  nome: "Blush (rosa-claro e terracota)",
+  nome: "Blush (lavanda, rosa e terracota)",
   ...INTERACOES_ORIGINAIS,
   hover: "lift",
   clique: "pulso",
   paleta: {
-    fundo: "#FFF2EE",
-    fundoAlt: "#FDE2E4",
+    fundo: "#FBF2FA",
+    fundoAlt: "#F3E2F5",
     fundoElevado: "#FBEAF5",
-    destaque: "#E2624B",
-    destaqueInk: "#FFF6F3",
-    texto: "#452A2A",
-    textoSuave: "#7A5C5A",
-    borda: "rgba(69,42,42,0.14)",
-    acentoSecundario: "#9C6ADE",
+    destaque: "#6E3FC0",
+    destaqueInk: "#FBF6FF",
+    texto: "#2E2145",
+    textoSuave: "rgba(46,33,69,0.62)",
+    borda: "rgba(46,33,69,0.14)",
+    acentoSecundario: "#E2624B",
     acentoTerciario: "#F4A63A",
   },
   fontes: FONTES_PETSHOP,
@@ -116,7 +116,7 @@ const BLUSH: Theme = {
 /** Variante "Meia-noite": escura e vibrante, mostra fundoEfeito/led (recursos da Forja) ligados. */
 const MEIA_NOITE: Theme = {
   id: "meia-noite",
-  nome: "Meia-noite (roxo bem escuro e neon)",
+  nome: "Meia-noite (roxo escuro e magenta neon)",
   ...INTERACOES_ORIGINAIS,
   hover: "brilho",
   clique: "pulso",
@@ -127,8 +127,8 @@ const MEIA_NOITE: Theme = {
     fundo: "#120B24",
     fundoAlt: "#1D1338",
     fundoElevado: "#2A1B48",
-    destaque: "#FF8A3D",
-    destaqueInk: "#1A0F0A",
+    destaque: "#FF3DAE",
+    destaqueInk: "#1A0A16",
     texto: "#F4F1FF",
     textoSuave: "rgba(244,241,255,0.65)",
     borda: "rgba(244,241,255,0.12)",
