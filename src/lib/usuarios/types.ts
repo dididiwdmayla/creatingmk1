@@ -91,6 +91,12 @@ export interface Usuario {
    * Ausente = ainda não escolheu (a UI cai no padrão de ./ai/nivel.ts).
    */
   ultimoNivelIA?: NivelIA;
+  /**
+   * Faixa fixa de progresso de metas (topo do app) minimizada por este
+   * usuário — self-service, persistido para sobreviver entre sessões e
+   * dispositivos. Ausente = expandida (padrão).
+   */
+  metaFaixaMinimizada?: boolean;
   criadoEm: string;
   atualizadoEm: string;
 }

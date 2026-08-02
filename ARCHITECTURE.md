@@ -61,6 +61,7 @@ src/
       usuarios/cotas/route.ts       # ✅ GET uso × limite de todos os usuários (admin, tabela do painel)
       usuarios/metas/route.ts       # ✅ GET meta × progresso de prospecção de todos os usuários (admin; mesma fonte da visão consolidada do painel)
       cotas/route.ts                # ✅ GET uso × limite do PRÓPRIO usuário (indicador em /leads e na ficha)
+      metas/proprio/route.ts        # ✅ GET/PUT progresso (dia/semana) + minimizada da faixa fixa do PRÓPRIO usuário (self-service, leve)
       config/route.ts               # ✅ GET config (qualquer sessão) / PUT (admin)
       search/route.ts               # ✅ POST busca (geocode + Text Search paginado/qualificado) + registra em /buscas — exige sessão (cota individual)
       geocode/route.ts              # ✅ GET região resolvida ("Buscando em: X"), cache em /geocache
@@ -190,6 +191,7 @@ src/
     StatusBadge.tsx                 # badge ordinal do status do lead (cor + forma + marcador)
     UsageMeter.tsx                  # meter de uso vs teto (accent/warning/critical), anima ao montar
     CotaIndicador.tsx               # ✅ "usado/limite" por janela (cota individual) + cotaEsgotada() p/ desabilitar botão
+    MetaFaixa.tsx                    # ✅ faixa fixa (sticky top-0) de progresso da meta no topo do app inteiro; minimizável, estado persistido por usuário (ver "Metas de prospecção por integrante")
     MetaProgresso.tsx               # ✅ barra de progresso de UMA meta (dia OU semana) — polaridade oposta ao UsageMeter (mais uso é melhor, nunca "crítico"); só renderiza quando a janela tem `meta`
     PrecificacaoCard.tsx            # ✅ card "Precificação": slider + cálculo ao vivo + edição de índice (admin) — ver seção própria
     LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site, badge "argumento forte"
@@ -820,8 +822,11 @@ Rotas novas:
 | `/api/usuarios/metas` | GET | admin | meta × progresso (dia/semana) de todos os usuários — mesma fonte de dados da seção de edição em `/config` e da visão consolidada do painel |
 | `/api/hoje` | GET | qualquer sessão | ganhou `metaProspeccao: { dia, semana }` — progresso do PRÓPRIO usuário logado |
 | `/api/usuarios/[id]` | PATCH | admin | ganhou o campo `metas` (number seta, `null` limpa uma janela) |
+| `/api/metas/proprio` | GET/PUT | qualquer sessão | progresso (dia/semana) + `minimizada` do PRÓPRIO usuário (GET) / persiste `minimizada` (PUT) — self-service, sem os efeitos colaterais de `/api/hoje` (não carimba visita nem carrega a fila), pensada para ser chamada em toda navegação |
 
 UI: `/config` ganhou a seção "Metas por integrante" (mesmo padrão de edição inline de "Cotas por usuário" — `LimiteInput` reaproveitado, salva no blur); `/hoje` mostra a barra de progresso da PRÓPRIA meta do usuário logado (some por completo se ele não tem meta); o painel (`/`, dashboard) mostra "Metas do time" pro admin — só os integrantes com pelo menos uma janela configurada aparecem. `MetaProgresso` (`src/components/MetaProgresso.tsx`) é a barra de progresso compartilhada entre `/hoje` e o painel — polaridade oposta ao `UsageMeter` das cotas (aqui mais uso é melhor; o preenchimento nunca vira crítico, só fica verde ao bater a meta).
+
+**Faixa fixa de metas (`src/components/MetaFaixa.tsx`)**: além do card em `/hoje`, a PRÓPRIA meta aparece como faixa fixa (`sticky top-0`) no topo de TODO o app autenticado (`(app)/layout.tsx`, antes do `<Nav />`) — não só em `/hoje`. Busca `/api/metas/proprio` no mount e a cada troca de rota (`usePathname`); sem NENHUMA janela configurada, o componente devolve `null` (nada renderiza, nem o espaço vazio). Botão de minimizar reduz a faixa a um indicador de uma linha (bolinha + números compactos); o estado (`Usuario.metaFaixaMinimizada`) é self-service, gravado via `PUT /api/metas/proprio` (`salvarMetaFaixaMinimizada` no repo, mesmo espírito de `salvarNivelIA`/`salvarPrecoBaseSlider` — não mexe em `atualizadoEm`/`sessao`) e persiste entre sessões/dispositivos; o refetch de progresso ao trocar de rota preserva a escolha local de minimizada (não sobrescreve com a resposta do servidor) para não "piscar" de volta enquanto o PUT do toggle ainda está em voo.
 
 ## Forja de Demos (`src/lib/demos` + `src/components/demos`)
 

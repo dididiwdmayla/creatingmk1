@@ -185,6 +185,21 @@ export async function salvarNivelIA(db: AppDb, id: string, nivel: NivelIA): Prom
   await docRef(db, id).set(toDoc({ ...usuario, ultimoNivelIA: nivel }));
 }
 
+/**
+ * Salva se a faixa fixa de progresso de metas está minimizada para este
+ * usuário (self-service, mesmo espírito de salvarNivelIA — preferência de
+ * UI, não edição administrativa).
+ */
+export async function salvarMetaFaixaMinimizada(
+  db: AppDb,
+  id: string,
+  minimizada: boolean,
+): Promise<void> {
+  const usuario = await getUsuario(db, id);
+  if (!usuario) return;
+  await docRef(db, id).set(toDoc({ ...usuario, metaFaixaMinimizada: minimizada }));
+}
+
 /** Patch de limites: number seta, null LIMPA (sem limite naquela janela), ausente não mexe. */
 export type LimitesPatch = Partial<Record<keyof LimitesUsuario, number | null>>;
 
