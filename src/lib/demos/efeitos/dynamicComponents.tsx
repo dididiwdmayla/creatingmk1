@@ -23,12 +23,32 @@ const ParticulasDinamico = dynamic(
   () => import("./particulas/Particulas").then((m) => m.Particulas),
   { ssr: false },
 );
+const VeiosDinamico = dynamic(() => import("./veios/Veios").then((m) => m.Veios), { ssr: false });
+const FilotaxiaDinamico = dynamic(() => import("./filotaxia/Filotaxia").then((m) => m.Filotaxia), {
+  ssr: false,
+});
+const GeometricoPulsanteDinamico = dynamic(
+  () => import("./geometrico-pulsante/GeometricoPulsante").then((m) => m.GeometricoPulsante),
+  { ssr: false },
+);
+const FaiscasDinamico = dynamic(() => import("./faiscas/Faiscas").then((m) => m.Faiscas), {
+  ssr: false,
+});
+const VarreduraDeLuzDinamico = dynamic(
+  () => import("./varredura-de-luz/VarreduraDeLuz").then((m) => m.VarreduraDeLuz),
+  { ssr: false },
+);
 
 const COMPONENTES_DINAMICOS: Record<string, EfeitoComponente> = {
   aura: AuraDinamico,
   grao: GraoDinamico,
   gradiente: GradienteDinamico,
   particulas: ParticulasDinamico,
+  veios: VeiosDinamico,
+  filotaxia: FilotaxiaDinamico,
+  "geometrico-pulsante": GeometricoPulsanteDinamico,
+  faiscas: FaiscasDinamico,
+  "varredura-de-luz": VarreduraDeLuzDinamico,
 };
 
 export function getEfeitoComponenteDinamico(id: string): EfeitoComponente | undefined {
