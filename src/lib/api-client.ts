@@ -169,6 +169,12 @@ export interface CronStatusResponse {
   recorrentes: number;
 }
 
+/**
+ * Faixa fixa de metas (topo do app): progresso do PRÓPRIO usuário +
+ * estado de minimizada — mais leve que HojeResponse (sem a fila do dia).
+ */
+export type MetaProprioResponse = ProgressoMetas & { minimizada: boolean };
+
 /** Resumo da página /mensagens: interlocutores + conversas + badge. */
 export interface MensagensResumoResponse {
   usuarios: Array<{ id: string; nome: string; ativo: boolean }>;
@@ -267,6 +273,12 @@ export const api = {
     }),
 
   hoje: () => request<HojeResponse>("/api/hoje"),
+  metaProprio: () => request<MetaProprioResponse>("/api/metas/proprio"),
+  salvarMetaFaixaMinimizada: (minimizada: boolean) =>
+    request<{ minimizada: boolean }>("/api/metas/proprio", {
+      method: "PUT",
+      body: JSON.stringify({ minimizada }),
+    }),
   cronStatus: () => request<CronStatusResponse>("/api/cron/status"),
 
   listBuscas: () => request<{ buscas: Busca[] }>("/api/buscas"),

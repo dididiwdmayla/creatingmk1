@@ -6,6 +6,7 @@ export {
   getUsuario,
   getUsuarioPorNome,
   listUsuarios,
+  salvarMetaFaixaMinimizada,
   salvarNivelIA,
   salvarPrecoBaseSlider,
   seedUsuariosSeVazio,
