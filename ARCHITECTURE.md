@@ -869,7 +869,7 @@ A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta 
 
 ### Padrão para adicionar uma nova skin
 
-1. Clone o material bruto em `skins-raw/<nicho>/` (fora do git/tsc/eslint — é só referência) e leia **todos** os componentes e estilos antes de converter, não só os principais — animações e interações (hover, scroll, cursor, máquina de escrever, intro) fazem parte do que precisa ser fielmente portado, não só o layout estático.
+1. Clone o material bruto **fora da árvore do repositório** (ex.: `~/skins-raw/<nicho>/`, nunca `creatingmk1/skins-raw/<nicho>/`). Se por qualquer motivo o clone cair dentro da árvore, rode `rm -rf` no `.git` aninhado **imediatamente após o clone**, antes de qualquer outro comando (`git clone <url> skins-raw/<nicho> && rm -rf skins-raw/<nicho>/.git`) — um `.git` aninhado virar gitlink (`mode 160000`) no índice do repo principal quebra merge/rebase de quem clonar depois. `skins-raw/` está no `.gitignore` e **nunca é commitada**: é só referência de leitura durante a conversão, descartável ao final. Leia **todos** os componentes e estilos antes de converter, não só os principais — animações e interações (hover, scroll, cursor, máquina de escrever, intro) fazem parte do que precisa ser fielmente portado, não só o layout estático.
 2. Crie o pacote `src/components/demos/<nicho>/`:
    - `Skin.tsx` — composição orientada por `{ data, theme }`, tokens só via CSS vars; delega interatividade a `interactive/*.tsx` (`"use client"`); renderiza as seções pela **ordem efetiva** (`secoesVisiveis` de `lib/demos/estrutura.ts`) e marca cada texto/imagem editável com `data-demo-slot`;
    - `secoes.ts` — o contrato `SkinSecaoDef[]` (ordem default, `fixa`, `alignOptions` onde o layout aguenta);
