@@ -11,6 +11,7 @@ import { ApiError, api } from "@/lib/api-client";
 import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getFonte } from "@/lib/demos/fontes";
 import { idiomaPadraoDoLead } from "@/lib/demos/idioma";
+import { moedaDaDemo } from "@/lib/demos/moeda";
 import { montarDemoData } from "@/lib/demos/montar";
 import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
@@ -210,6 +211,10 @@ export function DemoEditorClient({ id }: { id: string }) {
     () => (lead ? montarDemoData(skin.demoDataExemplo, lead) : skin.demoDataExemplo),
     [skin, lead],
   );
+  // Moeda deriva do país do endereço do lead, como o idioma — mas sem
+  // sobrescrita manual: ao contrário do tom do texto, a moeda de um preço
+  // não é escolha do operador.
+  const moeda = useMemo(() => moedaDaDemo(lead ?? undefined), [lead]);
 
   /** Única porta de edição do conteúdo — marca o estado como sujo. */
   const atualizar = useCallback((fn: (atual: DemoData) => DemoData) => {
@@ -220,10 +225,10 @@ export function DemoEditorClient({ id }: { id: string }) {
   const enviarPreview = useCallback(() => {
     if (!dados) return;
     iframeRef.current?.contentWindow?.postMessage(
-      { tipo: MSG_PREVIEW, skinId: skin.id, data: dados, theme: themeEfetivo, tema, idioma },
+      { tipo: MSG_PREVIEW, skinId: skin.id, data: dados, theme: themeEfetivo, tema, idioma, moeda },
       window.location.origin,
     );
-  }, [dados, skin.id, themeEfetivo, tema, idioma]);
+  }, [dados, skin.id, themeEfetivo, tema, idioma, moeda]);
 
   // Preview ao vivo: reposta a cada mudança de conteúdo/tema.
   useEffect(() => {
@@ -723,6 +728,8 @@ export function DemoEditorClient({ id }: { id: string }) {
                   setAbertos((atual) => ({ ...atual, [grupo]: aberto }))
                 }
                 atualizar={atualizar}
+                idioma={idioma}
+                moeda={moeda}
               />
             )}
             {aba === "imagens" && (

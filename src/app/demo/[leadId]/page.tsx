@@ -9,6 +9,7 @@ import { EfeitoDinamico } from "@/lib/demos/efeitos/dynamicComponents";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
 import { idiomaEfetivoDemo } from "@/lib/demos/idioma";
+import { moedaDaDemo } from "@/lib/demos/moeda";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { montarDemoData } from "@/lib/demos/montar";
 import { aplicarTema } from "@/lib/demos/tema";
@@ -48,6 +49,7 @@ async function loadDemo(leadId: string) {
   const theme = aplicarTema(getTheme(skin, lead.demo.themeId), lead.demo.tema, skin.heroEscalaLimites);
   const data = montarDemoData(skin.demoDataExemplo, lead, lead.demo.dados, skin.id);
   const idioma = idiomaEfetivoDemo(lead);
+  const moeda = moedaDaDemo(lead);
   // Só busca (import dinâmico) as fontes curadas que o editor de fato
   // escolheu — o resto da lista nunca chega a ser fetched pelo cliente.
   const extraFontClassName = await resolveExtraFontClassNames([
@@ -75,7 +77,7 @@ async function loadDemo(leadId: string) {
     efeitoFundo?.efeito.id === "aura"
       ? paletaParaAura(theme.paleta, lead.demo.tema?.auraCores)
       : theme.paleta;
-  return { skin, theme, data, idioma, extraFontClassName, efeitoFundo, coresEfeito };
+  return { skin, theme, data, idioma, moeda, extraFontClassName, efeitoFundo, coresEfeito };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -190,7 +192,7 @@ export default async function DemoPage({ params, searchParams }: Props) {
           __html: `document.documentElement.lang=${JSON.stringify(demo.idioma)}`,
         }}
       />
-      <Skin data={demo.data} theme={demo.theme} idioma={demo.idioma} />
+      <Skin data={demo.data} theme={demo.theme} idioma={demo.idioma} moeda={demo.moeda} />
       {demo.efeitoFundo && (
         // EfeitoDinamico (client component) resolve E renderiza o efeito —
         // nunca chamar getEfeitoComponenteDinamico direto aqui: é uma

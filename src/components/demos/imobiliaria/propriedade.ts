@@ -1,3 +1,6 @@
+import { formatarPrecoServico } from "@/lib/demos/precos";
+import type { DemoServico } from "@/lib/demos/types";
+
 /**
  * Convenção de conteúdo do card de imóvel: `DemoServico` só tem
  * nome/preco/descricao (mesmo contrato genérico usado por toda a Forja —
@@ -29,12 +32,20 @@ export function parseImovel(descricao: string | undefined): {
 }
 
 /**
- * Preço do card: campo vazio/ausente cai em "Sob consulta" — fiel ao
- * toggle `mostrarPrecos` do material bruto, só que por imóvel em vez de
- * global (o editor já dá esse controle de graça: basta esvaziar o preço
- * de um imóvel específico).
+ * Preço do card: `precoValor`/`precoPrefixo` formatados por
+ * `formatarPrecoServico` (moeda/locale da demo — ver lib/demos/precos.ts).
+ * Campo vazio/ausente cai no `semPreco` (`microcopiaDemo(idioma).semPreco`
+ * — ver lib/demos/microcopy.ts) — fiel ao toggle
+ * `mostrarPrecos` do material bruto, só que por imóvel em vez de global (o
+ * editor já dá esse controle de graça: basta esvaziar o preço de um
+ * imóvel específico).
  */
-export function formatarPreco(preco: string | undefined): string {
-  const texto = preco?.trim();
-  return texto || "Sob consulta";
+export function formatarPreco(
+  servico: Pick<DemoServico, "preco" | "precoPrefixo" | "precoValor">,
+  idioma: string | undefined,
+  moeda: string | undefined,
+  semPreco: string,
+): string {
+  const formatado = formatarPrecoServico(servico, idioma, moeda);
+  return formatado.trim() || semPreco;
 }

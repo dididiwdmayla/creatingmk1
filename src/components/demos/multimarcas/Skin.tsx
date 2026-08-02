@@ -89,7 +89,7 @@ function Rotulo({ texto, slot }: { texto?: string; slot?: string }) {
   );
 }
 
-export function MultimarcasVortice({ data, theme, idioma }: SkinProps) {
+export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const vars = {
     "--d-bg": paleta.fundo,
@@ -160,6 +160,7 @@ export function MultimarcasVortice({ data, theme, idioma }: SkinProps) {
             textoGarantia={s.estoque?.texto}
             whatsapp={data.whatsapp}
             idioma={idioma}
+            moeda={moeda}
           />
         </section>
       ),

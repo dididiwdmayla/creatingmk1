@@ -97,7 +97,7 @@ function Rotulo({ texto, slot }: { texto?: string; slot?: string }) {
   );
 }
 
-export function LancheriaChapaBurger({ data, theme, idioma }: SkinProps) {
+export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
   const vars = {
@@ -256,6 +256,7 @@ export function LancheriaChapaBurger({ data, theme, idioma }: SkinProps) {
                 animacao={theme.animacao}
                 whatsapp={data.whatsapp}
                 idioma={idioma}
+                moeda={moeda}
               />
             ))}
           </div>

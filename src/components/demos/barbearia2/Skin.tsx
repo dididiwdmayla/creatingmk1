@@ -3,6 +3,7 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { DragGallery } from "./interactive/DragGallery";
 import { FadeUp } from "./interactive/FadeUp";
@@ -111,7 +112,7 @@ function Etiqueta({ texto, slot }: { texto?: string; slot?: string }) {
   );
 }
 
-export function BarbeariaSul({ data, theme, idioma }: SkinProps) {
+export function BarbeariaSul({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
   const vars = {
@@ -309,7 +310,7 @@ export function BarbeariaSul({ data, theme, idioma }: SkinProps) {
                       data-demo-slot={`servicos.${i}.preco`}
                       className="whitespace-nowrap font-[family-name:var(--d-mono)] text-sm tracking-wider text-[var(--d-text)]"
                     >
-                      {servico.preco}
+                      {formatarPrecoServico(servico, idioma, moeda)}
                     </span>
                   </div>
                   {servico.descricao && (

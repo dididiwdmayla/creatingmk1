@@ -675,8 +675,14 @@ describe("teste de cobertura — TODO campo de texto de conteúdo do exemplo rea
     return campos;
   }
 
-  /** `servico.preco/categoria/destaques`: dado do lead/estoque, não texto pra IA reescrever. */
-  const CAMPOS_SERVICO_DADO = new Set(["preco", "categoria", "destaques"]);
+  /**
+   * `servico.preco/precoPrefixo/precoValor/categoria/destaques`: dado do
+   * lead/estoque, não texto pra IA reescrever — `precoPrefixo` ("A partir
+   * de"/"Sob consulta") é conteúdo editável (entra no schema de
+   * validação, `validate.ts`), mas segue o MESMO critério de `preco`
+   * aqui: preço é fato do negócio, não tom de venda pra IA reescrever.
+   */
+  const CAMPOS_SERVICO_DADO = new Set(["preco", "precoPrefixo", "precoValor", "categoria", "destaques"]);
   /** `depoimento.nota/contexto`: idem — nota é número, contexto é dado do que foi comprado. */
   const CAMPOS_DEPOIMENTO_DADO = new Set(["nota", "contexto"]);
 

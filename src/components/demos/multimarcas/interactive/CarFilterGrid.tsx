@@ -22,6 +22,7 @@ export function CarFilterGrid({
   textoGarantia,
   whatsapp,
   idioma,
+  moeda,
 }: {
   servicos: DemoServico[];
   imagens: Record<string, string>;
@@ -30,6 +31,7 @@ export function CarFilterGrid({
   textoGarantia?: string;
   whatsapp?: string;
   idioma?: string;
+  moeda?: string;
 }) {
   const m = microcopiaDemo(idioma);
   const categorias = categoriasDoEstoque(servicos);
@@ -103,6 +105,8 @@ export function CarFilterGrid({
                 ctaInteresse={ctaInteresse}
                 textoGarantia={textoGarantia}
                 whatsapp={whatsapp}
+                idioma={idioma}
+                moeda={moeda}
               />
             </motion.div>
           ))}

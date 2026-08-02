@@ -14,7 +14,27 @@ import type { ComponentType } from "react";
 /** Um serviço com preço — linha da lista de serviços da demo. */
 export interface DemoServico {
   nome: string;
+  /**
+   * Texto livre de preço — mantido por compatibilidade (demos salvas antes
+   * de `precoPrefixo`/`precoValor` existirem, ou serviço cujo preço é só
+   * texto, ex. "Grátis"). `formatarPrecoServico` (`lib/demos/precos.ts`) só
+   * usa este campo quando nem `precoPrefixo` nem `precoValor` estão
+   * definidos — serviço novo prefere os dois campos abaixo.
+   */
   preco: string;
+  /**
+   * Texto ANTES do valor — "A partir de" / "Sob consulta" (sem número
+   * junto). É CONTEÚDO: entra no schema de validação/tradução como
+   * qualquer outro texto de `DemoData` — NUNCA a moeda/valor numérico.
+   */
+  precoPrefixo?: string;
+  /**
+   * Valor numérico do preço. NUNCA é texto, NUNCA entra em schema de
+   * tradução/IA (é dado do serviço/lead, como `preco` sempre foi) — sai
+   * formatado por `Intl.NumberFormat` na moeda do PAÍS do lead (mapa
+   * determinístico `@/lib/moeda`, sem IA) pelo locale da demo.
+   */
+  precoValor?: number;
   descricao?: string;
   /**
    * Categoria/etiqueta curta do item — usada por skins com filtro (ex.:
@@ -292,6 +312,13 @@ export interface SkinProps {
    * desta prop existir — cobre testes/preview que ainda não a mandam).
    */
   idioma?: string;
+  /**
+   * Moeda (ISO 4217) da demo — ver `moedaDaDemo` em `lib/demos/moeda.ts`.
+   * Usada só para formatar `DemoServico.precoValor` via
+   * `formatarPrecoServico` (`lib/demos/precos.ts`); ausente cai no default
+   * `MOEDA_PADRAO` ("BRL", `@/lib/moeda`) — mesmo espírito de `idioma`.
+   */
+  moeda?: string;
 }
 
 /**

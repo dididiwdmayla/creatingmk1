@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Lead } from "@/lib/leads/types";
 import { aplicarPatch, dadosDoLead, montarDemoData } from "../montar";
+import { migrarPrecos } from "../precos";
 import { getSkin } from "../registry";
 import type { DemoData } from "../types";
 
@@ -190,11 +191,16 @@ describe("montarDemoData", () => {
     expect(out.horarios).toBe("Ter a sáb, 10h às 20h");
     // exemplo permanece onde ninguém mexeu
     expect(out.slogan).toBe("Ofício e navalha.");
-    expect(out.servicos).toEqual(exemplo.servicos);
+    // self-heal: preco legado ("R$ 80") migra pra precoValor na leitura
+    // (ver lib/demos/precos.ts) — mesmo padrão de outros defaults antigos.
+    expect(out.servicos).toEqual(migrarPrecos(exemplo.servicos));
   });
 
-  it("sem lead nem patch devolve o exemplo do template", () => {
-    expect(montarDemoData(exemplo)).toEqual(exemplo);
+  it("sem lead nem patch devolve o exemplo do template (com o preço migrado)", () => {
+    expect(montarDemoData(exemplo)).toEqual({
+      ...exemplo,
+      servicos: migrarPrecos(exemplo.servicos),
+    });
   });
 
   describe("varredura de demos salvas: defaults históricos de identidade ignorados na leitura", () => {

@@ -3,6 +3,7 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { AnimatedScissors } from "./interactive/AnimatedScissors";
 import { IntroExperience } from "./interactive/IntroExperience";
@@ -169,7 +170,7 @@ function Placeholder({
   );
 }
 
-export function BarbeariaEditorial({ data, theme, idioma }: SkinProps) {
+export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
   const vars = {
@@ -515,7 +516,7 @@ export function BarbeariaEditorial({ data, theme, idioma }: SkinProps) {
                       data-demo-slot={`servicos.${i}.preco`}
                       className="font-[family-name:var(--d-mono)] text-sm font-medium tracking-wider text-[var(--d-accent)]"
                     >
-                      {servico.preco}
+                      {formatarPrecoServico(servico, idioma, moeda)}
                     </span>
                   </div>
                   {servico.descricao && (

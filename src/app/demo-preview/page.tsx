@@ -27,6 +27,7 @@ interface PreviewState {
   theme: Theme;
   tema?: TemaPatch;
   idioma?: string;
+  moeda?: string;
 }
 
 const MSG_PREVIEW = "radar-demo-preview";
@@ -48,6 +49,7 @@ export default function DemoPreviewPage() {
           theme: msg.theme,
           tema: msg.tema,
           idioma: msg.idioma,
+          moeda: msg.moeda,
         });
       }
     }
@@ -121,7 +123,7 @@ export default function DemoPreviewPage() {
           outline-offset: 4px;
         }
       `}</style>
-      <Skin data={estado.data} theme={estado.theme} idioma={estado.idioma} />
+      <Skin data={estado.data} theme={estado.theme} idioma={estado.idioma} moeda={estado.moeda} />
       {EfeitoFundo && efeitoFundo && (
         // EfeitoFundo vem de um lookup em mapa de componentes já criados
         // (dynamicComponents.ts, module scope) — não é criado a cada render.

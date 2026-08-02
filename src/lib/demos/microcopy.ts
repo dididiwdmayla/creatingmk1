@@ -42,6 +42,8 @@ export interface DemoMicrocopia {
   fecharMenu: string;
   todos: string;
   disponivelNaVersaoCompleta: string;
+  /** Fallback quando o preço fica vazio (nem prefixo nem valor) — ex.: card de imóvel sem preço informado. */
+  semPreco: string;
   endereco: string;
   horario: string;
   telefone: string;
@@ -64,6 +66,7 @@ const PT: DemoMicrocopia = {
   fecharMenu: "Fechar menu",
   todos: "Todos",
   disponivelNaVersaoCompleta: "Disponível na versão completa",
+  semPreco: "Sob consulta",
   endereco: "Endereço",
   horario: "Horário",
   telefone: "Telefone",
@@ -86,6 +89,7 @@ const EN: DemoMicrocopia = {
   fecharMenu: "Close menu",
   todos: "All",
   disponivelNaVersaoCompleta: "Available in the full version",
+  semPreco: "Price on request",
   endereco: "Address",
   horario: "Hours",
   telefone: "Phone",
@@ -108,6 +112,7 @@ const ES: DemoMicrocopia = {
   fecharMenu: "Cerrar menú",
   todos: "Todos",
   disponivelNaVersaoCompleta: "Disponible en la versión completa",
+  semPreco: "Consultar precio",
   endereco: "Dirección",
   horario: "Horario",
   telefone: "Teléfono",
@@ -130,6 +135,7 @@ const FR: DemoMicrocopia = {
   fecharMenu: "Fermer le menu",
   todos: "Tous",
   disponivelNaVersaoCompleta: "Disponible dans la version complète",
+  semPreco: "Prix sur demande",
   endereco: "Adresse",
   horario: "Horaires",
   telefone: "Téléphone",
@@ -152,6 +158,7 @@ const DE: DemoMicrocopia = {
   fecharMenu: "Menü schließen",
   todos: "Alle",
   disponivelNaVersaoCompleta: "Verfügbar in der Vollversion",
+  semPreco: "Preis auf Anfrage",
   endereco: "Adresse",
   horario: "Öffnungszeiten",
   telefone: "Telefon",
@@ -174,6 +181,7 @@ const IT: DemoMicrocopia = {
   fecharMenu: "Chiudi menu",
   todos: "Tutti",
   disponivelNaVersaoCompleta: "Disponibile nella versione completa",
+  semPreco: "Prezzo su richiesta",
   endereco: "Indirizzo",
   horario: "Orario",
   telefone: "Telefono",
@@ -196,6 +204,7 @@ const NL: DemoMicrocopia = {
   fecharMenu: "Menu sluiten",
   todos: "Alle",
   disponivelNaVersaoCompleta: "Beschikbaar in de volledige versie",
+  semPreco: "Prijs op aanvraag",
   endereco: "Adres",
   horario: "Openingstijden",
   telefone: "Telefoon",

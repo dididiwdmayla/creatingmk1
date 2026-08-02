@@ -142,7 +142,7 @@ function TituloDestaque({ texto, as: As = "h2", className, style, slot }: {
   );
 }
 
-export function ImobiliariaCurada({ data, theme, idioma }: SkinProps) {
+export function ImobiliariaCurada({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
   const vars = {
@@ -423,7 +423,7 @@ export function ImobiliariaCurada({ data, theme, idioma }: SkinProps) {
                               data-demo-slot={`servicos.${i}.preco`}
                               className="font-[family-name:var(--d-display)] text-[30px] font-light"
                             >
-                              {formatarPreco(servico.preco)}
+                              {formatarPreco(servico, idioma, moeda, m.semPreco)}
                             </span>
                             <a
                               href="#contato"

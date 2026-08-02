@@ -10,6 +10,7 @@ import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { ordemEfetiva } from "@/lib/demos/estrutura";
 import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import { SKINS } from "@/lib/demos/registry";
 import { TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
 import { IDIOMAS_SUPORTADOS, idiomaLabel } from "@/lib/idioma";
@@ -149,12 +150,16 @@ export function PainelConteudo({
   abertos,
   setAberto,
   atualizar,
+  idioma,
+  moeda,
 }: {
   dados: DemoData;
   skin: SkinDefinition;
   abertos: Record<string, boolean>;
   setAberto: (grupo: string, aberto: boolean) => void;
   atualizar: Atualizar;
+  idioma?: string;
+  moeda?: string;
 }) {
   const setSecaoCampo = (id: string, campo: string, valor: string) =>
     atualizar((d) => ({
@@ -218,12 +223,22 @@ export function PainelConteudo({
                 Preço
                 <input
                   id={`campo-servicos.${i}.preco`}
-                  value={servico.preco}
+                  // Preview do preço EFETIVO (precoPrefixo/precoValor, se
+                  // vierem do template/migração — ver lib/demos/precos.ts)
+                  // quando `preco` (texto livre) está vazio, senão o
+                  // digitado fica invisível pro operador.
+                  value={servico.preco || formatarPrecoServico(servico, idioma, moeda)}
                   onChange={(e) =>
                     atualizar((d) => ({
                       ...d,
+                      // Editar aqui volta o serviço pro texto livre: quem
+                      // digita assume o controle do preço exibido — sem
+                      // isso, precoValor (se presente) continuaria vencendo
+                      // e a edição pareceria não ter efeito nenhum.
                       servicos: d.servicos.map((s, j) =>
-                        j === i ? { ...s, preco: e.target.value } : s,
+                        j === i
+                          ? { ...s, preco: e.target.value, precoPrefixo: undefined, precoValor: undefined }
+                          : s,
                       ),
                     }))
                   }

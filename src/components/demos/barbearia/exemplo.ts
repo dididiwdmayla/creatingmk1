@@ -13,34 +13,40 @@ export const BARBEARIA_EXEMPLO: DemoData = {
   servicos: [
     {
       nome: "CORTE CLÁSSICO",
-      preco: "R$ 80",
+      preco: "",
+      precoValor: 89,
       descricao: "Tesoura e navalha. Acabamento limpo no pescoço e contornos.",
     },
     {
       nome: "CORTE + BARBA",
-      preco: "R$ 140",
+      preco: "",
+      precoValor: 159,
       descricao:
         "Combinação completa. Corte personalizado seguido de barba artesanal com toalha quente, óleo essencial e finalização.",
     },
     {
       nome: "BARBA TRADICIONAL",
-      preco: "R$ 75",
+      preco: "",
+      precoValor: 69,
       descricao:
         "Barba feita com navalha, toalha quente, óleo de barba e hidratação. 40 minutos de ritual.",
     },
     {
       nome: "NAVALHA COMPLETA",
-      preco: "R$ 90",
+      preco: "",
+      precoValor: 99,
       descricao: "Barba inteira removida com navalha tradicional. Para quem quer recomeçar.",
     },
     {
       nome: "SOBRANCELHA MASCULINA",
-      preco: "R$ 35",
+      preco: "",
+      precoValor: 39,
       descricao: "Design discreto. Apenas o necessário.",
     },
     {
       nome: "PIGMENTAÇÃO DE BARBA",
-      preco: "R$ 120",
+      preco: "",
+      precoValor: 129,
       descricao:
         "Disfarce de falhas, intensificação de tom. Resultado natural, duração de 4 a 6 semanas.",
     },

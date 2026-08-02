@@ -21,27 +21,32 @@ export const IMOBILIARIA_EXEMPLO: DemoData = {
   servicos: [
     {
       nome: "Casa-jardim em Alto de Pinheiros",
-      preco: "R$ 2.980.000",
+      preco: "",
+      precoValor: 499000,
       descricao: "Casa • 4 suítes · 420 m² · piscina de borda verde",
     },
     {
       nome: "Cobertura com terraço no Itaim",
-      preco: "R$ 4.200.000",
+      preco: "",
+      precoValor: 999000,
       descricao: "Cobertura • 3 suítes · 280 m² · pôr do sol garantido",
     },
     {
       nome: "Studio-ateliê na Vila Madalena",
-      preco: "R$ 890.000",
+      preco: "",
+      precoValor: 199000,
       descricao: "Studio • 70 m² · pé-direito duplo · luz norte",
     },
     {
       nome: "Clássico reformado em Higienópolis",
-      preco: "R$ 1.450.000",
+      preco: "",
+      precoValor: 299000,
       descricao: "Apartamento • 3 quartos · 190 m² · piso de taco original",
     },
     {
       nome: "Cobertura duplex em Moema",
-      preco: "R$ 3.650.000",
+      preco: "",
+      precoValor: 699000,
       descricao: "Cobertura • 4 suítes · 340 m² · vista para o parque",
     },
   ],

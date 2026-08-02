@@ -3,6 +3,7 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { Counter } from "./interactive/Counter";
 import { Header } from "./interactive/Header";
@@ -151,7 +152,7 @@ function StepDash() {
 const WHATSAPP_ICON_PATH =
   "M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5z M8.8 9.2c.3 2.4 3.6 5.7 6 6l1.4-1.4-2-1.3-1 .7c-.8-.4-1.9-1.5-2.3-2.3l.7-1-1.3-2z";
 
-export function PetshopFocinhoFeliz({ data, theme, idioma }: SkinProps) {
+export function PetshopFocinhoFeliz({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
   const vars = {
@@ -446,7 +447,7 @@ export function PetshopFocinhoFeliz({ data, theme, idioma }: SkinProps) {
                           className="text-[13px] font-semibold"
                           style={{ color: "var(--d-accent-2)" }}
                         >
-                          {servico.preco}
+                          {formatarPrecoServico(servico, idioma, moeda)}
                         </span>
                         <span aria-hidden="true" className="d-cta-round d-cta-round-sm">
                           →

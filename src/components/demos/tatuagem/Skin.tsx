@@ -3,6 +3,7 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Alinhamento, Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { GothicLetters } from "./GothicLetters";
 import { FadeUp } from "./interactive/FadeUp";
@@ -128,7 +129,7 @@ function Placeholder({
   );
 }
 
-export function TatuagemEditorial({ data, theme, idioma }: SkinProps) {
+export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
   const vars = {
@@ -431,7 +432,7 @@ export function TatuagemEditorial({ data, theme, idioma }: SkinProps) {
                     data-demo-slot={`servicos.${i}.preco`}
                     className="whitespace-nowrap font-[family-name:var(--d-mono)] text-sm font-medium tracking-wider text-[var(--d-accent)]"
                   >
-                    {servico.preco}
+                    {formatarPrecoServico(servico, idioma, moeda)}
                   </span>
                 </div>
                 {servico.descricao && (

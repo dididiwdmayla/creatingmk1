@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 
+import { formatarPrecoServico, simboloMoeda } from "@/lib/demos/precos";
 import type { DemoServico } from "@/lib/demos/types";
 import { StatCounter } from "./StatCounter";
 import { waHref } from "./logic";
@@ -22,6 +23,8 @@ export function CarCard({
   ctaInteresse,
   textoGarantia,
   whatsapp,
+  idioma,
+  moeda,
 }: {
   servico: DemoServico;
   index: number;
@@ -30,6 +33,8 @@ export function CarCard({
   ctaInteresse?: string;
   textoGarantia?: string;
   whatsapp?: string;
+  idioma?: string;
+  moeda?: string;
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -86,10 +91,14 @@ export function CarCard({
         </h3>
         <div className="flex items-baseline gap-1.5">
           <span className="font-[family-name:var(--d-mono)] text-sm font-medium text-[var(--d-accent)]">
-            R$
+            {simboloMoeda(idioma, moeda)}
           </span>
           <StatCounter
-            valor={servico.preco.replace(/^R\$\s*/, "")}
+            valor={
+              servico.precoValor !== undefined
+                ? String(servico.precoValor)
+                : servico.preco.replace(/^R\$\s*/, "")
+            }
             className="font-[family-name:var(--d-mono)] text-[30px] font-semibold leading-none tabular-nums tracking-[0.5px] text-[var(--d-text)]"
           />
         </div>
@@ -126,7 +135,7 @@ export function CarCard({
                 <a
                   href={waHref(
                     whatsapp,
-                    `Olá! Tenho interesse no ${servico.nome} (${servico.preco}). Ainda está disponível?`,
+                    `Olá! Tenho interesse no ${servico.nome} (${formatarPrecoServico(servico, idioma, moeda)}). Ainda está disponível?`,
                   )}
                   target="_blank"
                   rel="noopener noreferrer"

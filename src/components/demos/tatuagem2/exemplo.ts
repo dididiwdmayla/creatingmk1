@@ -22,27 +22,33 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
   servicos: [
     {
       nome: "SESSÃO — PEQUENA",
-      preco: "R$ 380",
+      preco: "",
+      precoValor: 199,
       descricao: "Até 3h. Peças de até 10cm em qualquer estilo do estúdio.",
     },
     {
       nome: "SESSÃO — MÉDIA",
-      preco: "R$ 750",
+      preco: "",
+      precoValor: 499,
       descricao: "Dia inteiro. Peças autorais de 10 a 25cm, com estudo prévio incluso.",
     },
     {
       nome: "FECHAMENTO",
-      preco: "A partir de R$ 2.000",
+      preco: "",
+      precoPrefixo: "A partir de",
+      precoValor: 999,
       descricao: "Projetos de grande escala — braço, costas, perna. Orçado após consulta presencial.",
     },
     {
       nome: "FLASH DAY",
-      preco: "R$ 280",
+      preco: "",
+      precoValor: 99,
       descricao: "Peças de tamanho único, escolhidas de um catálogo fechado. Datas avulsas no Instagram.",
     },
     {
       nome: "RETOQUE",
-      preco: "Sob consulta",
+      preco: "",
+      precoPrefixo: "Sob consulta",
       descricao: "Manutenção de peças feitas no estúdio dentro de 12 meses.",
     },
   ],
