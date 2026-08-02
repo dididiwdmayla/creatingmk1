@@ -24,6 +24,19 @@ describe("faiscas", () => {
       expect(f.duracaoSegundos).toBeGreaterThan(0);
     }
   });
+
+  it("tamanho e suavidade variam por faísca — nada de dois carimbos repetidos", () => {
+    const geradas = faiscas(3);
+    expect(new Set(geradas.map((f) => f.tamanhoPx)).size).toBeGreaterThan(2);
+    expect(new Set(geradas.map((f) => f.nucleoPercent)).size).toBeGreaterThan(2);
+  });
+
+  it("o núcleo é uma fração pequena da brasa — o resto é queda até transparente", () => {
+    for (const f of faiscas(3)) {
+      expect(f.nucleoPercent).toBeLessThan(35);
+      expect(f.nucleoPercent).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("opacidadeContainer", () => {

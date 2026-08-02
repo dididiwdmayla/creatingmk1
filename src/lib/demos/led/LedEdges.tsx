@@ -76,6 +76,78 @@ export function LedEdges({ preset, estilo }: { preset: LedPreset; estilo?: strin
         .d-led-edges {
           position: fixed; inset: 0; z-index: 45; pointer-events: none;
           --d-led-scroll: 0;
+          /*
+            Rampa de alfa compartilhada por "dissipado", "cantos" e
+            "moldura": os três precisam da MESMA queda (forte colado na
+            borda, longa até sumir) — só muda a direção em que ela é
+            aplicada. Escalonada assim, não linear, porque uma rampa linear
+            até transparent ainda lê como aresta: o olho pega a mudança de
+            inclinação. Os valores existem como custom properties (e não
+            escritos à mão em cada gradiente) pra que o nível "marcante"
+            precise redefinir só estes quatro números.
+          */
+          --d-led-a1: 30%;
+          --d-led-a2: 13%;
+          --d-led-a3: 5%;
+          --d-led-a4: 1.5%;
+          /* Alcance do halo: PEQUENO, junto à borda — a queda longa vem da
+             rampa acima, não de ocupar meia tela. */
+          --d-led-halo: 40px;
+          --d-led-moldura: 24px;
+          --d-led-canto: 46vmin;
+          /*
+            Perfil AO LONGO da borda: o ponto mais brilhante segue
+            --d-led-scroll e some pras duas pontas, então o halo nunca
+            encosta nos cantos com intensidade cheia (era daí que vinha a
+            leitura de "retângulo desenhado"). Máscara, não background —
+            assim o gradiente de cor fica livre pra desenhar a queda
+            PERPENDICULAR à borda, e as duas direções se multiplicam.
+          */
+          --d-led-perfil-v: linear-gradient(to bottom,
+            transparent 0%,
+            rgba(0, 0, 0, 0.18) calc(var(--d-led-scroll) * 100% - 46%),
+            rgba(0, 0, 0, 1) calc(var(--d-led-scroll) * 100%),
+            rgba(0, 0, 0, 0.18) calc(var(--d-led-scroll) * 100% + 46%),
+            transparent 100%);
+          /*
+            Mesma ideia por QUARTO de --d-led-scroll, um por lado da moldura
+            (topo → direita → baixo → esquerda). Só a lista de stops mora
+            aqui: a direção (to right / to bottom / …) fica em cada lado, que
+            é a única coisa que difere entre eles.
+          */
+          --d-led-q1: clamp(0%, calc(var(--d-led-scroll) * 400%), 100%);
+          --d-led-q2: clamp(0%, calc((var(--d-led-scroll) - 0.25) * 400%), 100%);
+          --d-led-q3: clamp(0%, calc((var(--d-led-scroll) - 0.5) * 400%), 100%);
+          --d-led-q4: clamp(0%, calc((var(--d-led-scroll) - 0.75) * 400%), 100%);
+          --d-led-perfil-q1: transparent 0%,
+            rgba(0, 0, 0, 0.16) calc(var(--d-led-q1) - 34%),
+            rgba(0, 0, 0, 1) var(--d-led-q1),
+            rgba(0, 0, 0, 0.16) calc(var(--d-led-q1) + 34%),
+            transparent 100%;
+          --d-led-perfil-q2: transparent 0%,
+            rgba(0, 0, 0, 0.16) calc(var(--d-led-q2) - 34%),
+            rgba(0, 0, 0, 1) var(--d-led-q2),
+            rgba(0, 0, 0, 0.16) calc(var(--d-led-q2) + 34%),
+            transparent 100%;
+          --d-led-perfil-q3: transparent 0%,
+            rgba(0, 0, 0, 0.16) calc(var(--d-led-q3) - 34%),
+            rgba(0, 0, 0, 1) var(--d-led-q3),
+            rgba(0, 0, 0, 0.16) calc(var(--d-led-q3) + 34%),
+            transparent 100%;
+          --d-led-perfil-q4: transparent 0%,
+            rgba(0, 0, 0, 0.16) calc(var(--d-led-q4) - 34%),
+            rgba(0, 0, 0, 1) var(--d-led-q4),
+            rgba(0, 0, 0, 0.16) calc(var(--d-led-q4) + 34%),
+            transparent 100%;
+        }
+        [data-d-led="marcante"].d-led-edges {
+          --d-led-a1: 46%;
+          --d-led-a2: 21%;
+          --d-led-a3: 8%;
+          --d-led-a4: 2.5%;
+          --d-led-halo: 62px;
+          --d-led-moldura: 36px;
+          --d-led-canto: 58vmin;
         }
 
         /* ---- estilo "barra" (default/original): barra fina, ponta nítida ---- */
@@ -99,36 +171,62 @@ export function LedEdges({ preset, estilo }: { preset: LedPreset; estilo?: strin
         .d-led-left { left: 0; }
         .d-led-right { right: 0; }
 
-        /* ---- estilo "dissipado": halo largo e difuso, sem borda nítida ---- */
+        /* ---- estilo "dissipado": halo PEQUENO colado na borda, queda suave ----
+           A versão anterior tinha gradiente só AO LONGO da barra (to bottom)
+           e era chapada na largura: uma laje de 110-160px que terminava numa
+           aresta vertical dura no meio do caminho pra tela — a "faixa
+           escura" relatada. Agora a queda é PERPENDICULAR à borda (é ela que
+           define o halo) e o vínculo com o scroll virou MÁSCARA ao longo da
+           borda, então nenhuma das duas direções termina em aresta. */
         [data-d-led-estilo="dissipado"] .d-led-bar {
-          width: 110px;
-          opacity: 0.4;
+          width: var(--d-led-halo);
+          opacity: 1;
           box-shadow: none;
-          background: linear-gradient(to bottom,
-            transparent 0%,
-            color-mix(in srgb, var(--d-accent) 24%, transparent) calc(var(--d-led-scroll) * 100% - 36%),
-            color-mix(in srgb, var(--d-accent) 40%, transparent) calc(var(--d-led-scroll) * 100%),
-            color-mix(in srgb, var(--d-accent) 24%, transparent) calc(var(--d-led-scroll) * 100% + 36%),
+          -webkit-mask-image: var(--d-led-perfil-v);
+          mask-image: var(--d-led-perfil-v);
+        }
+        [data-d-led-estilo="dissipado"] .d-led-left {
+          background: linear-gradient(to right,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a1), transparent) 0%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a2), transparent) 20%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a3), transparent) 46%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a4), transparent) 72%,
             transparent 100%);
         }
-        [data-d-led-estilo="dissipado"][data-d-led="marcante"] .d-led-bar {
-          width: 160px;
-          opacity: 0.65;
-          box-shadow: none;
+        [data-d-led-estilo="dissipado"] .d-led-right {
+          background: linear-gradient(to left,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a1), transparent) 0%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a2), transparent) 20%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a3), transparent) 46%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a4), transparent) 72%,
+            transparent 100%);
         }
 
-        /* ---- estilo "cantos": luz só nos 4 cantos, sem barra contínua ---- */
+        /* ---- estilo "cantos": luz SANGRANDO na diagonal a partir de cada canto ----
+           Não são quatro pontos: a versão anterior era um radial de 64-96px
+           com box-shadow, o que desenhava quatro bolinhas com aresta de
+           caixa. Agora o gradiente LINEAR dá a direção (a diagonal que sai
+           do canto) e a queda longa; a máscara radial ancorada no mesmo
+           canto mata qualquer aresta da caixa que o carrega. */
         .d-led-corner {
-          position: absolute; width: 64px; height: 64px;
-          background: radial-gradient(circle, color-mix(in srgb, var(--d-accent) 70%, transparent) 0%, transparent 72%);
-          box-shadow: 0 0 24px 6px color-mix(in srgb, var(--d-accent) 40%, transparent);
+          position: absolute;
+          width: var(--d-led-canto); height: var(--d-led-canto);
+          background: linear-gradient(var(--d-led-diagonal),
+            color-mix(in srgb, var(--d-accent) var(--d-led-a1), transparent) 0%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a2), transparent) 18%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a3), transparent) 42%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a4), transparent) 66%,
+            transparent 88%);
+          -webkit-mask-image: radial-gradient(125% 125% at var(--d-led-ancora),
+            rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, transparent 84%);
+          mask-image: radial-gradient(125% 125% at var(--d-led-ancora),
+            rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, transparent 84%);
           transition: opacity 200ms ease;
         }
-        [data-d-led="marcante"] .d-led-corner { width: 96px; height: 96px; }
-        .d-led-corner-tl { top: 0; left: 0; }
-        .d-led-corner-tr { top: 0; right: 0; }
-        .d-led-corner-bl { bottom: 0; left: 0; }
-        .d-led-corner-br { bottom: 0; right: 0; }
+        .d-led-corner-tl { top: 0; left: 0; --d-led-diagonal: 135deg; --d-led-ancora: 0% 0%; }
+        .d-led-corner-tr { top: 0; right: 0; --d-led-diagonal: 225deg; --d-led-ancora: 100% 0%; }
+        .d-led-corner-bl { bottom: 0; left: 0; --d-led-diagonal: 45deg; --d-led-ancora: 0% 100%; }
+        .d-led-corner-br { bottom: 0; right: 0; --d-led-diagonal: 315deg; --d-led-ancora: 100% 100%; }
         /* topo mais forte no início do scroll, base mais forte no fim — o par acende conforme a seção correspondente se aproxima. */
         .d-led-corner-tl, .d-led-corner-tr {
           opacity: clamp(0.15, calc(0.15 + (1 - var(--d-led-scroll)) * 0.45), 0.6);
@@ -143,53 +241,63 @@ export function LedEdges({ preset, estilo }: { preset: LedPreset; estilo?: strin
           opacity: clamp(0.3, calc(0.3 + var(--d-led-scroll) * 0.6), 1);
         }
 
-        /* ---- estilo "moldura": perímetro completo, pulso percorrendo via scroll ---- */
+        /* ---- estilo "moldura": perímetro completo, pulso percorrendo via scroll ----
+           Mesma queda em gradiente do "dissipado", agora nos 4 lados: a
+           versão anterior era uma tira CHAPADA de 3-4px com box-shadow, o
+           que lê como retângulo desenhado por cima da página, não como luz.
+           Cada lado é uma banda estreita cuja cor cai PERPENDICULAR à borda
+           até transparente; a máscara ao longo do lado carrega o ponto
+           brilhante que viaja (um quarto de --d-led-scroll por lado, topo →
+           direita → baixo → esquerda, como antes) e apaga as duas pontas,
+           então os cantos não fecham num contorno contínuo. */
         .d-led-side {
           position: absolute;
-          box-shadow: 0 0 10px 1px color-mix(in srgb, var(--d-accent) 55%, transparent);
-          opacity: 0.5;
+          opacity: 1;
           transition: opacity 200ms ease;
         }
-        [data-d-led="marcante"] .d-led-side { opacity: 0.85; }
-        .d-led-side-top { top: 0; left: 0; right: 0; height: 3px; }
-        .d-led-side-bottom { bottom: 0; left: 0; right: 0; height: 3px; }
-        .d-led-side-left { top: 0; bottom: 0; left: 0; width: 3px; }
-        .d-led-side-right { top: 0; bottom: 0; right: 0; width: 3px; }
-        [data-d-led="marcante"] .d-led-side-top, [data-d-led="marcante"] .d-led-side-bottom { height: 4px; }
-        [data-d-led="marcante"] .d-led-side-left, [data-d-led="marcante"] .d-led-side-right { width: 4px; }
-        /* --d-led-scroll (0-1) dividido em 4 quartos, um por lado (topo → direita → baixo → esquerda) —
-           o ponto mais brilhante viaja de lado a lado conforme a página inteira é rolada, sem @keyframes. */
+        .d-led-side-top { top: 0; left: 0; right: 0; height: var(--d-led-moldura); }
+        .d-led-side-bottom { bottom: 0; left: 0; right: 0; height: var(--d-led-moldura); }
+        .d-led-side-left { top: 0; bottom: 0; left: 0; width: var(--d-led-moldura); }
+        .d-led-side-right { top: 0; bottom: 0; right: 0; width: var(--d-led-moldura); }
         .d-led-side-top {
-          background: linear-gradient(to right,
-            transparent 0%,
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(clamp(0%, var(--d-led-scroll) * 400%, 100%) - 18%),
-            var(--d-accent) clamp(0%, calc(var(--d-led-scroll) * 400%), 100%),
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(clamp(0%, var(--d-led-scroll) * 400%, 100%) + 18%),
+          background: linear-gradient(to bottom,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a1), transparent) 0%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a2), transparent) 22%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a3), transparent) 50%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a4), transparent) 74%,
             transparent 100%);
+          -webkit-mask-image: linear-gradient(to right, var(--d-led-perfil-q1));
+          mask-image: linear-gradient(to right, var(--d-led-perfil-q1));
         }
         .d-led-side-right {
-          background: linear-gradient(to bottom,
-            transparent 0%,
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(clamp(0%, calc((var(--d-led-scroll) - 0.25) * 400%), 100%) - 18%),
-            var(--d-accent) clamp(0%, calc((var(--d-led-scroll) - 0.25) * 400%), 100%),
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(clamp(0%, calc((var(--d-led-scroll) - 0.25) * 400%), 100%) + 18%),
+          background: linear-gradient(to left,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a1), transparent) 0%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a2), transparent) 22%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a3), transparent) 50%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a4), transparent) 74%,
             transparent 100%);
+          -webkit-mask-image: linear-gradient(to bottom, var(--d-led-perfil-q2));
+          mask-image: linear-gradient(to bottom, var(--d-led-perfil-q2));
         }
         .d-led-side-bottom {
-          background: linear-gradient(to left,
-            transparent 0%,
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(clamp(0%, calc((var(--d-led-scroll) - 0.5) * 400%), 100%) - 18%),
-            var(--d-accent) clamp(0%, calc((var(--d-led-scroll) - 0.5) * 400%), 100%),
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(clamp(0%, calc((var(--d-led-scroll) - 0.5) * 400%), 100%) + 18%),
+          background: linear-gradient(to top,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a1), transparent) 0%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a2), transparent) 22%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a3), transparent) 50%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a4), transparent) 74%,
             transparent 100%);
+          -webkit-mask-image: linear-gradient(to left, var(--d-led-perfil-q3));
+          mask-image: linear-gradient(to left, var(--d-led-perfil-q3));
         }
         .d-led-side-left {
-          background: linear-gradient(to top,
-            transparent 0%,
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(clamp(0%, calc((var(--d-led-scroll) - 0.75) * 400%), 100%) - 18%),
-            var(--d-accent) clamp(0%, calc((var(--d-led-scroll) - 0.75) * 400%), 100%),
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(clamp(0%, calc((var(--d-led-scroll) - 0.75) * 400%), 100%) + 18%),
+          background: linear-gradient(to right,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a1), transparent) 0%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a2), transparent) 22%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a3), transparent) 50%,
+            color-mix(in srgb, var(--d-accent) var(--d-led-a4), transparent) 74%,
             transparent 100%);
+          -webkit-mask-image: linear-gradient(to top, var(--d-led-perfil-q4));
+          mask-image: linear-gradient(to top, var(--d-led-perfil-q4));
         }
 
         @keyframes d-led-pulso {

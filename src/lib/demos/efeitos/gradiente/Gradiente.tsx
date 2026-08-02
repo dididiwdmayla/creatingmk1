@@ -28,7 +28,15 @@ export function Gradiente({ intensidade, cores, pausado }: EfeitoProps) {
       className="pointer-events-none fixed inset-[-25%] z-40 will-change-transform"
       aria-hidden="true"
       style={{
-        background: `radial-gradient(circle at 30% 30%, ${cores.destaque} 0%, transparent 40%), radial-gradient(circle at 70% 65%, ${cores.acentoTerciario} 0%, transparent 38%)`,
+        // Cada mancha cai em VÁRIOS stops, não num salto direto pra
+        // `transparent`: uma rampa de dois pontos tem inclinação constante,
+        // e o olho pega o fim dela como se fosse um contorno — mesmo com
+        // 80px de blur por cima. Os dois raios também diferem, pra que as
+        // manchas não leiam como dois círculos gêmeos.
+        background: [
+          `radial-gradient(circle at 28% 26%, ${cores.destaque} 0%, color-mix(in srgb, ${cores.destaque} 55%, transparent) 16%, color-mix(in srgb, ${cores.destaque} 18%, transparent) 32%, transparent 52%)`,
+          `radial-gradient(circle at 72% 68%, ${cores.acentoTerciario} 0%, color-mix(in srgb, ${cores.acentoTerciario} 50%, transparent) 14%, color-mix(in srgb, ${cores.acentoTerciario} 16%, transparent) 30%, transparent 46%)`,
+        ].join(", "),
         filter: estilo.filter,
         opacity: estilo.opacity,
         animationName: estilo.animationName,

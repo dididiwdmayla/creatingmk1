@@ -9,10 +9,20 @@ describe("veiosTracos", () => {
     expect(veiosTracos(2)).toEqual(veiosTracos(2));
   });
 
-  it("cada traço é um path SVG válido (M ... Q ...)", () => {
+  it("cada traço é uma FITA fechada (M…L…Z), nunca um stroke aberto", () => {
     for (const traco of veiosTracos(3)) {
-      expect(traco.d).toMatch(/^M -?\d+(\.\d+)? -?\d+(\.\d+)? Q -?\d+(\.\d+)? -?\d+(\.\d+)? -?\d+(\.\d+)? -?\d+(\.\d+)?$/);
+      expect(traco.d.startsWith("M ")).toBe(true);
+      expect(traco.d.endsWith(" Z")).toBe(true);
+      // Só M/L/Z: nenhuma curva de comando (a curvatura já está amostrada
+      // no contorno) e, principalmente, nenhum resquício de `stroke`.
+      expect(traco.d.match(/[A-Za-z]/g)?.every((c) => "MLZ".includes(c))).toBe(true);
       expect(traco.duracaoSegundos).toBeGreaterThan(0);
+    }
+  });
+
+  it("as pontas do traço são distintas — o veio vai a algum lugar", () => {
+    for (const traco of veiosTracos(3)) {
+      expect(Math.hypot(traco.ate.x - traco.de.x, traco.ate.y - traco.de.y)).toBeGreaterThan(30);
     }
   });
 });
@@ -23,5 +33,12 @@ describe("opacidadeBase / opacidadePulso", () => {
     expect(opacidadeBase(2)).toBeLessThan(opacidadeBase(3));
     expect(opacidadePulso(1)).toBeLessThan(opacidadePulso(2));
     expect(opacidadePulso(2)).toBeLessThan(opacidadePulso(3));
+  });
+
+  it("o pulso é mais aceso que a base, mas ambos respeitam o teto de 6%", () => {
+    for (const i of [1, 2, 3] as const) {
+      expect(opacidadeBase(i)).toBeLessThan(opacidadePulso(i));
+      expect(opacidadePulso(i)).toBeLessThanOrEqual(0.06);
+    }
   });
 });

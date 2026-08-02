@@ -1,23 +1,35 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type CSSProperties } from "react";
 
 import type { EfeitoProps } from "../types";
 import { useEfeitoAtivo } from "../useEfeitoAtivo";
 import { opacidadeBase, opacidadePulso, veiosTracos } from "./geometria";
 
+const BRILHO_ID = "d-efeito-veios-brilho";
+
 /**
- * Traços orgânicos (curvas quadráticas, ver ./geometria.ts) com um pulso
- * curto viajando por cima de cada um: mesmo `d`, uma segunda cópia do path
- * com `pathLength={1}` (normaliza a unidade de dasharray/dashoffset pra
- * não precisar calcular o comprimento real de cada curva) e
- * `stroke-dasharray` bem menor que o total — só esse trecho fica visível,
- * e animar `stroke-dashoffset` de 1 a -1 o desloca pelo traço inteiro em
- * loop. Sem rAF/JS nenhum, só CSS (`@keyframes`). As pontas de todo traço
- * são mascaradas por um gradiente radial centrado na viewport
- * (`mask-image`, CSS puro) — os traços nascem espalhados e se estendem em
- * direção às bordas, então a máscara desbota exatamente onde eles
- * terminam, sem precisar de uma máscara por traço.
+ * Veios: traços orgânicos com um brilho viajando por dentro de cada um.
+ *
+ * A forma vem de ./geometria.ts — fita afilada sobre uma cúbica, sem
+ * `stroke` nenhum, então nada tem espessura constante nem ponta reta.
+ * Este componente cuida da LUZ, que a revisão visual também reprovou (o
+ * pulso era um tracinho de `stroke-dasharray` com tamanho fixo e opacidade
+ * cheia, lendo como um risco brilhante deslizando):
+ *
+ * - **base**: cada veio é preenchido por um `linearGradient` próprio,
+ *   alinhado com os extremos do traço, com alfa diferente em cada stop —
+ *   o traço acende e apaga ao longo de si mesmo, nunca uniforme;
+ * - **pulso**: uma mancha de gradiente RADIAL (sem borda: o alfa cai a
+ *   zero antes do raio acabar) atravessa o traço recortada pelo próprio
+ *   contorno da fita (`clipPath`), então ela só existe dentro do veio e
+ *   some sozinha nas pontas afiladas. O trajeto de cada mancha entra por
+ *   custom property (`--d-veio-x0/y0` → `--d-veio-x1/y1`), o que deixa o
+ *   `@keyframes` único e compartilhado — CSS puro, sem rAF nem JS por
+ *   frame, como manda o contrato dos efeitos.
+ *
+ * O SVG inteiro ainda é mascarado por um radial até transparente, então
+ * nenhum traço encosta na borda da viewport com intensidade.
  */
 export function Veios({ intensidade, cores, pausado }: EfeitoProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -27,7 +39,15 @@ export function Veios({ intensidade, cores, pausado }: EfeitoProps) {
 
   if (intensidade === 0) return null;
 
-  const mask = "radial-gradient(circle at 50% 50%, black 55%, transparent 88%)";
+  const mascara =
+    "radial-gradient(circle at 50% 45%, rgba(0,0,0,1) 30%, rgba(0,0,0,0.5) 66%, transparent 92%)";
+  const claro = `color-mix(in srgb, ${cores.destaque} 55%, white)`;
+  // Alfa por stop: a base do traço nunca é chapada de ponta a ponta.
+  const perfis = [
+    [0.08, 1, 0.35, 0.8, 0.06],
+    [0.05, 0.5, 1, 0.4, 0.1],
+    [0.12, 0.85, 0.25, 1, 0.04],
+  ];
 
   return (
     <div
@@ -40,48 +60,87 @@ export function Veios({ intensidade, cores, pausado }: EfeitoProps) {
     >
       <svg
         viewBox="0 0 100 100"
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMid slice"
         className="h-full w-full"
-        style={{ maskImage: mask, WebkitMaskImage: mask }}
+        style={{ maskImage: mascara, WebkitMaskImage: mascara } as CSSProperties}
       >
         <style>{`
           @keyframes d-efeito-veios-pulso {
-            from { stroke-dashoffset: 1; }
-            to { stroke-dashoffset: -1; }
+            0%   { transform: translate(var(--d-veio-x0), var(--d-veio-y0)); opacity: 0; }
+            18%  { opacity: 1; }
+            82%  { opacity: 1; }
+            100% { transform: translate(var(--d-veio-x1), var(--d-veio-y1)); opacity: 0; }
           }
         `}</style>
-        <g fill="none">
+        <defs>
+          <radialGradient id={BRILHO_ID}>
+            <stop offset="0%" stopColor={claro} stopOpacity={1} />
+            <stop offset="45%" stopColor={cores.destaque} stopOpacity={0.55} />
+            <stop offset="100%" stopColor={cores.destaque} stopOpacity={0} />
+          </radialGradient>
           {tracos.map((traco, i) => (
-            <g key={i}>
-              <path
-                d={traco.d}
-                stroke={cores.destaque}
-                strokeWidth={0.35}
-                strokeLinecap="round"
-                opacity={opacidadeBase(intensidade)}
-              />
-              {!reducedMotion && (
-                <path
-                  d={traco.d}
-                  pathLength={1}
-                  stroke={cores.destaque}
-                  strokeWidth={0.6}
-                  strokeLinecap="round"
-                  strokeDasharray="0.08 1"
-                  opacity={opacidadePulso(intensidade)}
-                  style={{
-                    animationName: "d-efeito-veios-pulso",
+            <linearGradient
+              key={i}
+              id={`d-efeito-veios-b${i}`}
+              gradientUnits="userSpaceOnUse"
+              x1={traco.de.x}
+              y1={traco.de.y}
+              x2={traco.ate.x}
+              y2={traco.ate.y}
+            >
+              {perfis[i % perfis.length].map((alfa, j, todos) => (
+                <stop
+                  key={j}
+                  offset={`${(j / (todos.length - 1)) * 100}%`}
+                  stopColor={j % 2 === 1 ? claro : cores.destaque}
+                  stopOpacity={alfa}
+                />
+              ))}
+            </linearGradient>
+          ))}
+          {tracos.map((traco, i) => (
+            <clipPath key={i} id={`d-efeito-veios-c${i}`}>
+              <path d={traco.d} />
+            </clipPath>
+          ))}
+        </defs>
+        {tracos.map((traco, i) => (
+          <g key={i}>
+            <path d={traco.d} fill={`url(#d-efeito-veios-b${i})`} opacity={opacidadeBase(intensidade)} />
+            <g clipPath={`url(#d-efeito-veios-c${i})`} opacity={opacidadePulso(intensidade)}>
+              <circle
+                r={13}
+                fill={`url(#${BRILHO_ID})`}
+                style={
+                  {
+                    transformBox: "view-box",
+                    transformOrigin: "0 0",
+                    "--d-veio-x0": `${traco.de.x}px`,
+                    "--d-veio-y0": `${traco.de.y}px`,
+                    "--d-veio-x1": `${traco.ate.x}px`,
+                    "--d-veio-y1": `${traco.ate.y}px`,
+                    // reducedMotion = estático: sem @keyframes ligado, a
+                    // mancha para no meio do trajeto (visível) em vez de
+                    // ficar parada na ponta com opacidade 0.
+                    ...(reducedMotion
+                      ? {
+                          transform: `translate(${(traco.de.x + traco.ate.x) / 2}px, ${
+                            (traco.de.y + traco.ate.y) / 2
+                          }px)`,
+                        }
+                      : null),
+                    animationName: reducedMotion ? "none" : "d-efeito-veios-pulso",
                     animationDuration: `${traco.duracaoSegundos}s`,
                     animationDelay: `${traco.atrasoSegundos}s`,
-                    animationTimingFunction: "linear",
+                    animationTimingFunction: "ease-in-out",
                     animationIterationCount: "infinite",
                     animationPlayState: ativo ? "running" : "paused",
-                  }}
-                />
-              )}
+                  } as CSSProperties
+                }
+              />
             </g>
-          ))}
-        </g>
+          </g>
+        ))}
       </svg>
     </div>
   );

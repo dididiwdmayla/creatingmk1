@@ -12,7 +12,12 @@ import type { EfeitoIntensidade } from "../types";
 
 export const BLUR_PX = 80;
 
-const OPACIDADE_POR_INTENSIDADE: Record<1 | 2 | 3, number> = { 1: 0.06, 2: 0.1, 3: 0.15 };
+/**
+ * Teto de 6% (era 0.06/0.10/0.15). O efeito é renderizado POR CIMA do
+ * conteúdo (ver ARCHITECTURE.md, "Cobertura de viewport"), então a
+ * opacidade é a única coisa entre a mancha e a legibilidade do texto.
+ */
+const OPACIDADE_POR_INTENSIDADE: Record<1 | 2 | 3, number> = { 1: 0.025, 2: 0.04, 3: 0.06 };
 
 export interface EstiloGradiente {
   filter: string;
