@@ -43,3 +43,7 @@ next-env.d.ts
 
 # material bruto de skins (clones de referência, fora do app)
 /skins-raw/
+
+# capturas do laço de verificação visual (scripts/qa-visual.mjs) — evidência
+# de sessão, se regenera rodando o script; nunca entra no histórico
+/qa-shots/
