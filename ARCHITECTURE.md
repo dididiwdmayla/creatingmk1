@@ -180,7 +180,23 @@ src/
         gradiente/estilo.ts         #    ✅ estilo puro (opacidade por intensidade, animationName/PlayState) — testável sem DOM
         particulas/Particulas.tsx   #    ✅ pontos subindo em loop; migrado do antigo Theme.fundoEfeito "particulas" por skin
         particulas/estilo.ts        #    ✅ contagem/opacidade por intensidade + estilo do ponto — testável sem DOM
+        veios/Veios.tsx              #    ✅ traços orgânicos com pulso curto viajando (stroke-dasharray/dashoffset), pontas mascaradas por gradiente radial
+        veios/geometria.ts           #    ✅ traços determinísticos (curvas quadráticas) + opacidade base/pulso por intensidade — testável sem DOM
+        filotaxia/Filotaxia.tsx      #    ✅ pontos nascendo do centro pelo ângulo dourado (137,5°), decaimento de opacidade por idade
+        filotaxia/estilo.ts          #    ✅ posições/opacidades determinísticas (fórmula de filotaxia) — testável sem DOM
+        geometrico-pulsante/GeometricoPulsante.tsx # ✅ polígonos concêntricos em SVG, stroke metálico (linearGradient + color-mix), pulso defasado por camada
+        geometrico-pulsante/estilo.ts #   ✅ camadas/pontos do polígono + atraso escalonado — testável sem DOM
+        faiscas/Faiscas.tsx          #    ✅ reaproveita particulas/estilo.ts (posições) com gravidade/vida curta/blend aditivo (mix-blend-mode screen)
+        faiscas/estilo.ts            #    ✅ reinterpreta pontosParticulas como faíscas de vida curta — testável sem DOM
+        varredura-de-luz/VarreduraDeLuz.tsx # ✅ brilho diagonal atravessando a viewport periodicamente (translateX), branco+destaque via color-mix + screen
+        varredura-de-luz/estilo.ts   #    ✅ largura/opacidade/duração do ciclo por intensidade — testável sem DOM
         __tests__/registry.test.ts  #    contrato: campos obrigatórios, ids únicos, intensidade 0 não renderiza nada, intensidadePadrao por nicho
+      led/                           # ✅ registro de ESTILOS de borda LED (camada de micro-interação Theme.led/ledEstilo)
+        types.ts                    #    LedEstiloDefinition (id/nome/nichosRecomendados) — metadado puro
+        registry.ts                 #    LED_ESTILOS: barra/dissipado/cantos/moldura + LED_ESTILO_PADRAO ("barra") + getLedEstilo(id)
+        LedEdges.tsx                 #    ✅ componente ÚNICO (client) usado pelas 8 skins — todo o CSS dos 4 estilos vive aqui, sem import dinâmico por estilo
+        __tests__/registry.test.ts  #    contrato do registro (ids únicos, nichos não vazios)
+        __tests__/LedEdges.test.tsx #    DOM por estilo (2 barras / 4 cantos / 4 lados), fallback pro estilo padrão, pulso de clique
     testing/
       fake-firestore.ts             # ✅ fake em memória com semântica de transação + paridade de path de coleção
       fake-firestore.test.ts        # ✅ paridade de segmentos do path (.collection() ímpar, como o SDK real)
@@ -215,7 +231,7 @@ src/
           IntroAnimation.tsx         # navalha corta a tela (motion)
           RazorBlade.tsx             # navalha decorativa da intro
           SparkParticles.tsx         # faíscas da intro (motion)
-          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+          LedEdges.tsx               # ✅ reexporta o componente único (src/lib/demos/led/LedEdges.tsx)
       tatuagem/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
         GothicLetters.tsx           # letras góticas gigantes atrás do conteúdo (chrome fixo)
@@ -231,7 +247,7 @@ src/
           CustomCursor.tsx           # cursor de máquina de tatuagem com spring (motion)
           IntroExperience.tsx        # orquestra cursor + intro + sessionStorage
           IntroLoader.tsx            # splash letra-a-letra fiel ao original
-          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+          LedEdges.tsx               # ✅ reexporta o componente único (src/lib/demos/led/LedEdges.tsx)
           VideoNoTitulo.tsx          # ✅ vídeo/imagem mascarados pelas letras do wordmark (SVG mask + foreignObject)
       lancheria/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
@@ -247,7 +263,7 @@ src/
           DecorativeBlob.tsx          # blob decorativo entre seções, parallax sutil no scroll
           OrderCta.tsx                # ✅ CTA de pedido neutro: WhatsApp (data.whatsapp) ou toast "disponível na versão completa"
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
-          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+          LedEdges.tsx               # ✅ reexporta o componente único (src/lib/demos/led/LedEdges.tsx)
       barbearia2/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
         secoes.ts                   # contrato SkinSecaoDef[]
@@ -259,7 +275,7 @@ src/
           RevealLine.tsx              # linha divisória que abre da esquerda (scaleX), antes de cada etiqueta
           DragGallery.tsx             # galeria com arraste por mouse + momentum ao soltar (pointer events puros)
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
-          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+          LedEdges.tsx               # ✅ reexporta o componente único (src/lib/demos/led/LedEdges.tsx)
       tatuagem2/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
         secoes.ts                   # contrato SkinSecaoDef[]
@@ -278,7 +294,7 @@ src/
           LineDraw.tsx               # traço SVG que se desenha ao entrar no viewport (rabiscos de artista, linha do processo)
           FaqAccordion.tsx           # acordeão com um item aberto por vez (primeiro já aberto, fiel ao original)
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
-          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+          LedEdges.tsx               # ✅ reexporta o componente único (src/lib/demos/led/LedEdges.tsx)
       imobiliaria/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
         secoes.ts                   # contrato SkinSecaoDef[]
@@ -295,7 +311,7 @@ src/
           CustomCursor.tsx           # ponto na cor de destaque que cresce sobre card de imóvel, gateado por theme.animacao
           ContatoForm.tsx             # captação de e-mail com submit fake (sem request de verdade, fiel ao original)
           IntroExperience.tsx        # splash opcional (Theme.intro; o material bruto não tinha uma) + sessionStorage
-          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+          LedEdges.tsx               # ✅ reexporta o componente único (src/lib/demos/led/LedEdges.tsx)
       multimarcas/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
         secoes.ts                   # contrato SkinSecaoDef[]
@@ -304,7 +320,7 @@ src/
         interactive/                # ✅ subcomponentes "use client" (animações/interação)
           logic.ts                    # funções puras (parse de número formatado, wa.me, categorias) — testadas isoladamente
           SectionReveal.tsx          # entrada de seção por scroll, intensidade = theme.animacao
-          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+          LedEdges.tsx               # ✅ reexporta o componente único (src/lib/demos/led/LedEdges.tsx)
           introContext.tsx           # sinaliza pro Hero quando o preloader terminou (revelação escalonada do título)
           Preloader.tsx              # velocímetro que sobe -120°→120° com mola simples, fiel ao original
           IntroExperience.tsx        # orquestra cursor + preloader + sessionStorage
@@ -333,7 +349,7 @@ src/
           OrderCta.tsx               # CTA de agendamento neutro: WhatsApp (data.whatsapp) ou toast "disponível na versão completa"
           Counter.tsx                # contagem animada ao entrar no viewport (números da seção "Números")
           contador.ts                # parser puro do texto do contador (prefixo/alvo/casas decimais/sufixo) — testado
-          LedEdges.tsx               # ✅ bordas laterais com luz LED (Theme.led), reage a scroll/clique
+          LedEdges.tsx               # ✅ reexporta o componente único (src/lib/demos/led/LedEdges.tsx)
 public/
   demos/barbearia/*.svg             # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
   demos/tatuagem/*.svg              # ✅ placeholders locais por slot de imagem + thumb.svg (passo de escolha de skin)
@@ -835,7 +851,7 @@ Prévia de site personalizada por lead, servida pelo próprio Radar em **`/demo/
 Contratos centrais (`src/lib/demos/types.ts`):
 
 - **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição, + `categoria`/`destaques[]` opcionais — ex.: filtro e chips do catálogo de veículos da skin de multimarcas), `depoimentos[]` (autor/texto/nota, + `contexto` opcional — segunda linha curta sob o autor, ex.: "Toyota Hilux SRX 2021"), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes), `imagens` (caminho por slot), `videos` (opcional — URL por slot de **vídeo-no-título**, ver seção própria) e a **estrutura editável**: `ordemSecoes` (ordem das seções não-fixas) e, por seção, `oculta` e `alinhamento`.
-- **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda, e dois acentos raros `acentoSecundario`/`acentoTerciario` para detalhes decorativos que não seguem o acento principal), `fontes` (display/corpo/mono/serif/decorativa/**citacao**/**destaque** como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts/`), `raio`, `densidade` (compacta/confortável/arejada → espaçamento vertical das seções), `animacao` (`nenhuma`/`sutil`/`marcante` → intensidade de entrada de seção, hover e transição; ver "Animação" abaixo), as **micro-interações**: `intro` (splash de abertura ligada?), `hover` (`lift`/`zoom`/`brilho`), `clique` (`nenhum`/`pressao`/`pulso`), `fundoEfeito` (`nenhum`/`gradiente`/`particulas`) e `led` (`desligado`/`sutil`/`marcante` — ver "Micro-interações" abaixo), e `heroTitulo` (`{ fonte, escala, alinhamento }` — estilo do título principal, ver "Título hero" abaixo; o **texto** continua em `dados.secoes.hero.titulo`/`dados.nome`, que é conteúdo, não tema).
+- **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda, e dois acentos raros `acentoSecundario`/`acentoTerciario` para detalhes decorativos que não seguem o acento principal), `fontes` (display/corpo/mono/serif/decorativa/**citacao**/**destaque** como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts/`), `raio`, `densidade` (compacta/confortável/arejada → espaçamento vertical das seções), `animacao` (`nenhuma`/`sutil`/`marcante` → intensidade de entrada de seção, hover e transição; ver "Animação" abaixo), as **micro-interações**: `intro` (splash de abertura ligada?), `hover` (`lift`/`zoom`/`brilho`), `clique` (`nenhum`/`pressao`/`pulso`), `fundoEfeito` (`nenhum`/`gradiente`/`particulas`/`veios`/`filotaxia`/`geometrico-pulsante`/`faiscas`/`varredura-de-luz`), `led` (`desligado`/`sutil`/`marcante` — o NÍVEL) e `ledEstilo` (`barra`/`dissipado`/`cantos`/`moldura` — o ESTILO visual, independente do nível; ver "Micro-interações" abaixo), e `heroTitulo` (`{ fonte, escala, alinhamento }` — estilo do título principal, ver "Título hero" abaixo; o **texto** continua em `dados.secoes.hero.titulo`/`dados.nome`, que é conteúdo, não tema).
 - **`TemaPatch`** (`LeadDemo.tema`) — ajustes por cima do preset: `fonteDisplay`/`fonteCorpo` (ids da **lista curada** em `fontes.ts`, ~16 fontes via `next/font`, cada uma com os papéis onde funciona — só as fontes que são default de algum preset são carregadas sempre; as demais entram **sob demanda**, via `import()` dinâmico, só quando o editor escolhe uma delas — ver `src/app/demo/fonts/registry.ts`), `destaque` (cor primária hex; `destaqueInk` é **recalculado por contraste** em `tema.ts`), `raio` (um de `TEMA_RAIOS`), `densidade`, `animacao`, `intro`, `hover`, `clique`, `fundoEfeito` (id de um efeito do **registro de efeitos**, `src/lib/demos/efeitos/registry.ts`, ou `"nenhum"`), `fundoEfeitoIntensidade` (0-3; ausente = default do nicho recomendado do efeito, ver `intensidadePadrao`), `auraCores` (cores do efeito "aura" — ver "Cor da aura" logo abaixo de "Efeitos visuais"), `led` e `heroTitulo` (`{ fonte?, escala?, alinhamento? }`, todos opcionais). `aplicarTema(preset, patch, heroEscalaLimites?)` é puro e usado pela rota pública E pelo preview — o editor nunca mostra algo diferente do publicado; o 3º argumento (default de `tema.ts` se omitido) recorta `heroTitulo.escala` aos limites da skin. `aplicarTema` só resolve o **id** de `fundoEfeito` (contra o registro de efeitos); a intensidade efetiva é resolvida à parte por `resolverEfeitoFundo` (ver "Efeitos visuais" abaixo), que já recebe o patch bruto — não faz parte do `Theme` resolvido, já que depende do nicho da skin, não do preset.
 - **`SkinDefinition`** — entrada do registro: `{ id, nicho, nome, componente, themeDefault, themePresets, demoDataExemplo, secoes, heroEscalaLimites, thumbnail, videoSlots? }`. **`secoes`** é o contrato do editor: lista ordenada de `SkinSecaoDef` (`{ id, nome, fixa?, alignOptions?, entradaOptions? }`) — `fixa` não reordena nem oculta (ex.: hero); `alignOptions` diz onde a skin aceita alinhamento (validado no PUT; a primeira opção é o natural da skin); `entradaOptions` diz quais animações de entrada por seção a skin aceita ali (validado no PUT; ausente = sem seletor). `heroEscalaLimites` (`{ min, max }`) delimita o slider de tamanho do título hero no editor. `thumbnail` (caminho local em `/public`) alimenta o passo de escolha de skin. `videoSlots` (opcional, **opt-in por skin**) lista os slots de `dados.videos` que a skin suporta — ausente/vazio = a skin não oferece vídeo-no-título. Sem posicionamento livre por pixel: o template continua responsivo.
 
@@ -866,7 +882,13 @@ Opcionais, escolhidas na aba Tema, todas CSS puro (transform/opacity/box-shadow 
 - **`hover`** (`lift` default / `zoom` / `brilho`) — estilo do hover de cards/botões, aplicado por atributo `data-d-hover` no wrapper + seletores no `<style>` da skin; a intensidade escala com `--d-hover-*` do nível global (em `nenhuma`, zoom/lift neutralizam; o brilho vira mudança instantânea de sombra, coerente com "cor/borda continuam").
 - **`clique`** (`nenhum` default / `pressao` / `pulso`) — animação de clique em links/botões (`:active`), via `data-d-clique`; suprimida por completo em nível global `nenhuma` e em `prefers-reduced-motion`.
 - **`fundoEfeito`** (`"nenhum"` default, ou id de um efeito do **registro de efeitos** — ver "Efeitos visuais" abaixo) — camada decorativa opcional resolvida por `resolverEfeitoFundo` (intensidade persistida ou default do nicho) e renderizada na rota pública/preview por import dinâmico sem SSR, como sibling da skin (não é mais um componente por skin — ver histórico: até esta feature cada skin tinha seu próprio `BackgroundEffect.tsx` em CSS puro, fixo em "gradiente"/"partículas" sem intensidade).
-- **`led`** (`desligado` default / `sutil` / `marcante`) — bordas laterais (esquerda/direita) com luz na cor de destaque do tema. CSS puro (opacity/box-shadow, sem transform de layout): a posição do ponto mais brilhante ao longo da barra acompanha o progresso do scroll via uma custom property (`--d-led-scroll`, 0–1) escrita **direto no DOM por um ref** dentro de um listener de scroll passivo throttled por `requestAnimationFrame` — nenhum estado React por frame, custo baixo em mobile por design. Clique em qualquer lugar da página dispara um pulso (`.d-led-pulse`, `filter: brightness()` reiniciado por toggle de classe). `desligado` nem monta o componente; `prefers-reduced-motion` mantém as barras estáticas (sem listener de scroll/click). Componente: `interactive/LedEdges.tsx` (idêntico nas duas skins).
+- **`led`** (`desligado` default / `sutil` / `marcante`) — bordas com luz na cor de destaque do tema. CSS puro (opacity/box-shadow, sem transform de layout): a posição do ponto mais brilhante acompanha o progresso do scroll via uma custom property (`--d-led-scroll`, 0–1) escrita **direto no DOM por um ref** dentro de um listener de scroll passivo throttled por `requestAnimationFrame` — nenhum estado React por frame, custo baixo em mobile por design. Clique em qualquer lugar da página dispara um pulso (`.d-led-pulse`, `filter: brightness()` reiniciado por toggle de classe). `desligado` nem monta o componente; `prefers-reduced-motion` mantém tudo estático (sem listener de scroll/click).
+- **`ledEstilo`** (`barra` default / `dissipado` / `cantos` / `moldura` — registro em `src/lib/demos/led/registry.ts`, mesmo padrão do registro de efeitos: metadado `{ id, nome, nichosRecomendados }`) — a FORMA do LED, independente do nível acima (`led` continua controlando se aparece e o quanto). Componente ÚNICO (`src/lib/demos/led/LedEdges.tsx`, client) usado pelas 8 skins — cada `interactive/LedEdges.tsx` de skin só reexporta este componente (era um arquivo idêntico duplicado 8x antes desta migração; o CSS de cada estilo também estava duplicado inline no `<style>` de cada `Skin.tsx` e agora vive todo dentro do componente, como `efeitos/gradiente/Gradiente.tsx` já fazia). A lógica de scroll/clique (JS) é 100% compartilhada e não muda por estilo — só o `data-d-led-estilo` no elemento raiz troca qual bloco de CSS pinta:
+  - **`barra`** — o estilo original: barra fina (3–4px) nas laterais, ponta nítida com `box-shadow`.
+  - **`dissipado`** — halo largo (110–160px) e difuso: mesma técnica de gradiente ao longo da barra (mais stops, mais suaves), sem `box-shadow`, em vez de uma borda nítida.
+  - **`cantos`** — luz só nos 4 cantos (`radial-gradient` + `box-shadow`), sem barra contínua; o par de cima/baixo cruza a opacidade conforme `--d-led-scroll` (o par mais próximo da seção atual fica mais aceso).
+  - **`moldura`** — perímetro completo (4 lados fixos): `--d-led-scroll` (0–1) é dividido em 4 quartos, um por lado (topo → direita → baixo → esquerda, via `calc()`/`clamp()` na posição do gradiente de cada lado) — o ponto mais brilhante viaja ao redor do frame conforme a página inteira é rolada, sem `@keyframes`/JS extra nenhum.
+  - Todo estilo respeita os mesmos 3 níveis (`led`) e o mesmo vínculo de scroll/clique — só a pintura CSS muda. Cada estilo declara `nichosRecomendados` (ids de `SkinDefinition.nicho`), mesmo padrão do registro de efeitos.
 
 ### Vídeo-no-título (`DemoData.videos` + `SkinDefinition.videoSlots`)
 
@@ -908,7 +930,7 @@ A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta 
    - `exemplo.ts` — `DemoData` completo com copy do material bruto e marca genérica.
 3. Coloque os placeholders em `public/demos/<nicho>/` (locais, um por slot de `imagens`) e uma miniatura `thumb.svg` (usada no passo de escolha de skin).
 4. Se a skin usa fonte nova, carregue-a em `src/app/demo/fonts/core.ts` (fontes que são default de algum preset — sempre carregadas) com var `--font-demo-*`, com o peso/estilo exatos do original (ex.: uma fonte carregada só em itálico 900 não é a mesma coisa que a mesma família em peso 400 normal). Fontes só alcançáveis por escolha explícita do editor entram como módulo próprio em `src/app/demo/fonts/dynamic/` + entrada no loader de `registry.ts` (carregadas sob demanda — ver "Fontes" acima).
-5. Se o original usa uma lib de animação (ex.: `motion`), adicione a dependência e port fielmente o timing/easing em vez de recriar com CSS aproximado — o objetivo é a demo parecer idêntica ao original com os dados de exemplo, exceto o que é slot/tema por design. `interactive/LedEdges.tsx` pode ser copiado como está (nenhuma dependência do nicho); se o original tinha vídeo-no-texto/logo, considere declarar `videoSlots` (opt-in — ver "Vídeo-no-título" acima) e portar a técnica de `VideoNoTitulo.tsx`.
+5. Se o original usa uma lib de animação (ex.: `motion`), adicione a dependência e port fielmente o timing/easing em vez de recriar com CSS aproximado — o objetivo é a demo parecer idêntica ao original com os dados de exemplo, exceto o que é slot/tema por design. `interactive/LedEdges.tsx` é sempre o mesmo reexport de uma linha (`export { LedEdges } from "@/lib/demos/led/LedEdges"`, ver "Micro-interações do tema"); se o original tinha vídeo-no-texto/logo, considere declarar `videoSlots` (opt-in — ver "Vídeo-no-título" acima) e portar a técnica de `VideoNoTitulo.tsx`.
 6. Acrescente a entrada em `src/lib/demos/registry.ts` (incluindo `heroEscalaLimites` e `thumbnail`, obrigatórios) — rota pública, ficha e editor passam a conhecê-la sem mais mudanças.
 7. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo, existência física dos placeholders e da miniatura, `heroEscalaLimites` coerentes, `heroTitulo`/`led` resolvidos em todo preset, `videos` ausente no exemplo (vídeo nunca tem placeholder) e o contrato de seções (ids únicos, presentes no exemplo, `alignOptions` válidos, ao menos uma seção reordenável).
 
@@ -1117,6 +1139,10 @@ A skin de barbearia da Forja de Demos foi verificada **lado a lado com o materia
 **Token de envio por canal + classificação interna/externa, ponta a ponta com demo real** (fake Firestore via `RADAR_FAKE_DB=1`, backed por ARQUIVO em `/tmp` em vez de módulo em memória — o build de produção separa cada route handler em seu próprio bundle, então um singleton em memória não é compartilhado entre rotas; `next build && next start`, Playwright com DOIS contextos de browser, tudo revertido antes do commit): logado como admin num contexto (sessão + marcador de dispositivo estabelecidos), clique real em "Copiar link" na ficha do lead confirmou (via `navigator.clipboard.readText()`) que a URL copiada já vem com `?t=` — corrigindo o bug em que só o botão de WhatsApp emitia token. Essa URL foi aberta num SEGUNDO contexto de browser totalmente limpo (sem cookies, sem localStorage — sem sessão e sem marcador de dispositivo, simulando o navegador real de um lead). O documento gravado em `lead.demoVisitas` teve exatamente uma entrada: `{ interna: false, canal: "link", envioEm: <geradoEm do token copiado> }` — confirmando que uma visita sem sessão/marcador entra como NÃO-interna. Em `lead.demo.envios`, só o token do canal `"link"` foi consumido (rotacionado para um novo); o token do canal `"whatsapp"`, gerado no mesmo save, permaneceu intocado — confirmando que os dois canais consomem de forma independente.
 
 **Autor da busca + metas de prospecção** (fake Firestore via `RADAR_FAKE_DB=1`, seed de uma busca com `userId` e um doc `usage_users/membro-1/dias/{hoje}` com `buscas: 3` direto no patch do `admin.ts`, já que gerar isso de verdade exigiria a Google Places API; `next build && next start`, Playwright com dois contextos de browser, tudo revertido antes do commit): login como admin, "Redefinir senha" de `membro-1` pela própria UI; seção "Metas por integrante" em `/config` mostrando "3" de uso ao lado do campo vazio, digitar `5` (dia) e `20` (semana) e confirmar persistência após reload; `/buscas` mostrando "por membro-1" tanto pro admin quanto, depois, logado como o próprio `membro-1`; painel (`/`) do admin mostrando a seção "Metas do time" com a barra de `membro-1` em "3 / 5" e "3 / 20"; login como `membro-1` e `/hoje` mostrando "Sua meta de prospecção" com as mesmas barras; confirmado que `membro-1` NÃO vê "Metas do time" no painel (seção exclusiva do admin, 403 silencioso na UI).
+
+**5 novos efeitos de fundo (veios, filotaxia, geometrico-pulsante, faiscas, varredura-de-luz) + registro de estilos de LED (barra/dissipado/cantos/moldura)**: verificado sem Firestore (nenhum lead precisa existir) — uma rota temporária `/qa-efeitos-preview` (Server Component fino que resolve skin/tema/efeito só a partir de query string, usando `demoDataExemplo`; exceção EXATA em `src/proxy.ts`) renderizou a MESMA árvore da rota pública (`<Skin>` + `<EfeitoDinamico>`; o LED já vem embutido no próprio `Skin.tsx`) sem precisar de sessão/lead/demo salva — página e exceção **removidas antes do commit**, nenhuma sobra no resultado final. `next dev` + Playwright (`chromium` do `/opt/pw-browsers`, viewport 1280×800, skin `barbearia-editorial`, `intro=0` pra pular a splash):
+- **Cada efeito em intensidade 3 comparado com `fundoEfeito=nenhum`**: veios (traços com pulso claramente visível viajando pela curva), filotaxia (espiral de pontos do centro pra fora, opacidade crescente em direção à borda), geometrico-pulsante (hexágonos concêntricos com stroke metálico) e faíscas (pontos dispersos, mesma técnica de `particulas`) — diferença visível na captura em todos. Varredura-de-luz e faíscas são efeitos com janela de "aceso" bem menor que o resto do ciclo (a varredura ocupa só ~14% de um ciclo de 5,5s): a comparação por captura única em um instante aleatório não é confiável pra esses dois — confirmado fixando o `currentTime` da animação CSS via `document.getAnimations()` (WAAPI) num ponto dentro da janela de varredura, o que tornou o feixe diagonal claramente visível atravessando a viewport.
+- **LED**: `led=desligado` (baseline) vs `led=marcante` nos 4 estilos — barra (linha fina nítida) e dissipado (halo bem mais largo e difuso, sem a borda nítida) lado a lado confirmam a diferença de forma pedida; cantos mostrou luz só nos 4 cantos (sem barra nenhuma) com o par de cima mais aceso que o de baixo em `scroll=0` (`--d-led-scroll` funcionando); moldura mostrou o perímetro completo, com o ponto mais brilhante deslocado entre topo e base ao comparar `scrollTo(0)` vs `scrollTo(bottom)` (o mesmo `--d-led-scroll`, agora dividido em 4 quartos por lado) — e um clique real acendeu o frame inteiro de uma vez (`.d-led-pulse`), confirmando que o vínculo com scroll/clique (JS inalterado desde antes desta migração) funciona igual nos 4 estilos.
 
 ## Variáveis de ambiente
 

@@ -38,6 +38,7 @@ const INTERACOES_ORIGINAIS = {
   fundoEfeito: "nenhum",
   heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
   led: "desligado",
+  ledEstilo: "barra",
 } as const;
 
 /** Paleta original do material bruto: creme, laranja, roxo, amarelo e rosa. */
@@ -121,6 +122,7 @@ const MEIA_NOITE: Theme = {
   clique: "pulso",
   fundoEfeito: "particulas",
   led: "sutil",
+  ledEstilo: "barra",
   paleta: {
     fundo: "#120B24",
     fundoAlt: "#1D1338",

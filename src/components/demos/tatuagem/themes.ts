@@ -40,6 +40,7 @@ const INTERACOES_ORIGINAIS = {
   // fiel ao material bruto (wordmark gigante centralizada).
   heroTitulo: { fonte: "", escala: 1, alinhamento: "centro" },
   led: "desligado",
+  ledEstilo: "barra",
 } as const;
 
 /** Paleta original do material bruto: preto profundo + sangue. */

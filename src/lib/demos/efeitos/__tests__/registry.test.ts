@@ -5,11 +5,16 @@ import { describe, expect, it } from "vitest";
 import type { ThemePaleta } from "@/lib/demos/types";
 
 import { Aura } from "../aura/Aura";
+import { Faiscas } from "../faiscas/Faiscas";
+import { Filotaxia } from "../filotaxia/Filotaxia";
+import { GeometricoPulsante } from "../geometrico-pulsante/GeometricoPulsante";
 import { Gradiente } from "../gradiente/Gradiente";
 import { Grao } from "../grao/Grao";
 import { Particulas } from "../particulas/Particulas";
 import { EFEITOS, getEfeito, intensidadePadrao, resolverEfeitoFundo } from "../registry";
 import type { EfeitoComponente } from "../types";
+import { VarreduraDeLuz } from "../varredura-de-luz/VarreduraDeLuz";
+import { Veios } from "../veios/Veios";
 
 /**
  * Mapa id → componente RAW, só pra este teste renderizar direto (sem
@@ -22,6 +27,11 @@ const COMPONENTES_PARA_TESTE: Record<string, EfeitoComponente> = {
   grao: Grao,
   gradiente: Gradiente,
   particulas: Particulas,
+  veios: Veios,
+  filotaxia: Filotaxia,
+  "geometrico-pulsante": GeometricoPulsante,
+  faiscas: Faiscas,
+  "varredura-de-luz": VarreduraDeLuz,
 };
 
 const CORES_TESTE: ThemePaleta = {

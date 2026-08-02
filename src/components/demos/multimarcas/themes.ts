@@ -35,6 +35,7 @@ const INTERACOES_ORIGINAIS = {
   fundoEfeito: "nenhum",
   heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
   led: "desligado",
+  ledEstilo: "barra",
 } as const;
 
 /** Paleta original do material bruto: creme quente, vermelho de ação, tinta escura. */
@@ -67,6 +68,7 @@ const MEIA_NOITE: Theme = {
   ...INTERACOES_ORIGINAIS,
   fundoEfeito: "gradiente",
   led: "sutil",
+  ledEstilo: "barra",
   paleta: {
     fundo: "#15110D",
     fundoAlt: "#1E1712",
@@ -94,6 +96,7 @@ const GRAFITE: Theme = {
   clique: "pulso",
   fundoEfeito: "particulas",
   led: "marcante",
+  ledEstilo: "barra",
   heroTitulo: { fonte: "", escala: 1, alinhamento: "centro" },
   paleta: {
     fundo: "#131313",

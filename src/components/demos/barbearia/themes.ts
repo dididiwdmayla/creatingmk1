@@ -37,6 +37,7 @@ const INTERACOES_ORIGINAIS = {
   // fonte fixa aqui). Hero nasce à esquerda, fiel ao material bruto.
   heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
   led: "desligado",
+  ledEstilo: "barra",
 } as const;
 
 const NORTE: Theme = {

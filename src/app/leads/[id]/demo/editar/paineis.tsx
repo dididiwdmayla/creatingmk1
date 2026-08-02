@@ -9,6 +9,7 @@ import { EFEITOS, getEfeito, intensidadePadrao } from "@/lib/demos/efeitos/regis
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { ordemEfetiva } from "@/lib/demos/estrutura";
 import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
+import { LED_ESTILOS } from "@/lib/demos/led/registry";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import { SKINS } from "@/lib/demos/registry";
@@ -717,6 +718,16 @@ const LEDS: Array<{ id: LedPreset; rotulo: string }> = [
   { id: "marcante", rotulo: "Marcante" },
 ];
 
+/**
+ * Opções do seletor "Estilo do LED": montadas a partir do registro de
+ * estilos (`src/lib/demos/led/registry.ts`), mesmo padrão de FUNDOS —
+ * um estilo novo no registro aparece aqui sem tocar o editor.
+ */
+const LED_ESTILO_OPCOES: Array<{ id: string; rotulo: string }> = LED_ESTILOS.map((estilo) => ({
+  id: estilo.id,
+  rotulo: estilo.nome,
+}));
+
 const ALINHAMENTOS_HERO: Array<{ id: Alinhamento; rotulo: string }> = [
   { id: "esquerda", rotulo: "Esquerda" },
   { id: "centro", rotulo: "Centro" },
@@ -1227,12 +1238,24 @@ export function PainelTema({
       )}
 
       <Escolha
-        titulo="LED (bordas laterais, reage a scroll e clique)"
+        titulo="LED (bordas com luz, reage a scroll e clique)"
         padraoRotulo={LEDS.find((l) => l.id === preset.led)?.rotulo ?? preset.led}
         opcoes={LEDS}
         valor={tema.led}
         onChange={(led) => setTema({ ...tema, led })}
       />
+
+      {(tema.led ?? preset.led) !== "desligado" && (
+        <Escolha
+          titulo="Estilo do LED"
+          padraoRotulo={
+            LED_ESTILO_OPCOES.find((e) => e.id === preset.ledEstilo)?.rotulo ?? preset.ledEstilo
+          }
+          opcoes={LED_ESTILO_OPCOES}
+          valor={tema.ledEstilo}
+          onChange={(ledEstilo) => setTema({ ...tema, ledEstilo })}
+        />
+      )}
 
       <div className="flex flex-col gap-3 rounded border border-line p-3">
         <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">

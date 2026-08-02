@@ -1,5 +1,6 @@
 import { getEfeito } from "./efeitos/registry";
 import { getFonte } from "./fontes";
+import { getLedEstilo } from "./led/registry";
 import {
   ALINHAMENTOS,
   CLIQUE_ESTILOS,
@@ -118,5 +119,7 @@ export function aplicarTema(
           : preset.heroTitulo.alinhamento,
     },
     led: patch.led && LED_PRESETS.includes(patch.led) ? patch.led : preset.led,
+    ledEstilo:
+      patch.ledEstilo && getLedEstilo(patch.ledEstilo) ? patch.ledEstilo : preset.ledEstilo,
   };
 }

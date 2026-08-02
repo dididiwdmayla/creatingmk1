@@ -1007,26 +1007,9 @@ export function PetshopFocinhoFeliz({ data, theme, idioma, moeda }: SkinProps) {
           [data-d-hover] .d-cta-round:hover, [data-d-hover] .d-team-card:hover { transform: none; }
         }
 
-        /* Bordas laterais com luz LED — ver LedEdges.tsx. */
-        .d-led-edges { position: fixed; inset: 0; z-index: 45; pointer-events: none; --d-led-scroll: 0; }
-        .d-led-bar {
-          position: absolute; top: 0; bottom: 0; width: 3px;
-          background: linear-gradient(to bottom, transparent 0%,
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(var(--d-led-scroll) * 100% - 18%),
-            var(--d-accent) calc(var(--d-led-scroll) * 100%),
-            color-mix(in srgb, var(--d-accent) 65%, transparent) calc(var(--d-led-scroll) * 100% + 18%),
-            transparent 100%);
-          box-shadow: 0 0 10px 1px color-mix(in srgb, var(--d-accent) 55%, transparent);
-          opacity: 0.5; transition: opacity 200ms ease, box-shadow 200ms ease;
-        }
-        [data-d-led="marcante"] .d-led-bar { width: 4px; opacity: 0.85; box-shadow: 0 0 20px 3px color-mix(in srgb, var(--d-accent) 70%, transparent); }
-        .d-led-left { left: 0; } .d-led-right { right: 0; }
-        @keyframes d-led-pulso { 0% { filter: brightness(1); } 30% { filter: brightness(1.8); } 100% { filter: brightness(1); } }
-        .d-led-pulse .d-led-bar { animation: d-led-pulso 500ms ease-out; }
-        @media (prefers-reduced-motion: reduce) { .d-led-bar { transition: none; } .d-led-pulse .d-led-bar { animation: none; } }
       `}</style>
 
-      <LedEdges preset={theme.led} />
+      <LedEdges preset={theme.led} estilo={theme.ledEstilo} />
 
       <IntroExperience
         fundo={paleta.acentoSecundario}

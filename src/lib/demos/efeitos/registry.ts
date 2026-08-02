@@ -37,6 +37,41 @@ export const EFEITOS: EfeitoDefinition[] = [
     // os mesmos das skins "-editorial" (ver src/lib/demos/registry.ts).
     nichosRecomendados: ["barbearia", "lancheria", "multimarcas", "petshop", "tatuagem"],
   },
+  {
+    id: "veios",
+    nome: "Veios",
+    // Traços orgânicos com pulso viajando (ver veios/geometria.ts) — lê
+    // como linha de tatuagem/circuito; imobiliária pelo traço tipo mapa.
+    nichosRecomendados: ["tatuagem", "imobiliaria"],
+  },
+  {
+    id: "filotaxia",
+    nome: "Filotaxia",
+    // Padrão de crescimento orgânico (sementes de girassol) — combina com
+    // o lado "natureza" de petshop e o artesanal/orgânico da lancheria.
+    nichosRecomendados: ["petshop", "lancheria"],
+  },
+  {
+    id: "geometrico-pulsante",
+    nome: "Geométrico pulsante",
+    // Polígonos com stroke metálico — combina com o lado tech/premium de
+    // multimarcas (showroom) e imobiliária (empreendimentos modernos).
+    nichosRecomendados: ["multimarcas", "imobiliaria"],
+  },
+  {
+    id: "faiscas",
+    nome: "Faíscas",
+    // Faísca de lâmina/máquina (barbearia/tatuagem) e de oficina (multimarcas).
+    nichosRecomendados: ["barbearia", "tatuagem", "multimarcas"],
+  },
+  {
+    id: "varredura-de-luz",
+    nome: "Varredura de luz",
+    // Brilho dourado/cromado — nichos que já têm presets "dourado" (ver
+    // themes.ts de cada um: "Ouro da meia-noite", "Noturno Dourado",
+    // "Grafite (preto e dourado)").
+    nichosRecomendados: ["barbearia", "imobiliaria", "multimarcas"],
+  },
 ];
 
 export function getEfeito(id: string | undefined): EfeitoDefinition | undefined {
