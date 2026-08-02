@@ -866,7 +866,7 @@ export function ImobiliariaCurada({ data, theme, idioma, moeda }: SkinProps) {
         <Nav
           nome={data.nome}
           itens={navItens}
-          ctaLabel={visiveis.includes("contato") ? "Fale com a gente" : undefined}
+          ctaLabel={visiveis.includes("contato") ? m.faleComAGente : undefined}
         />
 
         {visiveis.map((id) => {

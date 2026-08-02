@@ -580,7 +580,7 @@ export function BarbeariaSul({ data, theme, idioma, moeda }: SkinProps) {
           )}
           <div>
             <a href={agendar} data-demo-slot="whatsapp" className="d-cta inline-block">
-              Agendar horário
+              {m.agendarHorario}
             </a>
           </div>
         </div>
