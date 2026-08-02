@@ -26,7 +26,7 @@ src/
         registry.ts                  #    resolveExtraFontClassNames: import() dinâmico só da fonte curada escolhida
         dynamic/*.ts                 #    um módulo por fonte curada "sob demanda" (não é default de nenhum preset)
         index.ts                     #    reexporta demoCoreFontsClassName + resolveExtraFontClassNames
-      [leadId]/page.tsx             # ✅ demo PÚBLICA do lead (única rota sem senha; só Firestore; 404 sem demo salva)
+      [leadId]/page.tsx             # ✅ demo PÚBLICA do lead (única rota sem senha; só Firestore; 404 sem demo salva); generateViewport → theme-color = theme.paleta.fundo
       VisitaTracker.tsx              # ✅ beacon de duração/scroll + marcador de dispositivo (ver "Visitas à demo")
       SeloVisitaInterna.tsx          # ✅ selo fixo "Vendo como membro" quando a visita é interna (decisão sempre no servidor)
     demo-preview/page.tsx           # ✅ preview do editor (iframe; estado via postMessage; protegida por senha)

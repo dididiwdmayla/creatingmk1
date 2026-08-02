@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 
@@ -88,6 +88,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // Prévia de prospecção: nunca indexar.
     robots: { index: false, follow: false },
   };
+}
+
+// theme-color da aba do navegador = fundo do tema da skin escolhida — cada
+// demo pública tem sua própria cor de marca, não a do app (dark fixo).
+export async function generateViewport({ params }: Props): Promise<Viewport> {
+  const { leadId } = await params;
+  const demo = await loadDemo(leadId).catch(() => undefined);
+  if (!demo) return {};
+  return { themeColor: demo.theme.paleta.fundo };
 }
 
 interface VisitanteInterno {
