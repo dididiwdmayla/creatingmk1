@@ -211,15 +211,15 @@ export default function BuscasPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 flex items-baseline justify-between gap-2">
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
                     {busca.mensagemPadrao ? (
-                      <p className="min-w-0 truncate text-xs italic text-ink-secondary">
+                      <p className="min-w-0 flex-1 truncate text-xs italic text-ink-secondary">
                         ✉ {busca.mensagemPadrao}
                       </p>
                     ) : (
                       <span className="text-xs text-ink-muted">mensagem: global</span>
                     )}
-                    <span className="flex shrink-0 items-center gap-3">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <button
                         type="button"
                         onClick={() => toggleRecorrente(busca)}
