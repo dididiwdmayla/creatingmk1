@@ -9,8 +9,8 @@ describe("pontosFilotaxia", () => {
     expect(pontosFilotaxia(2)).toEqual(pontosFilotaxia(2));
   });
 
-  it("o ponto central (i=0) nasce em 50%/50%", () => {
-    expect(pontosFilotaxia(2)[0]).toMatchObject({ xPercent: 50, yPercent: 50 });
+  it("o ponto central (i=0) nasce no centro (deslocamento zero)", () => {
+    expect(pontosFilotaxia(2)[0]).toMatchObject({ xVmin: 0, yVmin: 0 });
   });
 
   it("decaimento por idade: o ponto central (mais velho) é mais desbotado que o da borda (mais novo)", () => {
@@ -20,12 +20,21 @@ describe("pontosFilotaxia", () => {
     expect(central.opacidade).toBeLessThan(daBorda.opacidade);
   });
 
-  it("nenhum ponto passa muito da borda da viewport (raio máximo contido)", () => {
-    for (const p of pontosFilotaxia(3)) {
-      expect(p.xPercent).toBeGreaterThan(0);
-      expect(p.xPercent).toBeLessThan(100);
-      expect(p.yPercent).toBeGreaterThan(0);
-      expect(p.yPercent).toBeLessThan(100);
+  it("respeita o teto de 6% de opacidade para forma geométrica", () => {
+    for (const i of [1, 2, 3] as const) {
+      for (const p of pontosFilotaxia(i)) expect(p.opacidade).toBeLessThanOrEqual(0.06);
     }
+  });
+
+  it("o raio máximo cabe em meia viewport (deslocamento medido em vmin)", () => {
+    for (const p of pontosFilotaxia(3)) {
+      expect(Math.hypot(p.xVmin, p.yVmin)).toBeLessThanOrEqual(45);
+    }
+  });
+
+  it("tamanho e suavidade variam continuamente — nada de dois carimbos repetidos", () => {
+    const pontos = pontosFilotaxia(3);
+    expect(new Set(pontos.map((p) => p.raioPx)).size).toBeGreaterThan(10);
+    expect(new Set(pontos.map((p) => p.nucleoPercent)).size).toBeGreaterThan(3);
   });
 });

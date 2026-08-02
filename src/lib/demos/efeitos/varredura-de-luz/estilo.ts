@@ -1,8 +1,14 @@
 import type { EfeitoIntensidade } from "../types";
 
 const DURACAO_CICLO_POR_INTENSIDADE: Record<1 | 2 | 3, number> = { 1: 9, 2: 7, 3: 5.5 };
-const LARGURA_PERCENT_POR_INTENSIDADE: Record<1 | 2 | 3, number> = { 1: 14, 2: 20, 3: 28 };
-const OPACIDADE_POR_INTENSIDADE: Record<1 | 2 | 3, number> = { 1: 0.35, 2: 0.55, 3: 0.8 };
+const LARGURA_PERCENT_POR_INTENSIDADE: Record<1 | 2 | 3, number> = { 1: 16, 2: 24, 3: 34 };
+/**
+ * Teto de 6% (era 0.35/0.55/0.80). Com `mix-blend-mode: screen` o feixe só
+ * SOMA luz, então mesmo nesse patamar ele lê como passada de brilho — o
+ * que ele nunca podia ser era uma laje branca por cima do título, que é o
+ * que a captura mostrava.
+ */
+const OPACIDADE_POR_INTENSIDADE: Record<1 | 2 | 3, number> = { 1: 0.03, 2: 0.045, 3: 0.06 };
 
 export interface EstiloVarredura {
   larguraPercent: number;

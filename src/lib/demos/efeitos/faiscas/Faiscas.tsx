@@ -43,9 +43,13 @@ export function Faiscas({ intensidade, cores, pausado }: EfeitoProps) {
           style={{
             left: `${p.left}%`,
             top: `${p.top}%`,
-            width: p.grande ? 3 : 2,
-            height: p.grande ? 3 : 2,
-            background: cores.destaque,
+            width: p.tamanhoPx,
+            height: p.tamanhoPx,
+            // Brasa, não disquinho: núcleo claro, queda radial até
+            // transparente. Uma cor chapada num `rounded-full` termina em
+            // borda — foi o que a captura mostrou, um campo de pontinhos
+            // recortados em vez de faíscas.
+            background: `radial-gradient(circle, color-mix(in srgb, ${cores.destaque} 60%, white) 0%, ${cores.destaque} ${p.nucleoPercent}%, transparent 70%)`,
             // reduced motion: sem @keyframes rodando, mantém uma brasa parada e discreta em vez de sumir.
             opacity: reducedMotion ? 0.35 : 0,
             "--d-faisca-dx": `${p.derivaXPx}px`,

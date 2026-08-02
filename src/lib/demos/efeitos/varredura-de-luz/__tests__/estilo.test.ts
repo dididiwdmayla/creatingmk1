@@ -25,4 +25,10 @@ describe("estiloVarredura", () => {
       estiloVarredura(1, false, true).duracaoSegundos,
     );
   });
+
+  it("respeita o teto de 6% — o feixe passa POR CIMA do título hero", () => {
+    for (const i of [1, 2, 3] as const) {
+      expect(estiloVarredura(i, false, true).opacidade).toBeLessThanOrEqual(0.06);
+    }
+  });
 });

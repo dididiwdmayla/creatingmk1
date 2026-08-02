@@ -42,7 +42,19 @@ export function VarreduraDeLuz({ intensidade, cores, pausado }: EfeitoProps) {
         className="absolute -left-[60%] -top-[30%] h-[160%] will-change-transform"
         style={{
           width: `${estilo.larguraPercent}%`,
-          background: `linear-gradient(90deg, transparent 0%, ${brilho} 50%, transparent 100%)`,
+          // Perfil ASSIMÉTRICO na largura: núcleo estreito fora do centro,
+          // com uma cauda longa atrás. Uma rampa simétrica de três stops
+          // (transparent → brilho → transparent) lê como uma barra de luz
+          // com meio marcado; um feixe de verdade tem frente mais dura que
+          // rastro.
+          background: `linear-gradient(90deg, transparent 0%, color-mix(in srgb, ${brilho} 22%, transparent) 24%, color-mix(in srgb, ${brilho} 70%, transparent) 52%, ${brilho} 62%, color-mix(in srgb, ${brilho} 40%, transparent) 74%, transparent 100%)`,
+          // Máscara no COMPRIMENTO: sem ela, o feixe (160% de altura,
+          // inclinado 18°) entra e sai da viewport com as duas pontas
+          // retas cruzando a tela.
+          maskImage:
+            "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.85) 26%, rgba(0,0,0,1) 46%, rgba(0,0,0,0.6) 72%, transparent 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.85) 26%, rgba(0,0,0,1) 46%, rgba(0,0,0,0.6) 72%, transparent 100%)",
           opacity: reducedMotion ? estilo.opacidade * 0.5 : estilo.opacidade,
           mixBlendMode: "screen",
           // reduced motion: sem @keyframes, congela a meio caminho da passada — ainda visível, não só fora da tela.

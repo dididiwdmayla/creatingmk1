@@ -26,6 +26,12 @@ describe("estiloGradiente", () => {
     expect(o2).toBeLessThan(o3);
   });
 
+  it("respeita o teto de 6% — o efeito pinta POR CIMA do conteúdo", () => {
+    for (const i of [1, 2, 3] as const) {
+      expect(estiloGradiente(i, false, true).opacity).toBeLessThanOrEqual(0.06);
+    }
+  });
+
   it("filter (blur) nunca muda com intensidade/estado — nunca é a propriedade animada", () => {
     expect(estiloGradiente(1, false, true).filter).toBe(estiloGradiente(3, true, false).filter);
   });
