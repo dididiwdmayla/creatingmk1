@@ -33,6 +33,7 @@ export function BurgerCard({
   platoVazioSrc,
   animacao,
   whatsapp,
+  idioma,
 }: {
   servico: DemoServico;
   index: number;
@@ -40,6 +41,7 @@ export function BurgerCard({
   platoVazioSrc: string;
   animacao: Animacao;
   whatsapp: string | undefined;
+  idioma?: string;
 }) {
   const shouldReduceMotion = useReducedMotion();
   const mouseX = useMotionValue(0);
@@ -185,6 +187,7 @@ export function BurgerCard({
           <OrderCta
             whatsapp={whatsapp}
             mensagem={`Olá! Quero pedir: ${servico.nome}.`}
+            idioma={idioma}
             aria-label={`Escolher ${servico.nome}`}
             className="d-cta-pill"
           >

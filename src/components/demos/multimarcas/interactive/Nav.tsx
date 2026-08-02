@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { waHref } from "./logic";
 
 export interface NavLink {
@@ -18,7 +19,18 @@ export interface NavLink {
  * O breakpoint desktop/mobile vira responsivo via Tailwind (`md:`) em vez
  * do `matchMedia` imperativo do original — mesmo resultado visual.
  */
-export function Nav({ nome, links, whatsapp }: { nome: string; links: NavLink[]; whatsapp?: string }) {
+export function Nav({
+  nome,
+  links,
+  whatsapp,
+  idioma,
+}: {
+  nome: string;
+  links: NavLink[];
+  whatsapp?: string;
+  idioma?: string;
+}) {
+  const m = microcopiaDemo(idioma);
   const [scrolled, setScrolled] = useState(false);
   const [aberto, setAberto] = useState(false);
 
@@ -78,7 +90,7 @@ export function Nav({ nome, links, whatsapp }: { nome: string; links: NavLink[];
 
         <button
           type="button"
-          aria-label={aberto ? "Fechar menu" : "Menu"}
+          aria-label={aberto ? m.fecharMenu : m.menu}
           onClick={() => setAberto((v) => !v)}
           className="relative z-[960] block h-11 w-11 p-2.5 md:hidden"
         >

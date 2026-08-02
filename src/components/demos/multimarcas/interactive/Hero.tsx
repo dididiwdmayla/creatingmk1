@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { Alinhamento, DemoSecao } from "@/lib/demos/types";
 import { useIntroDone } from "./introContext";
 
@@ -22,12 +23,15 @@ export function Hero({
   hero,
   alinhamento,
   waHref,
+  idioma,
 }: {
   nome: string;
   hero: DemoSecao | undefined;
   alinhamento: Alinhamento;
   waHref: string;
+  idioma?: string;
 }) {
+  const m = microcopiaDemo(idioma);
   const revelado = useIntroDone();
   const needleRef = useRef<SVGGElement>(null);
   const linhaRef = useRef<HTMLDivElement>(null);
@@ -90,7 +94,7 @@ export function Hero({
           className="font-[family-name:var(--d-mono)] text-[10px] tracking-[2px] text-[var(--d-muted)]"
           style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
         >
-          SCROLL
+          {m.scrollEstilizado}
         </span>
       </div>
 

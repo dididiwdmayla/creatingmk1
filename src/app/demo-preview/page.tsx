@@ -26,6 +26,7 @@ interface PreviewState {
   data: DemoData;
   theme: Theme;
   tema?: TemaPatch;
+  idioma?: string;
 }
 
 const MSG_PREVIEW = "radar-demo-preview";
@@ -41,7 +42,13 @@ export default function DemoPreviewPage() {
       if (event.origin !== window.location.origin) return;
       const msg = event.data as { tipo?: string } & Partial<PreviewState>;
       if (msg?.tipo === MSG_PREVIEW && msg.skinId && msg.data && msg.theme) {
-        setEstado({ skinId: msg.skinId, data: msg.data, theme: msg.theme, tema: msg.tema });
+        setEstado({
+          skinId: msg.skinId,
+          data: msg.data,
+          theme: msg.theme,
+          tema: msg.tema,
+          idioma: msg.idioma,
+        });
       }
     }
     window.addEventListener("message", onMessage);
@@ -114,7 +121,7 @@ export default function DemoPreviewPage() {
           outline-offset: 4px;
         }
       `}</style>
-      <Skin data={estado.data} theme={estado.theme} />
+      <Skin data={estado.data} theme={estado.theme} idioma={estado.idioma} />
       {EfeitoFundo && efeitoFundo && (
         // EfeitoFundo vem de um lookup em mapa de componentes já criados
         // (dynamicComponents.ts, module scope) — não é criado a cada render.

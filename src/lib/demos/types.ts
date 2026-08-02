@@ -282,6 +282,16 @@ export interface Theme {
 export interface SkinProps {
   data: DemoData;
   theme: Theme;
+  /**
+   * Idioma-alvo (BCP-47) da demo — ver `idiomaEfetivoDemo` em
+   * `lib/demos/idioma.ts`. Usado só pela microcópia de CHROME do
+   * componente (`lib/demos/microcopy.ts` — indicadores de scroll, rodapé,
+   * "X de 5 estrelas"…); o CONTEÚDO em si (`data`) já chega no idioma
+   * certo, seja pela IA ou pelo texto que o operador digitou. Ausente =
+   * `microcopiaDemo` cai no default `pt` (mesmo comportamento de antes
+   * desta prop existir — cobre testes/preview que ainda não a mandam).
+   */
+  idioma?: string;
 }
 
 /**

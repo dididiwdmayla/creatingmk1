@@ -89,7 +89,7 @@ function Rotulo({ texto, slot }: { texto?: string; slot?: string }) {
   );
 }
 
-export function MultimarcasVortice({ data, theme }: SkinProps) {
+export function MultimarcasVortice({ data, theme, idioma }: SkinProps) {
   const { paleta, fontes } = theme;
   const vars = {
     "--d-bg": paleta.fundo,
@@ -159,6 +159,7 @@ export function MultimarcasVortice({ data, theme }: SkinProps) {
             ctaInteresse={s.estoque?.cta}
             textoGarantia={s.estoque?.texto}
             whatsapp={data.whatsapp}
+            idioma={idioma}
           />
         </section>
       ),
@@ -538,10 +539,16 @@ export function MultimarcasVortice({ data, theme }: SkinProps) {
       <ThemeColorSync corInicial={paleta.fundo} />
 
       <IntroExperience nome={data.nome} accent={paleta.destaque} ativa={theme.intro === true}>
-        <Nav nome={data.nome} links={navLinks} whatsapp={data.whatsapp} />
+        <Nav nome={data.nome} links={navLinks} whatsapp={data.whatsapp} idioma={idioma} />
 
         <div data-themec={paleta.fundo}>
-          <Hero nome={data.nome} hero={s.hero} alinhamento={theme.heroTitulo.alinhamento} waHref={linkWaMain} />
+          <Hero
+            nome={data.nome}
+            hero={s.hero}
+            alinhamento={theme.heroTitulo.alinhamento}
+            waHref={linkWaMain}
+            idioma={idioma}
+          />
         </div>
 
         <div

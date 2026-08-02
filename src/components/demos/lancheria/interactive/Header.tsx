@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { OrderCta } from "./OrderCta";
 
 /**
@@ -13,11 +14,14 @@ import { OrderCta } from "./OrderCta";
 export function Header({
   nome,
   whatsapp,
+  idioma,
 }: {
   nome: string;
   whatsapp: string | undefined;
+  idioma?: string;
 }) {
   const [scrolled, setScrolled] = useState(false);
+  const m = microcopiaDemo(idioma);
 
   useEffect(() => {
     // Throttled por rAF: sem isso, o listener roda a cada evento nativo de
@@ -63,7 +67,8 @@ export function Header({
         <OrderCta
           whatsapp={whatsapp}
           mensagem="Olá! Gostaria de fazer um pedido."
-          aria-label="Fazer pedido"
+          idioma={idioma}
+          aria-label={m.fazerPedido}
           className="d-cta-round d-cta-round-alt"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { DragGallery } from "./interactive/DragGallery";
 import { FadeUp } from "./interactive/FadeUp";
@@ -110,8 +111,9 @@ function Etiqueta({ texto, slot }: { texto?: string; slot?: string }) {
   );
 }
 
-export function BarbeariaSul({ data, theme }: SkinProps) {
+export function BarbeariaSul({ data, theme, idioma }: SkinProps) {
   const { paleta, fontes } = theme;
+  const m = microcopiaDemo(idioma);
   const vars = {
     "--d-bg": paleta.fundo,
     "--d-bg-alt": paleta.fundoAlt,
@@ -244,7 +246,7 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
               href="#manifesto"
               className="transition-colors hover:text-[var(--d-accent)]"
             >
-              ↓ Desça
+              ↓ {m.desca}
             </a>
           </div>
         </FadeUp>
@@ -385,7 +387,7 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
     /* ── Galeria ────────────────────────────────────────────── */
     galeria: () =>
       galeriaItens.length > 0 && (
-        <section aria-label="Galeria" className="py-[var(--d-sec-y)]">
+        <section aria-label={m.galeria} className="py-[var(--d-sec-y)]">
           <div className="mx-auto max-w-6xl px-6 md:px-12">
             <RevealLine animacao={theme.animacao} className="mb-2 h-px bg-[var(--d-accent)] opacity-50" />
             <Etiqueta texto={s.galeria?.rotulo} slot="secoes.galeria.rotulo" />
@@ -536,7 +538,7 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-10 px-6 py-16 sm:grid-cols-2 md:grid-cols-4 md:px-12">
           {data.endereco && (
             <div>
-              <Etiqueta texto="Endereço" />
+              <Etiqueta texto={m.endereco} />
               <p data-demo-slot="endereco" className="mt-1 leading-relaxed text-[var(--d-text)]">
                 {data.endereco}
               </p>
@@ -544,7 +546,7 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
           )}
           {data.horarios && (
             <div>
-              <Etiqueta texto="Horários" />
+              <Etiqueta texto={m.horario} />
               <p
                 data-demo-slot="horarios"
                 className="mt-1 font-[family-name:var(--d-mono)] text-sm leading-loose text-[var(--d-text)]"
@@ -555,7 +557,7 @@ export function BarbeariaSul({ data, theme }: SkinProps) {
           )}
           {data.telefone && data.telefone !== data.whatsapp && (
             <div>
-              <Etiqueta texto="Telefone" />
+              <Etiqueta texto={m.telefone} />
               <p data-demo-slot="telefone" className="mt-1 leading-relaxed text-[var(--d-text)]">
                 {data.telefone}
               </p>

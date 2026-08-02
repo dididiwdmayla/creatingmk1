@@ -4,6 +4,7 @@ import {
   categoriasDoEstoque,
   formatarNumeroBR,
   parseNumeroFormatado,
+  TODAS_CATEGORIAS,
   waHref,
 } from "../logic";
 
@@ -60,19 +61,24 @@ describe("formatarNumeroBR", () => {
 });
 
 describe("categoriasDoEstoque", () => {
-  it("lista categorias únicas na ordem de aparição, com Todos à frente", () => {
+  it("lista categorias únicas na ordem de aparição, com a sentinela 'todas' à frente", () => {
     const servicos = [
       { categoria: "Hatch" },
       { categoria: "Sedan" },
       { categoria: "Hatch" },
       { categoria: "SUV" },
     ];
-    expect(categoriasDoEstoque(servicos)).toEqual(["Todos", "Hatch", "Sedan", "SUV"]);
+    expect(categoriasDoEstoque(servicos)).toEqual([
+      TODAS_CATEGORIAS,
+      "Hatch",
+      "Sedan",
+      "SUV",
+    ]);
   });
 
   it("ignora itens sem categoria sem quebrar", () => {
     expect(categoriasDoEstoque([{ categoria: undefined }, { categoria: "SUV" }])).toEqual([
-      "Todos",
+      TODAS_CATEGORIAS,
       "SUV",
     ]);
   });

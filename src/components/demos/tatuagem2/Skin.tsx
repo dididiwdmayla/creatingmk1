@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { Alinhamento, Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { FadeUp } from "./interactive/FadeUp";
 import { FaqAccordion } from "./interactive/FaqAccordion";
@@ -117,8 +118,9 @@ const RABISCOS_ARTISTA = [
   "M40 140 C 60 100, 55 70, 85 55 C 115 40, 140 55, 138 80 C 136 102, 110 108, 100 92 C 92 78, 105 64, 122 68 M 85 55 C 95 40, 115 30, 135 32",
 ];
 
-export function TatuagemPigmentoVivo({ data, theme }: SkinProps) {
+export function TatuagemPigmentoVivo({ data, theme, idioma }: SkinProps) {
   const { paleta, fontes } = theme;
+  const m = microcopiaDemo(idioma);
   const pigmentos = [paleta.destaque, paleta.acentoSecundario, paleta.acentoTerciario];
 
   const vars = {
@@ -509,7 +511,7 @@ export function TatuagemPigmentoVivo({ data, theme }: SkinProps) {
                 >
                   <div>
                     {dep.nota !== undefined && (
-                      <div className="mb-3" style={{ color: pigmentos[i % pigmentos.length] }} aria-label={`${dep.nota} de 5 estrelas`}>
+                      <div className="mb-3" style={{ color: pigmentos[i % pigmentos.length] }} aria-label={m.avaliacaoEstrelas(dep.nota)}>
                         {"★".repeat(Math.max(0, Math.min(5, Math.round(dep.nota))))}
                       </div>
                     )}

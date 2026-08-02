@@ -190,7 +190,7 @@ export default async function DemoPage({ params, searchParams }: Props) {
           __html: `document.documentElement.lang=${JSON.stringify(demo.idioma)}`,
         }}
       />
-      <Skin data={demo.data} theme={demo.theme} />
+      <Skin data={demo.data} theme={demo.theme} idioma={demo.idioma} />
       {demo.efeitoFundo && (
         // EfeitoDinamico (client component) resolve E renderiza o efeito —
         // nunca chamar getEfeitoComponenteDinamico direto aqui: é uma
