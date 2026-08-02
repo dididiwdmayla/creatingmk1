@@ -113,22 +113,22 @@ const CRIPTA: Theme = {
   animacao: "sutil",
 };
 
-/** Variante clara — "lookbook" em marfim, mesmo peso editorial. */
+/** Variante clara — "lookbook" em marfim, agora com tinta verde-botânica no lugar do sangue. */
 const MARFIM: Theme = {
   id: "marfim",
-  nome: "Marfim (claro editorial)",
+  nome: "Marfim (creme e verde-tinta)",
   ...INTERACOES_ORIGINAIS,
   hover: "lift",
   paleta: {
     fundo: "#F3EFE7",
     fundoAlt: "#E9E2D3",
     fundoElevado: "#DED3BC",
-    destaque: "#7A0C0C",
+    destaque: "#2F6B4A",
     destaqueInk: "#F5F1E8",
     texto: "#161311",
     textoSuave: "#5B554C",
     borda: "rgba(22, 19, 17, 0.12)",
-    acentoSecundario: "#3D0066",
+    acentoSecundario: "#7A0C0C",
     acentoTerciario: "#0A1A3D",
   },
   fontes: FONTES_GOTICAS,

@@ -60,10 +60,10 @@ const VORTICE: Theme = {
   animacao: "marcante",
 };
 
-/** Variante "meia-noite": showroom fechado à noite, mesmo vermelho de ação sobre fundo escuro. */
+/** Variante "meia-noite": showroom fechado à noite, verde-esmeralda no lugar do vermelho de ação. */
 const MEIA_NOITE: Theme = {
   id: "meia-noite",
-  nome: "Meia-noite (escuro e vermelho)",
+  nome: "Meia-noite (escuro e esmeralda)",
   ...INTERACOES_ORIGINAIS,
   fundoEfeito: "gradiente",
   led: "sutil",
@@ -71,12 +71,12 @@ const MEIA_NOITE: Theme = {
     fundo: "#15110D",
     fundoAlt: "#1E1712",
     fundoElevado: "#241C15",
-    destaque: "#D40000",
+    destaque: "#0C6B44",
     destaqueInk: "#FBF6EA",
     texto: "#F5F0E6",
     textoSuave: "rgba(245, 240, 230, 0.62)",
     borda: "rgba(245, 240, 230, 0.12)",
-    acentoSecundario: "#2E8B57",
+    acentoSecundario: "#D40000",
     acentoTerciario: "#C9A227",
   },
   fontes: FONTES_MULTIMARCAS,

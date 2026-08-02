@@ -77,20 +77,20 @@ const BOREAL: Theme = {
   led: "desligado",
 };
 
-/** Variante noturna — mesmo pigmento vivo, agora sobre fundo quase preto. */
+/** Variante noturna — pigmento vivo em ciano elétrico sobre fundo quase preto. */
 const MEIA_NOITE: Theme = {
   id: "meia-noite",
-  nome: "Meia-noite (preto, rosa e azul)",
+  nome: "Meia-noite (preto, ciano e magenta)",
   paleta: {
     fundo: "#0E0B10",
     fundoAlt: "#17121C",
     fundoElevado: "#221B29",
-    destaque: "#FF4F8B",
-    destaqueInk: "#14060D",
+    destaque: "#22B8D9",
+    destaqueInk: "#0B2A30",
     texto: "#F5F1EC",
     textoSuave: "rgba(245, 241, 236, 0.62)",
     borda: "rgba(245, 241, 236, 0.10)",
-    acentoSecundario: "#5B7CFF",
+    acentoSecundario: "#E23FA0",
     acentoTerciario: "#FF9152",
   },
   fontes: FONTES_PIGMENTO,
