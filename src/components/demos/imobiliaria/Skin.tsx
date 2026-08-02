@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { Carousel } from "./interactive/Carousel";
 import { ContatoFormClient } from "./interactive/ContatoForm";
@@ -141,8 +142,9 @@ function TituloDestaque({ texto, as: As = "h2", className, style, slot }: {
   );
 }
 
-export function ImobiliariaCurada({ data, theme }: SkinProps) {
+export function ImobiliariaCurada({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
+  const m = microcopiaDemo(idioma);
   const vars = {
     "--d-bg": paleta.fundo,
     "--d-bg-alt": paleta.fundoAlt,
@@ -421,7 +423,7 @@ export function ImobiliariaCurada({ data, theme }: SkinProps) {
                               data-demo-slot={`servicos.${i}.preco`}
                               className="font-[family-name:var(--d-display)] text-[30px] font-light"
                             >
-                              {formatarPreco(servico.preco)}
+                              {formatarPreco(servico, idioma, moeda, m.semPreco)}
                             </span>
                             <a
                               href="#contato"
@@ -690,7 +692,7 @@ export function ImobiliariaCurada({ data, theme }: SkinProps) {
               </div>
               <div className="flex flex-col gap-[14px] text-left">
                 <p className="mb-1 text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--d-accent-2)" }}>
-                  Navegue
+                  {m.navegue}
                 </p>
                 {navItens.map((item) => (
                   <a key={item.href} href={item.href} className="text-[15px] opacity-85 transition-opacity hover:opacity-100">
@@ -700,7 +702,7 @@ export function ImobiliariaCurada({ data, theme }: SkinProps) {
               </div>
               <div className="flex flex-col gap-[14px] text-left">
                 <p className="mb-1 text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--d-accent-2)" }}>
-                  Fale conosco
+                  {m.faleComAGente}
                 </p>
                 {data.telefone && (
                   <a data-demo-slot="telefone" href={`tel:${data.telefone.replace(/\D/g, "")}`} className="text-[15px] opacity-85 transition-opacity hover:opacity-100">
@@ -715,7 +717,7 @@ export function ImobiliariaCurada({ data, theme }: SkinProps) {
               </div>
               <div className="flex flex-col gap-[14px] text-left">
                 <p className="mb-1 text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--d-accent-2)" }}>
-                  Redes
+                  {m.redes}
                 </p>
                 {data.instagram && (
                   <a
@@ -742,7 +744,7 @@ export function ImobiliariaCurada({ data, theme }: SkinProps) {
               </div>
             </div>
             <div className="flex flex-wrap justify-between gap-5 pt-7 text-[13px] opacity-50">
-              <p>© {new Date().getFullYear()} {data.nome}. Todos os direitos reservados.</p>
+              <p>© {new Date().getFullYear()} {data.nome}. {m.direitosReservados}</p>
               <p data-demo-slot="secoes.contato.ctaSecundaria">
                 {s.contato?.ctaSecundaria ?? "Feito com calma."}
               </p>
@@ -864,7 +866,7 @@ export function ImobiliariaCurada({ data, theme }: SkinProps) {
         <Nav
           nome={data.nome}
           itens={navItens}
-          ctaLabel={visiveis.includes("contato") ? "Fale com a gente" : undefined}
+          ctaLabel={visiveis.includes("contato") ? m.faleComAGente : undefined}
         />
 
         {visiveis.map((id) => {

@@ -38,7 +38,13 @@ describe("registro de skins", () => {
       expect(exemplo.servicos.length).toBeGreaterThan(0);
       for (const servico of exemplo.servicos) {
         expect(servico.nome).toBeTruthy();
-        expect(servico.preco).toBeTruthy();
+        // Preço: preco livre (legado) OU precoPrefixo/precoValor (ver
+        // lib/demos/precos.ts) — todo serviço tem que mostrar ALGUM preço,
+        // mas não necessariamente pelo campo `preco` mais.
+        expect(
+          servico.preco || servico.precoPrefixo || servico.precoValor !== undefined,
+          `servico "${servico.nome}" sem preco/precoPrefixo/precoValor`,
+        ).toBeTruthy();
       }
 
       // Placeholders locais por slot: caminho em /public que existe de fato.

@@ -14,22 +14,26 @@ export const BARBEARIA2_EXEMPLO: DemoData = {
   servicos: [
     {
       nome: "Corte clássico",
-      preco: "R$ 70",
+      preco: "",
+      precoValor: 79,
       descricao: "Tesoura e máquina, acabamento na navalha.",
     },
     {
       nome: "Barba completa",
-      preco: "R$ 55",
+      preco: "",
+      precoValor: 49,
       descricao: "Toalha quente, óleo, navalha livre.",
     },
     {
       nome: "Corte + barba",
-      preco: "R$ 110",
+      preco: "",
+      precoValor: 139,
       descricao: "O ritual completo, sem pressa.",
     },
     {
       nome: "Estilo do mês",
-      preco: "R$ 85",
+      preco: "",
+      precoValor: 109,
       descricao: "Um corte novo por mês, escolhido pela casa.",
     },
   ],

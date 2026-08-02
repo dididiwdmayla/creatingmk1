@@ -3,9 +3,10 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { DemoServico } from "@/lib/demos/types";
 import { CarCard } from "./CarCard";
-import { categoriasDoEstoque } from "./logic";
+import { categoriasDoEstoque, TODAS_CATEGORIAS } from "./logic";
 
 /**
  * Pills de filtro (com pílula ativa que desliza via `layoutId`, shared
@@ -20,6 +21,8 @@ export function CarFilterGrid({
   ctaInteresse,
   textoGarantia,
   whatsapp,
+  idioma,
+  moeda,
 }: {
   servicos: DemoServico[];
   imagens: Record<string, string>;
@@ -27,13 +30,18 @@ export function CarFilterGrid({
   ctaInteresse?: string;
   textoGarantia?: string;
   whatsapp?: string;
+  idioma?: string;
+  moeda?: string;
 }) {
+  const m = microcopiaDemo(idioma);
   const categorias = categoriasDoEstoque(servicos);
-  const [filtro, setFiltro] = useState("Todos");
+  const [filtro, setFiltro] = useState(TODAS_CATEGORIAS);
 
   const comIndice = servicos.map((servico, index) => ({ servico, index }));
   const filtrados =
-    filtro === "Todos" ? comIndice : comIndice.filter(({ servico }) => servico.categoria === filtro);
+    filtro === TODAS_CATEGORIAS
+      ? comIndice
+      : comIndice.filter(({ servico }) => servico.categoria === filtro);
 
   return (
     <div>
@@ -70,7 +78,7 @@ export function CarFilterGrid({
                       transition={{ type: "spring", stiffness: 400, damping: 34 }}
                     />
                   )}
-                  {cat}
+                  {cat === TODAS_CATEGORIAS ? m.todos : cat}
                 </button>
               );
             })}
@@ -97,6 +105,8 @@ export function CarFilterGrid({
                 ctaInteresse={ctaInteresse}
                 textoGarantia={textoGarantia}
                 whatsapp={whatsapp}
+                idioma={idioma}
+                moeda={moeda}
               />
             </motion.div>
           ))}

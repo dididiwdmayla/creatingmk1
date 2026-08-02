@@ -2,6 +2,8 @@ import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Alinhamento, Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { GothicLetters } from "./GothicLetters";
 import { FadeUp } from "./interactive/FadeUp";
@@ -127,8 +129,9 @@ function Placeholder({
   );
 }
 
-export function TatuagemEditorial({ data, theme }: SkinProps) {
+export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
+  const m = microcopiaDemo(idioma);
   const vars = {
     "--d-bg": paleta.fundo,
     "--d-bg-alt": paleta.fundoAlt,
@@ -429,7 +432,7 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
                     data-demo-slot={`servicos.${i}.preco`}
                     className="whitespace-nowrap font-[family-name:var(--d-mono)] text-sm font-medium tracking-wider text-[var(--d-accent)]"
                   >
-                    {servico.preco}
+                    {formatarPrecoServico(servico, idioma, moeda)}
                   </span>
                 </div>
                 {servico.descricao && (
@@ -464,7 +467,7 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
                 >
                   <div>
                     {dep.nota !== undefined && (
-                      <div className="mb-4 tracking-[0.3em] text-[var(--d-accent)]" aria-label={`${dep.nota} de 5 estrelas`}>
+                      <div className="mb-4 tracking-[0.3em] text-[var(--d-accent)]" aria-label={m.avaliacaoEstrelas(dep.nota)}>
                         {"★".repeat(Math.max(0, Math.min(5, Math.round(dep.nota))))}
                       </div>
                     )}
@@ -613,7 +616,7 @@ export function TatuagemEditorial({ data, theme }: SkinProps) {
             <div className="mb-4 md:mb-0">
               © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>.{" "}
               <span data-demo-slot="secoes.contato.texto">
-                {s.contato?.texto ?? "Todos os direitos reservados."}
+                {s.contato?.texto ?? m.direitosReservados}
               </span>
             </div>
             <div className="flex gap-6">

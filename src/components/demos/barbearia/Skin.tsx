@@ -2,6 +2,8 @@ import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { AnimatedScissors } from "./interactive/AnimatedScissors";
 import { IntroExperience } from "./interactive/IntroExperience";
@@ -168,8 +170,9 @@ function Placeholder({
   );
 }
 
-export function BarbeariaEditorial({ data, theme }: SkinProps) {
+export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
+  const m = microcopiaDemo(idioma);
   const vars = {
     "--d-bg": paleta.fundo,
     "--d-bg-alt": paleta.fundoAlt,
@@ -513,7 +516,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                       data-demo-slot={`servicos.${i}.preco`}
                       className="font-[family-name:var(--d-mono)] text-sm font-medium tracking-wider text-[var(--d-accent)]"
                     >
-                      {servico.preco}
+                      {formatarPrecoServico(servico, idioma, moeda)}
                     </span>
                   </div>
                   {servico.descricao && (
@@ -641,7 +644,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
                     {dep.nota !== undefined && (
                       <div
                         className="mb-4 tracking-[0.3em] text-[var(--d-accent)]"
-                        aria-label={`${dep.nota} de 5 estrelas`}
+                        aria-label={m.avaliacaoEstrelas(dep.nota)}
                       >
                         {"★".repeat(Math.max(0, Math.min(5, Math.round(dep.nota))))}
                       </div>
@@ -761,7 +764,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               {data.endereco && (
                 <div className="flex w-full flex-col border-b border-[var(--d-border)] pb-6">
                   <span className="mb-2 font-[family-name:var(--d-mono)] text-[11px] font-medium tracking-widest text-[var(--d-accent)]">
-                    ENDEREÇO
+                    {m.endereco.toUpperCase()}
                   </span>
                   <p
                     data-demo-slot="endereco"
@@ -774,7 +777,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               {data.horarios && (
                 <div className="flex w-full flex-col border-b border-[var(--d-border)] pb-6">
                   <span className="mb-2 font-[family-name:var(--d-mono)] text-[11px] font-medium tracking-widest text-[var(--d-accent)]">
-                    HORÁRIO
+                    {m.horario.toUpperCase()}
                   </span>
                   <p
                     data-demo-slot="horarios"
@@ -801,7 +804,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
               {data.telefone && data.telefone !== data.whatsapp && (
                 <div className="flex w-full flex-col border-b border-[var(--d-border)] pb-6">
                   <span className="mb-2 font-[family-name:var(--d-mono)] text-[11px] font-medium tracking-widest text-[var(--d-accent)]">
-                    TELEFONE
+                    {m.telefone.toUpperCase()}
                   </span>
                   <p
                     data-demo-slot="telefone"
@@ -1062,7 +1065,7 @@ export function BarbeariaEditorial({ data, theme }: SkinProps) {
             <span>
               © {new Date().getFullYear()} {data.nome}.{" "}
               <span data-demo-slot="secoes.contato.texto">
-                {s.contato?.texto ?? "TODOS OS DIREITOS RESERVADOS."}
+                {s.contato?.texto ?? m.direitosReservados.toUpperCase()}
               </span>
             </span>
           </div>

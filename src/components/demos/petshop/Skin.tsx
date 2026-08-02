@@ -2,6 +2,8 @@ import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { Counter } from "./interactive/Counter";
 import { Header } from "./interactive/Header";
@@ -150,8 +152,9 @@ function StepDash() {
 const WHATSAPP_ICON_PATH =
   "M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5z M8.8 9.2c.3 2.4 3.6 5.7 6 6l1.4-1.4-2-1.3-1 .7c-.8-.4-1.9-1.5-2.3-2.3l.7-1-1.3-2z";
 
-export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
+export function PetshopFocinhoFeliz({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
+  const m = microcopiaDemo(idioma);
   const vars = {
     "--d-bg": paleta.fundo,
     "--d-bg-alt": paleta.fundoAlt,
@@ -251,6 +254,7 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
                 <OrderCta
                   whatsapp={data.whatsapp}
                   mensagem={mensagemAgendar}
+                  idioma={idioma}
                   slot="secoes.hero.cta"
                   className="d-cta-pill d-cta-pill-lg"
                 >
@@ -443,7 +447,7 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
                           className="text-[13px] font-semibold"
                           style={{ color: "var(--d-accent-2)" }}
                         >
-                          {servico.preco}
+                          {formatarPrecoServico(servico, idioma, moeda)}
                         </span>
                         <span aria-hidden="true" className="d-cta-round d-cta-round-sm">
                           →
@@ -779,6 +783,7 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
             <OrderCta
               whatsapp={data.whatsapp}
               mensagem={mensagemAgendar}
+              idioma={idioma}
               slot="secoes.ctaFinal.cta"
               className="d-cta-pill d-cta-pill-lg d-cta-pill-dark relative mt-9 inline-flex"
             >
@@ -833,7 +838,7 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
           {data.horarios && (
             <div className="flex flex-col items-center gap-3 sm:items-start">
               <h3 className="text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "color-mix(in srgb, var(--d-bg) 60%, transparent)" }}>
-                Horário
+                {m.horario}
               </h3>
               <p data-demo-slot="horarios" className="text-[15px]" style={{ color: "color-mix(in srgb, var(--d-bg) 85%, transparent)" }}>
                 {data.horarios}
@@ -843,7 +848,7 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
 
           <div className="flex flex-col items-center gap-3 sm:items-start">
             <h3 className="text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "color-mix(in srgb, var(--d-bg) 60%, transparent)" }}>
-              Fale com a gente
+              {m.faleComAGente}
             </h3>
             {data.telefone && (
               <a href={`tel:${data.telefone.replace(/\D/g, "")}`} data-demo-slot="telefone" className="d-footer-link text-[15px]" style={{ color: "color-mix(in srgb, var(--d-bg) 85%, transparent)" }}>
@@ -859,6 +864,7 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
               <OrderCta
                 whatsapp={data.whatsapp}
                 mensagem={mensagemAgendar}
+                idioma={idioma}
                 slot="secoes.contato.cta"
                 className="d-cta-outline mt-1"
               >
@@ -1028,7 +1034,7 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
         palavra2Cor={paleta.destaque}
         ativa={theme.intro === true}
       >
-        <Header nome={data.nome} whatsapp={data.whatsapp} />
+        <Header nome={data.nome} whatsapp={data.whatsapp} idioma={idioma} />
 
         {visiveis.map((id) => {
           const tipo = wrapperTipo(id);
@@ -1045,7 +1051,8 @@ export function PetshopFocinhoFeliz({ data, theme }: SkinProps) {
       <OrderCta
         whatsapp={data.whatsapp}
         mensagem={mensagemAgendar}
-        aria-label="Conversar no WhatsApp"
+        idioma={idioma}
+        aria-label={m.conversarNoWhatsapp}
         className="d-cta-round fixed bottom-5 right-5 z-[70]"
       >
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

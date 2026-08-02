@@ -11,6 +11,7 @@ import {
   useSpring,
 } from "motion/react";
 
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Animacao, DemoServico } from "@/lib/demos/types";
 import { OrderCta } from "./OrderCta";
 
@@ -33,6 +34,8 @@ export function BurgerCard({
   platoVazioSrc,
   animacao,
   whatsapp,
+  idioma,
+  moeda,
 }: {
   servico: DemoServico;
   index: number;
@@ -40,6 +43,8 @@ export function BurgerCard({
   platoVazioSrc: string;
   animacao: Animacao;
   whatsapp: string | undefined;
+  idioma?: string;
+  moeda?: string;
 }) {
   const shouldReduceMotion = useReducedMotion();
   const mouseX = useMotionValue(0);
@@ -180,11 +185,12 @@ export function BurgerCard({
             data-demo-slot={`servicos.${index}.preco`}
             className="font-[family-name:var(--d-mono)] text-lg font-bold text-[var(--d-accent-3)]"
           >
-            {servico.preco}
+            {formatarPrecoServico(servico, idioma, moeda)}
           </span>
           <OrderCta
             whatsapp={whatsapp}
             mensagem={`Olá! Quero pedir: ${servico.nome}.`}
+            idioma={idioma}
             aria-label={`Escolher ${servico.nome}`}
             className="d-cta-pill"
           >

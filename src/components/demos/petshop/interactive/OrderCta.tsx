@@ -3,6 +3,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
+
 /**
  * CTA de agendamento neutro — substitui os botões "Agendar horário" que,
  * no material bruto, abriam o wizard de agendamento em `agendamento.html`
@@ -27,11 +29,13 @@ type Props = {
   className?: string;
   slot?: string;
   children: ReactNode;
+  idioma?: string;
   "aria-label"?: string;
 };
 
-export function OrderCta({ whatsapp, mensagem, className, slot, children, ...aria }: Props) {
+export function OrderCta({ whatsapp, mensagem, className, slot, children, idioma, ...aria }: Props) {
   const [toastAberto, setToastAberto] = useState(false);
+  const m = microcopiaDemo(idioma);
   const href = orderWaHref(whatsapp, mensagem);
 
   useEffect(() => {
@@ -77,7 +81,7 @@ export function OrderCta({ whatsapp, mensagem, className, slot, children, ...ari
             className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 w-max max-w-[220px] -translate-x-1/2 rounded-[var(--d-radius)] bg-[var(--d-bg-elev)] px-4 py-2 text-center font-[family-name:var(--d-corpo)] text-xs font-medium text-[var(--d-text)] shadow-xl"
             style={{ border: "1px solid var(--d-border)" }}
           >
-            Disponível na versão completa
+            {m.disponivelNaVersaoCompleta}
           </motion.div>
         )}
       </AnimatePresence>

@@ -17,12 +17,14 @@ function CompactCard({
   imageSlot,
   textSlot,
   whatsapp,
+  idioma,
 }: {
   item: DemoItem;
   imageSrc: string;
   imageSlot: string;
   textSlot: string;
   whatsapp: string | undefined;
+  idioma?: string;
 }) {
   return (
     <div
@@ -59,6 +61,7 @@ function CompactCard({
           <OrderCta
             whatsapp={whatsapp}
             mensagem={`Olá! Quero pedir: ${item.titulo}.`}
+            idioma={idioma}
             aria-label={`Adicionar ${item.titulo}`}
             className="d-cta-round d-cta-round-sm"
           >
@@ -80,6 +83,7 @@ export function CompactSection({
   imagens,
   slotPrefix,
   whatsapp,
+  idioma,
 }: {
   id: string;
   secaoId: string;
@@ -87,6 +91,7 @@ export function CompactSection({
   imagens: Record<string, string>;
   slotPrefix: string;
   whatsapp: string | undefined;
+  idioma?: string;
 }) {
   if (itens.length === 0) return null;
 
@@ -105,6 +110,7 @@ export function CompactSection({
             imageSlot={`${slotPrefix}-${i + 1}`}
             textSlot={`secoes.${secaoId}.itens.${i}`}
             whatsapp={whatsapp}
+            idioma={idioma}
           />
         ))}
       </div>

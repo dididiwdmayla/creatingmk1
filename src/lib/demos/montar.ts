@@ -5,6 +5,7 @@ import type { Lead } from "@/lib/leads/types";
 import { idiomaEfetivoDemo } from "./idioma";
 import { CAMPOS_IDENTIDADE_DEMO } from "./patch";
 import { DEFAULTS_HISTORICOS } from "./legado";
+import { migrarPrecos } from "./precos";
 import type { DemoData, DemoDataPatch, DemoSecao } from "./types";
 
 /**
@@ -149,5 +150,9 @@ export function montarDemoData(
   skinId?: string,
 ): DemoData {
   const comLead = lead ? aplicarPatch(exemplo, dadosDoLead(lead)) : exemplo;
-  return aplicarPatch(comLead, semDefaultsHistoricos(patch, skinId));
+  const efetivo = aplicarPatch(comLead, semDefaultsHistoricos(patch, skinId));
+  // Self-heal: serviço salvo antes de precoPrefixo/precoValor existirem
+  // ganha os dois campos migrados do `preco` livre, na leitura — mesmo
+  // padrão do resto da Forja (garantirEnvioToken, semDefaultsHistoricos).
+  return { ...efetivo, servicos: migrarPrecos(efetivo.servicos) };
 }

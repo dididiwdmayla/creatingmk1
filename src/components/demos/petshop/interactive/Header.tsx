@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { OrderCta } from "./OrderCta";
 
 /**
@@ -14,11 +15,14 @@ import { OrderCta } from "./OrderCta";
 export function Header({
   nome,
   whatsapp,
+  idioma,
 }: {
   nome: string;
   whatsapp: string | undefined;
+  idioma?: string;
 }) {
   const [scrolled, setScrolled] = useState(false);
+  const m = microcopiaDemo(idioma);
 
   useEffect(() => {
     // Throttled por rAF — mesmo padrão de LedEdges.tsx: sem isso, o
@@ -66,6 +70,7 @@ export function Header({
           <OrderCta
             whatsapp={whatsapp}
             mensagem="Olá! Gostaria de agendar um horário para o meu pet."
+            idioma={idioma}
             className="d-cta-pill"
           >
             Agendar
@@ -75,7 +80,8 @@ export function Header({
           <OrderCta
             whatsapp={whatsapp}
             mensagem="Olá! Gostaria de agendar um horário para o meu pet."
-            aria-label="Agendar horário"
+            idioma={idioma}
+            aria-label={m.agendarHorario}
             className="d-cta-round"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">

@@ -47,7 +47,14 @@ export function formatarNumeroBR(valor: number, casas: number): string {
   });
 }
 
-/** Categorias distintas dos veículos, na ordem de primeira aparição, com "Todos" à frente. */
+/**
+ * Sentinela interna do filtro "sem categoria selecionada" — nunca exibida
+ * como está: o rótulo visível vem de `microcopiaDemo(idioma).todos`
+ * (CarFilterGrid.tsx), traduzido por idioma da demo.
+ */
+export const TODAS_CATEGORIAS = "__todas__";
+
+/** Categorias distintas dos veículos, na ordem de primeira aparição, com a sentinela "todas" à frente. */
 export function categoriasDoEstoque(
   servicos: readonly { categoria?: string }[],
 ): string[] {
@@ -55,5 +62,5 @@ export function categoriasDoEstoque(
   for (const s of servicos) {
     if (s.categoria) vistas.add(s.categoria);
   }
-  return ["Todos", ...vistas];
+  return [TODAS_CATEGORIAS, ...vistas];
 }

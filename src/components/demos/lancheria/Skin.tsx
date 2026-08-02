@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { CategoryNav } from "./interactive/CategoryNav";
 import { CompactSection } from "./interactive/CompactSection";
@@ -96,8 +97,9 @@ function Rotulo({ texto, slot }: { texto?: string; slot?: string }) {
   );
 }
 
-export function LancheriaChapaBurger({ data, theme }: SkinProps) {
+export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
+  const m = microcopiaDemo(idioma);
   const vars = {
     "--d-bg": paleta.fundo,
     "--d-bg-alt": paleta.fundoAlt,
@@ -216,7 +218,7 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
 
         <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2 text-[var(--d-text)]/80">
           <span className="font-[family-name:var(--d-display)] text-sm uppercase tracking-widest">
-            ROLE
+            {m.role}
           </span>
           <span className="d-scroll-bounce" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -253,6 +255,8 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
                 platoVazioSrc={data.imagens["prato-vazio"]}
                 animacao={theme.animacao}
                 whatsapp={data.whatsapp}
+                idioma={idioma}
+                moeda={moeda}
               />
             ))}
           </div>
@@ -287,6 +291,7 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
             imagens={data.imagens}
             slotPrefix="bebida"
             whatsapp={data.whatsapp}
+            idioma={idioma}
           />
           {floatDe("bebidas") && (
             <DecorativeFloat
@@ -318,6 +323,7 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
             imagens={data.imagens}
             slotPrefix="acompanhamento"
             whatsapp={data.whatsapp}
+            idioma={idioma}
           />
           {floatDe("acompanhamentos") && (
             <DecorativeFloat
@@ -406,6 +412,7 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
               <OrderCta
                 whatsapp={data.whatsapp}
                 mensagem="Olá! Gostaria de fazer um pedido."
+                idioma={idioma}
                 slot="secoes.contato.cta"
                 className="d-cta-outline"
               >
@@ -420,7 +427,7 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
 
         <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-col items-center justify-between gap-4 border-t border-[var(--d-border)] pt-8 md:flex-row">
           <p className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]">
-            © {new Date().getFullYear()} {data.nome}. Todos os direitos reservados.
+            © {new Date().getFullYear()} {data.nome}. {m.direitosReservados}
           </p>
           <p
             data-demo-slot="secoes.contato.texto"
@@ -556,7 +563,7 @@ export function LancheriaChapaBurger({ data, theme }: SkinProps) {
         ink={paleta.destaqueInk}
         ativa={theme.intro === true}
       >
-        <Header nome={data.nome} whatsapp={data.whatsapp} />
+        <Header nome={data.nome} whatsapp={data.whatsapp} idioma={idioma} />
 
         {visiveis.includes("cardapio") && <CategoryNav categorias={categorias} />}
 

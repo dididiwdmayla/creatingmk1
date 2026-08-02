@@ -128,6 +128,14 @@ function validaDados(
       }
       validaTexto(servico.nome, `dados.servicos[${i}].nome`, problemas);
       validaTexto(servico.preco, `dados.servicos[${i}].preco`, problemas);
+      if (servico.precoPrefixo !== undefined) {
+        validaTexto(servico.precoPrefixo, `dados.servicos[${i}].precoPrefixo`, problemas);
+      }
+      if (servico.precoValor !== undefined) {
+        if (typeof servico.precoValor !== "number" || !Number.isFinite(servico.precoValor)) {
+          problemas.push(`dados.servicos[${i}].precoValor deve ser number`);
+        }
+      }
       if (servico.descricao !== undefined) {
         validaTexto(servico.descricao, `dados.servicos[${i}].descricao`, problemas);
       }

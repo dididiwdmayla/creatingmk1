@@ -13,35 +13,41 @@ export const LANCHERIA_EXEMPLO: DemoData = {
   servicos: [
     {
       nome: "Smash Clássico",
-      preco: "R$ 32,00",
+      preco: "",
+      precoValor: 29,
       descricao:
         "Dois smash burgers de 90g, queijo cheddar derretido, cebola na chapa e molho especial no pão brioche tostado.",
     },
     {
       nome: "Cheddar Bacon",
-      preco: "R$ 38,00",
+      preco: "",
+      precoValor: 44,
       descricao:
         "Hambúrguer artesanal de 160g, creme de cheddar artesanal e tiras de bacon crocante no pão australiano.",
     },
     {
       nome: "Onion Crunch",
-      preco: "R$ 36,00",
+      preco: "",
+      precoValor: 39,
       descricao: "Hambúrguer 160g, queijo prato, onion rings crocantes e molho barbecue rústico no pão brioche.",
     },
     {
       nome: "Clássico da Casa",
-      preco: "R$ 28,00",
+      preco: "",
+      precoValor: 19,
       descricao:
         "Hambúrguer 160g, queijo prato, alface americana, tomate italiano e maionese verde no pão tradicional.",
     },
     {
       nome: "Frango Crispy",
-      preco: "R$ 30,00",
+      preco: "",
+      precoValor: 24,
       descricao: "Sobrecoxa desossada empanada e hiper crocante, alface, picles e maionese de limão siciliano.",
     },
     {
       nome: "Veggie do Chef",
-      preco: "R$ 34,00",
+      preco: "",
+      precoValor: 34,
       descricao: "Hambúrguer de falafel crocante, queijo prato, rúcula fresca e maionese de alho assado.",
     },
   ],
