@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { getFonte } from "../fontes";
+import { getLedEstilo } from "../led/registry";
 import { DEFAULT_SKIN, SKINS, getSkin, getTheme } from "../registry";
 
 describe("registro de skins", () => {
@@ -76,6 +77,7 @@ describe("registro de skins", () => {
         expect(theme.heroTitulo.escala).toBeGreaterThan(0);
         expect(["esquerda", "centro", "direita"]).toContain(theme.heroTitulo.alinhamento);
         expect(["desligado", "sutil", "marcante"]).toContain(theme.led);
+        expect(getLedEstilo(theme.ledEstilo), `theme.ledEstilo desconhecido "${theme.ledEstilo}"`).toBeDefined();
       }
 
       // Fontes recomendadas por nicho: 4–6 ids únicos da lista curada, e

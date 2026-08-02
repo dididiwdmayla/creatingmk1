@@ -47,6 +47,7 @@ const AQUARELA: Theme = {
   fundoEfeito: "nenhum",
   heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
   led: "desligado",
+  ledEstilo: "barra",
 };
 
 /** Variante "boreal" — undertone frio, verde-azulado e violeta sobre cinza-claro. */
@@ -75,6 +76,7 @@ const BOREAL: Theme = {
   fundoEfeito: "nenhum",
   heroTitulo: { fonte: "", escala: 1, alinhamento: "centro" },
   led: "desligado",
+  ledEstilo: "barra",
 };
 
 /** Variante noturna — mesmo pigmento vivo, agora sobre fundo quase preto. */
@@ -103,6 +105,7 @@ const MEIA_NOITE: Theme = {
   fundoEfeito: "particulas",
   heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
   led: "sutil",
+  ledEstilo: "barra",
 };
 
 /** Variante terrosa — tons muito mais contidos, terracota + mostarda + verde-petróleo. */
@@ -131,6 +134,7 @@ const TERRA: Theme = {
   fundoEfeito: "nenhum",
   heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
   led: "desligado",
+  ledEstilo: "barra",
 };
 
 export const TATUAGEM2_THEME_DEFAULT: Theme = AQUARELA;

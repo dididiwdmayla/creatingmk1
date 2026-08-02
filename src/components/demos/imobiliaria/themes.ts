@@ -47,6 +47,7 @@ const INTERACOES_ORIGINAIS = {
   fundoEfeito: "nenhum",
   heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
   led: "desligado",
+  ledEstilo: "barra",
 } as const;
 
 /** Paleta original do material bruto: creme, terracota, mostarda e verde-oliva. */
@@ -129,6 +130,7 @@ const NOTURNO: Theme = {
   clique: "pulso",
   fundoEfeito: "gradiente",
   led: "sutil",
+  ledEstilo: "barra",
   paleta: {
     fundo: "#12100D",
     fundoAlt: "#1C1812",

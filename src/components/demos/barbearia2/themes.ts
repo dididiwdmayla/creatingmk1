@@ -39,6 +39,7 @@ const INTERACOES_ORIGINAIS = {
   fundoEfeito: "nenhum",
   heroTitulo: { fonte: "", escala: 1, alinhamento: "centro" },
   led: "desligado",
+  ledEstilo: "barra",
 } as const;
 
 /** Paleta original do material bruto: verde-musgo escuro, latão e creme. */
@@ -120,6 +121,7 @@ const OURO_DA_MEIA_NOITE: Theme = {
   clique: "pulso",
   fundoEfeito: "particulas",
   led: "sutil",
+  ledEstilo: "barra",
   paleta: {
     fundo: "#0B0F0C",
     fundoAlt: "#141C17",

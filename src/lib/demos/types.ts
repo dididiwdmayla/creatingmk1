@@ -291,11 +291,20 @@ export interface Theme {
   /** Estilo/escala/alinhamento do título hero (texto continua em DemoData). */
   heroTitulo: HeroTituloTema;
   /**
-   * Bordas laterais com luz LED na cor de destaque, reagindo a scroll
-   * (intensidade) e clique (pulso). CSS puro, custo baixo em mobile;
-   * desligado por completo em prefers-reduced-motion. Default "desligado".
+   * Bordas com luz LED na cor de destaque, reagindo a scroll (intensidade)
+   * e clique (pulso). CSS puro, custo baixo em mobile; desligado por
+   * completo em prefers-reduced-motion. Default "desligado".
    */
   led: LedPreset;
+  /**
+   * Estilo visual do LED: id de um estilo do registro
+   * (`src/lib/demos/led/registry.ts`, ex.: "barra"/"dissipado"/"cantos"/
+   * "moldura"). Independente do nível (`led` acima, que liga/desliga e
+   * escala intensidade) — o estilo é só a FORMA, o nível continua
+   * controlando se aparece e o quanto. "barra" é o estilo original (única
+   * opção antes deste registro existir).
+   */
+  ledEstilo: string;
 }
 
 /** Props que TODO componente de skin recebe. */
@@ -404,6 +413,8 @@ export interface TemaPatch {
   /** Ajustes do título hero por cima do preset (fonte/escala/alinhamento). */
   heroTitulo?: Partial<HeroTituloTema>;
   led?: LedPreset;
+  /** Id de um estilo do registro de LED (ver Theme.ledEstilo) — "barra"/"dissipado"/"cantos"/"moldura". */
+  ledEstilo?: string;
 }
 
 /** Entrada do registro de skins (ver ./registry.tsx). */

@@ -3,6 +3,7 @@ import { IDIOMAS_SUPORTADOS } from "@/lib/idioma";
 import { getEfeito } from "./efeitos/registry";
 import type { EfeitoIntensidade } from "./efeitos/types";
 import { getFonte } from "./fontes";
+import { getLedEstilo } from "./led/registry";
 import { getSkin } from "./registry";
 import { HEX_RE, TEMA_RAIOS } from "./tema";
 import {
@@ -359,6 +360,12 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
 
   if (value.led !== undefined && !(LED_PRESETS as readonly string[]).includes(value.led as string)) {
     problemas.push(`tema.led deve ser um de: ${LED_PRESETS.join(", ")}`);
+  }
+
+  if (value.ledEstilo !== undefined) {
+    if (typeof value.ledEstilo !== "string" || !getLedEstilo(value.ledEstilo)) {
+      problemas.push("tema.ledEstilo: estilo desconhecido (ver registro de estilos de LED)");
+    }
   }
 
   if (value.destaque !== undefined) {
