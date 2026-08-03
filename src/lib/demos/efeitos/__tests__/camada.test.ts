@@ -56,7 +56,7 @@ describe("resolverCamadaEfeito", () => {
   it("modo animado troca os três papéis por custom properties e devolve o CSS que as anima", () => {
     const r = resolverCamadaEfeito({
       paleta: PALETA,
-      efeitoId: "veios",
+      efeitoId: "particulas",
       efeitoCores: { modo: "iridescente" },
       auraCores: undefined,
     });

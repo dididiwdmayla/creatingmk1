@@ -24,7 +24,6 @@ const ParticulasDinamico = dynamic(
   () => import("./particulas/Particulas").then((m) => m.Particulas),
   { ssr: false },
 );
-const VeiosDinamico = dynamic(() => import("./veios/Veios").then((m) => m.Veios), { ssr: false });
 const FilotaxiaDinamico = dynamic(() => import("./filotaxia/Filotaxia").then((m) => m.Filotaxia), {
   ssr: false,
 });
@@ -42,7 +41,6 @@ const COMPONENTES_DINAMICOS: Record<string, EfeitoComponente> = {
   grao: GraoDinamico,
   gradiente: GradienteDinamico,
   particulas: ParticulasDinamico,
-  veios: VeiosDinamico,
   filotaxia: FilotaxiaDinamico,
   ondas: OndasDinamico,
   faiscas: FaiscasDinamico,
@@ -52,8 +50,9 @@ const COMPONENTES_DINAMICOS: Record<string, EfeitoComponente> = {
 /**
  * `idEfeitoAtual` no caminho de resolução: um id de efeito REMOVIDO (ver
  * EFEITOS_MIGRADOS em ./registry.ts) chega aqui vindo de uma demo antiga e
- * renderiza o substituto, em vez de cair no `undefined` de "id que não
- * existe" — o mesmo que `getEfeito` faz do lado do metadado.
+ * renderiza o substituto — ou nada, quando ele saiu sem substituto e a
+ * migração aponta pra "nenhum", que não é chave deste mapa. O mesmo que
+ * `getEfeito` faz do lado do metadado.
  */
 export function getEfeitoComponenteDinamico(id: string): EfeitoComponente | undefined {
   return COMPONENTES_DINAMICOS[idEfeitoAtual(id)];

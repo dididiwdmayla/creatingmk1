@@ -14,6 +14,7 @@ import { Particulas } from "../particulas/Particulas";
 import {
   EFEITOS,
   EFEITOS_MIGRADOS,
+  fundoEfeitoAceito,
   getEfeito,
   idEfeitoAtual,
   intensidadePadrao,
@@ -21,7 +22,6 @@ import {
 } from "../registry";
 import type { EfeitoComponente } from "../types";
 import { VarreduraDeLuz } from "../varredura-de-luz/VarreduraDeLuz";
-import { Veios } from "../veios/Veios";
 
 /**
  * Mapa id → componente RAW, só pra este teste renderizar direto (sem
@@ -34,7 +34,6 @@ const COMPONENTES_PARA_TESTE: Record<string, EfeitoComponente> = {
   grao: Grao,
   gradiente: Gradiente,
   particulas: Particulas,
-  veios: Veios,
   filotaxia: Filotaxia,
   ondas: Ondas,
   faiscas: Faiscas,
@@ -139,49 +138,51 @@ describe("registro de efeitos", () => {
  * Um `<svg>` é uma árvore VETORIAL RETIDA — mexer em qualquer coisa dentro
  * dele (geometria, `stop-color` do modo de cor animado, opacidade de um
  * nó) invalida a superfície inteira, que o navegador repinta no tamanho da
- * tela a cada quadro. Foi por isso que `geometrico-pulsante` saiu.
- *
- * A lista abaixo é a DÍVIDA conhecida, não uma isenção: `veios` já estava
- * no registro quando a regra passou a valer, e a auditoria (ver
- * ARCHITECTURE.md) o registrou como o único violador dos 8 restantes. O
- * teste cobra os dois lados — efeito de fora da lista não pode montar
- * `<svg>`, e efeito DA lista tem que continuar montando um, senão ele foi
- * migrado e a linha aqui virou mentira.
+ * tela a cada quadro. Foi por isso que `geometrico-pulsante` saiu, e depois
+ * `veios` — que era a última entrada da lista de dívida que existia aqui.
+ * Hoje a regra vale SEM exceção: nenhum efeito do registro monta `<svg>`.
  */
-const SVG_DE_VIEWPORT_CONHECIDO = new Set(["veios"]);
-
 describe("regra de superfície: nada de <svg> do tamanho da viewport", () => {
   it.each(EFEITOS.map((efeito) => [efeito.id] as const))("%s", (id) => {
     const markup = renderToStaticMarkup(
       createElement(COMPONENTES_PARA_TESTE[id], { intensidade: 3, cores: CORES_TESTE }),
     );
-    const temSvg = /<svg[\s>]/.test(markup);
-    if (SVG_DE_VIEWPORT_CONHECIDO.has(id)) {
-      expect(
-        temSvg,
-        `"${id}" está na lista de dívida de SVG mas não monta <svg> — migrado? tire-o de SVG_DE_VIEWPORT_CONHECIDO`,
-      ).toBe(true);
-      return;
-    }
     expect(
-      temSvg,
+      /<svg[\s>]/.test(markup),
       `"${id}" monta <svg>: efeito animado é canvas ou é estático (ver "Regra de superfície" em ARCHITECTURE.md)`,
     ).toBe(false);
   });
 });
 
 describe("efeito removido do registro (EFEITOS_MIGRADOS)", () => {
-  it("todo id migrado aponta pra um efeito que EXISTE, e não pra outro migrado", () => {
+  it('todo id migrado aponta pra um efeito que EXISTE (ou pra "nenhum"), e não pra outro migrado', () => {
     for (const [antigo, novo] of Object.entries(EFEITOS_MIGRADOS)) {
       expect(EFEITOS.some((e) => e.id === antigo), `"${antigo}" ainda está no registro`).toBe(false);
-      expect(EFEITOS.some((e) => e.id === novo), `"${novo}" não existe no registro`).toBe(true);
+      if (novo !== "nenhum") {
+        expect(EFEITOS.some((e) => e.id === novo), `"${novo}" não existe no registro`).toBe(true);
+      }
       expect(EFEITOS_MIGRADOS[novo]).toBeUndefined();
     }
   });
 
   it("o geométrico-pulsante virou ondas", () => {
     expect(idEfeitoAtual("geometrico-pulsante")).toBe("ondas");
-    expect(idEfeitoAtual("veios")).toBe("veios");
+  });
+
+  /**
+   * `veios` saiu SEM substituto: uma demo salva com ele fica sem camada
+   * decorativa, e não com o efeito do preset (que ninguém escolheu) nem com
+   * um 400 no próximo save.
+   */
+  it("veios virou nenhum — some do registro e não resolve efeito nenhum", () => {
+    expect(idEfeitoAtual("veios")).toBe("nenhum");
+    expect(EFEITOS.some((e) => e.id === "veios")).toBe(false);
+    expect(getEfeito("veios")).toBeUndefined();
+    expect(resolverEfeitoFundo("veios", 3, "tatuagem")).toBeUndefined();
+    // Continua ACEITO: é o que mantém o PUT de uma demo antiga válido.
+    expect(fundoEfeitoAceito("veios")).toBe(true);
+    expect(fundoEfeitoAceito("nao-existe")).toBe(false);
+    expect(fundoEfeitoAceito("nenhum")).toBe(true);
   });
 
   it("uma demo SALVA com o efeito antigo passa a renderizar o substituto", () => {
