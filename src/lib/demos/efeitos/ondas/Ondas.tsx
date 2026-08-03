@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
+import { corParaRgb, rgba, type Rgb } from "../corComputada";
 import { devicePixelRatioClamped } from "../dpr";
 import type { EfeitoProps } from "../types";
 import { useEfeitoAtivo } from "../useEfeitoAtivo";
@@ -99,31 +100,6 @@ const MS_ENTRE_DESENHOS = 33;
 
 /** A cor animada muda em ciclos de 20-42s: amostrar a 10 Hz sobra. */
 const DESENHOS_POR_LEITURA_DE_COR = 3;
-
-type Rgb = [number, number, number];
-
-/**
- * `color` computado → RGB. O efeito recebe a cor como string CSS que pode
- * ser um `var(--d-efeito-c1, #hex)` animado pelo modo de cor: o navegador
- * resolve isso em `getComputedStyle(el).color`, sempre em `rgb()`. O ramo
- * do hex existe só como rede (SSR/jsdom não computam estilo).
- */
-function corParaRgb(valor: string): Rgb | undefined {
-  const rgb = valor.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/);
-  if (rgb) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
-  const hex = valor.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-  if (!hex) return undefined;
-  const cheio = hex[1].length === 3 ? hex[1].replace(/./g, (c) => c + c) : hex[1];
-  return [
-    parseInt(cheio.slice(0, 2), 16),
-    parseInt(cheio.slice(2, 4), 16),
-    parseInt(cheio.slice(4, 6), 16),
-  ];
-}
-
-function rgba([r, g, b]: Rgb, alfa: number): string {
-  return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${alfa})`;
-}
 
 /** Mistura com branco — o núcleo do anel é mais claro que a borda dele. */
 function clarear([r, g, b]: Rgb, quanto: number): Rgb {

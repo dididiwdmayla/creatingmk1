@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fundoMancha, opacidadeAura, perfilMancha } from "../estilo";
+import { opacidadeAura, paradasMancha, perfilMancha } from "../estilo";
 
 describe("perfilMancha (a rampa que substituiu o filter: blur)", () => {
   it("começa no ápice medido e termina em transparente", () => {
@@ -60,25 +60,49 @@ describe("perfilMancha (a rampa que substituiu o filter: blur)", () => {
   });
 });
 
-describe("fundoMancha", () => {
-  it("monta um radial-gradient que termina em transparent e usa a cor recebida", () => {
-    const css = fundoMancha("var(--d-efeito-c1, #d8a657)", 2);
-    expect(css.startsWith("radial-gradient(circle closest-side, ")).toBe(true);
-    expect(css).toContain("var(--d-efeito-c1, #d8a657)");
-    expect(css.trimEnd().endsWith("%)")).toBe(true);
-    expect(css).toContain("transparent");
+describe("paradasMancha (a transparência PRÉ-CALCULADA do canvas)", () => {
+  /**
+   * As três peças que a esfera tinha no CSS — a rampa do `radial-gradient`,
+   * a `opacity` do elemento e o `mix-blend-mode: screen` — viraram UMA:
+   * o alfa que sai daqui já é o valor final que vai pra tela. É o que
+   * permite desenhar num canvas com composição normal (source-over), sem
+   * blend nenhum, e é por isso que o alfa tem que ser exatamente
+   * perfil × opacidade.
+   */
+  it("o alfa de cada parada é o perfil medido vezes a opacidade da intensidade", () => {
+    for (const i of [1, 2, 3] as const) {
+      const perfil = perfilMancha(i);
+      const paradas = paradasMancha(i);
+      expect(paradas).toHaveLength(perfil.length);
+      for (const [j, parada] of paradas.entries()) {
+        expect(parada.alfa).toBeCloseTo((perfil[j].cor / 100) * opacidadeAura(i), 10);
+      }
+    }
+  });
+
+  it("as paradas vão de 0 a 1 (fração do raio), em ordem, e terminam transparentes", () => {
+    for (const i of [1, 2, 3] as const) {
+      const paradas = paradasMancha(i);
+      expect(paradas[0].parada).toBe(0);
+      expect(paradas.at(-1)!.alfa).toBe(0);
+      for (const { parada } of paradas) {
+        expect(parada).toBeGreaterThanOrEqual(0);
+        expect(parada).toBeLessThanOrEqual(1);
+      }
+      for (let j = 1; j < paradas.length; j++) {
+        expect(paradas[j].parada).toBeGreaterThan(paradas[j - 1].parada);
+        expect(paradas[j].alfa).toBeLessThanOrEqual(paradas[j - 1].alfa);
+      }
+    }
   });
 
   /**
-   * REGRESSÃO: o blob recebe um `transform` novo a cada quadro (rAF). Com
-   * `filter`, o navegador re-rasteriza e re-borra 60vmax de superfície a
-   * cada movimento — 12,7 fps medidos contra ~60 sem o filtro. A suavidade
-   * mora na rampa; `filter` não pode reaparecer aqui de nenhuma forma.
+   * REGRESSÃO do ápice: a esfera nunca pode ficar MAIS opaca do que era
+   * quando a rampa morava no CSS — `opacity` do elemento (0,58 no máximo)
+   * vezes o ápice medido do perfil (63,5% na intensidade 3).
    */
-  it("nunca produz um filter — a suavidade é a rampa, não um blur", () => {
-    for (const i of [1, 2, 3] as const) {
-      expect(fundoMancha("#d8a657", i)).not.toContain("blur");
-      expect(fundoMancha("#d8a657", i)).not.toContain("filter");
-    }
+  it("o ápice na intensidade 3 é o mesmo de antes: 0,635 × 0,58", () => {
+    expect(paradasMancha(3)[0].alfa).toBeCloseTo(0.635 * 0.58, 3);
+    expect(Math.max(...paradasMancha(3).map((p) => p.alfa))).toBeLessThan(0.38);
   });
 });

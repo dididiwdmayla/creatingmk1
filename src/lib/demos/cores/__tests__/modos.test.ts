@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { luminanciaRelativa } from "../hsl";
 import type { CoresTrio } from "../modos";
-import { coresEscolhidas, modoValido, resolverModoCores } from "../modos";
+import {
+  TETO_LUMINANCIA_MATIZ,
+  coresEscolhidas,
+  modoValido,
+  resolverModoCores,
+} from "../modos";
 
 const BASE: CoresTrio = ["#c9a227", "#1b5e3b", "#7a0c0c"];
 
@@ -129,5 +135,58 @@ describe("resolverModoCores", () => {
     expect(
       coresEscolhidas({ modo: "transicao", cores: ["#fff", "nope", "#000000", "#111", "#222"] }),
     ).toEqual(["#fff", "#000000", "#111"]);
+  });
+});
+
+/**
+ * TETO DE LUMINÂNCIA dos modos que giram o matiz. A camada decorativa é
+ * desenhada POR CIMA do conteúdo, e o ciclo de matiz passa obrigatoriamente
+ * pelos amarelos/verdes — os matizes de luminância alta. Sem teto, a
+ * passagem por eles levanta a tela inteira (medido no preset escuro:
+ * luminância média da viewport de 0,031 pra 0,054, contraste de 0,106 pra
+ * 0,088). Vale pros dois modos e para os TRÊS papéis de cor.
+ */
+describe("teto de luminância dos modos de matiz", () => {
+  /** Todas as cores de todos os quadros do @keyframes gerado. */
+  function coresDoCss(css: string) {
+    return [...css.matchAll(/hsl\(([\d.]+) ([\d.]+)% ([\d.]+)%\)/g)].map((m) => ({
+      h: Number(m[1]),
+      s: Number(m[2]) / 100,
+      l: Number(m[3]) / 100,
+    }));
+  }
+
+  it.each(["iridescente", "arco-iris"] as const)(
+    "%s: nenhum quadro passa do teto, em nenhum dos três papéis",
+    (modo) => {
+      // Base deliberadamente CLARA nos três papéis: é o pior caso, o que
+      // uma paleta de preset claro entrega.
+      const clara: CoresTrio = ["#ffe066", "#a0e8af", "#ffd6a5"];
+      for (const base of [BASE, clara]) {
+        const r = resolverModoCores({ modo }, base, "x");
+        const cores = coresDoCss(r.css);
+        expect(cores.length).toBeGreaterThan(0);
+        for (const cor of cores) {
+          expect(luminanciaRelativa(cor)).toBeLessThanOrEqual(TETO_LUMINANCIA_MATIZ + 1e-6);
+        }
+      }
+    },
+  );
+
+  it("o teto corta o pico sem achatar a paleta: cor escura passa intacta", () => {
+    // #1b5e3b é escuro — nada nele encosta no teto, então o iridescente
+    // continua entregando exatamente o matiz deslocado do tema.
+    const r = resolverModoCores({ modo: "iridescente" }, BASE, "x");
+    const c2 = [...r.css.matchAll(/--d-x-c2: hsl\([\d.]+ ([\d.]+)% ([\d.]+)%\)/g)].map((m) => ({
+      s: Number(m[1]),
+      l: Number(m[2]),
+    }));
+    expect(c2.every((cor) => Math.abs(cor.l - c2[0].l) < 0.05)).toBe(true);
+    expect(c2[0].l).toBeGreaterThan(20);
+  });
+
+  it("o arco-íris continua saturado depois do corte — a cor fica VIVA, só não estoura", () => {
+    const r = resolverModoCores({ modo: "arco-iris" }, BASE, "x");
+    for (const cor of coresDoCss(r.css)) expect(cor.s).toBeGreaterThanOrEqual(0.62);
   });
 });
