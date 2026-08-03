@@ -1,0 +1,38 @@
+import type { ReactNode } from "react";
+
+/**
+ * Marcador de seção no DOM — o único elo entre a estrutura da demo
+ * (`DemoSecao.animacao`, aba Estrutura do editor) e a camada decorativa,
+ * que é irmã da skin e portanto não tem como saber onde uma seção começa
+ * e termina. Toda skin envolve cada seção renderizada com isto (uma linha
+ * no `visiveis.map` de cada `Skin.tsx`), e quem precisa medir só consulta
+ * `[data-d-secao-anim]` no documento (ver ./cobertura.ts +
+ * useCoberturaAnimada). O nome NÃO é `data-d-anim`: esse já existe, na
+ * raiz de cada skin, carregando o nível global de animação do tema
+ * ("nenhuma"/"sutil"/"marcante") e usado em seletores CSS de clique —
+ * um marcador com o mesmo nome fazia a raiz inteira do documento contar
+ * como "seção animada de 7220px", travando a cobertura em 0.50 (achado
+ * pela medição do laço, ver ARCHITECTURE.md).
+ *
+ * É um `<div>` CRU de propósito: sem classe, sem position, sem transform.
+ * Um wrapper com qualquer um desses quebraria `position: sticky` interno
+ * (a sidebar de Serviços da barbearia) ou criaria containing block pra
+ * elementos fixos — os mesmos cuidados que o `SectionReveal` de cada skin
+ * já documenta. Em fluxo normal, uma div sem estilo em volta de um
+ * `<section>` não muda layout nenhum.
+ */
+export function SecaoMarcada({
+  id,
+  animada,
+  children,
+}: {
+  id: string;
+  animada: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div data-d-secao={id} data-d-secao-anim={animada ? "1" : "0"}>
+      {children}
+    </div>
+  );
+}

@@ -92,6 +92,16 @@ describe("registro de efeitos", () => {
         createElement(Componente, { intensidade: 1, cores: CORES_TESTE }),
       );
       expect(ligado.length).toBeGreaterThan(0);
+
+      // O elemento-raiz multiplica `--d-efeito-fade` na própria opacidade
+      // — é assim que a camada apaga o efeito nas seções com animação
+      // desligada, por interpolação (ver lib/demos/animacao/cobertura.ts).
+      // Efeito novo que esqueça disso simplesmente ignoraria o controle.
+      const raiz = ligado.slice(0, ligado.indexOf(">") + 1);
+      expect(raiz, `a raiz de "${efeito.id}" não consome --d-efeito-fade`).toContain(
+        "--d-efeito-fade",
+      );
+      expect(raiz).toContain("opacity");
     },
   );
 });

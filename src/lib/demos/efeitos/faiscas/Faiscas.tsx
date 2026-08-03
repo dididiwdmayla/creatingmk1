@@ -26,7 +26,10 @@ export function Faiscas({ intensidade, cores, pausado }: EfeitoProps) {
       ref={containerRef}
       className="pointer-events-none fixed inset-0 z-40 overflow-hidden"
       aria-hidden="true"
-      style={{ opacity: opacidadeContainer(intensidade), mixBlendMode: "screen" }}
+      style={{
+        opacity: `calc(${opacidadeContainer(intensidade)} * var(--d-efeito-fade, 1))`,
+        mixBlendMode: "screen",
+      }}
     >
       <style>{`
         @keyframes d-efeito-faiscas-queda {

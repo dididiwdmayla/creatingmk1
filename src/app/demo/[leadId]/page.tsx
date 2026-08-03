@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 
 import { appPassword, lerSessaoToken, SESSION_COOKIE } from "@/lib/auth";
 import { classificarVisitaInterna, DEVICE_COOKIE } from "@/lib/device";
-import { paletaParaAura } from "@/lib/demos/efeitos/aura/cores";
-import { EfeitoDinamico } from "@/lib/demos/efeitos/dynamicComponents";
+import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
+import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
 import { idiomaEfetivoDemo } from "@/lib/demos/idioma";
@@ -70,14 +70,17 @@ async function loadDemo(leadId: string) {
   } catch (error) {
     console.error("[radar] falha ao resolver o efeito de fundo da demo:", error);
   }
-  // Cores da aura (só tem efeito quando o efeito ativo é "aura"; ver
-  // paletaParaAura) — resolvidas aqui, fora do JSX, iguais na rota
-  // pública e no preview (ver demo-preview/page.tsx).
-  const coresEfeito =
-    efeitoFundo?.efeito.id === "aura"
-      ? paletaParaAura(theme.paleta, lead.demo.tema?.auraCores)
-      : theme.paleta;
-  return { skin, theme, data, idioma, moeda, extraFontClassName, efeitoFundo, coresEfeito };
+  // Cores da camada decorativa: modo de cor (vale pra qualquer efeito) ←
+  // cores da aura (controle anterior, só no modo "tema") ← paleta do tema.
+  // Resolvidas aqui, fora do JSX, pela MESMA função do preview e do
+  // harness — ver lib/demos/efeitos/camada.ts.
+  const camada = resolverCamadaEfeito({
+    paleta: theme.paleta,
+    efeitoId: efeitoFundo?.efeito.id,
+    efeitoCores: theme.efeitoCores,
+    auraCores: lead.demo.tema?.auraCores,
+  });
+  return { skin, theme, data, idioma, moeda, extraFontClassName, efeitoFundo, camada };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -203,16 +206,18 @@ export default async function DemoPage({ params, searchParams }: Props) {
       />
       <Skin data={demo.data} theme={demo.theme} idioma={demo.idioma} moeda={demo.moeda} />
       {demo.efeitoFundo && (
-        // EfeitoDinamico (client component) resolve E renderiza o efeito —
+        // EfeitoCamada (client component) resolve E renderiza o efeito —
         // nunca chamar getEfeitoComponenteDinamico direto aqui: é uma
         // função comum exportada de um módulo "use client", e invocá-la
         // como função (fora de JSX) a partir deste Server Component lança
         // em runtime ("Attempted to call ... from the server"), derrubando
         // a rota pública inteira. Ver dynamicComponents.tsx.
-        <EfeitoDinamico
+        <EfeitoCamada
           id={demo.efeitoFundo.efeito.id}
           intensidade={demo.efeitoFundo.intensidade}
-          cores={demo.coresEfeito}
+          cores={demo.camada.cores}
+          coresCss={demo.camada.coresCss}
+          coresAnimacao={demo.camada.coresAnimacao}
         />
       )}
       {visitante.interna && <SeloVisitaInterna nomeUsuario={visitante.nomeUsuario} />}

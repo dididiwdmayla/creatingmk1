@@ -62,6 +62,10 @@ function diffSecao(
 
   if (atual.oculta === true) secao.oculta = true;
 
+  // Só o `false` (animação DESLIGADA) precisa ser persistido: ausente já
+  // significa ligada, o padrão de toda demo publicada antes do controle.
+  if (atual.animacao === false) secao.animacao = false;
+
   const naturalBase = base?.alinhamento ?? alinhamentoNatural;
   if (atual.alinhamento && atual.alinhamento !== naturalBase) {
     secao.alinhamento = atual.alinhamento;

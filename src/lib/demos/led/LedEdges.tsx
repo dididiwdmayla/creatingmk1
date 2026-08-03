@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 
-import type { LedPreset } from "../types";
+import { medirCobertura } from "../animacao/medirCobertura";
+import { resolverModoCores } from "../cores/modos";
+import type { CoresModoValor, LedPreset } from "../types";
 import { LED_ESTILO_PADRAO } from "./registry";
+
+/** Namespace das custom properties de cor do LED (o efeito usa "efeito"). */
+const PREFIXO_CORES_LED = "led-cor";
 
 /**
  * Bordas com luz LED na cor de destaque do tema (`var(--d-accent)`,
@@ -27,34 +32,86 @@ import { LED_ESTILO_PADRAO } from "./registry";
  * exige tocar em nenhuma das 8 skins. Cada `interactive/LedEdges.tsx` de
  * skin agora só reexporta este componente.
  */
-export function LedEdges({ preset, estilo }: { preset: LedPreset; estilo?: string }) {
+export function LedEdges({
+  preset,
+  estilo,
+  cores,
+  corBase,
+}: {
+  preset: LedPreset;
+  estilo?: string;
+  /**
+   * Modo de cor do LED (`Theme.ledCores`) — ausente/"tema" = a cor de
+   * destaque do tema, como sempre. Nos modos com cor própria/animada, a
+   * ÚNICA coisa que muda é `--d-accent`, redefinida localmente na raiz
+   * deste componente: todo o CSS dos 4 estilos abaixo continua lendo
+   * `var(--d-accent)` sem saber que existe modo de cor.
+   */
+  cores?: CoresModoValor;
+  /** Cor de destaque do tema — base dos modos derivados (iridescente/arco-íris). */
+  corBase?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const estiloResolvido = estilo || LED_ESTILO_PADRAO;
+  // `--d-accent` do wrapper da skin é a cor de sempre; `corBase` é a mesma
+  // cor em hex, necessária porque matiz não se manipula a partir de uma
+  // referência a CSS var (ver ../cores/modos.ts).
+  const modo = resolverModoCores(
+    cores,
+    [corBase ?? "var(--d-accent)", corBase ?? "var(--d-accent)", corBase ?? "var(--d-accent)"],
+    PREFIXO_CORES_LED,
+  );
 
   useEffect(() => {
     if (preset === "desligado") return;
     const el = ref.current;
     if (!el) return;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const reduzida = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduzida) {
       el.style.setProperty("--d-led-scroll", "0.5");
-      return;
+      // Cor congelada no primeiro quadro do ciclo (o `initial-value` do
+      // @property) — "estático", não "pausado", igual ao resto da camada
+      // decorativa. Escrito no DOM, nunca no render: ler matchMedia
+      // durante o render quebraria a hidratação (este componente é
+      // renderizado no servidor dentro do Skin.tsx).
+      el.style.animationName = "none";
     }
 
     let raf = 0;
+    // Opacidade do LED inteiro = cobertura das seções com animação ligada
+    // (ver lib/demos/animacao/cobertura.ts): o LED acompanha o efeito de
+    // fundo e some por interpolação nas seções sem animação, em vez de
+    // piscar na fronteira. Continua medindo em `prefers-reduced-motion`:
+    // isso não é movimento autônomo, só muda quando a pessoa rola.
+    let fade = 1;
+    const medir = () => {
+      if (!reduzida) {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = max > 0 ? window.scrollY / max : 0;
+        el.style.setProperty("--d-led-scroll", String(Math.min(1, Math.max(0, pct))));
+      }
+      const novo = medirCobertura(fade);
+      if (Math.abs(novo - fade) >= 0.002) {
+        fade = novo;
+        el.style.opacity = String(novo);
+      }
+    };
     const onScroll = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        const pct = max > 0 ? window.scrollY / max : 0;
-        el.style.setProperty("--d-led-scroll", String(Math.min(1, Math.max(0, pct))));
+        medir();
       });
     };
-    onScroll();
+    medir();
+    // Alturas ainda mudam depois do primeiro quadro (fontes/imagens).
+    const beat = setTimeout(medir, 400);
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
 
     const onClick = () => {
+      if (reduzida) return; // pulso é movimento autônomo: fica de fora
       el.classList.remove("d-led-pulse");
       void el.offsetWidth; // força reflow pra poder reiniciar a animação
       el.classList.add("d-led-pulse");
@@ -63,7 +120,9 @@ export function LedEdges({ preset, estilo }: { preset: LedPreset; estilo?: strin
 
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
       document.removeEventListener("click", onClick);
+      clearTimeout(beat);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [preset]);
@@ -71,7 +130,28 @@ export function LedEdges({ preset, estilo }: { preset: LedPreset; estilo?: strin
   if (preset === "desligado") return null;
 
   return (
-    <div ref={ref} data-d-led={preset} data-d-led-estilo={estiloResolvido} className="d-led-edges" aria-hidden="true">
+    <div
+      ref={ref}
+      data-d-led={preset}
+      data-d-led-estilo={estiloResolvido}
+      className="d-led-edges"
+      aria-hidden="true"
+      style={
+        {
+          // Redefinição LOCAL de --d-accent: no modo "tema" nem existe (a
+          // var do wrapper da skin continua valendo); nos demais, aponta
+          // pra cor escolhida ou pra custom property animada.
+          ...(modo.efetivo !== "tema" && { "--d-accent": modo.cores[0] }),
+          ...(modo.animacao && {
+            animationName: modo.animacao.nome,
+            animationDuration: `${modo.animacao.duracaoSegundos}s`,
+            animationTimingFunction: modo.animacao.timing,
+            animationIterationCount: "infinite",
+          }),
+        } as CSSProperties
+      }
+    >
+      {modo.css && <style>{modo.css}</style>}
       <style>{`
         .d-led-edges {
           position: fixed; inset: 0; z-index: 45; pointer-events: none;

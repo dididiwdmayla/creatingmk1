@@ -1,7 +1,8 @@
 import Image from "next/image";
-import { Fragment, type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 
-import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { SecaoMarcada } from "@/lib/demos/animacao/SecaoMarcada";
+import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
@@ -230,6 +231,9 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
   const entradaDe = (id: string) => s[id]?.animacaoEntrada;
   const typewriter = (id: string): boolean => {
     if (theme.animacao === "nenhuma") return false;
+    // Animação desligada NESTA seção (aba Estrutura) desliga a máquina de
+    // escrever junto — é a mesma coisa que o nível global "nenhuma" faz.
+    if (!secaoAnimada(data, id)) return false;
     const entrada = entradaDe(id);
     return entrada === undefined ? TYPEWRITER_DEFAULT.has(id) : entrada === "typewriter";
   };
@@ -961,7 +965,12 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
 
       `}</style>
 
-      <LedEdges preset={theme.led} estilo={theme.ledEstilo} />
+      <LedEdges
+        preset={theme.led}
+        estilo={theme.ledEstilo}
+        cores={theme.ledCores}
+        corBase={paleta.destaque}
+      />
 
       <IntroExperience
         nome={data.nome}
@@ -987,13 +996,20 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
           transform quebraria — só "fade"/"typewriter" (sem transform) são
           oferecidos para ela (ver secoes.ts e SectionReveal.tsx). */}
       {visiveis.map((id) => {
-        const tipo = wrapperTipo(id);
-        return tipo === null ? (
-          <Fragment key={id}>{secoes[id]?.()}</Fragment>
-        ) : (
-          <SectionReveal key={id} animacao={theme.animacao} tipo={tipo}>
-            {secoes[id]?.()}
-          </SectionReveal>
+        const animada = secaoAnimada(data, id);
+        // Animação desligada nesta seção (aba Estrutura): sem wrapper de
+        // entrada nenhum — o mesmo que o nível global "nenhuma" faz.
+        const tipo = animada ? wrapperTipo(id) : null;
+        return (
+          <SecaoMarcada key={id} id={id} animada={animada}>
+            {tipo === null ? (
+              secoes[id]?.()
+            ) : (
+              <SectionReveal animacao={theme.animacao} tipo={tipo}>
+                {secoes[id]?.()}
+              </SectionReveal>
+            )}
+          </SecaoMarcada>
         );
       })}
 

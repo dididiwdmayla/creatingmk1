@@ -1,11 +1,13 @@
 import { getEfeito } from "./efeitos/registry";
 import { getFonte } from "./fontes";
 import { getLedEstilo } from "./led/registry";
+import { modoValido } from "./cores/modos";
 import {
   ALINHAMENTOS,
   CLIQUE_ESTILOS,
   HOVER_ESTILOS,
   LED_PRESETS,
+  type CoresModoValor,
   type TemaPatch,
   type Theme,
 } from "./types";
@@ -13,6 +15,16 @@ import {
 /** "nenhum" (desligado) ou id de um efeito existente no registro (ver ./efeitos/registry.ts). */
 function fundoEfeitoValido(id: string): boolean {
   return id === "nenhum" || getEfeito(id) !== undefined;
+}
+
+/**
+ * Modo de cor da camada decorativa (efeito/LED) — só passa adiante o que
+ * tem modo conhecido; qualquer coisa fora do contrato vira `undefined`
+ * (= "tema"), a mesma tolerância dos outros campos do patch.
+ */
+function coresModoValido(valor: CoresModoValor | undefined): CoresModoValor | undefined {
+  if (!valor || !modoValido(valor.modo)) return undefined;
+  return valor.modo === "tema" ? undefined : valor;
 }
 
 /** Limites de escala do título hero quando a skin não declara os dela. */
@@ -121,5 +133,9 @@ export function aplicarTema(
     led: patch.led && LED_PRESETS.includes(patch.led) ? patch.led : preset.led,
     ledEstilo:
       patch.ledEstilo && getLedEstilo(patch.ledEstilo) ? patch.ledEstilo : preset.ledEstilo,
+    // Modos de cor da camada decorativa: só existem como escolha do
+    // editor (nenhum preset declara), então o patch é a única fonte.
+    ...(coresModoValido(patch.efeitoCores) && { efeitoCores: coresModoValido(patch.efeitoCores) }),
+    ...(coresModoValido(patch.ledCores) && { ledCores: coresModoValido(patch.ledCores) }),
   };
 }

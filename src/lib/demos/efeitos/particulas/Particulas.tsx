@@ -31,7 +31,7 @@ export function Particulas({ intensidade, cores, pausado }: EfeitoProps) {
       ref={containerRef}
       className="pointer-events-none fixed inset-0 z-40 overflow-hidden"
       aria-hidden="true"
-      style={{ opacity: opacidadeContainer(intensidade) }}
+      style={{ opacity: `calc(${opacidadeContainer(intensidade)} * var(--d-efeito-fade, 1))` }}
     >
       <style>{`
         @keyframes d-efeito-particulas-flutua {

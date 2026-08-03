@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 
-import { paletaParaAura } from "@/lib/demos/efeitos/aura/cores";
-import { EfeitoDinamico } from "@/lib/demos/efeitos/dynamicComponents";
+import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
+import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
-import type { LedPreset, TemaPatch } from "@/lib/demos/types";
+import { modoValido } from "@/lib/demos/cores/modos";
+import type { CoresModoValor, LedPreset, TemaPatch } from "@/lib/demos/types";
 import { demoCoreFontsClassName } from "@/app/demo/fonts";
 
 /**
@@ -34,6 +35,11 @@ import { demoCoreFontsClassName } from "@/app/demo/fonts";
  *   intensidade=0..3     default: o default do nicho
  *   led=desligado|sutil|marcante
  *   ledEstilo=barra|dissipado|cantos|moldura
+ *   corModo=<modo>       modo de cor do EFEITO (tema/fixa/transicao/iridescente/arco-iris)
+ *   cores=#aabbcc,#...   cores do modo do efeito (1 em "fixa", 2-3 em "transicao")
+ *   ledCorModo=<modo>    idem para o LED
+ *   ledCores=#aabbcc,#...
+ *   semAnim=id1,id2      seções com a animação DESLIGADA (DemoSecao.animacao)
  *   intro=0              desliga a splash de abertura (default nas capturas)
  */
 
@@ -57,6 +63,15 @@ function ledDaQuery(valor: string | undefined): LedPreset | undefined {
   return valor === "desligado" || valor === "sutil" || valor === "marcante" ? valor : undefined;
 }
 
+/** modo + lista de cores da query → o mesmo valor que o editor persiste. */
+function coresModoDaQuery(
+  modo: string | undefined,
+  cores: string | undefined,
+): CoresModoValor | undefined {
+  if (!modoValido(modo)) return undefined;
+  return { modo, cores: cores?.split(",").map((c) => c.trim()).filter(Boolean) };
+}
+
 export default async function DemoQaPage({ searchParams }: Props) {
   const query = await searchParams;
 
@@ -70,6 +85,8 @@ export default async function DemoQaPage({ searchParams }: Props) {
     fundoEfeitoIntensidade: intensidadeDaQuery(texto(query.intensidade)),
     led: ledDaQuery(texto(query.led)),
     ledEstilo: texto(query.ledEstilo),
+    efeitoCores: coresModoDaQuery(texto(query.corModo), texto(query.cores)),
+    ledCores: coresModoDaQuery(texto(query.ledCorModo), texto(query.ledCores)),
     intro: texto(query.intro) === "0" ? false : undefined,
   };
   const theme = aplicarTema(
@@ -83,21 +100,40 @@ export default async function DemoQaPage({ searchParams }: Props) {
     patch.fundoEfeitoIntensidade,
     skin.nicho,
   );
-  const coresEfeito =
-    efeitoFundo?.efeito.id === "aura" ? paletaParaAura(theme.paleta, undefined) : theme.paleta;
+  const camada = resolverCamadaEfeito({
+    paleta: theme.paleta,
+    efeitoId: efeitoFundo?.efeito.id,
+    efeitoCores: theme.efeitoCores,
+    auraCores: undefined,
+  });
+
+  // Seções com animação desligada (item "Animação por seção"): mesmo
+  // caminho do editor — um patch em `dados.secoes.{id}.animacao`.
+  const semAnim = (texto(query.semAnim) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const dados = semAnim.length
+    ? {
+        ...skin.demoDataExemplo,
+        secoes: semAnim.reduce(
+          (acc, id) => ({ ...acc, [id]: { ...acc[id], animacao: false } }),
+          skin.demoDataExemplo.secoes,
+        ),
+      }
+    : skin.demoDataExemplo;
 
   const Skin = skin.componente;
   return (
     <div className={demoCoreFontsClassName}>
-      <Skin data={skin.demoDataExemplo} theme={theme} />
+      <Skin data={dados} theme={theme} />
       {efeitoFundo && (
-        // Sibling da skin e resolvido por EfeitoDinamico — exatamente como
+        // Sibling da skin e resolvido por EfeitoCamada — exatamente como
         // /demo/[leadId] faz (ver o comentário lá sobre nunca chamar
         // getEfeitoComponenteDinamico direto de um Server Component).
-        <EfeitoDinamico
+        <EfeitoCamada
           id={efeitoFundo.efeito.id}
           intensidade={efeitoFundo.intensidade}
-          cores={coresEfeito}
+          cores={camada.cores}
+          coresCss={camada.coresCss}
+          coresAnimacao={camada.coresAnimacao}
         />
       )}
     </div>
