@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { api } from "@/lib/api-client";
-import { TEMAS_APP, TEMAS_META, TEMA_PADRAO, temaOuPadrao, type TemaApp } from "@/lib/tema";
+import {
+  TEMAS_APP,
+  TEMAS_META,
+  TEMA_PADRAO,
+  temaOuPadrao,
+  type TemaApp,
+} from "@/lib/tema";
 
 /**
  * O tema ATIVO vive no DOM (`data-theme` no <html>, já renderizado pelo
@@ -32,6 +38,12 @@ function noServidor(): TemaApp {
 
 function aplicarNoDom(tema: TemaApp): void {
   document.documentElement.dataset.theme = tema;
+  // A barra do navegador acompanha a interface na hora, sem recarregar. O
+  // valor inicial vem do `generateViewport` do layout (servidor); aqui só o
+  // `content` é reescrito — a tag já existe, e criar uma segunda faria o
+  // navegador considerar a primeira.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", TEMAS_META[tema].barra);
   for (const listener of listeners) listener();
 }
 

@@ -29,6 +29,14 @@ export interface TemaMeta {
   descricao: string;
   /** Glifo do seletor (o único canal que não é cor). */
   glifo: string;
+  /**
+   * Cor da barra do navegador (`<meta name="theme-color">`). É a `--surface`
+   * do tema — a MESMA cor do header —, para a barra do navegador ficar
+   * contínua com o cabeçalho do app em vez de encostar nele com um degrau.
+   * Duplicada aqui porque a meta tag é HTML, não CSS: nada consegue ler uma
+   * custom property no servidor.
+   */
+  barra: string;
 }
 
 export const TEMAS_META: Record<TemaApp, TemaMeta> = {
@@ -37,30 +45,35 @@ export const TEMAS_META: Record<TemaApp, TemaMeta> = {
     nome: "Escuro",
     descricao: "Radar/sonar: azul-profundo com acento verde.",
     glifo: "☾",
+    barra: "#121b24",
   },
   claro: {
     id: "claro",
     nome: "Claro",
     descricao: "Mesmos papéis do escuro, luminâncias invertidas.",
     glifo: "☀",
+    barra: "#ffffff",
   },
   acido: {
     id: "acido",
     nome: "Ácido",
     descricao: "Preto neutro, verde-lima elétrico. Alta voltagem.",
     glifo: "◤",
+    barra: "#111710",
   },
   vapor: {
     id: "vapor",
     nome: "Vapor",
     descricao: "Preto azulado, ciano frio. Técnico, de sala de máquinas.",
     glifo: "◈",
+    barra: "#0b151d",
   },
   prisma: {
     id: "prisma",
     nome: "Prisma",
     descricao: "Preto violáceo, violeta elétrico. Película de óleo.",
     glifo: "◇",
+    barra: "#140f22",
   },
 };
 
@@ -88,3 +101,4 @@ export const TEMA_COOKIE_OPTIONS = {
   maxAge: 60 * 60 * 24 * 365,
   secure: process.env.NODE_ENV === "production",
 } as const;
+

@@ -41,6 +41,7 @@
  *   node scripts/qa-plataforma.mjs --so=iris
  *   node scripts/qa-plataforma.mjs --so=legibilidade
  *   node scripts/qa-plataforma.mjs --so=custo
+ *   node scripts/qa-plataforma.mjs --so=barra
  *   node scripts/qa-plataforma.mjs --so=fps
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
@@ -1025,6 +1026,112 @@ async function medirLegibilidade(browser, secret) {
   return [destino];
 }
 
+/* ── Item: theme-color acompanha o tema do usuário ──────────────────── */
+
+/** Espelha TEMAS_META[...].barra de src/lib/tema.ts (a --surface de cada tema). */
+const BARRA_ESPERADA = {
+  escuro: "#121b24",
+  claro: "#ffffff",
+  acido: "#111710",
+  vapor: "#0b151d",
+  prisma: "#140f22",
+};
+
+/**
+ * Duas coisas, e as duas importam:
+ *   1. o `<meta name="theme-color">` já sai CERTO no HTML do servidor — se
+ *      só o cliente o ajustasse, a barra do navegador piscaria na cor
+ *      errada em toda carga, que é o problema que o cookie-espelho resolve;
+ *   2. trocar de tema pelo seletor muda o `content` na hora, SEM recarregar,
+ *      e continua existindo UMA só tag (criar uma segunda faria o navegador
+ *      considerar a primeira e a barra não mudaria).
+ */
+async function medirBarra(browser, secret) {
+  const ctx = await contextoLogado(browser, { viewport: VIEWPORT_DESKTOP, secret });
+  const page = await ctx.newPage();
+  console.log("\n  [barra] <meta name=\"theme-color\"> por tema:");
+
+  const linhas = [];
+  let falhas = 0;
+  for (const tema of TEMAS) {
+    definirTemaNoDoc("admin", tema);
+    // Carga de AQUECIMENTO: o servidor lê o cookie-espelho, e o cookie só é
+    // escrito quando uma rota o escreve — no app real isso acontece no login.
+    // Sem este passo, a medição do HTML do servidor sai atrasada em um tema
+    // (foi o que a primeira rodada mostrou: servidor=#121b24 no "claro"), e o
+    // atraso seria do laço, não do produto. Aqui o próprio GET /api/tema do
+    // TemaSeletor põe o navegador no estado de regime.
+    await page.goto(`${BASE}/hoje`, { waitUntil: "domcontentloaded" });
+    await assentar(page);
+
+    const resposta = await page.goto(`${BASE}/hoje`, { waitUntil: "domcontentloaded" });
+    const html = await resposta.text();
+    const noServidor = /<meta name="theme-color" content="([^"]+)"/.exec(html)?.[1];
+    await assentar(page);
+    await exigirTema(page, tema, `barra/${tema}`);
+    const { conteudo, tags } = await page.evaluate(() => {
+      const todas = document.querySelectorAll('meta[name="theme-color"]');
+      return { conteudo: todas[0]?.getAttribute("content") ?? null, tags: todas.length };
+    });
+
+    const esperado = BARRA_ESPERADA[tema];
+    const ok = noServidor?.toLowerCase() === esperado && conteudo?.toLowerCase() === esperado && tags === 1;
+    if (!ok) falhas++;
+    console.log(
+      `    ${tema.padEnd(7)} servidor=${noServidor}  DOM=${conteudo}  tags=${tags}` +
+        `  esperado=${esperado}  ${ok ? "ok" : "XX"}`,
+    );
+    linhas.push({ tema, noServidor, conteudo, tags, esperado, ok });
+  }
+
+  // A troca pelo seletor, sem recarregar: é o "muda quando ele troca de tema".
+  definirTemaNoDoc("admin", TEMAS[0]);
+  await page.goto(`${BASE}/hoje`, { waitUntil: "domcontentloaded" });
+  await assentar(page);
+  const leMeta = () =>
+    page.evaluate(() =>
+      document.querySelector('meta[name="theme-color"]')?.getAttribute("content"),
+    );
+  const antes = await leMeta();
+  const alvo = TEMAS[TEMAS.length - 1];
+  await page.getByRole("button", { name: /Trocar de tema/ }).click();
+  await page.getByRole("menuitemradio", { name: new RegExp(`^${alvo}`, "i") }).click();
+  await page.waitForTimeout(500);
+  const depois = await leMeta();
+  const semRecarregar = depois?.toLowerCase() === BARRA_ESPERADA[alvo] && antes !== depois;
+  if (!semRecarregar) falhas++;
+  console.log(
+    `    troca ${TEMAS[0]} → ${alvo} sem recarregar: ${antes} → ${depois}` +
+      `  ${semRecarregar ? "ok" : "XX"}`,
+  );
+
+  await ctx.close();
+  const destino = path.join(SAIDA, `_barra${marca}.md`);
+  await fs.writeFile(
+    destino,
+    [
+      "# `<meta name=\"theme-color\">` por tema",
+      "",
+      "A cor da barra do navegador é a `--surface` do tema ativo do usuário — a",
+      "mesma cor do header, para a barra ficar contínua com ele. Sai pronta no",
+      "HTML do SERVIDOR (`generateViewport` lê o cookie-espelho), e o seletor",
+      "reescreve o `content` na troca, sem recarregar.",
+      "",
+      "| tema | no HTML do servidor | no DOM | tags | esperado |",
+      "|---|---|---|---|---|",
+      ...linhas.map(
+        (l) =>
+          `| \`${l.tema}\` | \`${l.noServidor}\` | \`${l.conteudo}\` | ${l.tags} | ` +
+          `\`${l.esperado}\` ${l.ok ? "✓" : "✗"} |`,
+      ),
+      "",
+      `Troca pelo seletor, sem recarregar: \`${antes}\` → \`${depois}\`.`,
+    ].join("\n"),
+  );
+  console.log(`\n  [barra] ${falhas === 0 ? "todos os temas passam" : `${falhas} FALHA(S)`}`);
+  return [destino];
+}
+
 /* ── Item: custo — animações vivas no DOM em repouso ────────────────── */
 
 /**
@@ -1258,6 +1365,7 @@ async function main() {
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));
     if (querido("legibilidade")) gerados.push(...(await medirLegibilidade(browser, secret)));
     if (querido("custo")) gerados.push(...(await medirCusto(browser, secret)));
+    if (querido("barra")) gerados.push(...(await medirBarra(browser, secret)));
     if (querido("fps")) gerados.push(...(await medirFps(browser, secret)));
 
     await browser.close();

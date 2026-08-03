@@ -1561,6 +1561,61 @@ buscar os dados), não o cromo.
 
 Relatórios: `docs/temas/custo.md` e `docs/temas/fps.md`.
 
+### `theme-color` acompanha o tema do usuário
+
+A barra do navegador passa a ser a `--surface` do tema ativo DESTE usuário —
+a mesma cor do header, para a barra ficar contínua com ele em vez de encostar
+com um degrau. `generateViewport` no layout raiz lê o mesmo cookie-espelho do
+`data-theme`, então a cor sai pronta no HTML do servidor; o `TemaSeletor`
+reescreve o `content` da mesma tag na troca, sem recarregar.
+
+`TemaMeta.barra` DUPLICA a `--surface` do CSS — a meta tag é HTML e nada lê
+custom property no servidor. Duplicata sem guarda vira divergência silenciosa
+(alguém ajusta a surface, a barra fica na cor velha, e só aparece na moldura
+do celular), então `lib/__tests__/tema.test.ts` compara os dois arquivos.
+
+**A demo pública não é afetada**: `/demo/{leadId}` declara o próprio
+`generateViewport` com a cor da skin do lead, e o da ROTA vence o do layout.
+Confirmado com o cookie de tema presente: a demo responde `#1A1411` (a cor da
+skin) e não a do app.
+
+| tema | HTML do servidor | DOM | tags |
+|---|---|---|---|
+| `escuro` | `#121b24` | `#121b24` | 1 |
+| `claro` | `#ffffff` | `#ffffff` | 1 |
+| `acido` | `#111710` | `#111710` | 1 |
+| `vapor` | `#0b151d` | `#0b151d` | 1 |
+| `prisma` | `#140f22` | `#140f22` | 1 |
+
+Troca pelo seletor, sem recarregar: `#121b24` → `#140f22`.
+
+**Duas armadilhas de MEDIÇÃO, não de produto** — as duas custaram tempo e as
+duas valem registro, porque a segunda quase virou uma reescrita inteira em
+cima de um diagnóstico falso:
+
+1. **A leitura do HTML do servidor saía atrasada em um tema.** O laço grava o
+   tema no doc e carrega a página; só que o cookie-espelho é escrito por uma
+   ROTA, e na primeira carga ele ainda é o do tema anterior. O laço ganhou uma
+   carga de aquecimento — o próprio `GET /api/tema` põe o navegador em regime
+   — e passou a medir a segunda. O atraso era do laço, não do produto.
+2. **Um servidor sobrando de uma sondagem anterior serviu TODAS as sondagens
+   seguintes.** `next start` numa porta ocupada falha com `EADDRINUSE` e sai;
+   o processo velho continua respondendo, com o build velho. Sondando por
+   `curl` contra ele, o `theme-color` "nunca aparecia" — e as conclusões
+   tiradas dali ("`generateViewport` não roda em layout", "a camada de
+   metadados do Next filtra a tag", "`metadata.other` não emite") eram TODAS
+   falsas. O sintoma que denunciou foi o HTML ainda conter o `animate-ping`
+   removido dois commits antes. Contra um servidor novo, `generateViewport` no
+   layout raiz funciona exatamente como documentado.
+
+   O laço nunca caiu nessa: `qa-plataforma.mjs` herdou de `qa-visual.mjs` o
+   `exigirPortaLivre`, que aborta antes de subir se a porta já responde — foi
+   por isso que ele vinha reportando "ok" enquanto a sondagem manual reportava
+   "não existe". **A sondagem à mão é que precisava da guarda que o laço já
+   tinha.**
+
+Relatório: `docs/temas/barra.md`.
+
 ## Verificação da UI
 
 Sem Firebase real neste ambiente de sessão, a verificação de ponta a ponta foi feita ligando temporariamente o `FakeFirestore` (o mesmo fake dos testes) no lugar do Firestore via uma env var (`RADAR_FAKE_DB=1`), com dados de exemplo, rodando `next build && next start` e navegando o app real com Playwright (login errado/certo, dashboard com os três estados de meter, filtros de leads, ficha enriquecida/não enriquecida, botão Enriquecer com erro real de `GOOGLE_PLACES_API_KEY` ausente, transição de status, link `wa.me` com telefone e `{nome}` corretos, salvar config, logout e bloqueio pós-logout). O patch em `admin.ts` e os dados de exemplo foram revertidos antes do commit — não fazem parte do código do app.
