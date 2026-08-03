@@ -32,7 +32,20 @@ describe("estiloGradiente", () => {
     }
   });
 
-  it("filter (blur) nunca muda com intensidade/estado — nunca é a propriedade animada", () => {
-    expect(estiloGradiente(1, false, true).filter).toBe(estiloGradiente(3, true, false).filter);
+  /**
+   * REGRESSÃO: o overlay tem uma animação de `transform` infinita e ocupa
+   * 150% da viewport. Com QUALQUER `filter` (mesmo fixo, nunca animado) o
+   * navegador re-rasteriza e re-borra a superfície inteira a cada quadro —
+   * medido em 10 fps contra 55 fps sem o filtro (ver ../estilo.ts). "Não
+   * animar o filter" não basta: aqui ele não pode existir.
+   */
+  it("nunca aplica filter — combinado com a animação de transform, custa 5/6 dos quadros", () => {
+    for (const i of [1, 2, 3] as const) {
+      for (const reduced of [false, true]) {
+        for (const ativo of [false, true]) {
+          expect(estiloGradiente(i, reduced, ativo).filter).toBe("none");
+        }
+      }
+    }
   });
 });
