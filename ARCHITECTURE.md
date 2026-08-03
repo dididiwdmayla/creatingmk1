@@ -1354,6 +1354,86 @@ final ser sempre uma troca de verdade.
 Captura: `docs/temas/usuario-dois-temas.png` (folha de contato — mesmo
 navegador, dois usuários, duas primeiras pinturas).
 
+### Temas iridescentes (Ácido, Vapor, Prisma)
+
+Três temas de base preta que compartilham um vocabulário e se separam pelo
+miolo. Adicioná-los foi operação de CSS: um bloco `:root[data-theme="<id>"]`
+por tema, nenhum componente tocado por cor.
+
+- **O `--accent` carrega a identidade, não a cor de apoio.** O verde-lima é o
+  parentesco (`--apoio`, presente nos três) e o rosa é a faísca (`--faisca`,
+  sempre pontual). Se a lima fosse o accent nos três, o lugar mais visível da
+  interface — botão primário, aba ativa, barra do meter — seria idêntico em
+  todos, e eles seriam variações do mesmo tom em vez de temas.
+- **A iridescência "entre eles" é o arco que os três varrem.** Todos começam na
+  lima (~80-85°) e terminam na mesma cauda de rosa (~320-333°); o que gira é o
+  miolo: 147° (Ácido) → 187° (Vapor) → 255° (Prisma). Lado a lado, os três
+  gradientes de cromo são a mesma película de óleo girada.
+
+| tema | preto base | `--accent` (miolo) | `--apoio` (lima) | `--faisca` (rosa) | arco `--iris-1/2/3` |
+|---|---|---|---|---|---|
+| **Ácido** | `#050704` neutro | `#b8ff2e` lima 80° | `#b8ff2e` | `#ff4d9d` | 80° → 147° → 333° |
+| **Vapor** | `#03070c` azulado | `#2fe6ff` ciano 187° | `#a8f03c` | `#ff5aa8` | 84° → 187° → 332° |
+| **Prisma** | `#06040c` violáceo | `#a98cff` violeta 255° | `#a6f53a` | `#ff5cc8` | 85° → 255° → 320° |
+
+- **A rampa ordinal de status muda de hue por tema** para não colidir com o
+  accent — status é posição no funil, accent é ação, e dois significados não
+  podem dividir cor: azul no Ácido, índigo no Vapor, teal no Prisma. Todas
+  monótonas em luminância, cada degrau com a própria ink (ver `docs/temas/contraste.md`).
+- **Um quarto tema quente foi desenhado e descartado.** Com accent âmbar o
+  meter viraria `âmbar (OK) → amarelo (perto do teto) → vermelho (no limite)`:
+  progressão de severidade invertida, porque amarelo lê como *menos* alarmante
+  que laranja. Descartar foi mais barato que quebrar o contrato
+  `accent → warning → critical`.
+
+**Rosa "em quantidade bem menor", medido** (`--so=iris`): o laço captura o
+header e a barra inferior, decodifica pixel a pixel (`scripts/png.mjs`) e
+classifica por faixa de matiz, descartando o que tem croma baixo (a superfície
+sólida, que é a maioria). O rosa é a cauda dos últimos 12% da rampa e nunca
+passa de 1/6 do cromo colorido:
+
+| tema | lima | miolo | rosa | do cromo é colorido |
+|---|---|---|---|---|
+| `escuro` | 0,2% | 90,8% | **9,0%** | 2,3% dos pixels |
+| `claro` | 0,0% | 90,7% | **9,3%** | 2,2% |
+| `acido` | 37,1% | 55,0% | **7,9%** | 2,2% |
+| `vapor` | 9,3% | 85,6% | **5,1%** | 3,2% |
+| `prisma` | 25,8% | 57,7% | **16,5%** | 2,0% |
+
+Header e nav são contados também **em separado** — somados, um dos dois poderia
+estar sem linha nenhuma e o total continuaria bonito. Os dois têm entre 1.138 e
+2.612 pixels coloridos em todos os temas.
+
+**Dois defeitos reais que só a captura pegou** (e nenhum apareceria em teste
+unitário nem lendo o código):
+
+1. **As cinco levas de captura saíam IDÊNTICAS.** O laço cunhava o cookie do
+   tema, mas o `TemaSeletor` chama `GET /api/tema` ao montar e aplica o valor
+   do DOC — que estava vazio, então tudo voltava pro padrão. Quem denunciou foi
+   o `qa-diff.mjs`: `ácido vs vapor, médio=0.000, máx=0`. O laço passou a semear
+   o doc antes de capturar, e ganhou a asserção `exigirTema` depois de cada
+   carga. (O comportamento do app está certo: é assim que um segundo
+   dispositivo se corrige.)
+2. **A barra de navegação deixou de ser fixa.** A iridescência entrou como
+   `::after`, que exige ancestral posicionado; a primeira versão pôs
+   `position: relative` na classe `.cromo-linha`, que tem a MESMA
+   especificidade das utilities do Tailwind e vem depois delas no arquivo —
+   venceu o `fixed` da nav e jogou a barra de volta pro fluxo, grudada embaixo
+   do header. É o terceiro caso do mesmo cascade neste repo (os blobs do hero da
+   tatuagem e o `.d-nav-cta` foram os outros dois). Corrigido tirando `position`
+   da classe custom; o laço ganhou `exigirCromoNoLugar`, que cobra
+   `position: fixed` e a nav colada no rodapé da viewport em toda captura.
+
+Um terceiro, do próprio laço: o doc `cron/ultima` semeado tinha forma
+encurtada, e o widget do painel formata `totalNovos` direto — o `formatInt`
+de `undefined` derrubava a página no cliente, e quando React desmonta a
+árvore o `data-theme` do `<html>` vai junto. O sintoma que apareceu não foi
+"o painel quebrou", foi "o tema sumiu".
+
+Capturas: `docs/temas/tema-{escuro,claro,acido,vapor,prisma}-{desktop,celular}.png`
+(folha de contato com as 7 abas de cada tema), `docs/temas/contraste.md` e
+`docs/temas/iridescencia.md`.
+
 ## Verificação da UI
 
 Sem Firebase real neste ambiente de sessão, a verificação de ponta a ponta foi feita ligando temporariamente o `FakeFirestore` (o mesmo fake dos testes) no lugar do Firestore via uma env var (`RADAR_FAKE_DB=1`), com dados de exemplo, rodando `next build && next start` e navegando o app real com Playwright (login errado/certo, dashboard com os três estados de meter, filtros de leads, ficha enriquecida/não enriquecida, botão Enriquecer com erro real de `GOOGLE_PLACES_API_KEY` ausente, transição de status, link `wa.me` com telefone e `{nome}` corretos, salvar config, logout e bloqueio pós-logout). O patch em `admin.ts` e os dados de exemplo foram revertidos antes do commit — não fazem parte do código do app.

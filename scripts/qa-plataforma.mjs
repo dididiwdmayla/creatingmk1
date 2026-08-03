@@ -54,6 +54,8 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
 
+import { lerPng } from "./png.mjs";
+
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SAIDA = path.join(RAIZ, "qa-shots");
 const CHROMIUM = process.env.QA_CHROMIUM ?? "/opt/pw-browsers/chromium";
@@ -241,11 +243,20 @@ function semear() {
       totalExistentes: 2,
       userId: "admin",
     },
+    // Forma COMPLETA de CronExecucao (lib/buscas/cron.ts). Um doc encurtado
+    // aqui não é "dado de exemplo pobre": o widget do painel formata
+    // `totalNovos`/`buscas.length` direto, então campo faltando derruba a
+    // página inteira no cliente — e, quando React desmonta a árvore, o
+    // `data-theme` do <html> vai junto e TODA a captura sai no tema errado.
     "cron/ultima": {
       em: iso(0),
-      buscas: 1,
-      criados: 3,
-      erros: [],
+      concluidaEm: iso(0),
+      recorrentes: 1,
+      totalNovos: 3,
+      totalExistentes: 11,
+      buscas: [
+        { buscaId: "busca-centro", nome: "Dentistas — Centro", novos: 3, existentes: 11 },
+      ],
     },
     [`usage/${chaveMes()}`]: {
       period: chaveMes(),
@@ -332,6 +343,23 @@ function semear() {
   fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
 }
 
+/**
+ * Grava o tema no DOC do usuário — o mesmo campo que o PUT /api/tema usa.
+ *
+ * Cunhar só o cookie NÃO basta, e essa foi uma armadilha real: o
+ * `TemaSeletor` chama `GET /api/tema` ao montar e aplica o valor do DOC
+ * (é o desenho, e está certo — é como um segundo dispositivo se corrige).
+ * Com o doc vazio, toda captura voltava pro tema padrão e as cinco levas
+ * saíam IDÊNTICAS. Quem denunciou foi o `qa-diff.mjs`: "ácido vs vapor,
+ * médio=0.000, máx=0". Daí o doc ser semeado antes de capturar, e daí a
+ * asserção `exigirTema` logo depois de cada carga.
+ */
+function definirTemaNoDoc(userId, tema) {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  mapa[`usuarios/${userId}`] = { ...mapa[`usuarios/${userId}`], tema };
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
 function lerTemaDoDoc(userId) {
   const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
   return mapa[`usuarios/${userId}`]?.tema;
@@ -369,6 +397,46 @@ async function assentar(page) {
 async function exigirLogado(page, onde) {
   if (new URL(page.url()).pathname === "/login") {
     throw new Error(`caiu no /login em ${onde} — cookie de sessão recusado`);
+  }
+}
+
+/**
+ * O cromo continua ONDE DEVE: header colado no topo, barra de navegação
+ * colada no rodapé da viewport. Existe porque a iridescência entrou como
+ * `::after`, e `::after` precisa de ancestral posicionado — a primeira
+ * versão pôs `position: relative` na classe `.cromo-linha`, que tem a mesma
+ * especificidade das utilities do Tailwind e vem DEPOIS delas no arquivo:
+ * venceu o `fixed` da nav e jogou a barra de volta pro fluxo, grudada
+ * embaixo do header. Nenhum teste unitário julga isso; a captura mostrou e
+ * esta asserção passa a cobrar.
+ */
+async function exigirCromoNoLugar(page, onde) {
+  const caixas = await page.evaluate(() => {
+    const header = document.querySelector("header");
+    const nav = document.querySelector("nav");
+    return {
+      navBottom: nav?.getBoundingClientRect().bottom ?? null,
+      navPosicao: nav ? getComputedStyle(nav).position : null,
+      headerTop: header?.getBoundingClientRect().top ?? null,
+      viewport: window.innerHeight,
+    };
+  });
+  if (caixas.navPosicao === null) throw new Error(`sem <nav> em ${onde}`);
+  if (caixas.navPosicao !== "fixed") {
+    throw new Error(`nav não está fixed em ${onde} (position: ${caixas.navPosicao})`);
+  }
+  if (Math.abs(caixas.viewport - caixas.navBottom) > 2) {
+    throw new Error(
+      `nav fora do rodapé em ${onde}: bottom=${caixas.navBottom}, viewport=${caixas.viewport}`,
+    );
+  }
+}
+
+/** Confere que a captura é do tema PEDIDO (ver definirTemaNoDoc). */
+async function exigirTema(page, tema, onde) {
+  const ativo = await page.evaluate(() => document.documentElement.dataset.theme);
+  if (ativo !== tema) {
+    throw new Error(`tema errado em ${onde}: pedido "${tema}", ativo "${ativo}"`);
   }
 }
 
@@ -411,6 +479,7 @@ async function folhaDeContato(page, titulo, arquivo, linhas) {
 async function capturarTemasEAbas(browser, secret, viewport, sufixo) {
   const gerados = [];
   for (const tema of TEMAS) {
+    definirTemaNoDoc("admin", tema);
     const ctx = await contextoLogado(browser, { viewport, secret, tema });
     const page = await ctx.newPage();
     const itens = [];
@@ -418,6 +487,8 @@ async function capturarTemasEAbas(browser, secret, viewport, sufixo) {
       await page.goto(`${BASE}${aba.url}`, { waitUntil: "domcontentloaded" });
       await assentar(page);
       await exigirLogado(page, `${tema}/${aba.id}`);
+      await exigirTema(page, tema, `${tema}/${aba.id}`);
+      await exigirCromoNoLugar(page, `${tema}/${aba.id}`);
       const png = path.join(SAIDA, `tema-${tema}-${aba.id}-${sufixo}${marca}.png`);
       await page.screenshot({ path: png });
       gerados.push(png);
@@ -576,14 +647,26 @@ async function medirContraste(browser, secret) {
     const medida = await page.evaluate(
       ({ tema, pares, rampa }) => {
         document.documentElement.dataset.theme = tema;
-        const estilo = getComputedStyle(document.documentElement);
-        // O browser resolve toda cor para "rgb(r, g, b)" — nada de adivinhar
-        // hex a partir do texto do CSS: é o valor PINTADO que interessa.
-        const rgb = (v) => {
-          const m = v.trim().match(/(-?[\d.]+)/g);
-          return m ? m.slice(0, 3).map(Number) : null;
+        /*
+         * getComputedStyle NÃO resolve custom property: `--foreground`
+         * volta como o TEXTO declarado ("#eaf4e4"), não como rgb(). Uma
+         * regex de números sobre esse texto lê dígitos do hex e inventa
+         * uma cor — foi o que a primeira versão desta medição fez, e o
+         * relatório saiu com `--status-respondeu #050908`.
+         *
+         * A saída é deixar o BROWSER pintar: um probe com
+         * `color: var(--token)` devolve `rgb(r, g, b)` resolvido, e o
+         * mesmo caminho serve para hex literal, rgba() e color-mix().
+         */
+        const probe = document.createElement("span");
+        probe.style.display = "none";
+        document.body.appendChild(probe);
+        const doToken = (t) => {
+          probe.style.color = "";
+          probe.style.color = t.startsWith("--") ? `var(${t})` : t;
+          const m = getComputedStyle(probe).color.match(/[\d.]+/g);
+          return m && m.length >= 3 ? m.slice(0, 3).map(Number) : null;
         };
-        const doToken = (t) => (t.startsWith("--") ? rgb(estilo.getPropertyValue(t)) : rgb(t));
         const lin = (c) => {
           const s = c / 255;
           return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
@@ -672,91 +755,105 @@ async function medirIris(browser, secret) {
   const ctx = await contextoLogado(browser, { viewport: VIEWPORT_DESKTOP, secret });
   const page = await ctx.newPage();
   console.log(
-    "\n  [iris] fração de pixels COLORIDOS do cromo (header + nav) por faixa de matiz:",
+    "\n  [iris] cromo RASTERIZADO (header + barra inferior), pixel a pixel:",
   );
   const linhas = [];
   for (const tema of TEMAS) {
+    definirTemaNoDoc("admin", tema);
     await page.goto(`${BASE}/hoje`, { waitUntil: "domcontentloaded" });
     await assentar(page);
     await exigirLogado(page, `iris/${tema}`);
-    const medida = await page.evaluate(async (tema) => {
-      document.documentElement.dataset.theme = tema;
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      // Amostra os elementos de CROMO: header, nav e a borda ativa.
-      const alvos = [document.querySelector("header"), document.querySelector("nav")].filter(
-        Boolean,
-      );
-      const faixas = { lima: 0, miolo: 0, rosa: 0 };
-      let coloridos = 0;
-      let total = 0;
-      for (const alvo of alvos) {
-        const caixa = alvo.getBoundingClientRect();
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(caixa.width);
-        canvas.height = Math.round(caixa.height);
-        // Sem html2canvas: lê as cores DECLARADAS do próprio elemento e dos
-        // filhos, ponderadas pela área que cada um ocupa. É o que responde
-        // "quanto de rosa tem no cromo" sem depender de rasterização.
-        const nos = [alvo, ...alvo.querySelectorAll("*")];
-        for (const no of nos) {
-          const r = no.getBoundingClientRect();
-          const area = Math.max(0, r.width) * Math.max(0, r.height);
-          if (area <= 0) continue;
-          const cs = getComputedStyle(no);
-          for (const prop of ["backgroundImage", "backgroundColor", "color", "borderTopColor"]) {
-            const valor = cs[prop];
-            if (!valor || valor === "none") continue;
-            for (const m of valor.matchAll(/rgba?\(([^)]+)\)/g)) {
-              const [rr, gg, bb, aa] = m[1].split(",").map((n) => Number.parseFloat(n));
-              if (aa !== undefined && aa < 0.15) continue;
-              const max = Math.max(rr, gg, bb);
-              const min = Math.min(rr, gg, bb);
-              const d = max - min;
-              total += area;
-              if (d < 28 || max < 40) continue; // cinza/preto: não é matiz
-              coloridos += area;
-              let h;
-              if (max === rr) h = (((gg - bb) / d) % 6) * 60;
-              else if (max === gg) h = ((bb - rr) / d + 2) * 60;
-              else h = ((rr - gg) / d + 4) * 60;
-              if (h < 0) h += 360;
-              if (h >= 55 && h < 110) faixas.lima += area;
-              else if (h >= 280 || h < 20) faixas.rosa += area;
-              else faixas.miolo += area;
-            }
-          }
-        }
-      }
-      return { faixas, coloridos, total };
-    }, tema);
+    await exigirTema(page, tema, `iris/${tema}`);
 
-    const soma = medida.faixas.lima + medida.faixas.miolo + medida.faixas.rosa || 1;
+    /*
+     * A iridescência é um `::after` — `querySelectorAll("*")` NÃO enxerga
+     * pseudo-elemento, e a primeira versão desta medição varria as cores
+     * DECLARADAS dos nós e reportava "miolo 99.9%" nos cinco temas, sem
+     * nunca ter visto a linha. A resposta honesta é rasterizar: captura o
+     * header e a nav e conta pixel, que é o que a pessoa vê.
+     */
+    const faixas = { lima: 0, miolo: 0, rosa: 0 };
+    let coloridos = 0;
+    let total = 0;
+    // Header e nav contados TAMBÉM em separado: somados, um dos dois poderia
+    // estar sem linha nenhuma e o total continuaria bonito.
+    const porElemento = {};
+    for (const seletor of ["header", "nav"]) {
+      const antes = { ...faixas, coloridos };
+      const alvo = page.locator(seletor).first();
+      const png = path.join(SAIDA, `_iris-${tema}-${seletor}${marca}.png`);
+      await alvo.screenshot({ path: png });
+      const { w, h, canais, px } = lerPng(png);
+      for (let i = 0; i < w * h; i++) {
+        const r = px[i * canais];
+        const g = px[i * canais + 1];
+        const b = px[i * canais + 2];
+        total++;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const d = max - min;
+        // Croma baixo = a superfície sólida do cromo (preto/cinza/branco):
+        // não é matiz, e é a MAIORIA dos pixels — contá-la afogaria tudo.
+        if (d < 40 || max < 45) continue;
+        coloridos++;
+        let hue;
+        if (max === r) hue = (((g - b) / d) % 6) * 60;
+        else if (max === g) hue = ((b - r) / d + 2) * 60;
+        else hue = ((r - g) / d + 4) * 60;
+        if (hue < 0) hue += 360;
+        if (hue >= 55 && hue < 110) faixas.lima++;
+        else if (hue >= 280 || hue < 20) faixas.rosa++;
+        else faixas.miolo++;
+      }
+      await fs.unlink(png).catch(() => {});
+      porElemento[seletor] = {
+        lima: faixas.lima - antes.lima,
+        miolo: faixas.miolo - antes.miolo,
+        rosa: faixas.rosa - antes.rosa,
+        coloridos: coloridos - antes.coloridos,
+      };
+    }
+
+    const soma = faixas.lima + faixas.miolo + faixas.rosa || 1;
     const pct = (v) => ((v / soma) * 100).toFixed(1).padStart(5);
+    const rosaPct = (faixas.rosa / soma) * 100;
     console.log(
-      `    ${tema.padEnd(7)} lima ${pct(medida.faixas.lima)}%  miolo ${pct(medida.faixas.miolo)}%` +
-        `  rosa ${pct(medida.faixas.rosa)}%` +
-        `  ${medida.faixas.rosa / soma <= 0.2 ? "ok (rosa ≤20%)" : "XX rosa demais"}`,
+      `    ${tema.padEnd(7)} lima ${pct(faixas.lima)}%  miolo ${pct(faixas.miolo)}%` +
+        `  rosa ${pct(faixas.rosa)}%   |  cromo colorido: ` +
+        `${((coloridos / total) * 100).toFixed(1)}% dos pixels` +
+        `  ${rosaPct <= 20 ? "ok (rosa ≤20%)" : "XX rosa demais"}`,
     );
-    linhas.push({ tema, ...medida, soma });
+    for (const [seletor, v] of Object.entries(porElemento)) {
+      const s2 = v.lima + v.miolo + v.rosa || 1;
+      const p2 = (n) => ((n / s2) * 100).toFixed(1).padStart(5);
+      console.log(
+        `            ${seletor.padEnd(7)} lima ${p2(v.lima)}%  miolo ${p2(v.miolo)}%` +
+          `  rosa ${p2(v.rosa)}%  (${v.coloridos} px coloridos)` +
+          `  ${v.coloridos > 0 ? "ok" : "XX SEM linha iridescente"}`,
+      );
+    }
+    linhas.push({ tema, faixas, soma, coloridos, total, porElemento });
   }
   await ctx.close();
   const destino = path.join(SAIDA, `_iris${marca}.md`);
   await fs.writeFile(
     destino,
     [
-      "# Proporção de matiz no CROMO (header + barra inferior)",
+      "# Proporção de matiz no CROMO (header + barra inferior), rasterizado",
       "",
-      "Área ponderada das cores declaradas em `background-image`/`background-color`/",
-      "`color`/`border-*`, classificada por faixa de matiz. Faixas: lima 55–110°,",
-      "rosa ≥280° ou <20°, miolo o resto. Cinza/preto (croma < 28) não conta.",
+      "Captura dos dois elementos de cromo, decodificada pixel a pixel",
+      "(`scripts/png.mjs`). Pixel de croma baixo (max-min < 40) é superfície",
+      "sólida, não matiz, e fica fora da conta. Faixas: lima 55–110°,",
+      "rosa ≥280° ou <20°, miolo o resto.",
       "",
-      "| tema | lima | miolo | rosa |",
-      "|---|---|---|---|",
+      "| tema | lima | miolo | rosa | cromo colorido |",
+      "|---|---|---|---|---|",
       ...linhas.map(
         (l) =>
           `| \`${l.tema}\` | ${((l.faixas.lima / l.soma) * 100).toFixed(1)}% | ` +
           `${((l.faixas.miolo / l.soma) * 100).toFixed(1)}% | ` +
-          `**${((l.faixas.rosa / l.soma) * 100).toFixed(1)}%** |`,
+          `**${((l.faixas.rosa / l.soma) * 100).toFixed(1)}%** | ` +
+          `${((l.coloridos / l.total) * 100).toFixed(1)}% dos pixels |`,
       ),
     ].join("\n"),
   );
@@ -774,6 +871,7 @@ async function medirFps(browser, secret) {
   );
 
   for (const tema of TEMAS) {
+    definirTemaNoDoc("admin", tema);
     const medidas = [];
     for (let carga = 0; carga < FPS_CARGAS; carga++) {
       const ctx = await contextoLogado(browser, { viewport: FPS_VIEWPORT, secret, tema });
@@ -784,6 +882,7 @@ async function medirFps(browser, secret) {
       await page.goto(`${BASE}/hoje`, { waitUntil: "domcontentloaded" });
       await assentar(page);
       await exigirLogado(page, `fps/${tema}`);
+      await exigirTema(page, tema, `fps/${tema}`);
 
       // Conta quadros CONTINUAMENTE enquanto a navegação acontece por
       // client-side routing (a nav é <Link>): o contador vive num rAF que

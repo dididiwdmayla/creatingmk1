@@ -63,7 +63,9 @@ export function Nav() {
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-line bg-surface px-4">
+      {/* A superfície do cromo é SÓLIDA (bg-surface); a iridescência é só a
+          linha de 1px do ::after — ver "Regra de legibilidade". */}
+      <header className="cromo-linha cromo-linha-baixo relative flex h-14 shrink-0 items-center justify-between bg-surface px-4">
         <span className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
@@ -86,7 +88,7 @@ export function Nav() {
         </span>
       </header>
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
+      <nav className="cromo-linha cromo-linha-cima fixed inset-x-0 bottom-0 z-10 bg-surface pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto flex h-14 max-w-lg">
           {TABS.map((tab) => {
             const active = isActive(pathname, tab.href);
@@ -110,7 +112,7 @@ export function Nav() {
                   )}
                 </span>
                 {active && (
-                  <span className="absolute inset-x-3 -top-px h-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent)]" />
+                  <span className="cromo-aba-ativa absolute inset-x-3 top-0 h-0.5 rounded-full shadow-[0_0_8px_color-mix(in_oklab,var(--accent)_60%,transparent)]" />
                 )}
               </Link>
             );

@@ -52,6 +52,30 @@
   --status-respondeu: #3987e5;
   --status-fechado: #6da7ec;
 
+  /*
+   * VOCABULÁRIO IRIDESCENTE (ver "Temas iridescentes" em ARCHITECTURE.md).
+   * Todo tema declara os três, mesmo os dois herdados:
+   *   --apoio   cor de apoio, o parentesco entre os temas (verde-lima nos novos)
+   *   --faisca  o destaque pontual, sempre em quantidade MENOR que o resto
+   *   --iris-1/2/3  os stops do cromo: apoio → miolo de identidade → faísca
+   * `--iris-linha` é a rampa pronta usada nas bordas/nav/aba ativa. O stop
+   * do rosa começa em 88%: é assim que "em quantidade bem menor" vira uma
+   * medida do CSS, e não uma intenção (o laço mede a fração de matiz).
+   */
+  --apoio: #2ee6a6;
+  --faisca: #ff5c9d;
+  --faisca-ink: #1a0210;
+  --iris-1: #2ee6a6;
+  --iris-2: #3987e5;
+  --iris-3: #ff5c9d;
+  --iris-linha: linear-gradient(
+    90deg,
+    var(--iris-1) 0%,
+    var(--iris-2) 58%,
+    var(--iris-2) 78%,
+    var(--iris-3) 100%
+  );
+
   /* Alturas fixas do chrome do app (Nav.tsx: header + barra inferior),
      iguais nos dois temas — usadas por telas que precisam ocupar EXATAMENTE
      o espaço restante da viewport dinâmica (ex.: o chat em /mensagens, via
@@ -90,6 +114,156 @@
   --meter-track: rgba(10, 40, 30, 0.1);
   --meter-mark: rgba(10, 40, 30, 0.35);
   --ring-soft: rgba(0, 0, 0, 0.25);
+
+  /* Os stops escurecem junto com o resto: sobre branco, a rampa clara do
+     escuro sumiria na borda de 1px. */
+  --apoio: #0b7a55;
+  --faisca: #b3286b;
+  --faisca-ink: #ffffff;
+  --iris-1: #0b7a55;
+  --iris-2: #1f5f9e;
+  --iris-3: #b3286b;
+}
+
+/*
+ * ─── TEMAS IRIDESCENTES ──────────────────────────────────────────────
+ *
+ * Três temas de base PRETA que compartilham o mesmo vocabulário — o
+ * verde-lima como cor de apoio, o rosa como faísca pontual — e se separam
+ * pelo MIOLO: é o `--accent` (botão primário, aba ativa, barra do meter)
+ * que carrega a identidade de cada um. Se o accent fosse lima nos três, o
+ * lugar mais visível da interface seria idêntico em todos, e eles seriam
+ * variações do mesmo tom em vez de temas.
+ *
+ * A iridescência "entre eles" é o arco que os três varrem: todos começam
+ * na lima (~80-85°) e terminam na mesma cauda de rosa (~320-333°); o que
+ * gira é o miolo — 147° → 187° → 255°. Lado a lado, os três gradientes de
+ * cromo são a mesma película de óleo girada.
+ *
+ * Um quarto tema quente (âmbar) foi desenhado e DESCARTADO: com accent
+ * âmbar o meter viraria "âmbar (OK) → amarelo (perto do teto) → vermelho
+ * (no limite)", uma progressão de severidade invertida (amarelo lê como
+ * menos alarmante que laranja), quebrando o contrato accent → warning →
+ * critical validado com a skill de dataviz.
+ *
+ * A rampa ordinal de status muda de hue por tema para NÃO colidir com o
+ * accent (status é posição no funil; accent é ação — dois significados que
+ * não podem compartilhar cor): azul no Ácido (accent lima), índigo no
+ * Vapor (accent ciano), teal no Prisma (accent violeta).
+ */
+
+/* ÁCIDO — preto neutro, alta voltagem. Aqui a lima é a própria identidade. */
+:root[data-theme="acido"] {
+  color-scheme: dark;
+
+  --background: #050704;
+  --background-2: #0c110a;
+  --foreground: #eaf4e4; /* 16.08:1 sobre a surface */
+  --surface: #111710;
+  --surface-2: #1b241a;
+  --line: rgba(184, 255, 46, 0.14);
+  --ink-secondary: #b7c8b0; /* 10.31:1 */
+  --ink-muted: #8a9a85; /* 6.10:1 */
+
+  --accent: #b8ff2e; /* lima elétrica — 15.06:1 */
+  --accent-ink: #0b1400; /* 15.60:1 sobre o accent */
+  --warning: #ffc233;
+  --critical: #ff6b63;
+  --good: #3ddc84;
+  --good-ink: #04170f;
+  --critical-ink: #1a0606;
+
+  --meter-track: rgba(234, 244, 228, 0.09);
+  --meter-mark: rgba(234, 244, 228, 0.32);
+  --ring-soft: rgba(184, 255, 46, 0.35);
+
+  --status-novo: #1d5aa8;
+  --status-contactado: #2a70c4;
+  --status-respondeu: #5b9fe8;
+  --status-fechado: #96c4f2;
+
+  --apoio: #b8ff2e;
+  --faisca: #ff4d9d; /* 5.89:1 */
+  --faisca-ink: #1a0210;
+  --iris-1: #b8ff2e;
+  --iris-2: #5ef2a0;
+  --iris-3: #ff4d9d;
+}
+
+/* VAPOR — preto azulado, frio e técnico. O miolo é ciano. */
+:root[data-theme="vapor"] {
+  color-scheme: dark;
+
+  --background: #03070c;
+  --background-2: #071119;
+  --foreground: #e4f2f7; /* 16.10:1 */
+  --surface: #0b151d;
+  --surface-2: #142230;
+  --line: rgba(47, 230, 255, 0.14);
+  --ink-secondary: #aec4cf; /* 10.18:1 */
+  --ink-muted: #7f939f; /* 5.77:1 */
+
+  --accent: #2fe6ff; /* ciano — 12.19:1 */
+  --accent-ink: #001318; /* 12.55:1 */
+  --warning: #ffbe33;
+  --critical: #ff6b63;
+  --good: #3ddc84;
+  --good-ink: #04170f;
+  --critical-ink: #1a0606;
+
+  --meter-track: rgba(228, 242, 247, 0.09);
+  --meter-mark: rgba(228, 242, 247, 0.32);
+  --ring-soft: rgba(47, 230, 255, 0.35);
+
+  --status-novo: #4340a8;
+  --status-contactado: #5f5ccf;
+  --status-respondeu: #8b88e8;
+  --status-fechado: #b6b4f2;
+
+  --apoio: #a8f03c; /* 13.34:1 */
+  --faisca: #ff5aa8; /* 6.39:1 */
+  --faisca-ink: #1a0311;
+  --iris-1: #a8f03c;
+  --iris-2: #2fe6ff;
+  --iris-3: #ff5aa8;
+}
+
+/* PRISMA — preto violáceo, o mais "película de óleo". O miolo é violeta. */
+:root[data-theme="prisma"] {
+  color-scheme: dark;
+
+  --background: #06040c;
+  --background-2: #100b1c;
+  --foreground: #f0eafa; /* 15.92:1 */
+  --surface: #140f22;
+  --surface-2: #1e1732;
+  --line: rgba(169, 140, 255, 0.16);
+  --ink-secondary: #c0b6d6; /* 9.73:1 */
+  --ink-muted: #928aa8; /* 5.73:1 */
+
+  --accent: #a98cff; /* violeta — 7.03:1 */
+  --accent-ink: #0d0620; /* 7.41:1 */
+  --warning: #ffbe33;
+  --critical: #ff6b63;
+  --good: #3ddc84;
+  --good-ink: #04170f;
+  --critical-ink: #1a0606;
+
+  --meter-track: rgba(240, 234, 250, 0.09);
+  --meter-mark: rgba(240, 234, 250, 0.32);
+  --ring-soft: rgba(169, 140, 255, 0.38);
+
+  --status-novo: #12615e;
+  --status-contactado: #177c77;
+  --status-respondeu: #35aba4;
+  --status-fechado: #71ccc5;
+
+  --apoio: #a6f53a; /* 14.04:1 */
+  --faisca: #ff5cc8; /* 6.79:1 */
+  --faisca-ink: #1a0316;
+  --iris-1: #a6f53a;
+  --iris-2: #a98cff;
+  --iris-3: #ff5cc8;
 }
 
 @theme inline {
@@ -104,6 +278,9 @@
 
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
+  --color-apoio: var(--apoio);
+  --color-faisca: var(--faisca);
+  --color-faisca-ink: var(--faisca-ink);
   --color-warning: var(--warning);
   --color-critical: var(--critical);
   --color-critical-ink: var(--critical-ink);
@@ -141,6 +318,53 @@ body {
     linear-gradient(180deg, var(--background-2) 0%, var(--background) 55%);
   background-attachment: fixed;
   color: var(--foreground);
+}
+
+/* ── Cromo iridescente ─────────────────────────────────────────────────
+ *
+ * A iridescência mora AQUI e só aqui: a linha de 1px que fecha o header em
+ * baixo, a que abre a barra de navegação em cima, e o indicador da aba
+ * ativa. Nunca atrás de texto — ver "Regra de legibilidade" em
+ * ARCHITECTURE.md.
+ *
+ * A linha é um pseudo-elemento e não uma `border-image` porque precisa
+ * conviver com o `position: fixed` da nav sem entrar no cálculo de altura
+ * do cromo (as alturas são fixas em --app-header-h/--app-nav-h e várias
+ * telas dependem delas para caber na viewport dinâmica).
+ */
+
+/*
+ * `.cromo-linha` NÃO declara `position`, de propósito. Ela e as utilities do
+ * Tailwind têm a mesma especificidade (uma classe), e este arquivo vem DEPOIS
+ * do `@import "tailwindcss"` — um `position: relative` aqui venceria o
+ * `fixed` da barra inferior e a jogaria de volta pro fluxo do documento,
+ * grudada embaixo do header. (Foi o que aconteceu, e só a captura mostrou:
+ * é o mesmo cascade que já derrubou os blobs do hero da tatuagem e o
+ * `.d-nav-cta` — ver "Verificação da UI".) Cada uso decide o próprio
+ * posicionamento por utility; o ::after só precisa de um ancestral
+ * posicionado, e tanto `relative` quanto `fixed` servem.
+ */
+.cromo-linha::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-image: var(--iris-linha);
+  pointer-events: none;
+}
+
+.cromo-linha-baixo::after {
+  bottom: 0;
+}
+
+.cromo-linha-cima::after {
+  top: 0;
+}
+
+/* Indicador da aba ativa: o mesmo arco, comprimido no tamanho da aba. */
+.cromo-aba-ativa {
+  background-image: var(--iris-linha);
 }
 
 /* ── Animações ─────────────────────────────────────────────────────────── */

@@ -14,7 +14,7 @@
  * doc — o cliente nunca o escreve (por isso `httpOnly`).
  */
 
-export const TEMAS_APP = ["escuro", "claro"] as const;
+export const TEMAS_APP = ["escuro", "claro", "acido", "vapor", "prisma"] as const;
 
 export type TemaApp = (typeof TEMAS_APP)[number];
 
@@ -43,6 +43,24 @@ export const TEMAS_META: Record<TemaApp, TemaMeta> = {
     nome: "Claro",
     descricao: "Mesmos papéis do escuro, luminâncias invertidas.",
     glifo: "☀",
+  },
+  acido: {
+    id: "acido",
+    nome: "Ácido",
+    descricao: "Preto neutro, verde-lima elétrico. Alta voltagem.",
+    glifo: "◤",
+  },
+  vapor: {
+    id: "vapor",
+    nome: "Vapor",
+    descricao: "Preto azulado, ciano frio. Técnico, de sala de máquinas.",
+    glifo: "◈",
+  },
+  prisma: {
+    id: "prisma",
+    nome: "Prisma",
+    descricao: "Preto violáceo, violeta elétrico. Película de óleo.",
+    glifo: "◇",
   },
 };
 
