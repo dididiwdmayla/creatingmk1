@@ -262,6 +262,37 @@ export type LedPreset = "desligado" | "sutil" | "marcante";
 export const LED_PRESETS: readonly LedPreset[] = ["desligado", "sutil", "marcante"];
 
 /**
+ * Modo da COR DA BARRA DO NAVEGADOR (`<meta name="theme-color">` da rota
+ * pública — ver `lib/demos/barra`):
+ *
+ *   - `automatico` — acompanha a seção em foco durante a rolagem,
+ *     interpolando entre as cores (default; o único modo que monta um
+ *     componente cliente);
+ *   - `fundo` — fixo na `paleta.fundo` do tema;
+ *   - `destaque` — fixo na `paleta.destaque` do tema;
+ *   - `personalizada` — fixo numa cor escolhida (`BarraCorValor.cor`).
+ */
+export type BarraCorModo = "automatico" | "fundo" | "destaque" | "personalizada";
+
+export const BARRA_COR_MODOS: readonly BarraCorModo[] = [
+  "automatico",
+  "fundo",
+  "destaque",
+  "personalizada",
+];
+
+/**
+ * Modo da barra + a cor dele. `cor` só é lida em `personalizada`; os
+ * outros modos derivam do tema (ou da própria página, em `automatico`).
+ * Ausente = `{ modo: "automatico" }`.
+ */
+export interface BarraCorValor {
+  modo: BarraCorModo;
+  /** Cor hex (#rrggbb) — só usada no modo `personalizada`. */
+  cor?: string;
+}
+
+/**
  * Cores dos dois blobs do efeito "aura" (ver
  * `src/lib/demos/efeitos/aura/cores.ts`), independentes da paleta do tema.
  * Cada campo ausente cai no default derivado do tema (`paleta.destaque`/
@@ -368,6 +399,13 @@ export interface Theme {
    * localmente — o CSS dos estilos de LED não muda por causa disso.
    */
   ledCores?: CoresModoValor;
+  /**
+   * Cor da barra do navegador na rota pública (ver BarraCorValor e
+   * `lib/demos/barra`). Ausente = `automatico`: a barra acompanha a seção
+   * em foco durante a rolagem. Nenhum preset declara — como os modos de
+   * cor acima, é escolha do editor.
+   */
+  barraCor?: BarraCorValor;
 }
 
 /** Props que TODO componente de skin recebe. */
@@ -484,6 +522,11 @@ export interface TemaPatch {
   efeitoCores?: CoresModoValor;
   /** Modo de cor do LED (mesmo contrato de `efeitoCores`). */
   ledCores?: CoresModoValor;
+  /**
+   * Cor da barra do navegador na rota pública (ver BarraCorValor).
+   * Ausente/`{ modo: "automatico" }` = a barra acompanha a seção em foco.
+   */
+  barraCor?: BarraCorValor;
   /** Ajustes do título hero por cima do preset (fonte/escala/alinhamento). */
   heroTitulo?: Partial<HeroTituloTema>;
   led?: LedPreset;

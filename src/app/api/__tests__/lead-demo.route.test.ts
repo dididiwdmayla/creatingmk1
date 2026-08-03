@@ -338,6 +338,40 @@ describe("PUT /api/leads/[id]/demo", () => {
     expect((await demais.json()).error.problemas.join(" | ")).toContain("no máximo 3 cores");
   });
 
+  it("salva o modo da cor da barra do navegador; valores inválidos → 400", async () => {
+    const ok = await put("A", {
+      ...VALIDO,
+      tema: { barraCor: { modo: "personalizada", cor: "#0a1b2c" } },
+    });
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).lead.demo.tema).toEqual({
+      barraCor: { modo: "personalizada", cor: "#0a1b2c" },
+    });
+
+    const modoRuim = await put("A", { ...VALIDO, tema: { barraCor: { modo: "tema" } } });
+    expect(modoRuim.status).toBe(400);
+    expect((await modoRuim.json()).error.problemas.join(" | ")).toContain("tema.barraCor.modo");
+
+    const corRuim = await put("A", {
+      ...VALIDO,
+      tema: { barraCor: { modo: "personalizada", cor: "azul" } },
+    });
+    expect(corRuim.status).toBe(400);
+    expect((await corRuim.json()).error.problemas.join(" | ")).toContain("tema.barraCor.cor");
+
+    // "personalizada" sem cor é rejeitado no PUT (e não silenciosamente
+    // salvo pra virar um seletor vazio no próximo Editar).
+    const semCor = await put("A", { ...VALIDO, tema: { barraCor: { modo: "personalizada" } } });
+    expect(semCor.status).toBe(400);
+
+    const chaveRuim = await put("A", {
+      ...VALIDO,
+      tema: { barraCor: { modo: "fundo", opacidade: 0.5 } },
+    });
+    expect(chaveRuim.status).toBe(400);
+    expect((await chaveRuim.json()).error.problemas.join(" | ")).toContain("chave desconhecida");
+  });
+
   it("salva heroTitulo (fonte/escala/alinhamento) e led; valores inválidos → 400", async () => {
     const ok = await put("A", {
       ...VALIDO,

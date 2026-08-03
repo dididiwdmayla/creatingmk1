@@ -211,6 +211,15 @@ src/
         cobertura.ts               # ✅ PURO: cobertura animada da viewport (núcleo cosseno na banda central) — a transição do efeito/LED
         medirCobertura.ts          # ✅ leitura no DOM + hook (scroll/resize throttled por rAF, escreve direto no DOM)
         __tests__/cobertura.test.ts #    monotonia, suavidade, distância de meia viewport, região neutra e o piso que travava em 0.50
+      barra/                         # ✅ cor da BARRA DO NAVEGADOR na demo pública (ver "Barra do navegador na demo pública")
+        srgb.ts                     #    PURO: lê hex/rgb(), mistura em LUZ LINEAR (média de bytes afunda no meio da transição)
+        fundo.ts                    #    PURO: qual cor uma seção pinta — a superfície tem que COBRIR a caixa da seção
+        foco.ts                     #    PURO: média ponderada das seções na banda de foco (mesmo núcleo de animacao/cobertura.ts)
+        modos.ts                    #    PURO: automatico/fundo/destaque/personalizada → a cor do generateViewport e a amostra do editor
+        plano.ts                    #    PURO: CSS do background-color do <body> (o caminho do Safari 26+ e do overscroll)
+        medir.ts                    #    leitura no DOM: cor por seção (mount/resize) + faixas por quadro de rolagem
+        BarraNavegador.tsx          #    client: escreve na meta theme-color e no plano da página; só monta no modo automático
+        __tests__/{srgb,fundo,foco,modos,plano}.test.ts + BarraNavegador.test.tsx
       cores/
         hsl.ts                     # ✅ PURO: hex → HSL e deslocamento de matiz (modos iridescente/arco-íris)
         modos.ts                   # ✅ PURO: os 5 modos de cor → cores + @property/@keyframes (ver "Modos de cor")
@@ -527,6 +536,7 @@ Observações:
       "hover": "brilho",                        // estilo do hover de cards/botões: lift | zoom | brilho
       "clique": "pressao",                      // animação de clique: nenhum | pressao | pulso
       "fundoEfeito": "particulas",               // efeito sutil de fundo: "nenhum" ou id do registro de efeitos (efeitos/registry.ts)
+      "barraCor": { "modo": "automatico" },      // cor da barra do navegador; ausente = automatico (acompanha a seção)
       "fundoEfeitoIntensidade": 2,               // opcional (0-3); ausente = default do nicho recomendado do efeito
       "auraCores": { "primaria": "#ff3ec8" }     // opcional; só efeito quando fundoEfeito é "aura" — ver "Cor da aura"
     },
@@ -877,7 +887,7 @@ Contratos centrais (`src/lib/demos/types.ts`):
 
 - **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição, + `categoria`/`destaques[]` opcionais — ex.: filtro e chips do catálogo de veículos da skin de multimarcas), `depoimentos[]` (autor/texto/nota, + `contexto` opcional — segunda linha curta sob o autor, ex.: "Toyota Hilux SRX 2021"), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes), `imagens` (caminho por slot), `videos` (opcional — URL por slot de **vídeo-no-título**, ver seção própria) e a **estrutura editável**: `ordemSecoes` (ordem das seções não-fixas) e, por seção, `oculta`, `alinhamento` e `animacao` (liga/desliga a animação DAQUELA seção — ver "Animação por seção" abaixo).
 - **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda, e dois acentos raros `acentoSecundario`/`acentoTerciario` para detalhes decorativos que não seguem o acento principal), `fontes` (display/corpo/mono/serif/decorativa/**citacao**/**destaque** como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts/`), `raio`, `densidade` (compacta/confortável/arejada → espaçamento vertical das seções), `animacao` (`nenhuma`/`sutil`/`marcante` → intensidade de entrada de seção, hover e transição; ver "Animação" abaixo), as **micro-interações**: `intro` (splash de abertura ligada?), `hover` (`lift`/`zoom`/`brilho`), `clique` (`nenhum`/`pressao`/`pulso`), `fundoEfeito` (`nenhum`/`aura`/`grao`/`gradiente`/`particulas`/`filotaxia`/`ondas`/`faiscas`/`varredura-de-luz`), `led` (`desligado`/`sutil`/`marcante` — o NÍVEL) e `ledEstilo` (`barra`/`dissipado`/`cantos`/`moldura` — o ESTILO visual, independente do nível; ver "Micro-interações" abaixo), e `heroTitulo` (`{ fonte, escala, alinhamento }` — estilo do título principal, ver "Título hero" abaixo; o **texto** continua em `dados.secoes.hero.titulo`/`dados.nome`, que é conteúdo, não tema).
-- **`TemaPatch`** (`LeadDemo.tema`) — ajustes por cima do preset: `fonteDisplay`/`fonteCorpo` (ids da **lista curada** em `fontes.ts`, ~16 fontes via `next/font`, cada uma com os papéis onde funciona — só as fontes que são default de algum preset são carregadas sempre; as demais entram **sob demanda**, via `import()` dinâmico, só quando o editor escolhe uma delas — ver `src/app/demo/fonts/registry.ts`), `destaque` (cor primária hex; `destaqueInk` é **recalculado por contraste** em `tema.ts`), `raio` (um de `TEMA_RAIOS`), `densidade`, `animacao`, `intro`, `hover`, `clique`, `fundoEfeito` (id de um efeito do **registro de efeitos**, `src/lib/demos/efeitos/registry.ts`, ou `"nenhum"`), `fundoEfeitoIntensidade` (0-3; ausente = default do nicho recomendado do efeito, ver `intensidadePadrao`), `auraCores` (cores do efeito "aura" — ver "Cor da aura" logo abaixo de "Efeitos visuais"), `efeitoCores`/`ledCores` (**modo de cor** da camada decorativa — ver "Modos de cor" abaixo), `led`, `ledEstilo` e `heroTitulo` (`{ fonte?, escala?, alinhamento? }`, todos opcionais). `aplicarTema(preset, patch, heroEscalaLimites?)` é puro e usado pela rota pública E pelo preview — o editor nunca mostra algo diferente do publicado; o 3º argumento (default de `tema.ts` se omitido) recorta `heroTitulo.escala` aos limites da skin. `aplicarTema` só resolve o **id** de `fundoEfeito` (contra o registro de efeitos); a intensidade efetiva é resolvida à parte por `resolverEfeitoFundo` (ver "Efeitos visuais" abaixo), que já recebe o patch bruto — não faz parte do `Theme` resolvido, já que depende do nicho da skin, não do preset.
+- **`TemaPatch`** (`LeadDemo.tema`) — ajustes por cima do preset: `fonteDisplay`/`fonteCorpo` (ids da **lista curada** em `fontes.ts`, ~16 fontes via `next/font`, cada uma com os papéis onde funciona — só as fontes que são default de algum preset são carregadas sempre; as demais entram **sob demanda**, via `import()` dinâmico, só quando o editor escolhe uma delas — ver `src/app/demo/fonts/registry.ts`), `destaque` (cor primária hex; `destaqueInk` é **recalculado por contraste** em `tema.ts`), `raio` (um de `TEMA_RAIOS`), `densidade`, `animacao`, `intro`, `hover`, `clique`, `fundoEfeito` (id de um efeito do **registro de efeitos**, `src/lib/demos/efeitos/registry.ts`, ou `"nenhum"`), `fundoEfeitoIntensidade` (0-3; ausente = default do nicho recomendado do efeito, ver `intensidadePadrao`), `auraCores` (cores do efeito "aura" — ver "Cor da aura" logo abaixo de "Efeitos visuais"), `efeitoCores`/`ledCores` (**modo de cor** da camada decorativa — ver "Modos de cor" abaixo), `barraCor` (**cor da barra do navegador** — ver "Barra do navegador na demo pública" abaixo), `led`, `ledEstilo` e `heroTitulo` (`{ fonte?, escala?, alinhamento? }`, todos opcionais). `aplicarTema(preset, patch, heroEscalaLimites?)` é puro e usado pela rota pública E pelo preview — o editor nunca mostra algo diferente do publicado; o 3º argumento (default de `tema.ts` se omitido) recorta `heroTitulo.escala` aos limites da skin. `aplicarTema` só resolve o **id** de `fundoEfeito` (contra o registro de efeitos); a intensidade efetiva é resolvida à parte por `resolverEfeitoFundo` (ver "Efeitos visuais" abaixo), que já recebe o patch bruto — não faz parte do `Theme` resolvido, já que depende do nicho da skin, não do preset.
 - **`SkinDefinition`** — entrada do registro: `{ id, nicho, nome, componente, themeDefault, themePresets, demoDataExemplo, secoes, heroEscalaLimites, thumbnail, videoSlots? }`. **`secoes`** é o contrato do editor: lista ordenada de `SkinSecaoDef` (`{ id, nome, fixa?, alignOptions?, entradaOptions? }`) — `fixa` não reordena nem oculta (ex.: hero); `alignOptions` diz onde a skin aceita alinhamento (validado no PUT; a primeira opção é o natural da skin); `entradaOptions` diz quais animações de entrada por seção a skin aceita ali (validado no PUT; ausente = sem seletor). `heroEscalaLimites` (`{ min, max }`) delimita o slider de tamanho do título hero no editor. `thumbnail` (caminho local em `/public`) alimenta o passo de escolha de skin. `videoSlots` (opcional, **opt-in por skin**) lista os slots de `dados.videos` que a skin suporta — ausente/vazio = a skin não oferece vídeo-no-título. Sem posicionamento livre por pixel: o template continua responsivo.
 
 Regras do sistema:
@@ -1063,6 +1073,101 @@ parado fora → `running` t=2167ms na volta, sem nunca voltar a zero).
 movimento autônomo — a opacidade só muda quando a pessoa rola a página,
 como um `position: sticky`. Desligá-la faria a demo ignorar a escolha "sem
 animação nesta seção" justamente para quem pediu menos movimento.
+
+### Barra do navegador na demo pública (`src/lib/demos/barra`)
+
+A cor da barra do navegador (`<meta name="theme-color">`) na rota pública
+deixa de ser fixa: no modo default ela **acompanha a seção em foco**
+enquanto a página rola, interpolando entre as cores. `TemaPatch.barraCor`
+(`{ modo, cor? }`, aba Tema) tem quatro modos — `automatico` (default,
+ausência de valor), `fundo`, `destaque` e `personalizada`. Só o
+`automatico` monta componente cliente; os três fixos são apenas a cor que
+o `generateViewport` já emitiu.
+
+**A transição não é um efeito à parte — é o resultado da conta.** A cor é
+a **média ponderada** das faixas que pesam na banda de foco, com o peso
+saindo do MESMO núcleo que a camada decorativa usa (`pesoNaBanda` em
+`animacao/cobertura.ts`, agora exportado). Enquanto a fronteira entre duas
+faixas atravessa a banda, o peso escorre de uma pra outra e a cor caminha
+junto: a interpolação sai de graça, dura meia viewport de rolagem, é suave
+nos dois extremos e é função da POSIÇÃO, não do tempo — parou de rolar,
+parou a cor; rolou de volta, desfez pelo mesmo caminho. Duas leis de
+transição diferentes na mesma página (uma pra camada, outra pra barra)
+seriam visíveis lado a lado; é uma só, e `BANDA_FOCO` calibra as duas. O
+peso que sobra vai pro plano da página, que é o que faz cabeçalho e rodapé
+devolverem a barra à cor do tema em vez de congelá-la na última seção.
+
+**A mistura é em LUZ LINEAR** (`barra/srgb.ts`), não nos bytes do sRGB: a
+média byte a byte entre `#1A1411` e `#F5F0E8` dá um cinza visivelmente
+mais escuro que a cor a meio caminho de verdade (128 contra 188 no canal),
+e numa transição de meia tela isso lê como "escurece e clareia no meio" —
+exatamente o defeito que a interpolação deveria evitar.
+
+**A cor de cada seção é LIDA do DOM, não declarada por skin.** A
+alternativa era um mapa `seção → token` por `Skin.tsx`: 8 mapas à mão que
+ficam errados no dia em que alguém troca `bg-[var(--d-bg)]` por
+`bg-[var(--d-bg-alt)]`, e o erro só aparece na moldura de um celular. A
+multimarcas TINHA esse mapa (o `data-themec` inline, com `avaliacao →
+destaque`) e ele saiu nesta feature — junto com o `ThemeColorSync.tsx`
+dela, um rAF em laço permanente que competiria com o componente novo pela
+mesma tag. Mesma migração que o `LedEdges` fez.
+
+**A unidade não é a seção, é a FAIXA** (`barra/fundo.ts`, pura). A
+primeira versão respondia "qual a cor DESTA seção", uma cor por marcador,
+e o laço mostrou que isso é grosso demais: o rodapé da imobiliária é um
+`<footer>` creme de 1510px com um bloco verde-escuro de 901px dentro —
+mais alto que a tela inteira de um celular — e a barra ficava creme
+durante toda a travessia do verde. Hoje cada superfície full-bleed vira
+uma faixa, e as de dentro RECOBREM as de fora no trecho em que se
+sobrepõem, que é o que o navegador faz na tela. O que sobra sem faixa
+(seção transparente, ou o pedaço acima/abaixo de um bloco colorido) usa o
+plano da página.
+
+O filtro de "full-bleed" é geométrico, não calibrado: largura igual à da
+seção, com piso e TETO (99%–101%). A versão anterior usava percentagens
+frouxas ("≥90% da largura, ≥50% da altura") e o laço reprovou duas vezes
+na mesma skin — um painel arredondado de 358px numa seção de 390 (91,8%)
+punha o laranja do destaque na barra de uma seção creme, e um círculo
+decorativo de 560×560 transbordando o hero (144% da largura) punha o
+lilás do `--d-bg-alt`. O teto é o que barra o segundo: fundo de verdade
+tem a largura da caixa, decoração que vaza é mais larga.
+
+**Duas saídas, porque os navegadores leem de dois lugares** (levantamento
+completo em `docs/temas/barra-demo.md`): o `content` da meta tag que o
+servidor já emitiu (Chrome/Brave/Edge no Android, Samsung Internet, Safari
+≤ 18) e o `background-color` do `<body>` (Safari 26+, que passou a
+amostrar o body com observador ao vivo e a ignorar a meta em aba normal).
+O plano do body **também corrige um erro anterior a esta feature**: o
+`<body>` vem do layout raiz com o `bg-background` do RADAR, então no iOS
+26 a demo de um lead tintava a barra com a cor do tema da plataforma. É
+`!important` porque uma rota aninhada não reescreve o `className` do body
+do layout raiz e um seletor de elemento perde de uma classe.
+
+**Degradação**: a cor certa sai no HTML servido em todos os modos —
+inclusive no automático, onde é a cor do topo. Onde a meta é ignorada
+(Firefox, Opera, Chrome/Edge/Brave no desktop fora de PWA), as duas saídas
+são um atributo que ninguém lê e a cor de um plano que as seções cobrem
+por inteiro: nenhum pixel de conteúdo muda e não existe ramo de código por
+navegador.
+
+**No editor a cor não dá pra conferir no preview** — ele roda em iframe e
+a barra pertence ao documento de cima. O painel mostra então uma
+**amostra** da cor (`amostraDaBarra`): uma faixa sólida nos modos fixos e
+o degradê entre as duas cores da paleta no automático, que é literalmente
+o caminho que a barra vai percorrer.
+
+**Custo**: um `getBoundingClientRect` por seção (~10) por quadro de
+rolagem, em listener passivo throttled por rAF, sem estado React por
+quadro e sem rAF em laço — o mesmo orçamento e o mesmo padrão do
+`LedEdges`. As faixas são guardadas em offsets RELATIVOS ao topo da
+seção justamente para isso: por quadro basta somar o `top` atual dela, em
+vez de medir cada faixa. A varredura cara (`getComputedStyle` da
+subárvore de cada seção) roda no mount, num beat de 400ms e no resize. `prefers-reduced-motion`
+não desliga nada, pela mesma razão da cobertura animada: a cor só muda
+quando a pessoa rola.
+
+Verificação: `node scripts/qa-visual.mjs --so=barra` (ver "A barra do
+navegador, medida" em Verificação da UI) e `docs/temas/barra-demo.md`.
 
 ### Vídeo-no-título (`DemoData.videos` + `SkinDefinition.videoSlots`)
 
@@ -1873,6 +1978,75 @@ Atribuído com o mesmo método de sempre (`QA_AURA_EFEITO=faiscas node scripts/q
 - **`filotaxia` × `iridescente` passou raspando: 47,9 fps**, com 2 das 5 cargas abaixo do piso (44,9 e 45,4). Pela regra escrita — a mediana é o número — ela passa, e fica. É a primeira a cair se a próxima rodada medir pior.
 - **`gradiente` é o segundo mais caro em superfície** (41,2 e 45,0 Mpx/s nos dois modos com cor animada, ~+35 sobre a referência): abaixo do limiar de marcação, mas é o mesmo mecanismo da `aura` antiga em escala menor (duas manchas de `radial-gradient` na cor animada, 225% da viewport). Não reprova em nenhum modo e não foi tocado.
 - **A dispersão importa tanto quanto a mediana**: `varredura-de-luz` teve pior quadro de 100ms em `fixa` e `arco-iris` sem sair dos 59 fps de mediana — quadro longo isolado, que a mediana não mostra e o relato de "trava" sente. O laço imprime o pior quadro de cada célula junto do fps por isso.
+
+### A barra do navegador, medida (`--so=barra`)
+
+A cor da barra NÃO aparece numa captura de tela: quem a pinta é o cromo do
+navegador, fora da página. O item do laço é por isso uma MEDIÇÃO, e a
+imagem que se olha (`qa-shots/_folha-barra.png`) é montada a partir dela —
+a rampa de cor por posição de scroll, desenhada como faixa, uma linha por
+skin. As 8 skins, viewport de celular (390×844), sem efeito e sem LED.
+
+Três perguntas, uma por requisito, e as três **cegas à implementação**:
+
+1. **A barra assume mesmo a cor da seção?** Com cada seção centralizada,
+   a cor da meta é comparada com o PIXEL que a página pinta ali, amostrado
+   do PNG nas duas bordas laterais.
+2. **A troca é rampa, não degrau?** Rolando a página em passos de 40px, o
+   maior salto entre dois passos tem que caber num teto derivado da
+   inclinação de pico do núcleo (`2·passo/banda` ≈ 0,19 da amplitude, com
+   folga: 0,30) — uma troca seca daria 1,0.
+3. **Degrada sem quebrar?** A cor inicial é lida do HTML SERVIDO por
+   `fetch` cru, sem navegador e sem JavaScript; e os modos fixos são
+   conferidos como fixos de verdade, imóveis do topo ao fim.
+
+**A evidência mais forte veio de graça**: a multimarcas é a única skin que
+já tinha um mapa `seção → cor` escrito à mão (o `data-themec`, removido
+nesta feature). A leitura automática reproduz as três cores dele com
+**erro 0 em todas as sete seções**, inclusive a `avaliacao`, que usa o
+DESTAQUE como fundo. É o teste de mutação que ninguém precisou escrever.
+
+**Quatro defeitos, e a divisão entre eles é o ponto** — dois eram do
+produto, dois eram do próprio laço, e os quatro só apareceram porque a
+medição compara duas fontes independentes:
+
+1. **(produto) Percentagem frouxa deixava decoração virar fundo.** A regra
+   original — "≥90% da largura, ≥50% da altura" — reprovou duas vezes na
+   skin de petshop: um painel arredondado de 358px numa seção de 390
+   (91,8%) punha o LARANJA do destaque na barra de uma seção creme
+   (erro 190 contra o pixel), e um círculo decorativo de 560×560
+   transbordando o hero (144% da largura) punha o lilás do `--d-bg-alt`
+   (erro 21). Virou condição geométrica: largura igual à da seção, com
+   piso E teto.
+2. **(produto) Uma cor por seção é grosso demais.** O rodapé da
+   imobiliária é um `<footer>` creme de 1510px com um bloco verde-escuro
+   de 901px dentro — mais alto que a tela do celular. A barra ficava creme
+   atravessando o verde inteiro: **erro 203**, o maior da rodada. A
+   unidade passou a ser a FAIXA, com as de dentro recobrindo as de fora.
+3. **(laço) Duas skins declaram `html { scroll-behavior: smooth }`.** Com
+   isso `window.scrollTo` vira animação: pedir 9000 e ler dois quadros
+   depois devolvia `scrollY: 89`. As duas — imobiliaria e multimarcas —
+   apareceram no primeiro relatório com "1 cor distinta na página
+   inteira", que lido de fora é exatamente o sintoma de "a barra não
+   acompanha nada". Não era: a página é que não tinha rolado. O laço
+   passou a desligar o scroll suave por estilo inline e a CONFIRMAR que
+   chegou onde pediu.
+4. **(laço) A câmera fotografava a entrada de seção a meio fade.** O
+   `SectionReveal` dispara no instante em que o salto de scroll põe a
+   seção na tela; dois quadros depois o pixel ainda está misturado com o
+   plano da página, e a comparação acusava erros de 15 a 27 que não
+   existiam. A barra não depende disso (ela lê a cor computada, que
+   opacidade de ancestral não muda) — quem precisava esperar era a
+   captura.
+
+Duas ressalvas de método, deliberadas: seções **mais baixas que a
+viewport** saem do veredito (ali a barra mistura as vizinhas de propósito
+— cobrar delas uma cor só seria cobrar o contrário do requisito), e
+quando as duas bordas laterais **não concordam** entre si o ponto é
+declarado não conclusivo em vez de virar falso positivo (é o caso da
+fileira de fotos do portfólio da tatuagem, que encosta na margem).
+
+Relatório e o levantamento por navegador: `docs/temas/barra-demo.md`.
 
 ## Variáveis de ambiente
 

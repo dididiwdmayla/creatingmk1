@@ -14,7 +14,6 @@ import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
 import { Simulador } from "./interactive/Simulador";
 import { StatCounter } from "./interactive/StatCounter";
 import { TestimonialCarousel } from "./interactive/TestimonialCarousel";
-import { ThemeColorSync } from "./interactive/ThemeColorSync";
 import { waHref } from "./interactive/logic";
 import { WhatsAppFloat } from "./interactive/WhatsAppFloat";
 import { MULTIMARCAS_SECOES } from "./secoes";
@@ -535,12 +534,11 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
         corBase={paleta.destaque}
       />
       <ProgressBar accent={paleta.destaque} />
-      <ThemeColorSync corInicial={paleta.fundo} />
 
       <IntroExperience nome={data.nome} accent={paleta.destaque} ativa={theme.intro === true}>
         <Nav nome={data.nome} links={navLinks} whatsapp={data.whatsapp} idioma={idioma} />
 
-        <div data-themec={paleta.fundo}>
+        <div>
           <Hero
             nome={data.nome}
             hero={s.hero}
@@ -563,7 +561,6 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             // entrada nenhum — o mesmo que o nível global "nenhuma" faz.
             const animada = secaoAnimada(data, id);
             const tipo = animada ? wrapperTipo(id) : null;
-            const corTema = id === "avaliacao" ? paleta.destaque : id === "vantagens" || id === "numeros" ? paleta.fundoAlt : paleta.fundo;
             const conteudo =
               tipo === null ? (
                 <Fragment key={id}>{secoes[id]?.()}</Fragment>
@@ -573,9 +570,9 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                 </SectionReveal>
               );
             return (
-              // A div que esta skin já tinha por seção (data-themec) é a
-              // que recebe o marcador — sem envelope extra.
-              <div key={id} data-themec={corTema} data-d-secao={id} data-d-secao-anim={animada ? "1" : "0"}>
+              // A div que esta skin já tinha por seção é a que recebe o
+              // marcador — sem envelope extra.
+              <div key={id} data-d-secao={id} data-d-secao-anim={animada ? "1" : "0"}>
                 {conteudo}
                 {id === "depoimentos" && (
                   <div aria-hidden="true" className="h-[5px] border-b-[6px] border-t-2" style={{ borderColor: "var(--d-accent)" }} />

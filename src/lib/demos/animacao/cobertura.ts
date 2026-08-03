@@ -71,8 +71,18 @@ function naBanda(t: number): number {
   return (t - (0.5 - BANDA_FOCO / 2)) / BANDA_FOCO;
 }
 
-/** Peso de uma faixa [topo, base] (px na viewport) sob o núcleo. */
-function peso(topo: number, base: number, alturaViewport: number): number {
+/**
+ * Peso de uma faixa [topo, base] (px na viewport) sob o núcleo.
+ *
+ * Exportado porque a cor da barra do navegador (`lib/demos/barra`) integra
+ * as MESMAS faixas contra o MESMO núcleo — o que dá, de graça, a mesma
+ * propriedade que a cobertura já tinha: a troca entre duas seções ocupa
+ * meia viewport de rolagem e é suave nos dois extremos, sem timer nem
+ * estado por seção. Duas leis de transição diferentes na mesma página
+ * (uma pra camada decorativa, outra pra barra) seriam visíveis lado a
+ * lado; esta é a única, e o `BANDA_FOCO` acima calibra as duas.
+ */
+export function pesoNaBanda(topo: number, base: number, alturaViewport: number): number {
   if (alturaViewport <= 0 || base <= topo) return 0;
   return (
     acumulado(naBanda(base / alturaViewport)) - acumulado(naBanda(topo / alturaViewport))
@@ -93,7 +103,7 @@ export function coberturaAnimada(
   let marcado = 0;
   let animado = 0;
   for (const faixa of faixas) {
-    const p = peso(faixa.topo, faixa.base, alturaViewport);
+    const p = pesoNaBanda(faixa.topo, faixa.base, alturaViewport);
     if (p <= 0) continue;
     marcado += p;
     if (faixa.animada) animado += p;

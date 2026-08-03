@@ -19,6 +19,14 @@ import { demoCoreFontsClassName, resolveExtraFontClassNames } from "../demo/font
  * No caminho contrário, clique em qualquer elemento com data-demo-slot
  * (os slots que a skin marca) devolve o caminho do slot ao editor — que
  * abre e foca o campo correspondente do painel.
+ *
+ * O que este preview DELIBERADAMENTE não monta é o `BarraNavegador` (a
+ * cor da barra acompanhando a seção — ver lib/demos/barra): a barra do
+ * navegador obedece ao documento de CIMA, e esta página é um iframe.
+ * Montá-lo aqui escreveria numa meta tag que nenhum navegador lê,
+ * gastando um listener de scroll por quadro pra nada — e, pior, daria a
+ * impressão de que o preview mostra a barra. Quem mostra a cor escolhida
+ * é a AMOSTRA no painel do editor (`BarraCorControl` em paineis.tsx).
  */
 
 interface PreviewState {
