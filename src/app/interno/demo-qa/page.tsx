@@ -1,5 +1,9 @@
+import type { Viewport } from "next";
 import { notFound } from "next/navigation";
 
+import { BarraNavegador } from "@/lib/demos/barra/BarraNavegador";
+import { barraModoEfetivo, barraModoValido, corDaBarra } from "@/lib/demos/barra/modos";
+import { cssPlanoDaPagina } from "@/lib/demos/barra/plano";
 import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
@@ -41,6 +45,8 @@ import { demoCoreFontsClassName } from "@/app/demo/fonts";
  *   ledCores=#aabbcc,#...
  *   semAnim=id1,id2      seções com a animação DESLIGADA (DemoSecao.animacao)
  *   intro=0              desliga a splash de abertura (default nas capturas)
+ *   barra=<modo>         modo da cor da barra (automatico/fundo/destaque/personalizada)
+ *   barraCor=#aabbcc     cor do modo "personalizada"
  */
 
 export const dynamic = "force-dynamic";
@@ -48,6 +54,27 @@ export const dynamic = "force-dynamic";
 type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
+
+/**
+ * A cor da barra sai daqui pelo MESMO caminho da rota pública
+ * (`corDaBarra` no `generateViewport`) — é o que permite ao laço
+ * (`qa-visual.mjs --so=barra`) medir a rampa de cor num harness sem banco
+ * e ainda estar medindo o produto.
+ */
+export async function generateViewport({ searchParams }: Props): Promise<Viewport> {
+  const query = await searchParams;
+  const skin = getSkin(texto(query.skin) ?? "barbearia-editorial");
+  if (!skin) return {};
+  const theme = aplicarTema(getTheme(skin, texto(query.preset)), barraDaQuery(query), skin.heroEscalaLimites);
+  return { themeColor: corDaBarra(theme) };
+}
+
+/** Só o pedaço de `TemaPatch` que a barra usa (a query inteira vira patch abaixo). */
+function barraDaQuery(query: { [key: string]: string | string[] | undefined }): TemaPatch {
+  const modo = texto(query.barra);
+  if (!barraModoValido(modo)) return {};
+  return { barraCor: { modo, cor: texto(query.barraCor) } };
+}
 
 function texto(valor: string | string[] | undefined): string | undefined {
   return typeof valor === "string" && valor !== "" ? valor : undefined;
@@ -88,6 +115,7 @@ export default async function DemoQaPage({ searchParams }: Props) {
     efeitoCores: coresModoDaQuery(texto(query.corModo), texto(query.cores)),
     ledCores: coresModoDaQuery(texto(query.ledCorModo), texto(query.ledCores)),
     intro: texto(query.intro) === "0" ? false : undefined,
+    ...barraDaQuery(query),
   };
   const theme = aplicarTema(
     getTheme(skin, texto(query.preset)),
@@ -123,7 +151,12 @@ export default async function DemoQaPage({ searchParams }: Props) {
   const Skin = skin.componente;
   return (
     <div className={demoCoreFontsClassName}>
+      {/* Mesma cadeia da rota pública — ver lib/demos/barra/plano.ts. */}
+      <style>{cssPlanoDaPagina(corDaBarra(theme))}</style>
       <Skin data={dados} theme={theme} />
+      {barraModoEfetivo(theme) === "automatico" && (
+        <BarraNavegador corInicial={corDaBarra(theme)} />
+      )}
       {efeitoFundo && (
         // Sibling da skin e resolvido por EfeitoCamada — exatamente como
         // /demo/[leadId] faz (ver o comentário lá sobre nunca chamar

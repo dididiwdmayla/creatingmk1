@@ -25,6 +25,7 @@
  *   node scripts/qa-visual.mjs --so=cores      # só os modos de cor (efeito + LED)
  *   node scripts/qa-visual.mjs --so=secao      # animação ligada/desligada por seção
  *   node scripts/qa-visual.mjs --so=transicao  # a fronteira: antes/durante/depois
+ *   node scripts/qa-visual.mjs --so=barra      # cor da barra do navegador (todas as skins)
  *   node scripts/qa-visual.mjs --so=fps        # quadros por segundo no celular (ver abaixo)
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
@@ -37,6 +38,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
+
+import { lerPng } from "./png.mjs";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SAIDA = path.join(RAIZ, "qa-shots");
@@ -601,6 +604,315 @@ async function medirFps(browser, pageDaFolha, secret) {
   return gerados;
 }
 
+/* ── BARRA DO NAVEGADOR (`--so=barra`) ────────────────────────────────
+ *
+ * A cor da barra NÃO aparece numa captura de tela: quem a pinta é o cromo
+ * do navegador, fora da página. Este item é, por isso, uma MEDIÇÃO — e a
+ * imagem que se olha no fim é montada a partir dela: a rampa de cor por
+ * posição de scroll, desenhada como faixa, uma linha por skin.
+ *
+ * Três perguntas, uma por requisito:
+ *
+ *   1. **A troca é rampa, não degrau?** Rolando a página inteira em
+ *      passos pequenos, o maior salto de cor entre dois passos
+ *      consecutivos tem que ser uma fração da AMPLITUDE da rampa — e o
+ *      número de cores DISTINTAS pela página tem que ser grande (um
+ *      degrau daria duas ou três).
+ *   2. **A barra assume mesmo a cor do que está na tela?** Nos PLATÔS da
+ *      rampa — os trechos em que a cor não está mudando, ou seja, onde a
+ *      banda de foco está inteira dentro de uma faixa só — a cor da barra
+ *      tem que ser exatamente o PIXEL que a página pinta ali. O pixel sai
+ *      do PNG nas duas bordas laterais (3px de cada lado, na meia-altura
+ *      da tela); as duas têm que CONCORDAR, senão tem conteúdo encostado
+ *      na margem (a fileira de fotos do portfólio da tatuagem) e o ponto
+ *      não diz qual é o fundo — sai do veredito em vez de virar falso
+ *      positivo.
+ *
+ *      Medir no platô, e não "no meio de cada seção", é o que torna a
+ *      checagem CEGA à implementação e livre de ressalva: não pressupõe
+ *      que uma seção tenha uma cor só (o rodapé da imobiliária tem duas,
+ *      e foi assim que o defeito apareceu) nem que ela seja mais alta que
+ *      a tela.
+ *   3. **Degrada sem quebrar?** A cor inicial é lida do HTML SERVIDO
+ *      (`fetch` cru, sem navegador e sem JavaScript nenhum), que é o que
+ *      todo navegador que ignora a atualização dinâmica vai usar; e os
+ *      modos fixos são verificados como fixos de verdade — cor certa no
+ *      HTML e imóvel ao rolar.
+ */
+const BARRA_VIEWPORT = { width: 390, height: 844 };
+/** Passo da varredura de scroll. 40px dá ~100 leituras numa demo típica. */
+const BARRA_PASSO = 40;
+/**
+ * Teto do salto entre dois passos, como fração da AMPLITUDE da própria
+ * rampa (a maior distância por canal entre a cor mais escura e a mais
+ * clara que a barra assumiu na página). A fração sai da matemática da
+ * transição, não de um chute: o núcleo tem inclinação de pico `2/banda`
+ * com `banda = 0,5 × altura da viewport`, então um passo de
+ * BARRA_PASSO px move no máximo `2 × 40 / (0,5 × 844) ≈ 0,19` da
+ * amplitude. 0,30 é isso com folga pra bordas de seção que caem no meio
+ * de um passo — e continua uma ordem de grandeza abaixo do 1,0 que uma
+ * troca seca produziria.
+ */
+const BARRA_SALTO_MAXIMO = 0.3;
+/** Quantos platôs por skin recebem captura (o resto é a mesma cor de novo). */
+const BARRA_PLATOS_AMOSTRADOS = 8;
+/** Todas as skins do registro — a barra é da rota, não de uma skin. */
+const BARRA_SKINS = [
+  "barbearia-editorial",
+  "barbearia2-sul",
+  "tatuagem-editorial",
+  "tatuagem-pigmento-vivo",
+  "lancheria-chapa-burger",
+  "imobiliaria-curada",
+  "multimarcas-vortice",
+  "petshop-focinho-feliz",
+];
+
+const corParaRgb = (cor) => {
+  const hex = cor.trim().match(/^#([0-9a-f]{6})$/i);
+  if (hex) return [0, 2, 4].map((i) => parseInt(hex[1].slice(i, i + 2), 16));
+  const rgb = cor.match(/rgba?\(([^)]+)\)/i);
+  return rgb ? rgb[1].split(/[\s,/]+/).slice(0, 3).map(Number) : [NaN, NaN, NaN];
+};
+/** Distância máxima por canal — a medida de "salto de cor" usada aqui. */
+const distanciaCor = (a, b) => {
+  const [x, y] = [corParaRgb(a), corParaRgb(b)];
+  return Math.max(...[0, 1, 2].map((i) => Math.abs(x[i] - y[i])));
+};
+
+async function medirBarra(browser, pageDaFolha, secret) {
+  const gerados = [];
+  const token = criarSessaoToken({ userId: "qa", papel: "admin", versao: 1 }, secret);
+  const ctx = await browser.newContext({
+    viewport: BARRA_VIEWPORT,
+    deviceScaleFactor: 1,
+    reducedMotion: "no-preference",
+  });
+  await ctx.addCookies([{ name: "radar_session", value: token, url: BASE }]);
+  const page = await ctx.newPage();
+
+  const alvoDe = (skin, extra = "") =>
+    `${BASE}/interno/demo-qa?skin=${skin}&intro=0&efeito=nenhum&led=desligado${extra}`;
+  /** Dois quadros: o listener é throttled por rAF (ler antes do quadro em
+   *  que ele roda devolveria o valor do passo anterior — o mesmo defeito
+   *  de laço já registrado na rampa da cobertura). */
+  const doisQuadros = () =>
+    page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  /**
+   * DEFEITO DO LAÇO, achado na primeira rodada e caro: duas skins
+   * (imobiliaria e multimarcas) declaram `html { scroll-behavior: smooth }`.
+   * Com isso `window.scrollTo` vira uma ANIMAÇÃO — pedir 9000 e ler dois
+   * quadros depois devolvia `scrollY: 89`. As duas apareceram no relatório
+   * com "1 cor distinta na página inteira", que lido de fora é exatamente
+   * o sintoma de "a barra não acompanha a seção". Não era: a página é que
+   * não tinha rolado. O estilo inline vence a regra da folha da skin.
+   */
+  const desligarScrollSuave = () =>
+    page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = "auto";
+    });
+  /** Rola e CONFIRMA que chegou (a leitura antes de chegar é o defeito acima). */
+  const rolarAte = async (y) => {
+    await page.evaluate((v) => window.scrollTo(0, v), y);
+    await doisQuadros();
+    return page.evaluate(() => window.scrollY);
+  };
+  const lerBarra = () =>
+    page.evaluate(() => ({
+      meta: document.querySelector('meta[name="theme-color"]')?.content ?? "",
+      plano: getComputedStyle(document.body).backgroundColor,
+    }));
+
+  const linhas = [];
+  const problemas = [];
+  /** Ressalvas do LAÇO (o que ele não conseguiu medir), não do produto. */
+  const ressalvas = [];
+
+  for (const skin of BARRA_SKINS) {
+    /* (3) HTML SERVIDO — sem navegador, sem JavaScript. */
+    const html = await (await fetch(alvoDe(skin), { headers: { cookie: `radar_session=${token}` } })).text();
+    const metaServida = html.match(/<meta name="theme-color" content="([^"]+)"/i)?.[1] ?? "(ausente)";
+    const planoServido = html.match(/body\{background-color:\s*([^ ;!}]+)/i)?.[1] ?? "(ausente)";
+
+    await page.goto(alvoDe(skin), { waitUntil: "networkidle" });
+    await page.waitForTimeout(700);
+    await desligarScrollSuave();
+
+    const paleta = await page.evaluate(() => {
+      const raiz = document.querySelector("[style*='--d-bg']");
+      const cs = getComputedStyle(raiz);
+      return {
+        fundo: cs.getPropertyValue("--d-bg").trim(),
+        alt: cs.getPropertyValue("--d-bg-alt").trim(),
+      };
+    });
+    const contraste = distanciaCor(paleta.fundo, paleta.alt);
+
+    console.log(`\n[barra] ${skin}`);
+    console.log(`  paleta: --d-bg ${paleta.fundo} · --d-bg-alt ${paleta.alt} (contraste ${contraste})`);
+    console.log(`  HTML servido (sem JS): meta ${metaServida} · plano do body ${planoServido}`);
+    if (distanciaCor(metaServida, paleta.fundo) > 1) {
+      problemas.push(`${skin}: meta servida ${metaServida} != --d-bg ${paleta.fundo}`);
+    }
+    if (distanciaCor(planoServido, paleta.fundo) > 1) {
+      problemas.push(`${skin}: plano servido ${planoServido} != --d-bg ${paleta.fundo}`);
+    }
+
+    /* (1) A rampa pela página inteira. */
+    const altura = await page.evaluate(
+      () => document.documentElement.scrollHeight - window.innerHeight,
+    );
+    const rampa = [];
+    for (let y = 0; y <= altura; y += BARRA_PASSO) {
+      // A posição REAL, não a pedida: o `scroll anchoring` do Chromium
+      // desloca o scroll alguns px quando uma imagem assenta e muda a
+      // altura do documento (medido: pedir 8440 e parar em 8522). Isso
+      // não atrapalha a varredura — atrapalharia julgá-la como se o passo
+      // tivesse sido de 40px. O que a análise do salto precisa é que o
+      // passo EFETIVO seja pequeno, e é isso que a guarda abaixo cobra.
+      const chegou = await rolarAte(y);
+      const anterior = rampa[rampa.length - 1];
+      // Passo EFETIVO maior que o pedido: o par seguinte não é comparável
+      // com o teto (que é derivado de um passo de BARRA_PASSO). É
+      // ressalva do laço, não defeito do produto — por isso sai numa
+      // lista separada dos PROBLEMAS.
+      const comparavel = !anterior || chegou - anterior.y <= BARRA_PASSO * 2.5;
+      if (!comparavel) {
+        ressalvas.push(`${skin}: a página pulou de ${anterior.y} para ${chegou} (scroll anchoring)`);
+      }
+      rampa.push({ y: chegou, cor: (await lerBarra()).meta, comparavel });
+    }
+    let maiorSalto = 0;
+    for (let i = 1; i < rampa.length; i++) {
+      if (!rampa[i].comparavel) continue;
+      maiorSalto = Math.max(maiorSalto, distanciaCor(rampa[i].cor, rampa[i - 1].cor));
+    }
+    // Amplitude da própria rampa: é contra ela que o salto é julgado (a
+    // página pode ter faixas fora do par fundo/alt — a `avaliacao` da
+    // multimarcas usa o destaque como fundo).
+    let amplitude = 0;
+    for (const a of rampa) {
+      for (const b of rampa) amplitude = Math.max(amplitude, distanciaCor(a.cor, b.cor));
+    }
+    const teto = Math.max(2, Math.round(amplitude * BARRA_SALTO_MAXIMO));
+    console.log(
+      `  rampa: ${rampa.length} passos de ${BARRA_PASSO}px · ${new Set(rampa.map((r) => r.cor)).size} cores distintas · amplitude ${amplitude} · maior salto ${maiorSalto} (teto ${teto})`,
+    );
+    if (maiorSalto > teto) {
+      problemas.push(`${skin}: salto de ${maiorSalto} entre dois passos (teto ${teto}) — troca seca?`);
+    }
+
+    /* (2) Os PLATÔS: onde a cor não está mudando, ela tem que ser o pixel. */
+    const platos = [];
+    for (let i = 1; i < rampa.length - 1; i++) {
+      // Vizinhos idênticos = a banda de foco está inteira numa faixa só.
+      if (rampa[i].cor !== rampa[i - 1].cor || rampa[i].cor !== rampa[i + 1].cor) continue;
+      const anterior = platos[platos.length - 1];
+      if (anterior && anterior.cor === rampa[i].cor && rampa[i].y - anterior.fim <= BARRA_PASSO * 2.5) {
+        anterior.fim = rampa[i].y;
+      } else {
+        platos.push({ cor: rampa[i].cor, inicio: rampa[i].y, fim: rampa[i].y });
+      }
+    }
+    // Um ponto por platô, no meio dele, dos mais LONGOS — uma captura por
+    // platô já cobre toda cor que a página apresenta parada.
+    const amostrados = platos
+      .slice()
+      .sort((a, b) => b.fim - b.inicio - (a.fim - a.inicio))
+      .slice(0, BARRA_PLATOS_AMOSTRADOS)
+      .sort((a, b) => a.inicio - b.inicio);
+    for (const plato of amostrados) {
+      const meio = Math.round((plato.inicio + plato.fim) / 2);
+      await rolarAte(meio);
+      await page.waitForTimeout(250);
+      const { meta } = await lerBarra();
+      const png = path.join(SAIDA, `_barra-px-${skin}-${meio}${marca}.png`);
+      await page.screenshot({ path: png });
+      const img = lerPng(png);
+      await fs.unlink(png);
+      const amostra = (x) => {
+        const off = (Math.floor(img.h / 2) * img.w + x) * img.canais;
+        return `rgb(${img.px[off]},${img.px[off + 1]},${img.px[off + 2]})`;
+      };
+      const esquerda = amostra(3);
+      const direita = amostra(img.w - 4);
+      const concordam = distanciaCor(esquerda, direita) <= 2;
+      const erro = distanciaCor(meta, esquerda);
+      const marcador = !concordam
+        ? `  (conteúdo na margem: ${direita} — não conclusivo)`
+        : erro > 8
+          ? "  <<< DIVERGE"
+          : "";
+      console.log(
+        `    platô y=${String(plato.inicio).padStart(5)}–${String(plato.fim).padEnd(5)} barra ${meta}  pixel ${esquerda.padEnd(18)} erro ${String(erro).padStart(3)}${marcador}`,
+      );
+      if (concordam && erro > 8) {
+        problemas.push(`${skin}: no platô y=${meio} a barra é ${meta} e a tela é ${esquerda} (erro ${erro})`);
+      }
+    }
+    linhas.push({ skin, rampa: rampa.map((r) => r.cor), paleta });
+
+    /* (3b) Os modos fixos, fixos mesmo. */
+    for (const [modo, extra, esperado] of [
+      ["fundo", "&barra=fundo", paleta.fundo],
+      ["destaque", "&barra=destaque", null],
+      ["personalizada", "&barra=personalizada&barraCor=%2300c2ff", "#00c2ff"],
+    ]) {
+      const htmlFixo = await (
+        await fetch(alvoDe(skin, extra), { headers: { cookie: `radar_session=${token}` } })
+      ).text();
+      const servida = htmlFixo.match(/<meta name="theme-color" content="([^"]+)"/i)?.[1] ?? "(ausente)";
+      await page.goto(alvoDe(skin, extra), { waitUntil: "networkidle" });
+      await page.waitForTimeout(400);
+      await desligarScrollSuave();
+      const antes = (await lerBarra()).meta;
+      await rolarAte(await page.evaluate(() => document.documentElement.scrollHeight));
+      await page.waitForTimeout(200);
+      const depois = (await lerBarra()).meta;
+      const imovel = antes === depois;
+      console.log(
+        `  modo ${modo.padEnd(14)} HTML ${servida} · topo ${antes} · fim ${depois} ${imovel ? "(imóvel)" : "<<< MEXEU"}`,
+      );
+      if (!imovel) problemas.push(`${skin}/${modo}: a barra mudou ao rolar (${antes} → ${depois})`);
+      if (esperado && distanciaCor(servida, esperado) > 1) {
+        problemas.push(`${skin}/${modo}: HTML servido ${servida} != esperado ${esperado}`);
+      }
+    }
+  }
+
+  /* A imagem: cada rampa vira uma faixa de cor, uma linha por skin. */
+  const html = `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#111;color:#eee;font:13px system-ui">
+    <div style="padding:10px 14px;font-size:15px;font-weight:600">Cor da barra do navegador ao rolar a página (topo → fim)</div>
+    ${linhas
+      .map(
+        (l) => `<div style="padding:6px 14px">
+          <div style="margin-bottom:4px;opacity:.75">${l.skin} — ${l.paleta.fundo} / ${l.paleta.alt}</div>
+          <div style="display:flex;height:34px;border:1px solid #333">
+            ${l.rampa.map((c) => `<div style="flex:1;background:${c}"></div>`).join("")}
+          </div>
+        </div>`,
+      )
+      .join("")}
+  </body>`;
+  await pageDaFolha.setViewportSize({ width: 1100, height: 140 + linhas.length * 62 });
+  await pageDaFolha.setContent(html);
+  const folha = path.join(SAIDA, `_folha-barra${marca}.png`);
+  await pageDaFolha.screenshot({ path: folha, fullPage: true });
+  await pageDaFolha.setViewportSize(VIEWPORT);
+  gerados.push(folha);
+
+  console.log(
+    problemas.length
+      ? `\n[barra] ${problemas.length} PROBLEMA(S):\n  ${problemas.join("\n  ")}`
+      : "\n[barra] sem divergências: barra == pixel no platô, rampa sem degrau, modos fixos imóveis.",
+  );
+  if (ressalvas.length) {
+    console.log(`[barra] ${ressalvas.length} ressalva(s) do laço:\n  ${ressalvas.join("\n  ")}`);
+  }
+  await ctx.close();
+  return gerados;
+}
+
 async function main() {
   await fs.mkdir(SAIDA, { recursive: true });
   const secret = crypto.randomBytes(16).toString("hex");
@@ -1025,6 +1337,9 @@ async function main() {
         ]),
       );
     }
+
+    /* ── Cor da barra do navegador ──────────────────────────────── */
+    if (querido("barra")) gerados.push(...(await medirBarra(browser, page, secret)));
 
     /* ── Quadros por segundo em celular com CPU limitada ────────── */
     if (querido("fps")) gerados.push(...(await medirFps(browser, page, secret)));

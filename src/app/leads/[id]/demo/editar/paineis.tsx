@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Reorder, useDragControls } from "motion/react";
 import { useRef, type ChangeEvent, type ReactNode } from "react";
 
+import { amostraDaBarra, corDaBarraPaleta } from "@/lib/demos/barra/modos";
 import { FUMACA_COLORIDA, resolverCoresAura } from "@/lib/demos/efeitos/aura/cores";
 import { EFEITOS, getEfeito, intensidadePadrao } from "@/lib/demos/efeitos/registry";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
@@ -20,6 +21,8 @@ import type {
   Animacao,
   AnimacaoEntrada,
   AuraCoresPatch,
+  BarraCorModo,
+  BarraCorValor,
   CliqueEstilo,
   CorModo,
   CoresModoValor,
@@ -889,6 +892,132 @@ function AuraCoresControl({
   );
 }
 
+/* ── Cor da barra do navegador ───────────────────────────────────── */
+
+const BARRA_MODO_ROTULO: Record<BarraCorModo, string> = {
+  automatico: "Automático",
+  fundo: "Fundo do tema",
+  destaque: "Cor de destaque",
+  personalizada: "Personalizada",
+};
+
+const BARRA_MODO_AJUDA: Record<BarraCorModo, string> = {
+  automatico: "Acompanha a seção visível durante a rolagem, com transição entre as cores.",
+  fundo: "Fixa no fundo do tema, sem acompanhar a rolagem.",
+  destaque: "Fixa na cor de destaque do tema.",
+  personalizada: "Fixa numa cor escolhida por você.",
+};
+
+/**
+ * Controle da COR DA BARRA DO NAVEGADOR (`TemaPatch.barraCor`) + a
+ * AMOSTRA da cor resultante.
+ *
+ * A amostra não é enfeite: o preview do editor roda dentro de um iframe e
+ * a barra do navegador pertence ao documento de CIMA, então esta é a
+ * única escolha da aba Tema cujo efeito o preview não consegue mostrar.
+ * Sem a amostra, conferir a cor exigiria salvar, abrir a demo num celular
+ * e voltar. Com ela, a decisão é tomada aqui.
+ *
+ * No modo automático a amostra mostra as DUAS cores por onde a barra
+ * passa, com a faixa degradê entre elas — que é literalmente o que a
+ * pessoa vai ver rolando a página (a transição é uma interpolação, ver
+ * lib/demos/barra/foco.ts).
+ */
+function BarraCorControl({
+  valor,
+  paleta,
+  onChange,
+}: {
+  valor: BarraCorValor | undefined;
+  paleta: { fundo: string; fundoAlt: string; destaque: string };
+  onChange: (valor: BarraCorValor | undefined) => void;
+}) {
+  const modo = valor?.modo ?? "automatico";
+  const amostra = amostraDaBarra(paleta, valor);
+
+  function trocarModo(novo: BarraCorModo) {
+    if (novo === "automatico") return onChange(undefined);
+    // "Personalizada" nasce com a cor que a barra JÁ estava mostrando: a
+    // troca de modo nunca começa mudando a cor, e o seletor nunca abre
+    // vazio (mesmo princípio do CoresModoControl acima).
+    if (novo === "personalizada") {
+      return onChange({ modo: novo, cor: valor?.cor ?? corDaBarraPaleta(paleta, valor) });
+    }
+    onChange({ modo: novo });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded border border-line p-3">
+      <span className="text-xs text-ink-muted">Cor da barra do navegador (no celular)</span>
+      <div className="flex flex-wrap gap-1.5">
+        {(Object.keys(BARRA_MODO_ROTULO) as BarraCorModo[]).map((opcao) => (
+          <button
+            key={opcao}
+            type="button"
+            onClick={() => trocarModo(opcao)}
+            aria-pressed={modo === opcao}
+            className={`rounded border px-2.5 py-1 text-xs transition-colors ${
+              modo === opcao
+                ? "border-accent text-foreground"
+                : "border-line text-ink-muted hover:border-accent/50"
+            }`}
+          >
+            {BARRA_MODO_ROTULO[opcao]}
+            {opcao === "automatico" ? " (padrão)" : ""}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-ink-muted">{BARRA_MODO_AJUDA[modo]}</p>
+
+      {modo === "personalizada" && (
+        <label className={LABEL_CLS}>
+          Cor
+          <span className="flex items-center gap-2">
+            <input
+              type="color"
+              value={valor?.cor ?? paleta.fundo}
+              onChange={(e) => onChange({ modo: "personalizada", cor: e.target.value })}
+              className="h-9 w-12 cursor-pointer rounded border border-line bg-surface-2 p-1"
+            />
+            <code className="font-mono text-xs text-ink-secondary">
+              {valor?.cor ?? paleta.fundo}
+            </code>
+          </span>
+        </label>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[11px] text-ink-muted">
+          {amostra.acompanha
+            ? "A barra vai variar entre estas cores:"
+            : "A barra vai assumir esta cor:"}
+        </span>
+        <div
+          aria-label={`Amostra da cor da barra: ${amostra.cores.join(", ")}`}
+          className="h-7 w-full rounded border border-line"
+          style={{
+            background:
+              amostra.cores.length > 1
+                ? `linear-gradient(90deg, ${amostra.cores.join(", ")})`
+                : amostra.cores[0],
+          }}
+        />
+        <div className="flex flex-wrap gap-2">
+          {amostra.cores.map((cor) => (
+            <code key={cor} className="font-mono text-[11px] text-ink-secondary">
+              {cor}
+            </code>
+          ))}
+        </div>
+        <p className="text-[11px] text-ink-muted/70">
+          O preview acima roda num iframe e a barra é do navegador, não da página — por isso
+          a cor aparece aqui e não lá.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ── Modos de cor da camada decorativa (efeito de fundo e LED) ──── */
 
 const COR_MODO_ROTULO: Record<CorModo, string> = {
@@ -1422,6 +1551,12 @@ export function PainelTema({
           onChange={(ledCores) => setTema({ ...tema, ledCores })}
         />
       )}
+
+      <BarraCorControl
+        valor={tema.barraCor}
+        paleta={{ ...preset.paleta, destaque }}
+        onChange={(barraCor) => setTema({ ...tema, barraCor })}
+      />
 
       <div className="flex flex-col gap-3 rounded border border-line p-3">
         <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">

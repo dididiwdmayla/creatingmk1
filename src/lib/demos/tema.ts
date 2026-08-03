@@ -1,3 +1,4 @@
+import { barraCorValida } from "./barra/modos";
 import { fundoEfeitoAceito, idEfeitoAtual } from "./efeitos/registry";
 import { getFonte } from "./fontes";
 import { getLedEstilo } from "./led/registry";
@@ -158,5 +159,9 @@ export function aplicarTema(
     // editor (nenhum preset declara), então o patch é a única fonte.
     ...(coresModoValido(patch.efeitoCores) && { efeitoCores: coresModoValido(patch.efeitoCores) }),
     ...(coresModoValido(patch.ledCores) && { ledCores: coresModoValido(patch.ledCores) }),
+    // Cor da barra do navegador: mesma forma dos modos de cor acima —
+    // nenhum preset declara, então o patch é a única fonte, e o modo
+    // default (`automatico`) é representado pela AUSÊNCIA do campo.
+    ...(barraCorValida(patch.barraCor) && { barraCor: barraCorValida(patch.barraCor) }),
   };
 }

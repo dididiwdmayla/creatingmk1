@@ -1,5 +1,6 @@
 import { ValidationError } from "@/lib/errors";
 import { IDIOMAS_SUPORTADOS } from "@/lib/idioma";
+import { barraModoValido } from "./barra/modos";
 import { modoValido } from "./cores/modos";
 import { fundoEfeitoAceito } from "./efeitos/registry";
 import type { EfeitoIntensidade } from "./efeitos/types";
@@ -11,6 +12,7 @@ import {
   ALINHAMENTOS,
   ANIMACOES,
   ANIMACOES_ENTRADA,
+  BARRA_COR_MODOS,
   CLIQUE_ESTILOS,
   COR_MODOS,
   HOVER_ESTILOS,
@@ -303,6 +305,7 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
         "auraCores",
         "efeitoCores",
         "ledCores",
+        "barraCor",
         "heroTitulo",
         "led",
         // "ledEstilo" já era validado logo abaixo, mas faltava aqui: o
@@ -483,6 +486,32 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
             problemas.push(`tema.${campo}.cores[${i}] deve ser cor hex (#rrggbb)`);
           }
         }
+      }
+    }
+  }
+
+  if (value.barraCor !== undefined) {
+    const valor = value.barraCor;
+    if (!isRecord(valor)) {
+      problemas.push("tema.barraCor deve ser um objeto { modo, cor? }");
+    } else {
+      for (const chave of Object.keys(valor)) {
+        if (!["modo", "cor"].includes(chave)) {
+          problemas.push(`tema.barraCor.${chave}: chave desconhecida`);
+        }
+      }
+      if (!barraModoValido(valor.modo)) {
+        problemas.push(`tema.barraCor.modo deve ser um de: ${BARRA_COR_MODOS.join(", ")}`);
+      }
+      // A cor só é LIDA no modo "personalizada" (ver barra/modos.ts), mas
+      // é validada sempre que vier: persistir um hex quebrado num modo que
+      // hoje o ignora é a forma silenciosa de o editor voltar amanhã pra
+      // um seletor com valor inválido.
+      if (valor.cor !== undefined && (typeof valor.cor !== "string" || !HEX_RE.test(valor.cor))) {
+        problemas.push("tema.barraCor.cor deve ser cor hex (#rrggbb)");
+      }
+      if (valor.modo === "personalizada" && valor.cor === undefined) {
+        problemas.push('tema.barraCor.cor é obrigatória no modo "personalizada"');
       }
     }
   }

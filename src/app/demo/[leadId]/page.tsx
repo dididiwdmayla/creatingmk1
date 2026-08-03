@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 
 import { appPassword, lerSessaoToken, SESSION_COOKIE } from "@/lib/auth";
 import { classificarVisitaInterna, DEVICE_COOKIE } from "@/lib/device";
+import { BarraNavegador } from "@/lib/demos/barra/BarraNavegador";
+import { barraModoEfetivo, corDaBarra } from "@/lib/demos/barra/modos";
+import { cssPlanoDaPagina } from "@/lib/demos/barra/plano";
 import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
@@ -95,13 +98,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-// theme-color da aba do navegador = fundo do tema da skin escolhida — cada
-// demo pública tem sua própria cor de marca, não a do app (dark fixo).
+/**
+ * theme-color da barra do navegador — cada demo pública tem sua própria
+ * cor de marca, não a do app (ver "Barra do navegador" em ARCHITECTURE.md).
+ *
+ * A cor sai PRONTA daqui, no HTML do servidor, em todos os modos de
+ * `Theme.barraCor` — inclusive no `automatico`, em que ela é a cor de
+ * partida (o topo da página). É o que faz a feature degradar sozinha:
+ * navegador que ignore a atualização dinâmica, ou que não rode o JS,
+ * fica com esta cor, que é exatamente a que a demo tinha antes.
+ */
 export async function generateViewport({ params }: Props): Promise<Viewport> {
   const { leadId } = await params;
   const demo = await loadDemo(leadId).catch(() => undefined);
   if (!demo) return {};
-  return { themeColor: demo.theme.paleta.fundo };
+  return { themeColor: corDaBarra(demo.theme) };
 }
 
 interface VisitanteInterno {
@@ -204,6 +215,15 @@ export default async function DemoPage({ params, searchParams }: Props) {
           __html: `document.documentElement.lang=${JSON.stringify(demo.idioma)}`,
         }}
       />
+      {/*
+        Plano da página na cor da demo — ver lib/demos/barra/plano.ts. É
+        de onde o Safari 26+ amostra a cor da barra (a meta `theme-color`
+        deixou de tintar a aba lá) e o que aparece no rubber-band do
+        overscroll em qualquer navegador. Sem isto o `<body>` do layout
+        raiz mantém o `bg-background` do RADAR, e a demo do lead ganha a
+        cor do tema da plataforma na barra do iPhone de quem abrir.
+      */}
+      <style>{cssPlanoDaPagina(corDaBarra(demo.theme))}</style>
       <Skin data={demo.data} theme={demo.theme} idioma={demo.idioma} moeda={demo.moeda} />
       {demo.efeitoFundo && (
         // EfeitoCamada (client component) resolve E renderiza o efeito —
@@ -219,6 +239,12 @@ export default async function DemoPage({ params, searchParams }: Props) {
           coresCss={demo.camada.coresCss}
           coresAnimacao={demo.camada.coresAnimacao}
         />
+      )}
+      {barraModoEfetivo(demo.theme) === "automatico" && (
+        // Só no modo automático: nos modos fixos a cor já saiu no
+        // `generateViewport` acima e não há nada pra acompanhar. Ver
+        // lib/demos/barra/BarraNavegador.tsx.
+        <BarraNavegador corInicial={corDaBarra(demo.theme)} />
       )}
       {visitante.interna && <SeloVisitaInterna nomeUsuario={visitante.nomeUsuario} />}
       {visitaId && <VisitaTracker leadId={leadId} visitaId={visitaId} />}

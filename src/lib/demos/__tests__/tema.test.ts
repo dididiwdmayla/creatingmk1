@@ -143,6 +143,26 @@ describe("aplicarTema — heroTitulo e led", () => {
     ).toBeUndefined();
     expect(aplicarTema(PRESET, {}).efeitoCores).toBeUndefined();
   });
+
+  it("barraCor: modo fixo passa; 'automatico'/inválido não deixam sobra", () => {
+    expect(aplicarTema(PRESET, { barraCor: { modo: "destaque" } }).barraCor).toEqual({
+      modo: "destaque",
+    });
+    expect(
+      aplicarTema(PRESET, { barraCor: { modo: "personalizada", cor: "#0af" } }).barraCor,
+    ).toEqual({ modo: "personalizada", cor: "#0af" });
+
+    // "automatico" é o default: some do Theme, como "tema" nos modos de
+    // cor acima — é a ausência que a rota pública lê como "acompanha a
+    // seção" (ver lib/demos/barra/modos.ts).
+    expect(aplicarTema(PRESET, { barraCor: { modo: "automatico" } }).barraCor).toBeUndefined();
+    expect(
+      aplicarTema(PRESET, { barraCor: { modo: "roxo" as never } }).barraCor,
+    ).toBeUndefined();
+    // "personalizada" sem cor válida não é um modo — cai no automático.
+    expect(aplicarTema(PRESET, { barraCor: { modo: "personalizada" } }).barraCor).toBeUndefined();
+    expect(aplicarTema(PRESET, {}).barraCor).toBeUndefined();
+  });
 });
 
 describe("inkPara", () => {
