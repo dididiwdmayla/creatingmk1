@@ -133,6 +133,43 @@ describe("registro de efeitos", () => {
   );
 });
 
+/**
+ * REGRA DE SUPERFÍCIE (ver ARCHITECTURE.md, "Efeito animado é canvas, ou é
+ * estático"): nenhum efeito pode animar um `<svg>` do tamanho da viewport.
+ * Um `<svg>` é uma árvore VETORIAL RETIDA — mexer em qualquer coisa dentro
+ * dele (geometria, `stop-color` do modo de cor animado, opacidade de um
+ * nó) invalida a superfície inteira, que o navegador repinta no tamanho da
+ * tela a cada quadro. Foi por isso que `geometrico-pulsante` saiu.
+ *
+ * A lista abaixo é a DÍVIDA conhecida, não uma isenção: `veios` já estava
+ * no registro quando a regra passou a valer, e a auditoria (ver
+ * ARCHITECTURE.md) o registrou como o único violador dos 8 restantes. O
+ * teste cobra os dois lados — efeito de fora da lista não pode montar
+ * `<svg>`, e efeito DA lista tem que continuar montando um, senão ele foi
+ * migrado e a linha aqui virou mentira.
+ */
+const SVG_DE_VIEWPORT_CONHECIDO = new Set(["veios"]);
+
+describe("regra de superfície: nada de <svg> do tamanho da viewport", () => {
+  it.each(EFEITOS.map((efeito) => [efeito.id] as const))("%s", (id) => {
+    const markup = renderToStaticMarkup(
+      createElement(COMPONENTES_PARA_TESTE[id], { intensidade: 3, cores: CORES_TESTE }),
+    );
+    const temSvg = /<svg[\s>]/.test(markup);
+    if (SVG_DE_VIEWPORT_CONHECIDO.has(id)) {
+      expect(
+        temSvg,
+        `"${id}" está na lista de dívida de SVG mas não monta <svg> — migrado? tire-o de SVG_DE_VIEWPORT_CONHECIDO`,
+      ).toBe(true);
+      return;
+    }
+    expect(
+      temSvg,
+      `"${id}" monta <svg>: efeito animado é canvas ou é estático (ver "Regra de superfície" em ARCHITECTURE.md)`,
+    ).toBe(false);
+  });
+});
+
 describe("efeito removido do registro (EFEITOS_MIGRADOS)", () => {
   it("todo id migrado aponta pra um efeito que EXISTE, e não pra outro migrado", () => {
     for (const [antigo, novo] of Object.entries(EFEITOS_MIGRADOS)) {
