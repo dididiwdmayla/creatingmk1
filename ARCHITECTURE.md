@@ -19,6 +19,7 @@ scripts/
   qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato; `--so=fps` mede quadros por segundo em celular com CPU 4× — o piso de 45 fps que REPROVA um efeito (ver "Verificação da UI")
   qa-editor.mjs                     # ✅ laço de captura do EDITOR (não da rota pública): digita num campo com o efeito ativo e reporta fps do preview + contagem de <style> antes/depois; exige o patch temporário de fake DB documentado no cabeçalho
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
+  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
 src/
   proxy.ts                          # ✅ proteção por sessão assinada (Next 16: proxy.ts, ex-middleware)
@@ -88,6 +89,7 @@ src/
       leads/[id]/demo/sugestao/route.ts # ✅ POST sugestão de IA da demo (Gemini; SKU aiGeneration)
       ia/route.ts                   # ✅ GET disponibilidade da IA (GEMINI_API_KEY configurada?)
       ia/nivel/route.ts             # ✅ GET/PUT último nível de intervenção da IA (self-service, por usuário)
+      tema/route.ts                 # ✅ GET/PUT tema da PLATAFORMA do PRÓPRIO usuário (self-service; reescreve o cookie-espelho)
       mensagens/route.ts            # ✅ GET resumo/conversa (escopado à sessão) / POST envia texto
       mensagens/nao-lidas/route.ts  # ✅ GET total de não-lidas (badge do menu, polling leve)
       hoje/route.ts                 # ✅ GET fila do dia (delta por usuário; carimba ultimaVisitaEm)
@@ -101,6 +103,7 @@ src/
     errors.ts                       # ✅ erros de domínio (validação, 404, transição)
     http.ts                         # ✅ formato de erro padrão + mapa erro→HTTP status (401/403 incluídos)
     auth.ts                         # ✅ token de sessão ASSINADO (HMAC c/ APP_PASSWORD): userId.papel.versao.sig
+    tema.ts                         # ✅ temas da PLATAFORMA: TEMAS_APP, metadados do seletor e o contrato do cookie-espelho `radar_tema`
     idioma.ts                       # ✅ mapa país (pt-BR)→idioma BCP-47 + IDIOMAS_SUPORTADOS (ver "Idioma da IA na demo")
     usuarios/                       # ✅ multiusuário simples
       types.ts                      #    Usuario (papel admin|membro, ativo, senhaHash, versão de sessão)
@@ -408,6 +411,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
   },
   "ultimoPrecoBaseSlider": 2500,     // ✅ opcional: última posição do slider da calculadora de precificação (self-service)
   "ultimoNivelIA": "equilibrado",    // ✅ opcional: último nível de intervenção da IA na Forja (self-service, ver "IA na Forja")
+  "tema": "escuro",                  // ✅ opcional: tema da PLATAFORMA deste usuário (self-service, ver "Sistema de temas da plataforma")
   "criadoEm": "<ISO 8601>",
   "atualizadoEm": "<ISO 8601>"
 }
@@ -1283,6 +1287,72 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
 - **Animações** (CSS puro, sem lib): fade-in sutil de página (`.page-transition`, disparado por `PageTransition.tsx` que troca a `key` pelo pathname), barra do `UsageMeter` cresce de 0 ao montar, pulso (`.pulse-warning`/`.pulse-critical`) no preenchimento do meter perto do teto/no limite, elevação no hover dos cards clicáveis (`.card-lift`), sweep de radar rotativo (`RadarSweep.tsx` + `.radar-sweep`) no carregamento do dashboard. Tudo respeita `prefers-reduced-motion`.
 - **Favicon**: gerado via `app/icon.tsx` (`next/og`/`ImageResponse`) — círculos concêntricos + setor de varredura no verde-radar.
 - **Padrão de fetch em `useEffect`**: o linter do React Compiler (`eslint-plugin-react-hooks` 7.x, via `eslint-config-next`) rejeita chamar, dentro de um efeito, qualquer função de escopo externo que (mesmo transitivamente) atualize estado — a regra é sobre o grafo de chamadas, não sobre ordem antes/depois de `await`. A cada tela, a busca é declarada **inline dentro do próprio `useEffect`** (ou via `.then/.catch/.finally` direto no corpo do efeito); quando a mesma busca precisa ser reaproveitada por um handler de evento (retry, refetch pós-mutação), extrai-se um fetcher **puro** (sem `setState`) chamado nos dois lugares.
+
+## Sistema de temas da plataforma (`src/lib/tema.ts` + `/api/tema`)
+
+O tema do app autenticado é **por usuário**, não global. Antes ele vivia em
+`localStorage["radar:tema"]` — ou seja, era do NAVEGADOR: dois integrantes na
+mesma máquina herdavam o tema um do outro, e o mesmo integrante em dois
+aparelhos tinha duas preferências. Agora a escolha mora em
+`/usuarios/{id}.tema`, e claro/escuro continuam sendo duas das opções.
+
+- **Fonte da verdade é o doc.** `GET`/`PUT /api/tema` são self-service (mesmo
+  padrão de `/api/ia/nivel` e `/api/metas/proprio`): qualquer sessão lê e grava
+  só o próprio doc, e `salvarTemaUsuario` não toca em `sessao` nem em
+  `atualizadoEm` — trocar de tema não é edição administrativa e não derruba
+  sessão nenhuma.
+- **O cookie `radar_tema` é um espelho, nunca a fonte.** Ele existe por um
+  motivo só: deixar o `RootLayout` (Server Component) renderizar
+  `data-theme="<id>"` já no HTML do servidor, o que elimina o flash de tema
+  errado antes da primeira pintura sem script inline e sem `localStorage`.
+  Quem escreve o cookie é sempre uma ROTA, a partir do doc — `POST /api/login`
+  (é o que faz o segundo integrante entrar já no tema dele numa máquina
+  compartilhada), `GET`/`PUT /api/tema`, e `POST /api/logout` o apaga (o tema
+  pertence a quem estava logado). É `httpOnly`: o cliente lê o tema do
+  `data-theme` que o servidor pintou, nunca do cookie.
+- **Reconciliação entre dispositivos.** O cookie de um navegador fica velho se
+  a escolha mudou em OUTRO aparelho desde o último login dali. O `TemaSeletor`
+  chama `GET /api/tema` na montagem; a resposta traz o valor do doc e reescreve
+  o cookie. Custo de uma requisição por carga, a mesma ordem do badge de
+  não-lidas da Nav.
+- **`TemaSeletor` não guarda o tema em estado React.** O tema ativo vive no DOM
+  (`data-theme` no `<html>`) e o componente o espelha via `useSyncExternalStore`
+  — mesmo desenho do antigo `ThemeToggle`, agora com N temas em vez de um
+  booleano. É o que o linter do React Compiler exige aqui: escrever no
+  `documentElement` dentro de handler, ou chamar `setState` no corpo de um
+  efeito, são erros de lint neste repo (`react-hooks/immutability` e
+  `react-hooks/set-state-in-effect`), então a escrita mora numa função de
+  escopo de módulo que notifica os inscritos.
+- **Adicionar um tema é operação de CSS.** Nenhum componente tem cor hardcoded:
+  cada tema é um bloco `:root[data-theme="<id>"]` em `globals.css` trocando os
+  mesmos papéis. `:root` é o tema `escuro`, que também é o `TEMA_PADRAO` (sem
+  cookie e sem escolha salva, é o que vale).
+
+### Verificação (`scripts/qa-plataforma.mjs --so=usuario`)
+
+Um único contexto de browser — uma máquina compartilhada — em que duas pessoas
+logam em sequência de verdade (`POST /api/login` com senha real, PBKDF2
+semeado pelo script), cada uma troca o tema pelo SELETOR (não por `fetch`), e o
+laço confere três coisas: o `data-theme` do DOM, o campo `tema` gravado no doc,
+e — depois de deslogar e relogar — o `data-theme` que veio dentro do **HTML do
+servidor**, que é a prova de que não há flash. Resultado da rodada:
+
+```
+admin      escolheu "claro" pelo seletor  → DOM=claro   doc=claro    ok
+membro-1   escolheu "escuro" pelo seletor → DOM=escuro  doc=escuro   ok
+docs: admin=claro  membro-1=escuro  → independentes ok
+admin      relogou no MESMO navegador → data-theme no HTML do servidor = claro   ok (sem flash)
+membro-1   relogou no MESMO navegador → data-theme no HTML do servidor = escuro  ok (sem flash)
+```
+
+Detalhe achado montando o laço: escolher no seletor o tema que JÁ está ativo é
+(corretamente) um no-op — nenhum `PUT` sai. A primeira versão do laço fazia
+exatamente isso com o `membro-1` e "provava" a gravação lendo um campo que
+continuava ausente; passou a percorrer outro tema antes do alvo, para a escolha
+final ser sempre uma troca de verdade.
+
+Captura: `docs/temas/usuario-dois-temas.png` (folha de contato — mesmo
+navegador, dois usuários, duas primeiras pinturas).
 
 ## Verificação da UI
 

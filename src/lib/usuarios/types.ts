@@ -1,4 +1,5 @@
 import type { NivelIA } from "@/lib/ai/nivel";
+import type { TemaApp } from "@/lib/tema";
 
 export const USUARIOS_COLLECTION = "usuarios";
 
@@ -97,6 +98,13 @@ export interface Usuario {
    * dispositivos. Ausente = expandida (padrão).
    */
   metaFaixaMinimizada?: boolean;
+  /**
+   * Tema da PLATAFORMA escolhido por ESTE usuário (ver lib/tema.ts) —
+   * self-service, atualizado pelo próprio PUT /api/tema. É o que torna a
+   * escolha pessoal em vez de global: cada integrante tem o seu, sobre a
+   * mesma base compartilhada. Ausente = TEMA_PADRAO.
+   */
+  tema?: TemaApp;
   criadoEm: string;
   atualizadoEm: string;
 }

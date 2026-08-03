@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
+
+import { TEMA_COOKIE, temaOuPadrao } from "@/lib/tema";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -39,26 +42,29 @@ export const viewport: Viewport = {
 };
 
 /**
- * Aplica o tema salvo ANTES da primeira pintura (evita flash). Roda inline
- * como primeiro elemento do body; o default é o tema escuro (sem atributo).
- * Mesma chave usada pelo ThemeToggle.
+ * O tema da plataforma é POR USUÁRIO (`/usuarios/{id}.tema` — ver
+ * lib/tema.ts). O `data-theme` sai pronto no HTML do SERVIDOR, lido do
+ * cookie-espelho `radar_tema` que as rotas de login e /api/tema escrevem
+ * a partir do doc: sem script inline, sem localStorage e sem flash de
+ * tema errado antes da primeira pintura.
+ *
+ * Cookie ausente (deslogado, primeiro acesso, logout) cai no TEMA_PADRAO,
+ * que é exatamente o bloco base de `:root` no globals.css.
  */
-const THEME_INIT = `try{if(localStorage.getItem("radar:tema")==="claro")document.documentElement.dataset.theme="light"}catch(e){}`;
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const tema = temaOuPadrao((await cookies()).get(TEMA_COOKIE)?.value);
+
   return (
     <html
       lang="pt-BR"
+      data-theme={tema}
       className={`${spaceGrotesk.variable} ${inter.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-background text-foreground">
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
-        {children}
-      </body>
+      <body className="flex min-h-full flex-col bg-background text-foreground">{children}</body>
     </html>
   );
 }

@@ -1,10 +1,16 @@
 @import "tailwindcss";
 
 /*
- * Tema "radar/sonar" em duas variantes: escura (default) e clara (toggle
- * persistido em localStorage; o script inline do layout aplica
- * data-theme="light" no <html> antes da pintura). O caráter é o mesmo nas
- * duas: gradiente sutil no fundo, acento verde-radar, hairlines tingidas.
+ * Temas da PLATAFORMA. A escolha é por USUÁRIO (`/usuarios/{id}.tema` —
+ * ver lib/tema.ts): o `RootLayout` renderiza `data-theme="<id>"` no <html>
+ * já no servidor, então cada bloco abaixo é um tema inteiro trocando só
+ * custom properties. Nenhum componente tem cor hardcoded — é isto que
+ * torna "adicionar tema" uma operação de CSS, não de React.
+ *
+ * `:root` é o tema ESCURO (id "escuro"), que é também o TEMA_PADRAO: sem
+ * cookie e sem escolha salva, é o que vale. Os demais temas são blocos
+ * `:root[data-theme="<id>"]` que sobrescrevem os mesmos papéis.
+ *
  * Valores validados com a skill dataviz (contraste ≥3:1 em UI, ≥4.5:1 em
  * texto; ramp ordinal de status com monotonicidade de luminância; paleta
  * de 10 cores das buscas com CVD adjacente ≥8ΔE). Ver ARCHITECTURE.md.
@@ -61,7 +67,7 @@
  * warning/critical/good escurecidos para funcionarem como texto sobre a
  * surface clara (a ink sobre eles vira branca).
  */
-:root[data-theme="light"] {
+:root[data-theme="claro"] {
   color-scheme: light;
 
   --background: #eef2f1;
@@ -224,7 +230,7 @@ body {
 }
 
 /* No tema claro, "screen" apagaria o sweep sobre branco. */
-:root[data-theme="light"] .radar-sweep::before {
+:root[data-theme="claro"] .radar-sweep::before {
   mix-blend-mode: multiply;
 }
 

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api-client";
-import { ThemeToggle } from "./ThemeToggle";
+import { TemaSeletor } from "./TemaSeletor";
 
 const TABS = [
   { href: "/hoje", label: "Hoje" },
@@ -74,7 +74,7 @@ export function Nav() {
           </span>
         </span>
         <span className="flex items-center gap-4">
-          <ThemeToggle />
+          <TemaSeletor />
           <button
             type="button"
             onClick={handleLogout}

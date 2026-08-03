@@ -15,6 +15,7 @@ import {
 } from "@/lib/device";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, jsonError, readJsonBody } from "@/lib/http";
+import { TEMA_COOKIE, TEMA_COOKIE_OPTIONS, temaOuPadrao } from "@/lib/tema";
 import { getUsuarioPorNome, seedUsuariosSeVazio, verificarSenha } from "@/lib/usuarios";
 
 /**
@@ -65,6 +66,13 @@ export async function POST(req: Request) {
       ),
       { ...SESSION_COOKIE_OPTIONS },
     );
+
+    // Tema da plataforma DESTE usuário (ver lib/tema.ts): o cookie é o
+    // espelho que deixa o RootLayout renderizar `data-theme` já no HTML do
+    // servidor. Escrito no login a partir do doc, é o que faz dois
+    // integrantes no MESMO navegador entrarem cada um no seu tema já na
+    // primeira pintura, sem herdar o do anterior.
+    res.cookies.set(TEMA_COOKIE, temaOuPadrao(usuario.tema), { ...TEMA_COOKIE_OPTIONS });
 
     // Marcador de dispositivo (ver lib/device.ts): mantém o id existente se
     // o navegador já tiver um (não precisa trocar a cada login), só gera um

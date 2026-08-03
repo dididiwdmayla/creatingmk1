@@ -10,6 +10,7 @@ import type { PenetracaoSite } from "@/lib/leads/penetracao";
 import type { Metrics, MetricsUsuario } from "@/lib/leads/metrics";
 import type { ConversaResumo, Mensagem } from "@/lib/mensagens/types";
 import type { RegiaoIndice } from "@/lib/regioes";
+import type { TemaApp } from "@/lib/tema";
 import type { ProgressoMetas } from "@/lib/usuarios/metas";
 import type { LimitesUsuario, MetasUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
 
@@ -270,6 +271,13 @@ export const api = {
     request<{ precoBase: number }>("/api/precificacao/slider", {
       method: "PUT",
       body: JSON.stringify({ precoBase }),
+    }),
+
+  getTema: () => request<{ tema: TemaApp }>("/api/tema"),
+  putTema: (tema: TemaApp) =>
+    request<{ tema: TemaApp }>("/api/tema", {
+      method: "PUT",
+      body: JSON.stringify({ tema }),
     }),
 
   hoje: () => request<HojeResponse>("/api/hoje"),
