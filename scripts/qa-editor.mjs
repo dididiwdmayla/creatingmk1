@@ -46,7 +46,7 @@ const SAIDA = "qa-shots";
 const EFEITOS = process.env.QA_EFEITOS?.split(",") ?? [
   "gradiente",
   "veios",
-  "geometrico-pulsante",
+  "ondas",
   "aura",
   "grao",
 ];

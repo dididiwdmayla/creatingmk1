@@ -1,4 +1,4 @@
-import { getEfeito } from "./efeitos/registry";
+import { getEfeito, idEfeitoAtual } from "./efeitos/registry";
 import { getFonte } from "./fontes";
 import { getLedEstilo } from "./led/registry";
 import { modoValido } from "./cores/modos";
@@ -25,6 +25,22 @@ function fundoEfeitoValido(id: string): boolean {
 function coresModoValido(valor: CoresModoValor | undefined): CoresModoValor | undefined {
   if (!valor || !modoValido(valor.modo)) return undefined;
   return valor.modo === "tema" ? undefined : valor;
+}
+
+/**
+ * Migração de um `TemaPatch` já salvo para os ids atuais do registro (hoje
+ * só `fundoEfeito`, ver EFEITOS_MIGRADOS em ./efeitos/registry.ts).
+ *
+ * O render já lida com o id antigo sozinho — mas o EDITOR precisa disto:
+ * sem a troca, o seletor "Efeito de fundo" não acharia botão nenhum
+ * marcado (o id não está mais na lista) e o próximo Salvar reescreveria o
+ * id morto no banco. Migrando na leitura, o primeiro save da demo já
+ * grava o id novo.
+ */
+export function migrarTemaPatch(patch: TemaPatch): TemaPatch {
+  if (!patch.fundoEfeito) return patch;
+  const atual = idEfeitoAtual(patch.fundoEfeito);
+  return atual === patch.fundoEfeito ? patch : { ...patch, fundoEfeito: atual };
 }
 
 /** Limites de escala do título hero quando a skin não declara os dela. */

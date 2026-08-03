@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { Component, type ReactNode } from "react";
 
+import { idEfeitoAtual } from "./registry";
 import type { EfeitoComponente, EfeitoProps } from "./types";
 
 /**
@@ -27,10 +28,7 @@ const VeiosDinamico = dynamic(() => import("./veios/Veios").then((m) => m.Veios)
 const FilotaxiaDinamico = dynamic(() => import("./filotaxia/Filotaxia").then((m) => m.Filotaxia), {
   ssr: false,
 });
-const GeometricoPulsanteDinamico = dynamic(
-  () => import("./geometrico-pulsante/GeometricoPulsante").then((m) => m.GeometricoPulsante),
-  { ssr: false },
-);
+const OndasDinamico = dynamic(() => import("./ondas/Ondas").then((m) => m.Ondas), { ssr: false });
 const FaiscasDinamico = dynamic(() => import("./faiscas/Faiscas").then((m) => m.Faiscas), {
   ssr: false,
 });
@@ -46,13 +44,19 @@ const COMPONENTES_DINAMICOS: Record<string, EfeitoComponente> = {
   particulas: ParticulasDinamico,
   veios: VeiosDinamico,
   filotaxia: FilotaxiaDinamico,
-  "geometrico-pulsante": GeometricoPulsanteDinamico,
+  ondas: OndasDinamico,
   faiscas: FaiscasDinamico,
   "varredura-de-luz": VarreduraDeLuzDinamico,
 };
 
+/**
+ * `idEfeitoAtual` no caminho de resolução: um id de efeito REMOVIDO (ver
+ * EFEITOS_MIGRADOS em ./registry.ts) chega aqui vindo de uma demo antiga e
+ * renderiza o substituto, em vez de cair no `undefined` de "id que não
+ * existe" — o mesmo que `getEfeito` faz do lado do metadado.
+ */
 export function getEfeitoComponenteDinamico(id: string): EfeitoComponente | undefined {
-  return COMPONENTES_DINAMICOS[id];
+  return COMPONENTES_DINAMICOS[idEfeitoAtual(id)];
 }
 
 /**
@@ -94,7 +98,7 @@ class EfeitoErrorBoundary extends Component<{ children: ReactNode }, { comErro: 
  * derruba a demo pública.
  */
 export function EfeitoDinamico({ id, ...props }: { id: string } & EfeitoProps) {
-  const Componente = COMPONENTES_DINAMICOS[id];
+  const Componente = COMPONENTES_DINAMICOS[idEfeitoAtual(id)];
   if (!Componente) return null;
   return (
     <EfeitoErrorBoundary>

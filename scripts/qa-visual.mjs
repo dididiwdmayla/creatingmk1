@@ -58,7 +58,7 @@ const EFEITOS = [
   "particulas",
   "veios",
   "filotaxia",
-  "geometrico-pulsante",
+  "ondas",
   "faiscas",
   "varredura-de-luz",
 ];
@@ -178,8 +178,14 @@ const COR_MODOS = [
   { id: "iridescente", fases: [0, 0.25, 0.75] },
   { id: "arco-iris", fases: [0, 0.33, 0.66] },
 ];
-/** Efeitos representativos: um por técnica de pintura (CSS, SVG, blob). */
-const COR_EFEITOS = ["particulas", "aura", "veios"];
+/**
+ * Efeitos representativos: um por técnica de pintura (CSS, blob, SVG,
+ * canvas). `ondas` está aqui porque é o único que NÃO recebe a cor como
+ * string CSS interpolada no markup — ele lê a `color` computada do próprio
+ * canvas a cada poucos desenhos (ver ondas/Ondas.tsx); se o modo de cor
+ * animado parasse de chegar até lá, só uma captura por fase mostraria.
+ */
+const COR_EFEITOS = ["particulas", "aura", "veios", "ondas"];
 
 /**
  * Efeitos com janela de "aceso" curta (a varredura ocupa ~14% do ciclo,

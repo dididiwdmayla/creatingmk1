@@ -7,11 +7,18 @@ import type { ThemePaleta } from "@/lib/demos/types";
 import { Aura } from "../aura/Aura";
 import { Faiscas } from "../faiscas/Faiscas";
 import { Filotaxia } from "../filotaxia/Filotaxia";
-import { GeometricoPulsante } from "../geometrico-pulsante/GeometricoPulsante";
 import { Gradiente } from "../gradiente/Gradiente";
 import { Grao } from "../grao/Grao";
+import { Ondas } from "../ondas/Ondas";
 import { Particulas } from "../particulas/Particulas";
-import { EFEITOS, getEfeito, intensidadePadrao, resolverEfeitoFundo } from "../registry";
+import {
+  EFEITOS,
+  EFEITOS_MIGRADOS,
+  getEfeito,
+  idEfeitoAtual,
+  intensidadePadrao,
+  resolverEfeitoFundo,
+} from "../registry";
 import type { EfeitoComponente } from "../types";
 import { VarreduraDeLuz } from "../varredura-de-luz/VarreduraDeLuz";
 import { Veios } from "../veios/Veios";
@@ -29,7 +36,7 @@ const COMPONENTES_PARA_TESTE: Record<string, EfeitoComponente> = {
   particulas: Particulas,
   veios: Veios,
   filotaxia: Filotaxia,
-  "geometrico-pulsante": GeometricoPulsante,
+  ondas: Ondas,
   faiscas: Faiscas,
   "varredura-de-luz": VarreduraDeLuz,
 };
@@ -126,6 +133,37 @@ describe("registro de efeitos", () => {
   );
 });
 
+describe("efeito removido do registro (EFEITOS_MIGRADOS)", () => {
+  it("todo id migrado aponta pra um efeito que EXISTE, e não pra outro migrado", () => {
+    for (const [antigo, novo] of Object.entries(EFEITOS_MIGRADOS)) {
+      expect(EFEITOS.some((e) => e.id === antigo), `"${antigo}" ainda está no registro`).toBe(false);
+      expect(EFEITOS.some((e) => e.id === novo), `"${novo}" não existe no registro`).toBe(true);
+      expect(EFEITOS_MIGRADOS[novo]).toBeUndefined();
+    }
+  });
+
+  it("o geométrico-pulsante virou ondas", () => {
+    expect(idEfeitoAtual("geometrico-pulsante")).toBe("ondas");
+    expect(idEfeitoAtual("veios")).toBe("veios");
+  });
+
+  it("uma demo SALVA com o efeito antigo passa a renderizar o substituto", () => {
+    // O caminho inteiro, como na rota pública: o id vem do Firestore em
+    // `LeadDemo.tema.fundoEfeito`, atravessa o registro e sai como efeito.
+    const resolvido = resolverEfeitoFundo("geometrico-pulsante", 3, "multimarcas");
+    expect(resolvido?.efeito.id).toBe("ondas");
+    expect(resolvido?.intensidade).toBe(3);
+
+    // Sem intensidade persistida, o default sai do NICHO como qualquer outro.
+    expect(resolverEfeitoFundo("geometrico-pulsante", undefined, "multimarcas")?.intensidade).toBe(2);
+    expect(resolverEfeitoFundo("geometrico-pulsante", undefined, "petshop")?.intensidade).toBe(1);
+  });
+
+  it("getEfeito aceita o id antigo (é o que mantém válido o PUT de uma demo antiga)", () => {
+    expect(getEfeito("geometrico-pulsante")?.id).toBe("ondas");
+  });
+});
+
 describe("intensidadePadrao", () => {
   const efeito = getEfeito("gradiente")!;
 
@@ -145,7 +183,7 @@ describe("resolverEfeitoFundo", () => {
     expect(resolverEfeitoFundo("nenhum", undefined, "barbearia")).toBeUndefined();
   });
 
-  it("id desconhecido (ex.: efeito removido do registro) não resolve nada", () => {
+  it("id desconhecido não resolve nada", () => {
     expect(resolverEfeitoFundo("nao-existe", 2, "barbearia")).toBeUndefined();
   });
 

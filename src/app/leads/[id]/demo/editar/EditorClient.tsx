@@ -15,7 +15,7 @@ import { moedaDaDemo } from "@/lib/demos/moeda";
 import { montarDemoData } from "@/lib/demos/montar";
 import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
-import { aplicarTema } from "@/lib/demos/tema";
+import { aplicarTema, migrarTemaPatch } from "@/lib/demos/tema";
 import type { DemoData, TemaPatch } from "@/lib/demos/types";
 import { IDIOMA_PADRAO } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
@@ -65,7 +65,10 @@ function estadoInicial(lead: Lead, skinPedida?: string) {
     themeId: skin.themePresets.some((t) => t.id === themeSalvo)
       ? (themeSalvo as string)
       : skin.themeDefault.id,
-    tema: (daSkin ? lead.demo?.tema : undefined) ?? {},
+    // migrarTemaPatch: uma demo salva com um efeito que saiu do registro
+    // abre já apontando pro substituto (ver EFEITOS_MIGRADOS), então o
+    // seletor mostra a escolha certa e o próximo Salvar grava o id novo.
+    tema: migrarTemaPatch((daSkin ? lead.demo?.tema : undefined) ?? {}),
     dados: montarDemoData(skin.demoDataExemplo, lead, daSkin ? lead.demo?.dados : undefined, skin.id),
     idioma: lead.demo?.idioma ?? idiomaPadraoDoLead(lead),
   };
