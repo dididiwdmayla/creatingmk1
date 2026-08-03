@@ -195,7 +195,7 @@ const VARIANTES = [
   {
     id: "sem mix-blend-mode",
     aplica: () => {
-      for (const b of document.querySelectorAll("[data-d-efeito-camada] > div > *"))
+      for (const b of document.querySelectorAll("[data-d-efeito-camada] > div, [data-d-efeito-camada] > div > *"))
         b.style.mixBlendMode = "normal";
     },
   },
@@ -209,7 +209,7 @@ const VARIANTES = [
   {
     id: "sem blend + cor congelada",
     aplica: () => {
-      for (const b of document.querySelectorAll("[data-d-efeito-camada] > div > *"))
+      for (const b of document.querySelectorAll("[data-d-efeito-camada] > div, [data-d-efeito-camada] > div > *"))
         b.style.mixBlendMode = "normal";
       for (const a of document.getAnimations())
         if (String(a.animationName ?? "").startsWith("d-cores-")) a.pause();
@@ -218,28 +218,52 @@ const VARIANTES = [
   {
     id: "blobs escondidos",
     aplica: () => {
-      for (const b of document.querySelectorAll("[data-d-efeito-camada] > div > *"))
+      for (const b of document.querySelectorAll("[data-d-efeito-camada] > div, [data-d-efeito-camada] > div > *"))
         b.style.display = "none";
     },
   },
 ];
 
-async function blocoAtribuicao(page, linhas, modoId = "arco-iris") {
-  const modo = MODOS.find((m) => m.id === modoId);
+async function blocoAtribuicao(ctx, page, linhas, modoId = process.env.QA_AURA_MODO ?? "arco-iris") {
+  const modo = MODOS.find((m) => m.id === modoId) ?? { id: modoId };
   console.log(`\n== 2. atribuição (${EFEITO} · ${modoId}, uma coisa de cada vez, rolando) ==`);
+  const cdp = await ctx.newCDPSession(page);
   for (const variante of VARIANTES) {
     const medidas = [];
+    const areas = [];
     for (let carga = 0; carga < CARGAS; carga++) {
       await page.goto(url({ modo }), { waitUntil: "networkidle" });
       await esperarEfeito(page, EFEITO);
       await page.evaluate(variante.aplica);
       await page.waitForTimeout(150);
-      medidas.push((await medirRolando(page)).fps);
+      // A SUPERFÍCIE REPINTADA entra aqui junto do fps porque, nesta
+      // máquina, ela é a única das duas que enxerga custo de rasterização:
+      // setCPUThrottlingRate limita só a thread principal (ver
+      // ARCHITECTURE.md, "O portão de qualidade do registro"). Uma variante
+      // pode não mexer um fps e derrubar a repintura pela metade — foi
+      // assim que o defeito da aura foi atribuído.
+      let area = 0;
+      const onPintou = (e) => {
+        if (e.clip) area += e.clip.width * e.clip.height;
+      };
+      cdp.on("LayerTree.layerPainted", onPintou);
+      await cdp.send("LayerTree.enable");
+      const medida = await medirRolando(page);
+      await cdp.send("LayerTree.disable");
+      cdp.off("LayerTree.layerPainted", onPintou);
+      medidas.push(medida.fps);
+      areas.push(area / 1e6 / (medida.decorrido / 1000));
     }
-    linhas.push({ variante: variante.id, fps: mediana(medidas), medidas });
+    linhas.push({
+      variante: variante.id,
+      fps: mediana(medidas),
+      mpxs: mediana(areas),
+      medidas,
+    });
     console.log(
       `  ${variante.id.padEnd(26)} mediana ${mediana(medidas).toFixed(1).padStart(5)} fps ` +
-        `(${medidas.map((m) => m.toFixed(1)).join(" / ")})`,
+        `(${medidas.map((m) => m.toFixed(1)).join(" / ")}) · ` +
+        `${mediana(areas).toFixed(1).padStart(6)} Mpx/s repintados`,
     );
   }
 }
@@ -322,7 +346,7 @@ async function blocoHipoteseB(page, saida) {
   const dados = await page.evaluate(
     () =>
       new Promise((resolve) => {
-        const blobs = [...document.querySelectorAll("[data-d-efeito-camada] > div > *")];
+        const blobs = [...document.querySelectorAll("[data-d-efeito-camada] > div, [data-d-efeito-camada] > div > *")];
         const estilo = blobs.map((b) => {
           const cs = getComputedStyle(b);
           return {
@@ -460,7 +484,7 @@ async function blocoBranco(browser, cookie, linhas) {
           }
           const camada = document.querySelector("[data-d-efeito-camada]");
           const cs = getComputedStyle(camada);
-          const blobs = [...document.querySelectorAll("[data-d-efeito-camada] > div > *")];
+          const blobs = [...document.querySelectorAll("[data-d-efeito-camada] > div, [data-d-efeito-camada] > div > *")];
           return {
             props: [1, 2, 3].map((i) => cs.getPropertyValue(`--d-efeito-c${i}`).trim()),
             fundos: blobs.map((b) => getComputedStyle(b).backgroundImage.slice(0, 200)),
@@ -607,7 +631,7 @@ async function main() {
     }
 
     if (querido("fps")) await blocoFps(page, relatorio.fps);
-    if (querido("atribuicao")) await blocoAtribuicao(page, relatorio.atribuicao);
+    if (querido("atribuicao")) await blocoAtribuicao(ctx, page, relatorio.atribuicao);
     if (querido("compositing")) await blocoCompositing(ctx, page, relatorio.compositing);
     if (querido("hipoteseb")) relatorio.hipoteseB = await blocoHipoteseB(page, []);
     if (querido("quadros")) await blocoQuadros(ctx, page, relatorio.quadros);
@@ -637,10 +661,12 @@ async function main() {
     "",
     "## 2. atribuição (arco-íris, uma coisa de cada vez)",
     "",
-    "| variante | fps (mediana) | cargas |",
-    "|---|---|---|",
+    "| variante | fps (mediana) | Mpx/s repintados | cargas |",
+    "|---|---|---|---|",
     ...relatorio.atribuicao.map(
-      (l) => `| ${l.variante} | **${l.fps.toFixed(1)}** | ${l.medidas.map((m) => m.toFixed(1)).join(" / ")} |`,
+      (l) =>
+        `| ${l.variante} | **${l.fps.toFixed(1)}** | **${l.mpxs.toFixed(1)}** | ` +
+        `${l.medidas.map((m) => m.toFixed(1)).join(" / ")} |`,
     ),
     "",
     "## 3. compositing (pinturas por segundo durante a rolagem)",

@@ -1512,8 +1512,27 @@ Oito vezes a superfície da referência, ~1,4 Mpx por quadro só de decoração 
 | `faiscas` | **255,2 ⚠** | **257,4 ⚠** | **256,0 ⚠** | **255,9 ⚠** | **255,8 ⚠** |
 | `varredura-de-luz` | 9,8 | 9,0 | 20,3 | 19,1 | 19,4 |
 
-- **Por que a segunda tabela existe**: `Emulation.setCPUThrottlingRate` limita só a THREAD PRINCIPAL. A rasterização roda em outra thread, sem limite nenhum, então nesta máquina um efeito pode repintar 8× mais superfície e ainda marcar 60 fps — foi exatamente o que escondeu o defeito da `aura`. `LayerTree.layerPainted` mede o TRABALHO (megapixels repintados por segundo), que é independente de quão rápida é esta máquina. Referência: `nenhum`, a própria página. Limiar de marcação: **+40 Mpx/s** sobre ela (uma viewport de celular no dpr 2 tem 0,66 Mpx, então 40 Mpx/s é ~1 viewport inteira repintada por quadro a 60 Hz).
+- **Por que a segunda tabela existe**: `Emulation.setCPUThrottlingRate` limita só a THREAD PRINCIPAL. A rasterização roda em outra thread, sem limite nenhum, então nesta máquina um efeito pode repintar 8× mais superfície e ainda marcar 60 fps — foi exatamente o que escondeu o defeito da `aura`. `LayerTree.layerPainted` mede o TRABALHO (megapixels repintados por segundo), que é independente de quão rápida é esta máquina. Referência: `nenhum`, a própria página. Limiar de marcação: **+40 Mpx/s** sobre ela. O `clip` desses eventos vem em px **CSS** (confirmado pelo inventário de camadas: 20 camadas somam 6,7 Mpx, e só a camada de rolagem principal já teria 17,1 Mpx se fosse px de dispositivo), então a viewport vale 0,329 Mpx e +40 Mpx/s é ~2 viewports repintadas por quadro a 60 Hz.
 - **Ela MARCA (⚠), não reprova, e isso foi aprendido medindo**: `faiscas` repinta +246 Mpx/s em TODOS os cinco modos, **inclusive `tema`**. Não é propriedade de um modo de cor — é do efeito (o `mix-blend-mode: screen` dos pontos obriga o grupo inteiro a repintar), e é anterior a esta rodada. Um teto que reprovasse derrubaria as cinco células de uma vez, o que contradiz a própria regra do portão ("modo que reprova é desabilitado, não o efeito inteiro") usando um critério que ninguém escolheu. A coluna informa; a decisão é de quem lê.
+
+**O achado que a coluna de superfície trouxe, e que o fps não vê: `faiscas`.**
+
+Ele passa o portão em tudo — 59,6 a 60,0 fps nos cinco modos — e repinta **258,4 Mpx/s**, contra 9,6 da página sem efeito. Em Mpx por quadro: 4,31, ou ~13 viewports inteiras repintadas a cada quadro. Para escala, a `aura` QUEBRADA (a que gerou o relato de travamento e branqueamento no celular) media 83,6 Mpx/s — **`faiscas` repinta 3,1× o que ela repintava**, e faz isso em TODOS os cinco modos de cor, `tema` inclusive.
+
+Atribuído com o mesmo método de sempre (`QA_AURA_EFEITO=faiscas node scripts/qa-aura.mjs --so=atribuicao`, uma coisa desligada de cada vez, mediana de 3 cargas rolando):
+
+| variante | fps | Mpx/s repintados |
+|---|---|---|
+| como está | 60,0 | **258,4** |
+| sem `mix-blend-mode` | 59,8 | **11,7** |
+| cor congelada | 59,6 | 256,9 |
+| sem blend + cor congelada | 58,6 | 11,7 |
+| faíscas escondidas | 58,9 | 11,2 |
+
+- **96% da repintura é o `mix-blend-mode: screen`**, e ele está na RAIZ do efeito — um `fixed inset-0`, viewport inteira —, não nos 16 spans. Um elemento blendado obriga o navegador a compor o grupo do fundo inteiro a cada quadro em que o conteúdo dele muda, e o conteúdo muda sempre (as faíscas caem por `@keyframes`).
+- **Não tem nada a ver com modo de cor**: congelar a animação de cor não muda nada (256,9). E desligar só o blend recupera praticamente tudo — 11,7 contra os 11,2 de esconder o efeito inteiro.
+- **O fps não enxerga isso nesta máquina** porque a CPU limitada não alcança a thread de rasterização. Num aparelho real a banda de rasterização é o gargalo, e é a mesma forma de defeito que a `aura` tinha, 3× maior: quadro perdido, ou tile apresentado antes de ter sido pintado.
+- **Nada foi alterado**. `faiscas` continua no registro, com os cinco modos, exatamente como estava — o número está aqui para a decisão, que não é do laço.
 
 **Veredito desta rodada — 2 células reprovadas, as duas da `filotaxia`:**
 
