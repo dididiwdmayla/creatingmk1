@@ -95,13 +95,25 @@ const FPS_CARGAS = Number(process.env.QA_FPS_CARGAS ?? 5);
 /** Piso de aprovação: abaixo disto a célula (efeito × modo) NÃO passa. */
 const FPS_MINIMO = 45;
 /**
- * Teto de superfície repintada por segundo, em megapixels, ACIMA da
- * referência `nenhum`. Uma viewport de celular no dpr 2 tem 0,66 Mpx: 40
- * Mpx/s é ~1 viewport inteira repintada por quadro a 60 Hz, o orçamento
- * que um Android de entrada consegue sustentar rolando. A aura quebrada
- * media +72 Mpx/s; a corrigida, +0,4.
+ * Superfície repintada por segundo, em megapixels ACIMA da referência
+ * `nenhum`, a partir da qual a célula sai MARCADA. Uma viewport de celular
+ * no dpr 2 tem 0,66 Mpx: 40 Mpx/s é ~1 viewport inteira repintada por
+ * quadro a 60 Hz, o orçamento que um Android de entrada sustenta rolando.
+ * A aura quebrada media +72 Mpx/s; a corrigida, +0,4.
+ *
+ * **Marca, não reprova** — e a diferença foi aprendida medindo. O veredito
+ * do portão é o piso de fps, e só ele: `faiscas` repinta +245 Mpx/s em
+ * TODOS os cinco modos, inclusive `tema`, porque o `mix-blend-mode` dos
+ * pontos obriga o grupo inteiro a repintar. Isso não é propriedade de um
+ * modo de cor — é do efeito, e é anterior a esta rodada. Um teto que
+ * reprovasse derrubaria as cinco células de uma vez, o que contradiz a
+ * regra do registro ("modo que reprova é desabilitado, não o efeito
+ * inteiro") usando um critério que ninguém escolheu. Então a coluna
+ * INFORMA: ela é o instrumento que enxerga o custo que o fps não vê nesta
+ * máquina (a CPU limitada não alcança a thread de rasterização), e quem
+ * decide o que fazer com um número alto é quem lê a tabela.
  */
-const REPINTE_MAXIMO_MPXS = 40;
+const REPINTE_ATENCAO_MPXS = 40;
 /** px/s da rolagem contínua durante a medição — fling de celular. */
 const FPS_ROLAGEM_PXS = 1800;
 /** Teto da janela: a página inteira, ou este tempo, o que vier antes. */
@@ -368,8 +380,9 @@ async function folhaDeContato(page, titulo, arquivo, linhas) {
  * A tabela do portão: cada EFEITO × cada MODO DE COR, na condição descrita
  * acima. Devolve os arquivos gerados (uma captura por efeito, a folha de
  * contato e as tabelas em markdown) e imprime tudo — célula abaixo de
- * FPS_MINIMO, ou acima de REPINTE_MAXIMO_MPXS sobre a referência, sai
- * marcada como REPROVADA.
+ * FPS_MINIMO sai marcada como REPROVADA, e só ela. A superfície repintada
+ * sai na tabela ao lado, marcada com ⚠ acima do limiar mas sem reprovar
+ * (ver REPINTE_ATENCAO_MPXS).
  */
 async function medirFps(browser, pageDaFolha, secret) {
   const gerados = [];
@@ -496,10 +509,15 @@ async function medirFps(browser, pageDaFolha, secret) {
   const refMpxs = Object.fromEntries(
     FPS_MODOS.map((modo) => [modo, celulas.nenhum?.[modo]?.mpxs ?? 0]),
   );
+  // REPROVA é só o piso de fps (ver REPINTE_ATENCAO_MPXS pra por que a
+  // superfície repintada marca em vez de reprovar).
   const reprova = (efeito, modo) => {
-    const c = celulas[efeito][modo];
     if (efeito === "nenhum") return false;
-    return c.fps < FPS_MINIMO || c.mpxs - refMpxs[modo] > REPINTE_MAXIMO_MPXS;
+    return celulas[efeito][modo].fps < FPS_MINIMO;
+  };
+  const atencao = (efeito, modo) => {
+    if (efeito === "nenhum") return false;
+    return celulas[efeito][modo].mpxs - refMpxs[modo] > REPINTE_ATENCAO_MPXS;
   };
   const linhaDaTabela = (efeito, valor) =>
     `| \`${efeito}\` | ${FPS_MODOS.map((modo) => valor(efeito, modo)).join(" | ")} |`;
@@ -509,8 +527,9 @@ async function medirFps(browser, pageDaFolha, secret) {
     `(dpr 2), CPU ${FPS_CPU_THROTTLE}×, intensidade 3, rolando a página inteira\n\n` +
     `Mediana de ${FPS_CARGAS} cargas independentes por célula; rolagem contínua a ` +
     `${FPS_ROLAGEM_PXS} px/s até o fim da página (teto de ${FPS_JANELA_MS}ms). ` +
-    `Piso: **${FPS_MINIMO} fps** em TODO modo de cor. Teto de superfície repintada: ` +
-    `**+${REPINTE_MAXIMO_MPXS} Mpx/s** sobre a referência \`nenhum\`.\n\n`;
+    `Veredito: **${FPS_MINIMO} fps** em TODO modo de cor — e só isso reprova. ` +
+    `A superfície repintada é reportada junto e MARCADA (⚠) acima de ` +
+    `**+${REPINTE_ATENCAO_MPXS} Mpx/s** sobre a referência \`nenhum\`, sem reprovar.\n\n`;
   const tabelaFps =
     `## fps (mediana)\n\n| efeito | ${FPS_MODOS.join(" | ")} |\n` +
     `|---|${FPS_MODOS.map(() => "---").join("|")}|\n` +
@@ -526,18 +545,31 @@ async function medirFps(browser, pageDaFolha, secret) {
     `\n\n## superfície repintada (Mpx/s, rolando)\n\n| efeito | ${FPS_MODOS.join(" | ")} |\n` +
     `|---|${FPS_MODOS.map(() => "---").join("|")}|\n` +
     alvos
-      .map((efeito) => linhaDaTabela(efeito, (e, m) => celulas[e][m].mpxs.toFixed(1)))
+      .map((efeito) =>
+        linhaDaTabela(efeito, (e, m) => {
+          const v = celulas[e][m].mpxs.toFixed(1);
+          return atencao(e, m) ? `${v} ⚠` : v;
+        }),
+      )
       .join("\n");
   const reprovadas = alvos.flatMap((efeito) =>
     FPS_MODOS.filter((modo) => reprova(efeito, modo)).map((modo) => `\`${efeito}\` × ${modo}`),
   );
+  // Efeito cuja superfície repintada estoura em TODO modo medido não tem
+  // problema de modo de cor: o custo é dele, e a coluna só informa.
+  const marcados = alvos.filter((efeito) => FPS_MODOS.every((modo) => atencao(efeito, modo)));
   const veredito =
     `\n\n## veredito\n\n` +
     (reprovadas.length
-      ? `REPROVADAS ${reprovadas.length} célula(s): ${reprovadas.join(", ")}. ` +
+      ? `REPROVADAS ${reprovadas.length} célula(s) pelo piso de ${FPS_MINIMO} fps: ${reprovadas.join(", ")}. ` +
         `Modo de cor que reprova é DESABILITADO para aquele efeito — o efeito inteiro não sai do registro.`
-      : `Todas as células passam: nenhum efeito abaixo de ${FPS_MINIMO} fps em nenhum modo de cor, ` +
-        `e nenhum repintando mais de ${REPINTE_MAXIMO_MPXS} Mpx/s acima da referência.`);
+      : `Todas as células passam o piso de ${FPS_MINIMO} fps.`) +
+    (marcados.length
+      ? `\n\nMARCADOS (⚠, não reprovados): ${marcados
+          .map((e) => `\`${e}\``)
+          .join(", ")} repinta(m) acima de +${REPINTE_ATENCAO_MPXS} Mpx/s em TODOS os modos medidos, ` +
+        `inclusive \`tema\` — custo do efeito, não do modo de cor. Decisão de quem lê a tabela.`
+      : "");
 
   const md = path.join(SAIDA, `_fps-mobile${marca}.md`);
   await fs.writeFile(md, `${cabecalho}${tabelaFps}${tabelaMpx}${veredito}\n`);

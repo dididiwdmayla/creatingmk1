@@ -43,6 +43,17 @@ export const EFEITOS: EfeitoDefinition[] = [
     // Padrão de crescimento orgânico (sementes de girassol) — combina com
     // o lado "natureza" de petshop e o artesanal/orgânico da lancheria.
     nichosRecomendados: ["petshop", "lancheria"],
+    // Portão de qualidade (ver a tabela em ARCHITECTURE.md): 40,8 fps em
+    // `transicao` e 40,5 em `arco-iris`, contra o piso de 45 — e contra
+    // 59,8 do próprio efeito em `tema`. A causa não é a superfície
+    // repintada (8,4 Mpx/s, na referência da página): é recálculo de
+    // estilo na thread principal, 93 spans com `radial-gradient` cuja cor
+    // muda a 60 Hz, um a um. `iridescente` passou por 47,9 — perto do
+    // piso, com 2 das 5 cargas abaixo dele —, então fica, mas é o próximo
+    // a cair se a próxima rodada medir pior.
+    modosDeCorReprovados: ["transicao", "arco-iris"],
+    motivoModosReprovados:
+      "abaixo de 45 fps no celular (40,8 e 40,5): a cor animada repinta os 93 pontos um a um",
   },
   {
     id: "ondas",
