@@ -38,18 +38,22 @@ export const EFEITOS: EfeitoDefinition[] = [
     nichosRecomendados: ["barbearia", "lancheria", "multimarcas", "petshop", "tatuagem"],
   },
   {
-    id: "veios",
-    nome: "Veios",
-    // Traços orgânicos com pulso viajando (ver veios/geometria.ts) — lê
-    // como linha de tatuagem/circuito; imobiliária pelo traço tipo mapa.
-    nichosRecomendados: ["tatuagem", "imobiliaria"],
-  },
-  {
     id: "filotaxia",
     nome: "Filotaxia",
     // Padrão de crescimento orgânico (sementes de girassol) — combina com
     // o lado "natureza" de petshop e o artesanal/orgânico da lancheria.
     nichosRecomendados: ["petshop", "lancheria"],
+    // Portão de qualidade (ver a tabela em ARCHITECTURE.md): 40,8 fps em
+    // `transicao` e 40,5 em `arco-iris`, contra o piso de 45 — e contra
+    // 59,8 do próprio efeito em `tema`. A causa não é a superfície
+    // repintada (8,4 Mpx/s, na referência da página): é recálculo de
+    // estilo na thread principal, 93 spans com `radial-gradient` cuja cor
+    // muda a 60 Hz, um a um. `iridescente` passou por 47,9 — perto do
+    // piso, com 2 das 5 cargas abaixo dele —, então fica, mas é o próximo
+    // a cair se a próxima rodada medir pior.
+    modosDeCorReprovados: ["transicao", "arco-iris"],
+    motivoModosReprovados:
+      "abaixo de 45 fps no celular (40,8 e 40,5): a cor animada repinta os 93 pontos um a um",
   },
   {
     id: "ondas",
@@ -77,34 +81,72 @@ export const EFEITOS: EfeitoDefinition[] = [
 ];
 
 /**
- * Efeito REMOVIDO → o substituto que assume as demos já salvas com ele.
+ * Efeito REMOVIDO → o que assume as demos já salvas com ele. O destino pode
+ * ser outro efeito (substituição) ou `"nenhum"` (removido SEM substituto:
+ * a demo passa a não ter camada decorativa, de propósito).
  *
  * Uma demo publicada guarda o id escolhido em `LeadDemo.tema.fundoEfeito`
- * (Firestore) — apagar um efeito do registro sem mais nada faria toda demo
- * que o usava simplesmente ficar sem fundo (`resolverEfeitoFundo` devolve
- * `undefined` para id desconhecido, de propósito). Este mapa é a migração:
- * o id antigo continua VÁLIDO em todo lugar que consulta o registro
- * (`aplicarTema`, a validação do PUT, o seletor do editor) e resolve para
- * o efeito novo, sem tocar em nada no banco.
+ * (Firestore) — apagar um efeito do registro sem mais nada deixaria o id
+ * morto no banco, reprovado pela validação do PUT ("chave desconhecida") e
+ * ressuscitando o efeito do PRESET no lugar dele. Este mapa é a migração, e
+ * ela vive no REGISTRO, não no banco: o id antigo continua VÁLIDO em todo
+ * lugar que consulta o registro (`aplicarTema`, a validação do PUT, o
+ * seletor do editor) e resolve para o destino, sem job nenhum.
  *
- * `geometrico-pulsante` → `ondas`: o antigo formava figuras legíveis
- * (hexágonos concêntricos de linha contínua) e animava um `<svg>` do
- * tamanho da viewport, o que travava o celular (ver "Regra de superfície"
- * em ARCHITECTURE.md).
+ * - `geometrico-pulsante` → `ondas`: formava figuras legíveis (hexágonos
+ *   concêntricos de linha contínua) e animava um `<svg>` do tamanho da
+ *   viewport, o que travava o celular (ver "Regra de superfície" em
+ *   ARCHITECTURE.md). Tinha substituto pronto com a mesma leitura.
+ * - `veios` → `nenhum`: era o ÚNICO violador restante da regra de
+ *   superfície (1 `<svg>` de viewport inteira, 93 nós, 8 animados, mais
+ *   `stop-color` de 6 gradientes repintados a cada quadro nos modos de cor
+ *   animados). Saiu sem substituto — nenhum efeito do registro tem a mesma
+ *   leitura de traço, e inventar um não estava no pedido.
  */
 export const EFEITOS_MIGRADOS: Readonly<Record<string, string>> = {
   "geometrico-pulsante": "ondas",
+  veios: "nenhum",
 };
 
-/** Id efetivo de um efeito: o próprio, ou o substituto se ele foi removido. */
+/**
+ * Id efetivo de um efeito: o próprio, o substituto se ele foi removido, ou
+ * `"nenhum"` se foi removido sem substituto.
+ */
 export function idEfeitoAtual(id: string): string {
   return EFEITOS_MIGRADOS[id] ?? id;
+}
+
+/**
+ * O id é aceitável em `Theme.fundoEfeito`/`TemaPatch.fundoEfeito`? Vale
+ * `"nenhum"`, um id do registro e também o id de um efeito REMOVIDO — este
+ * último resolve pra `idEfeitoAtual` e nunca pode ser recusado, senão o PUT
+ * de uma demo antiga responderia 400 e o editor perderia a escolha dela.
+ */
+export function fundoEfeitoAceito(id: string): boolean {
+  const atual = idEfeitoAtual(id);
+  return atual === "nenhum" || getEfeito(atual) !== undefined;
 }
 
 export function getEfeito(id: string | undefined): EfeitoDefinition | undefined {
   if (id === undefined) return undefined;
   const atual = idEfeitoAtual(id);
   return EFEITOS.find((efeito) => efeito.id === atual);
+}
+
+/**
+ * O modo de cor pedido vale neste efeito? `false` quando o par
+ * efeito × modo reprovou no portão de qualidade (ver
+ * `EfeitoDefinition.modosDeCorReprovados` e a tabela em ARCHITECTURE.md).
+ *
+ * Quem chama cai em `tema` — e NUNCA rejeita o dado: uma demo publicada
+ * com esse par continua válida no PUT e continua abrindo no editor, ela só
+ * deixa de animar a cor. Mesma filosofia de `EFEITOS_MIGRADOS`: a regra
+ * mora no registro e é aplicada na RESOLUÇÃO, sem tocar no banco.
+ */
+export function modoDeCorPermitido(efeitoId: string | undefined, modo: string): boolean {
+  const reprovados = getEfeito(efeitoId)?.modosDeCorReprovados;
+  if (!reprovados) return true;
+  return !(reprovados as readonly string[]).includes(modo);
 }
 
 /**

@@ -114,15 +114,49 @@ export function perfilMancha(intensidade: Exclude<EfeitoIntensidade, 0>): Parada
   return paradas;
 }
 
-/** O `background` do blob: a rampa acima já escrita como radial-gradient. */
-export function fundoMancha(cor: string, intensidade: Exclude<EfeitoIntensidade, 0>): string {
-  const stops = perfilMancha(intensidade).map(({ parada, cor: pct }) => {
-    if (pct <= 0) return `transparent ${parada}%`;
-    if (pct >= 100) return `${cor} ${parada}%`;
-    return `color-mix(in srgb, ${cor} ${pct}%, transparent) ${parada}%`;
-  });
-  // `closest-side`: o raio do gradiente é METADE da caixa, então a rampa
-  // acima (que termina em 100%) morre exatamente onde o `rounded-full`
-  // recortaria — nunca é o recorte que termina a mancha.
-  return `radial-gradient(circle closest-side, ${stops.join(", ")})`;
+export interface ParadaCanvas {
+  /** Posição da parada em fração do raio (0–1), pronta pro addColorStop. */
+  parada: number;
+  /** Alfa FINAL da cor naquela parada (perfil × opacidade da intensidade). */
+  alfa: number;
+}
+
+/**
+ * A MESMA rampa medida, com a **transparência pré-calculada**: cada parada
+ * já traz o alfa final, perfil × `opacidadeAura`, pronto pra virar um
+ * `addColorStop` de canvas.
+ *
+ * ## Por que a rampa saiu do CSS (a queda do gradiente animado)
+ *
+ * Antes disto o blob era uma `<div>` com `background: radial-gradient(...)`
+ * cujas paradas eram `color-mix(in srgb, var(--d-efeito-c1) X%,
+ * transparent)`, mais `opacity` no elemento e `mix-blend-mode: screen`. As
+ * três peças caíram juntas, cada uma por um motivo medido:
+ *
+ * 1. **o gradiente em CSS**: nos modos de cor ANIMADOS (`transicao`,
+ *    `iridescente`, `arco-iris`) a custom property muda a 60 Hz, e cada
+ *    mudança REGENERA a imagem de gradiente e repinta o elemento — que tem
+ *    ~2× a viewport de lado. Medido no celular 390×844 com CPU 4×, rolando
+ *    a página inteira: **10,5 Mpx/s repintados com a cor do tema contra
+ *    83,6 Mpx/s no iridescente e 82,6 no arco-íris**, ~1,4 Mpx por quadro
+ *    só de decoração. É o mesmo corolário da "regra de superfície" que
+ *    reprovou a `filotaxia` (93 spans com gradiente na cor animada), aqui
+ *    com 2 superfícies gigantes em vez de 93 pequenas. Num canvas a cor é
+ *    LIDA e o bitmap é do tamanho que o efeito escolhe;
+ * 2. **`mix-blend-mode: screen`**: nunca fez o que o comentário dizia. A
+ *    raiz do efeito é `position: fixed; z-index: 40` — um stacking context,
+ *    e stacking context ISOLA blending: os blobs só faziam screen entre si,
+ *    nunca com a página (confirmado: no preset claro o efeito ABAIXA a
+ *    luminância média da viewport, 0,806 → 0,650, o oposto de "soma luz");
+ * 3. **`opacity` no elemento**: era só um multiplicador do alfa da rampa —
+ *    aqui ele entra na conta uma vez, na tabela, e some do compositor.
+ *
+ * O tamanho aparente, a rampa e a opacidade final são os MESMOS de antes.
+ */
+export function paradasMancha(intensidade: Exclude<EfeitoIntensidade, 0>): ParadaCanvas[] {
+  const opacidade = opacidadeAura(intensidade);
+  return perfilMancha(intensidade).map(({ parada, cor }) => ({
+    parada: Math.min(1, parada / 100),
+    alfa: (cor / 100) * opacidade,
+  }));
 }

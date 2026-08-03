@@ -2,7 +2,8 @@
  * Compara dois PNGs e imprime a diferença média/máxima por pixel e a
  * fração de pixels que difere acima de 2 níveis. O decodificador de PNG
  * próprio (sem dependência nova) mora em `./png.mjs` — `qa-plataforma.mjs`
- * usa o mesmo pixel pra medir matiz do cromo.
+ * usa o mesmo pixel pra medir matiz do cromo, e `qa-aura.mjs` decodifica os
+ * quadros do screencast do CDP direto do buffer, sem tocar o disco.
  *
  * É o "provado pixel a pixel" das rodadas visuais. Um número sozinho não
  * aprova nada — ele existe pra dar ESCALA à imagem vista: compare sempre a

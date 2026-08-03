@@ -21,7 +21,7 @@
  * Uso:
  *   node scripts/qa-visual.mjs                 # matriz inteira
  *   node scripts/qa-visual.mjs --so=led        # só os estilos de LED
- *   node scripts/qa-visual.mjs --so=veios,gradiente
+ *   node scripts/qa-visual.mjs --so=aura,gradiente
  *   node scripts/qa-visual.mjs --so=cores      # só os modos de cor (efeito + LED)
  *   node scripts/qa-visual.mjs --so=secao      # animação ligada/desligada por seção
  *   node scripts/qa-visual.mjs --so=transicao  # a fronteira: antes/durante/depois
@@ -47,10 +47,9 @@ const BASE = `http://127.0.0.1:${PORTA}`;
 const VIEWPORT = { width: 1100, height: 700 };
 
 /**
- * MEDIÇÃO DE QUADROS POR SEGUNDO (`--so=fps`) — a condição de reprovação
- * do registro de efeitos. Nenhuma captura mostra travamento; o número aqui
- * é o que separa "efeito bonito" de "efeito que trava o celular de quem
- * abre a demo" (ver ARCHITECTURE.md, "Custo por quadro dos efeitos").
+ * PORTÃO DE QUALIDADE DO REGISTRO (`--so=fps`) — a medição que REPROVA.
+ * Nenhuma captura mostra travamento; o número aqui é o que separa "efeito
+ * bonito" de "efeito que trava o celular de quem abre a demo".
  *
  * A condição é deliberadamente a PIOR que uma demo publicada consegue
  * montar num aparelho modesto:
@@ -59,30 +58,80 @@ const VIEWPORT = { width: 1100, height: 700 };
  *     dos pixels, que é o teto do `devicePixelRatioClamped`);
  *   - CPU limitada em 4× via CDP (`Emulation.setCPUThrottlingRate`), a
  *     distância típica entre a máquina do dev e um Android de entrada;
- *   - intensidade 3 (a mais cara) e modo de cor ARCO-ÍRIS, que anima uma
- *     custom property registrada a 60 Hz — é o que fazia SVG de viewport
- *     inteira repintar por completo a cada quadro.
+ *   - intensidade 3, a mais cara;
+ *   - **TODOS os cinco modos de cor**, um por coluna da tabela. Antes só o
+ *     arco-íris era medido; a rodada da aura mostrou que isso não basta —
+ *     um efeito pode passar num modo e reprovar em outro, e o veredito é
+ *     POR CÉLULA (modo que reprova é desabilitado, não o efeito inteiro);
+ *   - a página **ROLANDO de cima a baixo** durante a janela de medição.
+ *     Página parada não exercita o caminho que a pessoa usa: a aura, por
+ *     exemplo, tem o alvo das esferas preso ao progresso de scroll, e
+ *     rolagem é o momento em que o compositor tem mais o que fazer.
  *
- * CINCO cargas independentes por efeito, mediana entre elas. A rodada do
+ * CINCO cargas independentes por célula, mediana entre elas. A rodada do
  * editor já tinha achado que uma varredura de uma tacada só dá leituras de
  * 13 a 52 fps para o MESMO estado (ruído de carga da máquina) e passou a
  * medir 3×; aqui, com a CPU limitada em 4×, três ainda deixavam passar
  * outliers de uma carga só (uma leitura de 12,2 fps no meio de duas de 44
  * e 59), então a mediana é de cinco.
+ *
+ * ## A segunda coluna: SUPERFÍCIE REPINTADA (Mpx/s)
+ *
+ * fps sozinho passou um efeito quebrado: a aura media 55–60 fps AQUI e
+ * travava no celular de verdade. O motivo é metodológico e vale registrar
+ * — `Emulation.setCPUThrottlingRate` limita a thread PRINCIPAL, e a
+ * rasterização acontece em outra thread (`--num-raster-threads=2` no
+ * renderer, mais o processo de GPU). Custo de PINTURA, que é justamente o
+ * que derruba um aparelho real, fica invisível pro contador de rAF.
+ *
+ * A tabela mede então a coisa direto, com `LayerTree.layerPainted`: quantos
+ * megapixels o navegador repinta por segundo durante a rolagem. É um número
+ * de TRABALHO, independente de quão rápida é esta máquina — a referência é
+ * `nenhum` (a própria página), e um efeito só responde pelo que ele soma.
  */
 const FPS_VIEWPORT = { width: 390, height: 844 };
 const FPS_CPU_THROTTLE = 4;
 const FPS_CARGAS = Number(process.env.QA_FPS_CARGAS ?? 5);
-const FPS_JANELA_MS = 3500;
-/** Piso de aprovação: abaixo disto o efeito NÃO passa. */
+/** Piso de aprovação: abaixo disto a célula (efeito × modo) NÃO passa. */
 const FPS_MINIMO = 45;
 /**
- * O modo de cor da tabela é o arco-íris — é a condição de reprovação. A
- * env existe só pra ATRIBUIR custo quando um efeito reprova
- * (`QA_FPS_COR_MODO=tema` responde "é o efeito ou é a cor animada?"), do
- * mesmo jeito que a rodada do editor desligou uma coisa de cada vez.
+ * Superfície repintada por segundo, em megapixels ACIMA da referência
+ * `nenhum`, a partir da qual a célula sai MARCADA. Uma viewport de celular
+ * no dpr 2 tem 0,66 Mpx: 40 Mpx/s é ~1 viewport inteira repintada por
+ * quadro a 60 Hz, o orçamento que um Android de entrada sustenta rolando.
+ * A aura quebrada media +72 Mpx/s; a corrigida, +0,4.
+ *
+ * **Marca, não reprova** — e a diferença foi aprendida medindo. O veredito
+ * do portão é o piso de fps, e só ele: `faiscas` repinta +245 Mpx/s em
+ * TODOS os cinco modos, inclusive `tema`, porque o `mix-blend-mode` dos
+ * pontos obriga o grupo inteiro a repintar. Isso não é propriedade de um
+ * modo de cor — é do efeito, e é anterior a esta rodada. Um teto que
+ * reprovasse derrubaria as cinco células de uma vez, o que contradiz a
+ * regra do registro ("modo que reprova é desabilitado, não o efeito
+ * inteiro") usando um critério que ninguém escolheu. Então a coluna
+ * INFORMA: ela é o instrumento que enxerga o custo que o fps não vê nesta
+ * máquina (a CPU limitada não alcança a thread de rasterização), e quem
+ * decide o que fazer com um número alto é quem lê a tabela.
  */
-const FPS_COR_MODO = process.env.QA_FPS_COR_MODO ?? "arco-iris";
+const REPINTE_ATENCAO_MPXS = 40;
+/** px/s da rolagem contínua durante a medição — fling de celular. */
+const FPS_ROLAGEM_PXS = 1800;
+/** Teto da janela: a página inteira, ou este tempo, o que vier antes. */
+const FPS_JANELA_MS = Number(process.env.QA_FPS_JANELA_MS ?? 9000);
+/**
+ * Os cinco modos de cor (ver src/lib/demos/cores/modos.ts) — as colunas da
+ * tabela. `QA_FPS_COR_MODO=tema` restringe a rodada a um modo só, que é o
+ * "desligar uma coisa de cada vez" quando uma célula reprova.
+ */
+const FPS_MODOS = (process.env.QA_FPS_COR_MODO ?? "tema,fixa,transicao,iridescente,arco-iris")
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+/** Cores de exemplo dos modos que exigem escolha (o editor sempre manda). */
+const FPS_CORES_DO_MODO = {
+  fixa: ["#00c2ff"],
+  transicao: ["#ff2e88", "#22d3a5", "#ffd23f"],
+};
 
 const SKIN = "barbearia-editorial";
 /** Presets da skin acima: um escuro, um claro (ver components/demos/barbearia/themes.ts). */
@@ -95,7 +144,6 @@ const EFEITOS = [
   "grao",
   "gradiente",
   "particulas",
-  "veios",
   "filotaxia",
   "ondas",
   "faiscas",
@@ -224,7 +272,7 @@ const COR_MODOS = [
  * canvas a cada poucos quadros (ver ondas/Ondas.tsx); se o modo de cor
  * animado parasse de chegar até lá, só uma captura por fase mostraria.
  */
-const COR_EFEITOS = ["particulas", "aura", "veios", "ondas"];
+const COR_EFEITOS = ["particulas", "aura", "ondas"];
 
 /**
  * Efeitos com janela de "aceso" curta (a varredura ocupa ~14% do ciclo,
@@ -329,10 +377,12 @@ async function folhaDeContato(page, titulo, arquivo, linhas) {
 }
 
 /**
- * Quadros por segundo de CADA efeito na condição descrita em
- * FPS_VIEWPORT/FPS_CPU_THROTTLE. Devolve os arquivos gerados (uma captura
- * por efeito, a folha de contato e a tabela em markdown) e imprime a
- * tabela — efeito abaixo de FPS_MINIMO sai marcado como REPROVADO.
+ * A tabela do portão: cada EFEITO × cada MODO DE COR, na condição descrita
+ * acima. Devolve os arquivos gerados (uma captura por efeito, a folha de
+ * contato e as tabelas em markdown) e imprime tudo — célula abaixo de
+ * FPS_MINIMO sai marcada como REPROVADA, e só ela. A superfície repintada
+ * sai na tabela ao lado, marcada com ⚠ acima do limiar mas sem reprovar
+ * (ver REPINTE_ATENCAO_MPXS).
  */
 async function medirFps(browser, pageDaFolha, secret) {
   const gerados = [];
@@ -354,95 +404,195 @@ async function medirFps(browser, pageDaFolha, secret) {
   const cdp = await ctx.newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: FPS_CPU_THROTTLE });
 
-  const linhas = [];
-  const itens = [];
-  // "nenhum" é a referência: é o teto que a PÁGINA consegue nesta
-  // condição. Um efeito só é culpado do que está abaixo dele.
-  // QA_FPS_EFEITOS=ondas,veios restringe a tabela — pra iterar num efeito
-  // só sem pagar a matriz inteira (cada efeito custa 3 cargas).
+  // Superfície repintada: contada o tempo todo, zerada a cada medição.
+  let pinturas = 0;
+  let areaPintada = 0;
+  cdp.on("LayerTree.layerPainted", (evento) => {
+    pinturas++;
+    if (evento.clip) areaPintada += evento.clip.width * evento.clip.height;
+  });
+  await cdp.send("LayerTree.enable");
+
+  /** Uma medição: rola a página inteira contando quadros e pinturas. */
+  const medir = async () => {
+    pinturas = 0;
+    areaPintada = 0;
+    const r = await page.evaluate(
+      ({ velocidade, maxMs }) =>
+        new Promise((resolve) => {
+          window.scrollTo(0, 0);
+          const max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+          let quadros = 0;
+          let piorMs = 0;
+          let y = 0;
+          let inicio = 0;
+          let ultimo = 0;
+          const passo = (t) => {
+            if (inicio === 0) {
+              // O primeiro quadro só ancora o relógio — o intervalo até ele
+              // inclui o agendamento do rAF, não é quadro de animação.
+              inicio = ultimo = t;
+              requestAnimationFrame(passo);
+              return;
+            }
+            const dt = t - ultimo;
+            ultimo = t;
+            quadros++;
+            if (dt > piorMs) piorMs = dt;
+            y += (velocidade * dt) / 1000;
+            window.scrollTo(0, Math.min(max, y));
+            const decorrido = t - inicio;
+            if (y < max && decorrido < maxMs) requestAnimationFrame(passo);
+            else resolve({ fps: (quadros * 1000) / decorrido, ms: decorrido, piorMs });
+          };
+          requestAnimationFrame(passo);
+        }),
+      { velocidade: FPS_ROLAGEM_PXS, maxMs: FPS_JANELA_MS },
+    );
+    return { ...r, mpxs: areaPintada / 1e6 / (r.ms / 1000), pinturasS: pinturas / (r.ms / 1000) };
+  };
+
+  // "nenhum" é a referência: o teto que a PÁGINA consegue nesta condição, e
+  // a linha de base de repintura. Um efeito só responde pelo que SOMA.
+  // QA_FPS_EFEITOS=ondas,aura restringe a tabela — pra iterar num efeito só
+  // sem pagar a matriz inteira.
   const alvos = process.env.QA_FPS_EFEITOS?.split(",").map((e) => e.trim()).filter(Boolean) ?? [
     "nenhum",
     ...EFEITOS,
   ];
+  /** celulas[efeito][modo] = { fps, medidas, mpxs, piorMs } */
+  const celulas = {};
+  const itens = [];
   for (const efeito of alvos) {
-    const medidas = [];
-    for (let carga = 0; carga < FPS_CARGAS; carga++) {
-      await page.goto(
-        url({ efeito, intensidade: 3, preset: "norte", led: "desligado", corModo: FPS_COR_MODO }),
-        { waitUntil: "networkidle" },
+    celulas[efeito] = {};
+    for (const modo of FPS_MODOS) {
+      const medidas = [];
+      let ultima;
+      for (let carga = 0; carga < FPS_CARGAS; carga++) {
+        await page.goto(
+          url({
+            efeito,
+            intensidade: 3,
+            preset: "norte",
+            led: "desligado",
+            corModo: modo,
+            cores: FPS_CORES_DO_MODO[modo],
+          }),
+          { waitUntil: "networkidle" },
+        );
+        // O efeito entra por next/dynamic sem SSR e a página ainda está
+        // assentando: medir antes disso mede o carregamento, não o efeito.
+        await page.waitForTimeout(1800);
+        ultima = await medir();
+        medidas.push(ultima.fps);
+      }
+      medidas.sort((a, b) => a - b);
+      const mediana = medidas[Math.floor(medidas.length / 2)];
+      celulas[efeito][modo] = { fps: mediana, medidas, mpxs: ultima.mpxs, piorMs: ultima.piorMs };
+      console.log(
+        `  [fps] ${efeito.padEnd(18)} ${modo.padEnd(12)} mediana ${mediana.toFixed(1).padStart(5)} fps ` +
+          `(${medidas.map((m) => m.toFixed(1)).join(" / ")}) · ` +
+          `${ultima.mpxs.toFixed(1).padStart(5)} Mpx/s repintados · pior quadro ${ultima.piorMs.toFixed(0)}ms` +
+          `${efeito !== "nenhum" && mediana < FPS_MINIMO ? "  ← REPROVADO" : ""}`,
       );
-      // O efeito entra por next/dynamic sem SSR e a página ainda está
-      // assentando: medir antes disso mede o carregamento, não o efeito.
-      await page.waitForTimeout(1800);
-      medidas.push(
-        await page.evaluate(
-          (janela) =>
-            new Promise((resolve) => {
-              let quadros = 0;
-              const inicio = performance.now();
-              const passo = () => {
-                quadros++;
-                const decorrido = performance.now() - inicio;
-                if (decorrido < janela) requestAnimationFrame(passo);
-                else resolve((quadros * 1000) / decorrido);
-              };
-              requestAnimationFrame(passo);
-            }),
-          FPS_JANELA_MS,
-        ),
-      );
-      if (carga === FPS_CARGAS - 1) {
+      // A captura é sempre do modo mais caro que a rodada mediu.
+      if (modo === FPS_MODOS[FPS_MODOS.length - 1]) {
         const png = path.join(SAIDA, `fps-mobile-${efeito}${marca}.png`);
         await page.screenshot({ path: png });
         gerados.push(png);
         itens.push({ efeito, png });
       }
     }
-    medidas.sort((a, b) => a - b);
-    const mediana = medidas[Math.floor(medidas.length / 2)];
-    linhas.push({ efeito, mediana, medidas });
-    console.log(
-      `  [fps] ${efeito.padEnd(20)} mediana ${mediana.toFixed(1).padStart(5)} fps ` +
-        `(cargas: ${medidas.map((m) => m.toFixed(1)).join(" / ")})` +
-        `${efeito !== "nenhum" && mediana < FPS_MINIMO ? "  ← REPROVADO" : ""}`,
-    );
   }
+  await cdp.send("LayerTree.disable");
+
+  const refMpxs = Object.fromEntries(
+    FPS_MODOS.map((modo) => [modo, celulas.nenhum?.[modo]?.mpxs ?? 0]),
+  );
+  // REPROVA é só o piso de fps (ver REPINTE_ATENCAO_MPXS pra por que a
+  // superfície repintada marca em vez de reprovar).
+  const reprova = (efeito, modo) => {
+    if (efeito === "nenhum") return false;
+    return celulas[efeito][modo].fps < FPS_MINIMO;
+  };
+  const atencao = (efeito, modo) => {
+    if (efeito === "nenhum") return false;
+    return celulas[efeito][modo].mpxs - refMpxs[modo] > REPINTE_ATENCAO_MPXS;
+  };
+  const linhaDaTabela = (efeito, valor) =>
+    `| \`${efeito}\` | ${FPS_MODOS.map((modo) => valor(efeito, modo)).join(" | ")} |`;
 
   const cabecalho =
-    `# fps por efeito — celular ${FPS_VIEWPORT.width}×${FPS_VIEWPORT.height} (dpr 2), CPU ${FPS_CPU_THROTTLE}×, ` +
-    `intensidade 3, cor ${FPS_COR_MODO}\n\n` +
-    `Mediana de ${FPS_CARGAS} cargas independentes, janela de ${FPS_JANELA_MS}ms por carga. ` +
-    `Piso de aprovação: ${FPS_MINIMO} fps.\n\n` +
-    `| efeito | fps (mediana) | cargas | veredito |\n|---|---|---|---|\n`;
-  const corpo = linhas
-    .map(
-      (l) =>
-        `| \`${l.efeito}\` | **${l.mediana.toFixed(1)}** | ${l.medidas.map((m) => m.toFixed(1)).join(" / ")} | ` +
-        `${l.efeito === "nenhum" ? "— (referência)" : l.mediana >= FPS_MINIMO ? "passa" : "**REPROVADO**"} |`,
-    )
-    .join("\n");
+    `# Portão de qualidade dos efeitos — celular ${FPS_VIEWPORT.width}×${FPS_VIEWPORT.height} ` +
+    `(dpr 2), CPU ${FPS_CPU_THROTTLE}×, intensidade 3, rolando a página inteira\n\n` +
+    `Mediana de ${FPS_CARGAS} cargas independentes por célula; rolagem contínua a ` +
+    `${FPS_ROLAGEM_PXS} px/s até o fim da página (teto de ${FPS_JANELA_MS}ms). ` +
+    `Veredito: **${FPS_MINIMO} fps** em TODO modo de cor — e só isso reprova. ` +
+    `A superfície repintada é reportada junto e MARCADA (⚠) acima de ` +
+    `**+${REPINTE_ATENCAO_MPXS} Mpx/s** sobre a referência \`nenhum\`, sem reprovar.\n\n`;
+  const tabelaFps =
+    `## fps (mediana)\n\n| efeito | ${FPS_MODOS.join(" | ")} |\n` +
+    `|---|${FPS_MODOS.map(() => "---").join("|")}|\n` +
+    alvos
+      .map((efeito) =>
+        linhaDaTabela(efeito, (e, m) => {
+          const v = celulas[e][m].fps.toFixed(1);
+          return reprova(e, m) ? `**${v} ✗**` : v;
+        }),
+      )
+      .join("\n");
+  const tabelaMpx =
+    `\n\n## superfície repintada (Mpx/s, rolando)\n\n| efeito | ${FPS_MODOS.join(" | ")} |\n` +
+    `|---|${FPS_MODOS.map(() => "---").join("|")}|\n` +
+    alvos
+      .map((efeito) =>
+        linhaDaTabela(efeito, (e, m) => {
+          const v = celulas[e][m].mpxs.toFixed(1);
+          return atencao(e, m) ? `${v} ⚠` : v;
+        }),
+      )
+      .join("\n");
+  const reprovadas = alvos.flatMap((efeito) =>
+    FPS_MODOS.filter((modo) => reprova(efeito, modo)).map((modo) => `\`${efeito}\` × ${modo}`),
+  );
+  // Efeito cuja superfície repintada estoura em TODO modo medido não tem
+  // problema de modo de cor: o custo é dele, e a coluna só informa.
+  const marcados = alvos.filter((efeito) => FPS_MODOS.every((modo) => atencao(efeito, modo)));
+  const veredito =
+    `\n\n## veredito\n\n` +
+    (reprovadas.length
+      ? `REPROVADAS ${reprovadas.length} célula(s) pelo piso de ${FPS_MINIMO} fps: ${reprovadas.join(", ")}. ` +
+        `Modo de cor que reprova é DESABILITADO para aquele efeito — o efeito inteiro não sai do registro.`
+      : `Todas as células passam o piso de ${FPS_MINIMO} fps.`) +
+    (marcados.length
+      ? `\n\nMARCADOS (⚠, não reprovados): ${marcados
+          .map((e) => `\`${e}\``)
+          .join(", ")} repinta(m) acima de +${REPINTE_ATENCAO_MPXS} Mpx/s em TODOS os modos medidos, ` +
+        `inclusive \`tema\` — custo do efeito, não do modo de cor. Decisão de quem lê a tabela.`
+      : "");
+
   const md = path.join(SAIDA, `_fps-mobile${marca}.md`);
-  await fs.writeFile(md, `${cabecalho}${corpo}\n`);
+  await fs.writeFile(md, `${cabecalho}${tabelaFps}${tabelaMpx}${veredito}\n`);
   gerados.push(md);
-  console.log(`\n${cabecalho}${corpo}\n`);
+  console.log(`\n${cabecalho}${tabelaFps}${tabelaMpx}${veredito}\n`);
 
   // Folha de contato: a captura de cada efeito NA MESMA condição da tabela.
+  const modoDaCaptura = FPS_MODOS[FPS_MODOS.length - 1];
   const porLinha = 5;
   const grade = [];
   for (let i = 0; i < itens.length; i += porLinha) {
-    const fatia = itens.slice(i, i + porLinha);
     grade.push({
-      rotulo: `celular · CPU ${FPS_CPU_THROTTLE}× · i3 · ${FPS_COR_MODO}`,
-      itens: fatia.map((item) => {
-        const linha = linhas.find((l) => l.efeito === item.efeito);
-        return { rotulo: `${item.efeito} · ${linha.mediana.toFixed(1)} fps`, png: item.png };
-      }),
+      rotulo: `celular · CPU ${FPS_CPU_THROTTLE}× · i3 · ${modoDaCaptura}`,
+      itens: itens.slice(i, i + porLinha).map((item) => ({
+        rotulo: `${item.efeito} · ${celulas[item.efeito][modoDaCaptura].fps.toFixed(1)} fps`,
+        png: item.png,
+      })),
     });
   }
   gerados.push(
     await folhaDeContato(
       pageDaFolha,
-      `fps em celular com CPU ${FPS_CPU_THROTTLE}× (intensidade 3, cor ${FPS_COR_MODO})`,
+      `fps em celular com CPU ${FPS_CPU_THROTTLE}× (intensidade 3, cor ${modoDaCaptura})`,
       "fps-mobile",
       grade,
     ),

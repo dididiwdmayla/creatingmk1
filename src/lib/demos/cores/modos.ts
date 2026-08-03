@@ -1,5 +1,5 @@
 import { COR_MODOS, type CorModo, type CoresModoValor } from "../types";
-import { deslocarMatiz, ehHex, hexParaHsl, hslCss, type Hsl } from "./hsl";
+import { deslocarMatiz, ehHex, hexParaHsl, hslCss, limitarLuminancia, type Hsl } from "./hsl";
 
 /**
  * MODOS DE COR da camada decorativa — valem para QUALQUER efeito do
@@ -71,6 +71,27 @@ const ARCO_IRIS_SATURACAO_MIN = 0.62;
 const ARCO_IRIS_L_MIN = 0.38;
 const ARCO_IRIS_L_MAX = 0.72;
 
+/**
+ * TETO DE LUMINÂNCIA dos dois modos que giram o matiz da paleta
+ * (`iridescente` e `arco-iris`) — em luminância RELATIVA (WCAG), não no
+ * `l` do HSL (ver `limitarLuminancia` em ./hsl.ts, e por que o `l` não
+ * serve).
+ *
+ * O que ele impede, medido: a camada decorativa é desenhada POR CIMA do
+ * conteúdo, e a aura chega a 37% de alfa no ápice. Girando o matiz sem
+ * teto, o ciclo passa pelos amarelos/verdes — os matizes de luminância
+ * alta — e a tela inteira sobe de brilho junto: no preset escuro a
+ * luminância média da viewport ia de 0,031 (sem efeito) a 0,054 e o
+ * contraste (desvio da luminância) caía de 0,106 pra 0,088, com o pico de
+ * cor batendo em 0,55 no arco-íris. É esse pico que o teto corta.
+ *
+ * 0,45 foi escolhido por medição, não por gosto: é onde o amarelo ainda é
+ * amarelo saturado (a cor continua VIVA, que é o pedido) e a passagem por
+ * ele deixa de ser um clarão. Vale pros dois modos e, por tabela, pro LED
+ * e pra todo efeito do registro — nenhum precisa saber que isto existe.
+ */
+export const TETO_LUMINANCIA_MATIZ = 0.45;
+
 export function modoValido(modo: string | undefined): modo is CorModo {
   return typeof modo === "string" && (COR_MODOS as readonly string[]).includes(modo);
 }
@@ -110,11 +131,19 @@ function quadrosDeslocamento(
 }
 
 function saturar(cor: Hsl): Hsl {
-  return {
-    h: cor.h,
-    s: Math.max(ARCO_IRIS_SATURACAO_MIN, Math.min(0.95, cor.s * 1.3)),
-    l: Math.min(ARCO_IRIS_L_MAX, Math.max(ARCO_IRIS_L_MIN, cor.l)),
-  };
+  return limitarLuminancia(
+    {
+      h: cor.h,
+      s: Math.max(ARCO_IRIS_SATURACAO_MIN, Math.min(0.95, cor.s * 1.3)),
+      l: Math.min(ARCO_IRIS_L_MAX, Math.max(ARCO_IRIS_L_MIN, cor.l)),
+    },
+    TETO_LUMINANCIA_MATIZ,
+  );
+}
+
+/** O iridescente mantém a cor DO TEMA — só o pico de luminância é cortado. */
+function conterBrilho(cor: Hsl): Hsl {
+  return limitarLuminancia(cor, TETO_LUMINANCIA_MATIZ);
 }
 
 function bloco(prefixo: string, quadros: Quadro[]): { css: string; nome: string } {
@@ -184,13 +213,11 @@ export function resolverModoCores(
     const baseHsl = hsl as [Hsl, Hsl, Hsl];
 
     if (valor.modo === "iridescente") {
-      quadros = quadrosDeslocamento(baseHsl, [
-        0,
-        IRIDESCENTE_GRAUS,
-        0,
-        -IRIDESCENTE_GRAUS,
-        0,
-      ]);
+      quadros = quadrosDeslocamento(
+        baseHsl,
+        [0, IRIDESCENTE_GRAUS, 0, -IRIDESCENTE_GRAUS, 0],
+        conterBrilho,
+      );
       duracaoSegundos = IRIDESCENTE_SEGUNDOS;
       timing = "ease-in-out";
     } else {

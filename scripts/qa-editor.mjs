@@ -45,7 +45,6 @@ const SEGREDO = "qa-secret";
 const SAIDA = "qa-shots";
 const EFEITOS = process.env.QA_EFEITOS?.split(",") ?? [
   "gradiente",
-  "veios",
   "ondas",
   "aura",
   "grao",
