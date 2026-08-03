@@ -116,6 +116,11 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
       // tema claro e escuro; pointer-events: none garante que não bloqueia clique.
       className="pointer-events-none fixed inset-0 z-40 overflow-hidden"
       aria-hidden="true"
+      // Fade da camada (--d-efeito-fade, escrito por EfeitoCamada conforme
+      // as seções com animação entram e saem da viewport — ver
+      // lib/demos/animacao/cobertura.ts). Toda raiz de efeito multiplica
+      // esta var na própria opacidade; ausente = 1 (fora da camada).
+      style={{ opacity: "var(--d-efeito-fade, 1)" }}
     >
       <div
         ref={blob1Ref}

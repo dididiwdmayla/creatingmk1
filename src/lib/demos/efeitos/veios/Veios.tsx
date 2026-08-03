@@ -57,6 +57,7 @@ export function Veios({ intensidade, cores, pausado }: EfeitoProps) {
       // z-index negativo).
       className="pointer-events-none fixed inset-0 z-40"
       aria-hidden="true"
+      style={{ opacity: "var(--d-efeito-fade, 1)" }}
     >
       <svg
         viewBox="0 0 100 100"

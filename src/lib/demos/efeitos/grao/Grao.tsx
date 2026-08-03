@@ -67,7 +67,7 @@ export function Grao({ intensidade, pausado }: EfeitoProps) {
         backgroundImage: tile ? `url(${tile})` : undefined,
         backgroundRepeat: "repeat",
         backgroundSize: `${TILE_PX}px ${TILE_PX}px`,
-        opacity: ativo ? OPACIDADE_POR_INTENSIDADE[intensidade] : 0,
+        opacity: `calc(${ativo ? OPACIDADE_POR_INTENSIDADE[intensidade] : 0} * var(--d-efeito-fade, 1))`,
         transition: reducedMotion ? "none" : "opacity 300ms ease",
       }}
     />

@@ -30,6 +30,7 @@ export function VarreduraDeLuz({ intensidade, cores, pausado }: EfeitoProps) {
       ref={containerRef}
       className="pointer-events-none fixed inset-0 z-40 overflow-hidden"
       aria-hidden="true"
+      style={{ opacity: "var(--d-efeito-fade, 1)" }}
     >
       <style>{`
         @keyframes d-efeito-varredura-sweep {

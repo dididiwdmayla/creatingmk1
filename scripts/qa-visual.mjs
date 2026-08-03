@@ -24,6 +24,7 @@
  *   node scripts/qa-visual.mjs --so=veios,gradiente
  *   node scripts/qa-visual.mjs --so=cores      # só os modos de cor (efeito + LED)
  *   node scripts/qa-visual.mjs --so=secao      # animação ligada/desligada por seção
+ *   node scripts/qa-visual.mjs --so=transicao  # a fronteira: antes/durante/depois
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -506,7 +507,7 @@ async function main() {
             const filho = el.firstElementChild;
             return {
               achou: true,
-              anim: el.getAttribute("data-d-anim"),
+              anim: el.getAttribute("data-d-secao-anim"),
               // Wrapper de entrada é um elemento a mais do motion: sem
               // animação a seção é filha DIRETA do marcador.
               filhoDireto: filho?.tagName,
@@ -519,7 +520,7 @@ async function main() {
             return filho ? getComputedStyle(filho).opacity : null;
           }, SECAO_ALVO);
           console.log(
-            `  [secao] ${tema.rotulo} ${variante.id}: data-d-anim=${medida.anim} ` +
+            `  [secao] ${tema.rotulo} ${variante.id}: data-d-secao-anim=${medida.anim} ` +
               `filho=${medida.filhoDireto} opacidade ao entrar=${depois}`,
           );
           const png = path.join(SAIDA, `secao-${variante.id}-${tema.rotulo}${marca}.png`);
@@ -531,6 +532,179 @@ async function main() {
       }
       gerados.push(
         await folhaDeContato(page, `Animação por seção (${SECAO_ALVO})`, "secao", linhas),
+      );
+    }
+
+    /* ── Transição do efeito na fronteira de seção ──────────────── */
+    if (querido("transicao")) {
+      const linhas = [];
+      for (const tema of TEMAS) {
+        await page.goto(
+          url({
+            efeito: "aura",
+            intensidade: 3,
+            preset: tema.id,
+            led: "marcante",
+            ledEstilo: "moldura",
+            semAnim: SECAO_ALVO,
+          }),
+          { waitUntil: "networkidle" },
+        );
+        await page.waitForTimeout(700);
+
+        // Fronteira = topo da seção sem animação, em coordenadas do documento.
+        const fronteira = await page.evaluate((alvo) => {
+          const el = document.querySelector(`[data-d-secao="${alvo}"]`);
+          return el ? el.getBoundingClientRect().top + window.scrollY : null;
+        }, SECAO_ALVO);
+        if (fronteira === null) throw new Error(`seção "${SECAO_ALVO}" não encontrada`);
+
+        // Inventário das seções marcadas: altura e estado de animação. É o
+        // que explica um platô (seção mais curta que a banda de foco nunca
+        // zera a camada sozinha) sem precisar adivinhar.
+        const marcadas = await page.evaluate(() =>
+          [...document.querySelectorAll("[data-d-secao-anim]")].map((el) => ({
+            id: el.dataset.dSecao,
+            alturaPx: Math.round(el.getBoundingClientRect().height),
+            anim: el.dataset.dSecaoAnim,
+          })),
+        );
+        console.log(
+          `  [transicao] ${tema.rotulo} — seções marcadas: ` +
+            marcadas.map((m) => `${m.id}(${m.alturaPx}px${m.anim === "0" ? ", SEM anim" : ""})`).join(" "),
+        );
+
+        // A RAMPA medida: opacidade computada do efeito e do LED em vários
+        // pontos de scroll ao redor da fronteira. É o que separa "some de
+        // uma vez" (um salto de 1 pra 0 entre dois pontos vizinhos) de
+        // "interpola com distância generosa".
+        const rampa = [];
+        for (let k = -10; k <= 10; k++) {
+          const y = fronteira + (k / 10) * VIEWPORT.height;
+          // Espera o QUADRO seguinte ao scroll (o listener é throttled por
+          // rAF): sem isso a leitura sai atrasada e a tabela mostra valores
+          // repetidos que não existem de verdade.
+          await page.evaluate(
+            (alvo) =>
+              new Promise((r) => {
+                window.scrollTo(0, alvo);
+                requestAnimationFrame(() => requestAnimationFrame(r));
+              }),
+            Math.max(0, y),
+          );
+          await page.waitForTimeout(60);
+          const medida = await page.evaluate(() => {
+            const camada = document.querySelector("[data-d-efeito-camada]");
+            const efeito = camada?.querySelector(":scope > div");
+            const led = document.querySelector(".d-led-edges");
+            return {
+              fade: camada ? getComputedStyle(camada).getPropertyValue("--d-efeito-fade").trim() : "",
+              efeito: efeito ? Number(getComputedStyle(efeito).opacity) : null,
+              led: led ? Number(getComputedStyle(led).opacity) : null,
+            };
+          });
+          rampa.push({ desloc: (k / 10).toFixed(1), ...medida });
+        }
+        console.log(`  [transicao] ${tema.rotulo} — deslocamento da fronteira (em viewports):`);
+        for (const p of rampa) {
+          console.log(
+            `    ${String(p.desloc).padStart(5)}  fade=${String(p.fade).padEnd(20)} ` +
+              `opacidade efeito=${p.efeito}  LED=${p.led}`,
+          );
+        }
+        // A custom property só é ESCRITA quando muda: antes da primeira
+        // mudança ela vem vazia e vale o fallback do `var(..., 1)`. Ler
+        // vazio como 0 inventaria um salto de 1 que não existe.
+        const comoNumero = (v) => (v === "" ? 1 : Number(v));
+        const saltos = rampa
+          .slice(1)
+          .map((p, i) => Math.abs(comoNumero(p.fade) - comoNumero(rampa[i].fade)));
+        console.log(`    maior salto entre pontos vizinhos: ${Math.max(...saltos).toFixed(3)}`);
+
+        // Os três momentos pedidos: antes, durante e depois da fronteira.
+        const momentos = [
+          { id: "antes", desloc: -0.75 },
+          { id: "durante", desloc: -0.5 },
+          { id: "depois", desloc: -0.25 },
+        ];
+        const itens = [];
+        for (const m of momentos) {
+          await page.evaluate(
+            (y) => window.scrollTo(0, Math.max(0, y)),
+            fronteira + m.desloc * VIEWPORT.height,
+          );
+          await page.waitForTimeout(250);
+          const fade = await page.evaluate(() =>
+            getComputedStyle(document.querySelector("[data-d-efeito-camada]")).getPropertyValue(
+              "--d-efeito-fade",
+            ).trim(),
+          );
+          const png = path.join(SAIDA, `transicao-${m.id}-${tema.rotulo}${marca}.png`);
+          await page.screenshot({ path: png });
+          gerados.push(png);
+          itens.push({ rotulo: `${m.id} · fade ${Number(fade).toFixed(2)}`, png });
+        }
+        linhas.push({ rotulo: tema.rotulo, itens });
+      }
+      gerados.push(
+        await folhaDeContato(page, "Transição na fronteira de seção", "transicao", linhas),
+      );
+
+      /* Motor vivo e PAUSADO: sai da seção animada, espera, volta — as
+         partículas têm que retomar de onde pararam, não reiniciar. */
+      await page.goto(
+        url({ efeito: "particulas", intensidade: 3, preset: "norte", led: "desligado", semAnim: SECAO_ALVO }),
+        { waitUntil: "networkidle" },
+      );
+      await page.waitForTimeout(900);
+      const alvoDaFronteira = await page.evaluate((alvo) => {
+        const el = document.querySelector(`[data-d-secao="${alvo}"]`);
+        return el.getBoundingClientRect().top + window.scrollY;
+      }, SECAO_ALVO);
+
+      const relogio = () =>
+        page.evaluate(() =>
+          document
+            .getAnimations()
+            .filter((a) => String(a.animationName ?? "").startsWith("d-efeito-particulas"))
+            .slice(0, 4)
+            .map((a) => ({ t: Math.round(Number(a.currentTime)), estado: a.playState })),
+        );
+
+      const posicaoAnimada = Math.max(0, alvoDaFronteira - VIEWPORT.height * 1.2);
+      await page.evaluate((y) => window.scrollTo(0, y), posicaoAnimada);
+      await page.waitForTimeout(400);
+      const antes = await relogio();
+      const pngAntes = path.join(SAIDA, `transicao-motor-antes${marca}.png`);
+      await page.screenshot({ path: pngAntes });
+
+      // Fica 2,5s parado DENTRO da seção sem animação (efeito em fade 0).
+      // Centro da seção sem animação na banda de foco: fade 0, motor pausado.
+      await page.evaluate((y) => window.scrollTo(0, y), alvoDaFronteira - VIEWPORT.height * 0.25);
+      await page.waitForTimeout(2500);
+      const durante = await relogio();
+
+      await page.evaluate((y) => window.scrollTo(0, y), posicaoAnimada);
+      await page.waitForTimeout(400);
+      const depois = await relogio();
+      const pngDepois = path.join(SAIDA, `transicao-motor-depois${marca}.png`);
+      await page.screenshot({ path: pngDepois });
+      gerados.push(pngAntes, pngDepois);
+
+      console.log("  [transicao] motor das partículas (currentTime em ms, 4 primeiras):");
+      console.log(`    na seção animada:      ${JSON.stringify(antes)}`);
+      console.log(`    2,5s na seção SEM anim: ${JSON.stringify(durante)}`);
+      console.log(`    de volta na animada:   ${JSON.stringify(depois)}`);
+      gerados.push(
+        await folhaDeContato(page, "Motor vivo e pausado (partículas)", "transicao-motor", [
+          {
+            rotulo: "mesmo scroll",
+            itens: [
+              { rotulo: "antes da excursão", png: pngAntes },
+              { rotulo: "depois de 2,5s fora", png: pngDepois },
+            ],
+          },
+        ]),
       );
     }
 

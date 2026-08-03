@@ -6,7 +6,13 @@ import type { ReactNode } from "react";
  * que é irmã da skin e portanto não tem como saber onde uma seção começa
  * e termina. Toda skin envolve cada seção renderizada com isto (uma linha
  * no `visiveis.map` de cada `Skin.tsx`), e quem precisa medir só consulta
- * `[data-d-anim]` no documento (ver ./cobertura.ts + useCoberturaAnimada).
+ * `[data-d-secao-anim]` no documento (ver ./cobertura.ts +
+ * useCoberturaAnimada). O nome NÃO é `data-d-anim`: esse já existe, na
+ * raiz de cada skin, carregando o nível global de animação do tema
+ * ("nenhuma"/"sutil"/"marcante") e usado em seletores CSS de clique —
+ * um marcador com o mesmo nome fazia a raiz inteira do documento contar
+ * como "seção animada de 7220px", travando a cobertura em 0.50 (achado
+ * pela medição do laço, ver ARCHITECTURE.md).
  *
  * É um `<div>` CRU de propósito: sem classe, sem position, sem transform.
  * Um wrapper com qualquer um desses quebraria `position: sticky` interno
@@ -25,7 +31,7 @@ export function SecaoMarcada({
   children: ReactNode;
 }) {
   return (
-    <div data-d-secao={id} data-d-anim={animada ? "1" : "0"}>
+    <div data-d-secao={id} data-d-secao-anim={animada ? "1" : "0"}>
       {children}
     </div>
   );

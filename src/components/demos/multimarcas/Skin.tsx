@@ -575,7 +575,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             return (
               // A div que esta skin já tinha por seção (data-themec) é a
               // que recebe o marcador — sem envelope extra.
-              <div key={id} data-themec={corTema} data-d-secao={id} data-d-anim={animada ? "1" : "0"}>
+              <div key={id} data-themec={corTema} data-d-secao={id} data-d-secao-anim={animada ? "1" : "0"}>
                 {conteudo}
                 {id === "depoimentos" && (
                   <div aria-hidden="true" className="h-[5px] border-b-[6px] border-t-2" style={{ borderColor: "var(--d-accent)" }} />

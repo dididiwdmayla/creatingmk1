@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type CSSProperties } from "react";
 
+import { medirCobertura } from "../animacao/medirCobertura";
 import { resolverModoCores } from "../cores/modos";
 import type { CoresModoValor, LedPreset } from "../types";
 import { LED_ESTILO_PADRAO } from "./registry";
@@ -66,7 +67,8 @@ export function LedEdges({
     const el = ref.current;
     if (!el) return;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const reduzida = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduzida) {
       el.style.setProperty("--d-led-scroll", "0.5");
       // Cor congelada no primeiro quadro do ciclo (o `initial-value` do
       // @property) — "estático", não "pausado", igual ao resto da camada
@@ -74,23 +76,42 @@ export function LedEdges({
       // durante o render quebraria a hidratação (este componente é
       // renderizado no servidor dentro do Skin.tsx).
       el.style.animationName = "none";
-      return;
     }
 
     let raf = 0;
+    // Opacidade do LED inteiro = cobertura das seções com animação ligada
+    // (ver lib/demos/animacao/cobertura.ts): o LED acompanha o efeito de
+    // fundo e some por interpolação nas seções sem animação, em vez de
+    // piscar na fronteira. Continua medindo em `prefers-reduced-motion`:
+    // isso não é movimento autônomo, só muda quando a pessoa rola.
+    let fade = 1;
+    const medir = () => {
+      if (!reduzida) {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = max > 0 ? window.scrollY / max : 0;
+        el.style.setProperty("--d-led-scroll", String(Math.min(1, Math.max(0, pct))));
+      }
+      const novo = medirCobertura(fade);
+      if (Math.abs(novo - fade) >= 0.002) {
+        fade = novo;
+        el.style.opacity = String(novo);
+      }
+    };
     const onScroll = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        const pct = max > 0 ? window.scrollY / max : 0;
-        el.style.setProperty("--d-led-scroll", String(Math.min(1, Math.max(0, pct))));
+        medir();
       });
     };
-    onScroll();
+    medir();
+    // Alturas ainda mudam depois do primeiro quadro (fontes/imagens).
+    const beat = setTimeout(medir, 400);
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
 
     const onClick = () => {
+      if (reduzida) return; // pulso é movimento autônomo: fica de fora
       el.classList.remove("d-led-pulse");
       void el.offsetWidth; // força reflow pra poder reiniciar a animação
       el.classList.add("d-led-pulse");
@@ -99,7 +120,9 @@ export function LedEdges({
 
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
       document.removeEventListener("click", onClick);
+      clearTimeout(beat);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [preset]);

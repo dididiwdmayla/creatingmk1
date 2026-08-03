@@ -37,7 +37,13 @@ export function Filotaxia({ intensidade, cores, pausado }: EfeitoProps) {
       ref={containerRef}
       className="pointer-events-none fixed inset-0 z-40 overflow-hidden"
       aria-hidden="true"
-      style={{ maskImage: mascara, WebkitMaskImage: mascara } as CSSProperties}
+      style={
+        {
+          maskImage: mascara,
+          WebkitMaskImage: mascara,
+          opacity: "var(--d-efeito-fade, 1)",
+        } as CSSProperties
+      }
     >
       <style>{`
         @keyframes d-efeito-filotaxia-brota {

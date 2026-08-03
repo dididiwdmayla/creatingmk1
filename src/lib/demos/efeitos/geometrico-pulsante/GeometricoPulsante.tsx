@@ -55,7 +55,12 @@ export function GeometricoPulsante({ intensidade, cores, pausado }: EfeitoProps)
     "radial-gradient(closest-side circle at 50% 50%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.45) 72%, transparent 100%)";
 
   return (
-    <div ref={containerRef} className="pointer-events-none fixed inset-0 z-40" aria-hidden="true">
+    <div
+      ref={containerRef}
+      className="pointer-events-none fixed inset-0 z-40"
+      aria-hidden="true"
+      style={{ opacity: "var(--d-efeito-fade, 1)" }}
+    >
       <style>{`
         @keyframes d-efeito-geometrico-pulso {
           0%, 100% { transform: scale(1); opacity: 1; }

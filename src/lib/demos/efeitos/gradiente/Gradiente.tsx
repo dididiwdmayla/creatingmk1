@@ -38,7 +38,7 @@ export function Gradiente({ intensidade, cores, pausado }: EfeitoProps) {
           `radial-gradient(circle at 72% 68%, ${cores.acentoTerciario} 0%, color-mix(in srgb, ${cores.acentoTerciario} 50%, transparent) 14%, color-mix(in srgb, ${cores.acentoTerciario} 16%, transparent) 30%, transparent 46%)`,
         ].join(", "),
         filter: estilo.filter,
-        opacity: estilo.opacity,
+        opacity: `calc(${estilo.opacity} * var(--d-efeito-fade, 1))`,
         animationName: estilo.animationName,
         animationDuration: "26s",
         animationTimingFunction: "ease-in-out",

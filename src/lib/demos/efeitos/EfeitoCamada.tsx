@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
+import { useCoberturaAnimada } from "../animacao/medirCobertura";
 import type { ModoCoresResolvido } from "../cores/modos";
 import { EfeitoDinamico } from "./dynamicComponents";
 import type { EfeitoProps } from "./types";
@@ -14,7 +15,19 @@ import type { EfeitoProps } from "./types";
  *   - o `<style>` do MODO DE COR (`@property` + `@keyframes` — ver
  *     ../cores/modos.ts) e a animação que gira as custom properties, que
  *     o efeito consome sem saber, porque as cores que ele recebe já vêm
- *     como `var(--d-efeito-cN, <cor do tema>)`.
+ *     como `var(--d-efeito-cN, <cor do tema>)`;
+ *   - o `--d-efeito-fade` (0–1), a opacidade da camada conforme as seções
+ *     com animação LIGADA entram e saem da viewport (ver
+ *     ../animacao/cobertura.ts). Todo efeito multiplica essa var na
+ *     opacidade do próprio elemento-raiz — é uma custom property, e não
+ *     opacidade nesta div, justamente porque `opacity < 1` criaria um
+ *     stacking context (o mesmo motivo do parágrafo abaixo).
+ *
+ * Chegando a zero, o efeito recebe `pausado`: o motor CONGELA (o
+ * `animation-play-state` dos @keyframes e o rAF de quem tem loop), nunca
+ * desmonta. É o que garante que partículas e traços voltem de onde
+ * pararam quando a próxima seção animada aparecer, em vez de reiniciarem
+ * embaralhados.
  *
  * O elemento desta camada é um `<div>` DELIBERADAMENTE sem estilo de
  * posicionamento, opacidade ou transform: qualquer um dos três criaria um
@@ -43,7 +56,18 @@ export function EfeitoCamada({
   coresCss: string;
   coresAnimacao?: ModoCoresResolvido["animacao"];
 } & EfeitoProps) {
-  const animando = useAnimacaoDeCorAtiva(props.pausado);
+  const ref = useRef<HTMLDivElement>(null);
+  // Fora de toda seção animada: o efeito para de gastar quadro, mas
+  // continua montado e com o estado dele intacto.
+  const [foraDeSecaoAnimada, setForaDeSecaoAnimada] = useState(false);
+  const aoMudarCobertura = useCallback((valor: number) => {
+    ref.current?.style.setProperty("--d-efeito-fade", String(valor));
+    setForaDeSecaoAnimada(valor === 0);
+  }, []);
+  useCoberturaAnimada(aoMudarCobertura);
+
+  const pausado = props.pausado || foraDeSecaoAnimada;
+  const animando = useAnimacaoDeCorAtiva(pausado);
 
   const estilo: CSSProperties | undefined = coresAnimacao
     ? {
@@ -56,9 +80,9 @@ export function EfeitoCamada({
     : undefined;
 
   return (
-    <div style={estilo} data-d-efeito-camada={id}>
+    <div ref={ref} style={estilo} data-d-efeito-camada={id}>
       {coresCss && <style>{coresCss}</style>}
-      <EfeitoDinamico id={id} {...props} />
+      <EfeitoDinamico id={id} {...props} pausado={pausado} />
     </div>
   );
 }
