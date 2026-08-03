@@ -7,8 +7,8 @@ rosa ≥280° ou <20°, miolo o resto.
 
 | tema | lima | miolo | rosa | cromo colorido |
 |---|---|---|---|---|
-| `escuro` | 0.2% | 90.8% | **9.0%** | 2.3% dos pixels |
-| `claro` | 0.0% | 90.7% | **9.3%** | 2.2% dos pixels |
-| `acido` | 37.1% | 55.0% | **7.9%** | 2.2% dos pixels |
-| `vapor` | 9.3% | 85.6% | **5.1%** | 3.2% dos pixels |
-| `prisma` | 25.8% | 57.7% | **16.5%** | 2.0% dos pixels |
+| `escuro` | 0.2% | 90.6% | **9.3%** | 3.2% dos pixels |
+| `claro` | 0.0% | 90.4% | **9.6%** | 3.1% dos pixels |
+| `acido` | 36.4% | 55.1% | **8.5%** | 3.0% dos pixels |
+| `vapor` | 13.8% | 79.0% | **7.3%** | 3.2% dos pixels |
+| `prisma` | 27.8% | 55.5% | **16.7%** | 2.7% dos pixels |

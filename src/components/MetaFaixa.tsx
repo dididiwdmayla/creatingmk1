@@ -88,7 +88,7 @@ export function MetaFaixa() {
 
   if (estado.minimizada) {
     return (
-      <div className="sticky top-0 z-20 border-b border-line bg-surface px-4 py-1.5">
+      <div className="cromo-linha cromo-linha-baixo sticky top-0 z-20 bg-surface px-4 py-1.5">
         <button
           type="button"
           onClick={alternarMinimizada}
@@ -119,7 +119,7 @@ export function MetaFaixa() {
   }
 
   return (
-    <div className="sticky top-0 z-20 border-b border-line bg-surface px-4 py-2">
+    <div className="cromo-linha cromo-linha-baixo sticky top-0 z-20 bg-surface px-4 py-2">
       <div className="mx-auto flex w-full max-w-lg items-center gap-4">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           {dia.meta !== undefined && <MiniBarra label="hoje" usado={dia.usado} meta={dia.meta} />}

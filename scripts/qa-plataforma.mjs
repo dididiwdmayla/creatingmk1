@@ -39,6 +39,7 @@
  *   node scripts/qa-plataforma.mjs                # temas × abas (desktop + celular)
  *   node scripts/qa-plataforma.mjs --so=contraste
  *   node scripts/qa-plataforma.mjs --so=iris
+ *   node scripts/qa-plataforma.mjs --so=legibilidade
  *   node scripts/qa-plataforma.mjs --so=fps
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
@@ -615,6 +616,12 @@ const PARES_CONTRASTE = [
   ["--ink-secondary", "--surface", 4.5, "texto secundário em card"],
   ["--ink-muted", "--surface", 4.5, "rótulo/legenda em card"],
   ["--ink-muted", "--background", 4.5, "rótulo/legenda na página"],
+  // --surface-2 é o degrau de elevação (chips, linhas de tabela, o item
+  // ativo do seletor de tema). Faltava aqui, e era justamente onde o tema
+  // escuro reprovava — quem achou foi a varredura no DOM, não esta tabela.
+  ["--ink-muted", "--surface-2", 4.5, "rótulo/legenda em superfície elevada"],
+  ["--ink-secondary", "--surface-2", 4.5, "texto secundário em superfície elevada"],
+  ["--foreground", "--surface-2", 7.0, "texto de leitura em superfície elevada"],
   ["--accent", "--surface", 4.5, "aba ativa / link"],
   ["--accent-ink", "--accent", 4.5, "texto sobre o botão primário"],
   ["--warning", "--surface", 4.5, '"Perto do teto"'],
@@ -860,6 +867,163 @@ async function medirIris(browser, secret) {
   return [destino];
 }
 
+/* ── Item: legibilidade no DOM real ─────────────────────────────────── */
+
+/**
+ * Varre TODO elemento que contém texto, em cada aba de cada tema, e responde
+ * duas perguntas com número em vez de opinião:
+ *
+ *   1. tem gradiente na CADEIA DE FUNDO desse texto? (a regra de
+ *      legibilidade proíbe — texto de leitura fica em superfície sólida);
+ *   2. qual o contraste real entre a cor computada do texto e o fundo
+ *      efetivo — não o par de tokens da planilha, mas o que está pintado.
+ *
+ * O par estático disto é `globals.legibilidade.test.ts`, que lê o CSS. Os
+ * dois são necessários: o teste pega a regra nova antes de existir tela,
+ * esta varredura pega o caso em que uma classe permitida foi aplicada no
+ * lugar errado — coisa que nenhum parser de CSS enxerga.
+ */
+async function medirLegibilidade(browser, secret) {
+  const ctx = await contextoLogado(browser, { viewport: VIEWPORT_DESKTOP, secret });
+  const page = await ctx.newPage();
+  console.log("\n  [legibilidade] texto × fundo efetivo, no DOM real de cada aba:");
+
+  const porTema = [];
+  let falhas = 0;
+
+  for (const tema of TEMAS) {
+    definirTemaNoDoc("admin", tema);
+    let pior = null;
+    let nos = 0;
+    const gradientes = [];
+
+    for (const aba of ABAS) {
+      await page.goto(`${BASE}${aba.url}`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `legibilidade/${tema}/${aba.id}`);
+      await exigirTema(page, tema, `legibilidade/${tema}/${aba.id}`);
+
+      const achado = await page.evaluate(() => {
+        const lin = (c) => {
+          const s = c / 255;
+          return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        };
+        const lum = (c) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+        const rgba = (v) => {
+          const m = v.match(/[\d.]+/g);
+          return m ? m.slice(0, 4).map(Number) : null;
+        };
+        const razao = (a, b) => {
+          const la = lum(a);
+          const lb = lum(b);
+          return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+        };
+
+        /** Sobe até achar o primeiro fundo OPACO — é o que pinta atrás do texto. */
+        function fundoEfetivo(el) {
+          let atual = el;
+          const gradientesNaCadeia = [];
+          while (atual) {
+            const cs = getComputedStyle(atual);
+            if (cs.backgroundImage && cs.backgroundImage !== "none") {
+              // `background-image` do PRÓPRIO elemento (pseudo-elemento não
+              // entra: ::after pinta por cima, não por baixo).
+              if (/gradient\(/.test(cs.backgroundImage)) {
+                gradientesNaCadeia.push(
+                  `${atual.tagName.toLowerCase()}.${String(atual.className).slice(0, 60)}`,
+                );
+              }
+            }
+            const cor = rgba(cs.backgroundColor);
+            if (cor && (cor[3] === undefined || cor[3] >= 0.95)) {
+              return { cor: cor.slice(0, 3), gradientesNaCadeia };
+            }
+            atual = atual.parentElement;
+          }
+          return { cor: [0, 0, 0], gradientesNaCadeia };
+        }
+
+        const resultado = { nos: 0, pior: null, gradientes: [] };
+        for (const el of document.querySelectorAll("body *")) {
+          // Só quem tem texto PRÓPRIO (nó de texto direto), com tamanho real.
+          const texto = Array.from(el.childNodes)
+            .filter((n) => n.nodeType === 3)
+            .map((n) => n.textContent.trim())
+            .join("");
+          if (texto.length < 2) continue;
+          const caixa = el.getBoundingClientRect();
+          if (caixa.width < 2 || caixa.height < 2) continue;
+          const cs = getComputedStyle(el);
+          if (cs.visibility === "hidden" || Number(cs.opacity) < 0.3) continue;
+          const cor = rgba(cs.color);
+          if (!cor) continue;
+
+          const { cor: fundo, gradientesNaCadeia } = fundoEfetivo(el);
+          resultado.nos++;
+          for (const g of gradientesNaCadeia) {
+            if (!resultado.gradientes.includes(g)) resultado.gradientes.push(g);
+          }
+          const r = razao(cor.slice(0, 3), fundo);
+          if (!resultado.pior || r < resultado.pior.razao) {
+            resultado.pior = {
+              razao: r,
+              texto: texto.slice(0, 40),
+              tamanho: cs.fontSize,
+            };
+          }
+        }
+        return resultado;
+      });
+
+      nos += achado.nos;
+      for (const g of achado.gradientes) if (!gradientes.includes(g)) gradientes.push(g);
+      if (achado.pior && (!pior || achado.pior.razao < pior.razao)) {
+        pior = { ...achado.pior, aba: aba.id };
+      }
+    }
+
+    // O piso é 4.5:1 (texto normal). Texto grande passaria com 3:1, mas não
+    // vale relaxar: se o pior caso do app inteiro já cumpre o piso duro, não
+    // há motivo pra abrir exceção por tamanho de fonte.
+    const ok = pior && pior.razao >= 4.5 && gradientes.length === 0;
+    if (!ok) falhas++;
+    console.log(
+      `    ${tema.padEnd(7)} ${nos} nós de texto  |  pior contraste ` +
+        `${pior ? pior.razao.toFixed(2) : "?"}:1 em "${pior?.texto ?? ""}" (${pior?.aba}, ${pior?.tamanho})` +
+        `  |  gradiente sob texto: ${gradientes.length === 0 ? "NENHUM" : gradientes.join(", ")}` +
+        `  ${ok ? "ok" : "XX"}`,
+    );
+    porTema.push({ tema, nos, pior, gradientes });
+  }
+
+  await ctx.close();
+  const destino = path.join(SAIDA, `_legibilidade${marca}.md`);
+  await fs.writeFile(
+    destino,
+    [
+      "# Legibilidade no DOM real — texto × fundo efetivo",
+      "",
+      "Varredura de TODO elemento com texto próprio, nas 7 abas, em cada tema.",
+      "Para cada um: sobe a árvore até o primeiro fundo opaco (o que de fato",
+      "pinta atrás do texto), registra se havia gradiente na cadeia e mede o",
+      "contraste entre a `color` computada e esse fundo.",
+      "",
+      "| tema | nós de texto | pior contraste | onde | gradiente sob texto |",
+      "|---|---|---|---|---|",
+      ...porTema.map(
+        (t) =>
+          `| \`${t.tema}\` | ${t.nos} | **${t.pior?.razao.toFixed(2)}:1** | ` +
+          `"${t.pior?.texto}" (${t.pior?.aba}) | ` +
+          `${t.gradientes.length === 0 ? "nenhum" : t.gradientes.join(", ")} |`,
+      ),
+    ].join("\n"),
+  );
+  console.log(
+    `\n  [legibilidade] ${falhas === 0 ? "todos os temas passam" : `${falhas} tema(s) REPROVADO(s)`}`,
+  );
+  return [destino];
+}
+
 /* ── Item: fps navegando entre as abas ───────────────────────────────── */
 
 async function medirFps(browser, secret) {
@@ -1000,6 +1164,7 @@ async function main() {
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));
+    if (querido("legibilidade")) gerados.push(...(await medirLegibilidade(browser, secret)));
     if (querido("fps")) gerados.push(...(await medirFps(browser, secret)));
 
     await browser.close();

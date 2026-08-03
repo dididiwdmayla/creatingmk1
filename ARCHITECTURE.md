@@ -1434,6 +1434,64 @@ Capturas: `docs/temas/tema-{escuro,claro,acido,vapor,prisma}-{desktop,celular}.p
 (folha de contato com as 7 abas de cada tema), `docs/temas/contraste.md` e
 `docs/temas/iridescencia.md`.
 
+### Regra de legibilidade
+
+Gradiente e iridescência vivem em **borda, cabeçalho, navegação inferior,
+estado ativo e realce**. Texto de leitura fica em superfície **sólida**. Na
+prática isso significa que todo gradiente do app é uma faixa de 1–2px, e a
+lista completa dos que existem cabe em cinco classes de `globals.css`:
+`.cromo-linha::after` (bordas do header, da barra de metas e da nav),
+`.cromo-linha-baixo`/`.cromo-linha-cima` (posição da faixa),
+`.cromo-aba-ativa` (estado ativo) e `.cromo-realce` (a régua do número
+principal do painel).
+
+**O plano da página deixou de ter gradiente.** O `body` tinha uma vinheta
+(`radial-gradient` + `linear-gradient` entre `--background-2` e
+`--background`, com `background-attachment: fixed`), e boa parte do texto do
+app vive direto sobre ele — o número grande do painel, títulos de seção, os
+contadores de /hoje. Era gradiente sob texto de leitura, exatamente o que a
+regra proíbe. `--background-2` continua existindo como degrau de elevação; só
+não pinta mais o fundo da página.
+
+**A regra é cobrada em dois lugares, e nenhum substitui o outro:**
+
+- **`globals.legibilidade.test.ts`** lê o `globals.css`, encontra toda regra
+  que PINTA gradiente e reprova qualquer seletor fora da lista permitida —
+  pega o gradiente novo antes de existir tela. Tem teste de mutação junto (um
+  gradiente falso num container de leitura tem que reprovar) para não passar
+  contando zero, e uma asserção de que `--surface`/`--background` continuam
+  sendo hex chapado em todos os temas.
+- **`qa-plataforma.mjs --so=legibilidade`** varre o DOM REAL: para cada
+  elemento com texto próprio, nas 7 abas de cada tema, sobe a árvore até o
+  primeiro fundo OPACO (o que de fato pinta atrás), registra se havia
+  gradiente na cadeia e mede o contraste da `color` computada contra esse
+  fundo. Pega o caso que o parser não vê: classe permitida aplicada no lugar
+  errado.
+
+**Resultado da varredura** (418 nós de texto por tema, piso de 4,5:1 — o de
+texto normal, sem a folga de 3:1 que o texto grande teria):
+
+| tema | pior contraste do app | onde | gradiente sob texto |
+|---|---|---|---|
+| `escuro` | 4,73:1 | "Excluir" (config, 12px) | **nenhum** |
+| `claro` | 4,92:1 | "novos desde a sua última visita" (hoje, 12px) | **nenhum** |
+| `acido` | 4,98:1 | "Contactado" (hoje, 12px) | **nenhum** |
+| `vapor` | 5,05:1 | "-5" (leads, 10px) | **nenhum** |
+| `prisma` | 5,02:1 | "Contactado" (hoje, 12px) | **nenhum** |
+
+**Um defeito real, no tema que já existia.** A primeira varredura reprovou o
+`escuro` com **4,33:1**: `--ink-muted` (`#7c8992`) passava sobre `--surface`
+(4,84:1) e falhava sobre `--surface-2` (o degrau de elevação onde ficam os
+chips e as legendas de 10px em /leads). A tabela de contraste por TOKEN não
+enxergava esse par porque só media contra `--surface` e `--background` — foi a
+varredura no DOM que achou, e é a diferença entre validar a paleta e validar a
+tela. Corrigido para `#87949d` (5,00:1 sobre `--surface-2`), e os pares com
+`--surface-2` entraram na tabela de tokens. Os três temas novos já passavam
+(5,05–5,36:1); o defeito era só do escuro, e estava lá antes desta rodada.
+
+Relatórios: `docs/temas/contraste.md` (110 pares de token, os cinco temas) e
+`docs/temas/legibilidade.md` (a varredura no DOM).
+
 ## Verificação da UI
 
 Sem Firebase real neste ambiente de sessão, a verificação de ponta a ponta foi feita ligando temporariamente o `FakeFirestore` (o mesmo fake dos testes) no lugar do Firestore via uma env var (`RADAR_FAKE_DB=1`), com dados de exemplo, rodando `next build && next start` e navegando o app real com Playwright (login errado/certo, dashboard com os três estados de meter, filtros de leads, ficha enriquecida/não enriquecida, botão Enriquecer com erro real de `GOOGLE_PLACES_API_KEY` ausente, transição de status, link `wa.me` com telefone e `{nome}` corretos, salvar config, logout e bloqueio pós-logout). O patch em `admin.ts` e os dados de exemplo foram revertidos antes do commit — não fazem parte do código do app.

@@ -8,8 +8,11 @@ nenhum par abaixo é medido contra gradiente. Ver ARCHITECTURE.md.
 | `escuro` | `--foreground` sobre `--surface` | texto de leitura em card | **15.50:1** | 7 | passa |
 | `escuro` | `--foreground` sobre `--background` | texto de leitura na página | **17.69:1** | 7 | passa |
 | `escuro` | `--ink-secondary` sobre `--surface` | texto secundário em card | **9.74:1** | 4.5 | passa |
-| `escuro` | `--ink-muted` sobre `--surface` | rótulo/legenda em card | **4.84:1** | 4.5 | passa |
-| `escuro` | `--ink-muted` sobre `--background` | rótulo/legenda na página | **5.53:1** | 4.5 | passa |
+| `escuro` | `--ink-muted` sobre `--surface` | rótulo/legenda em card | **5.59:1** | 4.5 | passa |
+| `escuro` | `--ink-muted` sobre `--background` | rótulo/legenda na página | **6.38:1** | 4.5 | passa |
+| `escuro` | `--ink-muted` sobre `--surface-2` | rótulo/legenda em superfície elevada | **5.00:1** | 4.5 | passa |
+| `escuro` | `--ink-secondary` sobre `--surface-2` | texto secundário em superfície elevada | **8.71:1** | 4.5 | passa |
+| `escuro` | `--foreground` sobre `--surface-2` | texto de leitura em superfície elevada | **13.86:1** | 7 | passa |
 | `escuro` | `--accent` sobre `--surface` | aba ativa / link | **10.75:1** | 4.5 | passa |
 | `escuro` | `--accent-ink` sobre `--accent` | texto sobre o botão primário | **11.44:1** | 4.5 | passa |
 | `escuro` | `--warning` sobre `--surface` | "Perto do teto" | **9.48:1** | 4.5 | passa |
@@ -25,6 +28,9 @@ nenhum par abaixo é medido contra gradiente. Ver ARCHITECTURE.md.
 | `claro` | `--ink-secondary` sobre `--surface` | texto secundário em card | **8.84:1** | 4.5 | passa |
 | `claro` | `--ink-muted` sobre `--surface` | rótulo/legenda em card | **5.55:1** | 4.5 | passa |
 | `claro` | `--ink-muted` sobre `--background` | rótulo/legenda na página | **4.92:1** | 4.5 | passa |
+| `claro` | `--ink-muted` sobre `--surface-2` | rótulo/legenda em superfície elevada | **5.05:1** | 4.5 | passa |
+| `claro` | `--ink-secondary` sobre `--surface-2` | texto secundário em superfície elevada | **8.04:1** | 4.5 | passa |
+| `claro` | `--foreground` sobre `--surface-2` | texto de leitura em superfície elevada | **15.24:1** | 7 | passa |
 | `claro` | `--accent` sobre `--surface` | aba ativa / link | **5.34:1** | 4.5 | passa |
 | `claro` | `--accent-ink` sobre `--accent` | texto sobre o botão primário | **5.34:1** | 4.5 | passa |
 | `claro` | `--warning` sobre `--surface` | "Perto do teto" | **5.65:1** | 4.5 | passa |
@@ -40,6 +46,9 @@ nenhum par abaixo é medido contra gradiente. Ver ARCHITECTURE.md.
 | `acido` | `--ink-secondary` sobre `--surface` | texto secundário em card | **10.31:1** | 4.5 | passa |
 | `acido` | `--ink-muted` sobre `--surface` | rótulo/legenda em card | **6.10:1** | 4.5 | passa |
 | `acido` | `--ink-muted` sobre `--background` | rótulo/legenda na página | **6.78:1** | 4.5 | passa |
+| `acido` | `--ink-muted` sobre `--surface-2` | rótulo/legenda em superfície elevada | **5.36:1** | 4.5 | passa |
+| `acido` | `--ink-secondary` sobre `--surface-2` | texto secundário em superfície elevada | **9.06:1** | 4.5 | passa |
+| `acido` | `--foreground` sobre `--surface-2` | texto de leitura em superfície elevada | **14.13:1** | 7 | passa |
 | `acido` | `--accent` sobre `--surface` | aba ativa / link | **15.06:1** | 4.5 | passa |
 | `acido` | `--accent-ink` sobre `--accent` | texto sobre o botão primário | **15.60:1** | 4.5 | passa |
 | `acido` | `--warning` sobre `--surface` | "Perto do teto" | **11.28:1** | 4.5 | passa |
@@ -55,6 +64,9 @@ nenhum par abaixo é medido contra gradiente. Ver ARCHITECTURE.md.
 | `vapor` | `--ink-secondary` sobre `--surface` | texto secundário em card | **10.18:1** | 4.5 | passa |
 | `vapor` | `--ink-muted` sobre `--surface` | rótulo/legenda em card | **5.77:1** | 4.5 | passa |
 | `vapor` | `--ink-muted` sobre `--background` | rótulo/legenda na página | **6.33:1** | 4.5 | passa |
+| `vapor` | `--ink-muted` sobre `--surface-2` | rótulo/legenda em superfície elevada | **5.05:1** | 4.5 | passa |
+| `vapor` | `--ink-secondary` sobre `--surface-2` | texto secundário em superfície elevada | **8.91:1** | 4.5 | passa |
+| `vapor` | `--foreground` sobre `--surface-2` | texto de leitura em superfície elevada | **14.10:1** | 7 | passa |
 | `vapor` | `--accent` sobre `--surface` | aba ativa / link | **12.19:1** | 4.5 | passa |
 | `vapor` | `--accent-ink` sobre `--accent` | texto sobre o botão primário | **12.55:1** | 4.5 | passa |
 | `vapor` | `--warning` sobre `--surface` | "Perto do teto" | **11.12:1** | 4.5 | passa |
@@ -70,6 +82,9 @@ nenhum par abaixo é medido contra gradiente. Ver ARCHITECTURE.md.
 | `prisma` | `--ink-secondary` sobre `--surface` | texto secundário em card | **9.73:1** | 4.5 | passa |
 | `prisma` | `--ink-muted` sobre `--surface` | rótulo/legenda em card | **5.73:1** | 4.5 | passa |
 | `prisma` | `--ink-muted` sobre `--background` | rótulo/legenda na página | **6.23:1** | 4.5 | passa |
+| `prisma` | `--ink-muted` sobre `--surface-2` | rótulo/legenda em superfície elevada | **5.25:1** | 4.5 | passa |
+| `prisma` | `--ink-secondary` sobre `--surface-2` | texto secundário em superfície elevada | **8.91:1** | 4.5 | passa |
+| `prisma` | `--foreground` sobre `--surface-2` | texto de leitura em superfície elevada | **14.59:1** | 7 | passa |
 | `prisma` | `--accent` sobre `--surface` | aba ativa / link | **7.03:1** | 4.5 | passa |
 | `prisma` | `--accent-ink` sobre `--accent` | texto sobre o botão primário | **7.41:1** | 4.5 | passa |
 | `prisma` | `--warning` sobre `--surface` | "Perto do teto" | **11.30:1** | 4.5 | passa |

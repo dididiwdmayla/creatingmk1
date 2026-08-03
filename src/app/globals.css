@@ -25,7 +25,12 @@
   --surface-2: #1a2530; /* elevação sutil sobre a surface */
   --line: rgba(150, 190, 210, 0.14); /* bordas em hairline, tingidas de azul */
   --ink-secondary: #b8c4c8;
-  --ink-muted: #7c8992;
+  /* Era #7c8992: passava sobre --surface (4,84:1) e reprovava sobre
+     --surface-2 (4,33:1), o degrau de elevação onde vivem os chips e as
+     legendas pequenas de /leads. Achado pela varredura de legibilidade no
+     DOM real — a tabela de tokens só media contra --surface e --background
+     e não enxergava esse par. Agora 5,00:1 sobre --surface-2. */
+  --ink-muted: #87949d;
 
   --accent: #2ee6a6; /* verde-radar — ação primária, meter OK */
   --accent-ink: #04170f; /* texto sobre o accent (contraste 13:1) */
@@ -309,23 +314,45 @@ html {
   overflow-x: clip;
 }
 
+/*
+ * O plano da página é COR CHAPADA. Ele tinha um gradiente de vinheta
+ * (`radial-gradient` + `linear-gradient` de --background-2 para --background,
+ * `background-attachment: fixed`), e boa parte do texto do app vive
+ * diretamente sobre ele — o número grande do painel, títulos de seção, os
+ * contadores de /hoje. Ou seja: era gradiente SOB texto de leitura, que é
+ * exatamente o que a regra de legibilidade proíbe. Saiu.
+ *
+ * `--background-2` continua existindo: é o degrau de elevação usado por
+ * superfícies e pelos temas, só não pinta mais o fundo da página.
+ */
 body {
   min-height: 100%;
   overflow-x: clip;
   background: var(--background);
-  background-image:
-    radial-gradient(ellipse 120% 60% at 50% -10%, var(--background-2) 0%, transparent 60%),
-    linear-gradient(180deg, var(--background-2) 0%, var(--background) 55%);
-  background-attachment: fixed;
   color: var(--foreground);
 }
 
 /* ── Cromo iridescente ─────────────────────────────────────────────────
  *
- * A iridescência mora AQUI e só aqui: a linha de 1px que fecha o header em
- * baixo, a que abre a barra de navegação em cima, e o indicador da aba
- * ativa. Nunca atrás de texto — ver "Regra de legibilidade" em
- * ARCHITECTURE.md.
+ * REGRA DE LEGIBILIDADE (ver ARCHITECTURE.md). Gradiente e iridescência só
+ * podem existir nestes cinco lugares, e são exatamente as classes deste
+ * bloco — não há outra regra no app que pinte gradiente:
+ *
+ *   1. bordas ............... `.cromo-linha::after`
+ *   2. cabeçalho ............ `.cromo-linha-baixo`
+ *   3. navegação inferior ... `.cromo-linha-cima`
+ *   4. estados ativos ....... `.cromo-aba-ativa`
+ *   5. realces .............. `.cromo-realce`
+ *
+ * O que todos têm em comum: são faixas de 1–2px ou uma borda — NENHUM deles
+ * fica ATRÁS de texto. Texto de leitura vive sempre sobre `--surface` ou
+ * `--background`, que são cores chapadas.
+ *
+ * Isso é cobrado em dois lugares, porque um comentário não segura regra:
+ * `globals.legibilidade.test.ts` lê ESTE arquivo e reprova qualquer regra
+ * nova com gradiente cujo seletor não esteja na lista acima; e
+ * `qa-plataforma.mjs --so=legibilidade` varre o DOM real de cada aba em
+ * cada tema procurando texto que tenha gradiente na cadeia de fundo.
  *
  * A linha é um pseudo-elemento e não uma `border-image` porque precisa
  * conviver com o `position: fixed` da nav sem entrar no cálculo de altura
@@ -364,6 +391,14 @@ body {
 
 /* Indicador da aba ativa: o mesmo arco, comprimido no tamanho da aba. */
 .cromo-aba-ativa {
+  background-image: var(--iris-linha);
+}
+
+/*
+ * Realce: régua de 2px no topo de um cartão de destaque. Fica na BORDA do
+ * cartão, acima do conteúdo — nunca atrás dele.
+ */
+.cromo-realce {
   background-image: var(--iris-linha);
 }
 
@@ -447,6 +482,17 @@ body {
     border-color 0.15s ease-out;
 }
 
+/*
+ * O hover do card fica com borda SÓLIDA de propósito, e não iridescente.
+ * `border-image` ignora `border-radius` (o card viraria quadrado no hover) e
+ * a alternativa — camadas de background com `padding-box`/`border-box` —
+ * poria um gradiente no `background-image` do próprio elemento que contém o
+ * texto do card. Continuaria legível (a primeira camada é `--surface`
+ * chapada), mas custaria a garantia: a varredura de legibilidade deixaria de
+ * poder ser "nenhum gradiente na cadeia de fundo de texto nenhum" e passaria
+ * a ter exceção. Um realce de card não vale trocar uma regra verificável por
+ * uma regra com asterisco.
+ */
 .card-lift:hover {
   transform: translateY(-2px);
   border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
