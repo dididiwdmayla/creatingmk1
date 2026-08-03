@@ -842,7 +842,12 @@ export function ImobiliariaCurada({ data, theme, idioma, moeda }: SkinProps) {
 
       `}</style>
 
-      <LedEdges preset={theme.led} estilo={theme.ledEstilo} />
+      <LedEdges
+        preset={theme.led}
+        estilo={theme.ledEstilo}
+        cores={theme.ledCores}
+        corBase={paleta.destaque}
+      />
       <CustomCursor animacao={theme.animacao} />
 
       <IntroExperience nome={data.nome} accent={paleta.destaque} ink={paleta.destaqueInk} ativa={theme.intro === true}>

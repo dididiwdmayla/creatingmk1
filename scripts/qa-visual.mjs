@@ -22,6 +22,7 @@
  *   node scripts/qa-visual.mjs                 # matriz inteira
  *   node scripts/qa-visual.mjs --so=led        # só os estilos de LED
  *   node scripts/qa-visual.mjs --so=veios,gradiente
+ *   node scripts/qa-visual.mjs --so=cores      # só os modos de cor (efeito + LED)
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -76,7 +77,11 @@ const filtro = opcao("so")?.split(",").map((s) => s.trim()).filter(Boolean);
 
 function querido(id) {
   if (!filtro) return true;
-  return filtro.includes(id) || (filtro.includes("led") && id.startsWith("led-"));
+  return (
+    filtro.includes(id) ||
+    (filtro.includes("led") && id.startsWith("led-")) ||
+    (filtro.includes("cores") && id.startsWith("cores-"))
+  );
 }
 
 /** Mesmo esquema de assinatura de src/lib/auth.ts#criarSessaoToken. */
@@ -127,14 +132,37 @@ async function esperarServidor(url, timeoutMs = 120000) {
   throw new Error(`servidor não respondeu em ${url}`);
 }
 
-function url({ efeito, intensidade, led, ledEstilo, preset }) {
+function url({ efeito, intensidade, led, ledEstilo, preset, corModo, cores, ledCorModo, ledCores }) {
   const q = new URLSearchParams({ skin: SKIN, preset, intro: "0" });
   if (efeito) q.set("efeito", efeito);
   if (intensidade !== undefined) q.set("intensidade", String(intensidade));
   if (led) q.set("led", led);
   if (ledEstilo) q.set("ledEstilo", ledEstilo);
+  if (corModo) q.set("corModo", corModo);
+  if (cores) q.set("cores", cores.join(","));
+  if (ledCorModo) q.set("ledCorModo", ledCorModo);
+  if (ledCores) q.set("ledCores", ledCores.join(","));
   return `${BASE}/interno/demo-qa?${q}`;
 }
+
+/**
+ * MODOS DE COR (ver src/lib/demos/cores/modos.ts). Os três animados só
+ * podem ser julgados em MAIS DE UM instante — uma captura sozinha não
+ * distingue "cor fixa" de "cor que muda devagar". Cada um vira três
+ * capturas do MESMO estado com o relógio da animação de cor fixado em
+ * fases diferentes do ciclo (ver `congelarCores`), lado a lado na folha.
+ */
+const COR_MODOS = [
+  { id: "fixa", cores: ["#00c2ff"], fases: [0] },
+  { id: "transicao", cores: ["#ff2e88", "#22d3a5", "#ffd23f"], fases: [0, 0.34, 0.67] },
+  // 0 / 0.25 / 0.75 (não 0.5): o ciclo do iridescente é 0 → +16° → 0 →
+  // -16° → 0, então a fase 0.5 é IGUAL à 0 e a folha mostraria dois
+  // estados no lugar de três.
+  { id: "iridescente", fases: [0, 0.25, 0.75] },
+  { id: "arco-iris", fases: [0, 0.33, 0.66] },
+];
+/** Efeitos representativos: um por técnica de pintura (CSS, SVG, blob). */
+const COR_EFEITOS = ["particulas", "aura", "veios"];
 
 /**
  * Efeitos com janela de "aceso" curta (a varredura ocupa ~14% do ciclo,
@@ -149,6 +177,25 @@ const FASE_POR_EFEITO = {
   "varredura-de-luz": 0.035,
   faiscas: 0.45,
 };
+
+/**
+ * Fixa o relógio SÓ da animação de cor (`d-cores-*`) numa fase do ciclo.
+ * Sem isso, a captura pega um instante aleatório de um ciclo de 20-42s e
+ * duas fotos do mesmo modo saem praticamente iguais — o que não prova
+ * nada sobre a cor estar mudando.
+ */
+async function congelarCores(page, fase) {
+  await page.evaluate((f) => {
+    for (const anim of document.getAnimations()) {
+      if (!String(anim.animationName ?? "").startsWith("d-cores-")) continue;
+      const ciclo = anim.effect?.getComputedTiming?.().duration;
+      if (typeof ciclo !== "number" || !Number.isFinite(ciclo) || ciclo <= 0) continue;
+      anim.pause();
+      anim.currentTime = ciclo * f;
+    }
+  }, fase);
+  await page.waitForTimeout(150);
+}
 
 async function capturar(page, alvo, arquivo) {
   await page.goto(alvo, { waitUntil: "networkidle" });
@@ -326,6 +373,93 @@ async function main() {
         linhas.push({ rotulo: tema.rotulo, itens });
       }
       gerados.push(await folhaDeContato(page, `LED: ${estilo}`, id, linhas));
+    }
+
+    /* ── Modos de cor: efeito de fundo ──────────────────────────── */
+    for (const efeito of COR_EFEITOS) {
+      const id = `cores-${efeito}`;
+      if (!querido(id)) continue;
+      const linhas = [];
+      for (const tema of TEMAS) {
+        // Linha de referência: o MESMO efeito no modo "do tema".
+        const base = await capturar(
+          page,
+          url({ efeito, intensidade: 3, preset: tema.id, led: "desligado" }),
+          `cores-${efeito}-tema-${tema.rotulo}`,
+        );
+        gerados.push(base);
+        linhas.push({ rotulo: `${tema.rotulo} · do tema`, itens: [{ rotulo: "—", png: base }] });
+
+        for (const modo of COR_MODOS) {
+          const itens = [];
+          for (const fase of modo.fases) {
+            await page.goto(
+              url({
+                efeito,
+                intensidade: 3,
+                preset: tema.id,
+                led: "desligado",
+                corModo: modo.id,
+                cores: modo.cores,
+              }),
+              { waitUntil: "networkidle" },
+            );
+            await page.waitForTimeout(700);
+            await congelarCores(page, fase);
+            const png = path.join(
+              SAIDA,
+              `cores-${efeito}-${modo.id}-f${String(fase).replace(".", "")}-${tema.rotulo}${marca}.png`,
+            );
+            await page.screenshot({ path: png });
+            gerados.push(png);
+            itens.push({ rotulo: `fase ${fase}`, png });
+          }
+          linhas.push({ rotulo: `${tema.rotulo} · ${modo.id}`, itens });
+        }
+      }
+      gerados.push(await folhaDeContato(page, `Modos de cor: ${efeito}`, id, linhas));
+    }
+
+    /* ── Modos de cor: LED ──────────────────────────────────────── */
+    if (querido("cores-led")) {
+      const linhas = [];
+      for (const tema of TEMAS) {
+        const base = await capturar(
+          page,
+          url({ efeito: "nenhum", led: "marcante", ledEstilo: "moldura", preset: tema.id }),
+          `cores-led-tema-${tema.rotulo}`,
+        );
+        gerados.push(base);
+        linhas.push({ rotulo: `${tema.rotulo} · do tema`, itens: [{ rotulo: "—", png: base }] });
+
+        for (const modo of COR_MODOS) {
+          const itens = [];
+          for (const fase of modo.fases) {
+            await page.goto(
+              url({
+                efeito: "nenhum",
+                led: "marcante",
+                ledEstilo: "moldura",
+                preset: tema.id,
+                ledCorModo: modo.id,
+                ledCores: modo.cores,
+              }),
+              { waitUntil: "networkidle" },
+            );
+            await page.waitForTimeout(500);
+            await congelarCores(page, fase);
+            const png = path.join(
+              SAIDA,
+              `cores-led-${modo.id}-f${String(fase).replace(".", "")}-${tema.rotulo}${marca}.png`,
+            );
+            await page.screenshot({ path: png });
+            gerados.push(png);
+            itens.push({ rotulo: `fase ${fase}`, png });
+          }
+          linhas.push({ rotulo: `${tema.rotulo} · ${modo.id}`, itens });
+        }
+      }
+      gerados.push(await folhaDeContato(page, "Modos de cor: LED (moldura)", "cores-led", linhas));
     }
 
     await browser.close();

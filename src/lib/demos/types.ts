@@ -262,6 +262,38 @@ export type AuraCoresPreset = "fumaca-colorida";
 
 export type AuraCoresValor = AuraCoresPatch | AuraCoresPreset;
 
+/**
+ * Modo de cor da camada decorativa — vale para QUALQUER efeito do registro
+ * e para qualquer estilo de LED (ver `lib/demos/cores/modos.ts`, onde a
+ * resolução mora):
+ *
+ *   - `tema` — deriva da paleta do tema (default de sempre);
+ *   - `fixa` — uma cor escolhida, estática;
+ *   - `transicao` — 2 ou 3 cores escolhidas girando lentamente;
+ *   - `iridescente` — cores do tema com deslocamento de matiz sutil e contínuo;
+ *   - `arco-iris` — percurso completo de matiz, mais saturado.
+ */
+export type CorModo = "tema" | "fixa" | "transicao" | "iridescente" | "arco-iris";
+
+export const COR_MODOS: readonly CorModo[] = [
+  "tema",
+  "fixa",
+  "transicao",
+  "iridescente",
+  "arco-iris",
+];
+
+/**
+ * Modo de cor escolhido + as cores dele. `cores` só é lida nos modos que
+ * dependem de escolha explícita (1 em `fixa`, 2–3 em `transicao`); os
+ * demais derivam da paleta do tema. Ausente = `{ modo: "tema" }`.
+ */
+export interface CoresModoValor {
+  modo: CorModo;
+  /** Cores hex (#rrggbb) escolhidas, na ordem. */
+  cores?: string[];
+}
+
 /** Tokens visuais de um tema de skin. */
 export interface Theme {
   id: string;
@@ -305,6 +337,20 @@ export interface Theme {
    * opção antes deste registro existir).
    */
   ledEstilo: string;
+  /**
+   * Modo de cor do EFEITO de fundo (ver CoresModoValor). Ausente = `tema`
+   * — o efeito deriva da paleta, como sempre foi. Vale pra qualquer efeito
+   * do registro: nenhum efeito conhece este campo, a resolução acontece na
+   * camada que monta o efeito (ver `lib/demos/efeitos/EfeitoCamada.tsx`).
+   */
+  efeitoCores?: CoresModoValor;
+  /**
+   * Modo de cor do LED (mesmo contrato de `efeitoCores`, namespace
+   * próprio: efeito e LED podem estar em modos diferentes). Resolvido
+   * dentro de `lib/demos/led/LedEdges.tsx`, que só redefine `--d-accent`
+   * localmente — o CSS dos estilos de LED não muda por causa disso.
+   */
+  ledCores?: CoresModoValor;
 }
 
 /** Props que TODO componente de skin recebe. */
@@ -410,6 +456,17 @@ export interface TemaPatch {
    * acentoSecundario), como antes deste controle existir.
    */
   auraCores?: AuraCoresValor;
+  /**
+   * Modo de cor do efeito de fundo — vale para QUALQUER efeito do
+   * registro (ver Theme.efeitoCores e `lib/demos/cores/modos.ts`).
+   * Ausente/`{ modo: "tema" }` = deriva da paleta, como antes deste
+   * controle existir. Quando o modo é diferente de `tema`, ele VENCE o
+   * `auraCores` acima (que continua valendo no modo `tema`, pra não mudar
+   * demo nenhuma já publicada com cores de aura escolhidas).
+   */
+  efeitoCores?: CoresModoValor;
+  /** Modo de cor do LED (mesmo contrato de `efeitoCores`). */
+  ledCores?: CoresModoValor;
   /** Ajustes do título hero por cima do preset (fonte/escala/alinhamento). */
   heroTitulo?: Partial<HeroTituloTema>;
   led?: LedPreset;

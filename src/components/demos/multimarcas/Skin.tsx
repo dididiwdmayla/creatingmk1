@@ -528,7 +528,12 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
 
       `}</style>
 
-      <LedEdges preset={theme.led} estilo={theme.ledEstilo} />
+      <LedEdges
+        preset={theme.led}
+        estilo={theme.ledEstilo}
+        cores={theme.ledCores}
+        corBase={paleta.destaque}
+      />
       <ProgressBar accent={paleta.destaque} />
       <ThemeColorSync corInicial={paleta.fundo} />
 

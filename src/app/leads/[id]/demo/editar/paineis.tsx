@@ -21,6 +21,8 @@ import type {
   AnimacaoEntrada,
   AuraCoresPatch,
   CliqueEstilo,
+  CorModo,
+  CoresModoValor,
   DemoData,
   DemoItem,
   Densidade,
@@ -887,6 +889,129 @@ function AuraCoresControl({
   );
 }
 
+/* ── Modos de cor da camada decorativa (efeito de fundo e LED) ──── */
+
+const COR_MODO_ROTULO: Record<CorModo, string> = {
+  tema: "Do tema",
+  fixa: "Cor fixa",
+  transicao: "Transição",
+  iridescente: "Iridescente",
+  "arco-iris": "Arco-íris",
+};
+
+const COR_MODO_AJUDA: Record<CorModo, string> = {
+  tema: "Deriva da paleta do preset — o padrão.",
+  fixa: "Uma cor escolhida, sem variação.",
+  transicao: "Duas ou três cores trocando lentamente entre si.",
+  iridescente: "Cores do tema com o matiz deslizando de leve, sem parar.",
+  "arco-iris": "Percurso completo de matiz, mais saturado.",
+};
+
+/**
+ * Controle de MODO DE COR — o mesmo componente serve o efeito de fundo e
+ * o LED (`TemaPatch.efeitoCores` / `TemaPatch.ledCores`), porque os dois
+ * usam o mesmo contrato (ver lib/demos/cores/modos.ts). Trocar de modo
+ * SEMEIA as cores a partir da paleta do preset, pra o usuário nunca cair
+ * num seletor vazio (e a cor semeada é justamente a que ele já estava
+ * vendo — a troca começa sem mudança visual).
+ */
+function CoresModoControl({
+  titulo,
+  valor,
+  paletaTema,
+  onChange,
+}: {
+  titulo: string;
+  valor: CoresModoValor | undefined;
+  paletaTema: { destaque: string; acentoSecundario: string };
+  onChange: (valor: CoresModoValor | undefined) => void;
+}) {
+  const modo = valor?.modo ?? "tema";
+  const cores = valor?.cores ?? [];
+
+  function trocarModo(novo: CorModo) {
+    if (novo === "tema") return onChange(undefined);
+    if (novo === "fixa") return onChange({ modo: novo, cores: [cores[0] ?? paletaTema.destaque] });
+    if (novo === "transicao") {
+      return onChange({
+        modo: novo,
+        cores: cores.length >= 2 ? cores : [paletaTema.destaque, paletaTema.acentoSecundario],
+      });
+    }
+    onChange({ modo: novo });
+  }
+
+  const setCor = (i: number, cor: string) =>
+    onChange({ modo: modo as CorModo, cores: cores.map((c, j) => (j === i ? cor : c)) });
+
+  return (
+    <div className="flex flex-col gap-2 rounded border border-line p-3">
+      <span className="text-xs text-ink-muted">{titulo}</span>
+      <div className="flex flex-wrap gap-1.5">
+        {(Object.keys(COR_MODO_ROTULO) as CorModo[]).map((opcao) => (
+          <button
+            key={opcao}
+            type="button"
+            onClick={() => trocarModo(opcao)}
+            aria-pressed={modo === opcao}
+            className={`rounded border px-2.5 py-1 text-xs transition-colors ${
+              modo === opcao
+                ? "border-accent text-foreground"
+                : "border-line text-ink-muted hover:border-accent/50"
+            }`}
+          >
+            {COR_MODO_ROTULO[opcao]}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-ink-muted">{COR_MODO_AJUDA[modo]}</p>
+
+      {(modo === "fixa" || modo === "transicao") && (
+        <div className="flex flex-wrap items-end gap-3">
+          {cores.map((cor, i) => (
+            <label key={i} className={LABEL_CLS}>
+              {modo === "fixa" ? "Cor" : `Cor ${i + 1}`}
+              <span className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={cor}
+                  onChange={(e) => setCor(i, e.target.value)}
+                  className="h-9 w-12 cursor-pointer rounded border border-line bg-surface-2 p-1"
+                />
+                <code className="font-mono text-xs text-ink-secondary">{cor}</code>
+              </span>
+            </label>
+          ))}
+          {modo === "transicao" && (
+            <div className="flex gap-2 pb-2">
+              {cores.length < 3 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onChange({ modo, cores: [...cores, paletaTema.destaque] })
+                  }
+                  className="text-[11px] text-accent hover:underline"
+                >
+                  + 3ª cor
+                </button>
+              )}
+              {cores.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => onChange({ modo, cores: cores.slice(0, -1) })}
+                  className="text-[11px] text-ink-muted hover:text-foreground"
+                >
+                  remover a última
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Seletor de fonte (título/corpo/hero) com as fontes curadas do nicho da
  * skin (`SkinDefinition.fontesRecomendadas`, ver registry.ts) destacadas no
@@ -1229,7 +1354,19 @@ export function PainelTema({
         </button>
       )}
 
-      {efeitoFundoAtivo?.id === "aura" && (
+      {efeitoFundoAtivo && (
+        <CoresModoControl
+          titulo="Cor do efeito de fundo"
+          valor={tema.efeitoCores}
+          paletaTema={preset.paleta}
+          onChange={(efeitoCores) => setTema({ ...tema, efeitoCores })}
+        />
+      )}
+
+      {/* Controle específico da aura — anterior ao modo de cor genérico
+          acima, que o VENCE quando está em qualquer modo != "do tema"
+          (ver lib/demos/efeitos/camada.ts). */}
+      {efeitoFundoAtivo?.id === "aura" && (tema.efeitoCores?.modo ?? "tema") === "tema" && (
         <AuraCoresControl
           auraCores={tema.auraCores}
           paletaTema={preset.paleta}
@@ -1254,6 +1391,15 @@ export function PainelTema({
           opcoes={LED_ESTILO_OPCOES}
           valor={tema.ledEstilo}
           onChange={(ledEstilo) => setTema({ ...tema, ledEstilo })}
+        />
+      )}
+
+      {(tema.led ?? preset.led) !== "desligado" && (
+        <CoresModoControl
+          titulo="Cor do LED"
+          valor={tema.ledCores}
+          paletaTema={preset.paleta}
+          onChange={(ledCores) => setTema({ ...tema, ledCores })}
         />
       )}
 

@@ -817,7 +817,12 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
       `}</style>
 
       <GothicLetters nome={data.nome} />
-      <LedEdges preset={theme.led} estilo={theme.ledEstilo} />
+      <LedEdges
+        preset={theme.led}
+        estilo={theme.ledEstilo}
+        cores={theme.ledCores}
+        corBase={paleta.destaque}
+      />
 
       <IntroExperience nome={data.nome} accent={paleta.destaque} ativa={theme.intro !== false}>
         <ScrollHeader

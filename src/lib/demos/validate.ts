@@ -1,5 +1,6 @@
 import { ValidationError } from "@/lib/errors";
 import { IDIOMAS_SUPORTADOS } from "@/lib/idioma";
+import { modoValido } from "./cores/modos";
 import { getEfeito } from "./efeitos/registry";
 import type { EfeitoIntensidade } from "./efeitos/types";
 import { getFonte } from "./fontes";
@@ -11,6 +12,7 @@ import {
   ANIMACOES,
   ANIMACOES_ENTRADA,
   CLIQUE_ESTILOS,
+  COR_MODOS,
   HOVER_ESTILOS,
   LED_PRESETS,
   type AnimacaoEntrada,
@@ -292,8 +294,14 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
         "fundoEfeito",
         "fundoEfeitoIntensidade",
         "auraCores",
+        "efeitoCores",
+        "ledCores",
         "heroTitulo",
         "led",
+        // "ledEstilo" já era validado logo abaixo, mas faltava aqui: o
+        // PUT rejeitava com "chave desconhecida" toda demo salva com um
+        // estilo de LED escolhido no editor.
+        "ledEstilo",
       ].includes(chave)
     ) {
       problemas.push(`tema.${chave}: chave desconhecida`);
@@ -438,6 +446,37 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
       }
     } else {
       problemas.push('tema.auraCores deve ser "fumaca-colorida" ou um objeto { primaria?, secundaria? }');
+    }
+  }
+
+  for (const campo of ["efeitoCores", "ledCores"] as const) {
+    const valor = value[campo];
+    if (valor === undefined) continue;
+    if (!isRecord(valor)) {
+      problemas.push(`tema.${campo} deve ser um objeto { modo, cores? }`);
+      continue;
+    }
+    for (const chave of Object.keys(valor)) {
+      if (!["modo", "cores"].includes(chave)) {
+        problemas.push(`tema.${campo}.${chave}: chave desconhecida`);
+      }
+    }
+    if (!modoValido(valor.modo as string | undefined)) {
+      problemas.push(`tema.${campo}.modo deve ser um de: ${COR_MODOS.join(", ")}`);
+    }
+    if (valor.cores !== undefined) {
+      if (!Array.isArray(valor.cores)) {
+        problemas.push(`tema.${campo}.cores deve ser uma lista de cores hex`);
+      } else {
+        if (valor.cores.length > 3) {
+          problemas.push(`tema.${campo}.cores aceita no máximo 3 cores`);
+        }
+        for (const [i, cor] of valor.cores.entries()) {
+          if (typeof cor !== "string" || !HEX_RE.test(cor)) {
+            problemas.push(`tema.${campo}.cores[${i}] deve ser cor hex (#rrggbb)`);
+          }
+        }
+      }
     }
   }
 

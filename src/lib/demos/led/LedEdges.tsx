@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 
-import type { LedPreset } from "../types";
+import { resolverModoCores } from "../cores/modos";
+import type { CoresModoValor, LedPreset } from "../types";
 import { LED_ESTILO_PADRAO } from "./registry";
+
+/** Namespace das custom properties de cor do LED (o efeito usa "efeito"). */
+const PREFIXO_CORES_LED = "led-cor";
 
 /**
  * Bordas com luz LED na cor de destaque do tema (`var(--d-accent)`,
@@ -27,9 +31,35 @@ import { LED_ESTILO_PADRAO } from "./registry";
  * exige tocar em nenhuma das 8 skins. Cada `interactive/LedEdges.tsx` de
  * skin agora só reexporta este componente.
  */
-export function LedEdges({ preset, estilo }: { preset: LedPreset; estilo?: string }) {
+export function LedEdges({
+  preset,
+  estilo,
+  cores,
+  corBase,
+}: {
+  preset: LedPreset;
+  estilo?: string;
+  /**
+   * Modo de cor do LED (`Theme.ledCores`) — ausente/"tema" = a cor de
+   * destaque do tema, como sempre. Nos modos com cor própria/animada, a
+   * ÚNICA coisa que muda é `--d-accent`, redefinida localmente na raiz
+   * deste componente: todo o CSS dos 4 estilos abaixo continua lendo
+   * `var(--d-accent)` sem saber que existe modo de cor.
+   */
+  cores?: CoresModoValor;
+  /** Cor de destaque do tema — base dos modos derivados (iridescente/arco-íris). */
+  corBase?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const estiloResolvido = estilo || LED_ESTILO_PADRAO;
+  // `--d-accent` do wrapper da skin é a cor de sempre; `corBase` é a mesma
+  // cor em hex, necessária porque matiz não se manipula a partir de uma
+  // referência a CSS var (ver ../cores/modos.ts).
+  const modo = resolverModoCores(
+    cores,
+    [corBase ?? "var(--d-accent)", corBase ?? "var(--d-accent)", corBase ?? "var(--d-accent)"],
+    PREFIXO_CORES_LED,
+  );
 
   useEffect(() => {
     if (preset === "desligado") return;
@@ -38,6 +68,12 @@ export function LedEdges({ preset, estilo }: { preset: LedPreset; estilo?: strin
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       el.style.setProperty("--d-led-scroll", "0.5");
+      // Cor congelada no primeiro quadro do ciclo (o `initial-value` do
+      // @property) — "estático", não "pausado", igual ao resto da camada
+      // decorativa. Escrito no DOM, nunca no render: ler matchMedia
+      // durante o render quebraria a hidratação (este componente é
+      // renderizado no servidor dentro do Skin.tsx).
+      el.style.animationName = "none";
       return;
     }
 
@@ -71,7 +107,28 @@ export function LedEdges({ preset, estilo }: { preset: LedPreset; estilo?: strin
   if (preset === "desligado") return null;
 
   return (
-    <div ref={ref} data-d-led={preset} data-d-led-estilo={estiloResolvido} className="d-led-edges" aria-hidden="true">
+    <div
+      ref={ref}
+      data-d-led={preset}
+      data-d-led-estilo={estiloResolvido}
+      className="d-led-edges"
+      aria-hidden="true"
+      style={
+        {
+          // Redefinição LOCAL de --d-accent: no modo "tema" nem existe (a
+          // var do wrapper da skin continua valendo); nos demais, aponta
+          // pra cor escolhida ou pra custom property animada.
+          ...(modo.efetivo !== "tema" && { "--d-accent": modo.cores[0] }),
+          ...(modo.animacao && {
+            animationName: modo.animacao.nome,
+            animationDuration: `${modo.animacao.duracaoSegundos}s`,
+            animationTimingFunction: modo.animacao.timing,
+            animationIterationCount: "infinite",
+          }),
+        } as CSSProperties
+      }
+    >
+      {modo.css && <style>{modo.css}</style>}
       <style>{`
         .d-led-edges {
           position: fixed; inset: 0; z-index: 45; pointer-events: none;

@@ -684,7 +684,12 @@ export function BarbeariaSul({ data, theme, idioma, moeda }: SkinProps) {
 
       `}</style>
 
-      <LedEdges preset={theme.led} estilo={theme.ledEstilo} />
+      <LedEdges
+        preset={theme.led}
+        estilo={theme.ledEstilo}
+        cores={theme.ledCores}
+        corBase={paleta.destaque}
+      />
 
       <IntroExperience
         nome={data.nome}

@@ -83,7 +83,10 @@ export function GeometricoPulsante({ intensidade, cores, pausado }: EfeitoProps)
                 <stop
                   key={j}
                   offset={`${(j / (todos.length - 1)) * 100}%`}
-                  stopColor={j % 2 === 1 ? brilho : cores.destaque}
+                  // `stop-color` no STYLE (não como atributo de
+                  // apresentação, que não resolve `var(...)`): a cor pode
+                  // chegar como custom property animada pelo modo de cor.
+                  style={{ stopColor: j % 2 === 1 ? brilho : cores.destaque }}
                   stopOpacity={alfa}
                 />
               ))}

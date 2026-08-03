@@ -74,9 +74,13 @@ export function Veios({ intensidade, cores, pausado }: EfeitoProps) {
         `}</style>
         <defs>
           <radialGradient id={BRILHO_ID}>
-            <stop offset="0%" stopColor={claro} stopOpacity={1} />
-            <stop offset="45%" stopColor={cores.destaque} stopOpacity={0.55} />
-            <stop offset="100%" stopColor={cores.destaque} stopOpacity={0} />
+            {/* `stop-color` vai no STYLE, não como atributo de
+                apresentação: atributo de apresentação não resolve
+                `var(...)`, e a cor pode chegar como custom property
+                animada pelo modo de cor (ver lib/demos/cores/modos.ts). */}
+            <stop offset="0%" style={{ stopColor: claro }} stopOpacity={1} />
+            <stop offset="45%" style={{ stopColor: cores.destaque }} stopOpacity={0.55} />
+            <stop offset="100%" style={{ stopColor: cores.destaque }} stopOpacity={0} />
           </radialGradient>
           {tracos.map((traco, i) => (
             <linearGradient
@@ -92,7 +96,7 @@ export function Veios({ intensidade, cores, pausado }: EfeitoProps) {
                 <stop
                   key={j}
                   offset={`${(j / (todos.length - 1)) * 100}%`}
-                  stopColor={j % 2 === 1 ? claro : cores.destaque}
+                  style={{ stopColor: j % 2 === 1 ? claro : cores.destaque }}
                   stopOpacity={alfa}
                 />
               ))}

@@ -1009,7 +1009,12 @@ export function PetshopFocinhoFeliz({ data, theme, idioma, moeda }: SkinProps) {
 
       `}</style>
 
-      <LedEdges preset={theme.led} estilo={theme.ledEstilo} />
+      <LedEdges
+        preset={theme.led}
+        estilo={theme.ledEstilo}
+        cores={theme.ledCores}
+        corBase={paleta.destaque}
+      />
 
       <IntroExperience
         fundo={paleta.acentoSecundario}

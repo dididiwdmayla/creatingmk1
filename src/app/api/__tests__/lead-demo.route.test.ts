@@ -268,6 +268,54 @@ describe("PUT /api/leads/[id]/demo", () => {
     expect(errorValor.problemas.join(" | ")).toContain("tema.auraCores");
   });
 
+  it("salva ledEstilo (a chave existia na validação mas faltava na lista de conhecidas)", async () => {
+    const ok = await put("A", { ...VALIDO, tema: { led: "marcante", ledEstilo: "moldura" } });
+    expect(ok.status).toBe(200);
+    const { lead } = await ok.json();
+    expect(lead.demo.tema).toEqual({ led: "marcante", ledEstilo: "moldura" });
+
+    const ruim = await put("A", { ...VALIDO, tema: { ledEstilo: "neon" } });
+    expect(ruim.status).toBe(400);
+    const { error } = await ruim.json();
+    expect(error.problemas.join(" | ")).toContain("tema.ledEstilo");
+  });
+
+  it("salva os modos de cor do efeito e do LED; valores inválidos → 400", async () => {
+    const ok = await put("A", {
+      ...VALIDO,
+      tema: {
+        fundoEfeito: "particulas",
+        efeitoCores: { modo: "transicao", cores: ["#ff00aa", "#00ffaa"] },
+        ledCores: { modo: "arco-iris" },
+      },
+    });
+    expect(ok.status).toBe(200);
+    const { lead } = await ok.json();
+    expect(lead.demo.tema).toEqual({
+      fundoEfeito: "particulas",
+      efeitoCores: { modo: "transicao", cores: ["#ff00aa", "#00ffaa"] },
+      ledCores: { modo: "arco-iris" },
+    });
+
+    const modoRuim = await put("A", { ...VALIDO, tema: { efeitoCores: { modo: "neon" } } });
+    expect(modoRuim.status).toBe(400);
+    expect((await modoRuim.json()).error.problemas.join(" | ")).toContain("tema.efeitoCores.modo");
+
+    const corRuim = await put("A", {
+      ...VALIDO,
+      tema: { ledCores: { modo: "fixa", cores: ["azul"] } },
+    });
+    expect(corRuim.status).toBe(400);
+    expect((await corRuim.json()).error.problemas.join(" | ")).toContain("tema.ledCores.cores[0]");
+
+    const demais = await put("A", {
+      ...VALIDO,
+      tema: { efeitoCores: { modo: "transicao", cores: ["#111111", "#222222", "#333333", "#444444"] } },
+    });
+    expect(demais.status).toBe(400);
+    expect((await demais.json()).error.problemas.join(" | ")).toContain("no máximo 3 cores");
+  });
+
   it("salva heroTitulo (fonte/escala/alinhamento) e led; valores inválidos → 400", async () => {
     const ok = await put("A", {
       ...VALIDO,

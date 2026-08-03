@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { paletaParaAura } from "@/lib/demos/efeitos/aura/cores";
-import { getEfeitoComponenteDinamico } from "@/lib/demos/efeitos/dynamicComponents";
+import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
+import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { getSkin } from "@/lib/demos/registry";
 import type { DemoData, TemaPatch, Theme } from "@/lib/demos/types";
@@ -107,12 +107,13 @@ export default function DemoPreviewPage() {
     estado.tema?.fundoEfeitoIntensidade,
     skin.nicho,
   );
-  const EfeitoFundo = efeitoFundo ? getEfeitoComponenteDinamico(efeitoFundo.efeito.id) : undefined;
   // Mesma resolução da rota pública (ver /demo/[leadId]/page.tsx#loadDemo).
-  const coresEfeito =
-    efeitoFundo?.efeito.id === "aura"
-      ? paletaParaAura(estado.theme.paleta, estado.tema?.auraCores)
-      : estado.theme.paleta;
+  const camada = resolverCamadaEfeito({
+    paleta: estado.theme.paleta,
+    efeitoId: efeitoFundo?.efeito.id,
+    efeitoCores: estado.theme.efeitoCores,
+    auraCores: estado.tema?.auraCores,
+  });
   return (
     <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
       {/* Affordance de edição: qualquer slot clicável ganha contorno no hover. */}
@@ -124,11 +125,14 @@ export default function DemoPreviewPage() {
         }
       `}</style>
       <Skin data={estado.data} theme={estado.theme} idioma={estado.idioma} moeda={estado.moeda} />
-      {EfeitoFundo && efeitoFundo && (
-        // EfeitoFundo vem de um lookup em mapa de componentes já criados
-        // (dynamicComponents.ts, module scope) — não é criado a cada render.
-        // eslint-disable-next-line react-hooks/static-components
-        <EfeitoFundo intensidade={efeitoFundo.intensidade} cores={coresEfeito} />
+      {efeitoFundo && (
+        <EfeitoCamada
+          id={efeitoFundo.efeito.id}
+          intensidade={efeitoFundo.intensidade}
+          cores={camada.cores}
+          coresCss={camada.coresCss}
+          coresAnimacao={camada.coresAnimacao}
+        />
       )}
     </div>
   );

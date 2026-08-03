@@ -126,6 +126,23 @@ describe("aplicarTema — heroTitulo e led", () => {
     expect(aplicarTema(PRESET, { led: "marcante" }).led).toBe("marcante");
     expect(aplicarTema(PRESET, { led: "piscando" as never }).led).toBe(PRESET.led);
   });
+
+  it("modos de cor do efeito e do LED passam pro tema; 'tema'/desconhecido não deixam sobra", () => {
+    const tema = aplicarTema(PRESET, {
+      efeitoCores: { modo: "transicao", cores: ["#ff0000", "#00ff00"] },
+      ledCores: { modo: "iridescente" },
+    });
+    expect(tema.efeitoCores).toEqual({ modo: "transicao", cores: ["#ff0000", "#00ff00"] });
+    expect(tema.ledCores).toEqual({ modo: "iridescente" });
+
+    // "tema" é o default: some do Theme em vez de virar um objeto vazio
+    // circulando pelo postMessage do preview.
+    expect(aplicarTema(PRESET, { efeitoCores: { modo: "tema" } }).efeitoCores).toBeUndefined();
+    expect(
+      aplicarTema(PRESET, { ledCores: { modo: "neon" as never } }).ledCores,
+    ).toBeUndefined();
+    expect(aplicarTema(PRESET, {}).efeitoCores).toBeUndefined();
+  });
 });
 
 describe("inkPara", () => {
