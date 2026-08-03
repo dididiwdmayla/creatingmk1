@@ -74,6 +74,23 @@ describe("montarPatch", () => {
     expect(patch.secoes?.agendamento).toBeUndefined();
   });
 
+  it("animacao=false entra no diff (inclusive em seção fixa); true/ausente fica fora", () => {
+    const atual = clone(BASE);
+    atual.secoes.ritual = { ...atual.secoes.ritual, animacao: false };
+    atual.secoes.hero = { ...atual.secoes.hero, animacao: false };
+    atual.secoes.filosofia = { ...atual.secoes.filosofia, animacao: true };
+    const patch = montarPatch(BASE, atual, DEFAULT_SKIN);
+    expect(patch.secoes?.ritual).toEqual({ animacao: false });
+    expect(patch.secoes?.hero).toEqual({ animacao: false });
+    // Ligada é o default — nada a persistir.
+    expect(patch.secoes?.filosofia).toBeUndefined();
+
+    const efetivo = montarDemoData(BASE, undefined, patch);
+    expect(efetivo.secoes.ritual.animacao).toBe(false);
+    expect(efetivo.secoes.hero.animacao).toBe(false);
+    expect(efetivo.secoes.filosofia.animacao).toBeUndefined();
+  });
+
   it("imagens: só os slots que apontam para longe do template", () => {
     const atual = clone(BASE);
     atual.imagens.hero = "https://storage.googleapis.com/b/demos/A/hero-1.webp";

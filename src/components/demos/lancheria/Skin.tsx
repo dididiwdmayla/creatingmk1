@@ -1,7 +1,8 @@
 import Image from "next/image";
-import { Fragment, type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 
-import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { SecaoMarcada } from "@/lib/demos/animacao/SecaoMarcada";
+import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { CategoryNav } from "./interactive/CategoryNav";
@@ -556,13 +557,20 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
         {visiveis.includes("cardapio") && <CategoryNav categorias={categorias} />}
 
         {visiveis.map((id) => {
-          const tipo = wrapperTipo(id);
-          return tipo === null ? (
-            <Fragment key={id}>{secoes[id]?.()}</Fragment>
-          ) : (
-            <SectionReveal key={id} animacao={theme.animacao} tipo={tipo}>
-              {secoes[id]?.()}
-            </SectionReveal>
+          const animada = secaoAnimada(data, id);
+          // Animação desligada nesta seção (aba Estrutura): sem wrapper de
+          // entrada nenhum — o mesmo que o nível global "nenhuma" faz.
+          const tipo = animada ? wrapperTipo(id) : null;
+          return (
+            <SecaoMarcada key={id} id={id} animada={animada}>
+              {tipo === null ? (
+                secoes[id]?.()
+              ) : (
+                <SectionReveal animacao={theme.animacao} tipo={tipo}>
+                  {secoes[id]?.()}
+                </SectionReveal>
+              )}
+            </SecaoMarcada>
           );
         })}
       </IntroExperience>

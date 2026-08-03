@@ -23,6 +23,7 @@
  *   node scripts/qa-visual.mjs --so=led        # só os estilos de LED
  *   node scripts/qa-visual.mjs --so=veios,gradiente
  *   node scripts/qa-visual.mjs --so=cores      # só os modos de cor (efeito + LED)
+ *   node scripts/qa-visual.mjs --so=secao      # animação ligada/desligada por seção
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -132,7 +133,21 @@ async function esperarServidor(url, timeoutMs = 120000) {
   throw new Error(`servidor não respondeu em ${url}`);
 }
 
-function url({ efeito, intensidade, led, ledEstilo, preset, corModo, cores, ledCorModo, ledCores }) {
+/** Seção usada nos itens de ANIMAÇÃO POR SEÇÃO (skin barbearia-editorial). */
+const SECAO_ALVO = "filosofia";
+
+function url({
+  efeito,
+  intensidade,
+  led,
+  ledEstilo,
+  preset,
+  corModo,
+  cores,
+  ledCorModo,
+  ledCores,
+  semAnim,
+}) {
   const q = new URLSearchParams({ skin: SKIN, preset, intro: "0" });
   if (efeito) q.set("efeito", efeito);
   if (intensidade !== undefined) q.set("intensidade", String(intensidade));
@@ -142,6 +157,7 @@ function url({ efeito, intensidade, led, ledEstilo, preset, corModo, cores, ledC
   if (cores) q.set("cores", cores.join(","));
   if (ledCorModo) q.set("ledCorModo", ledCorModo);
   if (ledCores) q.set("ledCores", ledCores.join(","));
+  if (semAnim) q.set("semAnim", semAnim);
   return `${BASE}/interno/demo-qa?${q}`;
 }
 
@@ -460,6 +476,62 @@ async function main() {
         }
       }
       gerados.push(await folhaDeContato(page, "Modos de cor: LED (moldura)", "cores-led", linhas));
+    }
+
+    /* ── Animação por seção: entrada com × sem ──────────────────── */
+    if (querido("secao")) {
+      const linhas = [];
+      for (const tema of TEMAS) {
+        const itens = [];
+        for (const variante of [
+          { id: "com-animacao", semAnim: undefined },
+          { id: "sem-animacao", semAnim: SECAO_ALVO },
+        ]) {
+          await page.goto(
+            url({ efeito: "nenhum", preset: tema.id, led: "desligado", semAnim: variante.semAnim }),
+            { waitUntil: "networkidle" },
+          );
+          // Rola até a seção alvo entrar na viewport: é o instante em que
+          // a entrada dispara. A captura sai logo depois,
+          // ainda dentro da janela da animação — com animação a seção está
+          // translúcida/deslocada; sem animação já está sólida no lugar.
+          const medida = await page.evaluate((alvo) => {
+            const el = document.querySelector(`[data-d-secao="${alvo}"]`);
+            if (!el) return { achou: false };
+            const topoDoc = el.getBoundingClientRect().top + window.scrollY;
+            // 0.6 da viewport: a seção fica visível na metade de baixo da
+            // captura (e não logo abaixo da dobra), então a diferença
+            // aparece na IMAGEM, não só no número medido.
+            window.scrollTo(0, topoDoc - window.innerHeight * 0.6);
+            const filho = el.firstElementChild;
+            return {
+              achou: true,
+              anim: el.getAttribute("data-d-anim"),
+              // Wrapper de entrada é um elemento a mais do motion: sem
+              // animação a seção é filha DIRETA do marcador.
+              filhoDireto: filho?.tagName,
+              opacidade: filho ? getComputedStyle(filho).opacity : null,
+            };
+          }, SECAO_ALVO);
+          await page.waitForTimeout(160);
+          const depois = await page.evaluate((alvo) => {
+            const filho = document.querySelector(`[data-d-secao="${alvo}"]`)?.firstElementChild;
+            return filho ? getComputedStyle(filho).opacity : null;
+          }, SECAO_ALVO);
+          console.log(
+            `  [secao] ${tema.rotulo} ${variante.id}: data-d-anim=${medida.anim} ` +
+              `filho=${medida.filhoDireto} opacidade ao entrar=${depois}`,
+          );
+          const png = path.join(SAIDA, `secao-${variante.id}-${tema.rotulo}${marca}.png`);
+          await page.screenshot({ path: png });
+          gerados.push(png);
+          itens.push({ rotulo: `${variante.id} · opacidade ${depois}`, png });
+        }
+        linhas.push({ rotulo: tema.rotulo, itens });
+      }
+      gerados.push(
+        await folhaDeContato(page, `Animação por seção (${SECAO_ALVO})`, "secao", linhas),
+      );
     }
 
     await browser.close();

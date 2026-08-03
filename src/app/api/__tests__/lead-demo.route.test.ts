@@ -268,6 +268,28 @@ describe("PUT /api/leads/[id]/demo", () => {
     expect(errorValor.problemas.join(" | ")).toContain("tema.auraCores");
   });
 
+  it("salva secoes.X.animacao (booleano, seção fixa inclusive); não-booleano → 400", async () => {
+    const ok = await put("A", {
+      ...VALIDO,
+      dados: { secoes: { hero: { animacao: false }, filosofia: { animacao: true } } },
+    });
+    expect(ok.status).toBe(200);
+    const { lead } = await ok.json();
+    expect(lead.demo.dados.secoes).toEqual({
+      hero: { animacao: false },
+      filosofia: { animacao: true },
+    });
+
+    const ruim = await put("A", {
+      ...VALIDO,
+      dados: { secoes: { hero: { animacao: "sim" } } },
+    });
+    expect(ruim.status).toBe(400);
+    expect((await ruim.json()).error.problemas.join(" | ")).toContain(
+      "dados.secoes.hero.animacao",
+    );
+  });
+
   it("salva ledEstilo (a chave existia na validação mas faltava na lista de conhecidas)", async () => {
     const ok = await put("A", { ...VALIDO, tema: { led: "marcante", ledEstilo: "moldura" } });
     expect(ok.status).toBe(200);

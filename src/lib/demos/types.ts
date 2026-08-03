@@ -112,6 +112,23 @@ export interface DemoSecao {
   alinhamento?: Alinhamento;
   /** Só vale se a skin declara entradaOptions para a seção (ver SkinSecaoDef). */
   animacaoEntrada?: AnimacaoEntrada;
+  /**
+   * Animação LIGADA nesta seção? Ausente/`true` = ligada (o que toda demo
+   * já publicada tem). `false` desliga, nesta seção, as duas coisas que
+   * se movem sozinhas:
+   *
+   *   - a entrada de seção no scroll (o wrapper de reveal e o typewriter
+   *     nem chegam a ser montados, como em `Theme.animacao: "nenhuma"`);
+   *   - a camada decorativa (efeito de fundo e LED), que some por
+   *     INTERPOLAÇÃO conforme a seção entra e sai da viewport — nunca de
+   *     uma vez, e sem reiniciar o motor do efeito (ver
+   *     `lib/demos/animacao/cobertura.ts`).
+   *
+   * É ESTRUTURA, não tema (vive em `dados.secoes.{id}`, ao lado de
+   * `oculta`/`alinhamento`/`animacaoEntrada`), e vale inclusive para as
+   * seções fixas da skin — ao contrário de ocultar/reordenar.
+   */
+  animacao?: boolean;
 }
 
 /**

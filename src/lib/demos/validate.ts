@@ -234,10 +234,15 @@ function validaDados(
             );
           }
         }
+        // Vale para QUALQUER seção da skin, fixa inclusive (ao contrário
+        // de `oculta`/ordem) — ver DemoSecao.animacao.
+        if (secao.animacao !== undefined && typeof secao.animacao !== "boolean") {
+          problemas.push(`dados.secoes.${nome}.animacao deve ser booleano`);
+        }
         for (const chave of Object.keys(secao)) {
           if (
             !(CAMPOS_SECAO as readonly string[]).includes(chave) &&
-            !["itens", "oculta", "alinhamento", "animacaoEntrada"].includes(chave)
+            !["itens", "oculta", "alinhamento", "animacaoEntrada", "animacao"].includes(chave)
           ) {
             problemas.push(`dados.secoes.${nome}.${chave}: chave desconhecida`);
           }

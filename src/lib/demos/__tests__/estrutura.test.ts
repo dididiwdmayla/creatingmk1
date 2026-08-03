@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ordemEfetiva, secoesVisiveis } from "../estrutura";
+import { ordemEfetiva, secaoAnimada, secoesVisiveis } from "../estrutura";
 import type { DemoData, SkinSecaoDef } from "../types";
 
 const SECOES: SkinSecaoDef[] = [
@@ -56,5 +56,25 @@ describe("secoesVisiveis", () => {
       secoes: { a: { oculta: true } },
     });
     expect(secoesVisiveis(SECOES, d)).toEqual(["hero", "c", "b"]);
+  });
+});
+
+describe("secaoAnimada", () => {
+  it("ausente = ligada (o que toda demo publicada antes do controle tem)", () => {
+    expect(secaoAnimada(data({}), "a")).toBe(true);
+    expect(secaoAnimada(data({ secoes: { a: { titulo: "X" } } }), "a")).toBe(true);
+    expect(secaoAnimada(data({}), "secao-que-nao-existe")).toBe(true);
+  });
+
+  it("só o false desliga — e vale pra seção fixa também", () => {
+    const d = data({ secoes: { a: { animacao: false }, hero: { animacao: false } } });
+    expect(secaoAnimada(d, "a")).toBe(false);
+    expect(secaoAnimada(d, "hero")).toBe(false);
+    expect(secaoAnimada(d, "b")).toBe(true);
+  });
+
+  it("desligar animação não esconde a seção (é outro controle)", () => {
+    const d = data({ secoes: { a: { animacao: false } } });
+    expect(secoesVisiveis(SECOES, d)).toContain("a");
   });
 });

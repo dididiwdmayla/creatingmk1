@@ -39,6 +39,7 @@ import { demoCoreFontsClassName } from "@/app/demo/fonts";
  *   cores=#aabbcc,#...   cores do modo do efeito (1 em "fixa", 2-3 em "transicao")
  *   ledCorModo=<modo>    idem para o LED
  *   ledCores=#aabbcc,#...
+ *   semAnim=id1,id2      seções com a animação DESLIGADA (DemoSecao.animacao)
  *   intro=0              desliga a splash de abertura (default nas capturas)
  */
 
@@ -106,10 +107,23 @@ export default async function DemoQaPage({ searchParams }: Props) {
     auraCores: undefined,
   });
 
+  // Seções com animação desligada (item "Animação por seção"): mesmo
+  // caminho do editor — um patch em `dados.secoes.{id}.animacao`.
+  const semAnim = (texto(query.semAnim) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const dados = semAnim.length
+    ? {
+        ...skin.demoDataExemplo,
+        secoes: semAnim.reduce(
+          (acc, id) => ({ ...acc, [id]: { ...acc[id], animacao: false } }),
+          skin.demoDataExemplo.secoes,
+        ),
+      }
+    : skin.demoDataExemplo;
+
   const Skin = skin.componente;
   return (
     <div className={demoCoreFontsClassName}>
-      <Skin data={skin.demoDataExemplo} theme={theme} />
+      <Skin data={dados} theme={theme} />
       {efeitoFundo && (
         // Sibling da skin e resolvido por EfeitoCamada — exatamente como
         // /demo/[leadId] faz (ver o comentário lá sobre nunca chamar

@@ -30,6 +30,15 @@ export function secaoVisivel(def: SkinSecaoDef, data: DemoData): boolean {
   return data.secoes[def.id]?.oculta !== true;
 }
 
+/**
+ * Animação ligada nesta seção? (`DemoSecao.animacao` — ausente = ligada,
+ * que é o comportamento de toda demo publicada antes deste controle.)
+ * Vale para seção fixa também, ao contrário de ocultar/reordenar.
+ */
+export function secaoAnimada(data: DemoData, id: string): boolean {
+  return data.secoes[id]?.animacao !== false;
+}
+
 /** Ids das seções a renderizar, já ordenados e sem as ocultas. */
 export function secoesVisiveis(secoes: SkinSecaoDef[], data: DemoData): string[] {
   const porId = new Map(secoes.map((secao) => [secao.id, secao]));

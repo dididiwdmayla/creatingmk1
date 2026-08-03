@@ -1,6 +1,6 @@
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
-import { secoesVisiveis } from "@/lib/demos/estrutura";
+import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { CarFilterGrid } from "./interactive/CarFilterGrid";
 import { FooterEgg } from "./interactive/FooterEgg";
@@ -559,7 +559,10 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
         {visiveis
           .filter((id) => id !== "hero")
           .map((id) => {
-            const tipo = wrapperTipo(id);
+            // Animação desligada nesta seção (aba Estrutura): sem wrapper de
+            // entrada nenhum — o mesmo que o nível global "nenhuma" faz.
+            const animada = secaoAnimada(data, id);
+            const tipo = animada ? wrapperTipo(id) : null;
             const corTema = id === "avaliacao" ? paleta.destaque : id === "vantagens" || id === "numeros" ? paleta.fundoAlt : paleta.fundo;
             const conteudo =
               tipo === null ? (
@@ -570,7 +573,9 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                 </SectionReveal>
               );
             return (
-              <div key={id} data-themec={corTema}>
+              // A div que esta skin já tinha por seção (data-themec) é a
+              // que recebe o marcador — sem envelope extra.
+              <div key={id} data-themec={corTema} data-d-secao={id} data-d-anim={animada ? "1" : "0"}>
                 {conteudo}
                 {id === "depoimentos" && (
                   <div aria-hidden="true" className="h-[5px] border-b-[6px] border-t-2" style={{ borderColor: "var(--d-accent)" }} />

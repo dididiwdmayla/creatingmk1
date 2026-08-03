@@ -7,7 +7,7 @@ import { useRef, type ChangeEvent, type ReactNode } from "react";
 import { FUMACA_COLORIDA, resolverCoresAura } from "@/lib/demos/efeitos/aura/cores";
 import { EFEITOS, getEfeito, intensidadePadrao } from "@/lib/demos/efeitos/registry";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
-import { ordemEfetiva } from "@/lib/demos/estrutura";
+import { ordemEfetiva, secaoAnimada } from "@/lib/demos/estrutura";
 import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
 import { LED_ESTILOS } from "@/lib/demos/led/registry";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
@@ -1476,6 +1476,38 @@ const ENTRADA_ROTULO: Record<AnimacaoEntrada, string> = {
 };
 
 /**
+ * Liga/desliga a animação de UMA seção (`DemoSecao.animacao`). Aparece
+ * tanto nas seções arrastáveis quanto nas fixas — ao contrário de
+ * ocultar/reordenar, animação faz sentido em qualquer seção, o hero
+ * inclusive. Desligada, a seção não anima na entrada e a camada
+ * decorativa (efeito de fundo e LED) se apaga por interpolação enquanto
+ * ela ocupa a viewport (ver lib/demos/animacao/cobertura.ts).
+ */
+function BotaoAnimacaoSecao({
+  animada,
+  onToggle,
+}: {
+  animada: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={animada}
+      title="Animação de entrada e efeito de fundo nesta seção"
+      className={`rounded border px-2 py-0.5 text-[11px] ${
+        animada
+          ? "border-accent text-foreground"
+          : "border-line text-ink-muted hover:border-accent/50"
+      }`}
+    >
+      {animada ? "Animação ligada" : "Animação desligada"}
+    </button>
+  );
+}
+
+/**
  * Uma linha arrastável da aba Estrutura. O drag só inicia pelo handle ⠿
  * (dragListener=false + dragControls.start no pointerdown do handle) —
  * o corpo do item continua tocável normalmente (abrir/ocultar, alinhar)
@@ -1487,9 +1519,11 @@ function ItemEstrutura({
   oculta,
   alinhamento,
   entrada,
+  animada,
   onOcultar,
   onAlinhar,
   onEntrada,
+  onAnimacao,
 }: {
   id: string;
   def: {
@@ -1500,9 +1534,11 @@ function ItemEstrutura({
   oculta: boolean;
   alinhamento: Alinhamento | undefined;
   entrada: AnimacaoEntrada | undefined;
+  animada: boolean;
   onOcultar: () => void;
   onAlinhar: (opcao: Alinhamento) => void;
   onEntrada: (opcao: AnimacaoEntrada | undefined) => void;
+  onAnimacao: () => void;
 }) {
   const controls = useDragControls();
 
@@ -1552,7 +1588,13 @@ function ItemEstrutura({
           ))}
         </div>
       )}
-      {def.entradaOptions && !oculta && (
+      {!oculta && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-ink-muted">Animação</span>
+          <BotaoAnimacaoSecao animada={animada} onToggle={onAnimacao} />
+        </div>
+      )}
+      {def.entradaOptions && !oculta && animada && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] uppercase tracking-wide text-ink-muted">Entrada</span>
           <button
@@ -1613,7 +1655,9 @@ export function PainelEstrutura({
     <div className="flex flex-col gap-3">
       <p className="text-[11px] text-ink-muted">
         Arraste para reordenar. Seções ocultas continuam editáveis e podem voltar quando
-        quiser. O template segue responsivo — sem posicionamento livre.
+        quiser. Desligar a animação de uma seção tira a entrada no scroll e apaga o efeito
+        de fundo (com transição suave) enquanto ela estiver na tela. O template segue
+        responsivo — sem posicionamento livre.
       </p>
 
       {skin.secoes
@@ -1626,6 +1670,13 @@ export function PainelEstrutura({
             <span aria-hidden>◈</span>
             {def.nome}
             <span className="ml-auto text-[10px] uppercase tracking-wide">fixa</span>
+            {/* Fixa não reordena nem oculta, mas anima — e pode deixar de animar. */}
+            <BotaoAnimacaoSecao
+              animada={secaoAnimada(dados, def.id)}
+              onToggle={() =>
+                setSecao(def.id, { animacao: secaoAnimada(dados, def.id) ? false : undefined })
+              }
+            />
           </div>
         ))}
 
@@ -1649,9 +1700,13 @@ export function PainelEstrutura({
               oculta={oculta}
               alinhamento={alinhamento}
               entrada={secao?.animacaoEntrada}
+              animada={secaoAnimada(dados, id)}
               onOcultar={() => setSecao(id, { oculta: oculta ? undefined : true })}
               onAlinhar={(opcao) => setSecao(id, { alinhamento: opcao })}
               onEntrada={(opcao) => setSecao(id, { animacaoEntrada: opcao })}
+              onAnimacao={() =>
+                setSecao(id, { animacao: secaoAnimada(dados, id) ? false : undefined })
+              }
             />
           );
         })}
