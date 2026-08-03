@@ -1396,6 +1396,47 @@ Medição: um `requestAnimationFrame` contando quadros DENTRO do iframe do previ
   - **conflito entre as escritas por JS e o re-render do React** (a hipótese para o LED): marcadas as MESMAS propriedades que o `LedEdges`/`EfeitoCamada` escrevem (`--d-led-scroll`, `opacity`, `--d-efeito-fade`) mais a classe `.d-led-pulse`, e forçados **40 re-renders** da árvore inteira digitando no painel — **tudo sobreviveu**, valor por valor, e o nó do LED nem foi recriado. Não há conflito a resolver: o `style` que o React controla nesse nó não contém nenhuma dessas propriedades, e o diff de `style` do React só escreve chave cujo VALOR mudou (objeto novo a cada render com os mesmos valores não gera escrita nenhuma).
   - **LED piscando**: a série de opacidade do LED ao longo de 31 posições de scroll, com duas seções de animação desligada e digitando entre cada passo, é **idêntica byte a byte** entre o efeito lento (`gradiente`) e o rápido (`grao`): 1 → 0,97 → 0,30 → 0 (…) → 0,05 → 0,77 → 1, com a mesma rampa na volta e nenhum salto fora dela. As escritas por JS (`--d-led-scroll`, `opacity`) não são desfeitas por re-render do React — o `style` que o React controla nesse nó não contém nenhuma das duas, e o diff de `style` do React só escreve chave que mudou de valor. O que a pessoa via era a rampa acontecendo a 9 fps: com o quadro restaurado, a mesma rampa passa a ter ~7× mais passos intermediários.
 
+### A aura no celular: o relato, as duas hipóteses e o que a medição achou (`scripts/qa-aura.mjs`)
+
+**Relato**: no celular, o efeito `aura` trava e faz elementos da página ficarem brancos e voltarem ao normal; piora nos modos iridescente e arco-íris; o `ondas` está fluido.
+
+O laço que responde a isso é `scripts/qa-aura.mjs` — irmão do `qa-visual.mjs`, mas focado em ATRIBUIR em vez de reprovar. Condição comum: viewport 390×844 com `deviceScaleFactor: 2`, CPU limitada em 4× via CDP, intensidade 3, LED desligado, skin `barbearia-editorial`, e a página **rolando de cima a baixo a 1800 px/s** durante toda a janela de medição (a aura no celular tem o alvo das esferas preso ao progresso de scroll — página parada nem exercita o caminho do relato). Mediana de 5 cargas independentes por célula.
+
+**1. fps por modo de cor, rolando a página inteira** — e o primeiro resultado é um resultado NEGATIVO:
+
+| alvo | fps (mediana) | pior quadro | quadros >50ms |
+|---|---|---|---|
+| `nenhum` (referência) | 60,0 | 17ms | 0 |
+| `aura` · tema | 60,0 | 17ms | 0 |
+| `aura` · fixa | 60,0 | 17ms | 0 |
+| `aura` · transicao | 60,0 | 17ms | 0 |
+| `aura` · iridescente | 59,6 | 33ms | 0 |
+| `aura` · arco-iris | 59,6 | 33ms | 0 |
+
+Nada trava aqui. Isso não desmente o relato — **desmente o instrumento**, e essa é a descoberta mais importante da rodada: `Emulation.setCPUThrottlingRate` limita a thread PRINCIPAL, e a rasterização acontece em outra (`--num-raster-threads=2` no renderer, mais o processo de GPU). Custo de PINTURA — justamente o que derruba um aparelho real — é invisível pro contador de `requestAnimationFrame`. O piso de 45 fps aprovou, cinco vezes seguidas, um efeito quebrado.
+
+**2. A medição que enxerga**: `LayerTree.layerPainted` via CDP, somando a área de cada evento — quantos megapixels o navegador REPINTA por segundo durante a rolagem. É trabalho, não velocidade da máquina:
+
+| estado | pinturas/s | Mpx/s repintados |
+|---|---|---|
+| `nenhum` (referência) | 100 | **11,2** |
+| `aura` · tema | 101 | **10,5** |
+| `aura` · iridescente | 220 | **83,6** |
+| `aura` · arco-iris | 220 | **82,6** |
+
+Oito vezes a superfície da referência, ~1,4 Mpx por quadro só de decoração — e exatamente nos dois modos que o relato aponta. Com a cor do tema a aura custa ZERO acima da página (10,5 contra 11,2). O `recalc` de estilo acompanha: 169ms no tema contra 557ms no arco-íris, dos 5616ms da janela.
+
+**A causa**: cada esfera era uma `<div>` com `background: radial-gradient(...)` cujas paradas eram `color-mix(in srgb, var(--d-efeito-c1) X%, transparent)`. Nos modos animados essa custom property muda a 60 Hz, e cada mudança REGENERA a imagem de gradiente e repinta o elemento — que tem ~2× a viewport de lado, duas vezes. É o corolário da "Regra de superfície" que já tinha reprovado a `filotaxia` (93 spans com gradiente na cor animada), aqui com 2 superfícies gigantes no lugar de 93 pequenas.
+
+**As duas hipóteses do relato, as duas testadas com medição:**
+
+- **(b) "as esferas desfocadas voltaram a animar transformação junto com o desfoque" — DESCARTADA.** Estilo COMPUTADO lido no navegador real, nas duas esferas: `filter: none`, `backdrop-filter: none`, `will-change: transform`, `opacity: 0.58`, 810×810px (1,99× a viewport) e 743×743px (1,68×). O `transform` muda, sim — em 29 de 29 quadros consecutivos —, mas não há desfoque nenhum pra re-rasterizar junto. O defeito histórico não voltou.
+- **(a) "o modo de mistura estoura em branco quando a cor passa por matizes de alta luminância" — NÃO CONFIRMADA como estouro, e o motivo é instrutivo.** O ciclo de cor foi congelado em 12 fases (WAAPI), nos dois presets, com captura por fase e contagem de pixels: **0,00% de pixels quase-brancos acima da referência em todas as 48 fases medidas**. Mais: no preset CLARO o efeito ABAIXA a luminância média da viewport (0,806 sem efeito → 0,650 com), o oposto de "soma luz". A explicação é que o `mix-blend-mode: screen` **nunca chegou a misturar com a página**: a raiz do efeito é `position: fixed; z-index: 40`, que é um stacking context, e stacking context ISOLA blending — as duas esferas faziam `screen` entre si e o grupo era composto normalmente por cima. (O comentário em `Aura.tsx` e a linha correspondente em "Cobertura de viewport" afirmavam o contrário; estavam errados.)
+  - **O que a cor animada FAZ de dano visual, medido**: lava o contraste. No preset escuro, arco-íris, a luminância média da viewport sobe de 0,031 (sem efeito) pra 0,054 e o desvio da luminância — a medida de quanto a tela ainda tem claro e escuro pra distinguir — cai de 0,106 pra 0,088. O pico de luminância da cor chegava a **0,55** no arco-íris. É esse pico que o teto de luminância corta (ver "Modos de cor").
+- **O momento em que os elementos ficam brancos NÃO foi capturado nesta máquina.** Foi procurado do jeito certo: `Page.startScreencast` entrega o quadro COMPOSTO (o `page.screenshot` força uma rasterização completa antes de capturar e por construção nunca mostraria tile em branco), 337 a 360 quadros por rolagem, nos dois presets, decodificados um a um — **0,000% de branco no pior quadro de todos os estados**. Registrado como o que é: um resultado negativo num ambiente que rasteriza fora da thread limitada, não uma refutação do relato. A leitura que os números sustentam é que o branco é o outro lado da mesma moeda dos 83 Mpx/s: área que o compositor precisa apresentar antes de a rasterização ter terminado aparece como tile ainda não pintado — e num tema claro, um tile não pintado é indistinguível de "o elemento ficou branco e voltou ao normal". A correção ataca a causa medida; o sintoma não medido só some junto.
+
+**Depois da correção** (mesma condição, mesmo script): a repintura do modo arco-íris cai de 220 pinturas/s para 120,7 — e o excedente que sobra são os dois bitmaps de 256×256 sendo redesenhados a 10 Hz, não superfície de viewport. O pico de luminância da cor cai de 0,55 para 0,438 (teto em 0,45). E o visual fica: diferença média de **1,0 a 2,0/255** (máx 9) entre as folhas `_folha-efeito-aura-{antes,depois}.png`, nas 6 combinações de preset × intensidade.
+
 ### fps em celular com CPU limitada — o piso de aprovação do registro (`--so=fps`)
 
 A medição acima (editor, desktop) achou o defeito de UMA rodada. Esta é a que **reprova**: `node scripts/qa-visual.mjs --so=fps` percorre TODOS os efeitos na pior condição que uma demo publicada consegue montar num aparelho modesto e imprime a tabela. **Efeito abaixo de 45 fps não passa.**
