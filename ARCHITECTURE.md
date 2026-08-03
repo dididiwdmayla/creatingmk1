@@ -10,12 +10,13 @@ Web app pessoal de prospecção de leads locais para web designer freelancer. Mu
 2. **Todo acesso ao Firestore é server-side** via `firebase-admin` dentro de route handlers. O cliente nunca fala com o Firestore diretamente — as security rules negam tudo (`allow read, write: if false`). Como o app é um time minúsculo sobre uma base compartilhada, isso elimina a necessidade de rules complexas e mantém um único ponto de entrada auditável para dados e custos.
 3. **Todo request ao Google passa antes pelo módulo de custos** (`src/lib/costs`). Sem reserva de cota, sem request. O módulo é a única porta de saída para a API paga.
 4. **Enriquecimento é sob demanda, nunca em lote.** Place Details só é chamado quando o usuário abre a ficha de um lead e pede o enriquecimento.
+5. **Toda alteração VISUAL passa por raciocínio estendido + o laço de captura de tela.** Mudou pixel na tela (efeito, LED, transição, animação, layout de skin, painel do editor)? Duas coisas são obrigatórias, nesta ordem: (a) o trabalho é feito com **modelo de raciocínio**, porque acabamento visual é decidido por análise de trade-off (aresta, opacidade, distância de transição, custo por quadro), não por autocompletar; e (b) a verificação é o **laço de captura** (`scripts/qa-visual.mjs` + a rota-harness `/interno/demo-qa`), com as imagens de fato ABERTAS e olhadas — nenhum item visual é dado como pronto sem a captura vista, e o commit cita qual arquivo de captura confirma cada item. Teste unitário não julga "aresta dura", "faixa escura atravessando a tela" nem "some de uma vez"; ele serve pra travar a regra DEPOIS que a captura mostrou o problema. Quando um defeito é sutil, a captura vem acompanhada de **medição** (brilho por coluna, matiz médio da diferença, opacidade computada por posição de scroll, relógio das animações) — foi assim que apareceram a faixa vertical do LED dissipado, a colisão do `data-d-anim` e o piso de 0.50 da cobertura, todos invisíveis numa leitura de código. Ver "Verificação da UI".
 
 ## Estrutura de pastas
 
 ```
 scripts/
-  qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema e LED×nível×tema, salva PNG + folha de contato (ver "Verificação da UI")
+  qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato (ver "Verificação da UI")
 src/
   proxy.ts                          # ✅ proteção por sessão assinada (Next 16: proxy.ts, ex-middleware)
   app/
@@ -194,8 +195,20 @@ src/
         faiscas/estilo.ts            #    ✅ reinterpreta pontosParticulas como brasas de vida curta (tamanho/núcleo contínuos) + a justificativa da exceção ao teto de 6%
         varredura-de-luz/VarreduraDeLuz.tsx # ✅ brilho diagonal atravessando a viewport periodicamente (translateX), branco+destaque via color-mix + screen
         varredura-de-luz/estilo.ts   #    ✅ largura/opacidade (teto 6%)/duração do ciclo por intensidade — testável sem DOM
-        __tests__/registry.test.ts  #    contrato: campos obrigatórios, ids únicos, intensidade 0 não renderiza nada, intensidadePadrao por nicho
+        camada.ts                    #    ✅ PURO: cores da camada (modo de cor ← auraCores ← paleta) — a MESMA função na rota pública, no preview e no harness
+        EfeitoCamada.tsx             #    ✅ client: envolve o efeito com o <style> do modo de cor e o --d-efeito-fade por seção; div sem position/opacity (stacking context mudaria o blend)
+        __tests__/registry.test.ts  #    contrato: campos obrigatórios, ids únicos, intensidade 0 não renderiza nada, raiz consumindo --d-efeito-fade, intensidadePadrao por nicho
+        __tests__/camada.test.ts    #    precedência modo de cor × auraCores × paleta, e queda pro tema quando o modo não resolve
         __tests__/fita.test.ts      #    afilamento das pontas, teto de espessura, ondulação assimétrica e determinismo do gerador de fita
+      animacao/
+        SecaoMarcada.tsx           # ✅ marcador data-d-secao/data-d-secao-anim em volta de cada seção (elo entre estrutura e camada decorativa)
+        cobertura.ts               # ✅ PURO: cobertura animada da viewport (núcleo cosseno na banda central) — a transição do efeito/LED
+        medirCobertura.ts          # ✅ leitura no DOM + hook (scroll/resize throttled por rAF, escreve direto no DOM)
+        __tests__/cobertura.test.ts #    monotonia, suavidade, distância de meia viewport, região neutra e o piso que travava em 0.50
+      cores/
+        hsl.ts                     # ✅ PURO: hex → HSL e deslocamento de matiz (modos iridescente/arco-íris)
+        modos.ts                   # ✅ PURO: os 5 modos de cor → cores + @property/@keyframes (ver "Modos de cor")
+        __tests__/{hsl,modos}.test.ts #  conversão/limites e os quadros gerados por modo (rotação, ±16°, volta de 360°, queda pro tema)
       led/                           # ✅ registro de ESTILOS de borda LED (camada de micro-interação Theme.led/ledEstilo)
         types.ts                    #    LedEstiloDefinition (id/nome/nichosRecomendados) — metadado puro
         registry.ts                 #    LED_ESTILOS: barra/dissipado/cantos/moldura + LED_ESTILO_PADRAO ("barra") + getLedEstilo(id)
@@ -855,9 +868,9 @@ Prévia de site personalizada por lead, servida pelo próprio Radar em **`/demo/
 
 Contratos centrais (`src/lib/demos/types.ts`):
 
-- **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição, + `categoria`/`destaques[]` opcionais — ex.: filtro e chips do catálogo de veículos da skin de multimarcas), `depoimentos[]` (autor/texto/nota, + `contexto` opcional — segunda linha curta sob o autor, ex.: "Toyota Hilux SRX 2021"), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes), `imagens` (caminho por slot), `videos` (opcional — URL por slot de **vídeo-no-título**, ver seção própria) e a **estrutura editável**: `ordemSecoes` (ordem das seções não-fixas) e, por seção, `oculta` e `alinhamento`.
+- **`DemoData`** — slots de conteúdo: nome, slogan, endereço, telefone, whatsapp, instagram, cidade, horários, `servicos[]` (nome/preço/descrição, + `categoria`/`destaques[]` opcionais — ex.: filtro e chips do catálogo de veículos da skin de multimarcas), `depoimentos[]` (autor/texto/nota, + `contexto` opcional — segunda linha curta sob o autor, ex.: "Toyota Hilux SRX 2021"), `secoes` (textos por seção, chaves definidas pela skin — cada `DemoSecao` tem `rotulo/titulo/texto/cta/ctaSecundaria/itens`, e cada `DemoItem` tem `titulo/subtitulo/detalhe/texto`, útil quando uma seção precisa de duas linhas de legenda com pesos visuais diferentes), `imagens` (caminho por slot), `videos` (opcional — URL por slot de **vídeo-no-título**, ver seção própria) e a **estrutura editável**: `ordemSecoes` (ordem das seções não-fixas) e, por seção, `oculta`, `alinhamento` e `animacao` (liga/desliga a animação DAQUELA seção — ver "Animação por seção" abaixo).
 - **`Theme`** — tokens visuais: `paleta` (fundo/alt/elevado, destaque + ink, texto/suave, borda, e dois acentos raros `acentoSecundario`/`acentoTerciario` para detalhes decorativos que não seguem o acento principal), `fontes` (display/corpo/mono/serif/decorativa/**citacao**/**destaque** como valores CSS prontos — vars `--font-demo-*` carregadas via `next/font` em `src/app/demo/fonts/`), `raio`, `densidade` (compacta/confortável/arejada → espaçamento vertical das seções), `animacao` (`nenhuma`/`sutil`/`marcante` → intensidade de entrada de seção, hover e transição; ver "Animação" abaixo), as **micro-interações**: `intro` (splash de abertura ligada?), `hover` (`lift`/`zoom`/`brilho`), `clique` (`nenhum`/`pressao`/`pulso`), `fundoEfeito` (`nenhum`/`gradiente`/`particulas`/`veios`/`filotaxia`/`geometrico-pulsante`/`faiscas`/`varredura-de-luz`), `led` (`desligado`/`sutil`/`marcante` — o NÍVEL) e `ledEstilo` (`barra`/`dissipado`/`cantos`/`moldura` — o ESTILO visual, independente do nível; ver "Micro-interações" abaixo), e `heroTitulo` (`{ fonte, escala, alinhamento }` — estilo do título principal, ver "Título hero" abaixo; o **texto** continua em `dados.secoes.hero.titulo`/`dados.nome`, que é conteúdo, não tema).
-- **`TemaPatch`** (`LeadDemo.tema`) — ajustes por cima do preset: `fonteDisplay`/`fonteCorpo` (ids da **lista curada** em `fontes.ts`, ~16 fontes via `next/font`, cada uma com os papéis onde funciona — só as fontes que são default de algum preset são carregadas sempre; as demais entram **sob demanda**, via `import()` dinâmico, só quando o editor escolhe uma delas — ver `src/app/demo/fonts/registry.ts`), `destaque` (cor primária hex; `destaqueInk` é **recalculado por contraste** em `tema.ts`), `raio` (um de `TEMA_RAIOS`), `densidade`, `animacao`, `intro`, `hover`, `clique`, `fundoEfeito` (id de um efeito do **registro de efeitos**, `src/lib/demos/efeitos/registry.ts`, ou `"nenhum"`), `fundoEfeitoIntensidade` (0-3; ausente = default do nicho recomendado do efeito, ver `intensidadePadrao`), `auraCores` (cores do efeito "aura" — ver "Cor da aura" logo abaixo de "Efeitos visuais"), `led` e `heroTitulo` (`{ fonte?, escala?, alinhamento? }`, todos opcionais). `aplicarTema(preset, patch, heroEscalaLimites?)` é puro e usado pela rota pública E pelo preview — o editor nunca mostra algo diferente do publicado; o 3º argumento (default de `tema.ts` se omitido) recorta `heroTitulo.escala` aos limites da skin. `aplicarTema` só resolve o **id** de `fundoEfeito` (contra o registro de efeitos); a intensidade efetiva é resolvida à parte por `resolverEfeitoFundo` (ver "Efeitos visuais" abaixo), que já recebe o patch bruto — não faz parte do `Theme` resolvido, já que depende do nicho da skin, não do preset.
+- **`TemaPatch`** (`LeadDemo.tema`) — ajustes por cima do preset: `fonteDisplay`/`fonteCorpo` (ids da **lista curada** em `fontes.ts`, ~16 fontes via `next/font`, cada uma com os papéis onde funciona — só as fontes que são default de algum preset são carregadas sempre; as demais entram **sob demanda**, via `import()` dinâmico, só quando o editor escolhe uma delas — ver `src/app/demo/fonts/registry.ts`), `destaque` (cor primária hex; `destaqueInk` é **recalculado por contraste** em `tema.ts`), `raio` (um de `TEMA_RAIOS`), `densidade`, `animacao`, `intro`, `hover`, `clique`, `fundoEfeito` (id de um efeito do **registro de efeitos**, `src/lib/demos/efeitos/registry.ts`, ou `"nenhum"`), `fundoEfeitoIntensidade` (0-3; ausente = default do nicho recomendado do efeito, ver `intensidadePadrao`), `auraCores` (cores do efeito "aura" — ver "Cor da aura" logo abaixo de "Efeitos visuais"), `efeitoCores`/`ledCores` (**modo de cor** da camada decorativa — ver "Modos de cor" abaixo), `led`, `ledEstilo` e `heroTitulo` (`{ fonte?, escala?, alinhamento? }`, todos opcionais). `aplicarTema(preset, patch, heroEscalaLimites?)` é puro e usado pela rota pública E pelo preview — o editor nunca mostra algo diferente do publicado; o 3º argumento (default de `tema.ts` se omitido) recorta `heroTitulo.escala` aos limites da skin. `aplicarTema` só resolve o **id** de `fundoEfeito` (contra o registro de efeitos); a intensidade efetiva é resolvida à parte por `resolverEfeitoFundo` (ver "Efeitos visuais" abaixo), que já recebe o patch bruto — não faz parte do `Theme` resolvido, já que depende do nicho da skin, não do preset.
 - **`SkinDefinition`** — entrada do registro: `{ id, nicho, nome, componente, themeDefault, themePresets, demoDataExemplo, secoes, heroEscalaLimites, thumbnail, videoSlots? }`. **`secoes`** é o contrato do editor: lista ordenada de `SkinSecaoDef` (`{ id, nome, fixa?, alignOptions?, entradaOptions? }`) — `fixa` não reordena nem oculta (ex.: hero); `alignOptions` diz onde a skin aceita alinhamento (validado no PUT; a primeira opção é o natural da skin); `entradaOptions` diz quais animações de entrada por seção a skin aceita ali (validado no PUT; ausente = sem seletor). `heroEscalaLimites` (`{ min, max }`) delimita o slider de tamanho do título hero no editor. `thumbnail` (caminho local em `/public`) alimenta o passo de escolha de skin. `videoSlots` (opcional, **opt-in por skin**) lista os slots de `dados.videos` que a skin suporta — ausente/vazio = a skin não oferece vídeo-no-título. Sem posicionamento livre por pixel: o template continua responsivo.
 
 Regras do sistema:
@@ -897,6 +910,128 @@ Opcionais, escolhidas na aba Tema, todas CSS puro (transform/opacity/box-shadow 
   - **`moldura`** — perímetro completo (4 lados fixos), cada um uma banda estreita (24/36px) com a mesma queda perpendicular: `--d-led-scroll` (0–1) é dividido em 4 quartos, um por lado (topo → direita → baixo → esquerda, via `calc()`/`clamp()` em `--d-led-perfil-q1..q4`) — o ponto mais brilhante viaja ao redor do frame conforme a página inteira é rolada, sem `@keyframes`/JS extra nenhum. A máscara apaga as pontas de cada lado, então os cantos não fecham num contorno contínuo (era isso que fazia o estilo ler como retângulo desenhado por cima da página).
   - Todo estilo respeita os mesmos 3 níveis (`led`) e o mesmo vínculo de scroll/clique — só a pintura CSS muda. Cada estilo declara `nichosRecomendados` (ids de `SkinDefinition.nicho`), mesmo padrão do registro de efeitos.
 
+### Modos de cor da camada decorativa (`src/lib/demos/cores`)
+
+Cinco modos de cor, aplicáveis a **qualquer** efeito do registro e a
+**qualquer** estilo de LED — não é um controle por efeito. Persistidos em
+`TemaPatch.efeitoCores` e `TemaPatch.ledCores` (namespaces separados: o
+efeito pode estar num modo e o LED em outro) e resolvidos por `aplicarTema`
+para `Theme.efeitoCores`/`Theme.ledCores`:
+
+- **`tema`** (default e ausência de valor) — deriva da paleta, exatamente
+  como antes deste controle existir. Nenhuma demo publicada muda.
+- **`fixa`** — uma cor escolhida ocupa os três papéis de cor, estática.
+- **`transicao`** — 2 ou 3 cores escolhidas girando LENTAMENTE entre os
+  papéis (14s por cor: 28s com duas, 42s com três).
+- **`iridescente`** — as cores DO TEMA com o matiz deslizando ±16° em ciclo
+  de 20s. A paleta continua reconhecível; é o modo discreto.
+- **`arco-iris`** — percurso completo de matiz (0→360° em passos de 45°,
+  28s) com a saturação elevada (piso de 62%). O modo deliberadamente
+  chamativo.
+
+**Por que nenhum efeito precisou aprender o que é modo de cor**: um efeito
+já recebe `cores: ThemePaleta` como *strings CSS* que ele interpola em
+`background`/`stop-color`, e o LED já lê `var(--d-accent)` do DOM. Basta
+entregar, no lugar do hex do tema, uma referência a uma custom property
+ANIMADA — `var(--d-efeito-c1, <cor do tema>)` — e declará-la com
+`@property … syntax:"<color>"`. É o registro que permite **interpolar**
+custom property entre quadros de `@keyframes` (sem `@property`, custom
+property anima em degrau); o fallback do `var()` é sempre a cor do tema,
+então navegador sem suporte mostra a demo de sempre. Nada de
+`filter: hue-rotate` animado — o contrato dos efeitos proíbe animar
+`filter`, e uma camada que cobre a viewport inteira é o pior lugar
+possível pra isso.
+
+- **`cores/hsl.ts`** — hex → HSL e deslocamento de matiz, puro (matiz não
+  se manipula a partir de uma referência a CSS var, daí o LED receber
+  também a `corBase` em hex). Cor não-hex (uma paleta com `rgba()` num dos
+  papéis) devolve `undefined` e o modo cai em `tema` — nunca quebra.
+- **`cores/modos.ts`** — `resolverModoCores(valor, base, prefixo)` devolve
+  `{ efetivo, cores, css, animacao }`: as três cores prontas (literais ou
+  `var(...)`), o bloco `@property`+`@keyframes` a injetar e a animação a
+  aplicar no elemento que CARREGA as custom properties. `efetivo` é o modo
+  que de fato valeu (`"tema"` também quando o pedido caiu de volta nele por
+  dado insuficiente) — é como quem chama sabe se o controle anterior da
+  aura ainda vale.
+- **`efeitos/camada.ts`** — resolução única da camada (cores + CSS),
+  chamada pela rota pública, pelo preview do editor e pelo harness, pra os
+  três nunca divergirem. Precedência: `efeitoCores` != "tema" vence
+  `auraCores` (o controle específico da aura, anterior a este), que vence a
+  paleta.
+- **`efeitos/EfeitoCamada.tsx`** — client, envolve o efeito. A div dela é
+  DELIBERADAMENTE sem `position`/`opacity`/`transform`: qualquer um dos três
+  criaria stacking context, e um stacking context novo em volta dos efeitos
+  mudaria como o `mix-blend-mode` de aura/faíscas/varredura se compõe com a
+  página (confirmado por diff pixel a pixel: com a div crua, o `faiscas`
+  antes/depois bate exatamente).
+- **LED** — `LedEdges` resolve o modo dele e redefine `--d-accent`
+  LOCALMENTE na própria raiz. Os quatro estilos de LED não mudam uma linha
+  de CSS por causa disso.
+- **Efeitos SVG**: `Veios` e `GeometricoPulsante` passaram a escrever
+  `stop-color` no `style` em vez de atributo de apresentação — atributo de
+  apresentação não resolve `var()`.
+
+### Animação por seção (`DemoSecao.animacao`) e a transição da camada
+
+**O controle** (aba Estrutura do editor, ao lado de ordenar/ocultar):
+`DemoSecao.animacao` — ausente/`true` = ligada, o que toda demo publicada
+já tem. Vale inclusive para as seções **fixas** (que não reordenam nem
+ocultam, mas animam). É estrutura, não tema: vive em `dados.secoes.{id}`,
+entra no diff mínimo só quando é `false` e é validado no PUT como qualquer
+outro campo de seção. Desligada, a seção não monta wrapper de entrada
+nenhum (nem o typewriter do título) — o mesmo que o nível global
+`"nenhuma"` faz — e a camada decorativa se apaga enquanto ela ocupa a tela.
+
+**O marcador**: cada skin envolve suas seções com `SecaoMarcada`
+(`lib/demos/animacao/SecaoMarcada.tsx`), uma `<div>` CRUA (sem classe, sem
+position, sem transform — qualquer um quebraria o `sticky` interno de
+Serviços) que publica `data-d-secao` + `data-d-secao-anim`. É o único elo
+entre a estrutura da demo e a camada decorativa, que é IRMÃ da skin e
+portanto não tem como saber onde uma seção começa. O nome do atributo não
+é `data-d-anim`: esse já existe na raiz de cada skin, com o nível global de
+animação (ver o defeito registrado em "Verificação da UI").
+
+**A transição** (`lib/demos/animacao/cobertura.ts`, puro + testado): a
+opacidade da camada é uma COBERTURA medida a cada quadro de scroll — cada
+seção marcada é integrada contra um núcleo cosseno (`w(t) = 1 - cos(2πt)`,
+primitiva fechada, sem laço de amostragem) sobre a **metade central da
+viewport**, e o resultado é `animado / marcado`. Três propriedades caem do
+formato, em vez de virem de constantes ajustadas na mão:
+
+- **nunca surge nem some de uma vez**: a transição ocupa meia tela de
+  rolagem e a curva chega suave nas duas pontas (a derivada do peso também
+  vai a zero lá, então não existe "quina" no início nem no fim);
+- **cabeçalho e rodapé são NEUTROS**: como a normalização é pelo que está
+  marcado, região que nenhuma skin marca não puxa a opacidade pra baixo —
+  sem isso o efeito apagaria sozinho no fim de TODA demo, inclusive nas que
+  nunca desligaram animação nenhuma. Viewport inteira em região neutra
+  mantém o valor anterior, em vez de piscar;
+- **a banda de foco é meia viewport, não a viewport inteira**: com a
+  viewport inteira como núcleo, uma seção de meia tela de altura nunca
+  passava de 0.50 apagada (medido no laço) — e, como a pausa só liga em
+  cobertura 0, o motor também nunca chegava a pausar. É o único número de
+  calibração do arquivo, e ele arbitra "distância generosa" contra "uma
+  seção conseguir apagar a camada de verdade".
+
+**Consumo**: `EfeitoCamada` escreve `--d-efeito-fade` DIRETO no DOM por um
+ref (nenhum estado React por quadro, mesmo padrão do `LedEdges`) e cada uma
+das 9 raízes de efeito multiplica `var(--d-efeito-fade, 1)` na própria
+opacidade — o fade mora numa custom property, e não em `opacity` na div da
+camada, de novo porque `opacity < 1` criaria stacking context. O teste de
+contrato do registro de efeitos cobra essa multiplicação de efeito novo. O
+LED usa a mesma medição na opacidade da própria raiz.
+
+**Motor VIVO e pausado**: em cobertura 0 a camada passa `pausado` ao efeito
+— `animation-play-state: paused` e rAF congelado, NUNCA desmontagem. É o
+que faz partícula e traço voltarem de onde pararam em vez de reiniciarem
+embaralhados (medido: `running` t=1633ms → `paused` t=1817ms depois de 2,5s
+parado fora → `running` t=2167ms na volta, sem nunca voltar a zero).
+
+**`prefers-reduced-motion`**: a medição continua rodando. Ela não é
+movimento autônomo — a opacidade só muda quando a pessoa rola a página,
+como um `position: sticky`. Desligá-la faria a demo ignorar a escolha "sem
+animação nesta seção" justamente para quem pediu menos movimento.
+
 ### Vídeo-no-título (`DemoData.videos` + `SkinDefinition.videoSlots`)
 
 Slot de conteúdo **opt-in por skin** (hoje só a tatuagem, slot `"titulo"`): vídeo rodando dentro das letras do wordmark, com o **texto como máscara** — fiel ao efeito do material bruto original (que usava um vídeo com máscara SVG; a conversão inicial da skin havia trocado isso por um efeito 100% CSS pra manter a Forja livre de assets binários — ver `Wordmark.tsx`). Ao contrário de `imagens`, **`videos` nunca tem placeholder**: a Forja não versiona vídeo de terceiros, e a ausência é o estado normal.
@@ -923,7 +1058,7 @@ A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta 
 
 - **Preview ao vivo num iframe** apontando para `/demo-preview` (rota protegida por senha, como tudo). O editor manda o estado completo — `skinId` + `DemoData` efetivo + `Theme` já com `aplicarTema` + o `TemaPatch` bruto (`tema`, usado só para saber qual fonte curada buscar sob demanda) — por `postMessage` (mesma origem) a cada tecla; o iframe só renderiza a skin. Nada é lido do banco no preview, então o que se vê é exatamente o que o PUT publicará. Toggle desktop/celular muda a largura do iframe.
 - **Edição por slot**: clique em qualquer elemento com `data-demo-slot` no preview → o iframe devolve o caminho por `postMessage` → o editor abre a aba/grupo certo e foca o campo (`campo-{slot}`). Links/CTAs não navegam dentro do preview (capture + preventDefault).
-- **Painel em abas**: Conteúdo (negócio, serviços, depoimentos e cada seção do contrato da skin, com listas add/remove), Imagens (trocar/remover por slot de imagem + seção "Vídeo no título" quando a skin declara `videoSlots`, com aviso de peso/fallback), Tema (skin, presets, cor primária com amostra do ink calculado, fontes display/corpo da lista curada, raio, densidade, animação, toggle da Intro, hover, animação de clique, efeito de fundo, **LED** e o bloco **Título principal (hero)** — fonte/escala/alinhamento) e Estrutura (drag-and-drop via `Reorder` do `motion`, ocultar/exibir, alinhamento e **animação de entrada** onde a skin oferece).
+- **Painel em abas**: Conteúdo (negócio, serviços, depoimentos e cada seção do contrato da skin, com listas add/remove), Imagens (trocar/remover por slot de imagem + seção "Vídeo no título" quando a skin declara `videoSlots`, com aviso de peso/fallback), Tema (skin, presets, cor primária com amostra do ink calculado, fontes display/corpo da lista curada, raio, densidade, animação, toggle da Intro, hover, animação de clique, efeito de fundo, **cor do efeito** e **cor do LED** (os cinco modos — ver "Modos de cor"), **LED** e o bloco **Título principal (hero)** — fonte/escala/alinhamento) e Estrutura (drag-and-drop via `Reorder` do `motion`, ocultar/exibir, alinhamento, **animação de entrada** onde a skin oferece e o liga/desliga de **animação por seção**, presente também nas seções fixas).
 - **Persistência explícita**: "Salvar" faz o PUT (diff mínimo + tema); "Excluir demo" pede confirmação inline, chama o DELETE e volta pra ficha. Aviso de alterações não salvas no header + `beforeunload`.
 - **Mobile**: o painel vira um drawer inferior (72dvh) com botão flutuante "Editar"; as mesmas abas funcionam por toque. Na aba Estrutura, o `Reorder.Item` usa `dragListener={false}` + `dragControls` — o drag só inicia pelo handle dedicado (ícone ⠿, `touch-action: none`); o resto do item não tem listener de drag nenhum, então o toque rola a lista normalmente (scroll do painel) em vez de competir com o gesto de arrastar.
 
@@ -949,7 +1084,7 @@ Registro **separado** do registro de skins (mesmo padrão: metadado central + co
 
   **Bug histórico (corrigido) — z-index negativo era invisível em toda skin**: até esta correção, Aura e Grão usavam `z-index` **negativo** (`-z-10`), com a intenção de ficar atrás do conteúdo normal da demo. Na prática isso escondia o efeito por completo, em TODA skin: toda seção da demo tem fundo sólido próprio (`--d-bg`/`--d-bg-alt`/`--d-bg-elev`, cobrindo 100% da largura, sem gaps entre seções) e o `Skin.tsx` de cada skin também pinta seu próprio `bg-[var(--d-bg)]` na raiz. Como `position: fixed` sempre cria stacking context próprio, um z-index negativo só precisa vencer o stacking context RAIZ — mas isso o coloca ANTES (mais atrás) de qualquer descendente não-posicionado (ou posicionado com `z-index: auto`) desse mesmo nível na ordem de pintura do CSS, ou seja, atrás do próprio fundo opaco do `Skin.tsx` e de toda seção — nunca visível através dele, em nenhum tema. Reproduzido renderizando `/demo-preview` com `next dev` + Playwright (screenshot com o efeito ligado vs. desligado, mesmo estado, sem `prefers-reduced-motion`): diff de pixels zero para Aura e Grão. `gradiente`/`particulas` (abaixo) já usavam `z-40` **positivo** — por isso eram os únicos dois realmente visíveis (confirmado pelo mesmo diff), inconsistência introduzida durante a migração do `Theme.fundoEfeito` antigo. **Correção**: os 4 efeitos agora usam a MESMA convenção — `z-index` positivo (`z-40`), por CIMA do conteúdo, não atrás dele. Isso não é um comprometimento visual: Aura já usa `mix-blend-mode: screen` nos blobs (soma luz, nunca escurece/cobre) e todo efeito já é desenhado com opacidade baixa por design (ver `estilo.ts` de cada pacote) — pensados desde o início pra tingir por cima sem atrapalhar legibilidade, o que só faz sentido estando de fato por cima do conteúdo. Confirmado visualmente em tema claro e escuro (screenshot comparando ligado/desligado em intensidade 3, `/demo-preview` com a skin `barbearia-editorial`, presets escuro "norte" e claro "creme").
 
-- **Contrato do componente** (`types.ts`): `EfeitoProps { intensidade: 0|1|2|3, cores: ThemePaleta, pausado? }` — `0` desliga por completo (sem nada no DOM); `cores` é a paleta do tema vigente (nunca cor hardcoded); `pausado` é o sinal externo (ex.: o editor esconde o preview) somado às pausas automáticas do próprio efeito. Regras fixas pra todo efeito: renderiza **estático** (sem listener/rAF de movimento) em `prefers-reduced-motion`; pausa via `IntersectionObserver` fora da viewport e via `visibilitychange` com a aba oculta (`useEfeitoAtivo.ts` implementa as três fontes de pausa + a leitura de reduced-motion, reutilizado por todo efeito); `devicePixelRatioClamped` (`dpr.ts`) limita a 2 qualquer rasterização em canvas; a propriedade `filter` **nunca** é animada (blur/etc. é fixo no elemento — só `transform`/`opacity` mudam por frame). Todo efeito reage à mudança de `intensidade` na MESMA instância, sem depender de remontagem: o efeito do `IntersectionObserver` em `useEfeitoAtivo` roda a cada commit (não só no mount) pra (re)observar o elemento-raiz assim que ele aparece no DOM — necessário porque um efeito que nasce com `intensidade: 0` não renderiza elemento nenhum no primeiro commit, então um `useEffect` preso a `[ref]` (identidade estável, nunca muda) nunca chegaria a observar o elemento real depois que a intensidade sobe (ver `grao/__tests__/Grao.test.tsx`, que cobre 0→2/2→0 na mesma instância).
+- **Contrato do componente** (`types.ts`): `EfeitoProps { intensidade: 0|1|2|3, cores: ThemePaleta, pausado? }` — `0` desliga por completo (sem nada no DOM); `cores` é a paleta do tema vigente (nunca cor hardcoded); `pausado` é o sinal externo (ex.: o editor esconde o preview) somado às pausas automáticas do próprio efeito. Regras fixas pra todo efeito: renderiza **estático** (sem listener/rAF de movimento) em `prefers-reduced-motion`; pausa via `IntersectionObserver` fora da viewport e via `visibilitychange` com a aba oculta (`useEfeitoAtivo.ts` implementa as três fontes de pausa + a leitura de reduced-motion, reutilizado por todo efeito); `devicePixelRatioClamped` (`dpr.ts`) limita a 2 qualquer rasterização em canvas; a propriedade `filter` **nunca** é animada (blur/etc. é fixo no elemento — só `transform`/`opacity` mudam por frame). **O elemento-raiz de todo efeito multiplica `var(--d-efeito-fade, 1)` na própria opacidade** — é assim que a camada apaga o efeito por interpolação nas seções com animação desligada (ver "Animação por seção"); o teste de contrato do registro cobra isso de efeito novo. Todo efeito reage à mudança de `intensidade` na MESMA instância, sem depender de remontagem: o efeito do `IntersectionObserver` em `useEfeitoAtivo` roda a cada commit (não só no mount) pra (re)observar o elemento-raiz assim que ele aparece no DOM — necessário porque um efeito que nasce com `intensidade: 0` não renderiza elemento nenhum no primeiro commit, então um `useEffect` preso a `[ref]` (identidade estável, nunca muda) nunca chegaria a observar o elemento real depois que a intensidade sobe (ver `grao/__tests__/Grao.test.tsx`, que cobre 0→2/2→0 na mesma instância).
 **Regras de acabamento visual** (fixadas na revisão de qualidade — ver "Revisão de qualidade visual dos efeitos e do LED" em Verificação da UI; valem para TODO efeito novo):
 
 - **Nenhuma borda dura.** Toda forma termina em gradiente/máscara até transparente — inclusive nas pontas do traço e na borda da viewport. Isso vale também para o que "parece" suave: uma rampa de dois stops até `transparent` tem inclinação constante e o olho lê o fim dela como contorno, mesmo sob blur.
@@ -974,7 +1109,7 @@ Registro **separado** do registro de skins (mesmo padrão: metadado central + co
 - **Teste de contrato** (`__tests__/registry.test.ts`): ids únicos, campos obrigatórios (`nome`/`nichosRecomendados`) e — renderizando cada componente RAW direto via `react-dom/server` (fora do wrapper `next/dynamic`, que sempre devolve `null` no server) — intensidade `0` não renderiza nada, intensidade `1` renderiza o overlay; mais `intensidadePadrao`/`resolverEfeitoFundo` (inclusive o caso de compatibilidade: id antigo sem intensidade persistida cai no default do nicho, nunca em "nada").
 - **Teste de compatibilidade** (`__tests__/compat.test.ts`): o preset "ouro-da-meia-noite" da barbearia sul tinha `fundoEfeito: "particulas"` hardcoded desde antes deste registro existir — roda o pipeline real (`aplicarTema` ← preset/patch, depois `resolverEfeitoFundo`) sem `TemaPatch`/intensidade nenhuma (o formato mais antigo possível) e confirma que ainda resolve pro mesmo efeito.
 - **Harness de teste** (`/interno/efeitos`, fora do `(app)` e fora do passo de escolha de skin, protegida por sessão como o resto do app): cada efeito registrado sobre fundo claro e escuro, com slider de intensidade (0–3) e toggle do sinal `pausado`, pra avaliação visual no celular e no desktop.
-- **Render na demo** (`src/app/demo/[leadId]/page.tsx` e `src/app/demo-preview/page.tsx`): `resolverEfeitoFundo` roda no `loadDemo`/postMessage (mesmo dado que resolve `theme`), e o componente dinâmico é renderizado como **sibling** de `<Skin>` (nunca por dentro dela) — `cores={theme.paleta}`. Import dinâmico sem SSR: não atrasa o first paint (a skin já está visível quando o chunk do efeito carrega) e não toca no `VisitaTracker` (componente separado, sem overlap de listeners/DOM). Nenhum dos dois pontos de render precisa saber de posicionamento — `fixed`/`z-index` é sempre do próprio efeito (ver "Cobertura de viewport" acima), então preview e rota pública ficam automaticamente fiéis um ao outro.
+- **Render na demo** (`src/app/demo/[leadId]/page.tsx` e `src/app/demo-preview/page.tsx`): `resolverEfeitoFundo` roda no `loadDemo`/postMessage (mesmo dado que resolve `theme`), e `<EfeitoCamada>` (que resolve o componente dinâmico por dentro, mais o modo de cor e o fade por seção — ver "Modos de cor" e "Animação por seção") é renderizado como **sibling** de `<Skin>`, nunca por dentro dela; as cores vêm de `resolverCamadaEfeito`, a mesma função nos três pontos de render. Import dinâmico sem SSR: não atrasa o first paint (a skin já está visível quando o chunk do efeito carrega) e não toca no `VisitaTracker` (componente separado, sem overlap de listeners/DOM). Nenhum dos dois pontos de render precisa saber de posicionamento — `fixed`/`z-index` é sempre do próprio efeito (ver "Cobertura de viewport" acima), então preview e rota pública ficam automaticamente fiéis um ao outro.
 
 ## IA na Forja (`src/lib/ai`) — sugestões de demo via Gemini
 
@@ -1177,6 +1312,17 @@ A skin de barbearia da Forja de Demos foi verificada **lado a lado com o materia
 - **LED, por captura**: `dissipado` virou halo pequeno colado na borda com queda longa; `cantos` deixou de ser quatro bolinhas com aresta de caixa e virou luz sangrando na diagonal de cada canto; `moldura` trocou a tira chapada de 3–4px por bandas com queda perpendicular, com as pontas apagadas pela máscara (o contorno fechado era o que a fazia ler como retângulo desenhado). `barra` ficou intocada de propósito (ver "Micro-interações do tema"). Saltos de coluna medidos antes → depois: moldura marcante claro 22,4 → 1,7; moldura sutil escuro 12,2 → 1,2; cantos marcante escuro 4,6 → 1,3.
 - **Efeitos, por captura**: `veios` deixou de ler como risco reto de espessura uniforme com pulso em forma de tracinho; `geometrico-pulsante` não tem mais figura legível como polígono em nenhuma intensidade; `filotaxia` e `faiscas` perderam a borda de disco recortado; `varredura-de-luz` deixou de ser laje branca por cima do título. Os tetos de opacidade (6% para forma geométrica) viraram teste em cada pacote. `aura`, `grao` e `particulas` foram capturados na mesma matriz e passaram sem mudança — nenhum tinha aresta dura nem opacidade fora do lugar.
 - **Verificação do pulso de `veios`**, que usa uma técnica nova (mancha radial recortada por `clipPath`, movida por `@keyframes` que lê custom properties): confirmado em navegador real lendo o `transform` computado dos círculos recortados — o CSS var resolve e a mancha percorre o traço de verdade, não é só markup.
+
+**Rodada "modos de cor + animação por seção + transição da camada"** (mesma rota-harness `/interno/demo-qa` e o mesmo `scripts/qa-visual.mjs`, agora com quatro itens novos: `--so=cores`, `--so=secao`, `--so=transicao` e os parâmetros `corModo`/`cores`/`ledCorModo`/`ledCores`/`semAnim` no harness). Nada aqui se julga por teste unitário, então cada item só foi dado por pronto depois da imagem VISTA — e, onde a imagem sozinha não decidia, com medição junto:
+
+- **Modos de cor, por medição de matiz** (matiz médio da diferença contra o baseline sem efeito, folhas `_folha-cores-{particulas,aura,veios}.png` e `_folha-cores-led.png`, cada modo animado capturado em 3 fases do ciclo congeladas por WAAPI): tema 26.8° → `fixa` 193.8° (o ciano escolhido) → `transicao` 290.8°/113.2°/14.4° (as três cores girando entre os papéis) → `iridescente` 26.8°/44.0° (±16°, a paleta continua reconhecível) → `arco-iris` 27.1°/149.6°/261.1° (volta completa). O LED foi medido do mesmo jeito, contra o LED do tema.
+- **Uma captura por modo não prova nada.** Um ciclo de 20-42s fotografado em instante aleatório não distingue "cor fixa" de "cor que muda devagar" — daí `congelarCores`, que fixa o relógio SÓ das animações `d-cores-*` (as da skin ficam correndo, senão a captura deixa de ser comparável). Detalhe achado montando a folha: as fases do `iridescente` não podem ser 0/0.25/0.5, porque o ciclo é 0 → +16° → 0 → -16° → 0 e a fase 0.5 é IGUAL à 0 — a folha mostrava dois estados dizendo três.
+- **Default inalterado, provado pixel a pixel**: `efeito-faiscas-i{1,2,3}-{claro,escuro}` capturado antes e depois da mudança dá **0 pixels diferentes**. Era a dúvida real do desenho: a div nova da camada não pode criar stacking context, senão o `mix-blend-mode: screen` das faíscas passaria a compor contra um grupo isolado em vez da página. (A aura difere em 0.1% dos pixels nas duas rodadas porque ela se move sozinha o tempo todo — deriva senoidal —, não por causa da mudança.)
+- **Animação por seção** (`_folha-secao.png`): com animação, o marcador tem um DIV do `motion` por filho e a seção está no meio da revelação no instante em que entra na viewport (opacidade 0.72 escuro / 0.87 claro, título ainda sendo digitado — "TRÊS |"); sem animação, o filho direto é a própria `SECTION` (nenhum elemento a mais no DOM), opacidade 1 desde o primeiro quadro e o título inteiro.
+- **A transição, nos três momentos pedidos** (`_folha-transicao.png`, claro e escuro): antes (fade 1.00, aura dourada e moldura de LED acesas), durante (0.50, as duas visivelmente mais fracas) e depois (0.00, fundo limpo sobre a seção sem animação). A rampa medida em 21 posições de scroll — 1 → 0.99 → 0.85 → 0.50 → 0.15 → 0.006 → 0, simétrica na volta, maior salto entre pontos vizinhos 0.36 (um degrau daria 1.0) — é o que separa "interpola" de "some de uma vez", e efeito e LED aparecem sempre no mesmo valor.
+- **Motor vivo e pausado, pelo relógio das animações**: `running` t=1633ms na seção animada → `paused` t=1817ms depois de 2,5s parado na seção sem animação (avançou 184ms, não 2500) → `running` t=2167ms na volta, sem nunca voltar a zero. É a prova de que partícula e traço retomam de onde pararam em vez de reiniciarem embaralhados.
+- **Dois defeitos que SÓ a medição encontrou** (nenhum aparecia lendo o código nem numa captura isolada): (1) **colisão de atributo** — o marcador de seção nasceu como `data-d-anim`, nome que a raiz de cada skin já usava para o nível global de animação do tema; a raiz do documento inteiro (7220px) entrava na conta como "seção animada" e travava a cobertura em exatamente 0.50, o que fazia o efeito nunca sumir E o motor nunca pausar. O inventário de seções marcadas impresso pelo laço (`hero(700px) … filosofia(635px, SEM anim) …` mais um item `undefined(7220px)`) foi o que denunciou. Renomeado para `data-d-secao-anim`. (2) **piso de 0.50 na cobertura** — com a viewport INTEIRA como núcleo, uma seção de meia tela de altura não passava de metade apagada; a banda de foco virou a metade central da tela. (3) Um terceiro, do próprio laço: a tabela da rampa mostrava valores repetidos porque a leitura saía antes do quadro em que o listener (throttled por rAF) rodava — corrigido esperando dois `requestAnimationFrame` depois de cada scroll.
+- **Bug de produto encontrado de raspão**: `tema.ledEstilo` era validado no PUT mas faltava na lista de chaves conhecidas — salvar uma demo com estilo de LED escolhido no editor respondia **400 "chave desconhecida"**. Corrigido com teste de regressão.
 
 ## Variáveis de ambiente
 
