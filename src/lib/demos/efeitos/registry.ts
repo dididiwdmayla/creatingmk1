@@ -52,10 +52,12 @@ export const EFEITOS: EfeitoDefinition[] = [
     nichosRecomendados: ["petshop", "lancheria"],
   },
   {
-    id: "geometrico-pulsante",
-    nome: "Geométrico pulsante",
-    // Polígonos com stroke metálico — combina com o lado tech/premium de
-    // multimarcas (showroom) e imobiliária (empreendimentos modernos).
+    id: "ondas",
+    nome: "Ondas",
+    // Substituiu "geometrico-pulsante" (ver EFEITOS_MIGRADOS abaixo) e
+    // herdou os nichos dele: anel que se expande do centro lê como
+    // sonar/eco — o mesmo lado tech/premium de multimarcas (showroom) e
+    // imobiliária (empreendimentos modernos).
     nichosRecomendados: ["multimarcas", "imobiliaria"],
   },
   {
@@ -74,8 +76,35 @@ export const EFEITOS: EfeitoDefinition[] = [
   },
 ];
 
+/**
+ * Efeito REMOVIDO → o substituto que assume as demos já salvas com ele.
+ *
+ * Uma demo publicada guarda o id escolhido em `LeadDemo.tema.fundoEfeito`
+ * (Firestore) — apagar um efeito do registro sem mais nada faria toda demo
+ * que o usava simplesmente ficar sem fundo (`resolverEfeitoFundo` devolve
+ * `undefined` para id desconhecido, de propósito). Este mapa é a migração:
+ * o id antigo continua VÁLIDO em todo lugar que consulta o registro
+ * (`aplicarTema`, a validação do PUT, o seletor do editor) e resolve para
+ * o efeito novo, sem tocar em nada no banco.
+ *
+ * `geometrico-pulsante` → `ondas`: o antigo formava figuras legíveis
+ * (hexágonos concêntricos de linha contínua) e animava um `<svg>` do
+ * tamanho da viewport, o que travava o celular (ver "Regra de superfície"
+ * em ARCHITECTURE.md).
+ */
+export const EFEITOS_MIGRADOS: Readonly<Record<string, string>> = {
+  "geometrico-pulsante": "ondas",
+};
+
+/** Id efetivo de um efeito: o próprio, ou o substituto se ele foi removido. */
+export function idEfeitoAtual(id: string): string {
+  return EFEITOS_MIGRADOS[id] ?? id;
+}
+
 export function getEfeito(id: string | undefined): EfeitoDefinition | undefined {
-  return EFEITOS.find((efeito) => efeito.id === id);
+  if (id === undefined) return undefined;
+  const atual = idEfeitoAtual(id);
+  return EFEITOS.find((efeito) => efeito.id === atual);
 }
 
 /**

@@ -1,6 +1,7 @@
 /**
- * Fita afilada: gerador de path SVG compartilhado pelos efeitos que
- * desenham TRAÇO (`veios`, `geometrico-pulsante`).
+ * Fita afilada: gerador de path SVG para os efeitos que desenham TRAÇO.
+ * Hoje só `veios` usa (era compartilhado com `geometrico-pulsante`, que
+ * saiu do registro — ver EFEITOS_MIGRADOS em ./registry.ts).
  *
  * Por que fita e não `stroke`: um `stroke` tem espessura constante e ponta
  * reta (ou uma bolinha, com `stroke-linecap: round`) — ou seja, começa e

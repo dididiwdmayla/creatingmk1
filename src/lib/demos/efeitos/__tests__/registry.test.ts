@@ -7,11 +7,18 @@ import type { ThemePaleta } from "@/lib/demos/types";
 import { Aura } from "../aura/Aura";
 import { Faiscas } from "../faiscas/Faiscas";
 import { Filotaxia } from "../filotaxia/Filotaxia";
-import { GeometricoPulsante } from "../geometrico-pulsante/GeometricoPulsante";
 import { Gradiente } from "../gradiente/Gradiente";
 import { Grao } from "../grao/Grao";
+import { Ondas } from "../ondas/Ondas";
 import { Particulas } from "../particulas/Particulas";
-import { EFEITOS, getEfeito, intensidadePadrao, resolverEfeitoFundo } from "../registry";
+import {
+  EFEITOS,
+  EFEITOS_MIGRADOS,
+  getEfeito,
+  idEfeitoAtual,
+  intensidadePadrao,
+  resolverEfeitoFundo,
+} from "../registry";
 import type { EfeitoComponente } from "../types";
 import { VarreduraDeLuz } from "../varredura-de-luz/VarreduraDeLuz";
 import { Veios } from "../veios/Veios";
@@ -29,7 +36,7 @@ const COMPONENTES_PARA_TESTE: Record<string, EfeitoComponente> = {
   particulas: Particulas,
   veios: Veios,
   filotaxia: Filotaxia,
-  "geometrico-pulsante": GeometricoPulsante,
+  ondas: Ondas,
   faiscas: Faiscas,
   "varredura-de-luz": VarreduraDeLuz,
 };
@@ -126,6 +133,74 @@ describe("registro de efeitos", () => {
   );
 });
 
+/**
+ * REGRA DE SUPERFÍCIE (ver ARCHITECTURE.md, "Efeito animado é canvas, ou é
+ * estático"): nenhum efeito pode animar um `<svg>` do tamanho da viewport.
+ * Um `<svg>` é uma árvore VETORIAL RETIDA — mexer em qualquer coisa dentro
+ * dele (geometria, `stop-color` do modo de cor animado, opacidade de um
+ * nó) invalida a superfície inteira, que o navegador repinta no tamanho da
+ * tela a cada quadro. Foi por isso que `geometrico-pulsante` saiu.
+ *
+ * A lista abaixo é a DÍVIDA conhecida, não uma isenção: `veios` já estava
+ * no registro quando a regra passou a valer, e a auditoria (ver
+ * ARCHITECTURE.md) o registrou como o único violador dos 8 restantes. O
+ * teste cobra os dois lados — efeito de fora da lista não pode montar
+ * `<svg>`, e efeito DA lista tem que continuar montando um, senão ele foi
+ * migrado e a linha aqui virou mentira.
+ */
+const SVG_DE_VIEWPORT_CONHECIDO = new Set(["veios"]);
+
+describe("regra de superfície: nada de <svg> do tamanho da viewport", () => {
+  it.each(EFEITOS.map((efeito) => [efeito.id] as const))("%s", (id) => {
+    const markup = renderToStaticMarkup(
+      createElement(COMPONENTES_PARA_TESTE[id], { intensidade: 3, cores: CORES_TESTE }),
+    );
+    const temSvg = /<svg[\s>]/.test(markup);
+    if (SVG_DE_VIEWPORT_CONHECIDO.has(id)) {
+      expect(
+        temSvg,
+        `"${id}" está na lista de dívida de SVG mas não monta <svg> — migrado? tire-o de SVG_DE_VIEWPORT_CONHECIDO`,
+      ).toBe(true);
+      return;
+    }
+    expect(
+      temSvg,
+      `"${id}" monta <svg>: efeito animado é canvas ou é estático (ver "Regra de superfície" em ARCHITECTURE.md)`,
+    ).toBe(false);
+  });
+});
+
+describe("efeito removido do registro (EFEITOS_MIGRADOS)", () => {
+  it("todo id migrado aponta pra um efeito que EXISTE, e não pra outro migrado", () => {
+    for (const [antigo, novo] of Object.entries(EFEITOS_MIGRADOS)) {
+      expect(EFEITOS.some((e) => e.id === antigo), `"${antigo}" ainda está no registro`).toBe(false);
+      expect(EFEITOS.some((e) => e.id === novo), `"${novo}" não existe no registro`).toBe(true);
+      expect(EFEITOS_MIGRADOS[novo]).toBeUndefined();
+    }
+  });
+
+  it("o geométrico-pulsante virou ondas", () => {
+    expect(idEfeitoAtual("geometrico-pulsante")).toBe("ondas");
+    expect(idEfeitoAtual("veios")).toBe("veios");
+  });
+
+  it("uma demo SALVA com o efeito antigo passa a renderizar o substituto", () => {
+    // O caminho inteiro, como na rota pública: o id vem do Firestore em
+    // `LeadDemo.tema.fundoEfeito`, atravessa o registro e sai como efeito.
+    const resolvido = resolverEfeitoFundo("geometrico-pulsante", 3, "multimarcas");
+    expect(resolvido?.efeito.id).toBe("ondas");
+    expect(resolvido?.intensidade).toBe(3);
+
+    // Sem intensidade persistida, o default sai do NICHO como qualquer outro.
+    expect(resolverEfeitoFundo("geometrico-pulsante", undefined, "multimarcas")?.intensidade).toBe(2);
+    expect(resolverEfeitoFundo("geometrico-pulsante", undefined, "petshop")?.intensidade).toBe(1);
+  });
+
+  it("getEfeito aceita o id antigo (é o que mantém válido o PUT de uma demo antiga)", () => {
+    expect(getEfeito("geometrico-pulsante")?.id).toBe("ondas");
+  });
+});
+
 describe("intensidadePadrao", () => {
   const efeito = getEfeito("gradiente")!;
 
@@ -145,7 +220,7 @@ describe("resolverEfeitoFundo", () => {
     expect(resolverEfeitoFundo("nenhum", undefined, "barbearia")).toBeUndefined();
   });
 
-  it("id desconhecido (ex.: efeito removido do registro) não resolve nada", () => {
+  it("id desconhecido não resolve nada", () => {
     expect(resolverEfeitoFundo("nao-existe", 2, "barbearia")).toBeUndefined();
   });
 
