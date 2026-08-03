@@ -4,6 +4,7 @@ import type { ThemePaleta } from "@/lib/demos/types";
 
 import { FUMACA_COLORIDA } from "../aura/cores";
 import { resolverCamadaEfeito } from "../camada";
+import { EFEITOS, modoDeCorPermitido } from "../registry";
 
 const PALETA: ThemePaleta = {
   fundo: "#111111",
@@ -80,5 +81,54 @@ describe("resolverCamadaEfeito", () => {
     });
     expect(r.cores.destaque).toBe("#123456");
     expect(r.coresCss).toBe("");
+  });
+});
+
+/**
+ * MODO DE COR REPROVADO no portão de fps para um efeito específico (ver
+ * `EfeitoDefinition.modosDeCorReprovados` e a tabela em ARCHITECTURE.md).
+ * A regra é aplicada na RESOLUÇÃO, nunca na validação: a demo publicada
+ * com esse par continua válida e continua abrindo no editor — ela só deixa
+ * de animar a cor, caindo em "tema".
+ */
+describe("modo de cor reprovado por efeito", () => {
+  const comReprovacao = EFEITOS.filter((e) => e.modosDeCorReprovados?.length);
+
+  it("todo efeito com reprovação declara o motivo, e nunca reprova o modo tema", () => {
+    for (const efeito of comReprovacao) {
+      expect(efeito.motivoModosReprovados, `"${efeito.id}" reprova modo sem motivo`).toBeTruthy();
+      expect(efeito.modosDeCorReprovados).not.toContain("tema");
+    }
+  });
+
+  it("o modo reprovado cai em tema, sem CSS de animação e sem quebrar", () => {
+    for (const efeito of comReprovacao) {
+      for (const modo of efeito.modosDeCorReprovados!) {
+        expect(modoDeCorPermitido(efeito.id, modo)).toBe(false);
+        const r = resolverCamadaEfeito({
+          paleta: PALETA,
+          efeitoId: efeito.id,
+          efeitoCores: { modo, cores: ["#00c2ff", "#ff2e88"] },
+          auraCores: undefined,
+        });
+        expect(r.coresCss).toBe("");
+        expect(r.coresAnimacao).toBeUndefined();
+        expect(r.cores.destaque).toBe(PALETA.destaque);
+      }
+    }
+  });
+
+  it("efeito sem reprovação nenhuma continua aceitando os cinco modos", () => {
+    const livre = EFEITOS.find((e) => !e.modosDeCorReprovados?.length)!;
+    for (const modo of ["fixa", "transicao", "iridescente", "arco-iris"] as const) {
+      expect(modoDeCorPermitido(livre.id, modo)).toBe(true);
+    }
+    const r = resolverCamadaEfeito({
+      paleta: PALETA,
+      efeitoId: livre.id,
+      efeitoCores: { modo: "arco-iris" },
+      auraCores: undefined,
+    });
+    expect(r.coresAnimacao?.nome).toBe("d-cores-efeito");
   });
 });

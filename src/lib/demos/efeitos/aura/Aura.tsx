@@ -93,10 +93,23 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
   const blob2Ref = useRef<HTMLCanvasElement>(null);
   const { ativo, reducedMotion } = useEfeitoAtivo(containerRef, pausado);
   const ativoRef = useRef(ativo);
+  /**
+   * O redesenho, exposto pra fora do laço de movimento. Enquanto o efeito
+   * anima, a cor é relida sozinha a cada QUADROS_ENTRE_LEITURAS_DE_COR —
+   * mas em `prefers-reduced-motion` não existe laço nenhum, e enquanto o
+   * efeito está pausado ele não relê nada. Sem isto, trocar a cor primária
+   * na aba Tema do editor não repintaria o canvas nesses dois estados (com
+   * o `background` de CSS de antes, o navegador repintava sozinho).
+   */
+  const repintarRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     ativoRef.current = ativo;
   }, [ativo]);
+
+  useEffect(() => {
+    repintarRef.current?.();
+  }, [cores.destaque, cores.acentoSecundario]);
 
   useEffect(() => {
     if (intensidade === 0) return;
@@ -131,12 +144,15 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
       }
     };
     repintarSeMudou();
+    repintarRef.current = repintarSeMudou;
 
     if (reducedMotion) {
       // Estático: posição fixa, sem listener nem rAF nenhum.
       blob1.style.transform = "translate3d(-10%, -10%, 0)";
       blob2.style.transform = "translate3d(10%, 10%, 0)";
-      return;
+      return () => {
+        repintarRef.current = null;
+      };
     }
 
     const isDesktop = window.matchMedia("(pointer: fine)").matches;
@@ -189,6 +205,7 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("scroll", onScroll);
+      repintarRef.current = null;
     };
   }, [intensidade, reducedMotion]);
 

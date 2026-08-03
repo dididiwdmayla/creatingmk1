@@ -123,6 +123,22 @@ export function getEfeito(id: string | undefined): EfeitoDefinition | undefined 
 }
 
 /**
+ * O modo de cor pedido vale neste efeito? `false` quando o par
+ * efeito × modo reprovou no portão de qualidade (ver
+ * `EfeitoDefinition.modosDeCorReprovados` e a tabela em ARCHITECTURE.md).
+ *
+ * Quem chama cai em `tema` — e NUNCA rejeita o dado: uma demo publicada
+ * com esse par continua válida no PUT e continua abrindo no editor, ela só
+ * deixa de animar a cor. Mesma filosofia de `EFEITOS_MIGRADOS`: a regra
+ * mora no registro e é aplicada na RESOLUÇÃO, sem tocar no banco.
+ */
+export function modoDeCorPermitido(efeitoId: string | undefined, modo: string): boolean {
+  const reprovados = getEfeito(efeitoId)?.modosDeCorReprovados;
+  if (!reprovados) return true;
+  return !(reprovados as readonly string[]).includes(modo);
+}
+
+/**
  * Intensidade default quando a demo não tem uma escolha explícita
  * persistida (`TemaPatch.fundoEfeitoIntensidade`): mais presente (2) se o
  * nicho da skin está entre os recomendados do efeito, mais discreta (1)
