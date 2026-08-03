@@ -32,7 +32,22 @@ describe("estiloGradiente", () => {
     }
   });
 
-  it("filter (blur) nunca muda com intensidade/estado — nunca é a propriedade animada", () => {
-    expect(estiloGradiente(1, false, true).filter).toBe(estiloGradiente(3, true, false).filter);
+  /**
+   * REGRESSÃO: o overlay tem uma animação de `transform` infinita e ocupa
+   * 150% da viewport. Com QUALQUER `filter` (mesmo fixo, nunca animado) o
+   * navegador re-rasteriza e re-borra a superfície inteira a cada quadro —
+   * medido em 10 fps contra 55 fps sem o filtro (ver ../estilo.ts). "Não
+   * animar o filter" não basta: aqui ele não pode existir. A ausência no
+   * markup renderizado é cobrada para todo efeito do registro em
+   * ../../__tests__/registry.test.ts; aqui fica o que este módulo controla.
+   */
+  it("o estilo não tem campo de filter nenhum para o componente aplicar", () => {
+    for (const i of [1, 2, 3] as const) {
+      for (const reduced of [false, true]) {
+        for (const ativo of [false, true]) {
+          expect(estiloGradiente(i, reduced, ativo)).not.toHaveProperty("filter");
+        }
+      }
+    }
   });
 });

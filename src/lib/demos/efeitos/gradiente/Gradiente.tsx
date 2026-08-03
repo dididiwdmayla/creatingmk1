@@ -14,6 +14,50 @@ import { estiloGradiente } from "./estilo";
  * que só depende de `cores` (nunca de CSS vars locais de uma skin
  * específica) e escala com `intensidade`.
  */
+/**
+ * Rampa de cada mancha, em `[parada, percentual de cor]`.
+ *
+ * Cada mancha cai em VÁRIOS stops, não num salto direto pra `transparent`:
+ * uma rampa de dois pontos tem inclinação constante, e o olho pega o fim
+ * dela como se fosse um contorno. Antes eram 4 paradas com um
+ * `filter: blur(80px)` por cima arredondando o resto; o filtro caiu (ver
+ * ./estilo.ts, "A queda do blur" — ele custava 5/6 dos quadros da página)
+ * e a suavidade que ele dava virou o que sempre foi, matematicamente, para
+ * uma mancha radial: mais paradas e uma cauda mais longa. Os dois raios
+ * continuam diferentes, pra que as manchas não leiam como círculos gêmeos.
+ */
+const PARADAS_PRIMARIA: ReadonlyArray<readonly [number, number]> = [
+  [0, 100],
+  [8, 78],
+  [17, 50],
+  [26, 26],
+  [36, 10],
+  [46, 3],
+  [58, 0],
+];
+const PARADAS_SECUNDARIA: ReadonlyArray<readonly [number, number]> = [
+  [0, 100],
+  [7, 74],
+  [15, 46],
+  [23, 23],
+  [32, 9],
+  [41, 3],
+  [52, 0],
+];
+
+function mancha(
+  posicao: string,
+  cor: string,
+  paradas: ReadonlyArray<readonly [number, number]>,
+): string {
+  const stops = paradas.map(([parada, pct]) => {
+    if (pct === 100) return `${cor} ${parada}%`;
+    if (pct === 0) return `transparent ${parada}%`;
+    return `color-mix(in srgb, ${cor} ${pct}%, transparent) ${parada}%`;
+  });
+  return `radial-gradient(circle at ${posicao}, ${stops.join(", ")})`;
+}
+
 export function Gradiente({ intensidade, cores, pausado }: EfeitoProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { ativo, reducedMotion } = useEfeitoAtivo(containerRef, pausado);
@@ -28,16 +72,13 @@ export function Gradiente({ intensidade, cores, pausado }: EfeitoProps) {
       className="pointer-events-none fixed inset-[-25%] z-40 will-change-transform"
       aria-hidden="true"
       style={{
-        // Cada mancha cai em VÁRIOS stops, não num salto direto pra
-        // `transparent`: uma rampa de dois pontos tem inclinação constante,
-        // e o olho pega o fim dela como se fosse um contorno — mesmo com
-        // 80px de blur por cima. Os dois raios também diferem, pra que as
-        // manchas não leiam como dois círculos gêmeos.
         background: [
-          `radial-gradient(circle at 28% 26%, ${cores.destaque} 0%, color-mix(in srgb, ${cores.destaque} 55%, transparent) 16%, color-mix(in srgb, ${cores.destaque} 18%, transparent) 32%, transparent 52%)`,
-          `radial-gradient(circle at 72% 68%, ${cores.acentoTerciario} 0%, color-mix(in srgb, ${cores.acentoTerciario} 50%, transparent) 14%, color-mix(in srgb, ${cores.acentoTerciario} 16%, transparent) 30%, transparent 46%)`,
+          mancha("28% 26%", cores.destaque, PARADAS_PRIMARIA),
+          mancha("72% 68%", cores.acentoTerciario, PARADAS_SECUNDARIA),
         ].join(", "),
-        filter: estilo.filter,
+        // Nenhum `filter` aqui, de propósito: com um, a animação de
+        // transform abaixo re-rasteriza a superfície inteira (150% da
+        // viewport) a cada quadro. Ver ./estilo.ts.
         opacity: `calc(${estilo.opacity} * var(--d-efeito-fade, 1))`,
         animationName: estilo.animationName,
         animationDuration: "26s",

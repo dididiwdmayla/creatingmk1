@@ -102,6 +102,26 @@ describe("registro de efeitos", () => {
         "--d-efeito-fade",
       );
       expect(raiz).toContain("opacity");
+
+      /**
+       * **Nenhum `filter`, em intensidade nenhuma.** A regra antiga era
+       * "nunca ANIMAR filter" — e não bastava: todo efeito daqui move algo
+       * por `transform` (@keyframes ou rAF), e um elemento filtrado não
+       * composita a transformação, então o navegador re-rasteriza e
+       * re-filtra a superfície inteira a cada quadro. Foi o que derrubou
+       * `gradiente` a 10 fps e `aura` a 12,7 fps no preview do editor (ver
+       * ../gradiente/estilo.ts e ../aura/estilo.ts). Quando o efeito
+       * precisa de suavidade, ela vem da RAMPA do gradiente, que é
+       * repintura barata.
+       */
+      for (const i of [1, 2, 3] as const) {
+        const markup = renderToStaticMarkup(
+          createElement(Componente, { intensidade: i, cores: CORES_TESTE }),
+        );
+        expect(markup, `"${efeito.id}" (intensidade ${i}) usa filter`).not.toMatch(
+          /(^|[;"\s])filter\s*:/,
+        );
+      }
     },
   );
 });

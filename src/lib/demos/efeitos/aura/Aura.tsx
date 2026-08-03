@@ -5,11 +5,17 @@ import { useEffect, useRef } from "react";
 import type { EfeitoProps } from "../types";
 import { useEfeitoAtivo } from "../useEfeitoAtivo";
 import { alvoPonteiro, alvoScroll, deriva, fatorLerp, lerpPonto } from "./alvo";
+import { fundoMancha, opacidadeAura } from "./estilo";
 
 /**
- * Dois blobs de gradiente radial com blur assado (filter fixo, NUNCA
- * animado — só transform muda a cada frame) misturados por
- * mix-blend-mode. No desktop (pointer:fine) o alvo segue o ponteiro; no
+ * Dois blobs de gradiente radial misturados por mix-blend-mode. Sem
+ * `filter` NENHUM: o blob recebe um transform novo a cada quadro, e um
+ * elemento filtrado não composita a transformação — ele re-rasteriza e
+ * re-borra 60vmax de superfície toda vez que se move (12,7 fps medidos).
+ * A suavidade que o blur dava virou rampa de gradiente, calculada em
+ * ./estilo.ts como o mesmo cone convoluído com uma gaussiana.
+ *
+ * No desktop (pointer:fine) o alvo segue o ponteiro; no
  * celular o alvo é o CENTRO da viewport, deslocado pelo progresso de
  * scroll e somado a uma deriva lenta autônoma (senoidal), pra não morrer
  * parado enquanto o usuário não rola nem move o dedo. Interpolação (lerp)
@@ -98,8 +104,7 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
 
   if (intensidade === 0) return null;
 
-  const opacidade = 0.28 + intensidade * 0.1; // 1→0.38, 2→0.48, 3→0.58
-  const blur = 40 + intensidade * 20; // 60/80/100px — fixo, nunca animado
+  const opacidade = opacidadeAura(intensidade);
 
   return (
     <div
@@ -122,12 +127,19 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
       // esta var na própria opacidade; ausente = 1 (fora da camada).
       style={{ opacity: "var(--d-efeito-fade, 1)" }}
     >
+      {/*
+        A caixa é ESCALA_CAIXA vezes o lado histórico (60/55vmax) e o
+        canto é recuado de metade do que ela cresceu, pra que o CENTRO do
+        blob fique exatamente onde estava: sem `filter` não há
+        sangramento pra fora do elemento, então a cauda da mancha (que o
+        blur pintava fora da caixa) precisa caber DENTRO dela. Ver
+        ./estilo.ts.
+      */}
       <div
         ref={blob1Ref}
-        className="absolute left-1/4 top-1/4 h-[60vmax] w-[60vmax] rounded-full will-change-transform"
+        className="absolute left-[calc(25%-18vmax)] top-[calc(25%-18vmax)] h-[96vmax] w-[96vmax] rounded-full will-change-transform"
         style={{
-          background: `radial-gradient(circle, ${cores.destaque} 0%, transparent 70%)`,
-          filter: `blur(${blur}px)`,
+          background: fundoMancha(cores.destaque, intensidade),
           opacity: opacidade,
           mixBlendMode: "screen",
           transform: "translate3d(-10%, -10%, 0)",
@@ -135,10 +147,9 @@ export function Aura({ intensidade, cores, pausado }: EfeitoProps) {
       />
       <div
         ref={blob2Ref}
-        className="absolute right-1/4 bottom-1/4 h-[55vmax] w-[55vmax] rounded-full will-change-transform"
+        className="absolute right-[calc(25%-16.5vmax)] bottom-[calc(25%-16.5vmax)] h-[88vmax] w-[88vmax] rounded-full will-change-transform"
         style={{
-          background: `radial-gradient(circle, ${cores.acentoSecundario} 0%, transparent 70%)`,
-          filter: `blur(${blur}px)`,
+          background: fundoMancha(cores.acentoSecundario, intensidade),
           opacity: opacidade,
           mixBlendMode: "screen",
           transform: "translate3d(10%, 10%, 0)",
