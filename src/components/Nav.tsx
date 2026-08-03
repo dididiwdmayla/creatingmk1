@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api-client";
-import { ThemeToggle } from "./ThemeToggle";
+import { TemaSeletor } from "./TemaSeletor";
 
 const TABS = [
   { href: "/hoje", label: "Hoje" },
@@ -63,18 +63,23 @@ export function Nav() {
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-line bg-surface px-4">
+      {/* A superfície do cromo é SÓLIDA (bg-surface); a iridescência é só a
+          linha de 1px do ::after — ver "Regra de legibilidade". */}
+      <header className="cromo-linha cromo-linha-baixo relative flex h-14 shrink-0 items-center justify-between bg-surface px-4">
         <span className="flex items-center gap-2">
+          {/* Halo ESTÁTICO. Este ponto tinha um `animate-ping` — uma animação
+              infinita no cromo, no elemento que fica na tela o dia inteiro em
+              todas as abas. O halo desenha a mesma ideia com um box-shadow
+              parado, custo zero por quadro. Ver "Custo" em ARCHITECTURE.md. */}
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+            <span className="inline-flex h-2 w-2 rounded-full bg-accent shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_22%,transparent)]" />
           </span>
           <span className="font-display text-base font-bold tracking-[0.15em] text-foreground">
             RADAR
           </span>
         </span>
         <span className="flex items-center gap-4">
-          <ThemeToggle />
+          <TemaSeletor />
           <button
             type="button"
             onClick={handleLogout}
@@ -86,7 +91,7 @@ export function Nav() {
         </span>
       </header>
 
-      <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]">
+      <nav className="cromo-linha cromo-linha-cima fixed inset-x-0 bottom-0 z-10 bg-surface pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto flex h-14 max-w-lg">
           {TABS.map((tab) => {
             const active = isActive(pathname, tab.href);
@@ -110,7 +115,7 @@ export function Nav() {
                   )}
                 </span>
                 {active && (
-                  <span className="absolute inset-x-3 -top-px h-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--accent)]" />
+                  <span className="cromo-aba-ativa absolute inset-x-3 top-0 h-0.5 rounded-full shadow-[0_0_8px_color-mix(in_oklab,var(--accent)_60%,transparent)]" />
                 )}
               </Link>
             );

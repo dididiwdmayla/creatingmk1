@@ -9,6 +9,7 @@ export {
   salvarMetaFaixaMinimizada,
   salvarNivelIA,
   salvarPrecoBaseSlider,
+  salvarTemaUsuario,
   seedUsuariosSeVazio,
   type LimitesPatch,
   type MetasPatch,

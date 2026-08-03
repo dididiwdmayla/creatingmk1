@@ -1,6 +1,7 @@
 import type { NivelIA } from "@/lib/ai/nivel";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
+import type { TemaApp } from "@/lib/tema";
 import { usageUsuariosCollection } from "@/lib/costs/userQuota";
 import { hashSenha } from "./senha";
 import {
@@ -198,6 +199,18 @@ export async function salvarMetaFaixaMinimizada(
   const usuario = await getUsuario(db, id);
   if (!usuario) return;
   await docRef(db, id).set(toDoc({ ...usuario, metaFaixaMinimizada: minimizada }));
+}
+
+/**
+ * Salva o tema da plataforma escolhido por este usuário (self-service,
+ * mesmo espírito de salvarMetaFaixaMinimizada — preferência de UI, não
+ * edição administrativa: não mexe em `atualizadoEm` nem em `sessao`, e
+ * portanto não derruba sessão nenhuma).
+ */
+export async function salvarTemaUsuario(db: AppDb, id: string, tema: TemaApp): Promise<void> {
+  const usuario = await getUsuario(db, id);
+  if (!usuario) return;
+  await docRef(db, id).set(toDoc({ ...usuario, tema }));
 }
 
 /** Patch de limites: number seta, null LIMPA (sem limite naquela janela), ausente não mexe. */

@@ -120,6 +120,9 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <section>
+        {/* Realce iridescente do número principal do painel: uma régua de 2px
+            ACIMA do bloco, nunca atrás dele — ver "Regra de legibilidade". */}
+        <div aria-hidden className="cromo-realce mb-3 h-0.5 w-24 rounded-full" />
         <p className="text-xs uppercase tracking-[0.15em] text-ink-muted">
           Custo projetado este mês · {usage.period}
         </p>

@@ -19,6 +19,7 @@ scripts/
   qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato; `--so=fps` mede quadros por segundo em celular com CPU 4× — o piso de 45 fps que REPROVA um efeito (ver "Verificação da UI")
   qa-editor.mjs                     # ✅ laço de captura do EDITOR (não da rota pública): digita num campo com o efeito ativo e reporta fps do preview + contagem de <style> antes/depois; exige o patch temporário de fake DB documentado no cabeçalho
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
+  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
 src/
   proxy.ts                          # ✅ proteção por sessão assinada (Next 16: proxy.ts, ex-middleware)
@@ -88,6 +89,7 @@ src/
       leads/[id]/demo/sugestao/route.ts # ✅ POST sugestão de IA da demo (Gemini; SKU aiGeneration)
       ia/route.ts                   # ✅ GET disponibilidade da IA (GEMINI_API_KEY configurada?)
       ia/nivel/route.ts             # ✅ GET/PUT último nível de intervenção da IA (self-service, por usuário)
+      tema/route.ts                 # ✅ GET/PUT tema da PLATAFORMA do PRÓPRIO usuário (self-service; reescreve o cookie-espelho)
       mensagens/route.ts            # ✅ GET resumo/conversa (escopado à sessão) / POST envia texto
       mensagens/nao-lidas/route.ts  # ✅ GET total de não-lidas (badge do menu, polling leve)
       hoje/route.ts                 # ✅ GET fila do dia (delta por usuário; carimba ultimaVisitaEm)
@@ -101,6 +103,7 @@ src/
     errors.ts                       # ✅ erros de domínio (validação, 404, transição)
     http.ts                         # ✅ formato de erro padrão + mapa erro→HTTP status (401/403 incluídos)
     auth.ts                         # ✅ token de sessão ASSINADO (HMAC c/ APP_PASSWORD): userId.papel.versao.sig
+    tema.ts                         # ✅ temas da PLATAFORMA: TEMAS_APP, metadados do seletor e o contrato do cookie-espelho `radar_tema`
     idioma.ts                       # ✅ mapa país (pt-BR)→idioma BCP-47 + IDIOMAS_SUPORTADOS (ver "Idioma da IA na demo")
     usuarios/                       # ✅ multiusuário simples
       types.ts                      #    Usuario (papel admin|membro, ativo, senhaHash, versão de sessão)
@@ -408,6 +411,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
   },
   "ultimoPrecoBaseSlider": 2500,     // ✅ opcional: última posição do slider da calculadora de precificação (self-service)
   "ultimoNivelIA": "equilibrado",    // ✅ opcional: último nível de intervenção da IA na Forja (self-service, ver "IA na Forja")
+  "tema": "escuro",                  // ✅ opcional: tema da PLATAFORMA deste usuário (self-service, ver "Sistema de temas da plataforma")
   "criadoEm": "<ISO 8601>",
   "atualizadoEm": "<ISO 8601>"
 }
@@ -1283,6 +1287,334 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
 - **Animações** (CSS puro, sem lib): fade-in sutil de página (`.page-transition`, disparado por `PageTransition.tsx` que troca a `key` pelo pathname), barra do `UsageMeter` cresce de 0 ao montar, pulso (`.pulse-warning`/`.pulse-critical`) no preenchimento do meter perto do teto/no limite, elevação no hover dos cards clicáveis (`.card-lift`), sweep de radar rotativo (`RadarSweep.tsx` + `.radar-sweep`) no carregamento do dashboard. Tudo respeita `prefers-reduced-motion`.
 - **Favicon**: gerado via `app/icon.tsx` (`next/og`/`ImageResponse`) — círculos concêntricos + setor de varredura no verde-radar.
 - **Padrão de fetch em `useEffect`**: o linter do React Compiler (`eslint-plugin-react-hooks` 7.x, via `eslint-config-next`) rejeita chamar, dentro de um efeito, qualquer função de escopo externo que (mesmo transitivamente) atualize estado — a regra é sobre o grafo de chamadas, não sobre ordem antes/depois de `await`. A cada tela, a busca é declarada **inline dentro do próprio `useEffect`** (ou via `.then/.catch/.finally` direto no corpo do efeito); quando a mesma busca precisa ser reaproveitada por um handler de evento (retry, refetch pós-mutação), extrai-se um fetcher **puro** (sem `setState`) chamado nos dois lugares.
+
+## Sistema de temas da plataforma (`src/lib/tema.ts` + `/api/tema`)
+
+O tema do app autenticado é **por usuário**, não global. Antes ele vivia em
+`localStorage["radar:tema"]` — ou seja, era do NAVEGADOR: dois integrantes na
+mesma máquina herdavam o tema um do outro, e o mesmo integrante em dois
+aparelhos tinha duas preferências. Agora a escolha mora em
+`/usuarios/{id}.tema`, e claro/escuro continuam sendo duas das opções.
+
+- **Fonte da verdade é o doc.** `GET`/`PUT /api/tema` são self-service (mesmo
+  padrão de `/api/ia/nivel` e `/api/metas/proprio`): qualquer sessão lê e grava
+  só o próprio doc, e `salvarTemaUsuario` não toca em `sessao` nem em
+  `atualizadoEm` — trocar de tema não é edição administrativa e não derruba
+  sessão nenhuma.
+- **O cookie `radar_tema` é um espelho, nunca a fonte.** Ele existe por um
+  motivo só: deixar o `RootLayout` (Server Component) renderizar
+  `data-theme="<id>"` já no HTML do servidor, o que elimina o flash de tema
+  errado antes da primeira pintura sem script inline e sem `localStorage`.
+  Quem escreve o cookie é sempre uma ROTA, a partir do doc — `POST /api/login`
+  (é o que faz o segundo integrante entrar já no tema dele numa máquina
+  compartilhada), `GET`/`PUT /api/tema`, e `POST /api/logout` o apaga (o tema
+  pertence a quem estava logado). É `httpOnly`: o cliente lê o tema do
+  `data-theme` que o servidor pintou, nunca do cookie.
+- **Reconciliação entre dispositivos.** O cookie de um navegador fica velho se
+  a escolha mudou em OUTRO aparelho desde o último login dali. O `TemaSeletor`
+  chama `GET /api/tema` na montagem; a resposta traz o valor do doc e reescreve
+  o cookie. Custo de uma requisição por carga, a mesma ordem do badge de
+  não-lidas da Nav.
+- **`TemaSeletor` não guarda o tema em estado React.** O tema ativo vive no DOM
+  (`data-theme` no `<html>`) e o componente o espelha via `useSyncExternalStore`
+  — mesmo desenho do antigo `ThemeToggle`, agora com N temas em vez de um
+  booleano. É o que o linter do React Compiler exige aqui: escrever no
+  `documentElement` dentro de handler, ou chamar `setState` no corpo de um
+  efeito, são erros de lint neste repo (`react-hooks/immutability` e
+  `react-hooks/set-state-in-effect`), então a escrita mora numa função de
+  escopo de módulo que notifica os inscritos.
+- **Adicionar um tema é operação de CSS.** Nenhum componente tem cor hardcoded:
+  cada tema é um bloco `:root[data-theme="<id>"]` em `globals.css` trocando os
+  mesmos papéis. `:root` é o tema `escuro`, que também é o `TEMA_PADRAO` (sem
+  cookie e sem escolha salva, é o que vale).
+
+### Verificação (`scripts/qa-plataforma.mjs --so=usuario`)
+
+Um único contexto de browser — uma máquina compartilhada — em que duas pessoas
+logam em sequência de verdade (`POST /api/login` com senha real, PBKDF2
+semeado pelo script), cada uma troca o tema pelo SELETOR (não por `fetch`), e o
+laço confere três coisas: o `data-theme` do DOM, o campo `tema` gravado no doc,
+e — depois de deslogar e relogar — o `data-theme` que veio dentro do **HTML do
+servidor**, que é a prova de que não há flash. Resultado da rodada:
+
+```
+admin      escolheu "claro" pelo seletor  → DOM=claro   doc=claro    ok
+membro-1   escolheu "escuro" pelo seletor → DOM=escuro  doc=escuro   ok
+docs: admin=claro  membro-1=escuro  → independentes ok
+admin      relogou no MESMO navegador → data-theme no HTML do servidor = claro   ok (sem flash)
+membro-1   relogou no MESMO navegador → data-theme no HTML do servidor = escuro  ok (sem flash)
+```
+
+Detalhe achado montando o laço: escolher no seletor o tema que JÁ está ativo é
+(corretamente) um no-op — nenhum `PUT` sai. A primeira versão do laço fazia
+exatamente isso com o `membro-1` e "provava" a gravação lendo um campo que
+continuava ausente; passou a percorrer outro tema antes do alvo, para a escolha
+final ser sempre uma troca de verdade.
+
+Captura: `docs/temas/usuario-dois-temas.png` (folha de contato — mesmo
+navegador, dois usuários, duas primeiras pinturas).
+
+### Temas iridescentes (Ácido, Vapor, Prisma)
+
+Três temas de base preta que compartilham um vocabulário e se separam pelo
+miolo. Adicioná-los foi operação de CSS: um bloco `:root[data-theme="<id>"]`
+por tema, nenhum componente tocado por cor.
+
+- **O `--accent` carrega a identidade, não a cor de apoio.** O verde-lima é o
+  parentesco (`--apoio`, presente nos três) e o rosa é a faísca (`--faisca`,
+  sempre pontual). Se a lima fosse o accent nos três, o lugar mais visível da
+  interface — botão primário, aba ativa, barra do meter — seria idêntico em
+  todos, e eles seriam variações do mesmo tom em vez de temas.
+- **A iridescência "entre eles" é o arco que os três varrem.** Todos começam na
+  lima (~80-85°) e terminam na mesma cauda de rosa (~320-333°); o que gira é o
+  miolo: 147° (Ácido) → 187° (Vapor) → 255° (Prisma). Lado a lado, os três
+  gradientes de cromo são a mesma película de óleo girada.
+
+| tema | preto base | `--accent` (miolo) | `--apoio` (lima) | `--faisca` (rosa) | arco `--iris-1/2/3` |
+|---|---|---|---|---|---|
+| **Ácido** | `#050704` neutro | `#b8ff2e` lima 80° | `#b8ff2e` | `#ff4d9d` | 80° → 147° → 333° |
+| **Vapor** | `#03070c` azulado | `#2fe6ff` ciano 187° | `#a8f03c` | `#ff5aa8` | 84° → 187° → 332° |
+| **Prisma** | `#06040c` violáceo | `#a98cff` violeta 255° | `#a6f53a` | `#ff5cc8` | 85° → 255° → 320° |
+
+- **A rampa ordinal de status muda de hue por tema** para não colidir com o
+  accent — status é posição no funil, accent é ação, e dois significados não
+  podem dividir cor: azul no Ácido, índigo no Vapor, teal no Prisma. Todas
+  monótonas em luminância, cada degrau com a própria ink (ver `docs/temas/contraste.md`).
+- **Um quarto tema quente foi desenhado e descartado.** Com accent âmbar o
+  meter viraria `âmbar (OK) → amarelo (perto do teto) → vermelho (no limite)`:
+  progressão de severidade invertida, porque amarelo lê como *menos* alarmante
+  que laranja. Descartar foi mais barato que quebrar o contrato
+  `accent → warning → critical`.
+
+**Rosa "em quantidade bem menor", medido** (`--so=iris`): o laço captura o
+header e a barra inferior, decodifica pixel a pixel (`scripts/png.mjs`) e
+classifica por faixa de matiz, descartando o que tem croma baixo (a superfície
+sólida, que é a maioria). O rosa é a cauda dos últimos 12% da rampa e nunca
+passa de 1/6 do cromo colorido:
+
+| tema | lima | miolo | rosa | do cromo é colorido |
+|---|---|---|---|---|
+| `escuro` | 0,2% | 90,8% | **9,0%** | 2,3% dos pixels |
+| `claro` | 0,0% | 90,7% | **9,3%** | 2,2% |
+| `acido` | 37,1% | 55,0% | **7,9%** | 2,2% |
+| `vapor` | 9,3% | 85,6% | **5,1%** | 3,2% |
+| `prisma` | 25,8% | 57,7% | **16,5%** | 2,0% |
+
+Header e nav são contados também **em separado** — somados, um dos dois poderia
+estar sem linha nenhuma e o total continuaria bonito. Os dois têm entre 1.138 e
+2.612 pixels coloridos em todos os temas.
+
+**Dois defeitos reais que só a captura pegou** (e nenhum apareceria em teste
+unitário nem lendo o código):
+
+1. **As cinco levas de captura saíam IDÊNTICAS.** O laço cunhava o cookie do
+   tema, mas o `TemaSeletor` chama `GET /api/tema` ao montar e aplica o valor
+   do DOC — que estava vazio, então tudo voltava pro padrão. Quem denunciou foi
+   o `qa-diff.mjs`: `ácido vs vapor, médio=0.000, máx=0`. O laço passou a semear
+   o doc antes de capturar, e ganhou a asserção `exigirTema` depois de cada
+   carga. (O comportamento do app está certo: é assim que um segundo
+   dispositivo se corrige.)
+2. **A barra de navegação deixou de ser fixa.** A iridescência entrou como
+   `::after`, que exige ancestral posicionado; a primeira versão pôs
+   `position: relative` na classe `.cromo-linha`, que tem a MESMA
+   especificidade das utilities do Tailwind e vem depois delas no arquivo —
+   venceu o `fixed` da nav e jogou a barra de volta pro fluxo, grudada embaixo
+   do header. É o terceiro caso do mesmo cascade neste repo (os blobs do hero da
+   tatuagem e o `.d-nav-cta` foram os outros dois). Corrigido tirando `position`
+   da classe custom; o laço ganhou `exigirCromoNoLugar`, que cobra
+   `position: fixed` e a nav colada no rodapé da viewport em toda captura.
+
+Um terceiro, do próprio laço: o doc `cron/ultima` semeado tinha forma
+encurtada, e o widget do painel formata `totalNovos` direto — o `formatInt`
+de `undefined` derrubava a página no cliente, e quando React desmonta a
+árvore o `data-theme` do `<html>` vai junto. O sintoma que apareceu não foi
+"o painel quebrou", foi "o tema sumiu".
+
+Capturas: `docs/temas/tema-{escuro,claro,acido,vapor,prisma}-{desktop,celular}.png`
+(folha de contato com as 7 abas de cada tema), `docs/temas/contraste.md` e
+`docs/temas/iridescencia.md`.
+
+### Regra de legibilidade
+
+Gradiente e iridescência vivem em **borda, cabeçalho, navegação inferior,
+estado ativo e realce**. Texto de leitura fica em superfície **sólida**. Na
+prática isso significa que todo gradiente do app é uma faixa de 1–2px, e a
+lista completa dos que existem cabe em cinco classes de `globals.css`:
+`.cromo-linha::after` (bordas do header, da barra de metas e da nav),
+`.cromo-linha-baixo`/`.cromo-linha-cima` (posição da faixa),
+`.cromo-aba-ativa` (estado ativo) e `.cromo-realce` (a régua do número
+principal do painel).
+
+**O plano da página deixou de ter gradiente.** O `body` tinha uma vinheta
+(`radial-gradient` + `linear-gradient` entre `--background-2` e
+`--background`, com `background-attachment: fixed`), e boa parte do texto do
+app vive direto sobre ele — o número grande do painel, títulos de seção, os
+contadores de /hoje. Era gradiente sob texto de leitura, exatamente o que a
+regra proíbe. `--background-2` continua existindo como degrau de elevação; só
+não pinta mais o fundo da página.
+
+**A regra é cobrada em dois lugares, e nenhum substitui o outro:**
+
+- **`globals.legibilidade.test.ts`** lê o `globals.css`, encontra toda regra
+  que PINTA gradiente e reprova qualquer seletor fora da lista permitida —
+  pega o gradiente novo antes de existir tela. Tem teste de mutação junto (um
+  gradiente falso num container de leitura tem que reprovar) para não passar
+  contando zero, e uma asserção de que `--surface`/`--background` continuam
+  sendo hex chapado em todos os temas.
+- **`qa-plataforma.mjs --so=legibilidade`** varre o DOM REAL: para cada
+  elemento com texto próprio, nas 7 abas de cada tema, sobe a árvore até o
+  primeiro fundo OPACO (o que de fato pinta atrás), registra se havia
+  gradiente na cadeia e mede o contraste da `color` computada contra esse
+  fundo. Pega o caso que o parser não vê: classe permitida aplicada no lugar
+  errado.
+
+**Resultado da varredura** (418 nós de texto por tema, piso de 4,5:1 — o de
+texto normal, sem a folga de 3:1 que o texto grande teria):
+
+| tema | pior contraste do app | onde | gradiente sob texto |
+|---|---|---|---|
+| `escuro` | 4,73:1 | "Excluir" (config, 12px) | **nenhum** |
+| `claro` | 4,92:1 | "novos desde a sua última visita" (hoje, 12px) | **nenhum** |
+| `acido` | 4,98:1 | "Contactado" (hoje, 12px) | **nenhum** |
+| `vapor` | 5,05:1 | "-5" (leads, 10px) | **nenhum** |
+| `prisma` | 5,02:1 | "Contactado" (hoje, 12px) | **nenhum** |
+
+**Um defeito real, no tema que já existia.** A primeira varredura reprovou o
+`escuro` com **4,33:1**: `--ink-muted` (`#7c8992`) passava sobre `--surface`
+(4,84:1) e falhava sobre `--surface-2` (o degrau de elevação onde ficam os
+chips e as legendas de 10px em /leads). A tabela de contraste por TOKEN não
+enxergava esse par porque só media contra `--surface` e `--background` — foi a
+varredura no DOM que achou, e é a diferença entre validar a paleta e validar a
+tela. Corrigido para `#87949d` (5,00:1 sobre `--surface-2`), e os pares com
+`--surface-2` entraram na tabela de tokens. Os três temas novos já passavam
+(5,05–5,36:1); o defeito era só do escuro, e estava lá antes desta rodada.
+
+Relatórios: `docs/temas/contraste.md` (110 pares de token, os cinco temas) e
+`docs/temas/legibilidade.md` (a varredura no DOM).
+
+### Custo (a plataforma fica aberta o dia inteiro)
+
+Três regras, todas cobradas por teste E por medição no navegador:
+
+1. **Nenhuma animação contínua no cromo da interface.** O ponto do wordmark
+   RADAR, no header, tinha `animate-ping` — uma animação infinita no elemento
+   que fica na tela o dia inteiro, em todas as abas. Virou halo estático
+   (`box-shadow`), mesma leitura visual, zero custo por quadro. O ganho não é
+   de fps (um `transform`/`opacity` num elemento de 8px é composto pela GPU e
+   praticamente não aparece na contagem de quadros): é que uma animação que
+   nunca termina impede o compositor de ficar ocioso, e isso se paga em
+   bateria durante um dia inteiro de aba aberta, não em travamento.
+2. **Nada de desfoque animado junto de transformação.** É a combinação que
+   derrubou o preview do editor a 9 fps (ver "Custo por quadro dos efeitos").
+   No cromo da plataforma não existe `blur` nenhum — nem animado nem estático.
+3. **A iridescência é deslocamento lento de matiz ou nada. Aqui é nada:**
+   gradiente multi-matiz PARADO. O item permitia as duas saídas; com a
+   plataforma aberta o dia inteiro e a regra 1 valendo, animar o arco seria
+   reintroduzir pelo cromo exatamente o que a regra 1 tirou dele.
+   Iridescência é propriedade óptica estática — não precisa se mexer para ler
+   como película.
+
+**`globals.custo.test.ts`** trava as três: toda `animation: … infinite` do CSS
+tem que estar numa lista de CONTEÚDO permitido, nenhuma classe `.cromo-*` pode
+declarar `animation`/`transition`, `Nav.tsx`/`MetaFaixa.tsx` não podem usar
+`animate-ping|pulse|spin|bounce`, nenhum `@keyframes` toca em `--iris-*` nem em
+`gradient()`/`filter`, e nenhuma regra combina `blur()` com animação.
+
+> Detalhe de escrita do teste: ele lê o texto-fonte do `Nav.tsx`, e o
+> comentário que explica POR QUE o `animate-ping` saiu cita o nome da classe.
+> A primeira versão reprovava o arquivo pelo próprio comentário que documenta a
+> correção; agora os comentários saem antes da busca.
+
+**As duas animações contínuas que sobram são de conteúdo e condicionais**, não
+de cromo: `.radar-sweep::before` (o mostrador só existe enquanto uma carga está
+em curso — some quando o dado chega) e `.pulse-warning`/`.pulse-critical` (só
+quando o meter está perto do teto ou no limite, e o estado também vem como
+palavra). Nenhuma das duas está viva no estado de repouso medido abaixo.
+
+**Medição 1 — animações vivas** (`--so=custo`): `document.getAnimations()`
+filtrado por `playState === "running"` e `iterations === Infinity`, nas 7 abas
+de cada tema, depois de a página assentar. Alvo dentro de `header`/`nav`/
+`.cromo-*` conta como cromo. Resultado: **nenhuma, em nenhum tema, nem no cromo
+nem no conteúdo**. Esta é a medição da CAUSA; o fps abaixo mede a consequência.
+
+**Medição 2 — fps navegando entre as abas** (`--so=fps`): celular 390×844 com
+`deviceScaleFactor: 2`, **CPU limitada em 4×** via CDP, contagem CONTÍNUA de
+quadros enquanto 6 trocas de rota acontecem em 4s (a nav é `<Link>`, então a
+navegação é client-side e o contador sobrevive a ela). Mediana de 5 cargas
+independentes por tema — a mesma disciplina do piso do registro de efeitos,
+pelo mesmo motivo: uma varredura de uma tacada só dá leituras de 13 a 52 fps
+para o mesmo estado. Piso de aprovação: **45 fps**.
+
+| tema | fps (mediana) | cargas | veredito |
+|---|---|---|---|
+| `escuro` | **55,4** | 54,9 / 55,2 / 55,4 / 55,7 / 56,4 | passa |
+| `claro` | **56,0** | 55,6 / 55,7 / 56,0 / 56,0 / 56,2 | passa |
+| `acido` | **55,8** | 55,3 / 55,5 / 55,8 / 56,3 / 56,4 | passa |
+| `vapor` | **56,0** | 55,5 / 55,8 / 56,0 / 56,2 / 56,2 | passa |
+| `prisma` | **56,2** | 55,2 / 56,0 / 56,2 / 56,5 / 56,5 | passa |
+
+Os cinco temas ficam dentro de 0,8 fps um do outro: **o tema não é o custo** —
+o que a navegação paga é o mesmo em todos, que é o esperado quando a
+iridescência é uma faixa de 1px parada e não uma camada animada. Os ~4 fps
+que faltam para 60 são a troca de rota em si (montar a árvore da aba nova e
+buscar os dados), não o cromo.
+
+Relatórios: `docs/temas/custo.md` e `docs/temas/fps.md`.
+
+### `theme-color` acompanha o tema do usuário
+
+A barra do navegador passa a ser a `--surface` do tema ativo DESTE usuário —
+a mesma cor do header, para a barra ficar contínua com ele em vez de encostar
+com um degrau. `generateViewport` no layout raiz lê o mesmo cookie-espelho do
+`data-theme`, então a cor sai pronta no HTML do servidor; o `TemaSeletor`
+reescreve o `content` da mesma tag na troca, sem recarregar.
+
+`TemaMeta.barra` DUPLICA a `--surface` do CSS — a meta tag é HTML e nada lê
+custom property no servidor. Duplicata sem guarda vira divergência silenciosa
+(alguém ajusta a surface, a barra fica na cor velha, e só aparece na moldura
+do celular), então `lib/__tests__/tema.test.ts` compara os dois arquivos.
+
+**A demo pública não é afetada**: `/demo/{leadId}` declara o próprio
+`generateViewport` com a cor da skin do lead, e o da ROTA vence o do layout.
+Confirmado com o cookie de tema presente: a demo responde `#1A1411` (a cor da
+skin) e não a do app.
+
+| tema | HTML do servidor | DOM | tags |
+|---|---|---|---|
+| `escuro` | `#121b24` | `#121b24` | 1 |
+| `claro` | `#ffffff` | `#ffffff` | 1 |
+| `acido` | `#111710` | `#111710` | 1 |
+| `vapor` | `#0b151d` | `#0b151d` | 1 |
+| `prisma` | `#140f22` | `#140f22` | 1 |
+
+Troca pelo seletor, sem recarregar: `#121b24` → `#140f22`.
+
+**Duas armadilhas de MEDIÇÃO, não de produto** — as duas custaram tempo e as
+duas valem registro, porque a segunda quase virou uma reescrita inteira em
+cima de um diagnóstico falso:
+
+1. **A leitura do HTML do servidor saía atrasada em um tema.** O laço grava o
+   tema no doc e carrega a página; só que o cookie-espelho é escrito por uma
+   ROTA, e na primeira carga ele ainda é o do tema anterior. O laço ganhou uma
+   carga de aquecimento — o próprio `GET /api/tema` põe o navegador em regime
+   — e passou a medir a segunda. O atraso era do laço, não do produto.
+2. **Um servidor sobrando de uma sondagem anterior serviu TODAS as sondagens
+   seguintes.** `next start` numa porta ocupada falha com `EADDRINUSE` e sai;
+   o processo velho continua respondendo, com o build velho. Sondando por
+   `curl` contra ele, o `theme-color` "nunca aparecia" — e as conclusões
+   tiradas dali ("`generateViewport` não roda em layout", "a camada de
+   metadados do Next filtra a tag", "`metadata.other` não emite") eram TODAS
+   falsas. O sintoma que denunciou foi o HTML ainda conter o `animate-ping`
+   removido dois commits antes. Contra um servidor novo, `generateViewport` no
+   layout raiz funciona exatamente como documentado.
+
+   O laço nunca caiu nessa: `qa-plataforma.mjs` herdou de `qa-visual.mjs` o
+   `exigirPortaLivre`, que aborta antes de subir se a porta já responde — foi
+   por isso que ele vinha reportando "ok" enquanto a sondagem manual reportava
+   "não existe". **A sondagem à mão é que precisava da guarda que o laço já
+   tinha.**
+
+Relatório: `docs/temas/barra.md`.
 
 ## Verificação da UI
 
