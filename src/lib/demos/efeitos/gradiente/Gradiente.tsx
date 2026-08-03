@@ -76,10 +76,9 @@ export function Gradiente({ intensidade, cores, pausado }: EfeitoProps) {
           mancha("28% 26%", cores.destaque, PARADAS_PRIMARIA),
           mancha("72% 68%", cores.acentoTerciario, PARADAS_SECUNDARIA),
         ].join(", "),
-        // `none`, sempre: com `filter`, a animação de transform abaixo
-        // re-rasteriza a superfície inteira (150% da viewport) a cada
-        // quadro. Ver ./estilo.ts.
-        filter: estilo.filter,
+        // Nenhum `filter` aqui, de propósito: com um, a animação de
+        // transform abaixo re-rasteriza a superfície inteira (150% da
+        // viewport) a cada quadro. Ver ./estilo.ts.
         opacity: `calc(${estilo.opacity} * var(--d-efeito-fade, 1))`,
         animationName: estilo.animationName,
         animationDuration: "26s",

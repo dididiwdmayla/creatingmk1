@@ -5,8 +5,9 @@ import type { EfeitoIntensidade } from "../types";
  * testável sem DOM (ver __tests__/estilo.test.ts) — mesma convenção do
  * resto do repo (lógica pura extraída, componente fica fino).
  *
- * **Sem `filter` NENHUM** (nem fixo — ver "A queda do blur" abaixo): só a
- * opacidade escala com a intensidade; a animação em si (transform, via
+ * **Sem `filter` NENHUM** (nem fixo — ver "A queda do blur" abaixo; a
+ * ausência é cobrada para TODO efeito do registro em
+ * ../__tests__/registry.test.ts): só a opacidade escala com a intensidade; a animação em si (transform, via
  * @keyframes d-efeito-gradiente-drift) só liga sem `reducedMotion`, e só
  * corre (`animationPlayState`) quando `ativo`.
  *
@@ -45,13 +46,6 @@ import type { EfeitoIntensidade } from "../types";
 const OPACIDADE_POR_INTENSIDADE: Record<1 | 2 | 3, number> = { 1: 0.025, 2: 0.04, 3: 0.06 };
 
 export interface EstiloGradiente {
-  /**
-   * Sempre `"none"`. Existe como campo (em vez de sumir do contrato) pra
-   * que o teste de regressão consiga cobrar a ausência do filtro em toda
-   * combinação de intensidade/reduced-motion/pausa, e não só na leitura
-   * do componente.
-   */
-  filter: "none";
   opacity: number;
   animationName: string;
   animationPlayState: "running" | "paused";
@@ -63,7 +57,6 @@ export function estiloGradiente(
   ativo: boolean,
 ): EstiloGradiente {
   return {
-    filter: "none",
     opacity: OPACIDADE_POR_INTENSIDADE[intensidade],
     // reducedMotion = estático: nenhum @keyframes ligado, não só pausado.
     animationName: reducedMotion ? "none" : "d-efeito-gradiente-drift",
