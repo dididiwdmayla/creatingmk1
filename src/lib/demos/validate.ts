@@ -1,7 +1,7 @@
 import { ValidationError } from "@/lib/errors";
 import { IDIOMAS_SUPORTADOS } from "@/lib/idioma";
 import { modoValido } from "./cores/modos";
-import { getEfeito } from "./efeitos/registry";
+import { fundoEfeitoAceito } from "./efeitos/registry";
 import type { EfeitoIntensidade } from "./efeitos/types";
 import { getFonte } from "./fontes";
 import { getLedEstilo } from "./led/registry";
@@ -21,10 +21,12 @@ import {
   type TemaPatch,
 } from "./types";
 
-/** "nenhum" (desligado) ou id de um efeito existente no registro. */
-function fundoEfeitoValido(id: string): boolean {
-  return id === "nenhum" || getEfeito(id) !== undefined;
-}
+/**
+ * "nenhum" (desligado), um id do registro, ou o id de um efeito REMOVIDO —
+ * este último resolve pro destino da migração, então o PUT de uma demo
+ * antiga continua válido (ver `fundoEfeitoAceito` em ./efeitos/registry.ts).
+ */
+const fundoEfeitoValido = fundoEfeitoAceito;
 
 /**
  * Validação do corpo do PUT /api/leads/[id]/demo. Devolve a configuração

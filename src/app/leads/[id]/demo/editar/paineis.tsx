@@ -920,11 +920,19 @@ function CoresModoControl({
   valor,
   paletaTema,
   onChange,
+  reprovados,
+  motivoReprovados,
 }: {
   titulo: string;
   valor: CoresModoValor | undefined;
   paletaTema: { destaque: string; acentoSecundario: string };
   onChange: (valor: CoresModoValor | undefined) => void;
+  /** Modos que REPROVARAM no portão de fps para o efeito ativo — ver
+   * EfeitoDefinition.modosDeCorReprovados. Ficam desabilitados com o
+   * motivo à vista, em vez de serem escolhidos e silenciosamente
+   * ignorados na hora de renderizar. */
+  reprovados?: readonly CorModo[];
+  motivoReprovados?: string;
 }) {
   const modo = valor?.modo ?? "tema";
   const cores = valor?.cores ?? [];
@@ -948,23 +956,33 @@ function CoresModoControl({
     <div className="flex flex-col gap-2 rounded border border-line p-3">
       <span className="text-xs text-ink-muted">{titulo}</span>
       <div className="flex flex-wrap gap-1.5">
-        {(Object.keys(COR_MODO_ROTULO) as CorModo[]).map((opcao) => (
-          <button
-            key={opcao}
-            type="button"
-            onClick={() => trocarModo(opcao)}
-            aria-pressed={modo === opcao}
-            className={`rounded border px-2.5 py-1 text-xs transition-colors ${
-              modo === opcao
-                ? "border-accent text-foreground"
-                : "border-line text-ink-muted hover:border-accent/50"
-            }`}
-          >
-            {COR_MODO_ROTULO[opcao]}
-          </button>
-        ))}
+        {(Object.keys(COR_MODO_ROTULO) as CorModo[]).map((opcao) => {
+          const reprovado = reprovados?.includes(opcao) ?? false;
+          return (
+            <button
+              key={opcao}
+              type="button"
+              disabled={reprovado}
+              title={reprovado ? motivoReprovados : undefined}
+              onClick={() => trocarModo(opcao)}
+              aria-pressed={modo === opcao}
+              className={`rounded border px-2.5 py-1 text-xs transition-colors ${
+                reprovado
+                  ? "cursor-not-allowed border-line/50 text-ink-muted/40 line-through"
+                  : modo === opcao
+                    ? "border-accent text-foreground"
+                    : "border-line text-ink-muted hover:border-accent/50"
+              }`}
+            >
+              {COR_MODO_ROTULO[opcao]}
+            </button>
+          );
+        })}
       </div>
       <p className="text-[11px] text-ink-muted">{COR_MODO_AJUDA[modo]}</p>
+      {reprovados?.length ? (
+        <p className="text-[11px] text-ink-muted/70">{motivoReprovados}</p>
+      ) : null}
 
       {(modo === "fixa" || modo === "transicao") && (
         <div className="flex flex-wrap items-end gap-3">
@@ -1360,6 +1378,8 @@ export function PainelTema({
           valor={tema.efeitoCores}
           paletaTema={preset.paleta}
           onChange={(efeitoCores) => setTema({ ...tema, efeitoCores })}
+          reprovados={efeitoFundoAtivo.modosDeCorReprovados}
+          motivoReprovados={efeitoFundoAtivo.motivoModosReprovados}
         />
       )}
 

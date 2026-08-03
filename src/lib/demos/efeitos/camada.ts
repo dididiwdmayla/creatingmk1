@@ -1,6 +1,7 @@
 import { resolverModoCores, type ModoCoresResolvido } from "../cores/modos";
 import type { AuraCoresValor, CoresModoValor, ThemePaleta } from "../types";
 import { paletaParaAura } from "./aura/cores";
+import { modoDeCorPermitido } from "./registry";
 
 /**
  * Resolução da CAMADA de efeito (cores que o efeito vai receber + o CSS
@@ -44,8 +45,14 @@ export function resolverCamadaEfeito({
   efeitoCores: CoresModoValor | undefined;
   auraCores: AuraCoresValor | undefined;
 }): CamadaEfeitoResolvida {
+  // Modo REPROVADO no portão de qualidade para ESTE efeito (ver
+  // `modoDeCorPermitido`): tratado como se o pedido não existisse, o que
+  // cai em "tema". Nada é rejeitado — a demo publicada com esse par
+  // continua válida, só deixa de animar a cor.
+  const pedido =
+    efeitoCores && !modoDeCorPermitido(efeitoId, efeitoCores.modo) ? undefined : efeitoCores;
   const modo = resolverModoCores(
-    efeitoCores,
+    pedido,
     [paleta.destaque, paleta.acentoSecundario, paleta.acentoTerciario],
     PREFIXO_CORES_EFEITO,
   );

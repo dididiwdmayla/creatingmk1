@@ -1,4 +1,4 @@
-import { getEfeito, idEfeitoAtual } from "./efeitos/registry";
+import { fundoEfeitoAceito, idEfeitoAtual } from "./efeitos/registry";
 import { getFonte } from "./fontes";
 import { getLedEstilo } from "./led/registry";
 import { modoValido } from "./cores/modos";
@@ -12,10 +12,12 @@ import {
   type Theme,
 } from "./types";
 
-/** "nenhum" (desligado) ou id de um efeito existente no registro (ver ./efeitos/registry.ts). */
-function fundoEfeitoValido(id: string): boolean {
-  return id === "nenhum" || getEfeito(id) !== undefined;
-}
+/**
+ * "nenhum" (desligado), um id do registro, ou o id de um efeito REMOVIDO —
+ * este resolve pro destino da migração (ver `fundoEfeitoAceito` e
+ * EFEITOS_MIGRADOS em ./efeitos/registry.ts).
+ */
+const fundoEfeitoValido = fundoEfeitoAceito;
 
 /**
  * Modo de cor da camada decorativa (efeito/LED) — só passa adiante o que
@@ -134,6 +136,9 @@ export function aplicarTema(
     hover: patch.hover && HOVER_ESTILOS.includes(patch.hover) ? patch.hover : preset.hover,
     clique:
       patch.clique && CLIQUE_ESTILOS.includes(patch.clique) ? patch.clique : preset.clique,
+    // O id SALVO é preservado aqui (é o que está no banco) — quem traduz um
+    // efeito removido é a resolução, `resolverEfeitoFundo`. Aceitá-lo é o
+    // que impede a demo de cair no efeito do PRESET, que ninguém escolheu.
     fundoEfeito:
       patch.fundoEfeito && fundoEfeitoValido(patch.fundoEfeito)
         ? patch.fundoEfeito

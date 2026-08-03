@@ -2,13 +2,19 @@
  * Decodificador de PNG (inflate + desfiltragem) — sem dependência nova: o
  * repo já usa `playwright-core` pra capturar, e LER o resultado não precisa
  * de mais nada. Extraído de `qa-diff.mjs` quando `qa-plataforma.mjs` passou
- * a precisar do mesmo pixel (a medição de matiz do cromo).
+ * a precisar do mesmo pixel (a medição de matiz do cromo) e `qa-aura.mjs`
+ * passou a precisar decodificar direto do buffer (os quadros do screencast
+ * do CDP chegam em base64, nunca tocam o disco).
  */
 import fs from "node:fs";
 import zlib from "node:zlib";
 
 export function lerPng(caminho) {
-  const buf = fs.readFileSync(caminho);
+  return decodificarPng(fs.readFileSync(caminho));
+}
+
+/** Mesma decodificação, a partir do buffer. */
+export function decodificarPng(buf) {
   let i = 8, w = 0, h = 0, bit = 0, cor = 0; const idat = [];
   while (i < buf.length) {
     const len = buf.readUInt32BE(i); const tipo = buf.toString("ascii", i + 4, i + 8);

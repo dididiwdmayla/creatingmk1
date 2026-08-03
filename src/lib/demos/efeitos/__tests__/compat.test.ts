@@ -54,12 +54,31 @@ describe("compatibilidade: preset com efeito de fundo salvo antes do registro ex
       expect(resolvido?.intensidade).toBe(2);
     });
 
+    /**
+     * `veios` saiu SEM substituto (ver EFEITOS_MIGRADOS): a demo publicada
+     * que o escolheu passa a não ter camada decorativa nenhuma. O que ela
+     * NÃO pode fazer é herdar o efeito do preset, que ninguém escolheu.
+     */
+    it("efeito removido sem substituto some — e não vira o efeito do preset", () => {
+      const preset = { ...skin.themeDefault, fundoEfeito: "gradiente" };
+      const theme = aplicarTema(preset, { fundoEfeito: "veios" });
+      expect(theme.fundoEfeito).toBe("veios");
+      expect(resolverEfeitoFundo(theme.fundoEfeito, 3, skin.nicho)).toBeUndefined();
+    });
+
     it("o PUT dessa demo continua válido (o id antigo não vira 400)", () => {
       expect(() =>
         validateLeadDemoInput({
           skinId: skin.id,
           themeId: skin.themeDefault.id,
           tema: { fundoEfeito: "geometrico-pulsante", fundoEfeitoIntensidade: 3 },
+        }),
+      ).not.toThrow();
+      expect(() =>
+        validateLeadDemoInput({
+          skinId: skin.id,
+          themeId: skin.themeDefault.id,
+          tema: { fundoEfeito: "veios", fundoEfeitoIntensidade: 3 },
         }),
       ).not.toThrow();
     });
@@ -71,10 +90,13 @@ describe("compatibilidade: preset com efeito de fundo salvo antes do registro ex
       });
       // Patch sem efeito (ou com efeito vivo) volta IDÊNTICO — nada de
       // reescrever o que não precisa migrar.
-      const intocado = { fundoEfeito: "veios" as const };
+      const intocado = { fundoEfeito: "particulas" as const };
       expect(migrarTemaPatch(intocado)).toBe(intocado);
       const vazio = {};
       expect(migrarTemaPatch(vazio)).toBe(vazio);
+      // Removido SEM substituto: o editor abre com "Nenhum" marcado, e é o
+      // próximo Salvar que apaga o id morto do banco.
+      expect(migrarTemaPatch({ fundoEfeito: "veios" })).toEqual({ fundoEfeito: "nenhum" });
     });
   });
 

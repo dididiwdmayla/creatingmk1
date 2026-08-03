@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-import type { ThemePaleta } from "../types";
+import type { CorModo, ThemePaleta } from "../types";
 
 /**
  * Contrato dos efeitos visuais (camada decorativa opcional por cima de uma
@@ -46,6 +46,18 @@ export interface EfeitoDefinition {
   nome: string;
   /** Nichos (ids de SkinDefinition.nicho) recomendados para este efeito. */
   nichosRecomendados: readonly string[];
+  /**
+   * MODOS DE COR REPROVADOS neste efeito (ver o portão de qualidade em
+   * ARCHITECTURE.md, "fps em celular com CPU limitada"). O piso de 45 fps
+   * é medido POR CÉLULA, efeito × modo de cor: quando um efeito só reprova
+   * em alguns modos, quem sai é o MODO, não o efeito — a demo que já
+   * escolheu esse par continua válida e simplesmente cai em `tema`
+   * (`resolverCamadaEfeito`), e o editor mostra o modo desabilitado com o
+   * motivo. Ausente = nenhum modo reprovado.
+   */
+  modosDeCorReprovados?: readonly CorModo[];
+  /** Por que os modos acima reprovaram — texto curto, mostrado no editor. */
+  motivoModosReprovados?: string;
 }
 
 /** Componente de efeito, já resolvido (ver getEfeitoComponenteDinamico). */

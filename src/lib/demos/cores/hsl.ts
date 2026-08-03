@@ -77,3 +77,68 @@ export function hslCss({ h, s, l }: Hsl): string {
 export function deslocarMatiz(cor: Hsl, graus: number): Hsl {
   return { ...cor, h: normalizarMatiz(cor.h + graus) };
 }
+
+/** HSL → RGB em [0,1] por canal (fórmula padrão CSS Color 4). */
+export function hslParaRgb({ h, s, l }: Hsl): [number, number, number] {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const setor = normalizarMatiz(h) / 60;
+  const x = c * (1 - Math.abs((setor % 2) - 1));
+  const m = l - c / 2;
+  const [r, g, b] =
+    setor < 1 ? [c, x, 0]
+    : setor < 2 ? [x, c, 0]
+    : setor < 3 ? [0, c, x]
+    : setor < 4 ? [0, x, c]
+    : setor < 5 ? [x, 0, c]
+    : [c, 0, x];
+  return [r + m, g + m, b + m];
+}
+
+/**
+ * Luminância relativa (WCAG) de uma cor HSL — quanta LUZ ela põe na tela.
+ *
+ * Não confundir com o `l` do HSL: os dois medem coisas diferentes e a
+ * distância entre eles é enorme justamente nos matizes que estouram.
+ * `hsl(60 80% 60%)` (amarelo) e `hsl(240 80% 60%)` (azul) têm o MESMO `l` e
+ * luminâncias de 0,64 e 0,09 — sete vezes. É por isso que um teto escrito
+ * em `l` (o que o arco-íris tinha) não segura o amarelo: ele deixa passar
+ * exatamente a cor que apaga o conteúdo por baixo da camada.
+ */
+export function luminanciaRelativa(cor: Hsl): number {
+  const [r, g, b] = hslParaRgb(cor).map((canal) => {
+    const v = Math.min(1, Math.max(0, canal));
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * A mesma cor (mesmo matiz, mesma saturação) com a luminosidade baixada só
+ * o necessário pra luminância relativa caber no teto. Cor que já cabe volta
+ * intacta — o teto nunca "achata" a paleta, só corta o pico.
+ *
+ * Busca binária em `l`: a luminância é monotônica em `l` com h/s fixos
+ * (preto → cor → branco), então 24 passos dão precisão muito abaixo de um
+ * nível de 255.
+ */
+export function limitarLuminancia(cor: Hsl, teto: number): Hsl {
+  // A conta é feita sobre a cor COMO ELA SAI no CSS (`hslCss` imprime uma
+  // casa decimal em cada componente): arredondar depois de cortar devolve
+  // ao navegador uma cor um fio acima do teto — pouco na tela, mas o
+  // suficiente pra o teto deixar de ser verdade sobre o valor entregue.
+  if (luminanciaRelativa(comoCss(cor)) <= teto) return cor;
+  let baixo = 0;
+  let alto = cor.l;
+  for (let i = 0; i < 24; i++) {
+    const meio = (baixo + alto) / 2;
+    if (luminanciaRelativa(comoCss({ ...cor, l: meio })) > teto) alto = meio;
+    else baixo = meio;
+  }
+  return { ...cor, l: Math.floor(baixo * 1000) / 1000 };
+}
+
+/** A cor já na precisão em que `hslCss` a imprime (0,1° e 0,1%). */
+function comoCss(cor: Hsl): Hsl {
+  const pct = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 1000) / 1000;
+  return { h: Math.round(normalizarMatiz(cor.h) * 10) / 10, s: pct(cor.s), l: pct(cor.l) };
+}
