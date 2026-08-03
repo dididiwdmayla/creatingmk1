@@ -16,7 +16,7 @@ Web app pessoal de prospecção de leads locais para web designer freelancer. Mu
 
 ```
 scripts/
-  qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato (ver "Verificação da UI")
+  qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato; `--so=fps` mede quadros por segundo em celular com CPU 4× — o piso de 45 fps que REPROVA um efeito (ver "Verificação da UI")
   qa-editor.mjs                     # ✅ laço de captura do EDITOR (não da rota pública): digita num campo com o efeito ativo e reporta fps do preview + contagem de <style> antes/depois; exige o patch temporário de fake DB documentado no cabeçalho
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
@@ -1369,6 +1369,8 @@ O laço do editor virou script commitado (`scripts/qa-editor.mjs`), no mesmo esp
 
 ### Custo por quadro dos efeitos (a causa do travamento)
 
+> Esta tabela é o registro HISTÓRICO da rodada do editor (desktop, sem CPU limitada) e cita `geometrico-pulsante`, que não existe mais. O piso de aprovação que vale hoje é a medição em celular com CPU 4× logo abaixo.
+
 Medição: um `requestAnimationFrame` contando quadros DENTRO do iframe do preview por 4s, com o editor aberto, viewport 1400×900, intensidade 3, Chromium headless. Cada número é a mediana de 3 cargas independentes da página (a primeira varredura, feita numa tacada só para os 9 efeitos, deu leituras entre 13 e 52 fps para o mesmo estado — ruído de carga da máquina; medir 3× por estado é o que separa sinal de ruído aqui).
 
 | efeito | antes | depois |
@@ -1393,6 +1395,32 @@ Medição: um `requestAnimationFrame` contando quadros DENTRO do iframe do previ
   - **`@property` invalidando o estilo da demo inteira**: as custom properties são declaradas `inherits: true` mas ANIMADAS no elemento da camada (`[data-d-efeito-camada]`), que é IRMÃO da skin — a subárvore afetada é só a do efeito. Medição que fecha a questão: `efeito=nenhum` com o LED em arco-íris (que anima `--d-led-c1` a 60 Hz num elemento de viewport inteira) fica em **59,4 fps**. Se a animação de uma property registrada invalidasse a demo inteira, esse seria o caso mais caro de todos. Por isso NÃO foi acrescentado `contain: paint layout` na camada: medido, ele não melhora nada aqui (10,5 contra 11,2 fps no `gradiente`; 51,7 contra 56 no `geometrico`) e a div da camada é deliberadamente sem `contain`/`position`/`opacity` porque qualquer um deles criaria stacking context e mudaria como o `mix-blend-mode` de aura/faíscas/varredura se compõe com a página (ver "Modos de cor").
   - **conflito entre as escritas por JS e o re-render do React** (a hipótese para o LED): marcadas as MESMAS propriedades que o `LedEdges`/`EfeitoCamada` escrevem (`--d-led-scroll`, `opacity`, `--d-efeito-fade`) mais a classe `.d-led-pulse`, e forçados **40 re-renders** da árvore inteira digitando no painel — **tudo sobreviveu**, valor por valor, e o nó do LED nem foi recriado. Não há conflito a resolver: o `style` que o React controla nesse nó não contém nenhuma dessas propriedades, e o diff de `style` do React só escreve chave cujo VALOR mudou (objeto novo a cada render com os mesmos valores não gera escrita nenhuma).
   - **LED piscando**: a série de opacidade do LED ao longo de 31 posições de scroll, com duas seções de animação desligada e digitando entre cada passo, é **idêntica byte a byte** entre o efeito lento (`gradiente`) e o rápido (`grao`): 1 → 0,97 → 0,30 → 0 (…) → 0,05 → 0,77 → 1, com a mesma rampa na volta e nenhum salto fora dela. As escritas por JS (`--d-led-scroll`, `opacity`) não são desfeitas por re-render do React — o `style` que o React controla nesse nó não contém nenhuma das duas, e o diff de `style` do React só escreve chave que mudou de valor. O que a pessoa via era a rampa acontecendo a 9 fps: com o quadro restaurado, a mesma rampa passa a ter ~7× mais passos intermediários.
+
+### fps em celular com CPU limitada — o piso de aprovação do registro (`--so=fps`)
+
+A medição acima (editor, desktop) achou o defeito de UMA rodada. Esta é a que **reprova**: `node scripts/qa-visual.mjs --so=fps` percorre TODOS os efeitos na pior condição que uma demo publicada consegue montar num aparelho modesto e imprime a tabela. **Efeito abaixo de 45 fps não passa.**
+
+- **Condição**: viewport de celular 390×844 com `deviceScaleFactor: 2` (o efeito rasteriza no dobro dos pixels — o teto do `devicePixelRatioClamped`), **CPU limitada em 4×** via CDP (`Emulation.setCPUThrottlingRate`), intensidade **3** e modo de cor **arco-íris** (o modo que anima uma custom property registrada a 60 Hz). LED desligado, pra o número ser do efeito.
+- **Método**: `requestAnimationFrame` contando quadros por 3,5s dentro da página, 1,8s depois do carregamento (o efeito entra por `next/dynamic` sem SSR — medir antes disso mede o carregamento). **Mediana de 5 cargas independentes da página**: a rodada do editor já tinha achado que uma varredura de uma tacada só dá leituras de 13 a 52 fps para o mesmo estado; com a CPU limitada, 3 cargas ainda deixavam passar outlier de uma carga só (12,2 no meio de 44 e 59), daí cinco.
+- **Saída**: `qa-shots/_fps-mobile.md` (a tabela), `qa-shots/fps-mobile-<efeito>.png` (a captura de cada efeito NA MESMA condição) e `_folha-fps-mobile.png` (todas lado a lado, com o fps no rótulo).
+- **`QA_FPS_COR_MODO=tema`** repete a tabela com a cor do tema: é o "desligar uma coisa de cada vez" que ATRIBUI o custo quando um efeito reprova. `QA_FPS_EFEITOS=` e `QA_FPS_CARGAS=` restringem a rodada.
+
+| efeito | fps (mediana) | cargas | veredito |
+|---|---|---|---|
+| `nenhum` (referência) | **60,1** | 57,9 / 60,0 / 60,1 / 60,2 / 60,4 | — |
+| `aura` | **55,1** | 50,9 / 51,3 / 55,1 / 56,6 / 58,2 | passa |
+| `grao` | **60,2** | 56,4 / 60,2 / 60,2 / 60,2 / 60,2 | passa |
+| `gradiente` | **58,7** | 56,1 / 56,9 / 58,7 / 58,8 / 59,4 | passa |
+| `particulas` | **57,5** | 53,4 / 54,7 / 57,5 / 57,6 / 58,9 | passa |
+| `veios` | **57,9** | 54,8 / 56,1 / 57,9 / 57,9 / 58,0 | passa |
+| `filotaxia` | **24,3** | 22,0 / 22,5 / 24,3 / 24,7 / 25,7 | **REPROVADO** |
+| `ondas` | **51,9** | 39,5 / 47,9 / 51,9 / 53,7 / 59,4 | passa |
+| `faiscas` | **55,4** | 50,8 / 53,2 / 55,4 / 58,0 / 60,0 | passa |
+| `varredura-de-luz` | **60,2** | 60,2 / 60,2 / 60,2 / 60,2 / 60,3 | passa |
+
+- **`filotaxia` é o único reprovado**, e por uma distância que nenhuma captura mostraria: menos da metade do piso, com leituras apertadas entre 22 e 26 (não é ruído). Causa atribuída rodando a mesma tabela com `QA_FPS_COR_MODO=tema`: **59,0 fps** — os 35 fps que faltam são a cor animada repintando o `radial-gradient` dos 93 spans, um por um, a cada quadro. Ver o corolário da regra de superfície. **O efeito continua no registro**: consertá-lo (migrar a nuvem de pontos para canvas, como `ondas`) não estava neste pedido, e reprovar não é remover — é a informação que decide a próxima rodada.
+- **A mediana é o número, mas a dispersão importa**: `ondas` variou de 39,5 a 59,4 entre cargas da MESMA página (é o efeito com o desenho mais caro por quadro dos que passam), enquanto `varredura-de-luz` fica em 60,2 nas cinco. Duas rodadas completas da tabela deram medianas 1 a 4 fps diferentes por efeito, sem trocar nenhum veredito — nenhum dos que passam ficou perto do piso, e o que reprova reprova por 20 fps.
+- **`ondas` só chegou aqui depois de três correções medidas**, cada uma isolada: rasterizar a 0,4 px por px CSS em vez de dpr 2 (**7,3 → 28 → 37 fps** conforme a escala caiu), preencher com gradiente só a camada de dentro em vez de todas (**45 → 59 fps** sozinha — o rasterizador avalia a rampa pixel a pixel) e limitar o redesenho a ~30 Hz. É a diferença entre "canvas resolve" e "canvas resolve se você pagar atenção ao que desenha".
 
 ## Variáveis de ambiente
 

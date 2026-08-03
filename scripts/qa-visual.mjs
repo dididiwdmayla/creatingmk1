@@ -25,6 +25,7 @@
  *   node scripts/qa-visual.mjs --so=cores      # só os modos de cor (efeito + LED)
  *   node scripts/qa-visual.mjs --so=secao      # animação ligada/desligada por seção
  *   node scripts/qa-visual.mjs --so=transicao  # a fronteira: antes/durante/depois
+ *   node scripts/qa-visual.mjs --so=fps        # quadros por segundo no celular (ver abaixo)
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -44,6 +45,44 @@ const CHROMIUM = process.env.QA_CHROMIUM ?? "/opt/pw-browsers/chromium";
 const PORTA = Number(process.env.QA_PORTA ?? 3123);
 const BASE = `http://127.0.0.1:${PORTA}`;
 const VIEWPORT = { width: 1100, height: 700 };
+
+/**
+ * MEDIÇÃO DE QUADROS POR SEGUNDO (`--so=fps`) — a condição de reprovação
+ * do registro de efeitos. Nenhuma captura mostra travamento; o número aqui
+ * é o que separa "efeito bonito" de "efeito que trava o celular de quem
+ * abre a demo" (ver ARCHITECTURE.md, "Custo por quadro dos efeitos").
+ *
+ * A condição é deliberadamente a PIOR que uma demo publicada consegue
+ * montar num aparelho modesto:
+ *
+ *   - viewport de celular (390×844, dpr 2 — o efeito rasteriza no dobro
+ *     dos pixels, que é o teto do `devicePixelRatioClamped`);
+ *   - CPU limitada em 4× via CDP (`Emulation.setCPUThrottlingRate`), a
+ *     distância típica entre a máquina do dev e um Android de entrada;
+ *   - intensidade 3 (a mais cara) e modo de cor ARCO-ÍRIS, que anima uma
+ *     custom property registrada a 60 Hz — é o que fazia SVG de viewport
+ *     inteira repintar por completo a cada quadro.
+ *
+ * CINCO cargas independentes por efeito, mediana entre elas. A rodada do
+ * editor já tinha achado que uma varredura de uma tacada só dá leituras de
+ * 13 a 52 fps para o MESMO estado (ruído de carga da máquina) e passou a
+ * medir 3×; aqui, com a CPU limitada em 4×, três ainda deixavam passar
+ * outliers de uma carga só (uma leitura de 12,2 fps no meio de duas de 44
+ * e 59), então a mediana é de cinco.
+ */
+const FPS_VIEWPORT = { width: 390, height: 844 };
+const FPS_CPU_THROTTLE = 4;
+const FPS_CARGAS = Number(process.env.QA_FPS_CARGAS ?? 5);
+const FPS_JANELA_MS = 3500;
+/** Piso de aprovação: abaixo disto o efeito NÃO passa. */
+const FPS_MINIMO = 45;
+/**
+ * O modo de cor da tabela é o arco-íris — é a condição de reprovação. A
+ * env existe só pra ATRIBUIR custo quando um efeito reprova
+ * (`QA_FPS_COR_MODO=tema` responde "é o efeito ou é a cor animada?"), do
+ * mesmo jeito que a rodada do editor desligou uma coisa de cada vez.
+ */
+const FPS_COR_MODO = process.env.QA_FPS_COR_MODO ?? "arco-iris";
 
 const SKIN = "barbearia-editorial";
 /** Presets da skin acima: um escuro, um claro (ver components/demos/barbearia/themes.ts). */
@@ -182,7 +221,7 @@ const COR_MODOS = [
  * Efeitos representativos: um por técnica de pintura (CSS, blob, SVG,
  * canvas). `ondas` está aqui porque é o único que NÃO recebe a cor como
  * string CSS interpolada no markup — ele lê a `color` computada do próprio
- * canvas a cada poucos desenhos (ver ondas/Ondas.tsx); se o modo de cor
+ * canvas a cada poucos quadros (ver ondas/Ondas.tsx); se o modo de cor
  * animado parasse de chegar até lá, só uma captura por fase mostraria.
  */
 const COR_EFEITOS = ["particulas", "aura", "veios", "ondas"];
@@ -287,6 +326,129 @@ async function folhaDeContato(page, titulo, arquivo, linhas) {
   const destino = path.join(SAIDA, `_folha-${arquivo}${marca}.png`);
   await page.screenshot({ path: destino, fullPage: true });
   return destino;
+}
+
+/**
+ * Quadros por segundo de CADA efeito na condição descrita em
+ * FPS_VIEWPORT/FPS_CPU_THROTTLE. Devolve os arquivos gerados (uma captura
+ * por efeito, a folha de contato e a tabela em markdown) e imprime a
+ * tabela — efeito abaixo de FPS_MINIMO sai marcado como REPROVADO.
+ */
+async function medirFps(browser, pageDaFolha, secret) {
+  const gerados = [];
+  const ctx = await browser.newContext({
+    viewport: FPS_VIEWPORT,
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    reducedMotion: "no-preference",
+  });
+  await ctx.addCookies([
+    {
+      name: "radar_session",
+      value: criarSessaoToken({ userId: "qa", papel: "admin", versao: 1 }, secret),
+      url: BASE,
+    },
+  ]);
+  const page = await ctx.newPage();
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: FPS_CPU_THROTTLE });
+
+  const linhas = [];
+  const itens = [];
+  // "nenhum" é a referência: é o teto que a PÁGINA consegue nesta
+  // condição. Um efeito só é culpado do que está abaixo dele.
+  // QA_FPS_EFEITOS=ondas,veios restringe a tabela — pra iterar num efeito
+  // só sem pagar a matriz inteira (cada efeito custa 3 cargas).
+  const alvos = process.env.QA_FPS_EFEITOS?.split(",").map((e) => e.trim()).filter(Boolean) ?? [
+    "nenhum",
+    ...EFEITOS,
+  ];
+  for (const efeito of alvos) {
+    const medidas = [];
+    for (let carga = 0; carga < FPS_CARGAS; carga++) {
+      await page.goto(
+        url({ efeito, intensidade: 3, preset: "norte", led: "desligado", corModo: FPS_COR_MODO }),
+        { waitUntil: "networkidle" },
+      );
+      // O efeito entra por next/dynamic sem SSR e a página ainda está
+      // assentando: medir antes disso mede o carregamento, não o efeito.
+      await page.waitForTimeout(1800);
+      medidas.push(
+        await page.evaluate(
+          (janela) =>
+            new Promise((resolve) => {
+              let quadros = 0;
+              const inicio = performance.now();
+              const passo = () => {
+                quadros++;
+                const decorrido = performance.now() - inicio;
+                if (decorrido < janela) requestAnimationFrame(passo);
+                else resolve((quadros * 1000) / decorrido);
+              };
+              requestAnimationFrame(passo);
+            }),
+          FPS_JANELA_MS,
+        ),
+      );
+      if (carga === FPS_CARGAS - 1) {
+        const png = path.join(SAIDA, `fps-mobile-${efeito}${marca}.png`);
+        await page.screenshot({ path: png });
+        gerados.push(png);
+        itens.push({ efeito, png });
+      }
+    }
+    medidas.sort((a, b) => a - b);
+    const mediana = medidas[Math.floor(medidas.length / 2)];
+    linhas.push({ efeito, mediana, medidas });
+    console.log(
+      `  [fps] ${efeito.padEnd(20)} mediana ${mediana.toFixed(1).padStart(5)} fps ` +
+        `(cargas: ${medidas.map((m) => m.toFixed(1)).join(" / ")})` +
+        `${efeito !== "nenhum" && mediana < FPS_MINIMO ? "  ← REPROVADO" : ""}`,
+    );
+  }
+
+  const cabecalho =
+    `# fps por efeito — celular ${FPS_VIEWPORT.width}×${FPS_VIEWPORT.height} (dpr 2), CPU ${FPS_CPU_THROTTLE}×, ` +
+    `intensidade 3, cor ${FPS_COR_MODO}\n\n` +
+    `Mediana de ${FPS_CARGAS} cargas independentes, janela de ${FPS_JANELA_MS}ms por carga. ` +
+    `Piso de aprovação: ${FPS_MINIMO} fps.\n\n` +
+    `| efeito | fps (mediana) | cargas | veredito |\n|---|---|---|---|\n`;
+  const corpo = linhas
+    .map(
+      (l) =>
+        `| \`${l.efeito}\` | **${l.mediana.toFixed(1)}** | ${l.medidas.map((m) => m.toFixed(1)).join(" / ")} | ` +
+        `${l.efeito === "nenhum" ? "— (referência)" : l.mediana >= FPS_MINIMO ? "passa" : "**REPROVADO**"} |`,
+    )
+    .join("\n");
+  const md = path.join(SAIDA, `_fps-mobile${marca}.md`);
+  await fs.writeFile(md, `${cabecalho}${corpo}\n`);
+  gerados.push(md);
+  console.log(`\n${cabecalho}${corpo}\n`);
+
+  // Folha de contato: a captura de cada efeito NA MESMA condição da tabela.
+  const porLinha = 5;
+  const grade = [];
+  for (let i = 0; i < itens.length; i += porLinha) {
+    const fatia = itens.slice(i, i + porLinha);
+    grade.push({
+      rotulo: `celular · CPU ${FPS_CPU_THROTTLE}× · i3 · ${FPS_COR_MODO}`,
+      itens: fatia.map((item) => {
+        const linha = linhas.find((l) => l.efeito === item.efeito);
+        return { rotulo: `${item.efeito} · ${linha.mediana.toFixed(1)} fps`, png: item.png };
+      }),
+    });
+  }
+  gerados.push(
+    await folhaDeContato(
+      pageDaFolha,
+      `fps em celular com CPU ${FPS_CPU_THROTTLE}× (intensidade 3, cor ${FPS_COR_MODO})`,
+      "fps-mobile",
+      grade,
+    ),
+  );
+  await ctx.close();
+  return gerados;
 }
 
 async function main() {
@@ -713,6 +875,9 @@ async function main() {
         ]),
       );
     }
+
+    /* ── Quadros por segundo em celular com CPU limitada ────────── */
+    if (querido("fps")) gerados.push(...(await medirFps(browser, page, secret)));
 
     await browser.close();
   } finally {
