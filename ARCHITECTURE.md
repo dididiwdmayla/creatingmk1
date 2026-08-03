@@ -1492,6 +1492,75 @@ tela. Corrigido para `#87949d` (5,00:1 sobre `--surface-2`), e os pares com
 Relatórios: `docs/temas/contraste.md` (110 pares de token, os cinco temas) e
 `docs/temas/legibilidade.md` (a varredura no DOM).
 
+### Custo (a plataforma fica aberta o dia inteiro)
+
+Três regras, todas cobradas por teste E por medição no navegador:
+
+1. **Nenhuma animação contínua no cromo da interface.** O ponto do wordmark
+   RADAR, no header, tinha `animate-ping` — uma animação infinita no elemento
+   que fica na tela o dia inteiro, em todas as abas. Virou halo estático
+   (`box-shadow`), mesma leitura visual, zero custo por quadro. O ganho não é
+   de fps (um `transform`/`opacity` num elemento de 8px é composto pela GPU e
+   praticamente não aparece na contagem de quadros): é que uma animação que
+   nunca termina impede o compositor de ficar ocioso, e isso se paga em
+   bateria durante um dia inteiro de aba aberta, não em travamento.
+2. **Nada de desfoque animado junto de transformação.** É a combinação que
+   derrubou o preview do editor a 9 fps (ver "Custo por quadro dos efeitos").
+   No cromo da plataforma não existe `blur` nenhum — nem animado nem estático.
+3. **A iridescência é deslocamento lento de matiz ou nada. Aqui é nada:**
+   gradiente multi-matiz PARADO. O item permitia as duas saídas; com a
+   plataforma aberta o dia inteiro e a regra 1 valendo, animar o arco seria
+   reintroduzir pelo cromo exatamente o que a regra 1 tirou dele.
+   Iridescência é propriedade óptica estática — não precisa se mexer para ler
+   como película.
+
+**`globals.custo.test.ts`** trava as três: toda `animation: … infinite` do CSS
+tem que estar numa lista de CONTEÚDO permitido, nenhuma classe `.cromo-*` pode
+declarar `animation`/`transition`, `Nav.tsx`/`MetaFaixa.tsx` não podem usar
+`animate-ping|pulse|spin|bounce`, nenhum `@keyframes` toca em `--iris-*` nem em
+`gradient()`/`filter`, e nenhuma regra combina `blur()` com animação.
+
+> Detalhe de escrita do teste: ele lê o texto-fonte do `Nav.tsx`, e o
+> comentário que explica POR QUE o `animate-ping` saiu cita o nome da classe.
+> A primeira versão reprovava o arquivo pelo próprio comentário que documenta a
+> correção; agora os comentários saem antes da busca.
+
+**As duas animações contínuas que sobram são de conteúdo e condicionais**, não
+de cromo: `.radar-sweep::before` (o mostrador só existe enquanto uma carga está
+em curso — some quando o dado chega) e `.pulse-warning`/`.pulse-critical` (só
+quando o meter está perto do teto ou no limite, e o estado também vem como
+palavra). Nenhuma das duas está viva no estado de repouso medido abaixo.
+
+**Medição 1 — animações vivas** (`--so=custo`): `document.getAnimations()`
+filtrado por `playState === "running"` e `iterations === Infinity`, nas 7 abas
+de cada tema, depois de a página assentar. Alvo dentro de `header`/`nav`/
+`.cromo-*` conta como cromo. Resultado: **nenhuma, em nenhum tema, nem no cromo
+nem no conteúdo**. Esta é a medição da CAUSA; o fps abaixo mede a consequência.
+
+**Medição 2 — fps navegando entre as abas** (`--so=fps`): celular 390×844 com
+`deviceScaleFactor: 2`, **CPU limitada em 4×** via CDP, contagem CONTÍNUA de
+quadros enquanto 6 trocas de rota acontecem em 4s (a nav é `<Link>`, então a
+navegação é client-side e o contador sobrevive a ela). Mediana de 5 cargas
+independentes por tema — a mesma disciplina do piso do registro de efeitos,
+pelo mesmo motivo: uma varredura de uma tacada só dá leituras de 13 a 52 fps
+para o mesmo estado. Piso de aprovação: **45 fps**.
+
+| tema | fps (mediana) | cargas | veredito |
+|---|---|---|---|
+| `escuro` | **55,4** | 54,9 / 55,2 / 55,4 / 55,7 / 56,4 | passa |
+| `claro` | **56,0** | 55,6 / 55,7 / 56,0 / 56,0 / 56,2 | passa |
+| `acido` | **55,8** | 55,3 / 55,5 / 55,8 / 56,3 / 56,4 | passa |
+| `vapor` | **56,0** | 55,5 / 55,8 / 56,0 / 56,2 / 56,2 | passa |
+| `prisma` | **56,2** | 55,2 / 56,0 / 56,2 / 56,5 / 56,5 | passa |
+
+Os cinco temas ficam dentro de 0,8 fps um do outro: **o tema não é o custo** —
+o que a navegação paga é o mesmo em todos, que é o esperado quando a
+iridescência é uma faixa de 1px parada e não uma camada animada. Os ~4 fps
+que faltam para 60 são a troca de rota em si (montar a árvore da aba nova e
+buscar os dados), não o cromo.
+
+Relatórios: `docs/temas/custo.md` e `docs/temas/fps.md`.
+
 ## Verificação da UI
 
 Sem Firebase real neste ambiente de sessão, a verificação de ponta a ponta foi feita ligando temporariamente o `FakeFirestore` (o mesmo fake dos testes) no lugar do Firestore via uma env var (`RADAR_FAKE_DB=1`), com dados de exemplo, rodando `next build && next start` e navegando o app real com Playwright (login errado/certo, dashboard com os três estados de meter, filtros de leads, ficha enriquecida/não enriquecida, botão Enriquecer com erro real de `GOOGLE_PLACES_API_KEY` ausente, transição de status, link `wa.me` com telefone e `{nome}` corretos, salvar config, logout e bloqueio pós-logout). O patch em `admin.ts` e os dados de exemplo foram revertidos antes do commit — não fazem parte do código do app.

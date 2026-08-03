@@ -67,9 +67,12 @@ export function Nav() {
           linha de 1px do ::after — ver "Regra de legibilidade". */}
       <header className="cromo-linha cromo-linha-baixo relative flex h-14 shrink-0 items-center justify-between bg-surface px-4">
         <span className="flex items-center gap-2">
+          {/* Halo ESTÁTICO. Este ponto tinha um `animate-ping` — uma animação
+              infinita no cromo, no elemento que fica na tela o dia inteiro em
+              todas as abas. O halo desenha a mesma ideia com um box-shadow
+              parado, custo zero por quadro. Ver "Custo" em ARCHITECTURE.md. */}
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+            <span className="inline-flex h-2 w-2 rounded-full bg-accent shadow-[0_0_0_3px_color-mix(in_oklab,var(--accent)_22%,transparent)]" />
           </span>
           <span className="font-display text-base font-bold tracking-[0.15em] text-foreground">
             RADAR

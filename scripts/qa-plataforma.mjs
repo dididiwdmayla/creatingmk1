@@ -40,6 +40,7 @@
  *   node scripts/qa-plataforma.mjs --so=contraste
  *   node scripts/qa-plataforma.mjs --so=iris
  *   node scripts/qa-plataforma.mjs --so=legibilidade
+ *   node scripts/qa-plataforma.mjs --so=custo
  *   node scripts/qa-plataforma.mjs --so=fps
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
@@ -1024,6 +1025,97 @@ async function medirLegibilidade(browser, secret) {
   return [destino];
 }
 
+/* ── Item: custo — animações vivas no DOM em repouso ────────────────── */
+
+/**
+ * Conta o que está ANIMANDO em cada aba, com a página parada, e separa o que
+ * é cromo do que é conteúdo. É a medição direta da regra "nenhuma animação
+ * contínua no cromo da interface" — o fps mede a consequência, isto mede a
+ * causa, e a causa é o que se conserta.
+ *
+ * `getAnimations()` devolve as animações VIVAS: uma transição que já
+ * terminou não aparece, e uma animação `infinite` aparece para sempre. Por
+ * isso a leitura é feita depois de a página assentar.
+ */
+async function medirCusto(browser, secret) {
+  const ctx = await contextoLogado(browser, { viewport: VIEWPORT_DESKTOP, secret });
+  const page = await ctx.newPage();
+  console.log("\n  [custo] animações VIVAS com a página em repouso (cromo × conteúdo):");
+
+  const linhas = [];
+  let falhas = 0;
+  for (const tema of TEMAS) {
+    definirTemaNoDoc("admin", tema);
+    const doTema = { cromo: [], conteudo: [] };
+    for (const aba of ABAS) {
+      await page.goto(`${BASE}${aba.url}`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `custo/${tema}/${aba.id}`);
+      await exigirTema(page, tema, `custo/${tema}/${aba.id}`);
+      // Mais um beat: a entrada de página (.page-transition, 0.28s finita)
+      // ainda estaria viva e contaria como animação sem ser contínua.
+      await page.waitForTimeout(800);
+
+      const achado = await page.evaluate(() => {
+        const cromo = [];
+        const conteudo = [];
+        for (const anim of document.getAnimations()) {
+          const alvo = anim.effect?.target;
+          if (!alvo || anim.playState !== "running") continue;
+          const t = anim.effect.getComputedTiming();
+          // Só o que é CONTÍNUO: iterações infinitas.
+          if (t.iterations !== Infinity) continue;
+          const nome = String(anim.animationName ?? anim.constructor.name);
+          const emCromo = Boolean(
+            alvo.closest?.("header, nav, [data-cromo]") ||
+              alvo.closest?.(".cromo-linha, .cromo-aba-ativa, .cromo-realce"),
+          );
+          const registro = `${nome}@${alvo.tagName?.toLowerCase() ?? "?"}`;
+          (emCromo ? cromo : conteudo).push(registro);
+        }
+        return { cromo, conteudo };
+      });
+      for (const c of achado.cromo) if (!doTema.cromo.includes(c)) doTema.cromo.push(c);
+      for (const c of achado.conteudo) if (!doTema.conteudo.includes(c)) doTema.conteudo.push(c);
+    }
+
+    const ok = doTema.cromo.length === 0;
+    if (!ok) falhas++;
+    console.log(
+      `    ${tema.padEnd(7)} cromo: ${doTema.cromo.length === 0 ? "NENHUMA" : doTema.cromo.join(", ")}` +
+        `  |  conteúdo: ${doTema.conteudo.length === 0 ? "nenhuma" : doTema.conteudo.join(", ")}` +
+        `  ${ok ? "ok" : "XX animação contínua no cromo"}`,
+    );
+    linhas.push({ tema, ...doTema });
+  }
+
+  await ctx.close();
+  const destino = path.join(SAIDA, `_custo${marca}.md`);
+  await fs.writeFile(
+    destino,
+    [
+      "# Animações contínuas com a página em repouso",
+      "",
+      "`document.getAnimations()` filtrado por `playState === \"running\"` e",
+      "`iterations === Infinity`, nas 7 abas de cada tema, depois de a página",
+      "assentar (a entrada de página é finita e já terminou). Alvo dentro de",
+      "`header`/`nav`/`.cromo-*` conta como CROMO.",
+      "",
+      "| tema | no cromo | no conteúdo |",
+      "|---|---|---|",
+      ...linhas.map(
+        (l) =>
+          `| \`${l.tema}\` | **${l.cromo.length === 0 ? "nenhuma" : l.cromo.join(", ")}** | ` +
+          `${l.conteudo.length === 0 ? "nenhuma" : l.conteudo.join(", ")} |`,
+      ),
+    ].join("\n"),
+  );
+  console.log(
+    `\n  [custo] ${falhas === 0 ? "cromo sem animação contínua em nenhum tema" : `${falhas} tema(s) REPROVADO(s)`}`,
+  );
+  return [destino];
+}
+
 /* ── Item: fps navegando entre as abas ───────────────────────────────── */
 
 async function medirFps(browser, secret) {
@@ -1165,6 +1257,7 @@ async function main() {
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));
     if (querido("legibilidade")) gerados.push(...(await medirLegibilidade(browser, secret)));
+    if (querido("custo")) gerados.push(...(await medirCusto(browser, secret)));
     if (querido("fps")) gerados.push(...(await medirFps(browser, secret)));
 
     await browser.close();
