@@ -1,7 +1,9 @@
+import { baseImagemSlot } from "./imagens-modo";
 import type {
   DemoData,
   DemoDataPatch,
   DemoSecao,
+  ImagensModo,
   SkinDefinition,
 } from "./types";
 
@@ -113,11 +115,22 @@ export function montarPatch(
   }
   if (Object.keys(secoes).length > 0) patch.secoes = secoes;
 
+  // Base de comparação por slot segue o modo ATUAL (não o `base` fixo, que
+  // é sempre "foto" — ver montarDemoData): sem isso, trocar de modo sem
+  // subir foto nenhuma faria todo slot "diferir" do `base` e entrar no
+  // patch como se fosse upload. `skin.demoDataExemplo.imagens[slot]` é o
+  // SVG cru, imune ao modo, a mesma fonte que baseImagemSlot espera.
+  const modoAtual: ImagensModo = atual.imagensModo ?? "foto";
   const imagens: Record<string, string> = {};
   for (const [slot, src] of Object.entries(atual.imagens)) {
-    if (src && src !== base.imagens[slot]) imagens[slot] = src;
+    const svgPadrao = skin.demoDataExemplo.imagens[slot];
+    const baseSlot = svgPadrao ? baseImagemSlot(skin.id, slot, svgPadrao, modoAtual) : undefined;
+    if (src && src !== baseSlot) imagens[slot] = src;
   }
   if (Object.keys(imagens).length > 0) patch.imagens = imagens;
+
+  // "foto" é o default — só entra no patch quando o usuário escolheu "grafico".
+  if (modoAtual !== "foto") patch.imagensModo = modoAtual;
 
   const videos: Record<string, string> = {};
   for (const [slot, src] of Object.entries(atual.videos ?? {})) {
