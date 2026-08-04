@@ -10,6 +10,7 @@ import { EFEITOS, getEfeito, intensidadePadrao } from "@/lib/demos/efeitos/regis
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { ordemEfetiva, secaoAnimada } from "@/lib/demos/estrutura";
 import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
+import { baseImagemSlot } from "@/lib/demos/imagens-modo";
 import { LED_ESTILOS } from "@/lib/demos/led/registry";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
 import { formatarPrecoServico } from "@/lib/demos/precos";
@@ -30,6 +31,7 @@ import type {
   DemoItem,
   Densidade,
   HoverEstilo,
+  ImagensModo,
   LedPreset,
   SkinDefinition,
   TemaPatch,
@@ -612,6 +614,11 @@ function LinhaVideo({
   );
 }
 
+const IMAGENS_MODO_OPCOES: Array<{ id: ImagensModo; rotulo: string }> = [
+  { id: "foto", rotulo: "Foto genérica" },
+  { id: "grafico", rotulo: "Placeholder gráfico" },
+];
+
 export function PainelImagens({
   dados,
   skin,
@@ -619,6 +626,8 @@ export function PainelImagens({
   erro,
   onUpload,
   onRemover,
+  imagensModo,
+  onImagensModoChange,
   uploadVideoSlot,
   videoErro,
   onUploadVideo,
@@ -630,6 +639,8 @@ export function PainelImagens({
   erro: string | null;
   onUpload: (slot: string, file: File) => void;
   onRemover: (slot: string) => void;
+  imagensModo: ImagensModo;
+  onImagensModoChange: (modo: ImagensModo) => void;
   uploadVideoSlot?: string | null;
   videoErro?: string | null;
   onUploadVideo?: (slot: string, file: File) => void;
@@ -639,22 +650,45 @@ export function PainelImagens({
   const videoSlots = skin.videoSlots ?? [];
   return (
     <div className="flex flex-col gap-2">
+      <div>
+        <span className="text-xs text-ink-muted">Base dos slots sem imagem própria</span>
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {IMAGENS_MODO_OPCOES.map(({ id, rotulo }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onImagensModoChange(id)}
+              aria-pressed={imagensModo === id}
+              className={`rounded border px-2.5 py-1.5 text-xs ${
+                imagensModo === id
+                  ? "border-accent text-foreground"
+                  : "border-line text-ink-muted hover:border-accent/50"
+              }`}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
+      </div>
       <p className="text-[11px] text-ink-muted">
         JPG, PNG ou WebP até 2MB (imagens grandes são comprimidas antes do envio). Remover
-        volta ao placeholder do template.
+        volta à base escolhida acima.
       </p>
       {erro && <p className="text-xs text-critical">{erro}</p>}
-      {slots.map((slot) => (
-        <LinhaImagem
-          key={slot}
-          slot={slot}
-          atual={dados.imagens[slot] ?? skin.demoDataExemplo.imagens[slot]}
-          placeholder={skin.demoDataExemplo.imagens[slot]}
-          ocupado={uploadSlot === slot}
-          onUpload={onUpload}
-          onRemover={onRemover}
-        />
-      ))}
+      {slots.map((slot) => {
+        const base = baseImagemSlot(skin.id, slot, skin.demoDataExemplo.imagens[slot], imagensModo);
+        return (
+          <LinhaImagem
+            key={slot}
+            slot={slot}
+            atual={dados.imagens[slot] ?? base}
+            placeholder={base}
+            ocupado={uploadSlot === slot}
+            onUpload={onUpload}
+            onRemover={onRemover}
+          />
+        );
+      })}
 
       {videoSlots.length > 0 && onUploadVideo && onRemoverVideo && (
         <div className="mt-2 flex flex-col gap-2 border-t border-line pt-3">
