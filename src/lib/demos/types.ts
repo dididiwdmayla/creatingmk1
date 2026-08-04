@@ -132,6 +132,14 @@ export interface DemoSecao {
 }
 
 /**
+ * Base do placeholder das imagens sem upload do lead — ver
+ * `DemoData.imagensModo` e `baseImagemSlot` em ./imagens-modo.ts.
+ */
+export type ImagensModo = "foto" | "grafico";
+
+export const IMAGENS_MODOS: readonly ImagensModo[] = ["foto", "grafico"];
+
+/**
  * Slots de conteúdo de uma demo. Os campos de topo (nome, endereço,
  * telefone…) são os que a ficha do lead pré-preenche; `secoes` e `imagens`
  * usam chaves definidas por cada skin.
@@ -159,10 +167,20 @@ export interface DemoData {
   ordemSecoes?: string[];
   /**
    * Imagem por slot (chaves definidas pelo skin, ex.: "hero", "equipe-1").
-   * Slot ausente = placeholder default do template. Sempre caminhos locais
-   * (nunca fotos do cliente original).
+   * Slot ausente = placeholder default do template (resolvido conforme
+   * `imagensModo` — ver ./imagens-modo.ts). Upload do lead sempre vence,
+   * em qualquer modo.
    */
   imagens: Record<string, string>;
+  /**
+   * Base do placeholder de cada slot de `imagens` sem upload do lead:
+   * "foto" usa a foto de produção em `foto/<slot>.webp` quando existe para
+   * aquele slot, "grafico" usa o SVG do exemplo da skin. Slot sem foto de
+   * produção cai no SVG independentemente do modo (ver `baseImagemSlot` em
+   * ./imagens-modo.ts). Upload do lead sempre vence, nos dois modos.
+   * Ausente = "foto".
+   */
+  imagensModo?: ImagensModo;
   /**
    * Vídeo por slot de vídeo-no-texto (chaves = SkinDefinition.videoSlots —
    * opt-in por skin, ver ./registry.ts). Slot ausente = sem vídeo: a skin

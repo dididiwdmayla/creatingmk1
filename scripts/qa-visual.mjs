@@ -27,6 +27,7 @@
  *   node scripts/qa-visual.mjs --so=transicao  # a fronteira: antes/durante/depois
  *   node scripts/qa-visual.mjs --so=barra      # cor da barra do navegador (todas as skins)
  *   node scripts/qa-visual.mjs --so=fps        # quadros por segundo no celular (ver abaixo)
+ *   node scripts/qa-visual.mjs --so=colapso    # PORTÃO: nenhuma foto com w/h zero (todas as skins)
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -913,6 +914,77 @@ async function medirBarra(browser, pageDaFolha, secret) {
   return gerados;
 }
 
+/* ── COLAPSO DE IMAGEM (`--so=colapso`) — PORTÃO, não medição ──────────
+ *
+ * Bug real encontrado nesta rodada: `imobiliaria-curada` tinha `h-full` E
+ * uma altura fixa (`h-[420px] sm:h-[500px]`) na MESMA className do card do
+ * bento "Imóveis em destaque" — no CSS compilado por `next build`,
+ * `.h-full{height:100%}` vem DEPOIS de `.h-\[420px\]{height:420px}` e
+ * vence por ordem de geração (mesma especificidade), então o card — e a
+ * foto dentro dele — colapsava pra `height:0` em produção. Invisível numa
+ * captura de tela isolada (não tem "antes/depois" pra comparar sem saber
+ * que o bug existe) e invisível em `next dev` (a ordem de geração do CSS
+ * do Turbopack em dev não reproduziu o defeito — só apareceu em
+ * `next build && next start`). Só uma medição de geometria pega isso.
+ *
+ * Ao contrário de `--so=fps`/`--so=barra` (MARCAM/REPROVAM célula por
+ * célula sem interromper o laço — a regra do registro é "modo que reprova
+ * é desabilitado, não o efeito inteiro"), aqui não existe gradação: um
+ * elemento com foto ou está visível ou não está. Por isso este é o único
+ * item do laço que LANÇA (interrompe o processo com código de saída ≠ 0)
+ * em vez de só reportar — é o item pensado pra rodar em CI/pre-commit.
+ */
+async function verificarColapsoDeImagem(browser, secret) {
+  const token = criarSessaoToken({ userId: "qa", papel: "admin", versao: 1 }, secret);
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+  });
+  await ctx.addCookies([{ name: "radar_session", value: token, url: BASE }]);
+  const page = await ctx.newPage();
+  const problemas = [];
+  let totalSlots = 0;
+
+  for (const skin of BARRA_SKINS) {
+    // imagensModo "foto": é onde o bug apareceu (o SVG do exemplo sempre
+    // teve dimensão intrínseca — a foto real, atrás de um <div data-card>
+    // com CSS de altura, é o caminho que colapsa).
+    await page.goto(`${BASE}/interno/demo-qa?skin=${skin}&imagens=foto&intro=0`, {
+      waitUntil: "networkidle",
+    });
+    await page.waitForTimeout(400);
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = "auto";
+    });
+
+    const nomes = await page
+      .locator("[data-demo-slot^='imagens.']")
+      .evaluateAll((els) => els.map((el) => el.getAttribute("data-demo-slot")));
+
+    for (const nome of nomes) {
+      totalSlots++;
+      const loc = page.locator(`[data-demo-slot="${nome}"]`).first();
+      // scrollIntoView: alguns slots só ganham dimensão real depois do
+      // lazy-load do next/image entrar na viewport (ver imovel-N acima).
+      await loc.scrollIntoViewIfNeeded().catch(() => {});
+      await page.waitForTimeout(60);
+      const box = await loc.boundingBox();
+      if (!box || box.width <= 0 || box.height <= 0) {
+        problemas.push(`${skin} / ${nome}: ${box ? `${box.width}x${box.height}` : "sem bounding box"}`);
+      }
+    }
+  }
+
+  await ctx.close();
+  console.log(`[colapso] ${totalSlots} slot(s) de imagem checados em ${BARRA_SKINS.length} skins.`);
+  if (problemas.length > 0) {
+    throw new Error(
+      `[colapso] ${problemas.length} elemento(s) com foto renderizando com largura ou altura zero:\n  ${problemas.join("\n  ")}`,
+    );
+  }
+  console.log("[colapso] ok — nenhum elemento com foto colapsado.");
+}
+
 async function main() {
   await fs.mkdir(SAIDA, { recursive: true });
   const secret = crypto.randomBytes(16).toString("hex");
@@ -1343,6 +1415,9 @@ async function main() {
 
     /* ── Quadros por segundo em celular com CPU limitada ────────── */
     if (querido("fps")) gerados.push(...(await medirFps(browser, page, secret)));
+
+    /* ── Portão: nenhuma foto com largura/altura zero ─────────────── */
+    if (querido("colapso")) await verificarColapsoDeImagem(browser, secret);
 
     await browser.close();
   } finally {

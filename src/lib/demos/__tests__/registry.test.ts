@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { getFonte } from "../fontes";
+import { baseImagemSlot, caminhoFotoDoSlot, SLOTS_SEM_FOTO } from "../imagens-modo";
 import { getLedEstilo } from "../led/registry";
 import { DEFAULT_SKIN, SKINS, getSkin, getTheme } from "../registry";
 
@@ -55,6 +56,31 @@ describe("registro de skins", () => {
           existsSync(join(process.cwd(), "public", src)),
           `placeholder ausente em public${src} (slot ${slot})`,
         ).toBe(true);
+      }
+
+      // Foto de produção por slot (imagensModo "foto" — ver ./imagens-modo.ts):
+      // contrato AUTOCONSISTENTE entre SLOTS_SEM_FOTO e o arquivo físico —
+      // slot fora da lista precisa ter a foto de verdade em public/, slot
+      // listado precisa realmente estar sem ela (a lista não pode "esquecer"
+      // de sair depois que a foto for produzida, nem entrar sem motivo).
+      const semFoto = new Set(SLOTS_SEM_FOTO[skin.id] ?? []);
+      for (const [slot, svg] of Object.entries(exemplo.imagens)) {
+        const fotoPath = caminhoFotoDoSlot(svg);
+        expect(fotoPath, `foto do slot ${slot}: SVG "${svg}" fora da convenção`).toBeTruthy();
+        const existeFoto = existsSync(join(process.cwd(), "public", fotoPath!));
+        if (semFoto.has(slot)) {
+          expect(
+            existeFoto,
+            `slot "${slot}" está em SLOTS_SEM_FOTO mas a foto existe em public${fotoPath} — tire da lista`,
+          ).toBe(false);
+        } else {
+          expect(
+            existeFoto,
+            `foto ausente em public${fotoPath} (slot ${slot}) — produza a foto ou liste o slot em SLOTS_SEM_FOTO`,
+          ).toBe(true);
+        }
+        // baseImagemSlot em modo "foto" bate com a existência física acima.
+        expect(baseImagemSlot(skin.id, slot, svg, "foto")).toBe(existeFoto ? fotoPath : svg);
       }
 
       // Miniatura do passo de escolha de skin: caminho local existente.

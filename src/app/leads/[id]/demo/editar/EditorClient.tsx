@@ -11,12 +11,13 @@ import { ApiError, api } from "@/lib/api-client";
 import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getFonte } from "@/lib/demos/fontes";
 import { idiomaPadraoDoLead } from "@/lib/demos/idioma";
+import { baseImagemSlot } from "@/lib/demos/imagens-modo";
 import { moedaDaDemo } from "@/lib/demos/moeda";
 import { montarDemoData } from "@/lib/demos/montar";
 import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema, migrarTemaPatch } from "@/lib/demos/tema";
-import type { DemoData, TemaPatch } from "@/lib/demos/types";
+import type { DemoData, ImagensModo, TemaPatch } from "@/lib/demos/types";
 import { IDIOMA_PADRAO } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
 import { prepararImagem } from "./comprimir";
@@ -383,9 +384,13 @@ export function DemoEditorClient({ id }: { id: string }) {
       setLead(updated);
       atualizar((d) => {
         const imagens = { ...d.imagens };
-        const placeholder = skin.demoDataExemplo.imagens[slot];
-        if (placeholder) imagens[slot] = placeholder;
-        else delete imagens[slot];
+        const svgPadrao = skin.demoDataExemplo.imagens[slot];
+        if (svgPadrao) {
+          // Restaura a base do modo ATIVO (foto/gráfico), não o SVG fixo.
+          imagens[slot] = baseImagemSlot(skin.id, slot, svgPadrao, d.imagensModo ?? "foto");
+        } else {
+          delete imagens[slot];
+        }
         return { ...d, imagens };
       });
     } catch (error) {
@@ -393,6 +398,26 @@ export function DemoEditorClient({ id }: { id: string }) {
     } finally {
       setUploadSlot(null);
     }
+  }
+
+  /**
+   * Troca o modo de base das imagens (aba Imagens). Só reescreve slots que
+   * ainda estavam na base do modo ANTIGO — um slot com upload de verdade do
+   * lead (valor diferente de qualquer base conhecida) nunca é tocado.
+   */
+  function handleImagensModoChange(novoModo: ImagensModo) {
+    atualizar((d) => {
+      const modoAntigo = d.imagensModo ?? "foto";
+      if (modoAntigo === novoModo) return d;
+      const imagens = { ...d.imagens };
+      for (const [slot, svgPadrao] of Object.entries(skin.demoDataExemplo.imagens)) {
+        const baseAntiga = baseImagemSlot(skin.id, slot, svgPadrao, modoAntigo);
+        if ((d.imagens[slot] ?? baseAntiga) === baseAntiga) {
+          imagens[slot] = baseImagemSlot(skin.id, slot, svgPadrao, novoModo);
+        }
+      }
+      return { ...d, imagensModo: novoModo, imagens };
+    });
   }
 
   async function handleUploadVideo(slot: string, file: File) {
@@ -743,6 +768,8 @@ export function DemoEditorClient({ id }: { id: string }) {
                 erro={imgErro}
                 onUpload={handleUpload}
                 onRemover={handleRemoverImagem}
+                imagensModo={dados.imagensModo ?? "foto"}
+                onImagensModoChange={handleImagensModoChange}
                 uploadVideoSlot={uploadVideoSlot}
                 videoErro={videoErro}
                 onUploadVideo={handleUploadVideo}

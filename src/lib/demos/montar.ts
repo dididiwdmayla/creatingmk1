@@ -3,10 +3,11 @@ import { resumirHorarios } from "@/lib/leads/horarios";
 import { handleInstagram } from "@/lib/leads/instagram";
 import type { Lead } from "@/lib/leads/types";
 import { idiomaEfetivoDemo } from "./idioma";
+import { baseImagemSlot } from "./imagens-modo";
 import { CAMPOS_IDENTIDADE_DEMO } from "./patch";
 import { DEFAULTS_HISTORICOS } from "./legado";
 import { migrarPrecos } from "./precos";
-import type { DemoData, DemoDataPatch, DemoSecao } from "./types";
+import type { DemoData, DemoDataPatch, DemoSecao, ImagensModo } from "./types";
 
 /**
  * Montagem do DemoData efetivo de um lead, em três camadas (a de cima vence):
@@ -139,8 +140,10 @@ function semDefaultsHistoricos(
 /**
  * DemoData efetivo do lead: exemplo do template ← dados do lead ← edições.
  * `lead` opcional (a ficha monta a prévia dos campos antes de salvar).
- * `skinId` opcional: só é usado pra filtrar defaults históricos do patch
- * salvo (ver semDefaultsHistoricos) — ausente = sem filtragem (fixtures de
+ * `skinId` opcional: usado pra filtrar defaults históricos do patch salvo
+ * (ver semDefaultsHistoricos) e pra resolver a base de `imagens` conforme
+ * `imagensModo` (ver baseImagemSlot em ./imagens-modo.ts) — ausente = sem
+ * filtragem de históricos e sem exclusão de slot sem foto (fixtures de
  * teste com DemoData avulso, sem skin real, continuam funcionando).
  */
 export function montarDemoData(
@@ -149,7 +152,22 @@ export function montarDemoData(
   patch?: DemoDataPatch,
   skinId?: string,
 ): DemoData {
-  const comLead = lead ? aplicarPatch(exemplo, dadosDoLead(lead)) : exemplo;
+  // A base de `imagens` (camada 1, antes do dado do lead/edições) depende
+  // do modo escolhido — só o patch salvo pode tê-lo definido (nem o exemplo
+  // nem o lead conhecem imagensModo); upload do lead continua vencendo
+  // sempre, na camada de merge abaixo.
+  const modo: ImagensModo = patch?.imagensModo ?? "foto";
+  const exemploComModo: DemoData = {
+    ...exemplo,
+    imagensModo: modo,
+    imagens: Object.fromEntries(
+      Object.entries(exemplo.imagens).map(([slot, svg]) => [
+        slot,
+        baseImagemSlot(skinId, slot, svg, modo),
+      ]),
+    ),
+  };
+  const comLead = lead ? aplicarPatch(exemploComModo, dadosDoLead(lead)) : exemploComModo;
   const efetivo = aplicarPatch(comLead, semDefaultsHistoricos(patch, skinId));
   // Self-heal: serviço salvo antes de precoPrefixo/precoValor existirem
   // ganha os dois campos migrados do `preco` livre, na leitura — mesmo

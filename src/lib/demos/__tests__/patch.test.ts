@@ -9,9 +9,14 @@ import type { DemoData } from "../types";
  * montarPatch é o inverso de aplicarPatch: o patch gerado, aplicado sobre
  * a base, tem que reproduzir o estado editado — e ser MÍNIMO (nada de
  * regravar o que é igual ao template).
+ *
+ * BASE passa por montarDemoData (não é o exemplo cru) porque é isso que o
+ * editor de fato usa como `atual`/`base` — com `imagens` já resolvido pelo
+ * `imagensModo` default ("foto"). Usar o exemplo cru aqui faria TODO slot
+ * de imagem "diferir" da base computada por montarPatch (SVG vs. foto) e
+ * entrar no patch por engano.
  */
-
-const BASE = DEFAULT_SKIN.demoDataExemplo;
+const BASE = montarDemoData(DEFAULT_SKIN.demoDataExemplo);
 
 function clone(data: DemoData): DemoData {
   return structuredClone(data);
@@ -95,6 +100,43 @@ describe("montarPatch", () => {
     const atual = clone(BASE);
     atual.imagens.hero = "https://storage.googleapis.com/b/demos/A/hero-1.webp";
     const patch = montarPatch(BASE, atual, DEFAULT_SKIN);
+    expect(patch.imagens).toEqual({
+      hero: "https://storage.googleapis.com/b/demos/A/hero-1.webp",
+    });
+  });
+
+  it('imagensModo: "grafico" entra no patch; "foto" (default) fica fora', () => {
+    const paraGrafico = clone(BASE);
+    paraGrafico.imagensModo = "grafico";
+    expect(montarPatch(BASE, paraGrafico, DEFAULT_SKIN).imagensModo).toBe("grafico");
+
+    const emFoto = clone(BASE);
+    emFoto.imagensModo = "foto";
+    expect(montarPatch(BASE, emFoto, DEFAULT_SKIN).imagensModo).toBeUndefined();
+  });
+
+  it("trocar de modo sem subir foto nenhuma não gera diff de imagens (só imagensModo)", () => {
+    const atual = clone(BASE);
+    atual.imagensModo = "grafico";
+    // Simula o que o EditorClient faz ao trocar de modo: reescreve os
+    // slots que ainda seguiam a base antiga pra base do novo modo.
+    for (const slot of Object.keys(atual.imagens)) {
+      atual.imagens[slot] = DEFAULT_SKIN.demoDataExemplo.imagens[slot];
+    }
+    const patch = montarPatch(BASE, atual, DEFAULT_SKIN);
+    expect(patch.imagensModo).toBe("grafico");
+    expect(patch.imagens).toBeUndefined();
+  });
+
+  it("upload real de verdade continua no diff mesmo com o modo trocado", () => {
+    const atual = clone(BASE);
+    atual.imagensModo = "grafico";
+    for (const slot of Object.keys(atual.imagens)) {
+      atual.imagens[slot] = DEFAULT_SKIN.demoDataExemplo.imagens[slot];
+    }
+    atual.imagens.hero = "https://storage.googleapis.com/b/demos/A/hero-1.webp";
+    const patch = montarPatch(BASE, atual, DEFAULT_SKIN);
+    expect(patch.imagensModo).toBe("grafico");
     expect(patch.imagens).toEqual({
       hero: "https://storage.googleapis.com/b/demos/A/hero-1.webp",
     });

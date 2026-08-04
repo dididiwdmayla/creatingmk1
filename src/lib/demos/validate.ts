@@ -16,6 +16,7 @@ import {
   CLIQUE_ESTILOS,
   COR_MODOS,
   HOVER_ESTILOS,
+  IMAGENS_MODOS,
   LED_PRESETS,
   type AnimacaoEntrada,
   type DemoDataPatch,
@@ -109,7 +110,9 @@ function validaDados(
   for (const chave of Object.keys(value)) {
     const conhecida =
       (CAMPOS_TEXTO as readonly string[]).includes(chave) ||
-      ["servicos", "depoimentos", "secoes", "imagens", "videos", "ordemSecoes"].includes(chave);
+      ["servicos", "depoimentos", "secoes", "imagens", "imagensModo", "videos", "ordemSecoes"].includes(
+        chave,
+      );
     if (!conhecida) problemas.push(`dados.${chave}: chave desconhecida`);
   }
 
@@ -263,6 +266,13 @@ function validaDados(
         validaTexto(src, `dados.imagens.${slot}`, problemas);
       }
     }
+  }
+
+  if (
+    value.imagensModo !== undefined &&
+    !(IMAGENS_MODOS as readonly string[]).includes(value.imagensModo as string)
+  ) {
+    problemas.push(`dados.imagensModo deve ser um de: ${IMAGENS_MODOS.join(", ")}`);
   }
 
   if (value.videos !== undefined) {

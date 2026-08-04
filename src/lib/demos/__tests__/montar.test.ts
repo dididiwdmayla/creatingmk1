@@ -196,10 +196,48 @@ describe("montarDemoData", () => {
     expect(out.servicos).toEqual(migrarPrecos(exemplo.servicos));
   });
 
-  it("sem lead nem patch devolve o exemplo do template (com o preço migrado)", () => {
+  it("sem lead nem patch devolve o exemplo do template (com o preço migrado e imagensModo default)", () => {
     expect(montarDemoData(exemplo)).toEqual({
       ...exemplo,
       servicos: migrarPrecos(exemplo.servicos),
+      imagensModo: "foto",
+      // Sem skinId, mas o placeholder segue a convenção /demos/<pasta>/<slot>.svg
+      // — o default "foto" ainda resolve pra foto/<slot>.webp na mesma pasta.
+      imagens: { hero: "/demos/x/foto/hero.webp", equipe: "/demos/x/foto/equipe.webp" },
+    });
+  });
+
+  describe("imagensModo: base de `imagens` sem upload do lead", () => {
+    it('default "foto" resolve cada slot pra foto/<slot>.webp na mesma pasta do SVG', () => {
+      const out = montarDemoData(exemplo);
+      expect(out.imagensModo).toBe("foto");
+      expect(out.imagens).toEqual({
+        hero: "/demos/x/foto/hero.webp",
+        equipe: "/demos/x/foto/equipe.webp",
+      });
+    });
+
+    it('modo "grafico" salvo no patch mantém o SVG do exemplo', () => {
+      const out = montarDemoData(exemplo, undefined, { imagensModo: "grafico" });
+      expect(out.imagensModo).toBe("grafico");
+      expect(out.imagens).toEqual(exemplo.imagens);
+    });
+
+    it("upload do lead (override em patch.imagens) vence em qualquer modo", () => {
+      const foto = montarDemoData(exemplo, undefined, {
+        imagensModo: "foto",
+        imagens: { hero: "https://storage.example/demos/lead/hero-123.jpg" },
+      });
+      expect(foto.imagens.hero).toBe("https://storage.example/demos/lead/hero-123.jpg");
+      // slot não tocado continua seguindo a base do modo.
+      expect(foto.imagens.equipe).toBe("/demos/x/foto/equipe.webp");
+
+      const grafico = montarDemoData(exemplo, undefined, {
+        imagensModo: "grafico",
+        imagens: { hero: "https://storage.example/demos/lead/hero-123.jpg" },
+      });
+      expect(grafico.imagens.hero).toBe("https://storage.example/demos/lead/hero-123.jpg");
+      expect(grafico.imagens.equipe).toBe("/demos/x/equipe.svg");
     });
   });
 
