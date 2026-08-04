@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { NivelIA } from "@/lib/ai/nivel";
 import { Button } from "@/components/Button";
@@ -96,6 +96,19 @@ export function GerarDemosLoteDialog({
   const [progresso, setProgresso] = useState(0);
   const [relatorio, setRelatorio] = useState<RelatorioLote | null>(null);
   const canceladoRef = useRef(false);
+  const iaCanceladoRef = useRef(false);
+
+  // Desmontar o diálogo (navegação, troca de grupo) durante um loop em
+  // andamento equivale a cancelar: nenhum request novo sai depois disso —
+  // o request EM VOO ainda termina (não dá pra abortar um fetch já
+  // disparado sem invalidar a resposta), mas o loop para no próximo lead.
+  useEffect(
+    () => () => {
+      canceladoRef.current = true;
+      iaCanceladoRef.current = true;
+    },
+    [],
+  );
 
   function trocarSkin(novoSkinId: string) {
     setSkinId(novoSkinId);
@@ -173,7 +186,6 @@ export function GerarDemosLoteDialog({
   const [iaProcessando, setIaProcessando] = useState(false);
   const [iaProgresso, setIaProgresso] = useState(0);
   const [iaRelatorio, setIaRelatorio] = useState<RelatorioLote | null>(null);
-  const iaCanceladoRef = useRef(false);
 
   // Seleciona todos os recém-criados por padrão, uma vez (quando a lista
   // de "criados com sucesso" deixa de estar vazia pela primeira vez) — ver
@@ -214,7 +226,8 @@ export function GerarDemosLoteDialog({
     setIaProgresso(0);
     const relatorioAtual = relatorioVazio();
 
-    for (const lead of alvosIA) {
+    for (let i = 0; i < alvosIA.length; i++) {
+      const lead = alvosIA[i];
       if (iaCanceladoRef.current) {
         relatorioAtual.cancelado = true;
         break;
@@ -241,6 +254,23 @@ export function GerarDemosLoteDialog({
           ok: false,
           erro: error instanceof ApiError ? error.message : "falha desconhecida",
         });
+        // Teto de cota estourado é um bloqueio GLOBAL, não deste lead — os
+        // próximos vão falhar pelo mesmo motivo. Registra o resto como não
+        // tentado (sem gastar N-i requests pra confirmar o óbvio) em vez de
+        // continuar tentando um a um.
+        if (error instanceof ApiError && error.code === "quota_exceeded") {
+          for (const restante of alvosIA.slice(i + 1)) {
+            relatorioAtual.falhas.push({
+              placeId: restante.placeId,
+              nome: restante.nome,
+              ok: false,
+              erro: "não tentado — teto de cota de IA atingido",
+            });
+          }
+          setIaProgresso(alvosIA.length);
+          setIaRelatorio({ ...relatorioAtual });
+          break;
+        }
       }
       setIaProgresso((n) => n + 1);
       setIaRelatorio({ ...relatorioAtual });
