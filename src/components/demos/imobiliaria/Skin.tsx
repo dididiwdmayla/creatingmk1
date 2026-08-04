@@ -390,7 +390,7 @@ export function ImobiliariaCurada({ data, theme, idioma, moeda }: SkinProps) {
                     >
                       <div
                         data-card
-                        className={`group relative h-full overflow-hidden ${alto ? "h-[420px] sm:h-[500px]" : "h-[380px] sm:h-[420px]"}`}
+                        className={`group relative overflow-hidden ${alto ? "h-[420px] sm:h-[500px]" : "h-[380px] sm:h-[420px]"}`}
                         style={{ borderRadius: "var(--d-radius)", backgroundColor: "var(--d-bg-elev)" }}
                       >
                         <div className="absolute inset-0 transition-transform duration-[1100ms] ease-[cubic-bezier(0.22,0.61,0.21,1)] group-hover:scale-105">
