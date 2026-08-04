@@ -7,11 +7,12 @@ import { cssPlanoDaPagina } from "@/lib/demos/barra/plano";
 import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
+import { montarDemoData } from "@/lib/demos/montar";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { modoValido } from "@/lib/demos/cores/modos";
-import type { CoresModoValor, LedPreset, TemaPatch } from "@/lib/demos/types";
+import type { CoresModoValor, ImagensModo, LedPreset, TemaPatch } from "@/lib/demos/types";
 import { demoCoreFontsClassName } from "@/app/demo/fonts";
 
 /**
@@ -44,6 +45,7 @@ import { demoCoreFontsClassName } from "@/app/demo/fonts";
  *   ledCorModo=<modo>    idem para o LED
  *   ledCores=#aabbcc,#...
  *   semAnim=id1,id2      seções com a animação DESLIGADA (DemoSecao.animacao)
+ *   imagens=foto|grafico modo de base das imagens (DemoData.imagensModo)  default: foto
  *   intro=0              desliga a splash de abertura (default nas capturas)
  *   barra=<modo>         modo da cor da barra (automatico/fundo/destaque/personalizada)
  *   barraCor=#aabbcc     cor do modo "personalizada"
@@ -138,15 +140,20 @@ export default async function DemoQaPage({ searchParams }: Props) {
   // Seções com animação desligada (item "Animação por seção"): mesmo
   // caminho do editor — um patch em `dados.secoes.{id}.animacao`.
   const semAnim = (texto(query.semAnim) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const dados = semAnim.length
-    ? {
-        ...skin.demoDataExemplo,
-        secoes: semAnim.reduce(
-          (acc, id) => ({ ...acc, [id]: { ...acc[id], animacao: false } }),
-          skin.demoDataExemplo.secoes,
-        ),
-      }
-    : skin.demoDataExemplo;
+  // imagensModo: mesma resolução da rota pública (montarDemoData) — foto de
+  // produção ou SVG do exemplo, sem precisar de lead/upload nenhum.
+  const imagensModo: ImagensModo = texto(query.imagens) === "grafico" ? "grafico" : "foto";
+  const dados = montarDemoData(
+    skin.demoDataExemplo,
+    undefined,
+    {
+      imagensModo,
+      ...(semAnim.length > 0 && {
+        secoes: Object.fromEntries(semAnim.map((id) => [id, { animacao: false }])),
+      }),
+    },
+    skin.id,
+  );
 
   const Skin = skin.componente;
   return (
