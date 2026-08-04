@@ -5,6 +5,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "
 
 import { Button } from "@/components/Button";
 import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
+import { GerarDemosLoteDialog } from "@/components/GerarDemosLoteDialog";
 import { LeadCard } from "@/components/LeadCard";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { RadarSweep } from "@/components/RadarSweep";
@@ -225,6 +226,9 @@ function LeadsPageInner() {
   const [analisando, setAnalisando] = useState(false);
   const [iaErro, setIaErro] = useState<string | null>(null);
 
+  // Diálogo "Gerar demos em lote" (só existe na página de um grupo, buscaId setado).
+  const [loteAberto, setLoteAberto] = useState(false);
+
   // Cota individual de buscas — indicador permanente, atualizado após cada busca.
   const [cotaBuscas, setCotaBuscas] = useState<UsoUsuario | null>(null);
   function recarregarCotaBuscas() {
@@ -325,6 +329,11 @@ function LeadsPageInner() {
     } finally {
       setAnalisando(false);
     }
+  }
+
+  /** Mescla um lead atualizado na lista local (ex.: demo criada em lote) sem refetch. */
+  function atualizarLeadLocal(lead: Lead) {
+    setLeads((atual) => atual?.map((l) => (l.placeId === lead.placeId ? lead : l)) ?? atual);
   }
 
   // Resolve a região efetiva (campo ou default da config) para mostrar
@@ -767,7 +776,26 @@ function LeadsPageInner() {
               {iaErro && <p className="mt-1 text-xs text-critical">{iaErro}</p>}
             </div>
           )}
+
+          <div className="border-t border-accent/20 pt-2">
+            <button
+              type="button"
+              onClick={() => setLoteAberto(true)}
+              className="text-xs font-medium text-accent hover:underline"
+            >
+              🧩 Gerar demos em lote
+            </button>
+          </div>
         </div>
+      )}
+
+      {loteAberto && leads && (
+        <GerarDemosLoteDialog
+          leads={leads}
+          iaDisponivel={iaDisponivel}
+          onFechar={() => setLoteAberto(false)}
+          onLeadAtualizado={atualizarLeadLocal}
+        />
       )}
 
       {buscaAtual && (

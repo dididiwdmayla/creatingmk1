@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { SeloProntidao } from "@/components/SeloProntidao";
 import { ApiError, api } from "@/lib/api-client";
 import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getSkin } from "@/lib/demos/registry";
@@ -139,6 +140,10 @@ export default function DemosPage() {
                   <p>Criada {formatDateTime(lead.demo.criadoEm)}</p>
                   <p>Editada {formatDateTime(lead.demo.atualizadoEm)}</p>
                 </div>
+              </div>
+
+              <div className="mt-1.5">
+                <SeloProntidao lead={lead} skin={skin} />
               </div>
 
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
