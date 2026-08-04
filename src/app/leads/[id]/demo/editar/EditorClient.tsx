@@ -16,6 +16,7 @@ import { moedaDaDemo } from "@/lib/demos/moeda";
 import { montarDemoData } from "@/lib/demos/montar";
 import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
+import { aplicarSugestaoTexto, sugestaoTemTexto } from "@/lib/demos/sugestaoTexto";
 import { aplicarTema, migrarTemaPatch } from "@/lib/demos/tema";
 import type { DemoData, ImagensModo, TemaPatch } from "@/lib/demos/types";
 import { IDIOMA_PADRAO } from "@/lib/idioma";
@@ -492,82 +493,8 @@ export function DemoEditorClient({ id }: { id: string }) {
       animacao: aplicada.animacao,
     }));
 
-    const temTextos =
-      aplicada.slogan !== undefined ||
-      aplicada.descricao !== undefined ||
-      aplicada.heroRotulo !== undefined ||
-      aplicada.heroCta !== undefined ||
-      aplicada.heroCtaSecundaria !== undefined ||
-      aplicada.heroItens !== undefined ||
-      aplicada.titulosSecoes !== undefined ||
-      aplicada.textosSecoes !== undefined ||
-      aplicada.servicos !== undefined ||
-      aplicada.depoimentos !== undefined;
-
-    if (temTextos) {
-      atualizar((d) => {
-        const secoes = { ...d.secoes };
-        for (const [idSecao, titulo] of Object.entries(aplicada.titulosSecoes ?? {})) {
-          secoes[idSecao] = { ...secoes[idSecao], titulo };
-        }
-        for (const [idSecao, textos] of Object.entries(aplicada.textosSecoes ?? {})) {
-          secoes[idSecao] = {
-            ...secoes[idSecao],
-            ...(textos.rotulo !== undefined && { rotulo: textos.rotulo }),
-            ...(textos.titulo !== undefined && { titulo: textos.titulo }),
-            ...(textos.texto !== undefined && { texto: textos.texto }),
-            ...(textos.cta !== undefined && { cta: textos.cta }),
-            ...(textos.ctaSecundaria !== undefined && { ctaSecundaria: textos.ctaSecundaria }),
-            ...(textos.itens !== undefined && { itens: textos.itens }),
-          };
-        }
-        if (
-          aplicada.descricao !== undefined ||
-          aplicada.heroRotulo !== undefined ||
-          aplicada.heroCta !== undefined ||
-          aplicada.heroCtaSecundaria !== undefined ||
-          aplicada.heroItens !== undefined
-        ) {
-          secoes.hero = {
-            ...secoes.hero,
-            ...(aplicada.descricao !== undefined && { texto: aplicada.descricao }),
-            ...(aplicada.heroRotulo !== undefined && { rotulo: aplicada.heroRotulo }),
-            ...(aplicada.heroCta !== undefined && { cta: aplicada.heroCta }),
-            ...(aplicada.heroCtaSecundaria !== undefined && {
-              ctaSecundaria: aplicada.heroCtaSecundaria,
-            }),
-            ...(aplicada.heroItens !== undefined && { itens: aplicada.heroItens }),
-          };
-        }
-        // servicos/depoimentos: só nome/descricao (ou autor/texto) mudam —
-        // preço, categoria, destaques e nota/contexto do item atual são
-        // preservados (não vêm da IA, são dado do lead/editor).
-        const servicos = aplicada.servicos
-          ? d.servicos.map((servico, i) => {
-              const novo = aplicada.servicos?.[i];
-              if (!novo) return servico;
-              return {
-                ...servico,
-                nome: novo.nome,
-                ...(novo.descricao !== undefined && { descricao: novo.descricao }),
-              };
-            })
-          : d.servicos;
-        const depoimentos = aplicada.depoimentos
-          ? d.depoimentos.map((depoimento, i) => {
-              const novo = aplicada.depoimentos?.[i];
-              if (!novo) return depoimento;
-              return { ...depoimento, autor: novo.autor, texto: novo.texto };
-            })
-          : d.depoimentos;
-        return {
-          ...d,
-          ...(aplicada.slogan !== undefined && { slogan: aplicada.slogan }),
-          secoes,
-          servicos,
-          depoimentos,
-        };
-      });
+    if (sugestaoTemTexto(aplicada)) {
+      atualizar((d) => aplicarSugestaoTexto(aplicada, d));
     }
 
     setMostrarIA(false);

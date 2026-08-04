@@ -792,6 +792,7 @@ function LeadsPageInner() {
       {loteAberto && leads && (
         <GerarDemosLoteDialog
           leads={leads}
+          iaDisponivel={iaDisponivel}
           onFechar={() => setLoteAberto(false)}
           onLeadAtualizado={atualizarLeadLocal}
         />
