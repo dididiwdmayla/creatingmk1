@@ -8,6 +8,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { ApiError, api } from "@/lib/api-client";
 import { EFEITOS } from "@/lib/demos/efeitos/registry";
 import {
+  mensagemResultadoLote,
   patchCriacaoLote,
   projecaoChamadasIA,
   projecaoCotaIA,
@@ -58,6 +59,7 @@ export function GerarDemosLoteDialog({
   iaDisponivel,
   onFechar,
   onLeadAtualizado,
+  onConcluido,
 }: {
   /** Leads do grupo de busca atual (o diálogo filtra os que já têm demo). */
   leads: Lead[];
@@ -66,6 +68,13 @@ export function GerarDemosLoteDialog({
   onFechar: () => void;
   /** Chamado a cada lead salvo com sucesso, para o caller mesclar na lista local. */
   onLeadAtualizado: (lead: Lead) => void;
+  /**
+   * Chamado ao concluir a criação, com a mensagem de confirmação pronta
+   * (`mensagemResultadoLote`) — o caller mostra num aviso persistente na
+   * página (o diálogo pode fechar sozinho logo em seguida, sem tempo pra o
+   * operador ler nada DENTRO dele).
+   */
+  onConcluido: (mensagem: string) => void;
 }) {
   // Lista de candidatos CONGELADA no momento em que o diálogo abriu: como
   // cada PUT bem-sucedido faz o lead ganhar `demo` (via onLeadAtualizado →
@@ -163,6 +172,16 @@ export function GerarDemosLoteDialog({
 
     setRelatorio(relatorioAtual);
     setProcessando(false);
+    onConcluido(mensagemResultadoLote(relatorioAtual, leads.length));
+
+    // Fecha sozinho só quando não há passo de IA a seguir (sem chave
+    // configurada, ou nenhuma demo criada com sucesso) — quando há, o
+    // diálogo fica aberto com a confirmação visível + a seção de IA
+    // logo abaixo, e "Fechar" continua explícito nos dois lugares.
+    const podeGerarIA = iaDisponivel && relatorioAtual.sucessos.length > 0;
+    if (!podeGerarIA) {
+      onFechar();
+    }
   }
 
   function cancelar() {
@@ -426,27 +445,39 @@ export function GerarDemosLoteDialog({
               </p>
             )}
 
+            {/* Confirmação clara ao concluir — nunca volta a mostrar o botão de
+                criar (pareceria que nada aconteceu e convidaria a repetir). */}
             {relatorio && !processando && (
-              <p className="mt-2 text-sm">
-                <span className="text-good">{relatorio.sucessos.length} criada(s)</span>
-                {relatorio.falhas.length > 0 && (
-                  <span className="text-critical"> · {relatorio.falhas.length} falhou(aram)</span>
-                )}
-                {relatorio.cancelado && <span className="text-ink-muted"> · cancelado</span>}
-              </p>
+              <div className="mt-2 rounded border border-line bg-surface-2 p-2.5">
+                <p className="text-sm font-medium text-foreground">
+                  ✓ Lote concluído — {mensagemResultadoLote(relatorio, leads.length)}
+                </p>
+                <div className="mt-2 flex justify-end">
+                  <Button variant="secondary" onClick={onFechar}>
+                    Fechar
+                  </Button>
+                </div>
+              </div>
             )}
 
-            <div className="mt-3 flex justify-end gap-2">
-              {processando ? (
-                <Button variant="secondary" onClick={cancelar}>
-                  Cancelar
-                </Button>
-              ) : (
-                <Button onClick={criarDemos} disabled={!skin || alvos.length === 0}>
-                  Criar {alvos.length} demo{alvos.length === 1 ? "" : "s"}
-                </Button>
-              )}
-            </div>
+            {!relatorio && (
+              <div className="mt-3 flex justify-end gap-2">
+                {processando ? (
+                  <>
+                    <Button loading disabled>
+                      Criando…
+                    </Button>
+                    <Button variant="secondary" onClick={cancelar}>
+                      Cancelar
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={criarDemos} disabled={!skin || alvos.length === 0}>
+                    Criar {alvos.length} demo{alvos.length === 1 ? "" : "s"}
+                  </Button>
+                )}
+              </div>
+            )}
 
             {/* Ação DISTINTA — próprio botão/confirmação, nunca junto da criação. */}
             {iaDisponivel && criadosComSucesso.length > 0 && (

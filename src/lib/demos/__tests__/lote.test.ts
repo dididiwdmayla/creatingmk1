@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { patchCriacaoLote, projecaoChamadasIA, projecaoCotaIA } from "../lote";
+import {
+  mensagemResultadoLote,
+  patchCriacaoLote,
+  projecaoChamadasIA,
+  projecaoCotaIA,
+  relatorioVazio,
+  type RelatorioLote,
+} from "../lote";
 
 describe("patchCriacaoLote", () => {
   it("sem efeito nem modo alternativo: dados vazio, sem tema", () => {
@@ -90,5 +97,42 @@ describe("projecaoCotaIA", () => {
     const projecao = projecaoCotaIA(60, 50, 1);
     expect(projecao.restanteAntes).toBe(0);
     expect(projecao.podeEstourar).toBe(true);
+  });
+});
+
+function relatorio(sucessos: number, falhas: number, cancelado = false): RelatorioLote {
+  const r = relatorioVazio();
+  for (let i = 0; i < sucessos; i++) r.sucessos.push({ placeId: `s${i}`, nome: `S${i}`, ok: true });
+  for (let i = 0; i < falhas; i++) {
+    r.falhas.push({ placeId: `f${i}`, nome: `F${i}`, ok: false, erro: "erro" });
+  }
+  r.cancelado = cancelado;
+  return r;
+}
+
+describe("mensagemResultadoLote", () => {
+  it("todas criadas, nenhuma pulada, sem falha: sem menção a falha", () => {
+    expect(mensagemResultadoLote(relatorio(5, 0), 5)).toBe("5 demos criadas · 0 puladas");
+  });
+
+  it("puladas = total do grupo menos criadas menos falhas (não só os selecionados)", () => {
+    // grupo de 10, só 5 foram tentados (3 criados, 2 falharam) — 5 nunca tentados.
+    expect(mensagemResultadoLote(relatorio(3, 2), 10)).toBe(
+      "3 demos criadas · 5 puladas · 2 falharam",
+    );
+  });
+
+  it("singular correto pra 1 criada/1 pulada/1 falha", () => {
+    expect(mensagemResultadoLote(relatorio(1, 1), 3)).toBe("1 demo criada · 1 pulada · 1 falhou");
+  });
+
+  it("cancelado aparece como sufixo informativo", () => {
+    expect(mensagemResultadoLote(relatorio(2, 0, true), 5)).toBe(
+      "2 demos criadas · 3 puladas · cancelado antes do fim",
+    );
+  });
+
+  it("nunca reporta pulada negativa mesmo com dado inconsistente", () => {
+    expect(mensagemResultadoLote(relatorio(5, 5), 3)).toBe("5 demos criadas · 0 puladas · 5 falharam");
   });
 });
