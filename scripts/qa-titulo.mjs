@@ -1,0 +1,522 @@
+#!/usr/bin/env node
+/**
+ * Laço de captura + MEDIÇÃO do TÍTULO HERO das skins (hoje a tatuagem, a
+ * única com vídeo-no-título). Existe porque o defeito relatado — "o título
+ * aparece em duas camadas sobrepostas com quebras de linha diferentes" — é
+ * invisível no HTML servido: a segunda camada nasce na HIDRATAÇÃO, e uma
+ * captura sozinha não diz QUANTAS caixas de texto existem nem de que campo
+ * cada uma lê.
+ *
+ * O que ele mede, com a hidratação já concluída:
+ *   1. quantos nós renderizam o título (caixa de texto do CSS + `<text>`
+ *      de SVG da camada de mídia), com o texto de cada um;
+ *   2. as quebras de linha REAIS de cada camada (linhas do DOM via
+ *      Range.getClientRects, tspans do SVG) — é a divergência entre elas
+ *      que produz o texto duplicado/desalinhado;
+ *   3. a `font-family` computada do título (o seletor de fontes de título
+ *      do editor tem de alcançá-la);
+ *   4. a caixa (x/y/largura/altura) de cada camada, pra provar alinhamento.
+ *
+ * PORTÃO: reprova (código ≠ 0) se qualquer caso tiver mais de UMA caixa de
+ * texto visível do título, ou se as camadas divergirem em linhas/posição,
+ * ou se a fonte escolhida não chegar no título.
+ *
+ * Uso:
+ *   node scripts/qa-titulo.mjs                 # a matriz inteira
+ *   node scripts/qa-titulo.mjs --marca=antes   # sufixo nos arquivos
+ *   node scripts/qa-titulo.mjs --sem-build     # reusa o .next já buildado
+ *   node scripts/qa-titulo.mjs --sem-portao    # mede e reporta, não reprova
+ */
+
+import { spawn } from "node:child_process";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { chromium } from "playwright-core";
+
+const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SAIDA = path.join(RAIZ, "qa-shots");
+const CHROMIUM = process.env.QA_CHROMIUM ?? "/opt/pw-browsers/chromium";
+const PORTA = Number(process.env.QA_PORTA ?? 3126);
+const BASE = `http://127.0.0.1:${PORTA}`;
+const VIEWPORT = { width: 1100, height: 700 };
+const SKIN = "tatuagem-editorial";
+
+/** Vídeo de teste: gerado pelo próprio Playwright (nunca versionado). */
+const VIDEO_DIR = path.join(RAIZ, "public", "qa-tmp");
+const VIDEO_URL = "/qa-tmp/titulo.webm";
+
+const args = process.argv.slice(2);
+const opcao = (nome) => args.find((a) => a.startsWith(`--${nome}=`))?.split("=").slice(1).join("=");
+const temFlag = (nome) => args.includes(`--${nome}`);
+const marca = opcao("marca") ? `-${opcao("marca")}` : "";
+
+/**
+ * A matriz do relato. Nome curto cabe numa linha em qualquer camada — é o
+ * caso que ESCONDE o defeito. Nome longo COM quebra manual (o que
+ * `quebrarTitulo` grava em `secoes.hero.titulo` a partir do nome do lead) e
+ * nome longo SEM quebra (o usuário apagou o "\n" no editor) são os dois em
+ * que a caixa de texto do CSS quebra e a camada de mídia pode não quebrar.
+ */
+const CASOS = [
+  { id: "curto", titulo: "ÓSSEA" },
+  { id: "longo-com-quebra", titulo: "ÓSSEA STUDIO\nDE TATUAGEM AUTORAL" },
+  { id: "longo-sem-quebra", titulo: "ÓSSEA STUDIO DE TATUAGEM AUTORAL" },
+];
+
+/** Mesmo esquema de assinatura de src/lib/auth.ts#criarSessaoToken. */
+function criarSessaoToken({ userId, papel, versao }, secret) {
+  const payload = `${userId}.${papel}.${versao}`;
+  const sig = crypto
+    .createHmac("sha256", `radar-session:${secret}`)
+    .update(payload)
+    .digest("hex");
+  return `${payload}.${sig}`;
+}
+
+function executar(comando, argumentos, env) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(comando, argumentos, { cwd: RAIZ, env, stdio: "inherit" });
+    p.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`${comando} saiu com ${code}`))));
+    p.on("error", reject);
+  });
+}
+
+async function exigirPortaLivre(url) {
+  try {
+    await fetch(url, { redirect: "manual" });
+  } catch {
+    return;
+  }
+  throw new Error(`porta ${PORTA} já ocupada. Encerre o servidor ou use QA_PORTA=<outra>.`);
+}
+
+async function esperarServidor(url, timeoutMs = 120000) {
+  const limite = Date.now() + timeoutMs;
+  while (Date.now() < limite) {
+    try {
+      await fetch(url, { redirect: "manual" });
+      return;
+    } catch {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+  throw new Error(`servidor não respondeu em ${url}`);
+}
+
+function url({ titulo, heroFonte, video, preset = "sangue" }) {
+  const q = new URLSearchParams({ skin: SKIN, preset, intro: "0" });
+  if (titulo !== undefined) q.set("titulo", titulo.replace(/\n/g, "\\n"));
+  if (heroFonte) q.set("heroFonte", heroFonte);
+  if (video) q.set("video", video);
+  return `${BASE}/interno/demo-qa?${q}`;
+}
+
+/**
+ * Grava um webm curto e colorido (o Playwright usa o ffmpeg do próprio
+ * bundle) pra servir de `videos.titulo`. Sem isso o nível mais rico do
+ * vídeo-no-título — o único em que a máscara roda sobre conteúdo em
+ * movimento — nunca seria exercitado, porque a Forja não versiona vídeo.
+ *
+ * Roda ANTES de subir o servidor: o `next start` monta o índice de
+ * `public/` na inicialização, e um arquivo criado depois responde 404 (foi
+ * exatamente assim que a primeira rodada mediu o nível `imagem` achando
+ * que media o `video`).
+ */
+async function gerarVideo(browser) {
+  await fs.rm(VIDEO_DIR, { recursive: true, force: true });
+  await fs.mkdir(VIDEO_DIR, { recursive: true });
+  const ctx = await browser.newContext({
+    viewport: { width: 480, height: 270 },
+    recordVideo: { dir: VIDEO_DIR, size: { width: 480, height: 270 } },
+  });
+  const page = await ctx.newPage();
+  await page.setContent(`<style>
+      body { margin:0; height:100vh;
+             background: linear-gradient(120deg,#ff2e88,#ffd23f,#22d3a5,#00c2ff);
+             background-size: 400% 100%; animation: p 1.2s linear infinite; }
+      @keyframes p { to { background-position: 400% 0; } }
+    </style>`);
+  await page.waitForTimeout(1600);
+  const bruto = await page.video().path();
+  await ctx.close();
+  await fs.rename(bruto, path.join(VIDEO_DIR, "titulo.webm"));
+  return VIDEO_URL;
+}
+
+/**
+ * Inventário do título com a hidratação concluída. Roda no browser: varre
+ * TODO nó de texto e todo `<text>`/`<tspan>` de SVG dentro do wordmark e
+ * devolve, por camada, o texto, as linhas reais e a caixa — a evidência de
+ * "quantas caixas de texto o título tem".
+ */
+const INVENTARIO = () => {
+  const alvo = document.querySelector('[data-demo-slot="secoes.hero.titulo"]');
+  if (!alvo) return { erro: "wordmark não encontrado" };
+  const raiz = alvo.getBoundingClientRect();
+  const rel = (r) => ({
+    x: +(r.left - raiz.left).toFixed(1),
+    y: +(r.top - raiz.top).toFixed(1),
+    w: +r.width.toFixed(1),
+    h: +r.height.toFixed(1),
+  });
+
+  /** Linhas REAIS de um nó de texto: um rect por linha renderizada. */
+  const linhasDoNo = (no) => {
+    const faixa = document.createRange();
+    faixa.selectNodeContents(no);
+    const rects = [...faixa.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+    // Junta rects na mesma linha (mesmo topo, dentro de 1px).
+    const linhas = [];
+    for (const r of rects) {
+      const anterior = linhas[linhas.length - 1];
+      if (anterior && Math.abs(anterior.top - r.top) < 1) {
+        anterior.left = Math.min(anterior.left, r.left);
+        anterior.right = Math.max(anterior.right, r.right);
+        continue;
+      }
+      linhas.push({ top: r.top, left: r.left, right: r.right, bottom: r.bottom });
+    }
+    return linhas.map((l) =>
+      rel({ left: l.left, top: l.top, width: l.right - l.left, height: l.bottom - l.top }),
+    );
+  };
+
+  const camadas = [];
+
+  // 1. Caixas de texto HTML (nós de texto que não estão dentro de <svg>).
+  const andarilho = document.createTreeWalker(alvo, NodeFilter.SHOW_TEXT);
+  for (let no = andarilho.nextNode(); no; no = andarilho.nextNode()) {
+    if (!no.textContent.trim()) continue;
+    const pai = no.parentElement;
+    if (pai.closest("svg")) continue;
+    const estilo = getComputedStyle(pai);
+    camadas.push({
+      tipo: "html",
+      seletor: pai.className || pai.tagName.toLowerCase(),
+      texto: no.textContent,
+      linhas: linhasDoNo(no),
+      fonte: estilo.fontFamily,
+      tamanho: estilo.fontSize,
+      visivel:
+        estilo.visibility !== "hidden" &&
+        estilo.display !== "none" &&
+        Number(estilo.opacity) > 0,
+      // Pinta alguma coisa? fill (background-clip:text / color) ou contorno.
+      pinta: {
+        fundo: estilo.backgroundImage,
+        cor: estilo.color,
+        contorno: estilo.webkitTextStrokeWidth,
+      },
+    });
+  }
+
+  // 2. Texto de SVG — o que a camada de mídia usa como máscara. Sem
+  //    viewBox e com o <svg> cobrindo o wordmark (inset-0, 100%×100%), a
+  //    unidade de usuário do getBBox JÁ é px na origem do wordmark, que é
+  //    o mesmo referencial de `rel()` — dá pra comparar linha a linha.
+  //    getBoundingClientRect() num <tspan> devolve 0×0 no Chromium; getBBox
+  //    é o único que mede de verdade.
+  const bbox = (el) => {
+    const b = el.getBBox();
+    return { x: +b.x.toFixed(1), y: +b.y.toFixed(1), w: +b.width.toFixed(1), h: +b.height.toFixed(1) };
+  };
+  for (const t of alvo.querySelectorAll("text")) {
+    const partes = [...t.querySelectorAll("tspan")];
+    camadas.push({
+      tipo: "svg-text",
+      seletor: `text${t.closest("mask") ? " (em <mask>)" : ""}`,
+      texto: t.textContent,
+      // Um <text> por linha (uma linha) ou um <tspan> por linha.
+      linhas:
+        partes.length > 0
+          ? partes.map((s) => ({ ...bbox(s), texto: s.textContent }))
+          : [{ ...bbox(t), texto: t.textContent }],
+      fonte: getComputedStyle(t).fontFamily,
+      tamanho: getComputedStyle(t).fontSize,
+      // Texto dentro de <mask>/<defs> não é pintado: ele RECORTA a mídia.
+      // Vira "caixa vista" só se a mídia que ele recorta estiver na tela.
+      visivel: !t.closest("mask, defs") || Boolean(alvo.querySelector("video, image")),
+      mascara: Boolean(t.closest("mask, defs")),
+    });
+  }
+
+  // 3. A mídia em si (o que a máscara recorta), pra saber o nível ativo.
+  const midia = alvo.querySelector("video")
+    ? "video"
+    : alvo.querySelector("image, img")
+      ? "imagem"
+      : "nenhum";
+
+  return {
+    caixa: { w: +raiz.width.toFixed(1), h: +raiz.height.toFixed(1) },
+    fonteWordmark: getComputedStyle(alvo).fontFamily,
+    midia,
+    camadas,
+    ariaLabel: alvo.getAttribute("aria-label"),
+  };
+};
+
+async function medir(page, alvo) {
+  await page.goto(alvo, { waitUntil: "networkidle" });
+  // A camada de mídia decide o nível num setTimeout(…,0) DEPOIS da
+  // hidratação — medir antes disso mediria só o HTML do servidor.
+  await page.waitForTimeout(900);
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(200);
+  return page.evaluate(INVENTARIO);
+}
+
+async function fotoDoTitulo(page, nome) {
+  const alvo = page.locator('[data-demo-slot="secoes.hero.titulo"]');
+  const caixa = await alvo.boundingBox();
+  const arquivo = path.join(SAIDA, `titulo-${nome}${marca}.png`);
+  await page.screenshot({
+    path: arquivo,
+    clip: caixa
+      ? {
+          x: Math.max(0, caixa.x - 40),
+          y: Math.max(0, caixa.y - 40),
+          width: Math.min(VIEWPORT.width, caixa.width + 80),
+          height: caixa.height + 80,
+        }
+      : undefined,
+  });
+  return arquivo;
+}
+
+/**
+ * PREENCHIMENTOS do título — a medida que decide se há texto duplicado.
+ *
+ * O que a pessoa vê como "uma cópia do título" é uma superfície de glifos
+ * PREENCHIDA. Contorno (`-webkit-text-stroke`) não conta: ele acompanha a
+ * mesma caixa, é a assinatura da skin e não produz uma segunda leitura do
+ * texto. Então: cada caixa HTML com preenchimento (gradiente/foto via
+ * `background-clip: text`, ou `color` opaca) é 1; a mídia recortada por
+ * máscara (vídeo/imagem) é mais 1. Dois preenchimentos = duas cópias.
+ */
+function preenchimentos(inv) {
+  const fontes = [];
+  for (const c of inv.camadas) {
+    if (c.tipo !== "html" || !c.visivel) continue;
+    const temFundo = c.pinta.fundo !== "none";
+    const temCor = !/rgba\(0, 0, 0, 0\)|transparent/.test(c.pinta.cor);
+    if (temFundo || temCor) fontes.push(`${c.seletor} (${temFundo ? "background-clip:text" : "color"})`);
+  }
+  if (inv.midia !== "nenhum") fontes.push(`mídia mascarada (${inv.midia})`);
+  return fontes;
+}
+
+/** Centro horizontal de uma linha — comparável entre caixa HTML e <text>. */
+const centro = (l) => +(l.x + l.w / 2).toFixed(1);
+
+function relatarCaso(linhas, rotulo, inv, foto) {
+  linhas.push(`### ${rotulo}`, "");
+  if (inv.erro) {
+    linhas.push(`- ✗ ${inv.erro}`, "");
+    return;
+  }
+  const fills = preenchimentos(inv);
+  linhas.push(
+    `- caixa do wordmark: ${inv.caixa.w}×${inv.caixa.h}px · mídia ativa: \`${inv.midia}\``,
+    `- \`font-family\` do wordmark: \`${inv.fonteWordmark}\``,
+    `- nós que renderizam o título: **${inv.camadas.length}** · preenchimentos de glifo: **${fills.length}** (${fills.join(" + ") || "—"})`,
+    "",
+  );
+  for (const c of inv.camadas) {
+    linhas.push(
+      `  - \`${c.tipo}\` (${c.seletor}) — fonte \`${c.fonte}\` · ${c.tamanho}`,
+      `    - texto: ${JSON.stringify(c.texto)}`,
+      `    - ${c.linhas.length} linha(s): ${c.linhas
+        .map(
+          (l) =>
+            `[${l.texto !== undefined ? `${JSON.stringify(l.texto)} ` : ""}x=${l.x} y=${l.y} ${l.w}×${l.h} centro=${centro(l)}]`,
+        )
+        .join(" ")}`,
+    );
+  }
+  linhas.push("", `  ![${rotulo}](${path.basename(foto)})`, "");
+}
+
+/** Tolerância do centro de linha entre a caixa HTML e a máscara (px). */
+const TOL_CENTRO = 3;
+
+/**
+ * Veredito por caso:
+ *
+ *   1. DOIS preenchimentos de glifo = duas cópias do título na tela — o
+ *      defeito relatado, e o que a captura mostra como texto duplicado;
+ *   2. máscara com quebra/linha diferente da caixa de texto = a mídia
+ *      recorta letras em lugar diferente do texto (desalinhamento), mesmo
+ *      quando só ela pinta;
+ *   3. textos diferentes entre as camadas = as duas leem campos
+ *      diferentes, e o campo do editor só alcança uma delas.
+ */
+function veredito(inv) {
+  if (inv.erro) return [inv.erro];
+  const problemas = [];
+
+  const fills = preenchimentos(inv);
+  if (fills.length > 1) {
+    problemas.push(`${fills.length} preenchimentos de glifo (${fills.join(" + ")}) — título duplicado`);
+  }
+
+  const caixa = inv.camadas.find((c) => c.tipo === "html");
+  for (const mascara of inv.camadas.filter((c) => c.tipo === "svg-text")) {
+    if (!caixa) continue;
+    if (mascara.linhas.length !== caixa.linhas.length) {
+      problemas.push(
+        `máscara com ${mascara.linhas.length} linha(s) e caixa de texto com ${caixa.linhas.length}`,
+      );
+      continue;
+    }
+    const fora = mascara.linhas
+      .map((l, i) => ({ i, d: +Math.abs(centro(l) - centro(caixa.linhas[i])).toFixed(1) }))
+      .filter(({ d }) => d > TOL_CENTRO);
+    if (fora.length > 0) {
+      problemas.push(
+        `máscara desalinhada da caixa de texto: ${fora.map(({ i, d }) => `linha ${i + 1} ${d}px`).join(", ")}`,
+      );
+    }
+  }
+
+  const textos = new Set(inv.camadas.map((c) => c.texto.replace(/\s+/g, " ").trim().toUpperCase()));
+  if (textos.size > 1) {
+    problemas.push(`camadas com TEXTOS diferentes: ${[...textos].map((t) => JSON.stringify(t)).join(" ≠ ")}`);
+  }
+  return problemas;
+}
+
+async function main() {
+  await fs.mkdir(SAIDA, { recursive: true });
+  const secret = crypto.randomBytes(16).toString("hex");
+  const env = { ...process.env, APP_PASSWORD: secret, PORT: String(PORTA), NODE_ENV: undefined };
+
+  await exigirPortaLivre(BASE);
+
+  // O webm de teste tem de existir ANTES do `next start` (ver gerarVideo).
+  const browser = await chromium.launch({ executablePath: CHROMIUM });
+  const video = await gerarVideo(browser);
+
+  if (!temFlag("sem-build")) await executar("npx", ["next", "build"], env);
+
+  const servidor = spawn("npx", ["next", "start", "-p", String(PORTA)], {
+    cwd: RAIZ,
+    env,
+    stdio: ["ignore", "inherit", "inherit"],
+    detached: true,
+  });
+  const encerrar = () => {
+    try {
+      process.kill(-servidor.pid, "SIGTERM");
+    } catch {
+      servidor.kill("SIGTERM");
+    }
+  };
+  process.on("exit", encerrar);
+  process.on("SIGINT", () => {
+    encerrar();
+    process.exit(130);
+  });
+
+  const relatorio = ["# Título hero — camadas, quebras e fonte", ""];
+  const reprovados = [];
+  try {
+    await esperarServidor(BASE);
+    const ctx = await browser.newContext({
+      viewport: VIEWPORT,
+      deviceScaleFactor: 1,
+      reducedMotion: "no-preference",
+    });
+    await ctx.addCookies([
+      {
+        name: "radar_session",
+        value: criarSessaoToken({ userId: "qa", papel: "admin", versao: 1 }, secret),
+        url: BASE,
+      },
+    ]);
+    const page = await ctx.newPage();
+    await page.goto(url({ titulo: "TESTE" }), { waitUntil: "domcontentloaded" });
+    if (new URL(page.url()).pathname !== "/interno/demo-qa") {
+      throw new Error(`sessão recusada — caiu em ${page.url()}`);
+    }
+
+    // ── 1. Os três casos do relato, no nível de mídia que sempre roda
+    //       (imagem: `imagens.hero` existe em toda demo) e no nível vídeo.
+    for (const nivel of [
+      { id: "imagem", video: undefined },
+      { id: "video", video },
+    ]) {
+      relatorio.push(`## Mídia: ${nivel.id}`, "");
+      for (const caso of CASOS) {
+        const alvo = url({ titulo: caso.titulo, video: nivel.video });
+        const inv = await medir(page, alvo);
+        const nome = `${nivel.id}-${caso.id}`;
+        const foto = await fotoDoTitulo(page, nome);
+        relatarCaso(relatorio, `${caso.id} — ${JSON.stringify(caso.titulo)}`, inv, foto);
+        const problemas = veredito(inv);
+        if (nivel.id === "video" && inv.midia !== "video") {
+          problemas.push(`nível de mídia esperado \`video\`, obtido \`${inv.midia}\``);
+        }
+        if (problemas.length > 0) reprovados.push(`${nome}: ${problemas.join("; ")}`);
+      }
+    }
+
+    // ── 2. O seletor de fontes de título alcança o wordmark?
+    relatorio.push("## Seletor de fontes do título (aba Tema)", "");
+    const fontes = [
+      { id: "", rotulo: "padrão da skin (decorativa)", esperado: "pirata" },
+      { id: "bebas", rotulo: "Bebas Neue", esperado: "bebas" },
+      { id: "cinzel", rotulo: "Cinzel", esperado: "cinzel" },
+    ];
+    const vistos = [];
+    for (const fonte of fontes) {
+      const inv = await medir(page, url({ titulo: "ÓSSEA STUDIO", heroFonte: fonte.id }));
+      const foto = await fotoDoTitulo(page, `fonte-${fonte.id || "padrao"}`);
+      const familias = inv.camadas.map((c) => c.fonte);
+      relatorio.push(
+        `- **${fonte.rotulo}** (\`heroFonte=${fonte.id || "—"}\`): wordmark \`${inv.fonteWordmark}\``,
+        `  - por camada: ${familias.map((f) => `\`${f}\``).join(", ")}`,
+        `  ![fonte ${fonte.rotulo}](${path.basename(foto)})`,
+      );
+      vistos.push({ ...fonte, familia: inv.fonteWordmark, camadas: familias });
+    }
+    relatorio.push("");
+    for (const v of vistos) {
+      const usa = (f) => f.toLowerCase().includes(v.esperado);
+      if (!usa(v.familia)) {
+        reprovados.push(`fonte ${v.id || "padrão"}: esperava \`${v.esperado}\` em \`${v.familia}\``);
+      }
+      for (const f of v.camadas.filter((f) => !usa(f))) {
+        reprovados.push(`fonte ${v.id || "padrão"}: camada com \`${f}\` (esperava \`${v.esperado}\`)`);
+      }
+    }
+
+    await browser.close();
+  } finally {
+    await fs.rm(VIDEO_DIR, { recursive: true, force: true }).catch(() => {});
+    encerrar();
+  }
+
+  relatorio.push("## Veredito", "");
+  if (reprovados.length === 0) {
+    relatorio.push("✅ uma única caixa de texto por caso, camadas alinhadas e fonte do editor aplicada.");
+  } else {
+    relatorio.push(...reprovados.map((r) => `- ✗ ${r}`));
+  }
+  const md = path.join(SAIDA, `_titulo${marca}.md`);
+  await fs.writeFile(md, relatorio.join("\n") + "\n");
+  console.log(relatorio.join("\n"));
+  console.log(`\n→ ${md}`);
+
+  if (reprovados.length > 0 && !temFlag("sem-portao")) {
+    throw new Error(`título hero REPROVADO em ${reprovados.length} caso(s) — ver ${md}`);
+  }
+}
+
+main().catch((erro) => {
+  console.error(erro);
+  process.exit(1);
+});

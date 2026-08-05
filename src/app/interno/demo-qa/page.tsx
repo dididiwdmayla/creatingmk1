@@ -49,6 +49,9 @@ import { demoCoreFontsClassName } from "@/app/demo/fonts";
  *   intro=0              desliga a splash de abertura (default nas capturas)
  *   barra=<modo>         modo da cor da barra (automatico/fundo/destaque/personalizada)
  *   barraCor=#aabbcc     cor do modo "personalizada"
+ *   titulo=<texto>       texto do título hero (`secoes.hero.titulo`); "\n" quebra linha
+ *   heroFonte=<id>       id da lista curada para `heroTitulo.fonte` (seletor do editor)
+ *   video=<url>          `videos.titulo` — vídeo-no-título sem precisar de upload/lead
  */
 
 export const dynamic = "force-dynamic";
@@ -117,6 +120,10 @@ export default async function DemoQaPage({ searchParams }: Props) {
     efeitoCores: coresModoDaQuery(texto(query.corModo), texto(query.cores)),
     ledCores: coresModoDaQuery(texto(query.ledCorModo), texto(query.ledCores)),
     intro: texto(query.intro) === "0" ? false : undefined,
+    // Fonte do título hero: mesmo caminho do editor (id da lista curada →
+    // aplicarTema resolve pro valor CSS), pra o laço poder provar que o
+    // seletor de fontes de título alcança o título de cada skin.
+    ...(texto(query.heroFonte) && { heroTitulo: { fonte: texto(query.heroFonte) } }),
     ...barraDaQuery(query),
   };
   const theme = aplicarTema(
@@ -143,13 +150,29 @@ export default async function DemoQaPage({ searchParams }: Props) {
   // imagensModo: mesma resolução da rota pública (montarDemoData) — foto de
   // produção ou SVG do exemplo, sem precisar de lead/upload nenhum.
   const imagensModo: ImagensModo = texto(query.imagens) === "grafico" ? "grafico" : "foto";
+  // Título hero e vídeo-no-título pela query: os dois nascem de dado do
+  // LEAD na rota pública (`dadosDoLead` quebra o nome em duas linhas;
+  // `videos.titulo` vem de upload), então sem isso o harness não consegue
+  // exercitar nome curto × nome longo × vídeo — exatamente a matriz em que
+  // a camada de mídia do título pode divergir da caixa de texto.
+  const tituloHero = texto(query.titulo)?.replace(/\\n/g, "\n");
+  const videoTitulo = texto(query.video);
   const dados = montarDemoData(
     skin.demoDataExemplo,
     undefined,
     {
       imagensModo,
-      ...(semAnim.length > 0 && {
-        secoes: Object.fromEntries(semAnim.map((id) => [id, { animacao: false }])),
+      ...(videoTitulo && { videos: { titulo: videoTitulo } }),
+      ...((semAnim.length > 0 || tituloHero !== undefined) && {
+        secoes: {
+          ...Object.fromEntries(semAnim.map((id) => [id, { animacao: false }])),
+          ...(tituloHero !== undefined && {
+            hero: {
+              ...(semAnim.includes("hero") && { animacao: false }),
+              titulo: tituloHero,
+            },
+          }),
+        },
       }),
     },
     skin.id,
