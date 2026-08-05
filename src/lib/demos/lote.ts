@@ -65,6 +65,33 @@ export function relatorioVazio(): RelatorioLote {
 }
 
 /**
+ * Mensagem de confirmação clara ao fim de um lote (item "processamento
+ * resiliente" — nunca só "voltou ao normal" sem dizer o que aconteceu):
+ * quantas demos foram criadas, quantas foram PULADAS (leads do grupo que
+ * nunca chegaram a ser tentados — já tinham demo, ficaram desmarcados, ou
+ * o lote foi cancelado antes de alcançá-los) e quantas falharam.
+ * `totalGrupo` é o tamanho do grupo inteiro (não só os selecionados), pra
+ * "pulada" cobrir os dois motivos de exclusão sem precisar distingui-los.
+ */
+export function mensagemResultadoLote(relatorio: RelatorioLote, totalGrupo: number): string {
+  const criadas = relatorio.sucessos.length;
+  const falhas = relatorio.falhas.length;
+  const puladas = Math.max(0, totalGrupo - criadas - falhas);
+
+  const partes = [
+    `${criadas} demo${criadas === 1 ? "" : "s"} criada${criadas === 1 ? "" : "s"}`,
+    `${puladas} pulada${puladas === 1 ? "" : "s"}`,
+  ];
+  if (falhas > 0) {
+    partes.push(falhas === 1 ? "1 falhou" : `${falhas} falharam`);
+  }
+  if (relatorio.cancelado) {
+    partes.push("cancelado antes do fim");
+  }
+  return partes.join(" · ");
+}
+
+/**
  * Projeção de chamadas à IA do lote de geração de texto: 1 chamada por
  * lead no caso normal, até 2 quando a resposta do Gemini sai fora do
  * schema e a rota tenta de novo (ver `gerarSugestaoDemo`, retry único).

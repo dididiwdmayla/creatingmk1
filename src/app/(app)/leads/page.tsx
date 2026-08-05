@@ -228,6 +228,9 @@ function LeadsPageInner() {
 
   // Diálogo "Gerar demos em lote" (só existe na página de um grupo, buscaId setado).
   const [loteAberto, setLoteAberto] = useState(false);
+  // Confirmação persistente do último lote — o diálogo pode fechar sozinho
+  // antes do operador ter tempo de ler algo DENTRO dele (ver GerarDemosLoteDialog).
+  const [loteMsg, setLoteMsg] = useState<string | null>(null);
 
   // Cota individual de buscas — indicador permanente, atualizado após cada busca.
   const [cotaBuscas, setCotaBuscas] = useState<UsoUsuario | null>(null);
@@ -780,11 +783,15 @@ function LeadsPageInner() {
           <div className="border-t border-accent/20 pt-2">
             <button
               type="button"
-              onClick={() => setLoteAberto(true)}
+              onClick={() => {
+                setLoteMsg(null);
+                setLoteAberto(true);
+              }}
               className="text-xs font-medium text-accent hover:underline"
             >
               🧩 Gerar demos em lote
             </button>
+            {loteMsg && <p className="mt-1 text-xs text-good">{loteMsg}</p>}
           </div>
         </div>
       )}
@@ -795,6 +802,7 @@ function LeadsPageInner() {
           iaDisponivel={iaDisponivel}
           onFechar={() => setLoteAberto(false)}
           onLeadAtualizado={atualizarLeadLocal}
+          onConcluido={setLoteMsg}
         />
       )}
 
