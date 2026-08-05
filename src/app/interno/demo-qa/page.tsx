@@ -7,13 +7,14 @@ import { cssPlanoDaPagina } from "@/lib/demos/barra/plano";
 import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
+import { fontesEscolhidas } from "@/lib/demos/fontes";
 import { montarDemoData } from "@/lib/demos/montar";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { modoValido } from "@/lib/demos/cores/modos";
 import type { CoresModoValor, ImagensModo, LedPreset, TemaPatch } from "@/lib/demos/types";
-import { demoCoreFontsClassName } from "@/app/demo/fonts";
+import { demoCoreFontsClassName, resolveExtraFontClassNames } from "@/app/demo/fonts";
 
 /**
  * Harness interno de AVALIAÇÃO VISUAL da camada decorativa (efeitos de
@@ -49,6 +50,9 @@ import { demoCoreFontsClassName } from "@/app/demo/fonts";
  *   intro=0              desliga a splash de abertura (default nas capturas)
  *   barra=<modo>         modo da cor da barra (automatico/fundo/destaque/personalizada)
  *   barraCor=#aabbcc     cor do modo "personalizada"
+ *   titulo=<texto>       texto do título hero (`secoes.hero.titulo`); "\n" quebra linha
+ *   heroFonte=<id>       id da lista curada para `heroTitulo.fonte` (seletor do editor)
+ *   video=<url>          `videos.titulo` — vídeo-no-título sem precisar de upload/lead
  */
 
 export const dynamic = "force-dynamic";
@@ -117,6 +121,10 @@ export default async function DemoQaPage({ searchParams }: Props) {
     efeitoCores: coresModoDaQuery(texto(query.corModo), texto(query.cores)),
     ledCores: coresModoDaQuery(texto(query.ledCorModo), texto(query.ledCores)),
     intro: texto(query.intro) === "0" ? false : undefined,
+    // Fonte do título hero: mesmo caminho do editor (id da lista curada →
+    // aplicarTema resolve pro valor CSS), pra o laço poder provar que o
+    // seletor de fontes de título alcança o título de cada skin.
+    ...(texto(query.heroFonte) && { heroTitulo: { fonte: texto(query.heroFonte) } }),
     ...barraDaQuery(query),
   };
   const theme = aplicarTema(
@@ -143,21 +151,43 @@ export default async function DemoQaPage({ searchParams }: Props) {
   // imagensModo: mesma resolução da rota pública (montarDemoData) — foto de
   // produção ou SVG do exemplo, sem precisar de lead/upload nenhum.
   const imagensModo: ImagensModo = texto(query.imagens) === "grafico" ? "grafico" : "foto";
+  // Título hero e vídeo-no-título pela query: os dois nascem de dado do
+  // LEAD na rota pública (`dadosDoLead` quebra o nome em duas linhas;
+  // `videos.titulo` vem de upload), então sem isso o harness não consegue
+  // exercitar nome curto × nome longo × vídeo — exatamente a matriz em que
+  // a camada de mídia do título pode divergir da caixa de texto.
+  const tituloHero = texto(query.titulo)?.replace(/\\n/g, "\n");
+  const videoTitulo = texto(query.video);
   const dados = montarDemoData(
     skin.demoDataExemplo,
     undefined,
     {
       imagensModo,
-      ...(semAnim.length > 0 && {
-        secoes: Object.fromEntries(semAnim.map((id) => [id, { animacao: false }])),
+      ...(videoTitulo && { videos: { titulo: videoTitulo } }),
+      ...((semAnim.length > 0 || tituloHero !== undefined) && {
+        secoes: {
+          ...Object.fromEntries(semAnim.map((id) => [id, { animacao: false }])),
+          ...(tituloHero !== undefined && {
+            hero: {
+              ...(semAnim.includes("hero") && { animacao: false }),
+              titulo: tituloHero,
+            },
+          }),
+        },
       }),
     },
     skin.id,
   );
 
+  // Mesma cadeia da rota pública (fontesEscolhidas): sem isso, uma fonte
+  // curada que não é default de preset nenhum (carregada sob demanda — ver
+  // fonts/registry) não teria a var --font-demo-* definida aqui, e o laço
+  // mediria a falta da fonte como se fosse defeito da skin.
+  const extraFontClassName = await resolveExtraFontClassNames(fontesEscolhidas(patch));
+
   const Skin = skin.componente;
   return (
-    <div className={demoCoreFontsClassName}>
+    <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
       {/* Mesma cadeia da rota pública — ver lib/demos/barra/plano.ts. */}
       <style>{cssPlanoDaPagina(corDaBarra(theme))}</style>
       <Skin data={dados} theme={theme} />

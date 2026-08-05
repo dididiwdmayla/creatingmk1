@@ -47,3 +47,7 @@ next-env.d.ts
 # capturas do laço de verificação visual (scripts/qa-visual.mjs) — evidência
 # de sessão, se regenera rodando o script; nunca entra no histórico
 /qa-shots/
+
+# mídia efêmera do laço de captura (scripts/qa-titulo.mjs grava um webm aqui
+# pra exercitar o vídeo-no-título; apagada no fim da rodada)
+/public/qa-tmp/

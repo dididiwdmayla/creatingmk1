@@ -153,8 +153,11 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     "--d-citacao": fontes.citacao,
     "--d-destaque": fontes.destaque,
     // Título hero: controles próprios do editor (aba Tema), independentes
-    // do resto da tipografia — "" em heroTitulo.fonte herda fontes.display.
-    "--d-hero-font": theme.heroTitulo.fonte || fontes.display,
+    // do resto da tipografia. Ao contrário das outras skins, o default aqui
+    // é a DECORATIVA e não a display: o wordmark é a assinatura gótica do
+    // material bruto (Pirata One), e é dela que a skin não pode abrir mão
+    // por padrão. "" em heroTitulo.fonte = a decorativa da skin.
+    "--d-hero-font": theme.heroTitulo.fonte || fontes.decorativa,
     "--d-hero-escala": theme.heroTitulo.escala,
     "--d-sec-y": SECTION_PAD[theme.densidade],
     "--d-anim-duration": ANIM_DURATION[theme.animacao],
@@ -663,7 +666,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
            anima as duas propriedades juntas, sem essa divergência possível.
            A sombra do título (drop-shadow, className passada pela skin) já
            cai nesta mesma caixa — nunca numa camada irmã. */
-        .d-wordmark { position: relative; display: inline-block; font-family: var(--d-deco); line-height: 1; }
+        .d-wordmark { position: relative; display: inline-block; font-family: var(--d-hero-font); line-height: 1; }
         .d-wordmark-text {
           display: inline-block;
           text-transform: uppercase;
@@ -688,6 +691,24 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
             d-wordmark-drift 9s ease-in-out infinite,
             d-stroke-cycle 12s ease-in-out infinite;
         }
+        /* Vídeo-no-título (ver Wordmark.tsx): a mídia é o PREENCHIMENTO
+           desta mesma caixa, nunca uma segunda cópia do texto.
+           Nível "imagem" — a foto do lead entra por background-image
+           (inline) e o background-clip: text acima já a recorta nos glifos,
+           com a quebra de linha do CSS; o drift sai de cena porque animar
+           background-position arrastaria a foto. */
+        .d-wordmark-text[data-d-midia="imagem"] {
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          animation: d-stroke-cycle 12s ease-in-out infinite;
+        }
+        /* Nível "video" — quem preenche é o vídeo mascarado pelas linhas
+           desta caixa; ela fica só com o contorno multicor. */
+        .d-wordmark-text[data-d-midia="video"] {
+          background-image: none;
+          animation: d-stroke-cycle 12s ease-in-out infinite;
+        }
         @keyframes d-wordmark-drift {
           0%, 100% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -699,7 +720,9 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
           100% { -webkit-text-stroke-color: var(--d-accent); }
         }
         @media (prefers-reduced-motion: reduce) {
-          .d-wordmark-text { animation: none; }
+          /* Mesma especificidade das regras de [data-d-midia] acima —
+             sem isso, elas venceriam e o contorno continuaria ciclando. */
+          .d-wordmark-text, .d-wordmark-text[data-d-midia] { animation: none; }
         }
 
         /* Faixa rolante infinita (marquee). */

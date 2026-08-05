@@ -21,6 +21,7 @@ scripts/
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
   qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
+  qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia e prova que o seletor de fontes de título alcança o título — desktop e celular × (nome curto/longo com quebra/longo sem quebra × nível imagem e vídeo) (ver "Título hero: uma caixa de texto, a mídia como máscara")
 src/
   proxy.ts                          # ✅ proteção por sessão assinada (Next 16: proxy.ts, ex-middleware)
   app/
@@ -1182,10 +1183,118 @@ Slot de conteúdo **opt-in por skin** (hoje só a tatuagem, slot `"titulo"`): v�
 
 O título principal (hero) ganha controles próprios, separados do resto da tipografia — persistidos em **`DemoData`** (texto) e **`Theme`/`TemaPatch`** (estilo):
 
-- **Texto**: `dados.secoes.hero.titulo` onde a skin usa esse campo (barbearia, com fallback pro nome do negócio) ou `dados.nome` diretamente (tatuagem — o wordmark É o nome do negócio; não haveria um `secoes.hero.titulo` de exemplo aí, pra não arriscar mostrar copy de exemplo estático no lugar do nome real de um lead novo).
+- **Texto**: `dados.secoes.hero.titulo`, com fallback pro nome do negócio (`s.hero?.titulo ?? data.nome`) em TODAS as skins que têm título hero. Quem preenche esse campo é `dadosDoLead` (`montarDemoData`), com o nome do lead já quebrado em duas linhas por `quebrarTitulo` — então na prática ele existe em toda demo salva e é sempre ele que aparece. **Nenhum `demoDataExemplo` declara `secoes.hero.titulo`**, de propósito: copy de exemplo estática aí apareceria no lugar do nome real de um lead novo. Como o painel Conteúdo só monta os campos de seção presentes no exemplo, o campo do título ficava de fora — e o título não tinha como ser editado (ver "Título hero: uma caixa de texto, a mídia como máscara"); hoje ele é uma exceção explícita do painel (`campoSempre` em `paineis.tsx`), coberta por `__tests__/hero-titulo.test.tsx` para todas as skins do registro. Esvaziar o campo devolve o título ao nome do lead — campo de seção vazio sai do patch e volta à base (ver `diffSecao` em `lib/demos/patch.ts`).
 - **Fonte**: `tema.heroTitulo.fonte`, id da lista curada (papel `"display"`); ausente = acompanha `fonteDisplay`/`fontes.display` do preset (permite trocar SÓ o título hero sem afetar os outros títulos da skin).
 - **Tamanho**: `tema.heroTitulo.escala` (slider, passo 0.05) multiplica o `clamp()` de tamanho da skin via `calc()`; recortado por `SkinDefinition.heroEscalaLimites` em `aplicarTema`.
 - **Alinhamento**: `tema.heroTitulo.alinhamento` (esquerda/centro/direita) — `text-align` (tatuagem, bloco centralizado por padrão) ou `self-*`/`text-align` (barbearia, bloco à esquerda por padrão) no elemento do título, sem afetar o resto do hero.
+
+### Título hero: uma caixa de texto, a mídia como máscara
+
+**Relato** (skin `tatuagem-editorial`): o título do herói aparece em duas
+camadas sobrepostas com quebras de linha diferentes, o campo do editor não
+altera o texto visível, e o seletor de fontes de títulos não afeta esse
+título. O HTML servido tem UMA camada só (`span.d-wordmark` com
+`data-demo-slot="secoes.hero.titulo"`), então nada disso se enxerga lendo a
+resposta do servidor: a segunda camada nasce na HIDRATAÇÃO. A medição é o
+`scripts/qa-titulo.mjs` — ele espera a hidratação, varre o wordmark inteiro
+e conta os **preenchimentos de glifo** (superfícies de letra pintadas), as
+quebras de linha REAIS de cada camada (`Range.getClientRects` na caixa
+HTML, `getBBox` no `<text>` da máscara) e a `font-family` computada.
+
+**O que a medição achou** (`--marca=antes`, viewport 1100×700, preset
+`sangue`; PNGs em `qa-shots/titulo-*-antes.png`):
+
+| caso | caixa de texto (HTML) | máscara da mídia (SVG) | preenchimentos |
+|---|---|---|---|
+| nome curto (`ÓSSEA`) | 1 linha | 1 linha | **2** |
+| nome longo COM quebra manual | **3 linhas** (`ÓSSEA STUDIO` / `DE TATUAGEM` / `AUTORAL`) | **2 linhas** (`ÓSSEA STUDIO` / `DE TATUAGEM AUTORAL`, 1194px numa caixa de 1052px) | **2** |
+| nome longo SEM quebra | **2 linhas** | **1 linha** (1954px numa caixa de 1052px) | **2** |
+
+As três causas, distintas e independentes:
+
+1. **A segunda camada é a máscara do vídeo-no-título, e ela desenha a
+   própria cópia do texto.** `VideoNoTitulo` monta por cima do wordmark e
+   põe um `<text>` de SVG dentro de um `<mask>` pra recortar o vídeo/imagem
+   — mas **não substitui** a caixa de texto do servidor, que continua
+   pintando o gradiente por baixo. Duas superfícies pintadas = duas cópias.
+   E como `<text>` de SVG **não quebra linha sozinho** (só nos `\n`, virando
+   `<tspan>`), enquanto a caixa HTML quebra por `white-space: pre-line` +
+   largura do container, as duas divergem assim que o nome é longo — a
+   máscara transborda a caixa (1954px contra 1052px) e sobra desenhada por
+   cima do texto de baixo. O nível `imagem` (fallback) **está sempre ativo**
+   — `imagemFallback` é `data.imagens.hero`, que toda demo tem —, então o
+   defeito não depende de ninguém ter subido vídeo nenhum.
+2. **O campo do editor não alcança o título porque esse campo não é
+   renderizado.** As duas camadas leem o MESMO valor (`s.hero?.titulo ??
+   data.nome`) — a hipótese de a camada do vídeo ler outro campo não se
+   confirmou. O que acontece é outra coisa: `montarDemoData` grava
+   `secoes.hero.titulo = quebrarTitulo(lead.nome)` para todo lead, e a aba
+   Conteúdo do editor só monta os campos de uma seção que existem no
+   `demoDataExemplo` dela (`CAMPOS_SECAO.filter(({ chave }) => exemplo[chave]
+   !== undefined)`) — e **nenhuma** das 8 skins declara `secoes.hero.titulo`
+   no exemplo. Resultado: o único campo que a pessoa acha é "Nome do
+   negócio" (`dados.nome`), que o título nunca lê porque
+   `secoes.hero.titulo` sempre vence o `??`; e clicar no título no preview
+   pede foco em `campo-secoes.hero.titulo`, que não existe. Vale para todas
+   as skins, não só a tatuagem.
+3. **`.d-wordmark` fixava `font-family: var(--d-deco)`.** A tatuagem
+   calculava `--d-hero-font` como todas as outras skins e não a usava em
+   lugar nenhum — o seletor "Título principal (hero) → Fonte" não tinha por
+   onde chegar. Medido: `heroFonte=bebas` e `heroFonte=cinzel` saíram os
+   dois em `Pirata One`.
+
+**A correção**, na mesma ordem:
+
+1. **Uma caixa de texto só, e a mídia é o preenchimento dela.** `Wordmark`
+   virou client component e resolve o nível (vídeo → imagem → nada) ele
+   mesmo. No nível `imagem`, a foto entra como `background-image` da
+   PRÓPRIA `.d-wordmark-text`, que já tinha `background-clip: text` — a foto
+   sai recortada pelos glifos por construção, com a quebra de linha do CSS,
+   sem SVG, sem segunda caixa e sem nada pra alinhar. No nível `video`, o
+   preenchimento da caixa é desligado (`background-image: none`; o contorno
+   multicor fica) e o `<video>` é recortado por um `<mask>` cujas linhas são
+   **medidas da própria caixa** (uma `<text>` por linha renderizada, na
+   posição medida) — a máscara é derivada do texto, não uma segunda
+   composição dele. Sem medição possível (fonte ainda carregando, caixa de
+   altura zero), o nível vídeo simplesmente não sobe: a base continua.
+2. **`secoes.hero.titulo` virou campo de verdade.** O painel Conteúdo passa
+   a montar o "Título" da seção hero mesmo sem ele no exemplo da skin (é o
+   slot que TODAS as skins marcam e que `dadosDoLead` sempre preenche) — o
+   campo que o clique no preview foca agora existe, e editar muda o título.
+3. **`.d-wordmark` usa `var(--d-hero-font)`**, e a tatuagem passou a
+   derivá-la da `decorativa` (`theme.heroTitulo.fonte || fontes.decorativa`)
+   em vez da `display`: o padrão da skin continua sendo a Pirata One do
+   material bruto, e o seletor do editor passa a valer.
+
+**Portão** (`node scripts/qa-titulo.mjs`, `--sem-portao` desliga): reprova
+se algum caso tiver mais de um preenchimento de glifo, se a máscara
+divergir da caixa de texto (número de linhas ou centro de linha > 3px), se
+as camadas mostrarem textos diferentes ou se a fonte escolhida não chegar
+ao título. A matriz é **2 telas × (3 nomes × 2 níveis de mídia + 3
+fontes)**, mais uma captura do hero inteiro por tela. As duas telas
+importam: no desktop (1100×700) o título cabe folgado — é o caso que
+ESCONDE o defeito —, e é no celular (390×844, dpr 2) que `pre-line` quebra
+de verdade (o nome longo vira 3 linhas ali). O vídeo de teste é gravado
+pelo próprio Playwright em `public/qa-tmp/` **antes** de subir o servidor
+(o `next start` monta o índice de `public/` na inicialização; arquivo
+criado depois responde 404) e é apagado no fim — a Forja não versiona
+vídeo. Duas armadilhas de MEDIÇÃO que a primeira rodada caiu e o script
+hoje evita: `getBoundingClientRect()` num `<tspan>` devolve 0×0 no
+Chromium, e `getBBox()` devolve a caixa de TINTA enquanto o `Range` da
+caixa HTML devolve a de AVANÇO — comparar as duas acusa "desalinhamento"
+de vários px onde o glifo só tem lateral negativa. A comparação é avanço
+com avanço (`getStartPositionOfChar` + `getComputedTextLength`).
+
+**Verificação da correção** (`qa-shots/_titulo-depois.md`, PNGs
+`titulo-*-depois.png`): **1 preenchimento de glifo nos 12 casos** (2 telas
+× 3 nomes × imagem/vídeo), com as linhas da máscara batendo com as da
+caixa no avanço — no celular, `ÓSSEA STUDIO DE TATUAGEM AUTORAL` vira 3
+linhas e a máscara acompanha as 3 (`x`/largura idênticos:
+13/316, 74,5/193, 90,7/160,6). Fonte: padrão = Pirata One,
+`heroFonte=bebas` = Bebas Neue, `heroFonte=cinzel` = Cinzel (antes os três
+saíam Pirata One nas duas telas). Nada mais se mexeu: `qa-cls.mjs
+--so=skins` dá **0,0000 na tatuagem** (as 8 skins passam) e `qa-visual.mjs
+--so=colapso` checa os 90 slots de imagem das 8 skins sem colapso.
 
 ### Editor visual (`/leads/{id}/demo/editar`)
 

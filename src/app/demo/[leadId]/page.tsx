@@ -11,6 +11,7 @@ import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
+import { fontesEscolhidas } from "@/lib/demos/fontes";
 import { idiomaEfetivoDemo } from "@/lib/demos/idioma";
 import { moedaDaDemo } from "@/lib/demos/moeda";
 import { getSkin, getTheme } from "@/lib/demos/registry";
@@ -55,10 +56,12 @@ async function loadDemo(leadId: string) {
   const moeda = moedaDaDemo(lead);
   // Só busca (import dinâmico) as fontes curadas que o editor de fato
   // escolheu — o resto da lista nunca chega a ser fetched pelo cliente.
-  const extraFontClassName = await resolveExtraFontClassNames([
-    lead.demo.tema?.fonteDisplay,
-    lead.demo.tema?.fonteCorpo,
-  ]);
+  // A lista de "quais" é uma só, compartilhada com o preview e o harness
+  // (fontesEscolhidas): antes cada um repetia a sua e as três esqueciam a
+  // fonte do TÍTULO HERO.
+  const extraFontClassName = await resolveExtraFontClassNames(
+    fontesEscolhidas(lead.demo.tema),
+  );
   // Efeito de fundo (registro de efeitos) + intensidade — undefined cobre
   // tanto "nenhum" quanto um id que não existe mais no registro. Nunca deve
   // derrubar a demo: um efeito é decoração opcional, a ficha/skin em si

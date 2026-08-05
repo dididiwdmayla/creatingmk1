@@ -1,3 +1,5 @@
+import type { TemaPatch } from "./types";
+
 /**
  * Lista curada de fontes do editor de demos. Cada entrada referencia uma
  * CSS var carregada via next/font em src/app/demo/fonts.ts (--font-demo-*),
@@ -172,4 +174,20 @@ export function getFonte(id: string | undefined): DemoFonte | undefined {
 
 export function fontesPorPapel(papel: FontePapel): DemoFonte[] {
   return DEMO_FONTES.filter((fonte) => fonte.papeis.includes(papel));
+}
+
+/**
+ * TODOS os ids de fonte curada que uma demo pode ter escolhido — o que
+ * `resolveExtraFontClassNames` (app/demo/fonts/registry.ts) precisa
+ * carregar sob demanda pra que as vars `--font-demo-*` existam na página.
+ *
+ * Existe pra que a lista seja UMA só: a rota pública, o preview do editor
+ * e o harness de QA chamavam cada um a sua, e as três esqueciam
+ * `heroTitulo.fonte` — escolher uma fonte curada só pro título hero
+ * deixava a var sem definição, e a família caía numa qualquer (a Cinzel
+ * escolhida virava a fonte de corpo). Fonte nova com controle próprio
+ * entra aqui e chega nos três lugares de uma vez.
+ */
+export function fontesEscolhidas(tema: TemaPatch | undefined): Array<string | undefined> {
+  return [tema?.fonteDisplay, tema?.fonteCorpo, tema?.heroTitulo?.fonte];
 }
