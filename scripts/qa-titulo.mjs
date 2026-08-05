@@ -215,13 +215,28 @@ const INVENTARIO = () => {
 
   // 2. Texto de SVG — o que a camada de mídia usa como máscara. Sem
   //    viewBox e com o <svg> cobrindo o wordmark (inset-0, 100%×100%), a
-  //    unidade de usuário do getBBox JÁ é px na origem do wordmark, que é
-  //    o mesmo referencial de `rel()` — dá pra comparar linha a linha.
-  //    getBoundingClientRect() num <tspan> devolve 0×0 no Chromium; getBBox
-  //    é o único que mede de verdade.
-  const bbox = (el) => {
-    const b = el.getBBox();
-    return { x: +b.x.toFixed(1), y: +b.y.toFixed(1), w: +b.width.toFixed(1), h: +b.height.toFixed(1) };
+  //    unidade de usuário do SVG JÁ é px na origem do wordmark, o mesmo
+  //    referencial de `rel()` — dá pra comparar linha a linha.
+  //
+  //    Medido pelo AVANÇO (getStartPositionOfChar + getComputedTextLength),
+  //    não pelo getBBox: getBBox devolve a caixa de TINTA (o traço do glifo),
+  //    e a caixa HTML medida por Range devolve a de AVANÇO. Comparar uma
+  //    com a outra acusa "desalinhamento" de vários px onde o glifo só tem
+  //    lateral negativa — foi o que a primeira rodada depois da correção
+  //    reportou na linha que começa em "T".
+  const medidaDoTexto = (el) => {
+    try {
+      const inicio = el.getStartPositionOfChar(0);
+      return {
+        x: +inicio.x.toFixed(1),
+        y: +inicio.y.toFixed(1),
+        w: +el.getComputedTextLength().toFixed(1),
+        h: +el.getBBox().height.toFixed(1),
+      };
+    } catch {
+      const b = el.getBBox();
+      return { x: +b.x.toFixed(1), y: +b.y.toFixed(1), w: +b.width.toFixed(1), h: +b.height.toFixed(1) };
+    }
   };
   for (const t of alvo.querySelectorAll("text")) {
     const partes = [...t.querySelectorAll("tspan")];
@@ -232,8 +247,8 @@ const INVENTARIO = () => {
       // Um <text> por linha (uma linha) ou um <tspan> por linha.
       linhas:
         partes.length > 0
-          ? partes.map((s) => ({ ...bbox(s), texto: s.textContent }))
-          : [{ ...bbox(t), texto: t.textContent }],
+          ? partes.map((s) => ({ ...medidaDoTexto(s), texto: s.textContent }))
+          : [{ ...medidaDoTexto(t), texto: t.textContent }],
       fonte: getComputedStyle(t).fontFamily,
       tamanho: getComputedStyle(t).fontSize,
       // Texto dentro de <mask>/<defs> não é pintado: ele RECORTA a mídia.
@@ -363,28 +378,33 @@ function veredito(inv) {
     problemas.push(`${fills.length} preenchimentos de glifo (${fills.join(" + ")}) — título duplicado`);
   }
 
+  // A máscara pode ser um <text> por linha: as partes de SVG são UMA
+  // camada só, comparada linha a linha com a caixa de texto.
   const caixa = inv.camadas.find((c) => c.tipo === "html");
-  for (const mascara of inv.camadas.filter((c) => c.tipo === "svg-text")) {
-    if (!caixa) continue;
-    if (mascara.linhas.length !== caixa.linhas.length) {
+  const partes = inv.camadas.filter((c) => c.tipo === "svg-text");
+  if (caixa && partes.length > 0) {
+    const linhasMascara = partes.flatMap((p) => p.linhas);
+    if (linhasMascara.length !== caixa.linhas.length) {
       problemas.push(
-        `máscara com ${mascara.linhas.length} linha(s) e caixa de texto com ${caixa.linhas.length}`,
+        `máscara com ${linhasMascara.length} linha(s) e caixa de texto com ${caixa.linhas.length}`,
       );
-      continue;
+    } else {
+      const fora = linhasMascara
+        .map((l, i) => ({ i, d: +Math.abs(centro(l) - centro(caixa.linhas[i])).toFixed(1) }))
+        .filter(({ d }) => d > TOL_CENTRO);
+      if (fora.length > 0) {
+        problemas.push(
+          `máscara desalinhada da caixa de texto: ${fora.map(({ i, d }) => `linha ${i + 1} ${d}px`).join(", ")}`,
+        );
+      }
     }
-    const fora = mascara.linhas
-      .map((l, i) => ({ i, d: +Math.abs(centro(l) - centro(caixa.linhas[i])).toFixed(1) }))
-      .filter(({ d }) => d > TOL_CENTRO);
-    if (fora.length > 0) {
+    const soLetras = (t) => t.replace(/\s+/g, "").toUpperCase();
+    const daMascara = soLetras(partes.map((p) => p.texto).join(""));
+    if (daMascara !== soLetras(caixa.texto)) {
       problemas.push(
-        `máscara desalinhada da caixa de texto: ${fora.map(({ i, d }) => `linha ${i + 1} ${d}px`).join(", ")}`,
+        `máscara e caixa de texto com TEXTOS diferentes: ${JSON.stringify(soLetras(caixa.texto))} ≠ ${JSON.stringify(daMascara)}`,
       );
     }
-  }
-
-  const textos = new Set(inv.camadas.map((c) => c.texto.replace(/\s+/g, " ").trim().toUpperCase()));
-  if (textos.size > 1) {
-    problemas.push(`camadas com TEXTOS diferentes: ${[...textos].map((t) => JSON.stringify(t)).join(" ≠ ")}`);
   }
   return problemas;
 }
