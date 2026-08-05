@@ -312,13 +312,9 @@ export function LeadDetailClient({ id }: { id: string }) {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <button
-          type="button"
-          onClick={() => window.history.back()}
-          className="text-xs text-ink-muted hover:text-foreground"
-        >
+        <Link href="/leads" className="text-xs text-ink-muted hover:text-foreground">
           ← Leads
-        </button>
+        </Link>
         <div className="mt-2 flex items-start justify-between gap-2">
           <h1 className="font-display text-xl font-bold text-foreground">{lead.nome}</h1>
           <StatusBadge status={lead.status} />
