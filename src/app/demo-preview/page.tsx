@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
+import { fontesEscolhidas } from "@/lib/demos/fontes";
 import { getSkin } from "@/lib/demos/registry";
 import type { DemoData, TemaPatch, Theme } from "@/lib/demos/types";
 import { demoCoreFontsClassName, resolveExtraFontClassNames } from "../demo/fonts";
@@ -74,21 +75,24 @@ export default function DemoPreviewPage() {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  // Import dinâmico só da fonte escolhida no editor — o resto da lista
-  // curada nunca chega a ser buscado neste preview.
+  // Import dinâmico só das fontes escolhidas no editor — o resto da lista
+  // curada nunca chega a ser buscado neste preview. Quais são elas sai de
+  // `fontesEscolhidas`, a mesma lista da rota pública (inclui a fonte do
+  // TÍTULO HERO, que é uma escolha independente das outras duas).
+  // Desestruturado em ids: o efeito depende dos VALORES, não do objeto
+  // `tema` — que chega novo a cada tecla digitada no editor.
+  const [fonteDisplay, fonteCorpo, fonteHero] = fontesEscolhidas(estado?.tema);
   useEffect(() => {
     let ignore = false;
-    resolveExtraFontClassNames([estado?.tema?.fonteDisplay, estado?.tema?.fonteCorpo]).then(
-      (classe) => {
-        if (ignore) return;
-        setExtraFontClassName(classe);
-        setJaMostrou(true);
-      },
-    );
+    resolveExtraFontClassNames([fonteDisplay, fonteCorpo, fonteHero]).then((classe) => {
+      if (ignore) return;
+      setExtraFontClassName(classe);
+      setJaMostrou(true);
+    });
     return () => {
       ignore = true;
     };
-  }, [estado?.tema?.fonteDisplay, estado?.tema?.fonteCorpo]);
+  }, [fonteDisplay, fonteCorpo, fonteHero]);
 
   useEffect(() => {
     // Clique em slot → foca o campo no painel do editor. Capture para

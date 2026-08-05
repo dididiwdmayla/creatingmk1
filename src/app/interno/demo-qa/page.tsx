@@ -7,13 +7,14 @@ import { cssPlanoDaPagina } from "@/lib/demos/barra/plano";
 import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
+import { fontesEscolhidas } from "@/lib/demos/fontes";
 import { montarDemoData } from "@/lib/demos/montar";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { modoValido } from "@/lib/demos/cores/modos";
 import type { CoresModoValor, ImagensModo, LedPreset, TemaPatch } from "@/lib/demos/types";
-import { demoCoreFontsClassName } from "@/app/demo/fonts";
+import { demoCoreFontsClassName, resolveExtraFontClassNames } from "@/app/demo/fonts";
 
 /**
  * Harness interno de AVALIAÇÃO VISUAL da camada decorativa (efeitos de
@@ -178,9 +179,15 @@ export default async function DemoQaPage({ searchParams }: Props) {
     skin.id,
   );
 
+  // Mesma cadeia da rota pública (fontesEscolhidas): sem isso, uma fonte
+  // curada que não é default de preset nenhum (carregada sob demanda — ver
+  // fonts/registry) não teria a var --font-demo-* definida aqui, e o laço
+  // mediria a falta da fonte como se fosse defeito da skin.
+  const extraFontClassName = await resolveExtraFontClassNames(fontesEscolhidas(patch));
+
   const Skin = skin.componente;
   return (
-    <div className={demoCoreFontsClassName}>
+    <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
       {/* Mesma cadeia da rota pública — ver lib/demos/barra/plano.ts. */}
       <style>{cssPlanoDaPagina(corDaBarra(theme))}</style>
       <Skin data={dados} theme={theme} />

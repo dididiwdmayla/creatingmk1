@@ -153,8 +153,11 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     "--d-citacao": fontes.citacao,
     "--d-destaque": fontes.destaque,
     // Título hero: controles próprios do editor (aba Tema), independentes
-    // do resto da tipografia — "" em heroTitulo.fonte herda fontes.display.
-    "--d-hero-font": theme.heroTitulo.fonte || fontes.display,
+    // do resto da tipografia. Ao contrário das outras skins, o default aqui
+    // é a DECORATIVA e não a display: o wordmark é a assinatura gótica do
+    // material bruto (Pirata One), e é dela que a skin não pode abrir mão
+    // por padrão. "" em heroTitulo.fonte = a decorativa da skin.
+    "--d-hero-font": theme.heroTitulo.fonte || fontes.decorativa,
     "--d-hero-escala": theme.heroTitulo.escala,
     "--d-sec-y": SECTION_PAD[theme.densidade],
     "--d-anim-duration": ANIM_DURATION[theme.animacao],
@@ -663,7 +666,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
            anima as duas propriedades juntas, sem essa divergência possível.
            A sombra do título (drop-shadow, className passada pela skin) já
            cai nesta mesma caixa — nunca numa camada irmã. */
-        .d-wordmark { position: relative; display: inline-block; font-family: var(--d-deco); line-height: 1; }
+        .d-wordmark { position: relative; display: inline-block; font-family: var(--d-hero-font); line-height: 1; }
         .d-wordmark-text {
           display: inline-block;
           text-transform: uppercase;
