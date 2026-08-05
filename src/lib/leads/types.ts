@@ -1,3 +1,4 @@
+import type { LeadCapturas } from "@/lib/demos/capturas/estado";
 import type { EnvioCanal, LeadDemo } from "@/lib/demos/types";
 import type { DetalhesLugar, FaixaHorario } from "@/lib/places/client";
 
@@ -118,6 +119,14 @@ export interface Lead {
    * navegador sem sendBeacon).
    */
   demoVisitas?: DemoVisita[];
+  /**
+   * Última geração de capturas da demo (prints de prospecção) — estado,
+   * horário de geração e a referência das imagens no Storage. Escrito pela
+   * rota que enfileira e pelo workflow que roda o motor; ver
+   * "Capturas por âncora de seção" em ARCHITECTURE.md. Ausente = nunca
+   * gerou.
+   */
+  capturas?: LeadCapturas;
   criadoEm: string;
   atualizadoEm: string;
 }

@@ -1,0 +1,105 @@
+name: Capturas de demo
+
+# Disparado pela rota POST /api/leads/[id]/capturas do Radar (e pela ação em
+# lote), via repository_dispatch. Não roda em push nem em agenda: gerar
+# captura é sempre um pedido explícito de alguém na ficha do lead.
+#
+# O `workflow_dispatch` existe só para depurar pela interface do GitHub com
+# os mesmos parâmetros — o caminho de produção é o event_type abaixo.
+on:
+  repository_dispatch:
+    types: [capturas-demo]
+  workflow_dispatch:
+    inputs:
+      leads:
+        description: "Ids de lead separados por vírgula"
+        required: true
+      execucao:
+        description: "Id da execução (tem que bater com o gravado no lead)"
+        required: true
+
+# Duas rodadas simultâneas subiriam dois `next start` na mesma porta e
+# brigariam pelo mesmo caminho do Storage. A fila é serial de propósito;
+# `cancel-in-progress: false` porque cancelar no meio deixaria leads presos
+# em "rodando" até o limite de silêncio expirar.
+concurrency:
+  group: capturas-demo
+  cancel-in-progress: false
+
+jobs:
+  capturar:
+    runs-on: ubuntu-latest
+    # O motor sobe o app (`next build` + `next start`), abre o Chromium e
+    # percorre até 3 âncoras × 2 telas por lead. O teto é generoso porque
+    # quem manda um grupo inteiro paga o build uma vez e as capturas N.
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # O projeto depende de `playwright-core`, que NÃO baixa navegador (é
+      # deliberado: no ambiente de desenvolvimento o Chromium já vem
+      # instalado). No runner é preciso buscar um, e o instalador vem do
+      # pacote `playwright` completo, usado aqui só como ferramenta.
+      - name: Instalar Chromium
+        run: |
+          VERSAO=$(node -p "require('./package.json').devDependencies['playwright-core'].replace(/[^0-9.]/g,'')")
+          PLAYWRIGHT_BROWSERS_PATH="$HOME/pw-browsers" npx --yes "playwright@$VERSAO" install --with-deps chromium
+          CAMINHO=$(find "$HOME/pw-browsers" -name chrome -type f | head -1)
+          test -n "$CAMINHO" || { echo "Chromium não encontrado após a instalação"; exit 1; }
+          echo "QA_CHROMIUM=$CAMINHO" >> "$GITHUB_ENV"
+
+      - name: Gerar e publicar as capturas
+        env:
+          # Mesma credencial que o app usa: o motor lê o lead pelo Firestore
+          # (a demo é Server Component) e o orquestrador grava o resultado.
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          # `subirServidor` sorteia um APP_PASSWORD efêmero por rodada e
+          # assina o cookie de sessão com ele — o app do runner nunca usa a
+          # senha de produção, e o cookie só serve pra ler /api/leads e
+          # /api/config. A demo capturada continua sendo aberta SEM cookie
+          # nenhum (ver as defesas do motor).
+          LEADS: ${{ github.event.client_payload.leads || inputs.leads }}
+          EXECUCAO: ${{ github.event.client_payload.execucao || inputs.execucao }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          test -n "$LEADS" || { echo "nenhum lead no payload"; exit 2; }
+          node scripts/capturas-ci.mjs --leads="$LEADS" --execucao="$EXECUCAO" --run-url="$RUN_URL"
+
+      # Sem isto, um job que quebra ANTES do motor (npm ci, instalação do
+      # Chromium) deixaria o lead em "rodando" até o limite de silêncio
+      # expirar — minutos olhando um estado que já morreu.
+      - name: Marcar falha no lead
+        if: failure()
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          LEADS: ${{ github.event.client_payload.leads || inputs.leads }}
+          EXECUCAO: ${{ github.event.client_payload.execucao || inputs.execucao }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node scripts/capturas-ci.mjs --leads="$LEADS" --execucao="$EXECUCAO" \
+            --run-url="$RUN_URL" --falhar="o workflow falhou antes de terminar as capturas"
+
+      # As imagens já estão no Storage; isto é só evidência de depuração,
+      # e só quando algo deu errado.
+      - name: Guardar as imagens quando falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-falha-${{ github.run_id }}
+          path: capturas-ci/
+          if-no-files-found: ignore
+          retention-days: 7
