@@ -17,12 +17,16 @@
  *      do editor tem de alcançá-la);
  *   4. a caixa (x/y/largura/altura) de cada camada, pra provar alinhamento.
  *
- * PORTÃO: reprova (código ≠ 0) se qualquer caso tiver mais de UMA caixa de
- * texto visível do título, ou se as camadas divergirem em linhas/posição,
- * ou se a fonte escolhida não chegar no título.
+ * PORTÃO: reprova (código ≠ 0) se qualquer caso tiver mais de UM
+ * preenchimento de glifo (duas cópias do título na tela), se a máscara da
+ * mídia divergir da caixa de texto em linhas/posição, se as camadas
+ * mostrarem textos diferentes ou se a fonte escolhida não chegar ao
+ * título. A matriz roda em DUAS telas: no desktop o título cabe folgado (o
+ * caso que esconde o defeito), e é no celular que `pre-line` quebra de
+ * verdade.
  *
  * Uso:
- *   node scripts/qa-titulo.mjs                 # a matriz inteira
+ *   node scripts/qa-titulo.mjs                 # a matriz inteira (desktop + celular)
  *   node scripts/qa-titulo.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-titulo.mjs --sem-build     # reusa o .next já buildado
  *   node scripts/qa-titulo.mjs --sem-portao    # mede e reporta, não reprova
@@ -41,7 +45,16 @@ const SAIDA = path.join(RAIZ, "qa-shots");
 const CHROMIUM = process.env.QA_CHROMIUM ?? "/opt/pw-browsers/chromium";
 const PORTA = Number(process.env.QA_PORTA ?? 3126);
 const BASE = `http://127.0.0.1:${PORTA}`;
-const VIEWPORT = { width: 1100, height: 700 };
+/**
+ * Duas telas. O desktop é onde o título hero cabe folgado (o caso que
+ * ESCONDE o defeito); o celular é onde `white-space: pre-line` quebra de
+ * verdade — um nome longo vira 4-5 linhas ali, e é a quebra que a camada
+ * de mídia tem de acompanhar. Medir só a larga daria o veredito errado.
+ */
+const TELAS = [
+  { id: "desktop", viewport: { width: 1100, height: 700 }, dpr: 1 },
+  { id: "celular", viewport: { width: 390, height: 844 }, dpr: 2 },
+];
 const SKIN = "tatuagem-editorial";
 
 /** Vídeo de teste: gerado pelo próprio Playwright (nunca versionado). */
@@ -292,10 +305,10 @@ async function fotoDoTitulo(page, nome) {
     path: arquivo,
     clip: caixa
       ? {
-          x: Math.max(0, caixa.x - 40),
-          y: Math.max(0, caixa.y - 40),
-          width: Math.min(VIEWPORT.width, caixa.width + 80),
-          height: caixa.height + 80,
+          x: Math.max(0, caixa.x - 20),
+          y: Math.max(0, caixa.y - 30),
+          width: Math.min(page.viewportSize().width, caixa.width + 40),
+          height: caixa.height + 60,
         }
       : undefined,
   });
@@ -441,77 +454,85 @@ async function main() {
     process.exit(130);
   });
 
-  const relatorio = ["# Título hero — camadas, quebras e fonte", ""];
+  const relatorio = [];
   const reprovados = [];
   try {
     await esperarServidor(BASE);
-    const ctx = await browser.newContext({
-      viewport: VIEWPORT,
-      deviceScaleFactor: 1,
-      reducedMotion: "no-preference",
-    });
-    await ctx.addCookies([
-      {
-        name: "radar_session",
-        value: criarSessaoToken({ userId: "qa", papel: "admin", versao: 1 }, secret),
-        url: BASE,
-      },
-    ]);
-    const page = await ctx.newPage();
-    await page.goto(url({ titulo: "TESTE" }), { waitUntil: "domcontentloaded" });
-    if (new URL(page.url()).pathname !== "/interno/demo-qa") {
-      throw new Error(`sessão recusada — caiu em ${page.url()}`);
-    }
+    const sessao = criarSessaoToken({ userId: "qa", papel: "admin", versao: 1 }, secret);
 
-    // ── 1. Os três casos do relato, no nível de mídia que sempre roda
-    //       (imagem: `imagens.hero` existe em toda demo) e no nível vídeo.
-    for (const nivel of [
-      { id: "imagem", video: undefined },
-      { id: "video", video },
-    ]) {
-      relatorio.push(`## Mídia: ${nivel.id}`, "");
-      for (const caso of CASOS) {
-        const alvo = url({ titulo: caso.titulo, video: nivel.video });
-        const inv = await medir(page, alvo);
-        const nome = `${nivel.id}-${caso.id}`;
-        const foto = await fotoDoTitulo(page, nome);
-        relatarCaso(relatorio, `${caso.id} — ${JSON.stringify(caso.titulo)}`, inv, foto);
-        const problemas = veredito(inv);
-        if (nivel.id === "video" && inv.midia !== "video") {
-          problemas.push(`nível de mídia esperado \`video\`, obtido \`${inv.midia}\``);
-        }
-        if (problemas.length > 0) reprovados.push(`${nome}: ${problemas.join("; ")}`);
+    for (const tela of TELAS) {
+      const ctx = await browser.newContext({
+        viewport: tela.viewport,
+        deviceScaleFactor: tela.dpr,
+        reducedMotion: "no-preference",
+      });
+      await ctx.addCookies([{ name: "radar_session", value: sessao, url: BASE }]);
+      const page = await ctx.newPage();
+      await page.goto(url({ titulo: "TESTE" }), { waitUntil: "domcontentloaded" });
+      if (new URL(page.url()).pathname !== "/interno/demo-qa") {
+        throw new Error(`sessão recusada — caiu em ${page.url()}`);
       }
-    }
-
-    // ── 2. O seletor de fontes de título alcança o wordmark?
-    relatorio.push("## Seletor de fontes do título (aba Tema)", "");
-    const fontes = [
-      { id: "", rotulo: "padrão da skin (decorativa)", esperado: "pirata" },
-      { id: "bebas", rotulo: "Bebas Neue", esperado: "bebas" },
-      { id: "cinzel", rotulo: "Cinzel", esperado: "cinzel" },
-    ];
-    const vistos = [];
-    for (const fonte of fontes) {
-      const inv = await medir(page, url({ titulo: "ÓSSEA STUDIO", heroFonte: fonte.id }));
-      const foto = await fotoDoTitulo(page, `fonte-${fonte.id || "padrao"}`);
-      const familias = inv.camadas.map((c) => c.fonte);
       relatorio.push(
-        `- **${fonte.rotulo}** (\`heroFonte=${fonte.id || "—"}\`): wordmark \`${inv.fonteWordmark}\``,
-        `  - por camada: ${familias.map((f) => `\`${f}\``).join(", ")}`,
-        `  ![fonte ${fonte.rotulo}](${path.basename(foto)})`,
+        `# Tela ${tela.id} (${tela.viewport.width}×${tela.viewport.height}, dpr ${tela.dpr})`,
+        "",
       );
-      vistos.push({ ...fonte, familia: inv.fonteWordmark, camadas: familias });
-    }
-    relatorio.push("");
-    for (const v of vistos) {
-      const usa = (f) => f.toLowerCase().includes(v.esperado);
-      if (!usa(v.familia)) {
-        reprovados.push(`fonte ${v.id || "padrão"}: esperava \`${v.esperado}\` em \`${v.familia}\``);
+
+      // ── 1. Os três casos do relato, no nível de mídia que sempre roda
+      //       (imagem: `imagens.hero` existe em toda demo) e no nível vídeo.
+      for (const nivel of [
+        { id: "imagem", video: undefined },
+        { id: "video", video },
+      ]) {
+        relatorio.push(`## Mídia: ${nivel.id}`, "");
+        for (const caso of CASOS) {
+          const alvo = url({ titulo: caso.titulo, video: nivel.video });
+          const inv = await medir(page, alvo);
+          const nome = `${tela.id}-${nivel.id}-${caso.id}`;
+          const foto = await fotoDoTitulo(page, nome);
+          relatarCaso(relatorio, `${caso.id} — ${JSON.stringify(caso.titulo)}`, inv, foto);
+          const problemas = veredito(inv);
+          if (nivel.id === "video" && inv.midia !== "video") {
+            problemas.push(`nível de mídia esperado \`video\`, obtido \`${inv.midia}\``);
+          }
+          if (problemas.length > 0) reprovados.push(`${nome}: ${problemas.join("; ")}`);
+        }
       }
-      for (const f of v.camadas.filter((f) => !usa(f))) {
-        reprovados.push(`fonte ${v.id || "padrão"}: camada com \`${f}\` (esperava \`${v.esperado}\`)`);
+
+      // ── 2. O hero INTEIRO, não só o recorte do título: a caixa do
+      //       wordmark mudou de composição, e é aqui que se vê se ela
+      //       continua no lugar em relação ao resto da abertura.
+      await medir(page, url({ titulo: CASOS[1].titulo, video }));
+      const heroPng = path.join(SAIDA, `titulo-${tela.id}-hero${marca}.png`);
+      await page.screenshot({ path: heroPng });
+      relatorio.push("## Hero inteiro (nome longo com quebra, vídeo)", "", `![hero ${tela.id}](${path.basename(heroPng)})`, "");
+
+      // ── 3. O seletor de fontes de título alcança o wordmark?
+      relatorio.push("## Seletor de fontes do título (aba Tema)", "");
+      const fontes = [
+        { id: "", rotulo: "padrão da skin (decorativa)", esperado: "pirata" },
+        { id: "bebas", rotulo: "Bebas Neue", esperado: "bebas" },
+        { id: "cinzel", rotulo: "Cinzel", esperado: "cinzel" },
+      ];
+      for (const fonte of fontes) {
+        const inv = await medir(page, url({ titulo: "ÓSSEA STUDIO", heroFonte: fonte.id }));
+        const foto = await fotoDoTitulo(page, `${tela.id}-fonte-${fonte.id || "padrao"}`);
+        const familias = inv.camadas.map((c) => c.fonte);
+        relatorio.push(
+          `- **${fonte.rotulo}** (\`heroFonte=${fonte.id || "—"}\`): wordmark \`${inv.fonteWordmark}\``,
+          `  - por camada: ${familias.map((f) => `\`${f}\``).join(", ")}`,
+          `  ![fonte ${fonte.rotulo}](${path.basename(foto)})`,
+        );
+        const usa = (f) => f.toLowerCase().includes(fonte.esperado);
+        const rotuloFonte = `${tela.id}-fonte-${fonte.id || "padrão"}`;
+        if (!usa(inv.fonteWordmark)) {
+          reprovados.push(`${rotuloFonte}: esperava \`${fonte.esperado}\` em \`${inv.fonteWordmark}\``);
+        }
+        for (const f of familias.filter((f) => !usa(f))) {
+          reprovados.push(`${rotuloFonte}: camada com \`${f}\` (esperava \`${fonte.esperado}\`)`);
+        }
       }
+      relatorio.push("");
+      await ctx.close();
     }
 
     await browser.close();
@@ -520,7 +541,7 @@ async function main() {
     encerrar();
   }
 
-  relatorio.push("## Veredito", "");
+  relatorio.push("# Veredito", "");
   if (reprovados.length === 0) {
     relatorio.push("✅ uma única caixa de texto por caso, camadas alinhadas e fonte do editor aplicada.");
   } else {

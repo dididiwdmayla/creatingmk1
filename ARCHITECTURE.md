@@ -21,7 +21,7 @@ scripts/
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
   qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
-  qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia e prova que o seletor de fontes de título alcança o título — nome curto × longo com quebra × longo sem quebra, nível imagem e nível vídeo (ver "Título hero: uma caixa de texto, a mídia como máscara")
+  qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia e prova que o seletor de fontes de título alcança o título — desktop e celular × (nome curto/longo com quebra/longo sem quebra × nível imagem e vídeo) (ver "Título hero: uma caixa de texto, a mídia como máscara")
 src/
   proxy.ts                          # ✅ proteção por sessão assinada (Next 16: proxy.ts, ex-middleware)
   app/
@@ -1270,11 +1270,31 @@ As três causas, distintas e independentes:
 se algum caso tiver mais de um preenchimento de glifo, se a máscara
 divergir da caixa de texto (número de linhas ou centro de linha > 3px), se
 as camadas mostrarem textos diferentes ou se a fonte escolhida não chegar
-ao título. Roda os 3 nomes × 2 níveis de mídia + 3 fontes. O vídeo de teste
-é gravado pelo próprio Playwright em `public/qa-tmp/` **antes** de subir o
-servidor (o `next start` monta o índice de `public/` na inicialização;
-arquivo criado depois responde 404) e é apagado no fim — a Forja não
-versiona vídeo.
+ao título. A matriz é **2 telas × (3 nomes × 2 níveis de mídia + 3
+fontes)**, mais uma captura do hero inteiro por tela. As duas telas
+importam: no desktop (1100×700) o título cabe folgado — é o caso que
+ESCONDE o defeito —, e é no celular (390×844, dpr 2) que `pre-line` quebra
+de verdade (o nome longo vira 3 linhas ali). O vídeo de teste é gravado
+pelo próprio Playwright em `public/qa-tmp/` **antes** de subir o servidor
+(o `next start` monta o índice de `public/` na inicialização; arquivo
+criado depois responde 404) e é apagado no fim — a Forja não versiona
+vídeo. Duas armadilhas de MEDIÇÃO que a primeira rodada caiu e o script
+hoje evita: `getBoundingClientRect()` num `<tspan>` devolve 0×0 no
+Chromium, e `getBBox()` devolve a caixa de TINTA enquanto o `Range` da
+caixa HTML devolve a de AVANÇO — comparar as duas acusa "desalinhamento"
+de vários px onde o glifo só tem lateral negativa. A comparação é avanço
+com avanço (`getStartPositionOfChar` + `getComputedTextLength`).
+
+**Verificação da correção** (`qa-shots/_titulo-depois.md`, PNGs
+`titulo-*-depois.png`): **1 preenchimento de glifo nos 12 casos** (2 telas
+× 3 nomes × imagem/vídeo), com as linhas da máscara batendo com as da
+caixa no avanço — no celular, `ÓSSEA STUDIO DE TATUAGEM AUTORAL` vira 3
+linhas e a máscara acompanha as 3 (`x`/largura idênticos:
+13/316, 74,5/193, 90,7/160,6). Fonte: padrão = Pirata One,
+`heroFonte=bebas` = Bebas Neue, `heroFonte=cinzel` = Cinzel (antes os três
+saíam Pirata One nas duas telas). Nada mais se mexeu: `qa-cls.mjs
+--so=skins` dá **0,0000 na tatuagem** (as 8 skins passam) e `qa-visual.mjs
+--so=colapso` checa os 90 slots de imagem das 8 skins sem colapso.
 
 ### Editor visual (`/leads/{id}/demo/editar`)
 
