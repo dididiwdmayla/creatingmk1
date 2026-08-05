@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { SeloProntidao } from "@/components/SeloProntidao";
 import { ApiError, api } from "@/lib/api-client";
+import { agruparPorBusca } from "@/lib/buscas/agrupar";
+import type { Busca } from "@/lib/buscas/types";
 import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getSkin } from "@/lib/demos/registry";
 import { formatDateTime, formatTempoRelativo } from "@/lib/format";
@@ -17,9 +19,15 @@ import type { Lead } from "@/lib/leads/types";
  * criação/edição, link público copiável e atalhos para editar/excluir.
  * Reaproveita GET /api/leads (sem filtros) e filtra client-side — mesma
  * escala de "centenas de leads" do resto do app.
+ *
+ * Agrupamento por busca (nome/cor/colapso — mesmo padrão de `/leads`):
+ * demos criadas em lote (`GerarDemosLoteDialog`) nascem com o `buscaId` do
+ * próprio lead, intocado pela criação da demo — então já caem sozinhas no
+ * grupo de busca de origem, sem nenhum código específico de lote aqui.
  */
 export default function DemosPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
+  const [buscas, setBuscas] = useState<Busca[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [copiado, setCopiado] = useState<string | null>(null);
   const [confirmaExcluir, setConfirmaExcluir] = useState<string | null>(null);
@@ -27,6 +35,9 @@ export default function DemosPage() {
   // Instante fixo da carga, pro selo "aberta há X" (Date.now() no render é
   // impuro pro React Compiler — mesmo padrão de /hoje).
   const [agora, setAgora] = useState(0);
+
+  const [agrupar, setAgrupar] = useState(true);
+  const [fechados, setFechados] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let ignore = false;
@@ -43,10 +54,27 @@ export default function DemosPage() {
           setErro(error instanceof ApiError ? error.message : "Falha ao carregar as demos.");
         }
       });
+    api
+      .listBuscas()
+      .then(({ buscas: data }) => {
+        if (!ignore) setBuscas(data);
+      })
+      .catch(() => {
+        // agrupamento degrada pra lista plana — não é erro fatal
+      });
     return () => {
       ignore = true;
     };
   }, []);
+
+  function toggleColapsado(chave: string) {
+    setFechados((atual) => {
+      const next = new Set(atual);
+      if (next.has(chave)) next.delete(chave);
+      else next.add(chave);
+      return next;
+    });
+  }
 
   async function copiarLink(lead: Lead) {
     try {
@@ -100,100 +128,146 @@ export default function DemosPage() {
     );
   }
 
+  const grupos = agrupar ? agruparPorBusca(demos, buscas, (lead) => lead.buscaId) : [];
+
+  function renderDemo(lead: Lead & { demo: NonNullable<Lead["demo"]> }) {
+    const skin = getSkin(lead.demo.skinId);
+    const ultimaAbertura = ultimaAberturaNaoInterna(lead);
+    return (
+      <li key={lead.placeId} className="card-lift rounded-lg border border-line bg-surface p-3">
+        <div className="flex items-start justify-between gap-2">
+          <Link href={`/leads/${lead.placeId}`} className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-foreground">{lead.nome}</p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+              <p className="truncate text-xs text-ink-secondary">{skin?.nome ?? lead.demo.skinId}</p>
+              {ultimaAbertura ? (
+                <span
+                  title={formatDateTime(ultimaAbertura)}
+                  className="shrink-0 rounded-full bg-good/15 px-1.5 py-0.5 text-[10px] font-semibold text-good"
+                >
+                  aberta {agora > 0 ? formatTempoRelativo(ultimaAbertura, agora) : ""}
+                </span>
+              ) : (
+                <span className="shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
+                  não aberta
+                </span>
+              )}
+            </div>
+          </Link>
+          <div className="shrink-0 text-right text-[11px] text-ink-muted">
+            <p>Criada {formatDateTime(lead.demo.criadoEm)}</p>
+            <p>Editada {formatDateTime(lead.demo.atualizadoEm)}</p>
+          </div>
+        </div>
+
+        <div className="mt-1.5">
+          <SeloProntidao lead={lead} skin={skin} />
+        </div>
+
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <a
+            href={`/demo/${lead.placeId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-accent hover:underline"
+          >
+            Abrir demo ↗
+          </a>
+          <button
+            type="button"
+            onClick={() => copiarLink(lead)}
+            className="text-xs text-ink-muted hover:text-foreground"
+          >
+            {copiado === lead.placeId ? "Copiado!" : "Copiar link"}
+          </button>
+          <Link
+            href={`/leads/${lead.placeId}/demo/editar`}
+            className="text-xs text-ink-muted hover:text-foreground"
+          >
+            Editar
+          </Link>
+          <span className="ml-auto" />
+          {confirmaExcluir === lead.placeId && (
+            <span className="text-[11px] text-critical">Apaga registro e imagens.</span>
+          )}
+          <Button
+            variant="danger"
+            onClick={() => excluir(lead.placeId)}
+            loading={excluindo === lead.placeId}
+            className="!px-2 !py-1 text-xs"
+          >
+            {confirmaExcluir === lead.placeId ? "Confirmar exclusão" : "Excluir"}
+          </Button>
+          {confirmaExcluir === lead.placeId && excluindo !== lead.placeId && (
+            <button
+              type="button"
+              onClick={() => setConfirmaExcluir(null)}
+              className="text-xs text-ink-muted hover:text-foreground"
+            >
+              Cancelar
+            </button>
+          )}
+        </div>
+      </li>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-ink-muted">
-        {demos.length} demo{demos.length === 1 ? "" : "s"} ativa{demos.length === 1 ? "" : "s"}
-      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-xs text-ink-muted">
+          {demos.length} demo{demos.length === 1 ? "" : "s"} ativa{demos.length === 1 ? "" : "s"}
+        </p>
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-ink-secondary">
+          <input
+            type="checkbox"
+            checked={agrupar}
+            onChange={(event) => setAgrupar(event.target.checked)}
+            className="h-3.5 w-3.5 accent-[var(--accent)]"
+          />
+          Agrupar por busca
+        </label>
+      </div>
+
       {erro && <p className="text-sm text-critical">{erro}</p>}
-      <ul className="flex flex-col gap-2">
-        {demos.map((lead) => {
-          const skin = getSkin(lead.demo.skinId);
-          const ultimaAbertura = ultimaAberturaNaoInterna(lead);
-          return (
-            <li
-              key={lead.placeId}
-              className="card-lift rounded-lg border border-line bg-surface p-3"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <Link href={`/leads/${lead.placeId}`} className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{lead.nome}</p>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    <p className="truncate text-xs text-ink-secondary">
-                      {skin?.nome ?? lead.demo.skinId}
-                    </p>
-                    {ultimaAbertura ? (
-                      <span
-                        title={formatDateTime(ultimaAbertura)}
-                        className="shrink-0 rounded-full bg-good/15 px-1.5 py-0.5 text-[10px] font-semibold text-good"
-                      >
-                        aberta {agora > 0 ? formatTempoRelativo(ultimaAbertura, agora) : ""}
-                      </span>
-                    ) : (
-                      <span className="shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
-                        não aberta
-                      </span>
-                    )}
-                  </div>
-                </Link>
-                <div className="shrink-0 text-right text-[11px] text-ink-muted">
-                  <p>Criada {formatDateTime(lead.demo.criadoEm)}</p>
-                  <p>Editada {formatDateTime(lead.demo.atualizadoEm)}</p>
-                </div>
-              </div>
 
-              <div className="mt-1.5">
-                <SeloProntidao lead={lead} skin={skin} />
-              </div>
-
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <a
-                  href={`/demo/${lead.placeId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-accent hover:underline"
-                >
-                  Abrir demo ↗
-                </a>
+      {agrupar ? (
+        <div className="flex flex-col gap-3">
+          {grupos.map((grupo) => {
+            const fechado = fechados.has(grupo.chave);
+            return (
+              <section key={grupo.chave}>
                 <button
                   type="button"
-                  onClick={() => copiarLink(lead)}
-                  className="text-xs text-ink-muted hover:text-foreground"
+                  onClick={() => toggleColapsado(grupo.chave)}
+                  aria-expanded={!fechado}
+                  className="flex w-full items-center gap-2 rounded px-1 py-1.5 text-left hover:bg-surface"
                 >
-                  {copiado === lead.placeId ? "Copiado!" : "Copiar link"}
+                  <span className="text-xs text-ink-muted">{fechado ? "▸" : "▾"}</span>
+                  <span
+                    aria-hidden
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: grupo.cor ?? "var(--ink-muted)" }}
+                  />
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {grupo.titulo}
+                  </span>
+                  <span className="ml-auto shrink-0 text-xs text-ink-muted">
+                    {grupo.itens.length}
+                  </span>
                 </button>
-                <Link
-                  href={`/leads/${lead.placeId}/demo/editar`}
-                  className="text-xs text-ink-muted hover:text-foreground"
-                >
-                  Editar
-                </Link>
-                <span className="ml-auto" />
-                {confirmaExcluir === lead.placeId && (
-                  <span className="text-[11px] text-critical">Apaga registro e imagens.</span>
+                {!fechado && (
+                  <ul className="mt-1.5 flex flex-col gap-2">
+                    {grupo.itens.map((lead) => renderDemo(lead))}
+                  </ul>
                 )}
-                <Button
-                  variant="danger"
-                  onClick={() => excluir(lead.placeId)}
-                  loading={excluindo === lead.placeId}
-                  className="!px-2 !py-1 text-xs"
-                >
-                  {confirmaExcluir === lead.placeId ? "Confirmar exclusão" : "Excluir"}
-                </Button>
-                {confirmaExcluir === lead.placeId && excluindo !== lead.placeId && (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmaExcluir(null)}
-                    className="text-xs text-ink-muted hover:text-foreground"
-                  >
-                    Cancelar
-                  </button>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-2">{demos.map((lead) => renderDemo(lead))}</ul>
+      )}
     </div>
   );
 }

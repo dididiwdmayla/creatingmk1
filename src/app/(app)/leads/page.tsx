@@ -10,6 +10,7 @@ import { LeadCard } from "@/components/LeadCard";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { RadarSweep } from "@/components/RadarSweep";
 import { ApiError, api, type TermoLocalResponse } from "@/lib/api-client";
+import { agruparPorBusca } from "@/lib/buscas/agrupar";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import type { Busca } from "@/lib/buscas/types";
 import type { FiltroPresenca } from "@/lib/config";
@@ -119,30 +120,6 @@ async function autoEnrichSerial(
     }
   }
   return { feitos, alvo: alvos.length };
-}
-
-interface Grupo {
-  chave: string;
-  titulo: string;
-  cor?: string;
-  leads: Lead[];
-}
-
-/** Um grupo por busca (desc por criadaEm) + "Sem busca" para o resto. */
-function agruparPorBusca(leads: Lead[], buscas: Busca[]): Grupo[] {
-  const grupos: Grupo[] = [];
-  const agrupados = new Set<string>();
-  for (const busca of buscas) {
-    const doGrupo = leads.filter((lead) => (lead.buscaId ?? []).includes(busca.id));
-    if (doGrupo.length === 0) continue;
-    doGrupo.forEach((lead) => agrupados.add(lead.placeId));
-    grupos.push({ chave: busca.id, titulo: busca.nome, cor: busca.cor, leads: doGrupo });
-  }
-  const semBusca = leads.filter((lead) => !agrupados.has(lead.placeId));
-  if (semBusca.length > 0) {
-    grupos.push({ chave: "__sem_busca__", titulo: "Sem busca", leads: semBusca });
-  }
-  return grupos;
 }
 
 /** Penetração do nicho dele é >60% — badge "argumento forte" no card. */
@@ -540,7 +517,10 @@ function LeadsPageInner() {
   const agrupado = agrupar && !buscaId;
   const leadsOrdenados =
     ordem === "prioridade" && leads ? ordenarPorPrioridade(leads) : leads;
-  const grupos = agrupado && leadsOrdenados ? agruparPorBusca(leadsOrdenados, buscas) : [];
+  const grupos =
+    agrupado && leadsOrdenados
+      ? agruparPorBusca(leadsOrdenados, buscas, (lead) => lead.buscaId)
+      : [];
   // Top da lista toda quando plana; top DENTRO de cada grupo quando agrupado.
   const topFlat = !agrupado && leadsOrdenados ? topScoreIds(leadsOrdenados) : new Set<string>();
   const buscaAtual = buscaId ? buscas.find((b) => b.id === buscaId) : undefined;
@@ -899,7 +879,7 @@ function LeadsPageInner() {
         <div className="flex flex-col gap-3">
           {grupos.map((grupo) => {
             const fechado = fechados.has(grupo.chave);
-            const topDoGrupo = topScoreIds(grupo.leads);
+            const topDoGrupo = topScoreIds(grupo.itens);
             return (
               <section key={grupo.chave}>
                 <button
@@ -918,12 +898,12 @@ function LeadsPageInner() {
                     {grupo.titulo}
                   </span>
                   <span className="ml-auto shrink-0 text-xs text-ink-muted">
-                    {grupo.leads.length}
+                    {grupo.itens.length}
                   </span>
                 </button>
                 {!fechado && (
                   <ul className="mt-1.5 flex flex-col gap-2">
-                    {grupo.leads.map((lead) => (
+                    {grupo.itens.map((lead) => (
                       <li key={`${grupo.chave}-${lead.placeId}`}>
                         <LeadCard
                           lead={lead}
