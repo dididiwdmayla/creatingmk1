@@ -8,11 +8,14 @@ import { SeloProntidao } from "@/components/SeloProntidao";
 import { ApiError, api } from "@/lib/api-client";
 import { agruparPorBusca } from "@/lib/buscas/agrupar";
 import type { Busca } from "@/lib/buscas/types";
+import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getSkin } from "@/lib/demos/registry";
 import { formatDateTime, formatTempoRelativo } from "@/lib/format";
 import { ultimaAberturaNaoInterna } from "@/lib/leads/hoje";
 import type { Lead } from "@/lib/leads/types";
+
+const SEM_AUTOR = "__sem_autor__";
 
 /**
  * Todas as demos ativas (leads com `demo` salva): skin, datas de
@@ -20,14 +23,18 @@ import type { Lead } from "@/lib/leads/types";
  * Reaproveita GET /api/leads (sem filtros) e filtra client-side — mesma
  * escala de "centenas de leads" do resto do app.
  *
- * Agrupamento por busca (nome/cor/colapso — mesmo padrão de `/leads`):
- * demos criadas em lote (`GerarDemosLoteDialog`) nascem com o `buscaId` do
- * próprio lead, intocado pela criação da demo — então já caem sozinhas no
- * grupo de busca de origem, sem nenhum código específico de lote aqui.
+ * Agrupamento por busca (nome/cor/colapso — mesmo padrão de `/leads`) e
+ * filtro por autor (`LeadDemo.criadoPor`, combinável com o agrupamento —
+ * filtra ANTES de agrupar, então um grupo sem nenhuma demo do autor
+ * escolhido simplesmente não aparece): demos criadas em lote
+ * (`GerarDemosLoteDialog`) nascem com o `buscaId` do próprio lead,
+ * intocado pela criação da demo — então já caem sozinhas no grupo de
+ * busca de origem, sem nenhum código específico de lote aqui.
  */
 export default function DemosPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [buscas, setBuscas] = useState<Busca[]>([]);
+  const [nomes, setNomes] = useState<NomesUsuarios>({});
   const [erro, setErro] = useState<string | null>(null);
   const [copiado, setCopiado] = useState<string | null>(null);
   const [confirmaExcluir, setConfirmaExcluir] = useState<string | null>(null);
@@ -38,6 +45,7 @@ export default function DemosPage() {
 
   const [agrupar, setAgrupar] = useState(true);
   const [fechados, setFechados] = useState<Set<string>>(new Set());
+  const [filtroAutor, setFiltroAutor] = useState("");
 
   useEffect(() => {
     let ignore = false;
@@ -61,6 +69,16 @@ export default function DemosPage() {
       })
       .catch(() => {
         // agrupamento degrada pra lista plana — não é erro fatal
+      });
+    api
+      .listNomesUsuarios()
+      .then(({ usuarios }) => {
+        if (!ignore) {
+          setNomes(Object.fromEntries(usuarios.map((u) => [u.id, u.nome])));
+        }
+      })
+      .catch(() => {
+        // filtro por autor degrada pra "usuário removido" — não é erro fatal
       });
     return () => {
       ignore = true;
@@ -128,7 +146,22 @@ export default function DemosPage() {
     );
   }
 
-  const grupos = agrupar ? agruparPorBusca(demos, buscas, (lead) => lead.buscaId) : [];
+  // Autores com ao menos uma demo — só esses entram no filtro (sem opção
+  // morta pra quem nunca criou nenhuma).
+  const autoresComDemo = new Set(demos.map((lead) => lead.demo.criadoPor ?? SEM_AUTOR));
+  const opcoesAutor = [...autoresComDemo].sort((a, b) => {
+    if (a === SEM_AUTOR) return 1;
+    if (b === SEM_AUTOR) return -1;
+    return nomeUsuario(nomes, a).localeCompare(nomeUsuario(nomes, b));
+  });
+
+  const demosFiltradas = filtroAutor
+    ? demos.filter((lead) => (lead.demo.criadoPor ?? SEM_AUTOR) === filtroAutor)
+    : demos;
+
+  const grupos = agrupar
+    ? agruparPorBusca(demosFiltradas, buscas, (lead) => lead.buscaId)
+    : [];
 
   function renderDemo(lead: Lead & { demo: NonNullable<Lead["demo"]> }) {
     const skin = getSkin(lead.demo.skinId);
@@ -150,6 +183,11 @@ export default function DemosPage() {
               ) : (
                 <span className="shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
                   não aberta
+                </span>
+              )}
+              {lead.demo.criadoPor && (
+                <span className="shrink-0 text-[10px] text-ink-muted">
+                  por {nomeUsuario(nomes, lead.demo.criadoPor)}
                 </span>
               )}
             </div>
@@ -216,8 +254,23 @@ export default function DemosPage() {
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-xs text-ink-muted">
-          {demos.length} demo{demos.length === 1 ? "" : "s"} ativa{demos.length === 1 ? "" : "s"}
+          {filtroAutor ? `${demosFiltradas.length} de ${demos.length}` : demos.length} demo
+          {demos.length === 1 ? "" : "s"} ativa{demos.length === 1 ? "" : "s"}
         </p>
+        {opcoesAutor.length > 1 && (
+          <select
+            value={filtroAutor}
+            onChange={(event) => setFiltroAutor(event.target.value)}
+            className="rounded border border-line bg-surface-2 px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
+          >
+            <option value="">Todos os autores</option>
+            {opcoesAutor.map((autor) => (
+              <option key={autor} value={autor}>
+                {autor === SEM_AUTOR ? "Sem autor registrado" : nomeUsuario(nomes, autor)}
+              </option>
+            ))}
+          </select>
+        )}
         <label className="ml-auto flex items-center gap-1.5 text-xs text-ink-secondary">
           <input
             type="checkbox"
@@ -231,7 +284,9 @@ export default function DemosPage() {
 
       {erro && <p className="text-sm text-critical">{erro}</p>}
 
-      {agrupar ? (
+      {demosFiltradas.length === 0 ? (
+        <p className="text-sm text-ink-muted">Nenhuma demo desse autor.</p>
+      ) : agrupar ? (
         <div className="flex flex-col gap-3">
           {grupos.map((grupo) => {
             const fechado = fechados.has(grupo.chave);
@@ -266,7 +321,7 @@ export default function DemosPage() {
           })}
         </div>
       ) : (
-        <ul className="flex flex-col gap-2">{demos.map((lead) => renderDemo(lead))}</ul>
+        <ul className="flex flex-col gap-2">{demosFiltradas.map((lead) => renderDemo(lead))}</ul>
       )}
     </div>
   );
