@@ -22,6 +22,7 @@ scripts/
   qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
   qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia e prova que o seletor de fontes de título alcança o título — desktop e celular × (nome curto/longo com quebra/longo sem quebra × nível imagem e vídeo) (ver "Título hero: uma caixa de texto, a mídia como máscara")
+  capturas.mjs                      # ✅ MOTOR DE CAPTURA das demos (prints de prospecção): por âncora marcada × celular/desktop, enquadra a SEÇÃO inteira via `[data-d-secao]`, congela as animações (mesma técnica do qa-visual) e reprova se sobrou cromo fixo por cima do título; `--lead` captura a rota pública, `--skin`/`--skins` o harness (ver "Capturas por âncora de seção")
 src/
   proxy.ts                          # ✅ proteção por sessão assinada (Next 16: proxy.ts, ex-middleware)
   app/
@@ -41,6 +42,7 @@ src/
     interno/
       efeitos/page.tsx              # ✅ harness de teste dos efeitos registrados: fundo claro/escuro, slider de intensidade — fora do (app) e do registro de skins, protegida por sessão (default do proxy.ts)
       demo-qa/page.tsx              # ✅ harness de AVALIAÇÃO VISUAL: mesma árvore da rota pública (Skin + efeito + LED) resolvida só por query string, sem Firestore — alvo do scripts/qa-visual.mjs
+      capturas/                     # ✅ tela interna de MARCAÇÃO das âncoras de captura: as 8 skins, as seções de cada uma e a prévia do enquadramento (iframe do harness, medido pelo mesmo seletor do motor) — salva em /config, sem deploy
     leads/[id]/demo/escolher/       # ✅ passo de escolha da skin base, ANTES de criar a demo
       page.tsx                      #    wrapper server fino (params.id → client)
       EscolherSkinClient.tsx        #    cards (miniatura + nicho) de todas as skins do registro; pula se já tem demo
@@ -467,6 +469,11 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
       { "nome": "Sistema", "valorBRL": 5000 }
     ]
   },
+  "capturas": {                                 // ✅ âncoras de captura por skin (ver "Capturas por âncora de seção")
+    "ancoras": {                                // skinId → até 3 ids de SEÇÃO, na ordem em que as capturas saem
+      "barbearia-editorial": ["hero", "servicos", "depoimentos"]
+    }
+  },
   "atualizadoEm": "<timestamp>"
 }
 ```
@@ -474,6 +481,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
 Observações:
 - Os **filtros "tem site/telefone" são filtros de listagem**, não de busca. O filtro de site usa a classificação **`siteProprio`** (rede social/agregador conta como SEM site próprio — ver "Classificação de site próprio"); vale para leads enriquecidos E para leads da **busca qualificada**. Telefone vale após enriquecer ou pela qualificada. Leads sem informação aparecem como "desconhecido" e ficam fora de com/sem.
 - `caps` é o teto de segurança (hard stop). `precos.cotaGratis` é informativo (dashboard e projeção de custo). Por default o teto = cota grátis, ou seja, o app nunca gasta um centavo sem o usuário aumentar o teto conscientemente.
+- `capturas.ancoras` é marcado em `/interno/capturas`, não em /config: o merge é **por skin** (marcar uma não apaga as outras), lista vazia significa "não capturar esta skin", e skin/seção fora do registro são rejeitadas com 400. Skin ausente do doc cai no padrão do código.
 - **Migração de SKU (jul/2026)**: `detailsPro` foi renomeado para `detailsEnterprise` (a tabela do Google classifica telefone/site/rating como tier Enterprise). Docs antigos com chaves `detailsPro` em `caps`/`precos` são lidos via alias e regravados com o nome novo; PUTs novos com o nome antigo são rejeitados (400).
 
 ### `/leads/{placeId}` — um doc por lead
@@ -1321,6 +1329,35 @@ A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta 
 5. Se o original usa uma lib de animação (ex.: `motion`), adicione a dependência e port fielmente o timing/easing em vez de recriar com CSS aproximado — o objetivo é a demo parecer idêntica ao original com os dados de exemplo, exceto o que é slot/tema por design. `interactive/LedEdges.tsx` é sempre o mesmo reexport de uma linha (`export { LedEdges } from "@/lib/demos/led/LedEdges"`, ver "Micro-interações do tema"); se o original tinha vídeo-no-texto/logo, considere declarar `videoSlots` (opt-in — ver "Vídeo-no-título" acima) e portar a técnica de `VideoNoTitulo.tsx`.
 6. Acrescente a entrada em `src/lib/demos/registry.ts` (incluindo `heroEscalaLimites` e `thumbnail`, obrigatórios) — rota pública, ficha e editor passam a conhecê-la sem mais mudanças.
 7. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo, existência física dos placeholders e da miniatura, `heroEscalaLimites` coerentes, `heroTitulo`/`led` resolvidos em todo preset, `videos` ausente no exemplo (vídeo nunca tem placeholder) e o contrato de seções (ids únicos, presentes no exemplo, `alignOptions` válidos, ao menos uma seção reordenável).
+
+### Capturas por âncora de seção (`src/lib/demos/capturas` + `scripts/capturas.mjs` + `/interno/capturas`)
+
+Prints das demos para a prospecção por WhatsApp, gerados sem ninguém abrir o navegador e sem nenhum request pago. Este bloco é a **marcação** e o **motor**; a composição em moldura vem depois.
+
+**A âncora aponta para uma SEÇÃO, nunca para pixel.** O enquadramento sai da caixa de `[data-d-secao="<id>"]` — o marcador que `lib/demos/animacao/SecaoMarcada.tsx` já punha no DOM para a camada decorativa, reaproveitado inteiro. Como ele envolve a `<section>` completa, "a seção do início ao fim" é a caixa dele, e mudar a skin não recalibra nada: a seção continua se anunciando sozinha. (O hero da multimarcas era a única seção das 8 skins sem o marcador — renderizado fora do `visiveis.map` — e ganhou o dele nesta feature.)
+
+- **Marcação** (`capturas.ancoras` em `/config/app`, até 3 seções por skin, editável sem deploy pelo `PUT /api/config`): o merge é **por skin** (marcar uma não apaga as outras sete) e **lista vazia é marcação legítima** ("não capturar esta skin"). Validação estrita: skin fora do registro e seção fora do contrato da skin são erro, não silêncio — uma âncora com typo que simplesmente não captura nada só apareceria na hora de mandar o print pro lead. `ancorasEfetivas` ainda descarta seção aposentada do contrato, pelo mesmo motivo que `ordemEfetiva` tolera `ordemSecoes` velha.
+- **Padrão inicial** (`capturas/padrao.mjs`): sempre o mesmo trio — **identidade** (o hero, único em toda skin), **oferta** (o que o negócio vende) e **prova/fecho** (depoimento, galeria, CTA). Ficam de fora as seções decorativas (`faixa`, `marquee`) e as que só fazem sentido em movimento.
+- **Tela de marcação** (`/interno/capturas`): as 8 skins, as seções de cada uma como chips numerados na **ordem de escolha** (que é a ordem das capturas) e a **prévia do enquadramento**. A prévia carrega a skin no harness `/interno/demo-qa` dentro de um `<iframe>` de mesma origem e mede pelo MESMO seletor do motor — não tem como prometer um enquadramento diferente do que a captura entrega. Sem pixel e sem rolagem para o operador.
+- **`capturas/dom.mjs`**: a lógica que roda DENTRO da página, compartilhada pela prévia (que a chama no `contentWindow` do iframe) e pelo motor (que a passa para `page.evaluate`). É `.mjs` porque o script de laço não compila TypeScript, e cada função é **autossuficiente** (nada de escopo de módulo — `page.evaluate` avalia noutro realm) e recebe a **janela alvo** como último parâmetro, com default `window`.
+
+**Motor** (`node scripts/capturas.mjs --lead=<placeId>` ou `--skin=<id>`/`--skins`; `--subir` publica no Storage). Reaproveita `subirServidor`, o Chromium do ambiente e o congelamento de animação do `qa-visual.mjs` (WAAPI, `pause()` + `currentTime` na fase em que o efeito está aceso — a faísca vive menos de 1s e a varredura ocupa 14% do ciclo). Captura em celular (390, dpr 2) e desktop (1440, dpr 1), uma imagem por âncora. `--lead` bate na rota pública; `--skin` no harness, que é como o motor é verificável sem Firestore.
+
+Duas defesas da imagem que vai pro lead: o contexto **não carrega cookie de sessão nem `radar_device`** (com eles a demo estampa o selo "Vendo como membro" na foto) e a URL **não leva `?t=`** (token é de envio; captura interna não pode entrar na timeline de visitas do lead).
+
+**O `vh` é a armadilha central desta feature, e apareceu três vezes.** Toda skin tem o hero em `min-h-screen`, então qualquer coisa que estique a viewport redefine o que `100vh` significa, incha o hero e empurra o resto da página para baixo:
+
+1. Esticar o iframe até a altura do documento (o jeito óbvio de ter tudo "em vista" e disparar as revelações `whileInView`) fez a prévia medir um hero de **7737px** em vez de 900.
+2. `page.screenshot({ fullPage: true, clip })` refaz o render com a viewport esticada pela mesma razão — a captura de "Imóveis em destaque" saiu **mostrando o manifesto**. Por sonda: sem `fullPage`, o `clip` é **relativo à viewport**; com ele, o recorte deixa de bater com o que foi medido.
+3. Crescer a viewport para caber uma seção alta faz a seção medida em `vh` **crescer junto** — laço sem fim (o hero da barbearia no celular ia de 1300 para 1463px a cada tentativa).
+
+Daí a sequência do motor, cada passo com um defeito por trás: `prepararPagina` (varre a página — dispara revelações e lazy-load — e espera fontes e imagens decodificadas) → `fixarUnidadesDeTela` (converte as alturas em `vh` para pixel **com a viewport ainda na altura real da tela**, que é o único momento em que elas valem o que devem) → `forcarImagensDaSecao` (rolar resolve o lazy-load só no eixo vertical; galeria e cardápio saíam com 2/5 e 7/13 fotos, então varre também os trilhos de rolagem horizontal) → mede → cresce a viewport se preciso, iterando até estabilizar → `neutralizarCromo` → `congelarAnimacoes` → `rolarAteSecao` (com `behavior: "instant"`: skins com nav de âncora ligam `scroll-behavior: smooth`, e a caixa era lida na posição antiga) → `caixaNaViewport` → recorte.
+
+- **`neutralizarCromo`**: header/nav fixos pousariam por cima do começo da seção, que é onde mora o título. Some com o que é `fixed`/`sticky` **fora** da seção — na PRIMEIRA seção o cromo fica, porque ali ele é parte da abertura, e o que é grudado **dentro** da seção é conteúdo (a sidebar de Serviços da barbearia é `position: sticky`, e escondê-la deixava metade do enquadramento vazio). Decoração (`[data-d-efeito-camada]`, `[data-d-led-estilo]`) nunca sai.
+- **O portão**: `tituloCoberto` reprova a captura se sobrou qualquer elemento fixo por cima do primeiro título da seção — é o que transforma "nunca cortando título" de intenção em medida. A contagem de imagens é a **da seção**: uma pendente noutro canto do documento não entra no enquadramento; uma pendente aqui vira buraco.
+- **Estado da última rodada**: 46 de 48 aprovadas. As 2 reprovadas são a `portfolio` da tatuagem2 nas duas telas — galeria rolada por scroll cuja altura é calculada em JS e **recomputada a cada resize** (9580px no desktop, 11608 no celular), então nenhum congelamento de CSS a segura. O motor reprova em vez de gerar imagem errada; a saída é remarcar a âncora em `/interno/capturas`, sem deploy.
+
+**Onde rodar** (decidido antes de implementar, com os custos na mesa): laço local/CI em lote, custo R$ 0, ~25–40s por lead, nenhum request pago e zero risco pro deploy do app. As alternativas avaliadas foram Vercel sob demanda (exige `@sparticuz/chromium`, ~170MB contra o teto de 250MB do bundle, `maxDuration` apertado no Hobby) e GitHub Actions (sem limite, mas latência de minutos). O motor foi escrito com o miolo em `capturas/dom.mjs`, então ligar a rota serverless depois é escrever o adaptador, não reescrever o motor.
 
 ### Efeitos visuais (`src/lib/demos/efeitos`) — camada decorativa opcional
 
