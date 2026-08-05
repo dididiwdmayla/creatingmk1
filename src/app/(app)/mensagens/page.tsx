@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { SkeletonRows } from "@/components/Skeleton";
 import { ApiError, api, type MensagensResumoResponse } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
 import { MENSAGEM_TEXTO_MAX, type Mensagem } from "@/lib/mensagens/types";
@@ -259,7 +260,9 @@ export default function MensagensPage() {
         </p>
       )}
 
-      {resumo === null && !erro && <p className="text-sm text-ink-muted">Carregando…</p>}
+      {resumo === null && !erro && (
+        <SkeletonRows count={3} className="h-[60px] rounded-lg border border-line" />
+      )}
 
       {resumo?.conversas.length === 0 && (
         <p className="text-sm text-ink-muted">Nenhum outro usuário cadastrado ainda.</p>

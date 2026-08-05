@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { SkeletonRows } from "@/components/Skeleton";
 import { UsageMeter } from "@/components/UsageMeter";
 import {
   ApiError,
@@ -95,10 +96,10 @@ export default function ConfigPage() {
     }
   }
 
-  if (loading) {
-    return <p className="text-sm text-ink-muted">Carregando…</p>;
-  }
-
+  // `form` já nasce com DEFAULT_CONFIG (mesmo shape do config real) — o
+  // formulário renderiza desde o primeiro desenho, e a carga real só troca
+  // os VALORES dos campos, sem mudar a estrutura. Nada de gate de página
+  // inteira que troca um parágrafo por um formulário completo depois.
   return (
     <div className="flex flex-col gap-6 pb-6">
       <UsuariosSection />
@@ -406,7 +407,7 @@ export default function ConfigPage() {
       {erro && <p className="text-sm text-critical">{erro}</p>}
       {salvo && <p className="text-sm text-good">Configuração salva.</p>}
 
-      <Button type="submit" loading={saving}>
+      <Button type="submit" loading={saving} disabled={loading}>
         Salvar
       </Button>
       </form>
@@ -539,6 +540,24 @@ function UsuariosSection() {
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Usuários</h2>
         <p className="mt-2 text-sm text-ink-muted">{erro}</p>
+      </section>
+    );
+  }
+
+  // A lista ainda não chegou: o mesmo invólucro da seção, com skeletons no
+  // lugar das linhas — nunca uma seção vazia que cresce quando os dados
+  // chegam (é isso que empurra o resto da página).
+  if (usuarios === null) {
+    return (
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Usuários</h2>
+        <p className="mt-1 text-xs text-ink-muted">
+          Membro sem senha definida não consegue entrar — defina uma aqui. Desativar/redefinir
+          derruba as sessões do usuário.
+        </p>
+        <div className="mt-3">
+          <SkeletonRows count={2} className="h-14 rounded border border-line" />
+        </div>
       </section>
     );
   }
@@ -760,12 +779,12 @@ function CotasUsuariosSection() {
         informativos.
       </p>
 
-      {usoGlobal && (
-        <div className="mt-3 flex flex-col gap-3 rounded border border-line p-3">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
-            Teto global do mês (bloqueia membros; admin passa direto)
-          </p>
-          {SKUS_COTA_INDIVIDUAL.map((sku) => (
+      <div className="mt-3 flex flex-col gap-3 rounded border border-line p-3">
+        <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+          Teto global do mês (bloqueia membros; admin passa direto)
+        </p>
+        {usoGlobal ? (
+          SKUS_COTA_INDIVIDUAL.map((sku) => (
             <UsageMeter
               key={sku}
               label={SKU_LABELS[sku]}
@@ -773,12 +792,14 @@ function CotasUsuariosSection() {
               cap={usoGlobal.caps[sku]}
               freeQuota={usoGlobal.cotaGratis[sku]}
             />
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <SkeletonRows count={SKUS_COTA_INDIVIDUAL.length} className="h-6" />
+        )}
+      </div>
 
       <div className="mt-3 flex flex-col gap-3">
-        {linhas === null && <p className="text-sm text-ink-muted">Carregando…</p>}
+        {linhas === null && <SkeletonRows count={2} className="h-20 rounded border border-line" />}
         {(linhas ?? []).map((linha) => (
           <div key={linha.id} className="rounded border border-line p-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -910,7 +931,7 @@ function MetasUsuariosSection() {
       </p>
 
       <div className="mt-3 flex flex-col gap-3">
-        {linhas === null && <p className="text-sm text-ink-muted">Carregando…</p>}
+        {linhas === null && <SkeletonRows count={2} className="h-24 rounded border border-line" />}
         {(linhas ?? []).map((linha) => (
           <div key={linha.id} className="rounded border border-line p-3">
             <div className="flex flex-wrap items-center gap-2">

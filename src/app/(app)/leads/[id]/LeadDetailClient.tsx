@@ -9,6 +9,7 @@ import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { SeloContato } from "@/components/SeloContato";
 import { SeloProntidao } from "@/components/SeloProntidao";
+import { Skeleton, SkeletonRows } from "@/components/Skeleton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
@@ -249,7 +250,13 @@ export function LeadDetailClient({ id }: { id: string }) {
   }
 
   if (loading) {
-    return <p className="text-sm text-ink-muted">Carregando…</p>;
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-4 w-1/2" />
+        <SkeletonRows count={3} className="h-16 rounded-lg border border-line" />
+      </div>
+    );
   }
 
   if (notFound) {

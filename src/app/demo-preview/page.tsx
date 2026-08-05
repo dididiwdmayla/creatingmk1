@@ -45,6 +45,13 @@ const MSG_PRONTO = "radar-demo-preview-pronto";
 export default function DemoPreviewPage() {
   const [estado, setEstado] = useState<PreviewState | null>(null);
   const [extraFontClassName, setExtraFontClassName] = useState("");
+  // Só para o PRIMEIRO desenho: sem isso, a skin pinta com a fonte core (ou
+  // nenhuma, se a var ainda não existe) e troca de fonte assim que o import
+  // dinâmico da fonte escolhida resolve — reflow de texto depois do
+  // primeiro desenho, o defeito que este estado existe para evitar. Trocas
+  // de fonte já em edição (o usuário mexendo na aba Tema) não passam por
+  // aqui de novo: `jaMostrou` já travou em true e o preview segue ao vivo.
+  const [jaMostrou, setJaMostrou] = useState(false);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -73,7 +80,9 @@ export default function DemoPreviewPage() {
     let ignore = false;
     resolveExtraFontClassNames([estado?.tema?.fonteDisplay, estado?.tema?.fonteCorpo]).then(
       (classe) => {
-        if (!ignore) setExtraFontClassName(classe);
+        if (ignore) return;
+        setExtraFontClassName(classe);
+        setJaMostrou(true);
       },
     );
     return () => {
@@ -99,7 +108,7 @@ export default function DemoPreviewPage() {
   }, []);
 
   const skin = getSkin(estado?.skinId);
-  if (!estado || !skin) {
+  if (!estado || !skin || !jaMostrou) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-sm text-ink-muted">Carregando prévia…</p>

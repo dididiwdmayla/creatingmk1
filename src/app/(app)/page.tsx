@@ -15,6 +15,7 @@ import { formatBRL, formatDateTime, formatInt, formatPercent, formatUSD } from "
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
 import { MetaProgresso } from "@/components/MetaProgresso";
 import { RadarSweep } from "@/components/RadarSweep";
+import { Skeleton, SkeletonRows } from "@/components/Skeleton";
 import { UsageMeter } from "@/components/UsageMeter";
 
 /** Fetcher puro (não mexe em estado) — reaproveitado pelo efeito de carga e pelo retry. */
@@ -94,10 +95,34 @@ export default function DashboardPage() {
   }
 
   if (loading) {
+    // Mesmo formato do painel carregado (número + meters + grade de stats)
+    // em skeleton — troca de VALORES quando os dados chegam, não de altura.
     return (
-      <div className="flex flex-col items-center gap-3 py-16">
-        <RadarSweep size={88} />
-        <p className="text-sm text-ink-muted">Varrendo o painel…</p>
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center gap-3">
+          <RadarSweep size={40} />
+          <p className="text-sm text-ink-muted">Varrendo o painel…</p>
+        </div>
+        <section>
+          <Skeleton className="mb-3 h-0.5 w-24 rounded-full" />
+          <Skeleton className="h-3 w-64" />
+          <Skeleton className="mt-2 h-14 w-56" />
+          <Skeleton className="mt-2 h-3 w-72" />
+        </section>
+        <section className="rounded-lg border border-line bg-surface p-4">
+          <Skeleton className="h-3 w-40" />
+          <div className="mt-4 flex flex-col gap-4">
+            <SkeletonRows count={SKUS.length} className="h-8" />
+          </div>
+        </section>
+        <section>
+          <Skeleton className="h-3 w-24" />
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
+          </div>
+        </section>
       </div>
     );
   }

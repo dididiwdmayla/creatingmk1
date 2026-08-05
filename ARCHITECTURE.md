@@ -2069,6 +2069,113 @@ fileira de fotos do portfólio da tatuagem, que encosta na margem).
 
 Relatório e o levantamento por navegador: `docs/temas/barra-demo.md`.
 
+### Deslocamento de layout (CLS), medido (`scripts/qa-cls.mjs`) e o portão (`--sem-portao` desliga)
+
+**Relato**: elementos que entram depois do primeiro desenho empurravam e
+comprimiam conteúdo já visível, mudando o enquadramento da tela — na
+plataforma, na demo pública e no preview do editor. Como "empurrou" não se
+julga por captura isolada (a tela FINAL pode estar perfeita e o caminho até
+ela ter empurrado tudo três vezes), a medição usa a mesma API que o
+navegador usa pro Core Web Vital real: `PerformanceObserver` do tipo
+`layout-shift`, instalado ANTES de qualquer script da página rodar
+(`page.addInitScript` — cobre a página e os iframes que ela cria, o que é
+o que faz o preview do editor, que é um iframe, ser medido sem nada
+especial). Viewport de celular (390×844, dpr 2), rolando a página inteira
+(lazy-load/scroll-mount também podem empurrar) e voltando ao topo.
+
+Três telas — os três lugares do relato: as 8 skins (via harness
+`/interno/demo-qa`, mesma árvore que a rota pública renderiza), o preview
+do editor (o iframe de `/demo-preview`, não o painel) e as 7 abas do
+Radar. **Portão: reprova (lança, código ≠ 0) qualquer tela acima de 0.1** —
+o mesmo piso "bom" do Core Web Vital real.
+
+**Antes** (`qa-shots/_cls-antes.md`) **→ depois** (`qa-shots/_cls-depois.md`):
+
+| tela | antes | depois |
+|---|---|---|
+| skin:barbearia-editorial | 0,0018 | 0,0018 |
+| skin:barbearia2-sul … multimarcas-vortice (6 skins) | 0,0000 | 0,0000 |
+| skin:petshop-focinho-feliz | 0,0007 | 0,0007 |
+| editor:preview | 0,0019 | 0,0020 |
+| app:hoje / painel / leads / buscas / demos / chat | **0,0504** cada | 0,0000 |
+| app:config | **0,4104 ✗** | 0,0000 |
+
+**As 8 skins e o preview do editor já nasciam limpos** — os suspeitos
+"fontes trocando depois do carregamento" e "camadas de efeito/LED montando
+depois" foram verificados e não são a causa: as fontes core resolvem
+`await` no SERVIDOR (`resolveExtraFontClassNames` em
+`/demo/[leadId]/page.tsx`) e chegam no HTML já prontas; efeito e LED são
+`position: fixed`, fora do fluxo do documento, então montar depois nunca
+empurra o resto da página (confirmado pela própria medição: 0.0000 nas 6
+skins sem imagem "foto" que colapsava antes do gate `--so=colapso`
+existir). O único resíduo real (0,0007-0,0018) são pontos do typewriter do
+título — muito abaixo do piso.
+
+**Os dois causadores de verdade, achados pela medição, não por palpite:**
+
+1. **`MetaFaixa` sem espaço reservado — a causa mais ampla, presente em
+   TODA aba autenticada.** `<MetaFaixa>` nasce retornando `null` (0px) e só
+   depois que `GET /api/metas/proprio` responde é que decide se mostra a
+   faixa — pra quem tem meta configurada, isso insere um bloco de ~44-52px
+   ACIMA do cabeçalho, empurrando cabeçalho E conteúdo pra baixo em toda
+   navegação (`header.cromo-linha.cromo-linha-baixo` +
+   `main.mx-auto.w-full` como fontes do MESMO deslocamento, medido
+   IDÊNTICO — 0,0504 — nas 7 abas). **Corrigido resolvendo o progresso da
+   meta no SERVIDOR**, dentro do próprio `AppLayout` (que passa a ser
+   `async`, lendo a sessão do cookie com os mesmos `usuarioDaRequest`/
+   `getProgressoMetaUsuario` que a rota usa) e passando o resultado como
+   prop `inicial` pro componente — mesma ideia do `data-theme` do tema
+   (resolvido no servidor pra não ter flash). `MetaFaixa` continua
+   refazendo o fetch a cada troca de rota (o progresso muda navegando);
+   só o PRIMEIRO desenho deixou de arriscar.
+2. **`/config`, conteúdo carregado no cliente sem espaço reservado —
+   dentro da própria página, em cascata.** Três defeitos empilhados: (a) a
+   página inteira ficava atrás de `if (loading) return <p>Carregando…</p>`
+   até o `GET /api/config` responder, trocando um parágrafo de uma linha
+   pelo formulário inteiro; (b) `UsuariosSection`/`CotasUsuariosSection`/
+   `MetasUsuariosSection` (cada uma com o PRÓPRIO fetch) renderiam a
+   moldura da seção já vazia — sem convidados, sem linhas — e a lista
+   crescia quando os dados chegavam; (c) o bloco do teto global de cotas
+   só montava quando `usoGlobal` chegava. **Corrigido**: `form` já nasce
+   com `DEFAULT_CONFIG` (mesmo shape do config real), então o formulário
+   pinta desde o primeiro desenho e a carga real só troca VALORES de campo
+   controlado, nunca a estrutura (`loading` passou a só desabilitar o
+   botão Salvar, evitando salvar um default por cima do real antes da
+   carga chegar); as três seções e o bloco de cotas globais ganharam
+   skeletons (`src/components/Skeleton.tsx`) do MESMO tamanho aproximado
+   do conteúdo final, no lugar do "Carregando…"/lista vazia.
+
+**A mesma regra foi aplicada preventivamente** aos pontos com o idêntico
+padrão "lista nasce vazia, cresce quando os dados chegam" nas demais abas
+— `Painel` (skeleton no formato número+meters+grade de stats), `Leads`,
+`Buscas`, `Demos`, `Mensagens` (lista de conversas) e a ficha de lead
+(`LeadDetailClient`) — mesmo sem cruzar o piso de 0.1 nesta medição (a
+carga local contra o fake-db é rápida demais pra sempre disparar o
+deslocamento; a estrutura do bug é a mesma que reprovou `/config`, e a
+regra ("todo elemento que entra depois do primeiro desenho ocupa espaço
+reservado desde o início") vale para todos os casos, não só o que a
+medição pegou desta vez).
+
+**O editor também ganhou a correção, por inspeção do código-fonte, não só
+pela medição** (o cenário — abrir o editor com uma demo que já usa uma
+fonte NÃO-core salva — não estava no seed de teste, mas o defeito é real):
+`demo-preview/page.tsx` resolvia a fonte extra num `useEffect` client-side
+e trocava `extraFontClassName` de `""` pro valor final assim que o
+`import()` dinâmico da fonte escolhida resolvia — reflow de texto se essa
+fonte não for uma das core. Corrigido: o preview só sai do estado
+"Carregando prévia…" depois que a resolução da fonte termina pela PRIMEIRA
+vez; trocas de fonte já em edição (o usuário mexendo na aba Tema) não
+passam pelo gate de novo — o preview seria mais irritante piscando em
+branco a cada escolha do que o reflow pontual que já existia.
+
+**Uso**: `node scripts/qa-cls.mjs` (as três telas, portão ligado) ·
+`--so=skins|editor|app` · `--sem-portao` (só mede) · `--marca=<rotulo>`.
+`--so=editor`/`--so=app` (e a rodada default) exigem o mesmo patch
+TEMPORÁRIO de banco falso dos outros laços que tocam o app autenticado
+(`qa-plataforma.mjs`/`qa-editor.mjs` — ver cabeçalho do script), aplicado
+e revertido na mesma sessão; `--so=skins` roda sem banco, como
+`qa-visual.mjs`.
+
 ## Variáveis de ambiente
 
 ```
