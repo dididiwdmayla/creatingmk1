@@ -51,3 +51,7 @@ next-env.d.ts
 # mídia efêmera do laço de captura (scripts/qa-titulo.mjs grava um webm aqui
 # pra exercitar o vídeo-no-título; apagada no fim da rodada)
 /public/qa-tmp/
+
+# capturas de prospecção geradas por scripts/capturas.mjs (deliverable,
+# não código: se regeneram rodando o script e vão pro Storage com --subir)
+/capturas/

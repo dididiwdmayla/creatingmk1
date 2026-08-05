@@ -1,0 +1,413 @@
+/**
+ * ENQUADRAMENTO NO NAVEGADOR — a metade do assunto que roda DENTRO da
+ * página da demo, compartilhada por quem precisa dela nos dois lados:
+ *
+ *   - a PRÉVIA da tela de marcação (/interno/capturas), que importa estas
+ *     funções e as chama no `contentWindow` de um <iframe> de mesma origem;
+ *   - o MOTOR de captura (scripts/capturas.mjs), que passa estas MESMAS
+ *     funções para `page.evaluate` do Playwright.
+ *
+ * É `.mjs` justamente por isso: um `.ts` não seria importável pelo script
+ * de laço, e uma cópia em cada lado divergiria no primeiro ajuste — a
+ * prévia passaria a prometer um enquadramento que a captura não entrega.
+ *
+ * REGRA DE OURO DESTE ARQUIVO: toda função exportada é AUTOSSUFICIENTE —
+ * não referencia nada de escopo de módulo. `page.evaluate` serializa a
+ * função pelo código-fonte e a avalia noutro realm, onde imports e
+ * constantes deste arquivo não existem. Helper compartilhado aqui vira
+ * `ReferenceError` lá.
+ *
+ * Toda função recebe a JANELA ALVO como último parâmetro, com default
+ * `window`. É o que permite os dois usos com o mesmo código: o Playwright
+ * avalia a função DENTRO da página (o default já é a janela certa), e a
+ * prévia chama do frame de fora passando o `contentWindow` do iframe — sem
+ * isso as funções mexeriam no documento do painel em vez do da demo.
+ */
+
+/**
+ * Prepara a página para medição/captura: percorre o documento até o fim e
+ * volta ao topo, e só então espera fontes e imagens.
+ *
+ * A rolagem não é frescura. As skins revelam seção por seção com
+ * `whileInView` (`once: true`) e as imagens entram por lazy-load — uma
+ * seção que nunca passou pela viewport estaria transparente/deslocada, e
+ * medir ou capturar ali pegaria o estado animado em vez do final. Espera
+ * fonte DEPOIS da varredura porque é a varredura que traz para a página as
+ * imagens (e com elas o resto do texto que ainda não tinha sido pedido).
+ *
+ * @param {{ alturaTela: number, quietoMs?: number }} opcoes
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {Promise<{ altura: number, imagens: number, imagensProntas: number }>}
+ */
+export async function prepararPagina({ alturaTela, quietoMs = 900 }, win = window) {
+  const doc = win.document;
+  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+  const passo = Math.max(200, Math.round(alturaTela * 0.8));
+
+  for (let y = 0; y < doc.documentElement.scrollHeight; y += passo) {
+    win.scrollTo(0, y);
+    await espera(60);
+  }
+  win.scrollTo(0, 0);
+  await espera(quietoMs);
+
+  await doc.fonts.ready;
+
+  // Imagem sem `complete` viraria buraco na captura; `decode()` garante
+  // que ela também já foi rasterizada, não só baixada.
+  const imgs = Array.from(doc.images);
+  await Promise.all(
+    imgs.map((img) =>
+      img.complete && img.naturalWidth > 0
+        ? (img.decode?.().catch(() => undefined) ?? Promise.resolve())
+        : new Promise((r) => {
+            img.addEventListener("load", r, { once: true });
+            img.addEventListener("error", r, { once: true });
+            setTimeout(r, 8000);
+          }),
+    ),
+  );
+  await espera(250);
+
+  return {
+    altura: doc.documentElement.scrollHeight,
+    imagens: imgs.length,
+    imagensProntas: imgs.filter((i) => i.complete && i.naturalWidth > 0).length,
+  };
+}
+
+/**
+ * Caixa da seção marcada, em coordenadas do DOCUMENTO. É daqui que sai o
+ * enquadramento: a seção inteira, do início ao fim, porque o elemento
+ * `[data-d-secao]` envolve a `<section>` completa (ver SecaoMarcada).
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ topo: number, altura: number, largura: number, primeira: boolean, docAltura: number } | null}
+ */
+export function medirSecao(secaoId, win = window) {
+  const doc = win.document;
+  const todas = Array.from(doc.querySelectorAll("[data-d-secao]"));
+  const el = todas.find((n) => n.getAttribute("data-d-secao") === secaoId);
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return {
+    topo: Math.round(r.top + win.scrollY),
+    altura: Math.round(r.height),
+    largura: Math.round(r.width),
+    // Primeira seção do documento = a abertura. É o único enquadramento em
+    // que o cromo fixo (header, botão flutuante) PERTENCE à imagem.
+    primeira: todas[0] === el,
+    docAltura: doc.documentElement.scrollHeight,
+  };
+}
+
+/**
+ * Some com o cromo fixo que atravessaria o enquadramento.
+ *
+ * O motivo é o requisito de nunca cortar título: header e nav das skins
+ * são `position: fixed`, então numa seção do MEIO da página eles pousariam
+ * por cima do começo dela — exatamente onde mora o título. Na PRIMEIRA
+ * seção não há o que esconder: ali o header é parte da abertura, é assim
+ * que o visitante vê o site, e o hero já nasce com espaço reservado pra
+ * ele.
+ *
+ * Fica de fora a DECORAÇÃO, que é parte do produto e não cobre título:
+ * a camada de efeito de fundo (`[data-d-efeito-camada]`, cujos efeitos se
+ * posicionam fixos por dentro) e o LED de borda (`[data-d-led-estilo]`).
+ *
+ * `visibility: hidden` em vez de `display: none` de propósito: não tira o
+ * elemento do fluxo, então nada relayouta e a caixa medida antes continua
+ * valendo depois.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ escondidos: number, primeira: boolean }}
+ */
+export function neutralizarCromo(secaoId, win = window) {
+  const doc = win.document;
+  const todas = Array.from(doc.querySelectorAll("[data-d-secao]"));
+  const el = todas.find((n) => n.getAttribute("data-d-secao") === secaoId);
+  const primeira = todas.length > 0 && todas[0] === el;
+  if (primeira) return { escondidos: 0, primeira: true };
+
+  let escondidos = 0;
+  for (const node of Array.from(doc.body.querySelectorAll("*"))) {
+    const pos = win.getComputedStyle(node).position;
+    if (pos !== "fixed" && pos !== "sticky") continue;
+    if (node.closest("[data-d-efeito-camada], [data-d-led-estilo]")) continue;
+    // Grudado DENTRO da própria seção é conteúdo, não cromo: a sidebar de
+    // Serviços da barbearia é `position: sticky` por dentro, e escondê-la
+    // deixava metade do enquadramento vazio (foi o que a captura desta
+    // tela mostrou). Ancestral que envolve a seção também fica — apagá-lo
+    // apagaria a seção junto.
+    if (el && (el.contains(node) || node.contains(el))) continue;
+    // Um fixo dentro de outro fixo já some junto com o pai.
+    if (node.parentElement?.closest("[data-d-captura-oculto]")) continue;
+    node.setAttribute("data-d-captura-oculto", "1");
+    node.style.visibility = "hidden";
+    escondidos += 1;
+  }
+  return { escondidos, primeira: false };
+}
+
+/**
+ * O PORTÃO do enquadramento: algum elemento fixo/sticky ainda cobre o
+ * primeiro título da seção?
+ *
+ * É a checagem que transforma "nunca cortando título" de intenção em
+ * medida. Roda DEPOIS de `neutralizarCromo` e reprova a captura se sobrou
+ * qualquer coisa por cima do título — um cromo novo numa skin futura
+ * aparece aqui, não na conversa com o lead.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ titulo: string | null, coberto: boolean, porQuem: string | null }}
+ */
+export function tituloCoberto(secaoId, win = window) {
+  const doc = win.document;
+  const todas = Array.from(doc.querySelectorAll("[data-d-secao]"));
+  const secao = todas.find((n) => n.getAttribute("data-d-secao") === secaoId);
+  if (!secao) return { titulo: null, coberto: false, porQuem: null };
+
+  const titulo = secao.querySelector("h1, h2, h3");
+  if (!titulo) return { titulo: null, coberto: false, porQuem: null };
+  const alvo = titulo.getBoundingClientRect();
+  if (alvo.width === 0 || alvo.height === 0) {
+    return { titulo: titulo.textContent?.trim().slice(0, 40) ?? "", coberto: false, porQuem: null };
+  }
+
+  for (const node of Array.from(doc.body.querySelectorAll("*"))) {
+    const estilo = win.getComputedStyle(node);
+    if (estilo.position !== "fixed" && estilo.position !== "sticky") continue;
+    if (estilo.visibility === "hidden" || estilo.display === "none") continue;
+    // Decoração translúcida por cima é parte do visual, não corte de título.
+    if (node.closest("[data-d-efeito-camada], [data-d-led-estilo]")) continue;
+    if (estilo.pointerEvents === "none" && Number(estilo.opacity) < 0.5) continue;
+    if (secao.contains(node)) continue;
+
+    const r = node.getBoundingClientRect();
+    const cruza =
+      r.left < alvo.right && r.right > alvo.left && r.top < alvo.bottom && r.bottom > alvo.top;
+    if (cruza) {
+      return {
+        titulo: titulo.textContent?.trim().slice(0, 40) ?? "",
+        coberto: true,
+        porQuem: `${node.tagName.toLowerCase()}${node.className ? `.${String(node.className).split(" ")[0]}` : ""}`,
+      };
+    }
+  }
+  return { titulo: titulo.textContent?.trim().slice(0, 40) ?? "", coberto: false, porQuem: null };
+}
+
+/**
+ * CONGELA o relógio das animações no instante do disparo — a mesma técnica
+ * que o laço visual usa para provar neutralidade de cor (`congelarCores` em
+ * scripts/qa-visual.mjs): WAAPI, `pause()` + `currentTime` numa fase fixa
+ * do ciclo, em vez de esperar um instante aleatório.
+ *
+ * Sem isso a captura pega o meio do voo: a faísca vive menos de um segundo
+ * e a varredura de luz ocupa ~14% de um ciclo de dezenas de segundos, então
+ * um print tirado "quando der" mostra tela apagada — ou pior, um risco de
+ * luz cortando a imagem que o lead vai receber. Cada efeito com janela
+ * curta declara a fração do ciclo em que ele está ACESO (`fasePorEfeito`,
+ * mesmos números do laço visual).
+ *
+ * Só congela o que ROLA SOZINHO (`iterations: Infinity`) e as animações da
+ * camada decorativa. As revelações de entrada de seção ficam de fora de
+ * propósito: elas já terminaram durante o `prepararPagina`, e mexer no
+ * relógio delas devolveria a seção ao estado inicial (transparente,
+ * deslocada) bem na hora da foto.
+ *
+ * @param {{ fasePadrao?: number, fasePorEfeito?: Record<string, number>, efeitoId?: string }} opcoes
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ congeladas: number, infinitas: number }}
+ */
+export function congelarAnimacoes({ fasePadrao = 0.35, fasePorEfeito = {}, efeitoId } = {}, win = window) {
+  const doc = win.document;
+  let congeladas = 0;
+  let infinitas = 0;
+
+  for (const anim of doc.getAnimations()) {
+    const nome = String(anim.animationName ?? "");
+    const t = anim.effect?.getComputedTiming?.();
+    const ciclo = t?.duration;
+    if (typeof ciclo !== "number" || !Number.isFinite(ciclo) || ciclo <= 0) continue;
+
+    const daCamada = nome.startsWith("d-efeito-") || nome.startsWith("d-cores-");
+    const infinita = t.iterations === Infinity;
+    if (infinita) infinitas += 1;
+    if (!daCamada && !infinita) continue;
+
+    // Cor: fase 0 (o começo do ciclo é a cor do tema, que é a que o preset
+    // escolheu). Efeito: a fase em que ele está aceso.
+    const fase = nome.startsWith("d-cores-")
+      ? 0
+      : (efeitoId !== undefined ? fasePorEfeito[efeitoId] : undefined) ?? fasePadrao;
+
+    const delay = Number(t.delay) || 0;
+    anim.pause();
+    // `currentTime` corre na linha do tempo da animação, que só entra no
+    // ciclo depois do delay. Os efeitos usam delay NEGATIVO pra defasar
+    // cópias, o que daria um currentTime negativo (inválido): avança ciclos
+    // inteiros até ficar positivo — a fase dentro do ciclo é a mesma.
+    const ciclosExtras = Math.ceil(Math.max(0, -delay) / ciclo);
+    anim.currentTime = delay + ciclo * (ciclosExtras + fase);
+    congeladas += 1;
+  }
+  return { congeladas, infinitas };
+}
+
+/**
+ * Rola até o topo da seção. `behavior: "instant"` é obrigatório: skins com
+ * nav de âncora ligam `scroll-behavior: smooth` no documento, e aí a
+ * rolagem ANIMA — ler a caixa logo depois devolvia a posição antiga, e o
+ * enquadramento saía reprovado como "não coube na viewport".
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {boolean} achou a seção?
+ */
+export function rolarAteSecao(secaoId, win = window) {
+  const el = Array.from(win.document.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  if (!el) return false;
+  win.scrollTo({ top: el.getBoundingClientRect().top + win.scrollY, behavior: "instant" });
+  return true;
+}
+
+/**
+ * Caixa da seção RELATIVA À VIEWPORT — o sistema de coordenadas do `clip`
+ * do Playwright quando não se usa `fullPage` (provado por sonda: com
+ * `fullPage` a captura refaz o render com a viewport esticada, o que
+ * redefine `100vh`, incha o hero, empurra tudo pra baixo e faz o recorte
+ * cair noutra seção).
+ *
+ * Ler a caixa DEPOIS de rolar, em vez de calcular o recorte a partir da
+ * posição pretendida, é o que torna o enquadramento autocorretivo: se o
+ * scroll não alcançou (seção no fim do documento) ou se algo assentou no
+ * caminho, o recorte ainda sai de onde a seção ESTÁ.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ x: number, y: number, width: number, height: number, cabe: boolean } | null}
+ */
+export function caixaNaViewport(secaoId, win = window) {
+  const el = Array.from(win.document.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.round(r.left)),
+    y: Math.max(0, Math.round(r.top)),
+    width: Math.round(r.width),
+    height: Math.round(r.height),
+    cabe: r.top >= -1 && r.top + r.height <= win.innerHeight + 1,
+  };
+}
+
+/**
+ * Imagens DENTRO da seção que vai virar foto — e quantas delas de fato
+ * carregaram. É o número que importa: uma imagem pendente noutro canto do
+ * documento não aparece no enquadramento, mas uma pendente aqui vira
+ * buraco na imagem que o lead recebe.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ total: number, prontas: number }}
+ */
+export function imagensDaSecao(secaoId, win = window) {
+  const doc = win.document;
+  const el = Array.from(doc.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  if (!el) return { total: 0, prontas: 0 };
+  const imgs = Array.from(el.querySelectorAll("img"));
+  return {
+    total: imgs.length,
+    prontas: imgs.filter((i) => i.complete && i.naturalWidth > 0).length,
+  };
+}
+
+/**
+ * PRENDE as alturas em unidade de tela (`vh`) ao valor que elas têm AGORA.
+ *
+ * Existe por causa de um laço de realimentação: para capturar uma seção
+ * mais alta que a tela, o motor cresce a viewport — e uma seção medida em
+ * `vh` cresce junto, então ela nunca cabe. O hero da barbearia no celular
+ * (`min-h-screen` na seção + `h-[60vh]` na foto) ia de 1300px para 1463px
+ * a cada tentativa; a galeria da tatuagem2, rolada por scroll, chegava a
+ * 11608px.
+ *
+ * Rodando com a viewport na altura REAL da tela, converte essas alturas
+ * para pixels inline. O layout congelado é exatamente o que o visitante
+ * vê, e a partir daí crescer a viewport não mexe mais em nada.
+ *
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ presos: number, alturaTela: number }}
+ */
+export function fixarUnidadesDeTela(win = window) {
+  const doc = win.document;
+  // Tailwind deixa a unidade visível na classe: `h-screen`, `min-h-screen`,
+  // `h-dvh` e os valores arbitrários `h-[60vh]`/`md:h-[80vh]`.
+  const usaTela = /(^|:)(min-h|max-h|h)-(screen|\[[^\]]*(vh|dvh|svh|lvh)[^\]]*\])/;
+  let presos = 0;
+
+  for (const node of Array.from(doc.querySelectorAll("*"))) {
+    const classes = String(node.className?.baseVal ?? node.className ?? "");
+    if (!classes.split(/\s+/).some((c) => usaTela.test(c))) continue;
+    const estilo = win.getComputedStyle(node);
+    for (const prop of ["height", "minHeight", "maxHeight"]) {
+      const valor = estilo[prop];
+      if (!valor || valor === "auto" || valor === "none" || valor === "0px") continue;
+      node.style[prop] = valor;
+    }
+    presos += 1;
+  }
+  return { presos, alturaTela: win.innerHeight };
+}
+
+/**
+ * Força as imagens DA SEÇÃO a carregar, inclusive as que o lazy-load nunca
+ * pediria: as que vivem fora do campo de visão HORIZONTAL, dentro de
+ * galerias e carrosséis arrastáveis (a galeria da barbearia2 saía com 2 de
+ * 5 fotos; o cardápio da lancheria, com 7 de 13). Rolar a página resolve o
+ * eixo vertical e só ele — por isso o `prepararPagina` não bastava.
+ *
+ * Duas frentes: `loading = "eager"` em tudo que está marcado como lazy, e
+ * uma varredura de cada trilho com rolagem horizontal, que é o que traz os
+ * itens do fim para dentro do observador.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ trilhos: number, forcadas: number }}
+ */
+export function forcarImagensDaSecao(secaoId, win = window) {
+  const doc = win.document;
+  const secao = Array.from(doc.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  if (!secao) return { trilhos: 0, forcadas: 0 };
+
+  let forcadas = 0;
+  for (const img of Array.from(secao.querySelectorAll("img"))) {
+    if (img.loading === "lazy") {
+      img.loading = "eager";
+      forcadas += 1;
+    }
+    img.removeAttribute("decoding");
+  }
+
+  let trilhos = 0;
+  for (const node of [secao, ...Array.from(secao.querySelectorAll("*"))]) {
+    if (node.scrollWidth <= node.clientWidth + 1) continue;
+    trilhos += 1;
+    const volta = node.scrollLeft;
+    const passo = Math.max(120, Math.round(node.clientWidth * 0.8));
+    for (let x = 0; x < node.scrollWidth; x += passo) node.scrollLeft = x;
+    node.scrollLeft = volta;
+  }
+  return { trilhos, forcadas };
+}

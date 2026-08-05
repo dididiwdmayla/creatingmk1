@@ -538,7 +538,13 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
       <IntroExperience nome={data.nome} accent={paleta.destaque} ativa={theme.intro === true}>
         <Nav nome={data.nome} links={navLinks} whatsapp={data.whatsapp} idioma={idioma} />
 
-        <div>
+        {/* O hero é renderizado FORA do `visiveis.map` (é fixo e vem antes
+            da régua de acento), mas continua precisando do marcador de
+            seção: é a única âncora presente em toda skin, e sem ele o
+            enquadramento de captura não acha o hero desta (ver
+            "Capturas por âncora de seção" em ARCHITECTURE.md). A div que a
+            skin já tinha é a que recebe o marcador — sem envelope extra. */}
+        <div data-d-secao="hero" data-d-secao-anim={secaoAnimada(data, "hero") ? "1" : "0"}>
           <Hero
             nome={data.nome}
             hero={s.hero}

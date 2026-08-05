@@ -7,6 +7,7 @@ import {
   type Sku,
   type UsageCounts,
 } from "@/lib/costs";
+import { ANCORAS_PADRAO, validarAncoras } from "@/lib/demos/capturas/ancoras";
 import { ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 
@@ -39,6 +40,18 @@ export interface AppConfig {
   };
   /** Calculadora de precificação regional (card "Precificação"). */
   precificacao: PrecificacaoConfig;
+  /** Âncoras de captura por skin (tela /interno/capturas). */
+  capturas: CapturasConfig;
+}
+
+export interface CapturasConfig {
+  /**
+   * skinId → até 3 ids de seção, na ordem em que as capturas saem.
+   * A âncora aponta para uma SEÇÃO do contrato da skin, não para posição
+   * em pixel — ver `lib/demos/capturas/ancoras.ts`. Vive aqui (e não em
+   * código) justamente pra ser remarcável sem deploy.
+   */
+  ancoras: Record<string, string[]>;
 }
 
 /** Um atalho do slider (botão que reposiciona o preço-base). */
@@ -99,6 +112,7 @@ export const DEFAULT_CONFIG: AppConfig = {
       { nome: "Sistema", valorBRL: 5000 },
     ],
   },
+  capturas: { ancoras: structuredClone(ANCORAS_PADRAO) },
 };
 
 const FILTRO_VALUES: FiltroPresenca[] = ["qualquer", "com", "sem"];
@@ -113,6 +127,7 @@ const TOP_LEVEL_KEYS = new Set([
   "caps",
   "precos",
   "precificacao",
+  "capturas",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -240,6 +255,21 @@ export function validateConfigPatch(patch: unknown): asserts patch is Partial<Ap
     validatePrecificacaoPatch(patch.precificacao, problemas);
   }
 
+  if (patch.capturas !== undefined) {
+    if (!isRecord(patch.capturas)) {
+      problemas.push("capturas deve ser um objeto");
+    } else {
+      for (const key of Object.keys(patch.capturas)) {
+        if (key !== "ancoras") {
+          problemas.push(`capturas.${key} não é um campo conhecido`);
+        }
+      }
+      if (patch.capturas.ancoras !== undefined) {
+        validarAncoras(patch.capturas.ancoras, "capturas.ancoras", problemas);
+      }
+    }
+  }
+
   if (problemas.length > 0) {
     throw new ValidationError(problemas);
   }
@@ -362,6 +392,15 @@ export function mergeConfig(base: AppConfig, patch: Partial<AppConfig>): AppConf
       fatorMinimoIndice:
         patch.precificacao?.fatorMinimoIndice ?? base.precificacao.fatorMinimoIndice,
       presets: patch.precificacao?.presets ?? base.precificacao.presets,
+    },
+    capturas: {
+      // Merge POR SKIN, não substituição do mapa inteiro: a tela de
+      // marcação salva a skin que o operador acabou de mexer, e as outras
+      // 7 têm que continuar valendo o que já valia (default ou marcação
+      // anterior). Uma lista VAZIA é uma marcação legítima — "não capturar
+      // esta skin" —, por isso o merge é por chave presente, não por
+      // truthiness.
+      ancoras: { ...base.capturas.ancoras, ...patch.capturas?.ancoras },
     },
   };
 }

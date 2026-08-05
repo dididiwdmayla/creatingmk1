@@ -254,6 +254,85 @@ describe("precificacao (calculadora regional)", () => {
   });
 });
 
+describe("capturas.ancoras (marcação de âncoras de captura)", () => {
+  it("default: as 8 skins já vêm marcadas, hero na frente", async () => {
+    const db = new FakeFirestore();
+
+    const config = await loadConfig(db);
+
+    expect(Object.keys(config.capturas.ancoras)).toHaveLength(8);
+    expect(config.capturas.ancoras["barbearia-editorial"]).toEqual([
+      "hero",
+      "servicos",
+      "depoimentos",
+    ]);
+  });
+
+  /**
+   * A tela de marcação salva a skin que o operador acabou de mexer. Se o
+   * merge trocasse o mapa inteiro, marcar uma skin apagaria as outras sete.
+   */
+  it("marcar uma skin não apaga a marcação das outras", async () => {
+    const db = new FakeFirestore();
+
+    const config = await saveConfig(db, {
+      capturas: { ancoras: { "lancheria-chapa-burger": ["hero", "cardapio"] } },
+    });
+
+    expect(config.capturas.ancoras["lancheria-chapa-burger"]).toEqual(["hero", "cardapio"]);
+    expect(config.capturas.ancoras["tatuagem-editorial"]).toEqual([
+      "hero",
+      "portfolio",
+      "investimento",
+    ]);
+  });
+
+  it("lista vazia persiste como 'não capturar esta skin'", async () => {
+    const db = new FakeFirestore();
+
+    const config = await saveConfig(db, {
+      capturas: { ancoras: { "petshop-focinho-feliz": [] } },
+    });
+
+    expect(config.capturas.ancoras["petshop-focinho-feliz"]).toEqual([]);
+  });
+
+  it("patch que não toca capturas preserva a marcação anterior", async () => {
+    const db = new FakeFirestore();
+    await saveConfig(db, {
+      capturas: { ancoras: { "barbearia-editorial": ["hero"] } },
+    });
+
+    const config = await saveConfig(db, { nicho: "barbearia" });
+
+    expect(config.capturas.ancoras["barbearia-editorial"]).toEqual(["hero"]);
+  });
+
+  it("rejeita seção que não existe na skin", async () => {
+    const db = new FakeFirestore();
+
+    await expect(
+      saveConfig(db, { capturas: { ancoras: { "barbearia-editorial": ["cardapio"] } } }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("rejeita mais de três âncoras e campo desconhecido dentro de capturas", async () => {
+    const db = new FakeFirestore();
+
+    await expect(
+      saveConfig(db, {
+        capturas: {
+          ancoras: { "barbearia-editorial": ["hero", "servicos", "equipe", "contato"] },
+        },
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    await expect(saveConfig(db, { capturas: { larguras: [390] } })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+  });
+});
+
 describe("pricingFromConfig", () => {
   it("monta a tabela de preços do módulo de custos", () => {
     const config = structuredClone(DEFAULT_CONFIG);
