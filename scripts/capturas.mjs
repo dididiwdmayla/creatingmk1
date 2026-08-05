@@ -1,0 +1,364 @@
+/**
+ * MOTOR DE CAPTURA das demos — os prints que vão pra prospecção no
+ * WhatsApp. Reaproveita o laço visual inteiro: `subirServidor` (app real +
+ * cookie de sessão assinado), o Chromium do ambiente e a técnica de
+ * congelamento de animação do `qa-visual.mjs`.
+ *
+ * Por âncora marcada (ver lib/demos/capturas/ancoras.ts) e por tela
+ * (celular e desktop), gera UMA imagem enquadrando a seção inteira, do
+ * início ao fim.
+ *
+ * Uso:
+ *   node scripts/capturas.mjs --lead=<placeId>      # demo REAL do lead
+ *   node scripts/capturas.mjs --skin=<skinId>       # harness, sem banco
+ *   node scripts/capturas.mjs --skins               # todas as 8 skins
+ *   node scripts/capturas.mjs --lead=<id> --subir   # sobe pro Storage
+ *
+ * Opções: --saida=<dir> (default: ./capturas) · --sem-build · --so=<tela>
+ *
+ * O modo `--skin` existe pra exercitar e verificar o motor sem depender de
+ * lead nem de Firestore (é como o enquadramento foi validado); o modo
+ * `--lead` é o de produção e captura a rota PÚBLICA, que é o que o lead
+ * enxerga.
+ *
+ * NENHUM REQUEST PAGO: a demo pública é Server Component que lê só o
+ * Firestore, e o harness não lê nem isso. Nada aqui toca a Google Places
+ * nem o Gemini.
+ */
+import fs from "node:fs/promises";
+import path from "node:path";
+import { chromium } from "playwright-core";
+
+import {
+  caixaNaViewport,
+  congelarAnimacoes,
+  fixarUnidadesDeTela,
+  forcarImagensDaSecao,
+  imagensDaSecao,
+  medirSecao,
+  neutralizarCromo,
+  prepararPagina,
+  rolarAteSecao,
+  tituloCoberto,
+} from "../src/lib/demos/capturas/dom.mjs";
+import { ANCORAS_PADRAO } from "../src/lib/demos/capturas/padrao.mjs";
+import { CHROMIUM, RAIZ, subirServidor } from "./qa-servidor.mjs";
+
+/**
+ * As duas telas. Celular em dpr 2 porque a imagem é vista NUM CELULAR — em
+ * dpr 1 o texto da demo chega serrilhado na conversa. Desktop em dpr 1 já
+ * sai com 1440px de largura, que é mais do que o WhatsApp entrega.
+ */
+/** Teto de viewport (a textura do Chromium tem limite; nenhuma seção chega perto). */
+const ALTURA_MAX = 12000;
+
+const TELAS = [
+  { id: "desktop", largura: 1440, altura: 900, dpr: 1 },
+  { id: "celular", largura: 390, altura: 844, dpr: 2 },
+];
+
+/**
+ * Fase do ciclo em que cada efeito de janela curta está ACESO. Mesmos
+ * números do laço visual (scripts/qa-visual.mjs, FASE_POR_EFEITO) — se um
+ * dia divergirem, a captura de prospecção passa a mostrar um efeito que a
+ * verificação visual nunca olhou.
+ */
+const FASE_POR_EFEITO = {
+  "varredura-de-luz": 0.035,
+  faiscas: 0.45,
+};
+
+function opcao(nome) {
+  const arg = process.argv.find((a) => a.startsWith(`--${nome}=`));
+  return arg?.split("=").slice(1).join("=");
+}
+const temFlag = (nome) => process.argv.includes(`--${nome}`);
+
+const SAIDA = path.resolve(RAIZ, opcao("saida") ?? "capturas");
+const soTela = opcao("so");
+const telas = TELAS.filter((t) => !soTela || t.id === soTela);
+
+/**
+ * Um alvo de captura: de onde vem a página e quais âncoras capturar.
+ * `--lead` bate na rota pública (a demo real); `--skin`, no harness.
+ */
+async function resolverAlvos(base, cookie) {
+  const leadId = opcao("lead");
+  const skinId = opcao("skin");
+
+  if (leadId) {
+    // As âncoras de um lead saem da SKIN da demo dele, e a marcação vigente
+    // vem de /config — as duas coisas o app já sabe responder.
+    const r = await fetch(`${base}/api/leads/${encodeURIComponent(leadId)}`, {
+      headers: { cookie: `${cookie.name}=${cookie.value}` },
+    });
+    if (!r.ok) throw new Error(`lead ${leadId}: /api/leads respondeu ${r.status}`);
+    const { lead } = await r.json();
+    if (!lead?.demo?.skin) throw new Error(`lead ${leadId} não tem demo salva (nada a capturar)`);
+
+    const rc = await fetch(`${base}/api/config`, {
+      headers: { cookie: `${cookie.name}=${cookie.value}` },
+    });
+    const { config } = await rc.json();
+    const ancoras = ancorasDe(config?.capturas?.ancoras, lead.demo.skin);
+    return [
+      {
+        nome: leadId,
+        skinId: lead.demo.skin,
+        // Sem `?t=`: token é para envio ao lead, e uma captura interna não
+        // pode entrar na timeline de visitas da demo dele.
+        url: `${base}/demo/${encodeURIComponent(leadId)}`,
+        ancoras,
+      },
+    ];
+  }
+
+  const rc = await fetch(`${base}/api/config`, {
+    headers: { cookie: `${cookie.name}=${cookie.value}` },
+  }).catch(() => null);
+  const config = rc?.ok ? (await rc.json()).config : undefined;
+
+  // A lista de skins vem da PRÓPRIA marcação: `capturas.ancoras` já cobre
+  // as 8 skins do registro por default (ver lib/demos/capturas/ancoras.ts).
+  // Evita importar o registro, que é TypeScript e este script não compila.
+  // Sem Firestore (sandbox de verificação) o /api/config responde erro:
+  // cai no padrão do código, que é a mesma fonte que semeia o /config.
+  const marcacao = config?.capturas?.ancoras ?? ANCORAS_PADRAO;
+  const ids = skinId ? [skinId] : Object.keys(marcacao);
+  if (ids.length === 0) {
+    throw new Error("informe --lead=<id> ou --skin=<skinId>; --skins precisa do app respondendo /api/config");
+  }
+  return ids.map((id) => ({
+    nome: id,
+    skinId: id,
+    // `intro=0`: a splash de abertura cobriria a página e a captura sairia
+    // da tela de abertura, não da seção.
+    url: `${base}/interno/demo-qa?skin=${encodeURIComponent(id)}&intro=0`,
+    ancoras: ancorasDe(marcacao, id),
+  }));
+}
+
+/** Fallback local do `ancorasEfetivas` (o script não importa TS). */
+function ancorasDe(ancoras, skinId) {
+  const lista = ancoras?.[skinId];
+  if (!Array.isArray(lista)) throw new Error(`sem âncoras marcadas para a skin ${skinId}`);
+  return lista;
+}
+
+/**
+ * Uma captura. Cada passo existe por um defeito que a captura mostrou:
+ *
+ *   1. `prepararPagina` — varre a página (dispara as revelações de entrada
+ *      e o lazy-load das imagens) e espera fontes + imagens decodificadas.
+ *      Sem isso entra fonte de reserva ou buraco de imagem na foto.
+ *   2. mede a seção com a viewport na altura REAL da tela. É o único
+ *      momento em que `100vh` vale o que deve — o hero de toda skin é
+ *      `min-h-screen`, e medir com a viewport esticada dava "hero" de
+ *      7737px.
+ *   3. seção mais alta que a tela → CRESCE A VIEWPORT até ela caber, e
+ *      prepara de novo. Não dá pra usar `fullPage`+`clip`: o `fullPage`
+ *      refaz o render com a viewport esticada, cai na mesma armadilha do
+ *      `vh` e o recorte pousa noutra seção (foi o que a 1ª rodada deste
+ *      motor produziu — "Imóveis em destaque" saiu mostrando o manifesto).
+ *      Crescer a viewport tem o mesmo efeito colateral, mas aqui ele é
+ *      TRATADO: remede depois de assentar e avisa se a própria seção mudou
+ *      de altura.
+ *   4. `neutralizarCromo` — some com header/nav fixos, que pousariam por
+ *      cima do começo da seção. Na primeira seção o cromo FICA: ali ele é
+ *      parte da abertura.
+ *   5. `congelarAnimacoes` — WAAPI, fase fixa. Nada de faísca no meio do voo.
+ *   6. `posicionarSecao` — rola e devolve a caixa MEDIDA na viewport, que
+ *      é o recorte. Autocorretivo: sai de onde a seção está, não de onde
+ *      se esperava que estivesse.
+ *   7. `tituloCoberto` — o PORTÃO: sobrou algo por cima do título?
+ */
+async function capturar(page, alvo, ancora, tela, destino) {
+  await page.setViewportSize({ width: tela.largura, height: tela.altura });
+  await page.goto(alvo.url, { waitUntil: "networkidle" });
+  await page.evaluate(prepararPagina, { alturaTela: tela.altura });
+
+  // Prende as alturas em `vh` ANTES de qualquer redimensionamento — com a
+  // viewport ainda na altura real da tela, que é onde `100vh` vale o que
+  // deve. Sem isso a seção cresce junto com a viewport e nunca cabe.
+  const presos = await page.evaluate(fixarUnidadesDeTela);
+  const imagensForcadas = await page.evaluate(forcarImagensDaSecao, ancora);
+  await page.waitForTimeout(300);
+
+  const caixa = await page.evaluate(medirSecao, ancora);
+  if (!caixa) return { erro: `seção "${ancora}" não existe no DOM desta skin` };
+
+  // Seção mais alta que a tela: cresce a viewport até ela caber. A
+  // CONVERGÊNCIA é iterativa porque uma seção que usa `vh` cresce JUNTO com
+  // a viewport (o hero da barbearia no celular mede 1300px numa tela de
+  // 844, e crescer pra 1300 o empurrava pra mais ainda) — persegue no
+  // máximo três vezes e para quando estabiliza. `esticou` marca quem só
+  // parou porque a perseguição acabou: a foto sai, com a ressalva.
+  let esticou = false;
+  let alvoAltura = caixa.altura;
+  for (let i = 0; i < 3 && alvoAltura > tela.altura; i += 1) {
+    await page.setViewportSize({ width: tela.largura, height: Math.min(alvoAltura, ALTURA_MAX) });
+    // Preparar DE NOVO não é zelo: a viewport gigante traz pro campo de
+    // visão imagens que estavam em lazy-load, e cada uma que chega muda a
+    // altura de quem está acima. Medir antes disso mede um layout que já
+    // não existe na hora do disparo.
+    await page.evaluate(prepararPagina, { alturaTela: alvoAltura, quietoMs: 500 });
+    const depois = await page.evaluate(medirSecao, ancora);
+    if (!depois) break;
+    esticou = Math.abs(depois.altura - alvoAltura) > 2;
+    if (!esticou) break;
+    alvoAltura = depois.altura;
+  }
+
+  const cromo = await page.evaluate(neutralizarCromo, ancora);
+  const gelo = await page.evaluate(congelarAnimacoes, {
+    fasePorEfeito: FASE_POR_EFEITO,
+    efeitoId: new URL(alvo.url).searchParams.get("efeito") ?? undefined,
+  });
+
+  await page.evaluate(rolarAteSecao, ancora);
+  await page.waitForTimeout(400);
+
+  // Última espera, e a mais importante pra imagem que vai pro lead: as
+  // imagens DA SEÇÃO. As da skin entram por lazy-load, e uma que ainda não
+  // chegou vira buraco exatamente no enquadramento (a 1ª rodada saiu com
+  // 7 de 13 no cardápio da lancheria). Aqui a seção já está em vista, que
+  // é a condição pro carregamento começar.
+  await page
+    .waitForFunction(
+      (id) => {
+        const el = Array.from(document.querySelectorAll("[data-d-secao]")).find(
+          (n) => n.getAttribute("data-d-secao") === id,
+        );
+        if (!el) return true;
+        return Array.from(el.querySelectorAll("img")).every((i) => i.complete && i.naturalWidth > 0);
+      },
+      ancora,
+      { timeout: 15000 },
+    )
+    .catch(() => undefined);
+
+  const recorte = await page.evaluate(caixaNaViewport, ancora);
+  const portao = await page.evaluate(tituloCoberto, ancora);
+  const imagens = await page.evaluate(imagensDaSecao, ancora);
+
+  if (!recorte || !recorte.cabe) {
+    return { erro: `seção "${ancora}" não coube na viewport (${recorte?.height ?? "?"}px)` };
+  }
+
+  await page.screenshot({
+    path: destino,
+    clip: { x: recorte.x, y: recorte.y, width: recorte.width, height: recorte.height },
+  });
+
+  return { caixa: recorte, cromo, gelo, portao, imagens, esticou, presos, imagensForcadas };
+}
+
+async function main() {
+  const { base, cookie, encerrar } = await subirServidor({ build: !temFlag("sem-build") });
+  await fs.mkdir(SAIDA, { recursive: true });
+  const browser = await chromium.launch({ executablePath: CHROMIUM });
+  const reprovadas = [];
+  let geradas = 0;
+
+  try {
+    const alvos = await resolverAlvos(base, cookie);
+    for (const alvo of alvos) {
+      console.log(`\n== ${alvo.nome} (${alvo.skinId}) — ${alvo.ancoras.length} âncora(s)`);
+      for (const tela of telas) {
+        const ctx = await browser.newContext({
+          viewport: { width: tela.largura, height: tela.altura },
+          deviceScaleFactor: tela.dpr,
+        });
+        // A rota /interno/* exige sessão; a demo pública NÃO — e é
+        // deliberado não mandar cookie nenhum pra ela: com sessão (ou com o
+        // marcador de dispositivo) a demo estampa o selo "Vendo como
+        // membro" na página, e ele entraria na imagem que vai pro lead.
+        if (alvo.url.includes("/interno/")) await ctx.addCookies([cookie]);
+        const page = await ctx.newPage();
+
+        for (const [i, ancora] of alvo.ancoras.entries()) {
+          const arquivo = `${alvo.nome}-${String(i + 1).padStart(2, "0")}-${ancora}-${tela.id}.png`;
+          const destino = path.join(SAIDA, arquivo);
+          const r = await capturar(page, alvo, ancora, tela, destino);
+          if (r.erro) {
+            console.log(`  ✗ ${tela.id}/${ancora}: ${r.erro}`);
+            reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: ${r.erro}`);
+            continue;
+          }
+          geradas += 1;
+          const alerta = r.portao.coberto ? ` ✗ TÍTULO COBERTO por ${r.portao.porQuem}` : "";
+          if (r.portao.coberto) {
+            reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: título coberto (${r.portao.porQuem})`);
+          }
+          const semImagem = r.imagens.prontas < r.imagens.total;
+          if (semImagem) {
+            reprovadas.push(
+              `${alvo.nome}/${ancora}/${tela.id}: ${r.imagens.total - r.imagens.prontas} imagem(ns) da seção não carregaram`,
+            );
+          }
+          console.log(
+            `  ${r.portao.coberto || semImagem ? "✗" : "ok"} ${tela.id}/${ancora}: ${r.caixa.width}×${r.caixa.height}` +
+              ` (${(r.caixa.height / tela.altura).toFixed(1)} telas)` +
+              ` · cromo oculto ${r.cromo.escondidos}` +
+              ` · congeladas ${r.gelo.congeladas}/${r.gelo.infinitas} infinitas` +
+              ` · imagens ${r.imagens.prontas}/${r.imagens.total}` +
+              (r.presos.presos > 0 ? ` · vh preso em ${r.presos.presos}` : "") +
+              (r.imagensForcadas.trilhos > 0 ? ` · ${r.imagensForcadas.trilhos} trilho(s)` : "") +
+              (r.esticou ? " · ⚠ seção ainda cresceu" : "") +
+              ` · título "${r.portao.titulo ?? "—"}"${alerta}`,
+          );
+        }
+        await ctx.close();
+      }
+    }
+
+    if (temFlag("subir")) await subirParaStorage(SAIDA);
+  } finally {
+    await browser.close();
+    encerrar();
+  }
+
+  console.log(`\n${geradas} captura(s) em ${SAIDA}`);
+  if (reprovadas.length > 0) {
+    console.log(`\n✗ ${reprovadas.length} reprovada(s) no portão:`);
+    for (const r of reprovadas) console.log(`   ${r}`);
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Sobe as capturas pro Firebase Storage, na mesma convenção das imagens de
+ * demo (públicas, cache imutável, caminho com timestamp — ver
+ * src/lib/demos/imagens.ts): `capturas/{alvo}/{arquivo}`. Opt-in por
+ * `--subir`, porque o modo normal do laço é gerar em disco e olhar.
+ */
+async function subirParaStorage(dir) {
+  const { cert, getApps, initializeApp } = await import("firebase-admin/app");
+  const { getStorage } = await import("firebase-admin/storage");
+  const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+  if (!bucketName) throw new Error("FIREBASE_STORAGE_BUCKET não configurada (ver .env.example)");
+  if (getApps().length === 0) {
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: (process.env.FIREBASE_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
+      }),
+    });
+  }
+  const bucket = getStorage().bucket(bucketName);
+  for (const arquivo of await fs.readdir(dir)) {
+    if (!arquivo.endsWith(".png")) continue;
+    const alvo = arquivo.split("-")[0];
+    const caminho = `capturas/${alvo}/${arquivo}`;
+    await bucket.file(caminho).save(await fs.readFile(path.join(dir, arquivo)), {
+      contentType: "image/png",
+      resumable: false,
+      public: true,
+      metadata: { cacheControl: "public, max-age=31536000, immutable" },
+    });
+    console.log(`  ↑ https://storage.googleapis.com/${bucketName}/${caminho}`);
+  }
+}
+
+await main();

@@ -8,6 +8,8 @@ import { TATUAGEM_SECOES } from "@/components/demos/tatuagem/secoes";
 import { TATUAGEM2_SECOES } from "@/components/demos/tatuagem2/secoes";
 import type { SkinSecaoDef } from "@/lib/demos/types";
 
+import { ANCORAS_PADRAO } from "./padrao.mjs";
+
 /**
  * ÂNCORAS DE CAPTURA: quais seções de cada skin viram print de prospecção.
  *
@@ -45,32 +47,7 @@ export const SECOES_POR_SKIN: Record<string, SkinSecaoDef[]> = {
   "tatuagem-pigmento-vivo": TATUAGEM2_SECOES,
 };
 
-/**
- * Padrão inicial por skin, aprovado antes de virar código. O critério é
- * sempre o mesmo trio, na ordem em que uma conversa de prospecção anda:
- *
- *   1. IDENTIDADE  — o hero, a primeira impressão da marca (toda skin tem).
- *   2. OFERTA      — a seção que mostra o que o negócio vende.
- *   3. PROVA/FECHO — depoimento, galeria ou o passo que fecha a venda.
- *
- * Ficaram DE FORA as seções puramente decorativas (`faixa` do petshop,
- * `marquee` da tatuagem) e as que só fazem sentido em movimento: um print
- * parado delas não diz nada a quem recebe.
- *
- * Isto é só o DEFAULT. O doc `/config/app` sobrescreve por skin, editável
- * em /interno/capturas sem deploy.
- */
-export const ANCORAS_PADRAO: Record<string, string[]> = {
-  "barbearia-editorial": ["hero", "servicos", "depoimentos"],
-  "barbearia2-sul": ["hero", "servicos", "galeria"],
-  "imobiliaria-curada": ["hero", "imoveis", "depoimento"],
-  "lancheria-chapa-burger": ["hero", "cardapio", "contato"],
-  "multimarcas-vortice": ["hero", "estoque", "simulador"],
-  "petshop-focinho-feliz": ["hero", "servicos", "depoimentos"],
-  "tatuagem-editorial": ["hero", "portfolio", "investimento"],
-  "tatuagem-pigmento-vivo": ["hero", "portfolio", "estilos"],
-};
-
+export { ANCORAS_PADRAO } from "./padrao.mjs";
 /** A seção existe no contrato desta skin? */
 export function secaoExiste(skinId: string, secaoId: string): boolean {
   return (SECOES_POR_SKIN[skinId] ?? []).some((secao) => secao.id === secaoId);
