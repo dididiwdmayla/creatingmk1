@@ -22,6 +22,7 @@ scripts/
   qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
   qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia e prova que o seletor de fontes de título alcança o título — desktop e celular × (nome curto/longo com quebra/longo sem quebra × nível imagem e vídeo) (ver "Título hero: uma caixa de texto, a mídia como máscara")
+  capturas-ci.mjs                   # ✅ orquestrador do workflow: move o estado no doc do lead e chama o motor como processo filho (não captura nada por conta própria)
   capturas.mjs                      # ✅ MOTOR DE CAPTURA das demos (prints de prospecção): por âncora marcada × celular/desktop, enquadra a SEÇÃO inteira via `[data-d-secao]`, congela as animações (mesma técnica do qa-visual) e reprova se sobrou cromo fixo por cima do título; `--lead` captura a rota pública, `--skin`/`--skins` o harness (ver "Capturas por âncora de seção")
 src/
   proxy.ts                          # ✅ proteção por sessão assinada (Next 16: proxy.ts, ex-middleware)
@@ -86,6 +87,8 @@ src/
       leads/[id]/route.ts           # ✅ GET ficha / PATCH status·notas·favorito·descartado
       leads/[id]/enrich/route.ts    # ✅ POST enriquecimento (Place Details Enterprise + Pro/horários JUNTO) — exige sessão (cota individual)
       leads/[id]/horarios/route.ts  # ✅ POST busca só o horário (SKU detailsProHours) — botão "buscar horários" — exige sessão
+      leads/[id]/capturas/route.ts  # ✅ POST enfileira a geração de capturas do lead e dispara o workflow (sessão; token do GitHub só em env)
+      capturas/route.ts             # ✅ GET estado por ids (acompanhamento) / POST lote a partir de um grupo
       leads/[id]/demo/route.ts      # ✅ PUT configuração da demo / DELETE exclui demo + imagens
       leads/[id]/demo/imagens/route.ts # ✅ POST upload de imagem de slot / DELETE volta ao placeholder
       leads/[id]/demo/videos/route.ts  # ✅ POST upload de vídeo-no-título / DELETE volta ao fallback (opt-in por skin)
@@ -584,6 +587,8 @@ Onde aparece:
 - **Ficha do lead sem site próprio** (`siteProprio === false`): `argumentoPenetracao(nicho, regiao, penetracao, nome)` monta a linha pronta ("X% dos estabelecimentos de {nicho} em {regiao} que mapeamos já têm site — a {nome} está entre os que ainda não têm.") com botão copiar; usa "estabelecimentos de {nicho}" (em vez de flexionar o nicho em gênero/plural) porque o texto do nicho é livre e imprevisível. `penetracaoParaLead(lead, buscas)` escolhe, entre as buscas em que o lead apareceu (mais recente primeiro), a primeira que já tem `penetracao` cacheada.
 - **Variável `{penetracao}`** na mensagem padrão do WhatsApp (`src/lib/wa.ts`, `buildWhatsAppLink`): mesma linha de argumento, substituída só quando calculada (ausência não apaga a variável em silêncio) — mesmo padrão de `{nome}`/`{demo}`.
 - **Badge "argumento forte"** (`argumentoForte(penetracao)`, `percentuais.comSiteProprio > 60`) em `/hoje` e no `LeadCard` da lista de leads — discreto, não bloqueia nada, só sinaliza que o argumento é forte.
+
+O campo **`capturas`** do lead guarda a última geração de prints (estado, `execucaoId`, `pedidoEm`/`iniciadoEm`/`geradoEm`, `runUrl`, `erro` e as `imagens` com âncora/tela/URL/dimensões) — ver "Disparo pela plataforma" na Forja de Demos.
 
 ### `/buscas/{id}` — um doc por busca executada
 
@@ -1358,6 +1363,28 @@ Daí a sequência do motor, cada passo com um defeito por trás: `prepararPagina
 - **Estado da última rodada**: 46 de 48 aprovadas. As 2 reprovadas são a `portfolio` da tatuagem2 nas duas telas — galeria rolada por scroll cuja altura é calculada em JS e **recomputada a cada resize** (9580px no desktop, 11608 no celular), então nenhum congelamento de CSS a segura. O motor reprova em vez de gerar imagem errada; a saída é remarcar a âncora em `/interno/capturas`, sem deploy.
 
 **Onde rodar** (decidido antes de implementar, com os custos na mesa): laço local/CI em lote, custo R$ 0, ~25–40s por lead, nenhum request pago e zero risco pro deploy do app. As alternativas avaliadas foram Vercel sob demanda (exige `@sparticuz/chromium`, ~170MB contra o teto de 250MB do bundle, `maxDuration` apertado no Hobby) e GitHub Actions (sem limite, mas latência de minutos). O motor foi escrito com o miolo em `capturas/dom.mjs`, então ligar a rota serverless depois é escrever o adaptador, não reescrever o motor.
+
+#### Disparo pela plataforma (GitHub Actions + `lead.capturas`)
+
+A geração deixou de ser só laço local: a ficha do lead tem **"Gerar capturas"** e o grupo de busca tem a ação equivalente em lote. O motor NÃO mudou de dono — quem enquadra continua sendo `scripts/capturas.mjs`, chamado como processo filho pelo orquestrador.
+
+**As três partes não se falam diretamente**, e o contrato entre elas é `lead.capturas` (`lib/demos/capturas/estado.ts`): a ROTA enfileira, o WORKFLOW executa e escreve o resultado, a FICHA mostra. Estado é dado persistido no doc do lead, não memória de servidor — quem abrir a ficha no meio do caminho, de outro aparelho, vê o mesmo.
+
+- **Rota** (`POST /api/leads/[id]/capturas` e `POST /api/capturas` para o lote; `GET /api/capturas?ids=` para acompanhar): restrita a usuário logado, qualquer papel — gerar print é trabalho de prospecção, não de administração. O **token do GitHub vive só em `GITHUB_CAPTURAS_TOKEN`** e é usado exclusivamente em `lib/github/dispatch.ts`, dentro de route handler; o corpo aceita apenas `{ forcar }`. Sem token, 503 dizendo qual variável falta, e a UI desabilita o botão em vez de deixá-lo falhar no clique.
+- **Ordem gravar-antes-de-disparar**: o estado é escrito ANTES do `repository_dispatch` (é o que faz o pedido sobreviver a fechar a aba, e é o `execucaoId` que o workflow carrega de volta). Se o disparo falhar, o estado é **desfeito para `falhou`** com o motivo — lead "enfileirado" esperando um workflow que ninguém chamou é o estado que mente.
+- **Workflow** (`.github/workflows/capturas.yml`): instala o Chromium (o projeto depende de `playwright-core`, que não baixa navegador), roda o motor com `--leads` — **um `next build` e um Chromium para o lote inteiro** — e publica em `capturas/{leadId}/`. Escreve o resultado **direto no Firestore com a mesma credencial do Storage**: um callback HTTP de volta pro Radar exigiria endpoint público novo e segredo compartilhado só pra dizer "terminei". `concurrency` serial (duas rodadas brigariam pela mesma porta e pelo mesmo caminho no Storage) e passo `if: failure()` que marca a falha na hora quando o job quebra ANTES do motor.
+- **`escritaAindaVale`**: o workflow só escreve se o `execucaoId` ainda for o vigente. Cobre pedir, achar demorado e clicar em "Refazer" — o run antigo termina depois e enterraria o resultado do novo, ou marcaria "falhou" por cima de um "pronto".
+- **`semNoticia` / `estadoVisivel`**: um `repository_dispatch` responde 204 e pronto. Workflow desabilitado, arquivo fora do branch default ou runner que nunca pegou a fila — **ninguém avisa**. Passado o limite de silêncio (10 min na fila, 30 rodando, contados de marcos diferentes), o estado vira FALHA explícita com a causa provável. É a mesma doença do botão que volta ao normal sem confirmação: um estado que mente.
+- **Acompanhamento sem recarregar** (`useEstadoCapturas`): pergunta de tempos em tempos enquanto houver algo em andamento (4s no primeiro minuto, 12s depois) e para sozinho no estado terminal. O relógio de `estadoVisivel` é o **instante da última resposta**, nunca `Date.now()` no render — além de manter o render puro (o linter do React Compiler recusa impureza ali), faz o estado envelhecer junto com a informação, não com a pintura.
+- **Galeria na ficha**: agrupada por âncora na ordem da marcação, as duas telas lado a lado, com **download por imagem**. O objeto sobe com `Content-Disposition: attachment` — baixar por `fetch` no cliente exigiria configurar CORS no bucket, e o objeto é público mas não tem cabeçalho de CORS. Tela que não saiu vira vão explícito, e rodada parcial mostra qual âncora reprovou.
+- **As defesas do motor continuam valendo**: o contexto abre a demo **sem cookie de sessão, sem `radar_device` e sem `?t=`** — com sessão a demo estampa "Vendo como membro" na foto, e com token a captura entraria na timeline de visitas do lead. O `next start` do runner sobe com um `APP_PASSWORD` sorteado por rodada (`subirServidor`), então o cookie que o motor usa pra ler `/api/leads` e `/api/config` nada tem a ver com a senha de produção.
+- **Marcadores do selo de estado**: `⋯` (na fila) e `↻` (gerando) em vez dos `◔`/`◑` do `StatusBadge` — nesta fonte os círculos parciais saem como lascas sem contorno e a 12px leem como cisco. No `StatusBadge` funcionam porque aparecem numa sequência que dá contexto; aqui o marcador aparece sozinho.
+
+**Tempo medido** (local, fake DB, 3 leads × 3 âncoras × 2 telas = 18 capturas, 18 aprovadas): **164s no total**, sendo ~31s de `next build` + `next start` e ~133s de captura; um lead sozinho leva ~31s. No runner, somar `npm ci`, a instalação do Chromium e um build mais lento — a primeira imagem de um pedido individual sai em ~3–4 min. É por isso que o lote paga o build uma vez só, e por que o `timeout-minutes` do job é generoso.
+
+**Custo**: nenhum request pago em nenhum ponto — a demo é Server Component que lê só o Firestore, e o workflow gasta minutos de Actions (2000/mês grátis em repo privado) e armazenamento no Storage.
+
+**Para funcionar em produção, três coisas fora do código**: o workflow precisa estar no **branch default** (o GitHub só registra dispatch de lá — antes disso `actions/workflows` lista zero e o disparo responde 404), os secrets `FIREBASE_*` precisam existir no repositório, e `GITHUB_CAPTURAS_TOKEN` precisa estar na Vercel.
 
 ### Efeitos visuais (`src/lib/demos/efeitos`) — camada decorativa opcional
 
