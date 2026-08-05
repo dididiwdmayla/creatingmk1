@@ -145,6 +145,29 @@ const CAMPOS_SECAO = [
   { chave: "ctaSecundaria", rotulo: "CTA secundária" },
 ] as const;
 
+/**
+ * Campos de seção que o painel monta MESMO sem estarem no
+ * `demoDataExemplo` da skin.
+ *
+ * A regra geral — só mostrar o que o exemplo declara — evita oferecer
+ * campos que a skin não renderiza. `secoes.hero.titulo` é a exceção: TODAS
+ * as skins renderizam o título hero a partir dele (`s.hero?.titulo ??
+ * data.nome`, com `data-demo-slot="secoes.hero.titulo"`) e `dadosDoLead`
+ * SEMPRE o preenche com o nome do lead quebrado em duas linhas — mas
+ * nenhum exemplo o declara, de propósito: copy de exemplo estática aí
+ * apareceria no lugar do nome real de um lead novo (ver "Título hero" em
+ * ARCHITECTURE.md).
+ *
+ * Sem esta exceção o campo simplesmente não existia: a pessoa só achava
+ * "Nome do negócio" (`dados.nome`), que o título nunca lê porque
+ * `secoes.hero.titulo` vence o `??` — editar não mudava o título — e o
+ * clique no título dentro do preview pedia foco em
+ * `campo-secoes.hero.titulo`, que não estava na página.
+ */
+function campoSempre(secaoId: string, chave: string): boolean {
+  return secaoId === "hero" && chave === "titulo";
+}
+
 const CAMPOS_ITEM = [
   { chave: "titulo", rotulo: "Título" },
   { chave: "subtitulo", rotulo: "Subtítulo" },
@@ -384,7 +407,9 @@ export function PainelConteudo({
             aberto={abertos[`secao-${def.id}`] ?? false}
             setAberto={setAberto}
           >
-            {CAMPOS_SECAO.filter(({ chave }) => exemplo[chave] !== undefined).map(
+            {CAMPOS_SECAO.filter(
+              ({ chave }) => exemplo[chave] !== undefined || campoSempre(def.id, chave),
+            ).map(
               ({ chave, rotulo, ...extra }) => (
                 <Campo
                   key={chave}
