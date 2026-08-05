@@ -41,9 +41,12 @@ function MiniBarra({ label, usado, meta }: { label: string; usado: number; meta:
  * o estado é persistido por usuário (self-service, sobrevive a
  * navegação/dispositivo) via PUT /api/metas/proprio.
  */
-export function MetaFaixa() {
+export function MetaFaixa({ inicial = null }: { inicial?: MetaProprioResponse | null }) {
   const pathname = usePathname();
-  const [estado, setEstado] = useState<MetaProprioResponse | null>(null);
+  // Nasce com o valor resolvido no servidor (ver AppLayout) — o primeiro
+  // desenho já mostra a faixa certa (ou nenhuma), sem o cliente inserir um
+  // bloco novo por cima do cabeçalho depois que a página já pintou.
+  const [estado, setEstado] = useState<MetaProprioResponse | null>(inicial);
   const [alternando, setAlternando] = useState(false);
 
   // Refetch a cada troca de rota (progresso muda ao voltar de uma busca em

@@ -7,6 +7,7 @@ import { ApiError, api } from "@/lib/api-client";
 import { BUSCA_CORES, type Busca } from "@/lib/buscas/types";
 import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import { formatDateTime, formatInt } from "@/lib/format";
+import { SkeletonRows } from "@/components/Skeleton";
 
 const MENSAGEM_MAX = 1000; // espelha o limite da rota PATCH
 
@@ -112,7 +113,7 @@ export default function BuscasPage() {
   }
 
   if (buscas === null) {
-    return <p className="text-sm text-ink-muted">Carregando…</p>;
+    return <SkeletonRows count={3} className="h-20 rounded-lg border border-line" />;
   }
 
   if (buscas.length === 0) {

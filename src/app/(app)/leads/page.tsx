@@ -9,6 +9,7 @@ import { GerarDemosLoteDialog } from "@/components/GerarDemosLoteDialog";
 import { LeadCard } from "@/components/LeadCard";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { RadarSweep } from "@/components/RadarSweep";
+import { SkeletonRows } from "@/components/Skeleton";
 import { ApiError, api, type TermoLocalResponse } from "@/lib/api-client";
 import { agruparPorBusca } from "@/lib/buscas/agrupar";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
@@ -899,7 +900,7 @@ function LeadsPageInner() {
       {erroLista && <p className="text-sm text-critical">{erroLista}</p>}
 
       {leads === null ? (
-        <p className="text-sm text-ink-muted">Carregando…</p>
+        <SkeletonRows count={4} className="h-24 rounded-lg border border-line" />
       ) : leads.length === 0 ? (
         <p className="text-sm text-ink-muted">
           Nenhum lead encontrado. Ajuste os filtros ou faça uma busca.

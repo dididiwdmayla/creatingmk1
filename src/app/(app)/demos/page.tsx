@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { SeloProntidao } from "@/components/SeloProntidao";
+import { SkeletonRows } from "@/components/Skeleton";
 import { ApiError, api } from "@/lib/api-client";
 import { agruparPorBusca } from "@/lib/buscas/agrupar";
 import type { Busca } from "@/lib/buscas/types";
@@ -130,7 +131,7 @@ export default function DemosPage() {
   }
 
   if (leads === null) {
-    return <p className="text-sm text-ink-muted">Carregando…</p>;
+    return <SkeletonRows count={3} className="h-20 rounded-lg border border-line" />;
   }
 
   const demos = leads
