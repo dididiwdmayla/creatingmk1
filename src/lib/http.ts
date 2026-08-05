@@ -9,6 +9,7 @@ import {
   UnauthorizedError,
   ValidationError,
 } from "@/lib/errors";
+import { CapturasIndisponivelError, DispatchError } from "@/lib/github/dispatch";
 import { PlacesError } from "@/lib/places/client";
 
 /**
@@ -51,6 +52,14 @@ export function handleRouteError(error: unknown): NextResponse {
   }
   if (error instanceof AiIndisponivelError) {
     return jsonError(503, error.code, error.message);
+  }
+  // Mesma divisão da IA: falta de configuração é 503 (não adianta tentar
+  // de novo até alguém configurar), erro do serviço externo é 502.
+  if (error instanceof CapturasIndisponivelError) {
+    return jsonError(503, error.code, error.message);
+  }
+  if (error instanceof DispatchError) {
+    return jsonError(502, error.code, error.message, { detail: error.detail });
   }
   if (error instanceof AiError) {
     return jsonError(502, error.code, error.message, { detail: error.detail });

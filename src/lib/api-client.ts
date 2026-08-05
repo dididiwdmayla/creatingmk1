@@ -3,6 +3,7 @@ import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
+import type { LeadCapturas } from "@/lib/demos/capturas/estado";
 import type { UsageCounts, UsoUsuario } from "@/lib/costs";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
@@ -183,6 +184,13 @@ export interface MensagensResumoResponse {
   totalNaoLidas: number;
 }
 
+/** Resposta do disparo (individual ou em lote) — ver lib/demos/capturas/enfileirar.ts. */
+export interface EnfileiramentoCapturas {
+  execucaoId: string;
+  enfileirados: string[];
+  pulados: Array<{ placeId: string; motivo: string }>;
+}
+
 export const api = {
   login: (nome: string, senha: string) =>
     request<void>("/api/login", { method: "POST", body: JSON.stringify({ nome, senha }) }),
@@ -219,6 +227,24 @@ export const api = {
     request<void>(`/api/usuarios/${id}/zerar-dia`, { method: "POST" }),
   getCotasUsuarios: () => request<CotasUsuariosResponse>("/api/usuarios/cotas"),
   getMetasUsuarios: () => request<MetasUsuariosResponse>("/api/usuarios/metas"),
+
+  /** Enfileira a geração de capturas de UM lead (botão da ficha). */
+  gerarCapturas: (id: string, forcar = false) =>
+    request<EnfileiramentoCapturas>(`/api/leads/${id}/capturas`, {
+      method: "POST",
+      body: JSON.stringify({ forcar }),
+    }),
+  /** Enfileira o LOTE (ação a partir de um grupo de busca). */
+  gerarCapturasLote: (placeIds: string[], forcar = false) =>
+    request<EnfileiramentoCapturas>("/api/capturas", {
+      method: "POST",
+      body: JSON.stringify({ placeIds, forcar }),
+    }),
+  /** Estado da geração dos leads pedidos — o acompanhamento sem recarregar. */
+  getEstadoCapturas: (ids: string[]) =>
+    request<{ capturas: Record<string, LeadCapturas | null>; disponivel: boolean }>(
+      `/api/capturas?ids=${encodeURIComponent(ids.join(","))}`,
+    ),
 
   getConfig: () => request<{ config: AppConfig }>("/api/config"),
   putConfig: (patch: Partial<AppConfig>) =>
