@@ -407,7 +407,16 @@ async function subirParaStorage(entradas) {
         contentType: "image/png",
         resumable: false,
         public: true,
-        metadata: { cacheControl: "public, max-age=31536000, immutable" },
+        metadata: {
+          cacheControl: "public, max-age=31536000, immutable",
+          // Objeto marcado como ANEXO: é o que faz o "Baixar" da ficha
+          // salvar o arquivo com nome bom em vez de abrir a imagem numa
+          // aba. A alternativa seria baixar por fetch no cliente, que
+          // exigiria configurar CORS no bucket — o objeto é público, mas
+          // sem CORS o `fetch` de outra origem é bloqueado. Não atrapalha
+          // a miniatura: `<img src>` ignora Content-Disposition.
+          contentDisposition: `attachment; filename="${img.arquivo}"`,
+        },
       });
       img.url = `https://storage.googleapis.com/${bucketName}/${caminho}`;
       console.log(`  ↑ ${img.url}`);

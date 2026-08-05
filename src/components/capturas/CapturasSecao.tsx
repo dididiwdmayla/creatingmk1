@@ -8,6 +8,7 @@ import { estadoVisivel } from "@/lib/demos/capturas/estado";
 import type { Lead } from "@/lib/leads/types";
 
 import { CapturaBadge } from "./CapturaBadge";
+import { GaleriaCapturas } from "./GaleriaCapturas";
 import { useEstadoCapturas } from "./useEstadoCapturas";
 
 /**
@@ -85,6 +86,22 @@ export function CapturasSecao({ lead }: { lead: Lead }) {
                   </a>
                 </>
               )}
+            </p>
+          )}
+
+          {/* As imagens prontas ficam ACIMA do botão: quando há resultado,
+              olhar e baixar é o que o operador vem fazer aqui; refazer é a
+              exceção. */}
+          {visivel.estado === "pronto" && capturas?.imagens && (
+            <GaleriaCapturas imagens={capturas.imagens} nomeLead={lead.nome} />
+          )}
+
+          {/* Rodada parcial: algumas âncoras saíram, outras reprovaram no
+              portão. O aviso evita o operador contar 4 onde esperava 6 e
+              não saber por quê. */}
+          {visivel.estado === "pronto" && capturas?.erro && (
+            <p className="rounded border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+              {capturas.erro}
             </p>
           )}
 
