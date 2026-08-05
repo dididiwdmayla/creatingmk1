@@ -10,11 +10,14 @@
  *
  * Uso:
  *   node scripts/capturas.mjs --lead=<placeId>      # demo REAL do lead
+ *   node scripts/capturas.mjs --leads=<id>,<id>     # lote (um build só)
  *   node scripts/capturas.mjs --skin=<skinId>       # harness, sem banco
  *   node scripts/capturas.mjs --skins               # todas as 8 skins
  *   node scripts/capturas.mjs --lead=<id> --subir   # sobe pro Storage
  *
  * Opções: --saida=<dir> (default: ./capturas) · --sem-build · --so=<tela>
+ *          --manifesto=<arquivo.json> (o que cada alvo produziu, com as URLs
+ *          do Storage quando houve `--subir`) — é o que o workflow lê
  *
  * O modo `--skin` existe pra exercitar e verificar o motor sem depender de
  * lead nem de Firestore (é como o enquadramento foi validado); o modo
@@ -83,34 +86,43 @@ const telas = TELAS.filter((t) => !soTela || t.id === soTela);
  * `--lead` bate na rota pública (a demo real); `--skin`, no harness.
  */
 async function resolverAlvos(base, cookie) {
-  const leadId = opcao("lead");
+  // `--leads=a,b,c` é o modo do workflow: um `next build` e um Chromium
+  // para o lote inteiro, em vez de um processo por lead (o build sozinho
+  // custa mais que todas as capturas de um lead juntas).
+  const leadIds = (opcao("leads") ?? opcao("lead") ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
   const skinId = opcao("skin");
 
-  if (leadId) {
-    // As âncoras de um lead saem da SKIN da demo dele, e a marcação vigente
-    // vem de /config — as duas coisas o app já sabe responder.
-    const r = await fetch(`${base}/api/leads/${encodeURIComponent(leadId)}`, {
-      headers: { cookie: `${cookie.name}=${cookie.value}` },
-    });
-    if (!r.ok) throw new Error(`lead ${leadId}: /api/leads respondeu ${r.status}`);
-    const { lead } = await r.json();
-    if (!lead?.demo?.skin) throw new Error(`lead ${leadId} não tem demo salva (nada a capturar)`);
-
+  if (leadIds.length > 0) {
+    // A marcação vigente vem de /config uma vez só, e a skin de cada lead
+    // da ficha dele — as duas coisas o app já sabe responder.
     const rc = await fetch(`${base}/api/config`, {
       headers: { cookie: `${cookie.name}=${cookie.value}` },
     });
     const { config } = await rc.json();
-    const ancoras = ancorasDe(config?.capturas?.ancoras, lead.demo.skin);
-    return [
-      {
+
+    const alvos = [];
+    for (const leadId of leadIds) {
+      const r = await fetch(`${base}/api/leads/${encodeURIComponent(leadId)}`, {
+        headers: { cookie: `${cookie.name}=${cookie.value}` },
+      });
+      if (!r.ok) throw new Error(`lead ${leadId}: /api/leads respondeu ${r.status}`);
+      const { lead } = await r.json();
+      const skinId = lead?.demo?.skinId ?? lead?.demo?.skin;
+      if (!skinId) throw new Error(`lead ${leadId} não tem demo salva (nada a capturar)`);
+      alvos.push({
         nome: leadId,
-        skinId: lead.demo.skin,
+        leadId,
+        skinId,
         // Sem `?t=`: token é para envio ao lead, e uma captura interna não
         // pode entrar na timeline de visitas da demo dele.
         url: `${base}/demo/${encodeURIComponent(leadId)}`,
-        ancoras,
-      },
-    ];
+        ancoras: ancorasDe(config?.capturas?.ancoras, skinId),
+      });
+    }
+    return alvos;
   }
 
   const rc = await fetch(`${base}/api/config`, {
@@ -258,12 +270,23 @@ async function main() {
   await fs.mkdir(SAIDA, { recursive: true });
   const browser = await chromium.launch({ executablePath: CHROMIUM });
   const reprovadas = [];
+  // Manifesto: o que cada alvo de fato produziu. É o que o workflow lê pra
+  // saber o que subir e o que gravar no doc do lead — derivar isso do nome
+  // do arquivo depois seria adivinhação (id de lead pode conter hífen).
+  const manifesto = new Map();
   let geradas = 0;
 
   try {
     const alvos = await resolverAlvos(base, cookie);
     for (const alvo of alvos) {
       console.log(`\n== ${alvo.nome} (${alvo.skinId}) — ${alvo.ancoras.length} âncora(s)`);
+      manifesto.set(alvo.nome, {
+        alvo: alvo.nome,
+        leadId: alvo.leadId,
+        skinId: alvo.skinId,
+        imagens: [],
+        reprovadas: [],
+      });
       for (const tela of telas) {
         const ctx = await browser.newContext({
           viewport: { width: tela.largura, height: tela.altura },
@@ -283,9 +306,19 @@ async function main() {
           if (r.erro) {
             console.log(`  ✗ ${tela.id}/${ancora}: ${r.erro}`);
             reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: ${r.erro}`);
+            manifesto.get(alvo.nome).reprovadas.push(`${ancora}/${tela.id}: ${r.erro}`);
             continue;
           }
           geradas += 1;
+          manifesto.get(alvo.nome).imagens.push({
+            arquivo,
+            caminhoLocal: destino,
+            ancora,
+            tela: tela.id,
+            ordem: i + 1,
+            largura: r.caixa.width,
+            altura: r.caixa.height,
+          });
           const alerta = r.portao.coberto ? ` ✗ TÍTULO COBERTO por ${r.portao.porQuem}` : "";
           if (r.portao.coberto) {
             reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: título coberto (${r.portao.porQuem})`);
@@ -312,10 +345,20 @@ async function main() {
       }
     }
 
-    if (temFlag("subir")) await subirParaStorage(SAIDA);
+    if (temFlag("subir")) await subirParaStorage([...manifesto.values()]);
   } finally {
     await browser.close();
     encerrar();
+  }
+
+  const arquivoManifesto = opcao("manifesto");
+  if (arquivoManifesto) {
+    await fs.mkdir(path.dirname(path.resolve(RAIZ, arquivoManifesto)), { recursive: true });
+    await fs.writeFile(
+      path.resolve(RAIZ, arquivoManifesto),
+      JSON.stringify([...manifesto.values()], null, 2),
+    );
+    console.log(`manifesto em ${arquivoManifesto}`);
   }
 
   console.log(`\n${geradas} captura(s) em ${SAIDA}`);
@@ -327,12 +370,17 @@ async function main() {
 }
 
 /**
- * Sobe as capturas pro Firebase Storage, na mesma convenção das imagens de
- * demo (públicas, cache imutável, caminho com timestamp — ver
- * src/lib/demos/imagens.ts): `capturas/{alvo}/{arquivo}`. Opt-in por
- * `--subir`, porque o modo normal do laço é gerar em disco e olhar.
+ * Sobe as capturas pro Firebase Storage no caminho POR LEAD
+ * (`capturas/{leadId}/{arquivo}`), na mesma convenção das imagens de demo:
+ * públicas (a demo já é pública) e com cache imutável, que é seguro porque
+ * cada rodada gera nome novo com timestamp.
+ *
+ * Recebe o MANIFESTO em memória em vez de varrer o diretório: o id do lead
+ * sai do alvo que produziu a imagem, não de um `split("-")` no nome do
+ * arquivo, que quebraria em qualquer id com hífen. Anota a `url` de volta
+ * em cada entrada — é ela que o workflow grava no doc do lead.
  */
-async function subirParaStorage(dir) {
+async function subirParaStorage(entradas) {
   const { cert, getApps, initializeApp } = await import("firebase-admin/app");
   const { getStorage } = await import("firebase-admin/storage");
   const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
@@ -347,17 +395,32 @@ async function subirParaStorage(dir) {
     });
   }
   const bucket = getStorage().bucket(bucketName);
-  for (const arquivo of await fs.readdir(dir)) {
-    if (!arquivo.endsWith(".png")) continue;
-    const alvo = arquivo.split("-")[0];
-    const caminho = `capturas/${alvo}/${arquivo}`;
-    await bucket.file(caminho).save(await fs.readFile(path.join(dir, arquivo)), {
-      contentType: "image/png",
-      resumable: false,
-      public: true,
-      metadata: { cacheControl: "public, max-age=31536000, immutable" },
-    });
-    console.log(`  ↑ https://storage.googleapis.com/${bucketName}/${caminho}`);
+
+  for (const entrada of entradas) {
+    const pasta = entrada.leadId ?? entrada.alvo;
+    // Rodada nova substitui a anterior: sem isto o Storage acumularia uma
+    // cópia por "refazer", e ninguém nunca olharia as velhas.
+    await bucket.deleteFiles({ prefix: `capturas/${pasta}/`, force: true }).catch(() => undefined);
+    for (const img of entrada.imagens) {
+      const caminho = `capturas/${pasta}/${img.arquivo}`;
+      await bucket.file(caminho).save(await fs.readFile(img.caminhoLocal), {
+        contentType: "image/png",
+        resumable: false,
+        public: true,
+        metadata: {
+          cacheControl: "public, max-age=31536000, immutable",
+          // Objeto marcado como ANEXO: é o que faz o "Baixar" da ficha
+          // salvar o arquivo com nome bom em vez de abrir a imagem numa
+          // aba. A alternativa seria baixar por fetch no cliente, que
+          // exigiria configurar CORS no bucket — o objeto é público, mas
+          // sem CORS o `fetch` de outra origem é bloqueado. Não atrapalha
+          // a miniatura: `<img src>` ignora Content-Disposition.
+          contentDisposition: `attachment; filename="${img.arquivo}"`,
+        },
+      });
+      img.url = `https://storage.googleapis.com/${bucketName}/${caminho}`;
+      console.log(`  ↑ ${img.url}`);
+    }
   }
 }
 

@@ -55,3 +55,6 @@ next-env.d.ts
 # capturas de prospecção geradas por scripts/capturas.mjs (deliverable,
 # não código: se regeneram rodando o script e vão pro Storage com --subir)
 /capturas/
+
+# saída do orquestrador de capturas no CI (efêmera, vai pro Storage)
+/capturas-ci/

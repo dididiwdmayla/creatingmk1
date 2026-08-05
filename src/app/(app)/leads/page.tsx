@@ -5,6 +5,7 @@ import { Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "
 
 import { Button } from "@/components/Button";
 import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
+import { CapturasLoteAcao } from "@/components/capturas/CapturasLoteAcao";
 import { GerarDemosLoteDialog } from "@/components/GerarDemosLoteDialog";
 import { LeadCard } from "@/components/LeadCard";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
@@ -803,6 +804,10 @@ function LeadsPageInner() {
             </button>
             {loteMsg && <p className="mt-1 text-xs text-good">{loteMsg}</p>}
           </div>
+
+          {/* Equivalente em lote do botão da ficha: enfileira o grupo num
+              disparo só e mostra o andamento agregado. */}
+          {leads && <CapturasLoteAcao leads={leads} />}
         </div>
       )}
 
