@@ -63,6 +63,13 @@ const AUTO_ENRICH_MAX = 5;
 const QUANTIDADE_MAX = 40;
 /** Posição de scroll da lista, para restaurar ao voltar da ficha. */
 const SCROLL_KEY = "radar:leads:scroll";
+/**
+ * Última querystring da lista (filtros, ordenação, agrupamento aberto,
+ * grupo ativo) — navegação hierárquica (ficha → Leads) sempre aponta pra
+ * "/leads" fixo, sem querystring; é esta chave que devolve o operador pro
+ * estado exato de onde saiu, em vez de resetar pros filtros default.
+ */
+const QUERY_KEY = "radar:leads:query";
 
 /** Placeholder do nome da busca, espelhando o default do servidor. */
 function nomeDefaultHint(nicho: string): string {
@@ -396,6 +403,28 @@ function LeadsPageInner() {
       setTermoLocalDispensado(true);
     }
   }
+
+  // ── Restauração da querystring: "/leads" limpo (chegada hierárquica da
+  // ficha) recupera os últimos filtros/ordenação/grupo desta sessão, em vez
+  // de resetar pro default. Uma URL já com params (deep link de /buscas,
+  // por exemplo) nunca é sobrescrita — só o mount inicial em branco dispara
+  // a restauração; qualquer alteração de filtro depois disso só grava.
+  const queryInicial = useRef(true);
+  useEffect(() => {
+    const qs = searchParams.toString();
+    if (queryInicial.current) {
+      queryInicial.current = false;
+      if (!qs) {
+        const salvo = sessionStorage.getItem(QUERY_KEY);
+        if (salvo) {
+          router.replace(`/leads?${salvo}`, { scroll: false });
+          return;
+        }
+      }
+    }
+    if (qs) sessionStorage.setItem(QUERY_KEY, qs);
+    else sessionStorage.removeItem(QUERY_KEY);
+  }, [searchParams, router]);
 
   // ── Scroll restoration: volta da ficha exatamente onde estava ─────────
   const scrollRestaurado = useRef(false);
