@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { CapturasSecao } from "@/components/capturas/CapturasSecao";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
@@ -551,6 +552,8 @@ export function LeadDetailClient({ id }: { id: string }) {
         )}
         {demoErro && <p className="mt-2 text-sm text-critical">{demoErro}</p>}
       </section>
+
+      <CapturasSecao key={lead.placeId} lead={lead} />
 
       {visitasExternas.length > 0 && (
         <section className="rounded-lg border border-line bg-surface p-4">
