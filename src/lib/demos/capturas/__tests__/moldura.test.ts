@@ -7,6 +7,7 @@ import {
   luminancia,
   medidasMoldura,
   nomeComposto,
+  PROPORCAO_APARELHO,
 } from "../moldura.mjs";
 
 /**
@@ -17,7 +18,14 @@ import {
  * verificado por captura, que é o único jeito honesto de olhar desenho.
  */
 
-const CELULAR = { tela: "celular" as const, src: "./x.png", largura: 780, altura: 2600 };
+const UMA_TELA = 844 * 2; // a viewport de celular do motor, em pixel
+const CELULAR = {
+  tela: "celular" as const,
+  src: "./x.png",
+  largura: 780,
+  altura: 2600,
+  alturaTela: UMA_TELA,
+};
 const DESKTOP = { tela: "desktop" as const, src: "./x.png", largura: 1440, altura: 1100 };
 
 // As medidas voltam discriminadas por tela (as duas molduras não têm as
@@ -34,6 +42,15 @@ function medidasDesktop(captura: typeof DESKTOP) {
   return m;
 }
 
+/**
+ * Só a MOLDURA, sem o `<head>`: o fundo da composição usa gradiente de
+ * propósito (é a paleta da demo), e uma asserção sobre a página inteira
+ * confundiria o fundo com brilho no aparelho.
+ */
+function soAMoldura(html: string): string {
+  return html.slice(html.indexOf("<body>"));
+}
+
 describe("nomeComposto", () => {
   it("põe o sufixo antes da extensão", () => {
     expect(nomeComposto("lead-01-hero-celular.png")).toBe("lead-01-hero-celular-moldura.png");
@@ -46,15 +63,65 @@ describe("nomeComposto", () => {
 
 describe("medidasMoldura", () => {
   it("a composta é maior que a captura nas duas dimensões", () => {
-    const m = medidasCelular(CELULAR);
+    const m = medidasCelular({ ...CELULAR, altura: 1200 });
     expect(m.largura).toBeGreaterThan(CELULAR.largura);
-    expect(m.altura).toBeGreaterThan(CELULAR.altura);
+    expect(m.altura).toBeGreaterThan(1200);
   });
 
-  it("a faixa de status entra na altura — a ilha não pousa sobre a captura", () => {
-    const m = medidasCelular(CELULAR);
-    expect(m.faixa).toBeGreaterThan(0);
-    expect(m.altura).toBe(CELULAR.altura + m.faixa + 2 * (m.borda + m.bisel) + 2 * m.margem);
+  it("captura de até uma tela vira APARELHO, em proporção de aparelho real", () => {
+    const m = medidasCelular({ ...CELULAR, altura: UMA_TELA });
+    expect(m.modo).toBe("aparelho");
+    expect(m.cortada).toBe(false);
+    // A proporção da TELA é a da viewport do motor, que é a de um aparelho
+    // de verdade — não um número inventado aqui.
+    expect(m.alturaVisivel / CELULAR.largura).toBeCloseTo(UMA_TELA / CELULAR.largura, 5);
+  });
+
+  it("seção CURTA não vira celular atarracado: a tela continua com uma tela", () => {
+    const m = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 0.6) });
+    expect(m.modo).toBe("aparelho");
+    expect(m.alturaVisivel).toBe(UMA_TELA);
+    // A sobra é preenchida com o fundo da demo — a página continuando, não
+    // uma tarja preta.
+    expect(m.folga).toBe(UMA_TELA - Math.round(UMA_TELA * 0.6));
+    expect(m.cortada).toBe(false);
+  });
+
+  it("captura mais alta que uma tela NÃO vira aparelho esticado", () => {
+    const m = medidasCelular({ ...CELULAR, altura: UMA_TELA * 2 });
+    expect(m.modo).toBe("cartao");
+    // O defeito que isto impede: um corpo de aparelho com proporção de 1:4.
+    expect(m.cortada).toBe(false);
+    expect(m.alturaVisivel).toBe(UMA_TELA * 2);
+    expect(m.folga).toBe(0);
+  });
+
+  it("o cartão mostra a seção INTEIRA — quem corta seria a versão enviada", () => {
+    const alta = medidasCelular({ ...CELULAR, altura: 5200 });
+    expect(alta.alturaVisivel).toBe(5200);
+    expect(alta.cortada).toBe(false);
+  });
+
+  it("uma folga de arredondamento não joga a captura para o cartão", () => {
+    expect(medidasCelular({ ...CELULAR, altura: UMA_TELA + 4 }).modo).toBe("aparelho");
+    expect(medidasCelular({ ...CELULAR, altura: UMA_TELA + 40 }).modo).toBe("cartao");
+  });
+
+  it("o aparelho tem canto bem mais arredondado que o cartão", () => {
+    const aparelho = medidasCelular({ ...CELULAR, altura: UMA_TELA });
+    const cartao = medidasCelular({ ...CELULAR, altura: UMA_TELA * 2 });
+    expect(aparelho.raio).toBeGreaterThan(cartao.raio * 2);
+  });
+
+  it("sem a altura da tela, cai na proporção de aparelho de reserva", () => {
+    const m = medidasCelular({
+      tela: "celular",
+      src: "./x.png",
+      largura: 780,
+      altura: Math.round(780 * PROPORCAO_APARELHO),
+      alturaTela: undefined as unknown as number,
+    });
+    expect(m.modo).toBe("aparelho");
   });
 
   it("a barra do navegador entra na altura da composta de desktop", () => {
@@ -63,11 +130,11 @@ describe("medidasMoldura", () => {
     expect(m.largura).toBe(DESKTOP.largura + 2 * m.margem);
   });
 
-  it("bisel e raio saem da LARGURA, nunca da altura: seção comprida vira aparelho comprido", () => {
-    const curta = medidasCelular({ ...CELULAR, altura: 900 });
+  it("borda e raio saem da LARGURA, nunca da altura", () => {
+    const curta = medidasCelular({ ...CELULAR, altura: 3000 });
     const comprida = medidasCelular({ ...CELULAR, altura: 5200 });
-    expect(comprida.bisel).toBe(curta.bisel);
-    expect(comprida.raioCorpo).toBe(curta.raioCorpo);
+    expect(comprida.borda).toBe(curta.borda);
+    expect(comprida.raio).toBe(curta.raio);
     expect(comprida.largura).toBe(curta.largura);
   });
 });
@@ -80,9 +147,13 @@ describe("moldura de celular", () => {
     expect(html).not.toMatch(/https?:\/\//);
   });
 
-  it("não estampa relógio nem barras de sinal (dado inventado na foto do lead)", () => {
-    const html = htmlMoldura(CELULAR);
-    expect(html).not.toMatch(/\d{1,2}:\d{2}/);
+  it("não estampa relógio, ilha nem botão — a moldura é borda e canto, nada mais", () => {
+    const moldura = soAMoldura(htmlMoldura(CELULAR));
+    expect(moldura).not.toMatch(/\d{1,2}:\d{2}/);
+    // Sem gradiente no corpo: gradiente ali é brilho de fotografia de
+    // produto, e o objetivo é ler como site num celular, não como retrato
+    // de um aparelho.
+    expect(moldura).not.toContain("gradient");
   });
 
   it("aponta para a captura crua pelo caminho relativo recebido", () => {

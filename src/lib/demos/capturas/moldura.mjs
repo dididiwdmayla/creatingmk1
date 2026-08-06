@@ -50,15 +50,15 @@ const PALETA_RESERVA = {
  *
  * @typedef {object} MedidasCelular
  * @property {"celular"} tela
+ * @property {"aparelho" | "cartao"} modo como esta captura é emoldurada
  * @property {number} largura composição inteira, com a margem de fundo
  * @property {number} altura
  * @property {number} margem
- * @property {number} borda aro externo do corpo
- * @property {number} bisel moldura preta em volta da tela
- * @property {number} faixa faixa de status desenhada, ACIMA da captura
- * @property {number} raioTela
- * @property {number} raioCorpo
- * @property {{ largura: number, altura: number }} ilha
+ * @property {number} borda espessura da moldura
+ * @property {number} raio raio dos cantos da tela
+ * @property {number} alturaVisivel altura da tela na composição
+ * @property {boolean} cortada sobrou captura fora do enquadramento?
+ * @property {number} folga sobra de tela preenchida com o fundo da demo
  *
  * @typedef {object} MedidasDesktop
  * @property {"desktop"} tela
@@ -133,40 +133,69 @@ export function fundoClaro(paleta) {
 }
 
 /**
- * Medidas da composição, derivadas SÓ da largura do PNG cru — nunca da
- * altura. Uma seção de três telas vira um aparelho comprido, e é isso
- * mesmo: encolher a captura até caber na proporção de um celular de
- * verdade deixaria o texto da demo ilegível, que é o contrário do que a
- * imagem existe para fazer.
+ * Proporção de tela de aparelho, de reserva: 19,5:9, a de qualquer celular
+ * atual. Só entra quando quem chama não informa a altura da tela — o motor
+ * informa, e a viewport dele (390×844) JÁ É a proporção de um aparelho de
+ * verdade.
+ */
+export const PROPORCAO_APARELHO = 19.5 / 9;
+
+/** Folga de arredondamento ao comparar a captura com uma tela cheia. */
+const TOLERANCIA_UMA_TELA = 8;
+
+/**
+ * Medidas da composição.
  *
- * @param {{ tela: "celular" | "desktop", largura: number, altura: number }} captura
+ * **A moldura de aparelho tem SEMPRE proporção de aparelho real.** Antes
+ * ela esticava para caber a seção inteira, e uma seção de três telas virava
+ * um celular de 1:4 — proporção que não existe, e que denuncia a montagem
+ * na hora. A altura de uma tela não é inventada aqui: vem do motor, cuja
+ * viewport de celular (390×844, dpr 2) já é a de um aparelho de verdade.
+ *
+ * Captura mais alta que uma tela não cabe num aparelho, então ela não ganha
+ * aparelho nenhum: sai num **cartão** — borda fina, cantos arredondados,
+ * sem chrome de aparelho — com a seção inteira. Ver "Moldura de celular" em
+ * ARCHITECTURE.md para a comparação que decidiu isso.
+ *
+ * @param {{
+ *   tela: "celular" | "desktop",
+ *   largura: number,
+ *   altura: number,
+ *   alturaTela?: number,
+ * }} captura
  * @returns {MedidasCelular | MedidasDesktop}
  */
-export function medidasMoldura({ tela, largura, altura }) {
+export function medidasMoldura({ tela, largura, altura, alturaTela }) {
   if (tela === "celular") {
-    const borda = Math.round(largura * 0.01);
-    const bisel = Math.round(largura * 0.026);
-    const margem = Math.round(largura * 0.08);
-    // Faixa de status DESENHADA, acima da captura — a ilha não pousa sobre
-    // o conteúdo. O portão `tituloCoberto` do motor reprova a captura crua
-    // quando sobra qualquer coisa por cima do título da seção; sobrepor a
-    // ilha na composta desfaria essa garantia em silêncio.
-    const faixa = Math.round(largura * 0.085);
-    const moldura = {
-      largura: largura + 2 * (borda + bisel),
-      altura: altura + faixa + 2 * (borda + bisel),
-    };
+    const umaTela = Math.round(alturaTela ?? largura * PROPORCAO_APARELHO);
+    const modo = altura <= umaTela + TOLERANCIA_UMA_TELA ? "aparelho" : "cartao";
+    // No aparelho a tela tem SEMPRE uma tela de altura, mesmo que a seção
+    // seja mais curta: uma seção de 0,6 tela numa moldura de 0,6 tela vira
+    // um celular atarracado (1:1,5), que é a mesma proporção impossível do
+    // celular esticado, só do outro lado. A sobra é preenchida com o fundo
+    // da PRÓPRIA demo — é o que um aparelho de verdade mostraria acima e
+    // abaixo de uma seção curta, porque a página continua.
+    const alturaVisivel = modo === "aparelho" ? umaTela : altura;
+
+    // Moldura fina nos dois modos; o que muda é o RAIO. Canto muito
+    // arredondado é o que lê como aparelho, e é justamente o que o cartão
+    // não deve prometer.
+    const borda = Math.max(2, Math.round(largura * (modo === "aparelho" ? 0.013 : 0.006)));
+    const raio = Math.round(largura * (modo === "aparelho" ? 0.092 : 0.026));
+    const margem = Math.round(largura * 0.07);
+
     return {
       tela: "celular",
-      largura: moldura.largura + 2 * margem,
-      altura: moldura.altura + 2 * margem,
+      modo,
+      largura: largura + 2 * (borda + margem),
+      altura: alturaVisivel + 2 * (borda + margem),
       margem,
       borda,
-      bisel,
-      faixa,
-      raioTela: Math.round(largura * 0.1),
-      raioCorpo: Math.round(largura * 0.1) + bisel + borda,
-      ilha: { largura: Math.round(largura * 0.17), altura: Math.round(largura * 0.048) },
+      raio,
+      alturaVisivel,
+      cortada: alturaVisivel < altura,
+      /** Sobra de tela a preencher com o fundo da demo (só no aparelho). */
+      folga: Math.max(0, alturaVisivel - altura),
     };
   }
 
@@ -227,21 +256,26 @@ export function fundoDaComposicao(paleta) {
  * o endereço real da demo (ver APP_PUBLIC_URL). Vazio, a pastilha sai vazia:
  * uma janela sem endereço é honesta, um domínio inventado não.
  *
+ * `alturaTela` é a altura de UMA tela do aparelho, em pixel — é o que
+ * decide se a captura ganha moldura de aparelho ou de cartão (ver
+ * `medidasMoldura`). Quem chama sabe: é a viewport do motor.
+ *
  * @param {{
  *   tela: "celular" | "desktop",
  *   src: string,
  *   largura: number,
  *   altura: number,
+ *   alturaTela?: number,
  *   endereco?: string,
  *   paleta?: PaletaDemo,
  * }} composicao
  * @returns {string}
  */
-export function htmlMoldura({ tela, src, largura, altura, endereco, paleta }) {
-  const m = medidasMoldura({ tela, largura, altura });
+export function htmlMoldura({ tela, src, largura, altura, alturaTela, endereco, paleta }) {
+  const m = medidasMoldura({ tela, largura, altura, alturaTela });
   const corpo =
     m.tela === "celular"
-      ? corpoCelular(m, src, fundoClaro(paleta))
+      ? corpoCelular(m, src, largura, altura, paleta, fundoClaro(paleta))
       : molduraNavegador(m, src, endereco, fundoClaro(paleta));
 
   return `<!doctype html>
@@ -260,61 +294,55 @@ export function htmlMoldura({ tela, src, largura, altura, endereco, paleta }) {
 }
 
 /**
- * APARELHO. Sem barra de endereço em canto nenhum: isto é um telefone, não
- * um navegador — quem recebe a foto não precisa (nem deve) ler URL aqui.
+ * APARELHO ou CARTÃO — a moldura de celular, reduzida ao essencial: borda
+ * fina, cantos arredondados, nada mais.
  *
- * O corpo é grafite fixo com aro de luz: um aparelho é um OBJETO, e sua cor
- * não muda com a marca do lead. O que separa o objeto do fundo é o aro mais
- * a sombra, e é por isso que o aro engrossa quando o fundo é escuro.
+ * O que saiu, e por quê: o corpo grafite com gradiente (era brilho de
+ * fotografia de produto), a ilha e a faixa de status (entalhe desenhado é
+ * enfeite, e a faixa ainda empurrava a captura pra baixo), os botões
+ * laterais. Sem barra de endereço em canto nenhum — isto não é um
+ * navegador, e quem recebe a foto não precisa ler URL aqui. O objetivo é
+ * ler como "site num celular", não como retrato de um aparelho.
+ *
+ * O que separa a moldura do fundo é a borda mais uma sombra fraca; a borda
+ * é escura e chapada nos dois modos, porque uma tela de celular tem beirada
+ * escura em qualquer aparelho, e chapada não vira brilho.
+ *
+ * @param {MedidasCelular} m
+ * @param {string} src
+ * @param {number} largura largura do PNG cru
+ * @param {number} altura altura do PNG cru (pode passar do enquadramento)
+ * @param {PaletaDemo | undefined} paleta
+ * @param {boolean} claro
+ * @returns {string}
  */
-function corpoCelular(m, src, claro) {
-  const aro = claro ? "rgba(255,255,255,.10)" : "rgba(255,255,255,.20)";
-  const botao = "rgba(255,255,255,.13)";
-  const larguraBotao = Math.max(2, Math.round(m.borda * 0.8));
-  const alturaBotao = Math.round(m.ilha.largura * 0.55);
-  const saliencia = Math.max(1, Math.round(m.borda * 0.5));
+function corpoCelular(m, src, largura, altura, paleta, claro) {
+  const aro = claro ? "rgba(0,0,0,.22)" : "rgba(255,255,255,.14)";
+  // A sobra da tela é o FUNDO DA DEMO, não preto: preto viraria tarja de
+  // letterbox, e o que se quer é a página continuando fora da seção.
+  const fundoTela = paleta?.fundo || "#000";
 
   return `
   <div style="
-    position: relative;
-    width: ${m.largura - 2 * m.margem}px; height: ${m.altura - 2 * m.margem}px;
-    border-radius: ${m.raioCorpo}px;
-    padding: ${m.borda + m.bisel}px;
-    background: linear-gradient(150deg, #3a3f47 0%, #16181d 22%, #101216 78%, #2b3038 100%);
+    width: ${largura + 2 * m.borda}px; height: ${m.alturaVisivel + 2 * m.borda}px;
+    border-radius: ${m.raio + m.borda}px;
+    padding: ${m.borda}px;
+    background: #15171b;
     box-shadow:
-      0 0 0 ${Math.max(1, Math.round(m.borda * 0.35))}px ${aro},
-      0 ${Math.round(m.margem * 0.5)}px ${Math.round(m.margem * 1.6)}px rgba(0,0,0,.5);
+      0 0 0 1px ${aro},
+      0 ${Math.round(m.margem * 0.35)}px ${Math.round(m.margem * 1.1)}px rgba(0,0,0,.38);
   ">
-    <!-- Botões laterais: perto do topo, onde ficam num aparelho de verdade.
-         Numa captura de três telas o corpo estica, mas eles NÃO acompanham
-         — botão esticado no meio do aparelho denuncia o desenho. -->
-    <div style="position:absolute; left:-${saliencia}px; top:${Math.round(alturaBotao * 1.4)}px;
-      width:${larguraBotao}px; height:${Math.round(alturaBotao * 0.45)}px;
-      border-radius:${larguraBotao}px; background:${botao};"></div>
-    <div style="position:absolute; left:-${saliencia}px; top:${Math.round(alturaBotao * 2.3)}px;
-      width:${larguraBotao}px; height:${alturaBotao}px;
-      border-radius:${larguraBotao}px; background:${botao};"></div>
-    <div style="position:absolute; left:-${saliencia}px; top:${Math.round(alturaBotao * 3.6)}px;
-      width:${larguraBotao}px; height:${alturaBotao}px;
-      border-radius:${larguraBotao}px; background:${botao};"></div>
-    <div style="position:absolute; right:-${saliencia}px; top:${Math.round(alturaBotao * 2.6)}px;
-      width:${larguraBotao}px; height:${Math.round(alturaBotao * 1.5)}px;
-      border-radius:${larguraBotao}px; background:${botao};"></div>
-
+    <!-- A captura nunca é REDUZIDA para caber: reduzir encolheria o texto
+         da demo, que é o que a imagem existe pra mostrar. No aparelho ela
+         cabe inteira por definição (é o que define o modo) e é centrada na
+         tela; no cartão a tela tem a altura dela. -->
     <div style="
-      position: relative; overflow: hidden;
-      width: 100%; height: 100%;
-      border-radius: ${m.raioTela}px;
-      background: #000;
+      overflow: hidden;
+      width: ${largura}px; height: ${m.alturaVisivel}px;
+      border-radius: ${m.raio}px;
+      background: ${fundoTela};
+      display: flex; align-items: center; justify-content: center;
     ">
-      <!-- Faixa de status: a ilha mora AQUI, acima da captura, e não em
-           cima dela. Sem relógio nem ícones de sinal — hora e barras de
-           rede desenhadas são dado falso decorando a foto do lead. -->
-      <div style="height:${m.faixa}px; display:flex; align-items:center; justify-content:center;">
-        <div style="width:${m.ilha.largura}px; height:${m.ilha.altura}px;
-          border-radius:${m.ilha.altura}px; background:#000;
-          box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);"></div>
-      </div>
       <img class="captura" src="${escapar(src)}" alt="">
     </div>
   </div>`;

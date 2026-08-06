@@ -64,11 +64,11 @@ import { CHROMIUM, RAIZ, subirServidor } from "./qa-servidor.mjs";
 /** Teto de viewport (a textura do Chromium tem limite; nenhuma seção chega perto). */
 const ALTURA_MAX = 12000;
 /**
- * Teto da COMPOSIÇÃO. A moldura acrescenta faixa de status e bisel à
- * captura, então uma seção já perto do teto acima pode passar do limite de
- * textura do Chromium (16384px) depois de emoldurada. Passando disto, a
- * crua sai e a composta não — melhor faltar a moldura de uma imagem do que
- * subir um PNG cortado pela metade sem ninguém perceber.
+ * Teto da COMPOSIÇÃO. A moldura acrescenta borda e margem à captura, então
+ * uma seção já perto do teto acima pode passar do limite de textura do
+ * Chromium (16384px) depois de emoldurada. Passando disto, a crua sai e a
+ * composta não — melhor faltar a moldura de uma imagem do que subir um PNG
+ * cortado pela metade sem ninguém perceber.
  */
 const ALTURA_MAX_MOLDURA = 15800;
 
@@ -336,8 +336,8 @@ async function capturar(page, alvo, ancora, tela, destino) {
  * relativo. Embutir a captura como `data:` URI custaria uma string base64
  * do tamanho do arquivo a cada imagem, sem ganho nenhum.
  */
-async function comporMoldura(pagina, { tela, arquivo, largura, altura, endereco, paleta }) {
-  const m = medidasMoldura({ tela, largura, altura });
+async function comporMoldura(pagina, { tela, arquivo, largura, altura, alturaTela, endereco, paleta }) {
+  const m = medidasMoldura({ tela, largura, altura, alturaTela });
   if (m.altura > ALTURA_MAX_MOLDURA) {
     return { erro: `composição de ${m.altura}px passa do teto de textura (${ALTURA_MAX_MOLDURA}px)` };
   }
@@ -346,7 +346,7 @@ async function comporMoldura(pagina, { tela, arquivo, largura, altura, endereco,
   const paginaHtml = path.join(SAIDA, `${arquivo}.moldura.html`);
   await fs.writeFile(
     paginaHtml,
-    htmlMoldura({ tela, src: `./${arquivo}`, largura, altura, endereco, paleta }),
+    htmlMoldura({ tela, src: `./${arquivo}`, largura, altura, alturaTela, endereco, paleta }),
   );
 
   try {
@@ -366,7 +366,15 @@ async function comporMoldura(pagina, { tela, arquivo, largura, altura, endereco,
     );
     const destino = path.join(SAIDA, arquivoComposto);
     await pagina.screenshot({ path: destino, fullPage: true });
-    return { arquivo: arquivoComposto, caminhoLocal: destino, largura: m.largura, altura: m.altura };
+    return {
+      arquivo: arquivoComposto,
+      caminhoLocal: destino,
+      largura: m.largura,
+      altura: m.altura,
+      // `modo`/`cortada` só existem no celular; no desktop a janela sempre
+      // cabe a captura inteira.
+      ...(m.tela === "celular" ? { modo: m.modo, cortada: m.cortada } : {}),
+    };
   } finally {
     await fs.unlink(paginaHtml).catch(() => undefined);
   }
@@ -560,6 +568,11 @@ async function main() {
             // jogaria fora exatamente essa nitidez.
             largura: r.caixa.width * tela.dpr,
             altura: r.caixa.height * tela.dpr,
+            // A altura de UMA tela do aparelho, em pixel. É o que decide se
+            // a captura ganha moldura de aparelho (proporção real) ou de
+            // cartão — e não é número inventado: a viewport de celular do
+            // motor já é a de um aparelho de verdade.
+            alturaTela: tela.altura * tela.dpr,
             endereco: alvo.enderecoPublico,
             paleta: r.paleta ?? undefined,
           }).catch((e) => ({ erro: e instanceof Error ? e.message : String(e) }));
@@ -593,7 +606,8 @@ async function main() {
               (r.texto.estavel ? "" : " · ⚠ texto ainda mudava") +
               ` · título "${r.portao.titulo ?? "—"}"${alerta}` +
               (entradaImagem.composta
-                ? ` · moldura ${entradaImagem.composta.largura}×${entradaImagem.composta.altura}`
+                ? ` · moldura ${entradaImagem.composta.modo ?? "janela"}` +
+                  ` ${entradaImagem.composta.largura}×${entradaImagem.composta.altura}`
                 : " · ✗ sem moldura"),
           );
         }
