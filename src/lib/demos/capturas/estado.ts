@@ -51,6 +51,23 @@ export interface CapturaImagem {
   composta?: CapturaComposta;
 }
 
+/**
+ * A IMAGEM DE PRÉVIA DO LINK — o cartão que aparece quando alguém cola o
+ * endereço da demo numa conversa (o `og:image` de `/demo/{leadId}`).
+ *
+ * Uma por lead, não uma por âncora: é a prévia do SITE. Gerada junto com
+ * as capturas e guardada no Storage porque o buscador de prévia do
+ * WhatsApp não executa JavaScript e desiste depressa — a imagem tem que
+ * existir pronta num endereço direto, sem o app renderizar nada na hora.
+ */
+export interface CapturaPrevia {
+  url: string;
+  largura: number;
+  altura: number;
+  /** O nome que a composição escreveu — o mesmo do lead, salvo pra conferir. */
+  nome?: string;
+}
+
 /** `lead.capturas` — sempre a ÚLTIMA geração pedida, sobrescrita a cada refazer. */
 export interface LeadCapturas {
   estado: CapturaEstado;
@@ -73,6 +90,12 @@ export interface LeadCapturas {
   /** Link do run no GitHub, pra depurar uma falha sem adivinhação. */
   runUrl?: string;
   imagens?: CapturaImagem[];
+  /**
+   * Ausente = a rota pública serve o recurso de reserva no lugar (ver
+   * `/demo/{leadId}/previa`). Nunca fica sem nada: um cartão de conversa
+   * sem imagem é pior que um cartão simples.
+   */
+  previa?: CapturaPrevia;
 }
 
 /**

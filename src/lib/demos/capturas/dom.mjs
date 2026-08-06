@@ -407,6 +407,26 @@ export function paletaDaPagina(secaoId, win = window) {
 }
 
 /**
+ * TÍTULO E DESCRIÇÃO que a própria demo declara — o que a prévia do link
+ * usa como linha de apoio ao lado do nome do negócio.
+ *
+ * Sai do `<head>` da página em vez de ser remontado no motor: quem escreve
+ * esses dois textos é o `generateMetadata` da rota pública, a partir do
+ * lead. Recalcular aqui abriria a porta pra a prévia dizer uma coisa e a
+ * página dizer outra.
+ *
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ titulo: string, descricao: string }}
+ */
+export function identidadeDaPagina(win = window) {
+  const meta = win.document.querySelector('meta[name="description"]');
+  return {
+    titulo: (win.document.title ?? "").trim(),
+    descricao: (meta?.getAttribute("content") ?? "").trim(),
+  };
+}
+
+/**
  * Força as imagens DA SEÇÃO a carregar, inclusive as que o lazy-load nunca
  * pediria: as que vivem fora do campo de visão HORIZONTAL, dentro de
  * galerias e carrosséis arrastáveis (a galeria da barbearia2 saía com 2 de

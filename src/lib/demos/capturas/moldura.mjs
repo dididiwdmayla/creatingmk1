@@ -185,15 +185,30 @@ export function medidasMoldura({ tela, largura, altura }) {
   };
 }
 
-function escapar(texto) {
+/**
+ * Escape de HTML. Exportado porque a prévia do link (./previa.mjs) monta a
+ * própria página com o NOME DO NEGÓCIO dentro — texto de terceiro, que
+ * nunca pode virar marcação.
+ *
+ * @param {string} texto
+ * @returns {string}
+ */
+export function escapar(texto) {
   return String(texto).replace(
     /[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
   );
 }
 
-/** Fundo da composição: a paleta da PRÓPRIA demo, nunca uma cor da plataforma. */
-function fundoDaComposicao(paleta) {
+/**
+ * Fundo da composição: a paleta da PRÓPRIA demo, nunca uma cor da
+ * plataforma. Compartilhado com a prévia do link, que é composta sobre o
+ * mesmo fundo pelo mesmo motivo.
+ *
+ * @param {PaletaDemo | undefined} paleta
+ * @returns {string} bloco CSS de `background`
+ */
+export function fundoDaComposicao(paleta) {
   const p = { ...PALETA_RESERVA, ...(paleta ?? {}) };
   return `
     background:
@@ -227,7 +242,7 @@ export function htmlMoldura({ tela, src, largura, altura, endereco, paleta }) {
   const corpo =
     m.tela === "celular"
       ? corpoCelular(m, src, fundoClaro(paleta))
-      : corpoDesktop(m, src, endereco, fundoClaro(paleta));
+      : molduraNavegador(m, src, endereco, fundoClaro(paleta));
 
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -310,12 +325,18 @@ function corpoCelular(m, src, claro) {
  * vai receber. Sem `APP_PUBLIC_URL` configurada (ou no harness de skin, que
  * não tem lead), a pastilha sai VAZIA em vez de com um domínio inventado.
  *
+ * Exportada porque a prévia do link reaproveita ESTA janela, reduzida:
+ * duas implementações de cromo de navegador divergiriam no primeiro
+ * ajuste, e aí a moldura da galeria e a do cartão de conversa passariam a
+ * mostrar navegadores diferentes do mesmo site.
+ *
  * @param {MedidasDesktop} m
  * @param {string} src
  * @param {string | undefined} endereco
  * @param {boolean} claro
+ * @returns {string}
  */
-function corpoDesktop(m, src, endereco, claro) {
+export function molduraNavegador(m, src, endereco, claro) {
   const cromo = claro
     ? { fundo: "#e9ebee", borda: "rgba(0,0,0,.10)", pastilha: "#ffffff", texto: "#3c4043", suave: "#80868b" }
     : { fundo: "#24272c", borda: "rgba(255,255,255,.10)", pastilha: "#15171a", texto: "#e3e6ea", suave: "#9aa0a6" };

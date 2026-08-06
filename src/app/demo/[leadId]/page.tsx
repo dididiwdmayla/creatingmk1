@@ -7,6 +7,7 @@ import { classificarVisitaInterna, DEVICE_COOKIE } from "@/lib/device";
 import { BarraNavegador } from "@/lib/demos/barra/BarraNavegador";
 import { barraModoEfetivo, corDaBarra } from "@/lib/demos/barra/modos";
 import { cssPlanoDaPagina } from "@/lib/demos/barra/plano";
+import { PREVIA_ALTURA, PREVIA_LARGURA } from "@/lib/demos/capturas/previa.mjs";
 import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
@@ -86,16 +87,70 @@ async function loadDemo(leadId: string) {
     efeitoCores: theme.efeitoCores,
     auraCores: lead.demo.tema?.auraCores,
   });
-  return { skin, theme, data, idioma, moeda, extraFontClassName, efeitoFundo, camada };
+  return { skin, theme, data, idioma, moeda, extraFontClassName, efeitoFundo, camada, lead };
 }
 
+/**
+ * Endereço absoluto desta instalação, montado dos cabeçalhos da requisição.
+ *
+ * O `og:image` precisa ser absoluto — cliente de mensagens não resolve
+ * caminho relativo. Sai dos cabeçalhos em vez de uma variável de ambiente
+ * porque a rota já é `force-dynamic` e assim o link funciona igual em
+ * produção, em preview de deploy e em desenvolvimento, sem configurar nada.
+ */
+async function origemDaRequisicao(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const protocolo = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${protocolo}://${host}`;
+}
+
+/**
+ * METADADOS DO CARTÃO DE CONVERSA. Título e descrição saem do próprio
+ * lead; a imagem é a prévia composta pelo motor (ver `capturas/previa.mjs`).
+ *
+ * A imagem aponta DIRETO para o Storage quando existe: é um arquivo
+ * pronto, servido pela CDN, e o buscador de prévia do WhatsApp não executa
+ * JavaScript e desiste depressa — qualquer salto a mais é tempo que ele
+ * pode não esperar. Enquanto ela não existe (demo recém-salva, capturas
+ * ainda não rodadas), o endereço é o do recurso de RESERVA
+ * (`/demo/{leadId}/previa`), nunca nada: um cartão sem imagem é pior que
+ * um cartão simples.
+ */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { leadId } = await params;
   const demo = await loadDemo(leadId).catch(() => undefined);
   if (!demo) return { title: "Demo" };
+
+  const titulo = demo.data.slogan ? `${demo.data.nome} — ${demo.data.slogan}` : demo.data.nome;
+  const descricao = demo.data.secoes.hero?.texto;
+  const previa = demo.lead.capturas?.previa;
+  const imagem = previa
+    ? { url: previa.url, width: previa.largura, height: previa.altura }
+    : {
+        url: `${await origemDaRequisicao()}/demo/${encodeURIComponent(leadId)}/previa`,
+        width: PREVIA_LARGURA,
+        height: PREVIA_ALTURA,
+      };
+
   return {
-    title: demo.data.slogan ? `${demo.data.nome} — ${demo.data.slogan}` : demo.data.nome,
-    description: demo.data.secoes.hero?.texto,
+    title: titulo,
+    description: descricao,
+    openGraph: {
+      title: titulo,
+      description: descricao,
+      type: "website",
+      images: [{ ...imagem, alt: `${demo.data.nome} — prévia do site` }],
+    },
+    // Sem isto o cartão sai com a imagem em miniatura quadrada, e o nome
+    // do negócio (que é o que a composição existe pra mostrar) fica
+    // pequeno demais para ler.
+    twitter: {
+      card: "summary_large_image",
+      title: titulo,
+      description: descricao,
+      images: [imagem.url],
+    },
     // Prévia de prospecção: nunca indexar.
     robots: { index: false, follow: false },
   };

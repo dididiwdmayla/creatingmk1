@@ -37,6 +37,7 @@ import {
   congelarAnimacoes,
   fixarUnidadesDeTela,
   forcarImagensDaSecao,
+  identidadeDaPagina,
   imagensDaSecao,
   medirSecao,
   neutralizarCromo,
@@ -46,6 +47,11 @@ import {
   tituloCoberto,
 } from "../src/lib/demos/capturas/dom.mjs";
 import { htmlMoldura, medidasMoldura, nomeComposto } from "../src/lib/demos/capturas/moldura.mjs";
+import {
+  htmlPrevia,
+  PREVIA_ALTURA,
+  PREVIA_LARGURA,
+} from "../src/lib/demos/capturas/previa.mjs";
 import { ANCORAS_PADRAO } from "../src/lib/demos/capturas/padrao.mjs";
 import { CHROMIUM, RAIZ, subirServidor } from "./qa-servidor.mjs";
 
@@ -74,6 +80,18 @@ const ALTURA_MAX_MOLDURA = 15800;
  * `enderecoExibido` em moldura.mjs) — inventar domínio é pior que não ter.
  */
 const APP_PUBLIC_URL = (process.env.APP_PUBLIC_URL ?? "").trim().replace(/\/+$/, "");
+
+/**
+ * Carimbo desta rodada. Entra no nome da prévia e como `?v=` nas URLs
+ * gravadas no lead — é o que faz uma rodada nova aparecer.
+ *
+ * Os objetos sobem com cache IMUTÁVEL de um ano (é seguro: ninguém edita
+ * um PNG no lugar). Só que o caminho de cada captura é determinístico, e
+ * sem uma versão na URL o "Refazer" trocaria o arquivo no Storage enquanto
+ * navegador e buscador de prévia continuariam servindo o antigo — a ficha
+ * mostrando a rodada passada e o WhatsApp, um cartão que já não existe.
+ */
+const CARIMBO = Date.now();
 
 const TELAS = [
   { id: "desktop", largura: 1440, altura: 900, dpr: 1 },
@@ -136,6 +154,11 @@ async function resolverAlvos(base, cookie) {
         nome: leadId,
         leadId,
         skinId,
+        // O NOME DO NEGÓCIO, que a prévia do link escreve em tipo grande —
+        // é o nome do lead, o mesmo que aparece na ficha. Ler do doc em vez
+        // de tirar do print é o que faz o nome continuar legível quando o
+        // cartão de conversa encolhe a imagem.
+        nomeNegocio: lead?.nome,
         // Sem `?t=`: token é para envio ao lead, e uma captura interna não
         // pode entrar na timeline de visitas da demo dele.
         url: `${base}/demo/${encodeURIComponent(leadId)}`,
@@ -343,6 +366,113 @@ async function comporMoldura(pagina, { tela, arquivo, largura, altura, endereco,
   }
 }
 
+/**
+ * O TOPO DO SITE, numa viewport de desktop e sem rolagem — a matéria-prima
+ * da prévia do link.
+ *
+ * Duas diferenças deliberadas em relação à captura por âncora:
+ *
+ *   - o cromo NÃO é neutralizado. Cabeçalho e nav fixos são parte do topo
+ *     de um site; escondê-los aqui entregaria uma página decapitada.
+ *   - o recorte é a viewport inteira, não a caixa de uma seção: o que a
+ *     prévia mostra é "a primeira tela", não uma seção específica.
+ *
+ * O resto é o mesmo tratamento das outras: varrer para disparar revelações
+ * e lazy-load, prender as unidades de tela, congelar a animação — e então
+ * VOLTAR AO TOPO, porque `prepararPagina` termina a varredura no fim da
+ * página e capturar dali mostraria o rodapé.
+ */
+async function capturarTopo(page, alvo, tela, destino) {
+  await page.setViewportSize({ width: tela.largura, height: tela.altura });
+  await page.goto(alvo.url, { waitUntil: "networkidle" });
+  await page.evaluate(prepararPagina, { alturaTela: tela.altura });
+  await page.evaluate(fixarUnidadesDeTela);
+  await page.evaluate(congelarAnimacoes, {
+    fasePorEfeito: FASE_POR_EFEITO,
+    efeitoId: new URL(alvo.url).searchParams.get("efeito") ?? undefined,
+  });
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.waitForTimeout(400);
+
+  const identidade = await page.evaluate(identidadeDaPagina);
+  // A paleta sai da primeira âncora (o hero em toda skin): as variáveis
+  // `--d-*` vivem na raiz do componente da skin, e `getComputedStyle` do
+  // `<body>` não as enxerga — propriedade customizada herda para baixo.
+  const paleta = alvo.ancoras[0]
+    ? await page.evaluate(paletaDaPagina, alvo.ancoras[0])
+    : null;
+
+  await page.screenshot({ path: destino });
+  return { identidade, paleta };
+}
+
+/**
+ * A prévia composta: janela de navegador com o topo do site à direita,
+ * NOME DO NEGÓCIO em tipo grande à esquerda. Ver `capturas/previa.mjs`
+ * para o porquê de cada decisão do desenho.
+ *
+ * Sai em **JPEG**, não PNG: o WhatsApp descarta prévia grande, e 1200×630
+ * de screenshot em PNG passa de 1MB com folga. Em JPEG de qualidade 82 a
+ * mesma imagem fica na casa das centenas de KB — e a prévia precisa chegar
+ * rápido, não ser perfeita ao pixel.
+ */
+async function comporPrevia(pagina, { arquivoTopo, largura, altura, arquivo, ...resto }) {
+  const paginaHtml = path.join(SAIDA, `${arquivo}.previa.html`);
+  await fs.writeFile(paginaHtml, htmlPrevia({ src: `./${arquivoTopo}`, largura, altura, ...resto }));
+
+  try {
+    await pagina.setViewportSize({ width: PREVIA_LARGURA, height: PREVIA_ALTURA });
+    await pagina.goto(`file://${paginaHtml}`, { waitUntil: "load" });
+    await pagina.waitForFunction(
+      () => {
+        const img = document.querySelector("img.captura");
+        return Boolean(img && img.complete && img.naturalWidth > 0);
+      },
+      undefined,
+      { timeout: 20000 },
+    );
+    const destino = path.join(SAIDA, arquivo);
+    await pagina.screenshot({ path: destino, type: "jpeg", quality: 82 });
+    return { arquivo, caminhoLocal: destino, largura: PREVIA_LARGURA, altura: PREVIA_ALTURA };
+  } finally {
+    await fs.unlink(paginaHtml).catch(() => undefined);
+  }
+}
+
+/**
+ * Capturar o topo e compor a prévia, na ordem. O nome vem do DOC DO LEAD
+ * (o mesmo da ficha); só na falta dele — o harness de skin, que não tem
+ * lead — cai no título que a própria página declara. A linha de apoio é a
+ * descrição da demo, escrita pelo `generateMetadata` da rota pública a
+ * partir do lead: recalcular aqui deixaria a prévia dizendo uma coisa e a
+ * página outra.
+ */
+async function gerarPrevia(page, paginaMoldura, alvo, tela) {
+  const arquivoTopo = `${alvo.nome}-previa-topo.png`;
+  const { identidade, paleta } = await capturarTopo(
+    page,
+    alvo,
+    tela,
+    path.join(SAIDA, arquivoTopo),
+  );
+  const nome = alvo.nomeNegocio?.trim() || identidade.titulo || alvo.nome;
+
+  const composta = await comporPrevia(paginaMoldura, {
+    arquivoTopo,
+    largura: tela.largura,
+    altura: tela.altura,
+    // O CARIMBO no nome do arquivo é o que fura o cache da prévia do
+    // WhatsApp: ele guarda a imagem pela URL, e uma rodada nova no mesmo
+    // caminho continuaria servindo a antiga pra sempre.
+    arquivo: `${alvo.nome}-previa-${CARIMBO}.jpg`,
+    nome,
+    apoio: identidade.descricao,
+    endereco: alvo.enderecoPublico,
+    paleta: paleta ?? undefined,
+  });
+  return { ...composta, nome };
+}
+
 async function main() {
   const { base, cookie, encerrar } = await subirServidor({ build: !temFlag("sem-build") });
   await fs.mkdir(SAIDA, { recursive: true });
@@ -450,6 +580,24 @@ async function main() {
                 : " · ✗ sem moldura"),
           );
         }
+
+        // A PRÉVIA DO LINK sai do contexto de desktop, depois das âncoras:
+        // é o único que já está na viewport de 1440×900 em dpr 1, que é o
+        // enquadramento do topo do site. Uma tela só, e não uma por
+        // âncora — a prévia é do site, não de uma seção.
+        if (tela.id === "desktop") {
+          const previa = await gerarPrevia(page, paginaMoldura, alvo, tela).catch((e) => ({
+            erro: e instanceof Error ? e.message : String(e),
+          }));
+          if (previa.erro) {
+            reprovadas.push(`${alvo.nome}/prévia: ${previa.erro}`);
+            console.log(`  ✗ prévia do link: ${previa.erro}`);
+          } else {
+            manifesto.get(alvo.nome).previa = previa;
+            console.log(`  ok prévia do link: ${previa.largura}×${previa.altura} · "${previa.nome}"`);
+          }
+        }
+
         await ctx.close();
       }
     }
@@ -524,17 +672,23 @@ async function subirParaStorage(entradas) {
    * bloqueado. Não atrapalha a miniatura: `<img src>` ignora
    * Content-Disposition.
    */
-  const subir = async (caminho, caminhoLocal, contentType) => {
+  const subir = async (caminho, caminhoLocal, contentType, { inline = false } = {}) => {
     await bucket.file(caminho).save(await fs.readFile(caminhoLocal), {
       contentType,
       resumable: false,
       public: true,
       metadata: {
         cacheControl: "public, max-age=31536000, immutable",
-        contentDisposition: `attachment; filename="${path.basename(caminho)}"`,
+        contentDisposition: inline
+          ? "inline"
+          : `attachment; filename="${path.basename(caminho)}"`,
       },
     });
-    const url = `https://storage.googleapis.com/${bucketName}/${caminho}`;
+    // `?v=` é o que faz uma rodada nova aparecer: o objeto sobe com cache
+    // imutável e o caminho é determinístico, então sem a versão o
+    // "Refazer" trocaria o arquivo enquanto navegador e buscador de prévia
+    // seguiriam servindo o antigo (ver CARIMBO).
+    const url = `https://storage.googleapis.com/${bucketName}/${caminho}?v=${CARIMBO}`;
     console.log(`  ↑ ${url}`);
     return url;
   };
@@ -553,6 +707,17 @@ async function subirParaStorage(entradas) {
           "image/png",
         );
       }
+    }
+    // A prévia do link é servida ao BUSCADOR DE PRÉVIA, não baixada por
+    // ninguém: `inline`, e não `attachment`, porque um `Content-Disposition`
+    // de anexo faz parte dos clientes recusarem a imagem do cartão.
+    if (entrada.previa) {
+      entrada.previa.url = await subir(
+        `capturas/${pasta}/${entrada.previa.arquivo}`,
+        entrada.previa.caminhoLocal,
+        "image/jpeg",
+        { inline: true },
+      );
     }
   }
 }
