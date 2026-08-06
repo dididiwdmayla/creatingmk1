@@ -65,6 +65,12 @@ jobs:
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          # Endereço público do Radar — o que a moldura de navegador exibe
+          # na captura de desktop. Não é segredo (é o link que o lead
+          # recebe), então uma `vars` do repositório basta; aceita secret
+          # também para quem já cadastrou tudo lá. Ausente, a pastilha de
+          # endereço sai vazia — a moldura nunca inventa domínio.
+          APP_PUBLIC_URL: ${{ vars.APP_PUBLIC_URL || secrets.APP_PUBLIC_URL }}
           # `subirServidor` sorteia um APP_PASSWORD efêmero por rodada e
           # assina o cookie de sessão com ele — o app do runner nunca usa a
           # senha de produção, e o cookie só serve pra ler /api/leads e

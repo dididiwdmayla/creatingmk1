@@ -186,7 +186,35 @@ async function main() {
         url: i.url,
         largura: i.largura,
         altura: i.altura,
+        // A versão em moldura só entra se de fato subiu. Gravar a chave com
+        // `undefined` derruba a escrita no Firestore, e gravá-la sem `url`
+        // faria a ficha oferecer um download que responde 404.
+        ...(i.composta?.url
+          ? {
+              composta: {
+                url: i.composta.url,
+                largura: i.composta.largura,
+                altura: i.composta.altura,
+              },
+            }
+          : {}),
       })),
+      // A prévia do link é do lead, não de uma âncora — e é opcional pela
+      // mesma razão que a moldura: se ela não saiu, a rota pública serve o
+      // recurso de reserva, e as capturas continuam boas. `null` explícito
+      // quando não saiu: o patch é mesclado sobre o estado anterior, e
+      // omitir a chave deixaria a prévia da rodada PASSADA apontando para
+      // um objeto que o motor já apagou do Storage.
+      ...(entrada?.previa?.url
+        ? {
+            previa: {
+              url: entrada.previa.url,
+              largura: entrada.previa.largura,
+              altura: entrada.previa.altura,
+              ...(entrada.previa.nome ? { nome: entrada.previa.nome } : {}),
+            },
+          }
+        : { previa: null }),
       // Uma âncora que reprovou no portão não invalida as outras, mas o
       // operador precisa saber que faltou uma — senão ele conta 4 imagens
       // onde esperava 6 e não sabe por quê.

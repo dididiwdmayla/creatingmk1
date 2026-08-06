@@ -370,6 +370,113 @@ export function fixarUnidadesDeTela(win = window) {
 }
 
 /**
+ * A PALETA DA DEMO, lida da própria página — é o fundo sobre o qual a
+ * moldura é composta (ver `capturas/moldura.mjs`).
+ *
+ * Sai do elemento da seção, e não do `<html>`: cada skin declara as
+ * variáveis `--d-*` na raiz do SEU componente, não no documento. Como
+ * propriedade customizada é herdada, ler de um descendente devolve o valor
+ * vigente — e a seção capturada é, por definição, um descendente.
+ *
+ * Compor sobre uma cor da plataforma seria carimbar o Radar na imagem que
+ * vai pro lead; o fundo tem que ser da marca DELE. Seção inexistente
+ * devolve `null` e quem chama cai no fundo de reserva, em vez de compor
+ * sobre preto sem avisar.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ fundo: string, fundoAlt: string, fundoElevado: string, destaque: string, texto: string } | null}
+ */
+export function paletaDaPagina(secaoId, win = window) {
+  const el = Array.from(win.document.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  const alvo = el ?? win.document.body;
+  if (!alvo) return null;
+  const estilo = win.getComputedStyle(alvo);
+  const ler = (nome) => estilo.getPropertyValue(nome).trim();
+  const fundo = ler("--d-bg");
+  if (!fundo) return null;
+  return {
+    fundo,
+    fundoAlt: ler("--d-bg-alt") || fundo,
+    fundoElevado: ler("--d-bg-elev") || fundo,
+    destaque: ler("--d-accent") || fundo,
+    texto: ler("--d-text") || "#ffffff",
+  };
+}
+
+/**
+ * Espera o TEXTO parar de mudar — a defesa contra animação de texto feita
+ * em JavaScript, que `congelarAnimacoes` não alcança.
+ *
+ * O caso que a descobriu: o hero da barbearia escreve o título com uma
+ * máquina de escrever montada em `setTimeout` + estado do React
+ * (`TypewriterText`), não em WAAPI. Congelar animação não a toca, e o
+ * disparo pegava o título pela metade — a captura de desktop saiu com
+ * "BARBEARIA DOM AUR|" no lugar do nome do negócio, que é justamente o que
+ * a imagem existe pra mostrar. No celular passava por acidente: a seção
+ * mais alta que a tela faz o motor crescer a viewport e preparar a página
+ * de novo, e esse tempo a mais dava pro texto terminar. Verificação por
+ * captura de um lead real é o que separou os dois casos.
+ *
+ * Genérica de propósito: qualquer skin que anime texto por JS cai aqui,
+ * sem o motor precisar conhecer o componente.
+ *
+ * @param {{ secaoId?: string, quietoMs?: number, limiteMs?: number }} opcoes
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {Promise<{ estavel: boolean, esperouMs: number }>}
+ */
+export async function esperarTextoEstavel({ secaoId, quietoMs = 500, limiteMs = 6000 } = {}, win = window) {
+  const doc = win.document;
+  const alvo = secaoId
+    ? Array.from(doc.querySelectorAll("[data-d-secao]")).find(
+        (n) => n.getAttribute("data-d-secao") === secaoId,
+      ) ?? doc.body
+    : doc.body;
+
+  const inicio = Date.now();
+  let anterior = alvo.textContent ?? "";
+  let paradoDesde = Date.now();
+
+  while (Date.now() - inicio < limiteMs) {
+    await new Promise((r) => setTimeout(r, 100));
+    const atual = alvo.textContent ?? "";
+    if (atual !== anterior) {
+      anterior = atual;
+      paradoDesde = Date.now();
+      continue;
+    }
+    if (Date.now() - paradoDesde >= quietoMs) {
+      return { estavel: true, esperouMs: Date.now() - inicio };
+    }
+  }
+  // Texto que nunca para (marquee escrito em JS, contador infinito) não
+  // pode travar a rodada: a captura sai com a ressalva.
+  return { estavel: false, esperouMs: Date.now() - inicio };
+}
+
+/**
+ * TÍTULO E DESCRIÇÃO que a própria demo declara — o que a prévia do link
+ * usa como linha de apoio ao lado do nome do negócio.
+ *
+ * Sai do `<head>` da página em vez de ser remontado no motor: quem escreve
+ * esses dois textos é o `generateMetadata` da rota pública, a partir do
+ * lead. Recalcular aqui abriria a porta pra a prévia dizer uma coisa e a
+ * página dizer outra.
+ *
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ titulo: string, descricao: string }}
+ */
+export function identidadeDaPagina(win = window) {
+  const meta = win.document.querySelector('meta[name="description"]');
+  return {
+    titulo: (win.document.title ?? "").trim(),
+    descricao: (meta?.getAttribute("content") ?? "").trim(),
+  };
+}
+
+/**
  * Força as imagens DA SEÇÃO a carregar, inclusive as que o lazy-load nunca
  * pediria: as que vivem fora do campo de visão HORIZONTAL, dentro de
  * galerias e carrosséis arrastáveis (a galeria da barbearia2 saía com 2 de

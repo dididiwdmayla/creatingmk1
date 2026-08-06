@@ -93,7 +93,12 @@ export function CapturasSecao({ lead }: { lead: Lead }) {
               olhar e baixar é o que o operador vem fazer aqui; refazer é a
               exceção. */}
           {visivel.estado === "pronto" && capturas?.imagens && (
-            <GaleriaCapturas imagens={capturas.imagens} nomeLead={lead.nome} />
+            <GaleriaCapturas
+              imagens={capturas.imagens}
+              nomeLead={lead.nome}
+              leadId={lead.placeId}
+              previa={capturas.previa}
+            />
           )}
 
           {/* Rodada parcial: algumas âncoras saíram, outras reprovaram no
