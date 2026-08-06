@@ -7,8 +7,11 @@ import {
   escritaAindaVale,
   estadoVisivel,
   mensagemDisparoLote,
-  porAncora,
+  nomeDoPacote,
+  nomeNoPacote,
+  porTela,
   semNoticia,
+  versaoDaImagem,
   type CapturaImagem,
   type LeadCapturas,
 } from "../estado";
@@ -129,7 +132,7 @@ describe("escritaAindaVale", () => {
   });
 });
 
-describe("porAncora", () => {
+describe("porTela", () => {
   const imgs: CapturaImagem[] = [
     { ancora: "servicos", tela: "desktop", ordem: 2, url: "s-d", largura: 1440, altura: 1149 },
     { ancora: "hero", tela: "celular", ordem: 1, url: "h-c", largura: 390, altura: 844 },
@@ -137,22 +140,78 @@ describe("porAncora", () => {
     { ancora: "hero", tela: "desktop", ordem: 1, url: "h-d", largura: 1440, altura: 900 },
   ];
 
-  it("agrupa as duas telas por âncora, na ordem da marcação", () => {
-    const grupos = porAncora(imgs);
-    expect(grupos.map((g) => g.ancora)).toEqual(["hero", "servicos"]);
-    expect(grupos[0].telas.celular?.url).toBe("h-c");
-    expect(grupos[0].telas.desktop?.url).toBe("h-d");
-    expect(grupos[1].telas.celular?.url).toBe("s-c");
+  it("separa as duas telas, cada uma na ordem da marcação", () => {
+    const grupos = porTela(imgs);
+    expect(grupos.celular.map((i) => i.url)).toEqual(["h-c", "s-c"]);
+    expect(grupos.desktop.map((i) => i.url)).toEqual(["h-d", "s-d"]);
   });
 
-  it("âncora com uma tela só (a outra reprovou no portão) continua listada", () => {
-    const grupos = porAncora([imgs[1]]);
-    expect(grupos).toHaveLength(1);
-    expect(grupos[0].telas.desktop).toBeUndefined();
+  it("grupo vazio é grupo vazio, não chave ausente — a ficha diz qual tela não saiu", () => {
+    const grupos = porTela([imgs[1]]);
+    expect(grupos.celular).toHaveLength(1);
+    expect(grupos.desktop).toEqual([]);
   });
 
   it("lista vazia não quebra", () => {
-    expect(porAncora([])).toEqual([]);
+    expect(porTela([])).toEqual({ celular: [], desktop: [] });
+  });
+});
+
+describe("versaoDaImagem", () => {
+  const crua: CapturaImagem = {
+    ancora: "hero",
+    tela: "celular",
+    ordem: 1,
+    url: "crua.png",
+    largura: 780,
+    altura: 1688,
+  };
+  const comMoldura: CapturaImagem = {
+    ...crua,
+    composta: { url: "moldura.png", largura: 960, altura: 1934 },
+  };
+
+  it("devolve a versão pedida com as medidas dela", () => {
+    expect(versaoDaImagem(comMoldura, "crua")?.url).toBe("crua.png");
+    expect(versaoDaImagem(comMoldura, "moldura")).toEqual({
+      url: "moldura.png",
+      largura: 960,
+      altura: 1934,
+    });
+  });
+
+  it("sem a versão pedida devolve undefined — NUNCA cai calada na outra", () => {
+    expect(versaoDaImagem(crua, "moldura")).toBeUndefined();
+  });
+});
+
+describe("nomes de download", () => {
+  const imagem: CapturaImagem = {
+    ancora: "hero",
+    tela: "celular",
+    ordem: 1,
+    url: "x",
+    largura: 780,
+    altura: 1688,
+  };
+
+  it("o nome dentro do pacote é legível, não o id do lugar", () => {
+    expect(nomeNoPacote(imagem, "Barbearia Norte", "moldura")).toBe(
+      "barbearia-norte-celular-01-hero-moldura.png",
+    );
+    expect(nomeNoPacote(imagem, "Barbearia Norte", "crua")).toBe(
+      "barbearia-norte-celular-01-hero.png",
+    );
+  });
+
+  it("acento, pontuação e espaço viram nome de arquivo seguro", () => {
+    expect(nomeDoPacote("Açaí & Cia. — Sarandi", "celular", "crua")).toBe(
+      "acai-cia-sarandi-celular.zip",
+    );
+  });
+
+  it("nome que some inteiro na limpeza ainda gera um arquivo nomeável", () => {
+    expect(nomeDoPacote("!!!", "tudo", "moldura")).toBe("lead-capturas-moldura.zip");
   });
 });
 

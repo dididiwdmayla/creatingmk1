@@ -193,18 +193,84 @@ export function escritaAindaVale(
   return atual.execucaoId === execucaoId;
 }
 
-/** Agrupa as imagens por âncora, na ordem da marcação — como a ficha exibe. */
-export function porAncora(
-  imagens: CapturaImagem[],
-): Array<{ ancora: string; ordem: number; telas: Partial<Record<CapturaTela, CapturaImagem>> }> {
-  const mapa = new Map<string, { ancora: string; ordem: number; telas: Partial<Record<CapturaTela, CapturaImagem>> }>();
+/**
+ * Qual das duas versões de uma captura está em jogo — a alternância da
+ * galeria, e também o que o pacote de download leva dentro.
+ */
+export const CAPTURA_VERSOES = ["crua", "moldura"] as const;
+export type CapturaVersao = (typeof CAPTURA_VERSOES)[number];
+
+export function ehVersao(valor: string | null | undefined): valor is CapturaVersao {
+  return CAPTURA_VERSOES.includes(valor as CapturaVersao);
+}
+
+/**
+ * A imagem na versão pedida. Devolve `undefined` quando ESTA captura não
+ * tem aquela versão (composição que falhou, ou rodada anterior ao
+ * compositor) — nunca cai calada na outra: a galeria mostra o vão, e o
+ * pacote de download sai com menos arquivos e diz quantos.
+ */
+export function versaoDaImagem(
+  imagem: CapturaImagem,
+  versao: CapturaVersao,
+): CapturaComposta | undefined {
+  if (versao === "moldura") return imagem.composta;
+  return { url: imagem.url, largura: imagem.largura, altura: imagem.altura };
+}
+
+/**
+ * Agrupa por TELA, cada grupo na ordem da marcação — como a ficha exibe.
+ *
+ * A ficha agrupava por âncora, com as duas telas lado a lado. Agrupar por
+ * tela é o que casa com o uso: quem manda print no WhatsApp manda a
+ * sequência de celular OU a de desktop, nunca uma de cada.
+ */
+export function porTela(imagens: CapturaImagem[]): Record<CapturaTela, CapturaImagem[]> {
+  const saida = { celular: [] as CapturaImagem[], desktop: [] as CapturaImagem[] };
   for (const img of imagens) {
-    const grupo = mapa.get(img.ancora) ?? { ancora: img.ancora, ordem: img.ordem, telas: {} };
-    grupo.telas[img.tela] = img;
-    grupo.ordem = Math.min(grupo.ordem, img.ordem);
-    mapa.set(img.ancora, grupo);
+    if (img.tela === "celular" || img.tela === "desktop") saida[img.tela].push(img);
   }
-  return [...mapa.values()].sort((a, b) => a.ordem - b.ordem);
+  for (const tela of CAPTURA_TELAS) saida[tela].sort((a, b) => a.ordem - b.ordem);
+  return saida;
+}
+
+/** Nome de arquivo seguro a partir do nome do negócio. */
+function apelido(texto: string): string {
+  return (
+    texto
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "lead"
+  );
+}
+
+/**
+ * Nome de uma captura DENTRO do pacote. Legível de propósito: quem abre o
+ * zip precisa saber o que é cada arquivo sem abrir um por um, e o nome no
+ * Storage (`{placeId}-01-hero-celular.png`) começa com um id que não diz
+ * nada a ninguém.
+ */
+export function nomeNoPacote(
+  imagem: CapturaImagem,
+  nomeLead: string,
+  versao: CapturaVersao,
+): string {
+  const sufixo = versao === "moldura" ? "-moldura" : "";
+  const ordem = String(imagem.ordem).padStart(2, "0");
+  return `${apelido(nomeLead)}-${imagem.tela}-${ordem}-${imagem.ancora}${sufixo}.png`;
+}
+
+/** Nome do pacote em si — o arquivo que o operador vê na pasta de downloads. */
+export function nomeDoPacote(
+  nomeLead: string,
+  grupo: CapturaTela | "tudo",
+  versao: CapturaVersao,
+): string {
+  const parte = grupo === "tudo" ? "capturas" : grupo;
+  return `${apelido(nomeLead)}-${parte}${versao === "moldura" ? "-moldura" : ""}.zip`;
 }
 
 /**
