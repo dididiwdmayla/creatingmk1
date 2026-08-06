@@ -1,0 +1,382 @@
+/**
+ * MOLDURAS DAS CAPTURAS — a segunda versão de cada print, aquela em que a
+ * imagem finalmente se lê como "um site num aparelho".
+ *
+ * A captura crua é conteúdo puro: começa e termina no pixel da seção, sem
+ * nada em volta. Numa conversa de prospecção ela parece um recorte de
+ * imagem qualquer. A composta põe a captura de celular dentro de um
+ * APARELHO desenhado e a de desktop dentro de um NAVEGADOR desenhado — as
+ * duas ficam guardadas, porque a crua ainda é a que serve pra recortar,
+ * montar carrossel e mandar detalhe.
+ *
+ * QUEM DESENHA É O PRÓPRIO CHROMIUM que o motor já tem aberto: este módulo
+ * monta uma página HTML com a captura dentro da moldura, e "compor" é tirar
+ * um screenshot dela. Nenhuma dependência de rasterização entra no projeto
+ * por causa disto, e a moldura vira código de layout — verificável em teste
+ * e olhável em captura, como o resto da feature.
+ *
+ * A composição é montada em dpr 1 nas DIMENSÕES EM PIXEL do PNG cru, então
+ * a captura entra 1:1: não há reamostragem e o texto da demo chega na
+ * moldura com a mesma nitidez com que saiu do motor.
+ *
+ * `.mjs` pelo mesmo motivo de `dom.mjs` e `padrao.mjs`: `scripts/capturas.mjs`
+ * não compila TypeScript.
+ */
+
+/** Sufixo do arquivo composto, ao lado do cru (ver `nomeComposto`). */
+export const MOLDURA_SUFIXO = "-moldura";
+
+/** Fundo de emergência quando a paleta da demo não pôde ser lida. */
+const PALETA_RESERVA = {
+  fundo: "#111318",
+  fundoAlt: "#171a20",
+  fundoElevado: "#1f232b",
+  destaque: "#6b7280",
+};
+
+/**
+ * @typedef {object} PaletaDemo
+ * @property {string} fundo
+ * @property {string} [fundoAlt]
+ * @property {string} [fundoElevado]
+ * @property {string} [destaque]
+ * @property {string} [texto]
+ */
+
+/**
+ * As medidas saem DISCRIMINADAS por tela (o campo `tela` volta no
+ * resultado): as duas molduras não têm as mesmas partes, e um retorno
+ * único com `barra: 0` no celular seria um número mentiroso circulando.
+ *
+ * @typedef {object} MedidasCelular
+ * @property {"celular"} tela
+ * @property {number} largura composição inteira, com a margem de fundo
+ * @property {number} altura
+ * @property {number} margem
+ * @property {number} borda aro externo do corpo
+ * @property {number} bisel moldura preta em volta da tela
+ * @property {number} faixa faixa de status desenhada, ACIMA da captura
+ * @property {number} raioTela
+ * @property {number} raioCorpo
+ * @property {{ largura: number, altura: number }} ilha
+ *
+ * @typedef {object} MedidasDesktop
+ * @property {"desktop"} tela
+ * @property {number} largura
+ * @property {number} altura
+ * @property {number} margem
+ * @property {number} barra altura da barra do navegador
+ * @property {number} raio
+ * @property {number} ponto diâmetro dos três círculos
+ * @property {number} pastilha altura do campo de endereço
+ * @property {number} fonte
+ */
+
+/**
+ * `hero-celular.png` → `hero-celular-moldura.png`.
+ * @param {string} arquivo
+ * @returns {string}
+ */
+export function nomeComposto(arquivo) {
+  return arquivo.replace(/\.png$/i, `${MOLDURA_SUFIXO}.png`);
+}
+
+/**
+ * Luminância relativa (0..1) de uma cor CSS em `#rgb`, `#rrggbb` ou
+ * `rgb()/rgba()` — que é como `getComputedStyle` devolve as variáveis da
+ * demo. Serve para UMA decisão só: se o cromo da moldura sai claro ou
+ * escuro. Uma janela de navegador clara sobre uma demo clara (ou escura
+ * sobre a tatuagem, que é quase preta) desaparece no fundo, e aí a moldura
+ * deixa de ser moldura.
+ *
+ * Cor que não dá pra ler devolve `null` — quem chama decide, em vez de
+ * receber um preto silencioso.
+ *
+ * @param {string | undefined} cor
+ * @returns {number | null}
+ */
+export function luminancia(cor) {
+  if (typeof cor !== "string") return null;
+  const texto = cor.trim().toLowerCase();
+  let rgb = null;
+
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(texto);
+  if (hex) {
+    const d = hex[1];
+    const largo = d.length === 3 ? [...d].map((c) => c + c) : [d.slice(0, 2), d.slice(2, 4), d.slice(4, 6)];
+    rgb = largo.map((p) => parseInt(p, 16));
+  }
+  const func = /^rgba?\(([^)]+)\)$/.exec(texto);
+  if (func) {
+    const partes = func[1].split(/[\s,/]+/).filter(Boolean).slice(0, 3).map(Number);
+    if (partes.length === 3 && partes.every(Number.isFinite)) rgb = partes;
+  }
+  if (!rgb) return null;
+
+  // Mesma curva sRGB de lib/demos/barra/srgb.ts, reescrita aqui porque
+  // aquele módulo é TypeScript e este arquivo é lido por um script `.mjs`.
+  const linear = rgb.map((v) => {
+    const c = Math.min(255, Math.max(0, v)) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+/**
+ * O fundo desta composição é claro? (decide o cromo, ver `luminancia`)
+ * @param {PaletaDemo | undefined} paleta
+ * @returns {boolean}
+ */
+export function fundoClaro(paleta) {
+  const l = luminancia(paleta?.fundoAlt) ?? luminancia(paleta?.fundo);
+  return l !== null && l > 0.45;
+}
+
+/**
+ * Medidas da composição, derivadas SÓ da largura do PNG cru — nunca da
+ * altura. Uma seção de três telas vira um aparelho comprido, e é isso
+ * mesmo: encolher a captura até caber na proporção de um celular de
+ * verdade deixaria o texto da demo ilegível, que é o contrário do que a
+ * imagem existe para fazer.
+ *
+ * @param {{ tela: "celular" | "desktop", largura: number, altura: number }} captura
+ * @returns {MedidasCelular | MedidasDesktop}
+ */
+export function medidasMoldura({ tela, largura, altura }) {
+  if (tela === "celular") {
+    const borda = Math.round(largura * 0.01);
+    const bisel = Math.round(largura * 0.026);
+    const margem = Math.round(largura * 0.08);
+    // Faixa de status DESENHADA, acima da captura — a ilha não pousa sobre
+    // o conteúdo. O portão `tituloCoberto` do motor reprova a captura crua
+    // quando sobra qualquer coisa por cima do título da seção; sobrepor a
+    // ilha na composta desfaria essa garantia em silêncio.
+    const faixa = Math.round(largura * 0.085);
+    const moldura = {
+      largura: largura + 2 * (borda + bisel),
+      altura: altura + faixa + 2 * (borda + bisel),
+    };
+    return {
+      tela: "celular",
+      largura: moldura.largura + 2 * margem,
+      altura: moldura.altura + 2 * margem,
+      margem,
+      borda,
+      bisel,
+      faixa,
+      raioTela: Math.round(largura * 0.1),
+      raioCorpo: Math.round(largura * 0.1) + bisel + borda,
+      ilha: { largura: Math.round(largura * 0.17), altura: Math.round(largura * 0.048) },
+    };
+  }
+
+  const barra = Math.round(largura * 0.034);
+  const margem = Math.round(largura * 0.038);
+  return {
+    tela: "desktop",
+    largura: largura + 2 * margem,
+    altura: altura + barra + 2 * margem,
+    margem,
+    barra,
+    raio: Math.round(largura * 0.011),
+    ponto: Math.round(largura * 0.0092),
+    pastilha: Math.round(barra * 0.62),
+    fonte: Math.round(barra * 0.36),
+  };
+}
+
+function escapar(texto) {
+  return String(texto).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
+}
+
+/** Fundo da composição: a paleta da PRÓPRIA demo, nunca uma cor da plataforma. */
+function fundoDaComposicao(paleta) {
+  const p = { ...PALETA_RESERVA, ...(paleta ?? {}) };
+  return `
+    background:
+      radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, ${p.destaque} 16%, ${p.fundoElevado}) 0%, transparent 60%),
+      linear-gradient(168deg, ${p.fundoAlt} 0%, ${p.fundo} 55%, color-mix(in srgb, ${p.fundo} 82%, black) 100%);
+  `;
+}
+
+/**
+ * A página da composição. `src` é o caminho da captura crua RELATIVO ao
+ * HTML (os dois são escritos no mesmo diretório e abertos por `file://`) —
+ * embutir um PNG de vários MB como `data:` URI custaria uma string base64
+ * de tamanho equivalente a cada imagem, sem ganho nenhum.
+ *
+ * `endereco` só existe na moldura de navegador, e SÓ quando se sabe qual é
+ * o endereço real da demo (ver APP_PUBLIC_URL). Vazio, a pastilha sai vazia:
+ * uma janela sem endereço é honesta, um domínio inventado não.
+ *
+ * @param {{
+ *   tela: "celular" | "desktop",
+ *   src: string,
+ *   largura: number,
+ *   altura: number,
+ *   endereco?: string,
+ *   paleta?: PaletaDemo,
+ * }} composicao
+ * @returns {string}
+ */
+export function htmlMoldura({ tela, src, largura, altura, endereco, paleta }) {
+  const m = medidasMoldura({ tela, largura, altura });
+  const corpo =
+    m.tela === "celular"
+      ? corpoCelular(m, src, fundoClaro(paleta))
+      : corpoDesktop(m, src, endereco, fundoClaro(paleta));
+
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: ${m.largura}px; height: ${m.altura}px; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    ${fundoDaComposicao(paleta)}
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "DejaVu Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .captura { display: block; width: ${largura}px; height: ${altura}px; }
+</style></head>
+<body>${corpo}</body></html>`;
+}
+
+/**
+ * APARELHO. Sem barra de endereço em canto nenhum: isto é um telefone, não
+ * um navegador — quem recebe a foto não precisa (nem deve) ler URL aqui.
+ *
+ * O corpo é grafite fixo com aro de luz: um aparelho é um OBJETO, e sua cor
+ * não muda com a marca do lead. O que separa o objeto do fundo é o aro mais
+ * a sombra, e é por isso que o aro engrossa quando o fundo é escuro.
+ */
+function corpoCelular(m, src, claro) {
+  const aro = claro ? "rgba(255,255,255,.10)" : "rgba(255,255,255,.20)";
+  const botao = "rgba(255,255,255,.13)";
+  const larguraBotao = Math.max(2, Math.round(m.borda * 0.8));
+  const alturaBotao = Math.round(m.ilha.largura * 0.55);
+  const saliencia = Math.max(1, Math.round(m.borda * 0.5));
+
+  return `
+  <div style="
+    position: relative;
+    width: ${m.largura - 2 * m.margem}px; height: ${m.altura - 2 * m.margem}px;
+    border-radius: ${m.raioCorpo}px;
+    padding: ${m.borda + m.bisel}px;
+    background: linear-gradient(150deg, #3a3f47 0%, #16181d 22%, #101216 78%, #2b3038 100%);
+    box-shadow:
+      0 0 0 ${Math.max(1, Math.round(m.borda * 0.35))}px ${aro},
+      0 ${Math.round(m.margem * 0.5)}px ${Math.round(m.margem * 1.6)}px rgba(0,0,0,.5);
+  ">
+    <!-- Botões laterais: perto do topo, onde ficam num aparelho de verdade.
+         Numa captura de três telas o corpo estica, mas eles NÃO acompanham
+         — botão esticado no meio do aparelho denuncia o desenho. -->
+    <div style="position:absolute; left:-${saliencia}px; top:${Math.round(alturaBotao * 1.4)}px;
+      width:${larguraBotao}px; height:${Math.round(alturaBotao * 0.45)}px;
+      border-radius:${larguraBotao}px; background:${botao};"></div>
+    <div style="position:absolute; left:-${saliencia}px; top:${Math.round(alturaBotao * 2.3)}px;
+      width:${larguraBotao}px; height:${alturaBotao}px;
+      border-radius:${larguraBotao}px; background:${botao};"></div>
+    <div style="position:absolute; left:-${saliencia}px; top:${Math.round(alturaBotao * 3.6)}px;
+      width:${larguraBotao}px; height:${alturaBotao}px;
+      border-radius:${larguraBotao}px; background:${botao};"></div>
+    <div style="position:absolute; right:-${saliencia}px; top:${Math.round(alturaBotao * 2.6)}px;
+      width:${larguraBotao}px; height:${Math.round(alturaBotao * 1.5)}px;
+      border-radius:${larguraBotao}px; background:${botao};"></div>
+
+    <div style="
+      position: relative; overflow: hidden;
+      width: 100%; height: 100%;
+      border-radius: ${m.raioTela}px;
+      background: #000;
+    ">
+      <!-- Faixa de status: a ilha mora AQUI, acima da captura, e não em
+           cima dela. Sem relógio nem ícones de sinal — hora e barras de
+           rede desenhadas são dado falso decorando a foto do lead. -->
+      <div style="height:${m.faixa}px; display:flex; align-items:center; justify-content:center;">
+        <div style="width:${m.ilha.largura}px; height:${m.ilha.altura}px;
+          border-radius:${m.ilha.altura}px; background:#000;
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);"></div>
+      </div>
+      <img class="captura" src="${escapar(src)}" alt="">
+    </div>
+  </div>`;
+}
+
+/**
+ * NAVEGADOR. O endereço é o da demo de verdade — o mesmo link que o lead
+ * vai receber. Sem `APP_PUBLIC_URL` configurada (ou no harness de skin, que
+ * não tem lead), a pastilha sai VAZIA em vez de com um domínio inventado.
+ *
+ * @param {MedidasDesktop} m
+ * @param {string} src
+ * @param {string | undefined} endereco
+ * @param {boolean} claro
+ */
+function corpoDesktop(m, src, endereco, claro) {
+  const cromo = claro
+    ? { fundo: "#e9ebee", borda: "rgba(0,0,0,.10)", pastilha: "#ffffff", texto: "#3c4043", suave: "#80868b" }
+    : { fundo: "#24272c", borda: "rgba(255,255,255,.10)", pastilha: "#15171a", texto: "#e3e6ea", suave: "#9aa0a6" };
+  const largura = m.largura - 2 * m.margem;
+  const url = enderecoExibido(endereco);
+
+  return `
+  <div style="
+    width: ${largura}px; height: ${m.altura - 2 * m.margem}px;
+    border-radius: ${m.raio}px; overflow: hidden;
+    box-shadow:
+      0 0 0 1px ${cromo.borda},
+      0 ${Math.round(m.margem * 0.4)}px ${Math.round(m.margem * 1.5)}px rgba(0,0,0,.45);
+  ">
+    <div style="
+      height:${m.barra}px; display:flex; align-items:center; gap:${Math.round(m.ponto * 0.8)}px;
+      padding: 0 ${Math.round(m.barra * 0.4)}px; background:${cromo.fundo};
+      border-bottom: 1px solid ${cromo.borda};
+    ">
+      <span style="width:${m.ponto}px;height:${m.ponto}px;border-radius:50%;background:#ff5f57;flex:none;"></span>
+      <span style="width:${m.ponto}px;height:${m.ponto}px;border-radius:50%;background:#febc2e;flex:none;"></span>
+      <span style="width:${m.ponto}px;height:${m.ponto}px;border-radius:50%;background:#28c840;flex:none;"></span>
+      <div style="
+        margin-left:${Math.round(m.barra * 0.5)}px; flex:1; max-width:${Math.round(largura * 0.62)}px;
+        height:${m.pastilha}px; border-radius:${m.pastilha}px; background:${cromo.pastilha};
+        border:1px solid ${cromo.borda};
+        display:flex; align-items:center; gap:${Math.round(m.fonte * 0.45)}px;
+        padding: 0 ${Math.round(m.pastilha * 0.42)}px;
+        font-size:${m.fonte}px; color:${cromo.texto}; white-space:nowrap; overflow:hidden;
+      ">
+        ${url ? cadeado(m.fonte, cromo.suave) : ""}
+        <span style="overflow:hidden; text-overflow:ellipsis;">${
+          url ? `<span style="color:${cromo.suave}">${escapar(url.antes)}</span>${escapar(url.host)}<span style="color:${cromo.suave}">${escapar(url.depois)}</span>` : ""
+        }</span>
+      </div>
+    </div>
+    <img class="captura" src="${escapar(src)}" alt="">
+  </div>`;
+}
+
+function cadeado(tamanho, cor) {
+  const t = Math.round(tamanho * 0.85);
+  return `<svg width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="${cor}" stroke-width="2.2"
+    stroke-linecap="round" stroke-linejoin="round" style="flex:none;">
+    <rect x="4" y="10" width="16" height="11" rx="2.5"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>`;
+}
+
+/**
+ * O endereço como um navegador o mostra: esquema apagado, host em
+ * destaque, caminho apagado. Endereço ausente ou impossível de ler devolve
+ * `null` — e a pastilha fica vazia.
+ *
+ * @param {string | undefined} endereco
+ * @returns {{ antes: string, host: string, depois: string } | null}
+ */
+export function enderecoExibido(endereco) {
+  if (typeof endereco !== "string" || endereco.trim() === "") return null;
+  try {
+    const u = new URL(endereco);
+    return { antes: u.protocol === "http:" ? "http://" : "", host: u.host, depois: `${u.pathname}${u.search}` };
+  } catch {
+    return null;
+  }
+}

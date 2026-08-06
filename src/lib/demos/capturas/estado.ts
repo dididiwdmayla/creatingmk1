@@ -19,6 +19,13 @@ export type CapturaEstado = (typeof CAPTURA_ESTADOS)[number];
 export const CAPTURA_TELAS = ["celular", "desktop"] as const;
 export type CapturaTela = (typeof CAPTURA_TELAS)[number];
 
+/** A versão COMPOSTA de uma captura — a mesma imagem dentro da moldura. */
+export interface CapturaComposta {
+  url: string;
+  largura: number;
+  altura: number;
+}
+
 /** Uma imagem pronta no Storage. */
 export interface CapturaImagem {
   /** Id da seção-âncora que virou esta imagem (ver ./ancoras.ts). */
@@ -29,6 +36,19 @@ export interface CapturaImagem {
   url: string;
   largura: number;
   altura: number;
+  /**
+   * A MESMA captura dentro da moldura desenhada — aparelho no celular,
+   * janela de navegador no desktop (ver `capturas/moldura.mjs`). As duas
+   * ficam guardadas porque servem a coisas diferentes: a composta é a que
+   * se lê como "um site num aparelho" numa conversa, a crua é a que se
+   * recorta, monta em carrossel e manda como detalhe.
+   *
+   * Ausente = a composição daquela imagem não saiu (ou a rodada é anterior
+   * ao compositor). A galeria trata isso como vão explícito, nunca troca
+   * calada pela crua: dizer "esta não tem moldura" é informação; entregar
+   * a crua no lugar dela, sem avisar, é mentira pequena.
+   */
+  composta?: CapturaComposta;
 }
 
 /** `lead.capturas` — sempre a ÚLTIMA geração pedida, sobrescrita a cada refazer. */

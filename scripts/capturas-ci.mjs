@@ -186,6 +186,18 @@ async function main() {
         url: i.url,
         largura: i.largura,
         altura: i.altura,
+        // A versão em moldura só entra se de fato subiu. Gravar a chave com
+        // `undefined` derruba a escrita no Firestore, e gravá-la sem `url`
+        // faria a ficha oferecer um download que responde 404.
+        ...(i.composta?.url
+          ? {
+              composta: {
+                url: i.composta.url,
+                largura: i.composta.largura,
+                altura: i.composta.altura,
+              },
+            }
+          : {}),
       })),
       // Uma âncora que reprovou no portão não invalida as outras, mas o
       // operador precisa saber que faltou uma — senão ele conta 4 imagens

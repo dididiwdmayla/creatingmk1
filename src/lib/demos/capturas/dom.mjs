@@ -370,6 +370,43 @@ export function fixarUnidadesDeTela(win = window) {
 }
 
 /**
+ * A PALETA DA DEMO, lida da própria página — é o fundo sobre o qual a
+ * moldura é composta (ver `capturas/moldura.mjs`).
+ *
+ * Sai do elemento da seção, e não do `<html>`: cada skin declara as
+ * variáveis `--d-*` na raiz do SEU componente, não no documento. Como
+ * propriedade customizada é herdada, ler de um descendente devolve o valor
+ * vigente — e a seção capturada é, por definição, um descendente.
+ *
+ * Compor sobre uma cor da plataforma seria carimbar o Radar na imagem que
+ * vai pro lead; o fundo tem que ser da marca DELE. Seção inexistente
+ * devolve `null` e quem chama cai no fundo de reserva, em vez de compor
+ * sobre preto sem avisar.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ fundo: string, fundoAlt: string, fundoElevado: string, destaque: string, texto: string } | null}
+ */
+export function paletaDaPagina(secaoId, win = window) {
+  const el = Array.from(win.document.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  const alvo = el ?? win.document.body;
+  if (!alvo) return null;
+  const estilo = win.getComputedStyle(alvo);
+  const ler = (nome) => estilo.getPropertyValue(nome).trim();
+  const fundo = ler("--d-bg");
+  if (!fundo) return null;
+  return {
+    fundo,
+    fundoAlt: ler("--d-bg-alt") || fundo,
+    fundoElevado: ler("--d-bg-elev") || fundo,
+    destaque: ler("--d-accent") || fundo,
+    texto: ler("--d-text") || "#ffffff",
+  };
+}
+
+/**
  * Força as imagens DA SEÇÃO a carregar, inclusive as que o lazy-load nunca
  * pediria: as que vivem fora do campo de visão HORIZONTAL, dentro de
  * galerias e carrosséis arrastáveis (a galeria da barbearia2 saía com 2 de
