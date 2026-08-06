@@ -9,7 +9,13 @@ import type { ThemePaleta } from "@/lib/demos/types";
  * `ImageResponse` renderiza no servidor com Satori + Resvg: **nenhum
  * JavaScript roda no cliente**, que é a condição do buscador de prévia do
  * WhatsApp. A fonte padrão vem embutida no pacote do Next — não há busca
- * de fonte na rede, que é o que faria a primeira resposta demorar.
+ * de fonte na rede, que é o que faria a primeira resposta demorar. Medido:
+ * 162ms na primeira chamada, 26ms na segunda.
+ *
+ * Só que a face embutida é a REGULAR: o `fontWeight` abaixo não engorda
+ * nada, e quem carrega a legibilidade é o corpo do tipo. Fica declarado
+ * porque é a intenção, e passa a valer sozinho no dia em que uma face
+ * negrito entrar.
  *
  * Fica num `.tsx` separado da rota porque route handler é `.ts`: o JSX
  * precisa de um módulo que o compilador trate como React.

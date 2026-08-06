@@ -19,7 +19,14 @@ export type CapturaEstado = (typeof CAPTURA_ESTADOS)[number];
 export const CAPTURA_TELAS = ["celular", "desktop"] as const;
 export type CapturaTela = (typeof CAPTURA_TELAS)[number];
 
-/** A versão COMPOSTA de uma captura — a mesma imagem dentro da moldura. */
+/**
+ * A versão COMPOSTA de uma captura — a mesma imagem dentro da moldura.
+ *
+ * As medidas aqui são as do ARQUIVO, em pixel. Não batem com as da captura
+ * crua ao lado (que são a caixa medida, em px de CSS): no celular o PNG
+ * sai com o dobro delas, porque a captura é em dpr 2. Só a proporção
+ * importa para quem exibe, mas o número aqui é o do arquivo de verdade.
+ */
 export interface CapturaComposta {
   url: string;
   largura: number;

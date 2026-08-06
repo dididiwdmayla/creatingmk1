@@ -42,6 +42,31 @@ const VERSOES: Array<{ id: CapturaVersao; rotulo: string }> = [
   { id: "crua", rotulo: "Crua" },
 ];
 
+/**
+ * As miniaturas são LADRILHOS de altura fixa, com a imagem cortada a
+ * partir do topo — não a captura inteira reduzida.
+ *
+ * Uma seção de celular tem três telas de altura; emoldurada, passa de
+ * 2500px. Reduzida na proporção, viraria uma tira de meio metro na ficha,
+ * e a grade ficaria cheia de buracos onde um ladrilho comprido empurra o
+ * vizinho. Cortando a partir do topo, todas as capturas de um grupo se
+ * alinham e a seção volta a ser uma folha de contatos — que é como se olha
+ * seis imagens de uma vez. A imagem inteira continua a um clique.
+ */
+const LADRILHO: Record<CapturaTela, string> = { celular: "w-[104px]", desktop: "w-[196px]" };
+const ALTURA_LADRILHO = "h-[168px]";
+/**
+ * O encaixe difere por tela porque a forma difere. A captura de celular é
+ * comprida: cortada a partir do topo, mostra o começo da seção, que é o
+ * que identifica a imagem. A de desktop é larga: cortar as laterais comeria
+ * a borda da janela, e a janela é justamente o que faz a imagem se ler
+ * como um site — então ela cabe inteira, com tarja escura em volta.
+ */
+const ENCAIXE: Record<CapturaTela, string> = {
+  celular: "object-cover object-top",
+  desktop: "object-contain",
+};
+
 export function GaleriaCapturas({
   imagens,
   nomeLead,
@@ -171,19 +196,21 @@ function Figura({
   // mentira pequena que só aparece depois de a imagem já ter sido enviada.
   if (!alvo) {
     return (
-      <p className="w-40 rounded border border-dashed border-line px-3 py-6 text-center text-[11px] text-ink-muted">
+      <p
+        className={`${LADRILHO[imagem.tela]} ${ALTURA_LADRILHO} m-0 flex items-center rounded border border-dashed border-line px-2 text-center text-[11px] leading-tight text-ink-muted`}
+      >
         {imagem.ancora} saiu sem moldura nesta rodada
       </p>
     );
   }
 
   return (
-    <figure className="m-0 w-40">
+    <figure className={`m-0 ${LADRILHO[imagem.tela]}`}>
       <a
         href={alvo.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="block overflow-hidden rounded border border-line bg-surface-2 hover:border-accent/40"
+        className={`block ${ALTURA_LADRILHO} overflow-hidden rounded border border-line bg-surface-2 hover:border-accent/40`}
       >
         <Image
           src={alvo.url}
@@ -191,10 +218,10 @@ function Figura({
           width={alvo.largura}
           height={alvo.altura}
           unoptimized
-          className="h-auto w-full"
+          className={`h-full w-full ${ENCAIXE[imagem.tela]}`}
         />
       </a>
-      <figcaption className="mt-1 flex items-baseline justify-between gap-2 text-[11px]">
+      <figcaption className="mt-1 flex items-baseline justify-between gap-1.5 text-[11px]">
         <span className="truncate text-ink-muted" title={imagem.ancora}>
           {String(imagem.ordem).padStart(2, "0")} {imagem.ancora}
         </span>

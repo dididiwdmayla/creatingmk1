@@ -35,6 +35,7 @@ import { chromium } from "playwright-core";
 import {
   caixaNaViewport,
   congelarAnimacoes,
+  esperarTextoEstavel,
   fixarUnidadesDeTela,
   forcarImagensDaSecao,
   identidadeDaPagina,
@@ -299,6 +300,11 @@ async function capturar(page, alvo, ancora, tela, destino) {
     )
     .catch(() => undefined);
 
+  // Texto animado por JavaScript (a máquina de escrever do hero da
+  // barbearia) não é tocado por `congelarAnimacoes`, e o disparo pegava o
+  // título do negócio pela metade. Ver `esperarTextoEstavel`.
+  const texto = await page.evaluate(esperarTextoEstavel, { secaoId: ancora });
+
   const recorte = await page.evaluate(caixaNaViewport, ancora);
   const portao = await page.evaluate(tituloCoberto, ancora);
   const imagens = await page.evaluate(imagensDaSecao, ancora);
@@ -314,7 +320,7 @@ async function capturar(page, alvo, ancora, tela, destino) {
     clip: { x: recorte.x, y: recorte.y, width: recorte.width, height: recorte.height },
   });
 
-  return { caixa: recorte, cromo, gelo, portao, imagens, esticou, presos, imagensForcadas, paleta };
+  return { caixa: recorte, cromo, gelo, portao, imagens, esticou, presos, imagensForcadas, paleta, texto };
 }
 
 /**
@@ -393,6 +399,10 @@ async function capturarTopo(page, alvo, tela, destino) {
   });
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   await page.waitForTimeout(400);
+  // O topo é justamente onde mora a máquina de escrever do título: sem
+  // esta espera a prévia do link sairia com o nome do negócio truncado
+  // dentro do print (ver `esperarTextoEstavel`).
+  await page.evaluate(esperarTextoEstavel, {});
 
   const identidade = await page.evaluate(identidadeDaPagina);
   // A paleta sai da primeira âncora (o hero em toda skin): as variáveis
@@ -542,8 +552,14 @@ async function main() {
           const composta = await comporMoldura(paginaMoldura, {
             tela: tela.id,
             arquivo,
-            largura: r.caixa.width,
-            altura: r.caixa.height,
+            // Em PIXEL, não em px de CSS. A caixa medida vem em px de CSS
+            // (`getBoundingClientRect`), e o PNG do celular sai com o dobro
+            // disso porque a captura é em dpr 2 — de propósito, pra imagem
+            // vista NUM celular não chegar serrilhada. Montar a moldura na
+            // medida de CSS encolheria a captura à metade dentro dela e
+            // jogaria fora exatamente essa nitidez.
+            largura: r.caixa.width * tela.dpr,
+            altura: r.caixa.height * tela.dpr,
             endereco: alvo.enderecoPublico,
             paleta: r.paleta ?? undefined,
           }).catch((e) => ({ erro: e instanceof Error ? e.message : String(e) }));
@@ -574,6 +590,7 @@ async function main() {
               (r.presos.presos > 0 ? ` · vh preso em ${r.presos.presos}` : "") +
               (r.imagensForcadas.trilhos > 0 ? ` · ${r.imagensForcadas.trilhos} trilho(s)` : "") +
               (r.esticou ? " · ⚠ seção ainda cresceu" : "") +
+              (r.texto.estavel ? "" : " · ⚠ texto ainda mudava") +
               ` · título "${r.portao.titulo ?? "—"}"${alerta}` +
               (entradaImagem.composta
                 ? ` · moldura ${entradaImagem.composta.largura}×${entradaImagem.composta.altura}`

@@ -407,6 +407,56 @@ export function paletaDaPagina(secaoId, win = window) {
 }
 
 /**
+ * Espera o TEXTO parar de mudar — a defesa contra animação de texto feita
+ * em JavaScript, que `congelarAnimacoes` não alcança.
+ *
+ * O caso que a descobriu: o hero da barbearia escreve o título com uma
+ * máquina de escrever montada em `setTimeout` + estado do React
+ * (`TypewriterText`), não em WAAPI. Congelar animação não a toca, e o
+ * disparo pegava o título pela metade — a captura de desktop saiu com
+ * "BARBEARIA DOM AUR|" no lugar do nome do negócio, que é justamente o que
+ * a imagem existe pra mostrar. No celular passava por acidente: a seção
+ * mais alta que a tela faz o motor crescer a viewport e preparar a página
+ * de novo, e esse tempo a mais dava pro texto terminar. Verificação por
+ * captura de um lead real é o que separou os dois casos.
+ *
+ * Genérica de propósito: qualquer skin que anime texto por JS cai aqui,
+ * sem o motor precisar conhecer o componente.
+ *
+ * @param {{ secaoId?: string, quietoMs?: number, limiteMs?: number }} opcoes
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {Promise<{ estavel: boolean, esperouMs: number }>}
+ */
+export async function esperarTextoEstavel({ secaoId, quietoMs = 500, limiteMs = 6000 } = {}, win = window) {
+  const doc = win.document;
+  const alvo = secaoId
+    ? Array.from(doc.querySelectorAll("[data-d-secao]")).find(
+        (n) => n.getAttribute("data-d-secao") === secaoId,
+      ) ?? doc.body
+    : doc.body;
+
+  const inicio = Date.now();
+  let anterior = alvo.textContent ?? "";
+  let paradoDesde = Date.now();
+
+  while (Date.now() - inicio < limiteMs) {
+    await new Promise((r) => setTimeout(r, 100));
+    const atual = alvo.textContent ?? "";
+    if (atual !== anterior) {
+      anterior = atual;
+      paradoDesde = Date.now();
+      continue;
+    }
+    if (Date.now() - paradoDesde >= quietoMs) {
+      return { estavel: true, esperouMs: Date.now() - inicio };
+    }
+  }
+  // Texto que nunca para (marquee escrito em JS, contador infinito) não
+  // pode travar a rodada: a captura sai com a ressalva.
+  return { estavel: false, esperouMs: Date.now() - inicio };
+}
+
+/**
  * TÍTULO E DESCRIÇÃO que a própria demo declara — o que a prévia do link
  * usa como linha de apoio ao lado do nome do negócio.
  *

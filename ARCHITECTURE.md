@@ -1427,6 +1427,18 @@ A galeria agrupava por ÂNCORA, com as duas telas lado a lado. Agora agrupa por 
 - **`X-Capturas-Empacotadas`** diz quantas entraram de fato — é o que permite saber que faltou uma sem contar arquivo por arquivo. Grupo em que NENHUMA tem a versão pedida responde 404 com o motivo, em vez de um zip vazio.
 - **A prévia do link aparece na galeria**, no tamanho aproximado do cartão de conversa. Não é enfeite: é a única forma de conferir, antes de mandar, que o nome do negócio continua legível quando a imagem encolhe — que é a coisa que a composição existe pra garantir.
 
+#### Verificação por captura da composição e da prévia
+
+Laço local com o app real e um lead semeado (arranque de banco falso, patch temporário não commitado — o mesmo dos outros laços de QA), skin `barbearia-editorial`, `APP_PUBLIC_URL=https://radar.exemplo.com`. **6 capturas, 6 compostas, 1 prévia.** Três coisas que só apareceram olhando:
+
+1. **A moldura do celular estava sendo montada em px de CSS, não em pixel.** A caixa medida vem de `getBoundingClientRect` (390px de largura no celular), mas o PNG sai com o dobro disso — a captura é em dpr 2, de propósito, pra imagem vista num celular não chegar serrilhada. A composição em 390px encolhia a captura à metade dentro da moldura e jogava fora exatamente essa nitidez. A composta do celular saía 480px de largura; agora sai 960.
+2. **A máquina de escrever do hero da barbearia entregava o nome do negócio pela metade.** `TypewriterText` é `setTimeout` + estado do React, não WAAPI, então `congelarAnimacoes` não a alcança — a captura de desktop saiu com "BARBEARIA DOM AUR|" no lugar do nome, que é justamente o que a imagem existe pra mostrar. No celular passava **por acidente**: a seção é mais alta que a tela, o motor cresce a viewport e prepara a página de novo, e esse tempo a mais dava pro texto terminar. Corrigido com `esperarTextoEstavel` (dom.mjs), genérico: espera o texto parar de mudar, com teto, e a captura sai com ressalva se ele nunca parar. **Defeito antigo, das capturas cruas — não veio da composição.**
+3. **A galeria virava uma tira de meio metro.** Miniatura na proporção de uma moldura de celular de 2500px empurra o vizinho e enche a grade de buracos. Viraram ladrilhos de altura fixa: celular cortado a partir do topo, desktop inteiro com tarja (cortar as laterais comeria a borda da janela, que é o que faz a imagem se ler como um site).
+
+**A prévia no cartão de conversa** (bolha de 302px num celular de 390, imagem em 296×155 — a largura real do cartão): o nome sai em ~16px na tela e se lê sem esforço; o topo do site se reconhece como site. É a medida que importa, porque o nome dentro do print, nessa escala, é borrão.
+
+**O recurso de reserva** responde em **162ms na primeira chamada e 26ms na segunda**, PNG de 29KB — bem dentro da paciência de um buscador de prévia. Só o nome sai em peso regular: a única face embutida no pacote do Next é a regular, então quem carrega a legibilidade é o corpo do tipo, não o peso.
+
 ### Efeitos visuais (`src/lib/demos/efeitos`) — camada decorativa opcional
 
 Registro **separado** do registro de skins (mesmo padrão: metadado central + contrato + testes), pra uma camada decorativa opcional que uma skin pode somar por cima de si. Alimenta o seletor "Efeito de fundo" da aba Tema do editor (`Theme.fundoEfeito`/`TemaPatch.fundoEfeito`, ver "Micro-interações do tema" acima) e é renderizado como sibling da skin (não por dentro dela) tanto na rota pública quanto no preview.
