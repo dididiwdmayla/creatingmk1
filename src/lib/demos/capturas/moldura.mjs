@@ -49,9 +49,9 @@ const PALETA_RESERVA = {
  * único com `barra: 0` no celular seria um número mentiroso circulando.
  *
  * `modo` decide o FORMATO inteiro do corpo (ver `corpoAparelho`/`corpoFatiado`
- * abaixo): "aparelho" tem um campo só (`alturaVisivel`/`folga`); "fatiado"
- * tem uma LISTA de quadros (`numFatias`/`umaTela`/`gap`) e nenhum dos dois
- * conjuntos de campos aparece no modo errado.
+ * abaixo): "aparelho" tem um campo só (`alturaVisivel`/`folga`/`escala`);
+ * "fatiado" tem uma LISTA de quadros (`numFatias`/`umaTela`/`gap`/`topos`) e
+ * nenhum dos dois conjuntos de campos aparece no modo errado.
  *
  * @typedef {object} MedidasCelularAparelho
  * @property {"celular"} tela
@@ -64,6 +64,9 @@ const PALETA_RESERVA = {
  * @property {number} alturaVisivel altura da tela na composição
  * @property {boolean} cortada sempre `false`: a seção cabe inteira num aparelho
  * @property {number} folga sobra de tela preenchida com o fundo da demo
+ * @property {number} escala 1 quando a seção cabe sem reduzir; menor que 1
+ *   quando ela passa um pouco de uma tela e é encolhida pra caber inteira
+ *   num quadro só, em vez de virar duas fatias quase idênticas
  *
  * @typedef {object} MedidasCelularFatiado
  * @property {"celular"} tela
@@ -75,8 +78,13 @@ const PALETA_RESERVA = {
  * @property {number} raio raio dos cantos de CADA quadro
  * @property {number} gap espaço entre um quadro e o próximo
  * @property {number} umaTela altura de uma tela de aparelho, em pixel
- * @property {number} numFatias quantos quadros saem (1 a 3)
- * @property {boolean} cortada a seção tem mais de 3 telas — só as 3 primeiras saem
+ * @property {number} numFatias quantos quadros saem (2 ou 3)
+ * @property {number[]} topos início de cada fatia dentro do conteúdo (px),
+ *   um por quadro — é a MESMA lista que decide o `top` de cada `<img>` em
+ *   `corpoFatiado` e que o portão em `medidasMoldura` valida antes de
+ *   devolver: fonte única, sem recalcular a mesma conta duas vezes
+ * @property {boolean} cortada a seção tem mais telas do que `numFatias`
+ *   mostra — só as primeiras saem, de propósito (não é o defeito do vazio)
  *
  * @typedef {MedidasCelularAparelho | MedidasCelularFatiado} MedidasCelular
  *
@@ -160,11 +168,76 @@ export function fundoClaro(paleta) {
  */
 export const PROPORCAO_APARELHO = 19.5 / 9;
 
-/** Folga de arredondamento ao comparar a captura com uma tela cheia. */
-const TOLERANCIA_UMA_TELA = 8;
+/**
+ * Até quantas vezes uma tela a seção pode passar e ainda sair num quadro
+ * SÓ, encolhida pra caber, em vez de virar duas fatias — ver
+ * `medidasMoldura`. Acima disto, a diferença entre a 1ª e a 2ª fatia é
+ * pequena demais pra justificar duas fotos quase iguais lado a lado.
+ */
+export const LIMITE_FATIA_UNICA = 1.15;
 
 /** Quantas telas, no máximo, uma seção fatiada mostra — ver `medidasMoldura`. */
 export const FATIAS_MAX = 3;
+
+/**
+ * Tolerância de arredondamento do PORTÃO de vazio (ver `vazioNaFatia`) —
+ * não é "quanto vazio é aceitável", é só a folga de ponto flutuante entre a
+ * conta exata e o pixel inteiro que a moldura de fato desenha.
+ */
+const TOLERANCIA_VAZIO_PX = 1;
+
+/**
+ * Pixels de área VAZIA que uma fatia mostraria ao final — a janela da fatia
+ * (de `topo` a `topo + umaTela`) foi além do fim REAL do conteúdo (`altura`,
+ * a altura da seção medida pelo motor, nunca inferida de cor de pixel).
+ * Zero é o único resultado aceitável para uma fatia que promete cobrir o
+ * conteúdo até o fim — é o PORTÃO que transforma essa promessa em medida,
+ * no mesmo espírito de `tituloCoberto` no motor: se `calcularToposFatias`
+ * regredir (ou alguém voltar a usar `i * umaTela` puro), este número deixa
+ * de ser zero e quem chama pode reprovar em vez de compor uma imagem com
+ * uma faixa vazia no fim, sem ninguém notar.
+ *
+ * @param {number} topo início da fatia dentro do conteúdo (px)
+ * @param {number} umaTela altura da janela da fatia (px)
+ * @param {number} altura altura REAL do conteúdo (px)
+ * @returns {number} pixels vazios ao final da fatia (0 = nenhum)
+ */
+export function vazioNaFatia(topo, umaTela, altura) {
+  return Math.max(0, topo + umaTela - altura);
+}
+
+/**
+ * O início (em px, dentro do conteúdo) de cada fatia.
+ *
+ * **Cobrindo o conteúdo inteiro** (`cortada` falso — é o caso comum, `n` já
+ * é `ceil(altura / umaTela)`): a primeira fatia começa no topo (`0`), a
+ * última TERMINA EXATAMENTE no fim do conteúdo (`topo + umaTela === altura`
+ * pro último índice), e a sobreposição entre elas fica distribuída por
+ * igual — é a fórmula `i * (altura - umaTela) / (n - 1)`. Espaçar as fatias
+ * em passos de `umaTela` puro (o que este código fazia antes) deixa a
+ * ÚLTIMA fatia começar em `(n-1) * umaTela`, que só bate com o fim do
+ * conteúdo quando `altura` é múltiplo exato de `umaTela` — no caso comum
+ * (2,4 telas, 1,3 telas) sobra uma faixa vazia no final dela, o defeito que
+ * esta função existe pra nunca mais deixar passar.
+ *
+ * **Truncada** (`cortada` verdadeiro — a seção tem mais telas do que
+ * `FATIAS_MAX` mostra): não tem "fim do conteúdo" a alcançar, porque a
+ * decisão já foi mostrar só as primeiras `n` telas e parar — por isso aqui
+ * o espaçamento CONTINUA `i * umaTela`, telas cheias e sem sobreposição,
+ * uma atrás da outra a partir do topo.
+ *
+ * @param {number} numFatias
+ * @param {number} altura altura real do conteúdo (px)
+ * @param {number} umaTela altura da janela de cada fatia (px)
+ * @param {boolean} cortada
+ * @returns {number[]}
+ */
+export function calcularToposFatias(numFatias, altura, umaTela, cortada) {
+  if (numFatias <= 1) return [0];
+  if (cortada) return Array.from({ length: numFatias }, (_, i) => i * umaTela);
+  const passo = (altura - umaTela) / (numFatias - 1);
+  return Array.from({ length: numFatias }, (_, i) => i * passo);
+}
 
 /**
  * Medidas da composição.
@@ -175,15 +248,24 @@ export const FATIAS_MAX = 3;
  * na hora. A altura de uma tela não é inventada aqui: vem do motor, cuja
  * viewport de celular (390×844, dpr 2) já é a de um aparelho de verdade.
  *
- * Captura mais alta que uma tela não cabe num aparelho único, então ela é
- * **fatiada**: uma tela por quadro, cada quadro num aparelho de proporção
- * real, lado a lado, na ordem de leitura (a imagem final fica deitada). O
- * cartão alongado sem chrome — que existiu antes — não existe mais: ele
- * prometia "site num celular" com uma proporção que nenhum aparelho tem, e
- * fatiar em telas reais resolve isso sem cortar a seção pela metade (o
- * defeito que a moldura de aparelho esticada tinha). No máximo `FATIAS_MAX`
- * quadros — seção maior que isso mostra só as primeiras telas, na ordem em
- * que a página é lida. Ver "Moldura de celular" em ARCHITECTURE.md.
+ * **Até `LIMITE_FATIA_UNICA` telas, um quadro só, ENCOLHIDO pra caber.**
+ * Uma seção só um pouco mais alta que uma tela (1,1 tela, por exemplo) não
+ * vira duas fatias — a 2ª mostraria quase o mesmo conteúdo da 1ª, uma
+ * sobreposição quase total que não ajuda ninguém a ler o site. Em vez
+ * disso, a captura inteira é ENCOLHIDA (as duas dimensões, pra não
+ * distorcer) até caber na janela de uma tela, com sobra nas laterais
+ * preenchida pelo fundo da própria demo — é a mesma técnica da folga do
+ * modo de tela única, só que agora nas duas direções em vez de uma.
+ *
+ * Passado isso, a captura é **fatiada**: uma tela por quadro, cada quadro
+ * num aparelho de proporção real, lado a lado, na ordem de leitura (a
+ * imagem final fica deitada). O cartão alongado sem chrome — que existiu
+ * antes — não existe mais: ele prometia "site num celular" com uma
+ * proporção que nenhum aparelho tem, e fatiar em telas reais resolve isso
+ * sem cortar a seção pela metade (o defeito que a moldura de aparelho
+ * esticada tinha). No máximo `FATIAS_MAX` quadros — seção maior que isso
+ * mostra só as primeiras telas, na ordem em que a página é lida. Ver
+ * "Moldura de celular" em ARCHITECTURE.md.
  *
  * @param {{
  *   tela: "celular" | "desktop",
@@ -196,18 +278,21 @@ export const FATIAS_MAX = 3;
 export function medidasMoldura({ tela, largura, altura, alturaTela }) {
   if (tela === "celular") {
     const umaTela = Math.round(alturaTela ?? largura * PROPORCAO_APARELHO);
-    const cabeNumaTela = altura <= umaTela + TOLERANCIA_UMA_TELA;
     const margem = Math.round(largura * 0.07);
+    const borda = Math.max(2, Math.round(largura * 0.013));
+    const raio = Math.round(largura * 0.092);
 
-    if (cabeNumaTela) {
+    if (altura <= umaTela * LIMITE_FATIA_UNICA) {
       // No aparelho a tela tem SEMPRE uma tela de altura, mesmo que a seção
-      // seja mais curta: uma seção de 0,6 tela numa moldura de 0,6 tela
-      // vira um celular atarracado (1:1,5), a mesma proporção impossível do
-      // celular esticado, só do outro lado. A sobra é preenchida com o
-      // fundo da PRÓPRIA demo — o que um aparelho de verdade mostraria
-      // acima e abaixo de uma seção curta, porque a página continua.
-      const borda = Math.max(2, Math.round(largura * 0.013));
-      const raio = Math.round(largura * 0.092);
+      // seja mais curta ou (até LIMITE_FATIA_UNICA) mais alta. `escala`
+      // cobre os dois lados: 1 quando cabe sem mexer (sobra vira folga
+      // vertical, como sempre foi), menor que 1 quando a seção passa um
+      // pouco da tela (a captura encolhe pra caber inteira, sem cortar
+      // nada — sobra vira folga HORIZONTAL, nas laterais). Um celular
+      // atarracado (seção curta esticada até a tela) ou distorcido (seção
+      // um pouco alta espremida sem manter proporção) são o mesmo erro de
+      // proporção só dos dois lados — por isso a escala é sempre uniforme.
+      const escala = Math.min(1, umaTela / altura);
       return {
         tela: "celular",
         modo: "aparelho",
@@ -218,18 +303,37 @@ export function medidasMoldura({ tela, largura, altura, alturaTela }) {
         raio,
         alturaVisivel: umaTela,
         cortada: false,
-        folga: Math.max(0, umaTela - altura),
+        escala,
+        folga: Math.max(0, umaTela - altura * escala),
       };
     }
 
     // FATIADO: uma tela por quadro, cada quadro no MESMO desenho de
     // aparelho do modo acima (a "proporção real" pedida) — só o corpo é
-    // diferente (uma fileira de quadros em vez de um só). O raio/borda são
-    // os do aparelho: canto bem arredondado é o que lê como aparelho.
-    const borda = Math.max(2, Math.round(largura * 0.013));
-    const raio = Math.round(largura * 0.092);
+    // diferente (uma fileira de quadros em vez de um só).
     const gap = Math.round(largura * 0.05);
-    const numFatias = Math.min(FATIAS_MAX, Math.ceil(altura / umaTela));
+    const totalNecessarias = Math.ceil(altura / umaTela);
+    const numFatias = Math.min(FATIAS_MAX, totalNecessarias);
+    const cortada = totalNecessarias > FATIAS_MAX;
+    const topos = calcularToposFatias(numFatias, altura, umaTela, cortada);
+
+    // PORTÃO: nenhuma fatia pode mostrar área além do fim REAL do conteúdo
+    // — exceto a truncagem deliberada (`cortada`), que já para de propósito
+    // antes do fim. Medindo com a altura JÁ MEDIDA pelo motor, não cor de
+    // pixel: é um número, não uma inferência visual, e por isso pode rodar
+    // em toda composição real sem custo. Ver `vazioNaFatia`.
+    if (!cortada) {
+      for (const topo of topos) {
+        const vazio = vazioNaFatia(topo, umaTela, altura);
+        if (vazio > TOLERANCIA_VAZIO_PX) {
+          throw new Error(
+            `fatiamento com ${vazio.toFixed(1)}px de área vazia no final de uma fatia — ` +
+              `matemática de calcularToposFatias quebrada (altura=${altura}, umaTela=${umaTela}, numFatias=${numFatias})`,
+          );
+        }
+      }
+    }
+
     const quadroLargura = largura + 2 * borda;
     const quadroAltura = umaTela + 2 * borda;
 
@@ -244,9 +348,8 @@ export function medidasMoldura({ tela, largura, altura, alturaTela }) {
       gap,
       umaTela,
       numFatias,
-      // A seção tem mais telas do que o teto mostra: as fatias além da
-      // terceira ficam de fora, na mesma lógica de "mostra as 3 primeiras".
-      cortada: altura > numFatias * umaTela,
+      topos,
+      cortada,
     };
   }
 
@@ -382,8 +485,14 @@ function quadroAparelho(m, larguraQuadro, alturaQuadro, miolo, claro) {
 }
 
 /**
- * APARELHO — um quadro só, a seção inteira dentro (ela cabe numa tela, que
- * é a definição do modo).
+ * APARELHO — um quadro só. `m.escala` decide como o conteúdo ocupa a tela:
+ * em 1 (o caso comum), a imagem entra em tamanho natural, centrada, com
+ * folga VERTICAL se a seção for mais curta que a tela. Menor que 1 (seção
+ * um pouco mais alta que `LIMITE_FATIA_UNICA` telas), a imagem inteira
+ * encolhe — largura e altura pela MESMA proporção, pra não distorcer — até
+ * a altura bater exatamente com a tela, com folga HORIZONTAL nas laterais.
+ * Nos dois casos o `flex: center` da tela cuida da centralização sozinho;
+ * só o tamanho do `<img>` muda.
  *
  * @param {MedidasCelularAparelho} m
  * @param {string} src
@@ -397,10 +506,9 @@ function corpoAparelho(m, src, largura, altura, paleta, claro) {
   // A sobra da tela é o FUNDO DA DEMO, não preto: preto viraria tarja de
   // letterbox, e o que se quer é a página continuando fora da seção.
   const fundoTela = paleta?.fundo || "#000";
+  const larguraImg = Math.round(largura * m.escala);
+  const alturaImg = Math.round(altura * m.escala);
   const miolo = `
-    <!-- A captura nunca é REDUZIDA para caber: reduzir encolheria o texto
-         da demo, que é o que a imagem existe pra mostrar. Ela cabe inteira
-         por definição (é o que define o modo) e é centrada na tela. -->
     <div style="
       overflow: hidden;
       width: ${largura}px; height: ${m.alturaVisivel}px;
@@ -408,26 +516,31 @@ function corpoAparelho(m, src, largura, altura, paleta, claro) {
       background: ${fundoTela};
       display: flex; align-items: center; justify-content: center;
     ">
-      <img class="captura" src="${escapar(src)}" alt="">
+      <img class="captura" src="${escapar(src)}" alt="" style="
+        display: block; width: ${larguraImg}px; height: ${alturaImg}px;
+      ">
     </div>`;
   return quadroAparelho(m, largura, m.alturaVisivel, miolo, claro);
 }
 
 /**
- * FATIADO — seção mais alta que uma tela. Um quadro por tela, no máximo
- * `FATIAS_MAX`, lado a lado na ordem de leitura (a primeira tela da seção
- * fica à esquerda). Cada quadro é uma JANELA fixa (uma tela de altura,
- * `overflow: hidden`) sobre a MESMA captura crua, deslocada verticalmente
- * pelo `top` negativo — é a técnica de sprite-sheet: uma imagem só, N
- * recortes dela, sem duplicar arquivo nem recompor nada por fatia.
+ * FATIADO — seção mais alta que `LIMITE_FATIA_UNICA` telas. Um quadro por
+ * tela, no máximo `FATIAS_MAX`, lado a lado na ordem de leitura (a primeira
+ * tela da seção fica à esquerda). Cada quadro é uma JANELA fixa (uma tela
+ * de altura, `overflow: hidden`) sobre a MESMA captura crua, deslocada
+ * verticalmente pelo `top` negativo de `m.topos[i]` — é a técnica de
+ * sprite-sheet: uma imagem só, N recortes dela, sem duplicar arquivo nem
+ * recompor nada por fatia.
  *
- * Se a seção não fecha um número inteiro de telas, a ÚLTIMA janela mostra
- * menos conteúdo que as outras — o resto da janela, abaixo do fim da
- * imagem, sai com o fundo da própria demo por trás (mesma lógica da folga
- * do aparelho de seção curta): a imagem deslocada simplesmente não cobre
- * aquele pedaço, e o `overflow: hidden` do lado de fora dela não entra em
- * jogo — quem preenche é o fundo posto atrás da imagem, dentro da mesma
- * janela.
+ * `m.topos` já vem calculado (e validado pelo portão de `vazioNaFatia`) por
+ * `medidasMoldura`/`calcularToposFatias` — este corpo só desenha, nunca
+ * recalcula o deslocamento: SEMPRE espaçar por `umaTela` puro (o que este
+ * código fazia antes de existir `topos`) deixava a ÚLTIMA janela sobrar
+ * além do fim da imagem sempre que a altura não fosse múltiplo exato da
+ * tela — a distribuição em `topos` é o que garante que a ÚLTIMA janela
+ * termina exatamente no fim do conteúdo (quando a seção não foi truncada) e
+ * que nenhuma mostra a "cor de fundo" ali (o problema nunca foi o preenchimento
+ * ficar visível — é ele aparecer onde deveria haver conteúdo).
  *
  * @param {MedidasCelularFatiado} m
  * @param {string} src
@@ -439,8 +552,7 @@ function corpoAparelho(m, src, largura, altura, paleta, claro) {
  */
 function corpoFatiado(m, src, largura, altura, paleta, claro) {
   const fundoTela = paleta?.fundo || "#000";
-  const quadros = [];
-  for (let i = 0; i < m.numFatias; i += 1) {
+  const quadros = m.topos.map((topo) => {
     const miolo = `
       <div style="
         overflow: hidden; position: relative;
@@ -449,12 +561,12 @@ function corpoFatiado(m, src, largura, altura, paleta, claro) {
         background: ${fundoTela};
       ">
         <img class="captura" src="${escapar(src)}" alt="" style="
-          position: absolute; top: ${-i * m.umaTela}px; left: 0;
+          position: absolute; top: ${-Math.round(topo)}px; left: 0;
           width: ${largura}px; height: ${altura}px; display: block;
         ">
       </div>`;
-    quadros.push(quadroAparelho(m, largura, m.umaTela, miolo, claro));
-  }
+    return quadroAparelho(m, largura, m.umaTela, miolo, claro);
+  });
   return `<div style="display: flex; align-items: flex-start; gap: ${m.gap}px;">${quadros.join("")}</div>`;
 }
 
