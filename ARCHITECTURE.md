@@ -1376,7 +1376,7 @@ A geração deixou de ser só laço local: a ficha do lead tem **"Gerar capturas
 - **`escritaAindaVale`**: o workflow só escreve se o `execucaoId` ainda for o vigente. Cobre pedir, achar demorado e clicar em "Refazer" — o run antigo termina depois e enterraria o resultado do novo, ou marcaria "falhou" por cima de um "pronto".
 - **`semNoticia` / `estadoVisivel`**: um `repository_dispatch` responde 204 e pronto. Workflow desabilitado, arquivo fora do branch default ou runner que nunca pegou a fila — **ninguém avisa**. Passado o limite de silêncio (10 min na fila, 30 rodando, contados de marcos diferentes), o estado vira FALHA explícita com a causa provável. É a mesma doença do botão que volta ao normal sem confirmação: um estado que mente.
 - **Acompanhamento sem recarregar** (`useEstadoCapturas`): pergunta de tempos em tempos enquanto houver algo em andamento (4s no primeiro minuto, 12s depois) e para sozinho no estado terminal. O relógio de `estadoVisivel` é o **instante da última resposta**, nunca `Date.now()` no render — além de manter o render puro (o linter do React Compiler recusa impureza ali), faz o estado envelhecer junto com a informação, não com a pintura.
-- **Galeria na ficha** (ver "Galeria em duas seções" abaixo): duas seções, celular e desktop, com alternância entre a versão crua e a composta e download por imagem, por grupo e das seis. O objeto sobe com `Content-Disposition: attachment` — baixar por `fetch` no cliente exigiria configurar CORS no bucket, e o objeto é público mas não tem cabeçalho de CORS. Tela que não saiu vira vão explícito, e rodada parcial mostra qual âncora reprovou.
+- **Galeria na ficha** (ver "Galeria em duas seções, e as duas ações" abaixo): duas seções, celular e desktop, com alternância entre a versão crua e a composta, e duas ações — compartilhar pela folha nativa e baixar arquivo a arquivo — para uma imagem, para as três de um grupo e para as seis. Tela que não saiu vira vão explícito, e rodada parcial mostra qual âncora reprovou.
 - **As defesas do motor continuam valendo**: o contexto abre a demo **sem cookie de sessão, sem `radar_device` e sem `?t=`** — com sessão a demo estampa "Vendo como membro" na foto, e com token a captura entraria na timeline de visitas do lead. O `next start` do runner sobe com um `APP_PASSWORD` sorteado por rodada (`subirServidor`), então o cookie que o motor usa pra ler `/api/leads` e `/api/config` nada tem a ver com a senha de produção.
 - **Marcadores do selo de estado**: `⋯` (na fila) e `↻` (gerando) em vez dos `◔`/`◑` do `StatusBadge` — nesta fonte os círculos parciais saem como lascas sem contorno e a 12px leem como cisco. No `StatusBadge` funcionam porque aparecem numa sequência que dá contexto; aqui o marcador aparece sozinho.
 
@@ -1393,12 +1393,35 @@ A captura crua é conteúdo puro: começa e termina no pixel da seção, sem nad
 - **Quem desenha é o Chromium que o motor já tem aberto.** A moldura é uma página HTML com a captura dentro; "compor" é tirar um screenshot dela. Nenhuma dependência de rasterização (`sharp`, `canvas`) entrou no projeto por causa disto, e a moldura virou código de layout — verificável em teste e olhável em captura, como o resto da feature.
 - **dpr 1 nas dimensões em PIXEL do PNG cru.** É o que faz a captura entrar 1:1: qualquer outro fator reamostraria a imagem e o texto da demo chegaria borrado do outro lado. O contexto do compositor é separado justamente por isso (o de captura roda em dpr 2 no celular).
 - **O HTML é escrito ao lado do PNG e aberto por `file://`, com `src` relativo** — embutir a captura como `data:` URI custaria uma string base64 do tamanho do arquivo a cada imagem, sem ganho nenhum.
-- **A ilha do celular fica numa FAIXA DE STATUS acima da captura, nunca por cima dela.** O portão `tituloCoberto` reprova a captura crua quando sobra qualquer elemento por cima do primeiro título da seção; sobrepor a ilha na composta desfaria essa garantia em silêncio. Pela mesma razão a faixa não tem relógio nem barras de sinal: hora e rede desenhadas são dado falso decorando a foto do lead.
+- **A moldura de celular é borda e canto, nada mais** — ver "Moldura de celular" logo abaixo, que é onde a proporção e o mínimo estão explicados.
 - **O celular não exibe endereço em canto nenhum** (é aparelho, não navegador) e **o navegador exibe o endereço REAL da demo** — `${APP_PUBLIC_URL}/demo/{leadId}`, sem `?t=` (token é de envio; estampado na foto viraria link circulando fora da timeline a que pertence). `APP_PUBLIC_URL` é variável nova e OPCIONAL: não dá pra deduzir (no runner o app roda em `127.0.0.1:3123`, e o `window.location.origin` que o resto do app usa não existe fora do navegador). **Sem ela a pastilha sai vazia** — uma janela sem endereço é honesta, um domínio inventado não. No modo `--skin`, que não tem lead, sai vazia pelo mesmo motivo.
-- **Bisel, raio e margem saem da LARGURA, nunca da altura**: uma seção de três telas vira um aparelho comprido, e é isso mesmo. Encolher a captura até caber na proporção de um celular de verdade deixaria o texto ilegível, que é o contrário do que a imagem existe para fazer. Os botões laterais também não esticam — botão de 3000px no meio do aparelho denuncia o desenho.
+- **Borda, raio e margem saem da LARGURA, nunca da altura.** Encolher a captura até caber numa proporção deixaria o texto ilegível, que é o contrário do que a imagem existe para fazer — a captura entra sempre em tamanho natural.
 - **O fundo da composição é a paleta da PRÓPRIA demo** (`paletaDaPagina` em `dom.mjs` lê `--d-bg`/`--d-bg-alt`/`--d-bg-elev`/`--d-accent` do elemento da seção — propriedade customizada é herdada, e a skin declara as variáveis na raiz do seu componente, não no `<html>`). Compor sobre uma cor da plataforma seria carimbar o Radar na imagem que vai pro lead. O **cromo** (grafite do aparelho, claro/escuro da janela) decide-se pela luminância desse fundo: janela clara sobre demo clara — ou escura sobre a tatuagem, que é quase preta — some, e aí a moldura deixa de ser moldura.
 - **A composta é derivada, nunca substituta.** Só existe se a crua saiu; uma falha na composição (ou uma altura que passa do teto de textura do Chromium) não invalida a imagem que já está no disco — a entrada fica sem `composta` e a galeria mostra vão explícito. Trocar calada pela crua seria mentira pequena.
 - **`fullPage` aqui é seguro**, ao contrário do outro lado: a página da moldura é toda em pixel fixo, sem nenhuma unidade de tela, então não existe a armadilha do `vh` que proíbe `fullPage` na captura da demo.
+
+#### Moldura de celular: proporção real, e o que fazer com seção alta
+
+A primeira versão da moldura **esticava o aparelho para caber a seção inteira**. Numa seção de quatro telas isso dava um corpo de celular em 1:4 — proporção que não existe em aparelho nenhum, e que denuncia a montagem antes de qualquer outra coisa. O aparelho também tinha corpo em gradiente grafite, ilha, faixa de status e botões laterais: retrato de um objeto, quando o que a imagem precisa dizer é "este site num celular".
+
+**Agora são dois modos, decididos pela altura da captura**, e a altura de uma tela não é inventada — vem da viewport de celular do próprio motor (390×844 em dpr 2), que já é a de um aparelho de verdade:
+
+- **`aparelho`** — a captura cabe em uma tela. A tela da moldura tem **sempre uma tela de altura**, em proporção real. Seção mais curta que isso fica **centrada**, e a sobra é preenchida com o **fundo da própria demo** (é o que um aparelho mostraria acima e abaixo de uma seção curta: a página continua). Sem isso, uma seção de 0,6 tela produzia um celular atarracado de 1:1,5 — a mesma proporção impossível do esticado, só do outro lado. Preto ali viraria tarja de letterbox.
+- **`cartao`** — a captura passa de uma tela. Sai a seção **inteira** numa borda arredondada simples: mesma borda fina, **raio pequeno** e nenhum chrome de aparelho. Não promete ser um celular, então não tem proporção a violar.
+
+**A escolha entre "cortar na primeira tela" e "cartão" foi feita olhando as duas**, compostas a partir das capturas cruas do mesmo lead real:
+
+| seção | altura | cortando na 1ª tela | cartão |
+| --- | --- | --- | --- |
+| hero | 1,3 telas | perde 25% — a foto da barbearia fica cortada ao meio na borda | 1:2,65, inteira |
+| serviços | 1,9 telas | perde 48% — **2 dos 6 serviços**, e a descrição do segundo termina no meio da frase | 1:3,72, os 6 serviços |
+| depoimentos | 1,3 telas | perde 22% | 1:2,54, inteira |
+
+O aparelho cortado é bonito — e é exatamente por isso que engana. **Uma tela não é fronteira de nada na seção**: a âncora aponta para uma `<section>`, então o corte cai onde calhar (no meio de uma foto, no meio de uma frase). E cortar contradiz o motor inteiro, cuja razão de existir é "a seção do início ao fim" — o `vh` preso, a viewport que cresce, as imagens forçadas em trilho horizontal, tudo serve para caber a seção completa. Jogar metade fora **justo na versão que é a enviada** desfaz esse trabalho. O cartão mantém tudo e, com raio pequeno e sem chrome, não afirma ser um celular. O problema nunca foi a altura: era o chrome de aparelho por cima dela.
+
+**Quanto isso pesa, medido nas 8 skins** (`--skins --so=celular`, 23 capturas aprovadas): **10 saem como aparelho e 13 como cartão**. A moldura de aparelho não é caso raro, e o cartão não é exceção — os extremos justificam sozinhos a decisão: `imoveis` da imobiliária tem 4,4 telas, `estoque` da multimarcas 4,9 e `portfolio` da tatuagem 4,8. Cortar essas na primeira tela jogaria fora de 77% a 80% da seção.
+
+**A versão crua não mudou**: continua a seção inteira, sem nada em volta.
 
 #### Prévia do link (`src/lib/demos/capturas/previa.mjs` + `og:*` em `/demo/{leadId}`)
 
@@ -1415,17 +1438,25 @@ O cartão que aparece quando alguém cola o endereço da demo numa conversa. Tr�
 - **Mora sob `/demo/`, não sob `/api/`**: `/demo/` é o único prefixo público do app (ver `src/proxy.ts`), e debaixo de `/api/` o buscador de prévia levaria 401 — ele não tem cookie de sessão nenhum.
 - **`?v={carimbo}` em toda URL gravada no lead.** Os objetos sobem com cache imutável de um ano, mas o caminho de cada captura é determinístico: sem uma versão na URL, o "Refazer" trocaria o arquivo no Storage enquanto navegador e buscador de prévia continuariam servindo o antigo — a ficha mostrando a rodada passada e o WhatsApp, um cartão que já não existe. O nome do arquivo da prévia carrega o carimbo também.
 
-#### Galeria em duas seções e download empacotado (`GaleriaCapturas` + `/api/leads/[id]/capturas/zip` + `lib/zip.ts`)
+#### Galeria em duas seções, e as duas ações (`GaleriaCapturas` + `capturas/acoes.ts` + `/api/leads/[id]/capturas/arquivo`)
 
 A galeria agrupava por ÂNCORA, com as duas telas lado a lado. Agora agrupa por **TELA**, em duas seções — é o que casa com o uso: quem manda print no WhatsApp manda a sequência de celular OU a de desktop, nunca uma de cada.
 
 - **Alternância crua ↔ com moldura**, uma para a galeria inteira, começando na composta (é a versão que se manda; a crua fica a um clique, para quem vai recortar). Captura que não tem a versão pedida vira **vão explícito** — "saiu sem moldura nesta rodada" — e nunca a outra versão no lugar sem avisar: entregar a crua onde se pediu moldura é uma mentira pequena que só aparece depois de a imagem já ter sido enviada.
-- **Três tamanhos de download**: uma imagem (link direto pro Storage, que já sobe com `Content-Disposition: attachment`), as três de um grupo, e as seis.
-- **Quem empacota é o SERVIDOR**, e por um caminho fechado: zipar no cliente exigiria buscar os objetos por `fetch`, e o bucket não tem cabeçalho de CORS (é exatamente o motivo pelo qual o download de uma imagem é por link, e não por fetch). A rota busca do Storage sem esbarrar nisso.
-- **`lib/zip.ts` escreve o pacote em modo STORE**, sem dependência nova. Sem compressão porque o conteúdo é PNG e JPEG: já vêm comprimidos, e passá-los pelo `deflate` gastaria CPU por uns poucos porcento — às vezes crescendo o arquivo. É um **gerador**, não um `Uint8Array` de uma vez: seis capturas de celular passam com folga do que uma resposta não-transmitida comporta numa função serverless, e transmitindo o tamanho deixa de ser um teto (só o arquivo corrente fica na memória). A data dentro do pacote é fixa em 1980-01-01 de propósito — o mesmo conteúdo gera o mesmo pacote byte a byte, o que torna o formato testável; e o teste que vale é o que escreve o zip no disco e manda um `unzip` de verdade abrir.
-- **Os nomes são legíveis**: `barbearia-norte-celular-01-hero-moldura.png` dentro do pacote, `barbearia-norte-celular-moldura.zip` para o pacote. O nome no Storage começa com o `placeId`, que não diz nada a ninguém que abre a pasta de downloads.
-- **`X-Capturas-Empacotadas`** diz quantas entraram de fato — é o que permite saber que faltou uma sem contar arquivo por arquivo. Grupo em que NENHUMA tem a versão pedida responde 404 com o motivo, em vez de um zip vazio.
-- **A prévia do link aparece na galeria**, no tamanho aproximado do cartão de conversa. Não é enfeite: é a única forma de conferir, antes de mandar, que o nome do negócio continua legível quando a imagem encolhe — que é a coisa que a composição existe pra garantir.
+- **As miniaturas são ladrilhos de altura fixa.** Miniatura na proporção de uma moldura de celular de 2500px empurra o vizinho e enche a grade de buracos. Celular é cortado a partir do topo; desktop cabe inteiro com tarja, porque cortar as laterais comeria a borda da janela, que é o que faz a imagem se ler como um site.
+
+**Duas ações distintas e explícitas**, nas três escalas — uma imagem, as três de um grupo, as seis:
+
+- **Compartilhar** abre a folha nativa do aparelho (`navigator.share({ files })`) com as imagens anexadas. **Não salva nada no aparelho**, e isso é dito na interface, ao lado de onde se decide: o arquivo vai direto para o app escolhido e some. Sem esse aviso, a descoberta acontece pelo caminho ruim — procurando na galeria do celular uma imagem que nunca foi salva.
+- **Baixar** salva os arquivos, **um por imagem, sem compactar**. A pausa de ~350ms entre eles não é enfeite: disparar vários downloads no mesmo instante faz o navegador descartar todos menos o primeiro.
+- **Onde a folha nativa não anexa arquivo, a ação de compartilhar não aparece.** Não há reserva empacotada: botão que não funciona é pior que botão nenhum, e cair num formato que ninguém pediu é pior ainda. A sonda usa um `File` de verdade — `canShare({ files: [] })` responde `true` em navegador que não anexa nada — e é lida por `useSyncExternalStore` (snapshot de servidor `false`), não por estado somado a efeito: no servidor não existe `navigator`, e responder no primeiro render divergiria da hidratação.
+- **Zip não existe mais.** Era a saída para a mesma restrição que hoje a rota resolve, e um pacote é pior que os arquivos: obriga a descompactar antes de mandar qualquer coisa.
+
+**As duas passam por `/api/leads/[id]/capturas/arquivo`, e não pelo endereço do Storage, por causa de CORS**: os objetos são públicos, mas o bucket não manda cabeçalho de CORS, e sem ele o `fetch` do navegador para outra origem é bloqueado — sem `fetch` não há `File`, e sem `File` não há folha nativa. A mesma rota serve o download: mesma origem faz o atributo `download` valer, e o `Content-Disposition` de lá carimba um nome legível (`barbearia-norte-celular-01-hero.png`) no lugar do nome no Storage, que começa com o `placeId` e não diz nada a quem abre a pasta depois — e agora o operador vê esse nome seis vezes seguidas.
+
+**O gesto do Safari**: `share` precisa ser chamado ainda dentro do toque, e buscar as imagens antes consome esse crédito (`NotAllowedError`). Os arquivos buscados ficam guardados, então a interface pede "toque de novo" em vez de dizer que falhou — no segundo toque o `share` sai na hora, com os arquivos já em mãos. Fechar a folha é `AbortError`: não é erro, não vira aviso.
+
+**A prévia do link aparece na galeria**, no tamanho aproximado do cartão de conversa. Não é enfeite: é a única forma de conferir, antes de mandar, que o nome do negócio continua legível quando a imagem encolhe — que é a coisa que a composição existe pra garantir.
 
 #### Verificação por captura da composição e da prévia
 
@@ -1438,6 +1469,11 @@ Laço local com o app real e um lead semeado (arranque de banco falso, patch tem
 **A prévia no cartão de conversa** (bolha de 302px num celular de 390, imagem em 296×155 — a largura real do cartão): o nome sai em ~16px na tela e se lê sem esforço; o topo do site se reconhece como site. É a medida que importa, porque o nome dentro do print, nessa escala, é borrão.
 
 **O recurso de reserva** responde em **162ms na primeira chamada e 26ms na segunda**, PNG de 29KB — bem dentro da paciência de um buscador de prévia. Só o nome sai em peso regular: a única face embutida no pacote do Next é a regular, então quem carrega a legibilidade é o corpo do tipo, não o peso.
+
+**Segunda rodada — moldura nova e as duas ações.** As 6 compostas do mesmo lead, e cada uma vista em bolha de mensagem num celular de 390px (imagem em 294px, teto de 400px de altura, dpr 1 — o pixel do PNG sendo o pixel da tela). No tamanho de conversa as três de celular se leem como página em cartão, sem nada que sugira aparelho de proporção impossível, e as três de desktop se leem como janela de navegador já pelo formato. Duas coisas apareceram só aqui:
+
+- **Seção mais curta que uma tela virava celular atarracado.** Não estava no pedido, mas é o mesmo defeito do esticado invertido — corrigido junto (ver "Moldura de celular" acima).
+- **O rótulo "as 6" mentia.** Com a moldura escolhida e uma composição que não saiu, o botão dizia "Compartilhar as 6" e mandaria 5. Passou a contar o que a ação de fato leva — as seções já contavam certo, só o topo não. O caminho sem folha nativa também foi conferido: nenhuma ação de compartilhar aparece, nem o aviso, e sobra só "Baixar".
 
 ### Efeitos visuais (`src/lib/demos/efeitos`) — camada decorativa opcional
 
