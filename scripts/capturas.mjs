@@ -356,11 +356,15 @@ async function comporMoldura(pagina, { tela, arquivo, largura, altura, alturaTel
     // alta que qualquer viewport razoável.
     await pagina.setViewportSize({ width: m.largura, height: Math.min(m.altura, 2000) });
     await pagina.goto(`file://${paginaHtml}`, { waitUntil: "load" });
+    // O fatiado repete a MESMA captura em vários `<img class="captura">`
+    // (uma janela por tela sobre um sprite-sheet só, ver `corpoFatiado` em
+    // moldura.mjs) — espera TODAS, não só a primeira, senão o screenshot
+    // pode sair com a segunda/terceira janela ainda em branco.
     await pagina.waitForFunction(
-      () => {
-        const img = document.querySelector("img.captura");
-        return Boolean(img && img.complete && img.naturalWidth > 0);
-      },
+      () =>
+        Array.from(document.querySelectorAll("img.captura")).every(
+          (img) => img.complete && img.naturalWidth > 0,
+        ),
       undefined,
       { timeout: 20000 },
     );

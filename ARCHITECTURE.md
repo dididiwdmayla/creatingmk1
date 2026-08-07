@@ -1404,24 +1404,16 @@ A captura crua é conteúdo puro: começa e termina no pixel da seção, sem nad
 
 A primeira versão da moldura **esticava o aparelho para caber a seção inteira**. Numa seção de quatro telas isso dava um corpo de celular em 1:4 — proporção que não existe em aparelho nenhum, e que denuncia a montagem antes de qualquer outra coisa. O aparelho também tinha corpo em gradiente grafite, ilha, faixa de status e botões laterais: retrato de um objeto, quando o que a imagem precisa dizer é "este site num celular".
 
+A correção seguinte trocou o esticado por dois modos: `aparelho` para quem cabe numa tela, e um **cartão** — corpo alongado sem chrome nenhum — para quem não cabe. O cartão resolveu a proporção impossível, mas trocou um problema por outro: um retângulo vertical de 1:3,7 não lê como nada reconhecível numa conversa, e a galeria de `/interno/capturas` (ver abaixo) não tinha como avisar que uma seção ia sair assim antes de gerar — só se descobria olhando o resultado. O cartão **não existe mais**.
+
 **Agora são dois modos, decididos pela altura da captura**, e a altura de uma tela não é inventada — vem da viewport de celular do próprio motor (390×844 em dpr 2), que já é a de um aparelho de verdade:
 
 - **`aparelho`** — a captura cabe em uma tela. A tela da moldura tem **sempre uma tela de altura**, em proporção real. Seção mais curta que isso fica **centrada**, e a sobra é preenchida com o **fundo da própria demo** (é o que um aparelho mostraria acima e abaixo de uma seção curta: a página continua). Sem isso, uma seção de 0,6 tela produzia um celular atarracado de 1:1,5 — a mesma proporção impossível do esticado, só do outro lado. Preto ali viraria tarja de letterbox.
-- **`cartao`** — a captura passa de uma tela. Sai a seção **inteira** numa borda arredondada simples: mesma borda fina, **raio pequeno** e nenhum chrome de aparelho. Não promete ser um celular, então não tem proporção a violar.
+- **`fatiado`** — a captura passa de uma tela. Em vez de um corpo esticado (proporção impossível) ou um cartão sem chrome (proporção reconhecível, mas nada), a seção é **cortada em telas consecutivas**, cada uma dentro do MESMO aparelho de proporção real do modo acima, **lado a lado, na ordem de leitura** (a primeira tela da seção fica à esquerda). A composição final fica **deitada**. No máximo `FATIAS_MAX` (3) quadros — seção maior que isso mostra só as primeiras telas, e `cortada: true` registra que sobrou conteúdo de fora. Tecnicamente é sprite-sheet: um `<img class="captura">` por quadro, todos com o MESMO `src` (a captura crua inteira), cada um deslocado por `top: -i × umaTela` dentro de uma janela `overflow: hidden` de uma tela de altura — uma imagem só no disco, N recortes dela na composição. Se a seção não fecha um número inteiro de telas, a ÚLTIMA janela mostra menos conteúdo, e o resto sai com o **fundo da própria demo** atrás (mesma lógica da folga do aparelho de seção curta).
 
-**A escolha entre "cortar na primeira tela" e "cartão" foi feita olhando as duas**, compostas a partir das capturas cruas do mesmo lead real:
+**Por que fatiar em vez de cortar na primeira tela ou esticar:** a âncora aponta para uma `<section>`, e o motor inteiro existe para capturar "a seção do início ao fim" — o `vh` preso, a viewport que cresce, as imagens forçadas em trilho horizontal. Cortar na primeira tela jogaria fora até 80% de uma seção como `estoque` da multimarcas (4,9 telas) só na versão que é a enviada, desfazendo esse trabalho. Fatiar mantém cada tela **em proporção real de aparelho** (a coisa que se reconhece "site num celular" numa conversa) sem prometer que a seção inteira é um aparelho só.
 
-| seção | altura | cortando na 1ª tela | cartão |
-| --- | --- | --- | --- |
-| hero | 1,3 telas | perde 25% — a foto da barbearia fica cortada ao meio na borda | 1:2,65, inteira |
-| serviços | 1,9 telas | perde 48% — **2 dos 6 serviços**, e a descrição do segundo termina no meio da frase | 1:3,72, os 6 serviços |
-| depoimentos | 1,3 telas | perde 22% | 1:2,54, inteira |
-
-O aparelho cortado é bonito — e é exatamente por isso que engana. **Uma tela não é fronteira de nada na seção**: a âncora aponta para uma `<section>`, então o corte cai onde calhar (no meio de uma foto, no meio de uma frase). E cortar contradiz o motor inteiro, cuja razão de existir é "a seção do início ao fim" — o `vh` preso, a viewport que cresce, as imagens forçadas em trilho horizontal, tudo serve para caber a seção completa. Jogar metade fora **justo na versão que é a enviada** desfaz esse trabalho. O cartão mantém tudo e, com raio pequeno e sem chrome, não afirma ser um celular. O problema nunca foi a altura: era o chrome de aparelho por cima dela.
-
-**Quanto isso pesa, medido nas 8 skins** (`--skins --so=celular`, 23 capturas aprovadas): **10 saem como aparelho e 13 como cartão**. A moldura de aparelho não é caso raro, e o cartão não é exceção — os extremos justificam sozinhos a decisão: `imoveis` da imobiliária tem 4,4 telas, `estoque` da multimarcas 4,9 e `portfolio` da tatuagem 4,8. Cortar essas na primeira tela jogaria fora de 77% a 80% da seção.
-
-**A versão crua não mudou**: continua a seção inteira, sem nada em volta.
+**A versão crua não mudou**: continua a seção inteira, sem nada em volta — é ela que alimenta tanto o `aparelho`/`fatiado` quanto o carrossel de detalhe da galeria.
 
 #### Prévia do link (`src/lib/demos/capturas/previa.mjs` + `og:*` em `/demo/{leadId}`)
 
