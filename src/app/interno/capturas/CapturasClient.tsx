@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { CAPTURAS_MAX_ANCORAS } from "@/lib/demos/capturas/ancoras";
 import { medirSecao, neutralizarCromo, prepararPagina } from "@/lib/demos/capturas/dom.mjs";
-import { FATIAS_MAX } from "@/lib/demos/capturas/moldura.mjs";
+import { FATIAS_MAX, LIMITE_FATIA_UNICA } from "@/lib/demos/capturas/moldura.mjs";
 
 /**
  * Cliente da tela de marcação (ver o comentário do page.tsx irmão).
@@ -376,10 +376,19 @@ function PreviaEnquadramento({
         win.scrollTo(0, atual.topo);
         await espera(300);
 
-        // Quantas telas de aparelho a composição de CELULAR vai fatiar
-        // (ver `medidasMoldura`/`FATIAS_MAX` em moldura.mjs) — no desktop a
-        // janela do navegador sempre mostra a seção inteira, sem fatiar.
-        const fatias = tela === "celular" ? Math.max(1, Math.ceil(verdadeira.altura / altura)) : 1;
+        // Quantas telas de aparelho a composição de CELULAR vai fatiar (ver
+        // `medidasMoldura`/`LIMITE_FATIA_UNICA`/`FATIAS_MAX` em moldura.mjs)
+        // — no desktop a janela do navegador sempre mostra a seção inteira,
+        // sem fatiar. Até `LIMITE_FATIA_UNICA` telas continua UM quadro só
+        // (encolhido pra caber, não duas fatias quase idênticas), mesma
+        // regra do motor — reportar `ceil()` puro aqui diria "fatiada em 2"
+        // pra uma seção que na composição real sai como um aparelho só.
+        const fatias =
+          tela === "celular"
+            ? verdadeira.altura <= altura * LIMITE_FATIA_UNICA
+              ? 1
+              : Math.ceil(verdadeira.altura / altura)
+            : 1;
 
         setMedida({ altura: verdadeira.altura, alturaIframe, naoVaiCaber, fatias });
       })

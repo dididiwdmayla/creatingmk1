@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  calcularToposFatias,
   enderecoExibido,
   FATIAS_MAX,
   fundoClaro,
   htmlMoldura,
+  LIMITE_FATIA_UNICA,
   luminancia,
   medidasMoldura,
   nomeComposto,
   PROPORCAO_APARELHO,
+  vazioNaFatia,
 } from "../moldura.mjs";
 
 /**
@@ -69,10 +72,11 @@ describe("medidasMoldura", () => {
     expect(m.altura).toBeGreaterThan(1200);
   });
 
-  it("captura de até uma tela vira APARELHO, em proporção de aparelho real", () => {
+  it("captura de até uma tela vira APARELHO, em proporção de aparelho real, sem encolher", () => {
     const m = medidasCelular({ ...CELULAR, altura: UMA_TELA });
     if (m.modo !== "aparelho") throw new Error("esperava aparelho");
     expect(m.cortada).toBe(false);
+    expect(m.escala).toBe(1);
     // A proporção da TELA é a da viewport do motor, que é a de um aparelho
     // de verdade — não um número inventado aqui.
     expect(m.alturaVisivel / CELULAR.largura).toBeCloseTo(UMA_TELA / CELULAR.largura, 5);
@@ -81,6 +85,7 @@ describe("medidasMoldura", () => {
   it("seção CURTA não vira celular atarracado: a tela continua com uma tela", () => {
     const m = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 0.6) });
     if (m.modo !== "aparelho") throw new Error("esperava aparelho");
+    expect(m.escala).toBe(1);
     expect(m.alturaVisivel).toBe(UMA_TELA);
     // A sobra é preenchida com o fundo da demo — a página continuando, não
     // uma tarja preta.
@@ -96,9 +101,14 @@ describe("medidasMoldura", () => {
     expect(m.cortada).toBe(false);
   });
 
-  it("uma folga de arredondamento não joga a captura para fatiado", () => {
-    expect(medidasCelular({ ...CELULAR, altura: UMA_TELA + 4 }).modo).toBe("aparelho");
-    expect(medidasCelular({ ...CELULAR, altura: UMA_TELA + 40 }).modo).toBe("fatiado");
+  it(`até ${LIMITE_FATIA_UNICA}× uma tela, continua APARELHO — encolhido, não fatiado em duas quase iguais`, () => {
+    const noLimite = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * LIMITE_FATIA_UNICA) });
+    const abaixoDoLimite = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 1.1) });
+    expect(noLimite.modo).toBe("aparelho");
+    expect(abaixoDoLimite.modo).toBe("aparelho");
+
+    const acimaDoLimite = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 1.2) });
+    expect(acimaDoLimite.modo).toBe("fatiado");
   });
 
   it("o aparelho e cada quadro do fatiado têm o MESMO raio — a mesma moldura de aparelho", () => {
@@ -132,6 +142,41 @@ describe("medidasMoldura", () => {
     if (duasTelas.modo !== "fatiado" || quatroTelas.modo !== "fatiado") throw new Error("modo inesperado");
     expect(quatroTelas.borda).toBe(duasTelas.borda);
     expect(quatroTelas.raio).toBe(duasTelas.raio);
+  });
+});
+
+/**
+ * Uma seção só um pouco mais alta que uma tela (até `LIMITE_FATIA_UNICA`)
+ * não vira duas fatias quase idênticas — encolhe pra caber num quadro só.
+ */
+describe("medidasMoldura — quadro único encolhido (seção um pouco mais alta que uma tela)", () => {
+  it("escala menor que 1, e SEM cortar: a tela mostra a seção inteira, só menor", () => {
+    const m = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 1.1) });
+    if (m.modo !== "aparelho") throw new Error("esperava aparelho");
+    expect(m.escala).toBeLessThan(1);
+    expect(m.escala).toBeCloseTo(UMA_TELA / Math.round(UMA_TELA * 1.1), 3);
+  });
+
+  it("sem folga: a imagem encolhida bate exatamente com a altura da tela, nem sobra nem falta", () => {
+    const m = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 1.1) });
+    if (m.modo !== "aparelho") throw new Error("esperava aparelho");
+    expect(m.folga).toBe(0);
+  });
+
+  it("quanto mais alta a seção (dentro do limite), menor a escala", () => {
+    const poucoMaisAlta = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 1.02) });
+    const maisAlta = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 1.14) });
+    if (poucoMaisAlta.modo !== "aparelho" || maisAlta.modo !== "aparelho") throw new Error("modo inesperado");
+    expect(maisAlta.escala).toBeLessThan(poucoMaisAlta.escala);
+  });
+
+  it("a tela do quadro continua do tamanho de UMA tela, como o aparelho normal", () => {
+    const exato = medidasCelular({ ...CELULAR, altura: UMA_TELA });
+    const encolhido = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 1.1) });
+    if (exato.modo !== "aparelho" || encolhido.modo !== "aparelho") throw new Error("modo inesperado");
+    expect(encolhido.alturaVisivel).toBe(exato.alturaVisivel);
+    expect(encolhido.largura).toBe(exato.largura);
+    expect(encolhido.altura).toBe(exato.altura);
   });
 });
 
@@ -171,6 +216,85 @@ describe("medidasMoldura — fatiado (seção mais alta que uma tela)", () => {
     const dez = medidasCelular({ ...CELULAR, altura: UMA_TELA * 10 });
     expect(dez.altura).toBe(duas.altura);
   });
+});
+
+/**
+ * O BUG: com as fatias posicionadas de `umaTela` em `umaTela` a partir do
+ * topo, a ÚLTIMA só bate certinho com o fim do conteúdo quando a altura da
+ * seção é múltiplo exato da tela — 2,4 telas ou 1,3 telas (que arredondam
+ * pra 2 e 3 fatias) sobravam com uma faixa vazia no final da última janela.
+ * `calcularToposFatias` (e o portão de `vazioNaFatia` dentro de
+ * `medidasMoldura`, que teria lançado se a conta abaixo estivesse errada)
+ * são o que garante que isso não acontece mais — para os dois casos citados
+ * no relato do bug, 2 e 3 fatias.
+ */
+describe("calcularToposFatias / vazioNaFatia — nenhuma fatia termina em vazio", () => {
+  it("2 fatias, seção NÃO múltipla da tela (o caso relatado): a última termina exatamente no fim", () => {
+    const altura = UMA_TELA * 1.3; // ceil(1.3) = 2 fatias
+    const topos = calcularToposFatias(2, altura, UMA_TELA, false);
+    expect(topos[0]).toBe(0);
+    // A fórmula antiga (`i * umaTela`) puria a 2ª fatia em `umaTela`, que
+    // sobra 0,3 tela de vazio no final. A nova termina EXATAMENTE em `altura`.
+    expect(topos[1] + UMA_TELA).toBeCloseTo(altura, 5);
+    for (const topo of topos) expect(vazioNaFatia(topo, UMA_TELA, altura)).toBe(0);
+  });
+
+  it("3 fatias, seção NÃO múltipla da tela (o caso relatado): a última termina exatamente no fim", () => {
+    const altura = UMA_TELA * 2.4; // ceil(2.4) = 3 fatias
+    const topos = calcularToposFatias(3, altura, UMA_TELA, false);
+    expect(topos[0]).toBe(0);
+    expect(topos[topos.length - 1] + UMA_TELA).toBeCloseTo(altura, 5);
+    for (const topo of topos) expect(vazioNaFatia(topo, UMA_TELA, altura)).toBe(0);
+  });
+
+  it("a sobreposição entre fatias fica distribuída por igual, não só na última", () => {
+    const altura = UMA_TELA * 2.4;
+    const topos = calcularToposFatias(3, altura, UMA_TELA, false);
+    const passo1 = topos[1] - topos[0];
+    const passo2 = topos[2] - topos[1];
+    expect(passo1).toBeCloseTo(passo2, 5);
+  });
+
+  it("a fórmula antiga (i × umaTela) É o defeito: comparação direta prova a diferença", () => {
+    const altura = UMA_TELA * 2.4;
+    const topoAntigoDaUltima = 2 * UMA_TELA; // como o código calculava antes
+    const topoNovoDaUltima = calcularToposFatias(3, altura, UMA_TELA, false)[2];
+    expect(vazioNaFatia(topoAntigoDaUltima, UMA_TELA, altura)).toBeGreaterThan(0);
+    expect(vazioNaFatia(topoNovoDaUltima, UMA_TELA, altura)).toBe(0);
+  });
+
+  it("seção EXATAMENTE múltipla da tela: as duas fórmulas coincidem (não havia bug aqui)", () => {
+    const altura = UMA_TELA * 2;
+    const topos = calcularToposFatias(2, altura, UMA_TELA, false);
+    expect(topos).toEqual([0, UMA_TELA]);
+  });
+
+  it("truncada (mais telas do que o teto mostra): tiles cheios de umaTela em umaTela, sem sobreposição — não tem 'fim' a alcançar", () => {
+    const altura = UMA_TELA * 10;
+    const topos = calcularToposFatias(FATIAS_MAX, altura, UMA_TELA, true);
+    expect(topos).toEqual([0, UMA_TELA, 2 * UMA_TELA]);
+  });
+
+  it("uma fatia só: começa no topo", () => {
+    expect(calcularToposFatias(1, UMA_TELA * 1.1, UMA_TELA, false)).toEqual([0]);
+  });
+
+  it(
+    "PORTÃO amplo: para toda combinação de altura (1,16 a 6 telas) e uma tolerância mínima, " +
+      "medidasMoldura nunca produz fatia com área vazia (e nunca lança) — é a rede que pega regressão futura",
+    () => {
+      for (let razao = 1.16; razao <= 6; razao += 0.07) {
+        const altura = Math.round(UMA_TELA * razao);
+        const m = medidasCelular({ ...CELULAR, altura });
+        if (m.modo !== "fatiado") throw new Error(`esperava fatiado em ${razao}× (altura=${altura})`);
+        if (!m.cortada) {
+          for (const topo of m.topos) {
+            expect(vazioNaFatia(topo, m.umaTela, altura)).toBeLessThanOrEqual(1);
+          }
+        }
+      }
+    },
+  );
 });
 
 describe("moldura de celular — aparelho (cabe numa tela)", () => {
@@ -230,10 +354,32 @@ describe("moldura de celular — fatiado (seção mais alta que uma tela)", () =
     expect(html.match(/class="captura"/g)).toHaveLength(FATIAS_MAX);
   });
 
-  it("cada quadro desloca a imagem por uma tela a mais — a 2ª fatia começa onde a 1ª parou", () => {
+  it("cada quadro desloca a imagem por uma tela a mais (seção múltipla exata da tela)", () => {
     const html = soAMoldura(htmlMoldura(ALTA));
     expect(html).toContain("top: 0px");
     expect(html).toContain(`top: -${UMA_TELA}px`);
+  });
+
+  it("2 fatias, seção NÃO múltipla da tela: a última janela termina no fim real do conteúdo, não em -1×umaTela", () => {
+    const altura = Math.round(UMA_TELA * 1.3);
+    const html = soAMoldura(htmlMoldura({ ...CELULAR, altura }));
+    const tops = [...html.matchAll(/top: (-?\d+)px/g)].map(([, v]) => Number(v));
+    expect(tops).toHaveLength(2);
+    expect(tops[0]).toBe(0);
+    // A fórmula antiga poria a 2ª fatia em -umaTela (sobrando 0,3 tela de
+    // vazio); a nova termina exatamente no fim: topo + umaTela === altura.
+    expect(-tops[1] + UMA_TELA).toBe(altura);
+  });
+
+  it("3 fatias, seção NÃO múltipla da tela: a última janela termina no fim real do conteúdo, não em -2×umaTela", () => {
+    const altura = Math.round(UMA_TELA * 2.4);
+    const html = soAMoldura(htmlMoldura({ ...CELULAR, altura }));
+    const tops = [...html.matchAll(/top: (-?\d+)px/g)].map(([, v]) => Number(v));
+    expect(tops).toHaveLength(3);
+    expect(tops[0]).toBe(0);
+    expect(-tops[2] + UMA_TELA).toBe(altura);
+    // A fórmula antiga (2 × umaTela) deixaria 40% da última janela vazia.
+    expect(-tops[2]).not.toBe(2 * UMA_TELA);
   });
 
   it("não exibe endereço nenhum, igual ao aparelho — continua sem chrome de navegador", () => {
