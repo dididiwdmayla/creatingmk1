@@ -612,25 +612,39 @@ async function main() {
           );
         }
 
-        // A PRÉVIA DO LINK sai do contexto de desktop, depois das âncoras:
-        // é o único que já está na viewport de 1440×900 em dpr 1, que é o
-        // enquadramento do topo do site. Uma tela só, e não uma por
-        // âncora — a prévia é do site, não de uma seção.
-        if (tela.id === "desktop") {
-          const previa = await gerarPrevia(page, paginaMoldura, alvo, tela).catch((e) => ({
-            erro: e instanceof Error ? e.message : String(e),
-          }));
-          if (previa.erro) {
-            reprovadas.push(`${alvo.nome}/prévia: ${previa.erro}`);
-            console.log(`  ✗ prévia do link: ${previa.erro}`);
-          } else {
-            manifesto.get(alvo.nome).previa = previa;
-            console.log(`  ok prévia do link: ${previa.largura}×${previa.altura} · "${previa.nome}"`);
-          }
-        }
-
         await ctx.close();
       }
+
+      // A PRÉVIA DO LINK, sempre — nunca condicionada a QUAIS telas este
+      // rodada capturou. Antes vinha de dentro do laço de telas (só no
+      // passe "desktop"), e um `--so=celular` (opção documentada acima)
+      // pulava a prévia inteira, sem aviso nenhum: o lead saía com as
+      // capturas prontas e nenhuma prévia pra referenciar, e o `og:image`
+      // caía no recurso de reserva sem que nada tivesse "dado errado" de
+      // fato — só faltou pedir. A prévia é do SITE, não de uma tela
+      // escolhida a dedo, então ganha o PRÓPRIO contexto (viewport de
+      // desktop, dpr 1 — o enquadramento do topo do site), fixo,
+      // independente do que `--so` filtrou.
+      const DESKTOP = TELAS.find((t) => t.id === "desktop");
+      const ctxPrevia = await browser.newContext({
+        viewport: { width: DESKTOP.largura, height: DESKTOP.altura },
+        deviceScaleFactor: DESKTOP.dpr,
+      });
+      // Mesma condição das âncoras acima: só o harness `/interno/*` exige
+      // sessão — a demo pública nunca leva cookie (ver as defesas do motor).
+      if (alvo.url.includes("/interno/")) await ctxPrevia.addCookies([cookie]);
+      const paginaPrevia = await ctxPrevia.newPage();
+      const previa = await gerarPrevia(paginaPrevia, paginaMoldura, alvo, DESKTOP).catch((e) => ({
+        erro: e instanceof Error ? e.message : String(e),
+      }));
+      if (previa.erro) {
+        reprovadas.push(`${alvo.nome}/prévia: ${previa.erro}`);
+        console.log(`  ✗ prévia do link: ${previa.erro}`);
+      } else {
+        manifesto.get(alvo.nome).previa = previa;
+        console.log(`  ok prévia do link: ${previa.largura}×${previa.altura} · "${previa.nome}"`);
+      }
+      await ctxPrevia.close();
     }
 
     if (temFlag("subir")) await subirParaStorage([...manifesto.values()]);
