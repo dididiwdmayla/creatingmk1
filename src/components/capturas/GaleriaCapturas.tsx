@@ -105,8 +105,7 @@ export function GaleriaCapturas({
   );
 
   const grupos = porTela(imagens);
-  const total = imagens.length;
-  if (total === 0) return null;
+  if (imagens.length === 0) return null;
 
   const paraAcao = (lista: CapturaImagem[]): ImagemParaAcao[] =>
     lista.flatMap((imagem) => {
@@ -121,6 +120,8 @@ export function GaleriaCapturas({
         },
       ];
     });
+
+  const todas = paraAcao(imagens);
 
   return (
     <div className="flex flex-col gap-4">
@@ -142,10 +143,13 @@ export function GaleriaCapturas({
             </button>
           ))}
         </div>
+        {/* A contagem é a das imagens que a ação de fato leva, não a das
+            capturas da rodada: com a moldura escolhida e uma composição
+            que não saiu, "as 6" mandaria 5 — rótulo que mente. */}
         <Acoes
-          imagens={paraAcao(imagens)}
-          rotuloCompartilhar={`Compartilhar as ${total}`}
-          rotuloBaixar={`Baixar as ${total}`}
+          imagens={todas}
+          rotuloCompartilhar={`Compartilhar as ${todas.length}`}
+          rotuloBaixar={`Baixar as ${todas.length}`}
           compartilhaArquivo={compartilhaArquivo}
           destaque
         />

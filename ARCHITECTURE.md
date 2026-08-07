@@ -1470,6 +1470,11 @@ Laço local com o app real e um lead semeado (arranque de banco falso, patch tem
 
 **O recurso de reserva** responde em **162ms na primeira chamada e 26ms na segunda**, PNG de 29KB — bem dentro da paciência de um buscador de prévia. Só o nome sai em peso regular: a única face embutida no pacote do Next é a regular, então quem carrega a legibilidade é o corpo do tipo, não o peso.
 
+**Segunda rodada — moldura nova e as duas ações.** As 6 compostas do mesmo lead, e cada uma vista em bolha de mensagem num celular de 390px (imagem em 294px, teto de 400px de altura, dpr 1 — o pixel do PNG sendo o pixel da tela). No tamanho de conversa as três de celular se leem como página em cartão, sem nada que sugira aparelho de proporção impossível, e as três de desktop se leem como janela de navegador já pelo formato. Duas coisas apareceram só aqui:
+
+- **Seção mais curta que uma tela virava celular atarracado.** Não estava no pedido, mas é o mesmo defeito do esticado invertido — corrigido junto (ver "Moldura de celular" acima).
+- **O rótulo "as 6" mentia.** Com a moldura escolhida e uma composição que não saiu, o botão dizia "Compartilhar as 6" e mandaria 5. Passou a contar o que a ação de fato leva — as seções já contavam certo, só o topo não. O caminho sem folha nativa também foi conferido: nenhuma ação de compartilhar aparece, nem o aviso, e sobra só "Baixar".
+
 ### Efeitos visuais (`src/lib/demos/efeitos`) — camada decorativa opcional
 
 Registro **separado** do registro de skins (mesmo padrão: metadado central + contrato + testes), pra uma camada decorativa opcional que uma skin pode somar por cima de si. Alimenta o seletor "Efeito de fundo" da aba Tema do editor (`Theme.fundoEfeito`/`TemaPatch.fundoEfeito`, ver "Micro-interações do tema" acima) e é renderizado como sibling da skin (não por dentro dela) tanto na rota pública quanto no preview.
