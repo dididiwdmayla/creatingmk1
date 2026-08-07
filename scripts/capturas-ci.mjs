@@ -217,9 +217,14 @@ async function main() {
         : { previa: null }),
       // Uma âncora que reprovou no portão não invalida as outras, mas o
       // operador precisa saber que faltou uma — senão ele conta 4 imagens
-      // onde esperava 6 e não sabe por quê.
+      // onde esperava 6 e não sabe por quê. A prévia do link entra na MESMA
+      // lista (ver `manifesto[].reprovadas` em scripts/capturas.mjs): se ela
+      // falhou, o `og:image` caiu pro recurso de reserva (nome sobre a cor
+      // da marca, sem descrição, sem janela de navegador) e o operador
+      // precisa ver isso aqui — "pronto" sem aviso nenhum é o estado que
+      // mente, mesmo com as âncoras todas boas.
       ...(entrada?.reprovadas?.length > 0
-        ? { erro: `${entrada.reprovadas.length} âncora(s) reprovada(s): ${entrada.reprovadas.join(" · ")}`.slice(0, 500) }
+        ? { erro: `${entrada.reprovadas.length} problema(s): ${entrada.reprovadas.join(" · ")}`.slice(0, 500) }
         : { erro: null }),
     });
     prontos += 1;
