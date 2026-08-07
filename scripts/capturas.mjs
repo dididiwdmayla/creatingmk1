@@ -73,6 +73,17 @@ const ALTURA_MAX = 12000;
 const ALTURA_MAX_MOLDURA = 15800;
 
 /**
+ * Teto de peso da PRÉVIA DO LINK. O buscador de prévia do WhatsApp desiste
+ * de arquivo pesado — a imagem existe pra ser buscada rápido, não pra ser
+ * perfeita ao pixel. Em qualidade 82 o comum fica na casa das dezenas de KB
+ * (uma demo com foto de topo bem carregada, na casa de uma centena); acima
+ * disto a composição REPROVA em vez de subir um arquivo que o buscador
+ * talvez recuse (ver `comporPrevia`, que reduz a qualidade em duas etapas
+ * antes de desistir).
+ */
+const PREVIA_PESO_MAX_BYTES = 300 * 1024;
+
+/**
  * Endereço público do Radar — o que a moldura de navegador exibe.
  *
  * Não dá pra deduzir: no runner o app roda em 127.0.0.1:3123, e o
@@ -445,16 +456,40 @@ async function comporPrevia(pagina, { arquivoTopo, largura, altura, arquivo, ...
   try {
     await pagina.setViewportSize({ width: PREVIA_LARGURA, height: PREVIA_ALTURA });
     await pagina.goto(`file://${paginaHtml}`, { waitUntil: "load" });
+    // O PORTÃO da composição: não basta a imagem ter CARREGADO (`complete`
+    // fica `true` até para um arquivo corrompido ou truncado a meio
+    // caminho) — a largura DECODIFICADA precisa bater com a da captura crua
+    // que ela deveria mostrar. Sem isto, uma captura do topo que saiu
+    // truncada (disco cheio, Chromium morto no meio da escrita) passava
+    // pelo portão como "carregou" e a prévia ia pro ar com a janela do
+    // navegador mostrando um retângulo vazio ou cortado, em vez de reprovar.
     await pagina.waitForFunction(
-      () => {
+      (larguraEsperada) => {
         const img = document.querySelector("img.captura");
-        return Boolean(img && img.complete && img.naturalWidth > 0);
+        return Boolean(img && img.complete && img.naturalWidth === larguraEsperada);
       },
-      undefined,
+      largura,
       { timeout: 20000 },
     );
     const destino = path.join(SAIDA, arquivo);
-    await pagina.screenshot({ path: destino, type: "jpeg", quality: 82 });
+    // PORTÃO DE PESO: o buscador de prévia do WhatsApp desiste de arquivo
+    // pesado, então "compôs" não é o mesmo que "serve". Tenta qualidades
+    // decrescentes antes de reprovar — a prévia perder um pouco de nitidez
+    // ainda entrega o que ela existe pra entregar (nome legível, site
+    // reconhecível); publicar acima do teto é o buscador simplesmente não
+    // buscar, que é pior que qualquer perda de qualidade.
+    let tamanho;
+    for (const qualidade of [82, 60, 40]) {
+      await pagina.screenshot({ path: destino, type: "jpeg", quality: qualidade });
+      tamanho = (await fs.stat(destino)).size;
+      if (tamanho <= PREVIA_PESO_MAX_BYTES) break;
+    }
+    if (tamanho > PREVIA_PESO_MAX_BYTES) {
+      throw new Error(
+        `prévia saiu com ${Math.round(tamanho / 1024)}KB mesmo na qualidade mínima — ` +
+          `acima do teto de ${Math.round(PREVIA_PESO_MAX_BYTES / 1024)}KB que o buscador de prévia aceita`,
+      );
+    }
     return { arquivo, caminhoLocal: destino, largura: PREVIA_LARGURA, altura: PREVIA_ALTURA };
   } finally {
     await fs.unlink(paginaHtml).catch(() => undefined);
@@ -471,12 +506,22 @@ async function comporPrevia(pagina, { arquivoTopo, largura, altura, arquivo, ...
  */
 async function gerarPrevia(page, paginaMoldura, alvo, tela) {
   const arquivoTopo = `${alvo.nome}-previa-topo.png`;
-  const { identidade, paleta } = await capturarTopo(
-    page,
-    alvo,
-    tela,
-    path.join(SAIDA, arquivoTopo),
-  );
+  const destinoTopo = path.join(SAIDA, arquivoTopo);
+  const { identidade, paleta } = await capturarTopo(page, alvo, tela, destinoTopo);
+
+  // A composição só pode começar DEPOIS que a captura que ela usa existe de
+  // verdade no disco — `capturarTopo` já é `await`ado antes desta linha,
+  // mas essa garantia era IMPLÍCITA na ordem do código, e uma falha muda de
+  // Chromium (processo morto, disco cheio) podia deixar `page.screenshot`
+  // resolver sem escrever o arquivo inteiro. Verificar explicitamente aqui
+  // transforma "a captura já devia estar pronta" numa condição CHECADA:
+  // falha alto e claro, em vez de deixar `comporPrevia` abrir por `file://`
+  // um PNG ausente ou truncado e a prévia sair faltando a janela.
+  const statTopo = await fs.stat(destinoTopo).catch(() => undefined);
+  if (!statTopo || statTopo.size === 0) {
+    throw new Error(`captura do topo não ficou pronta em ${arquivoTopo} antes da composição da prévia`);
+  }
+
   const nome = alvo.nomeNegocio?.trim() || identidade.titulo || alvo.nome;
 
   const composta = await comporPrevia(paginaMoldura, {
@@ -643,6 +688,17 @@ async function main() {
       }));
       if (previa.erro) {
         reprovadas.push(`${alvo.nome}/prévia: ${previa.erro}`);
+        // Sem isto, a falha só aparecia no console de quem rodou o motor à
+        // mão: `capturas-ci.mjs` lê `manifesto[].reprovadas` (não o array
+        // global acima) pra montar o `erro` que a ficha mostra — e sem uma
+        // entrada aqui um lead com âncoras boas e prévia quebrada saía
+        // "pronto" e sem aviso nenhum. Og:image caindo pro recurso de
+        // reserva (nome sobre a cor da marca, sem descrição, sem janela de
+        // navegador) é exatamente esse tipo de "estado que mente": a
+        // composição incompleta não foi publicada — o motor acertou nisso —
+        // mas o silêncio em volta dela também precisa ser tratado como
+        // reprovação, não como sucesso parcial invisível.
+        manifesto.get(alvo.nome).reprovadas.push(`prévia: ${previa.erro}`);
         console.log(`  ✗ prévia do link: ${previa.erro}`);
       } else {
         manifesto.get(alvo.nome).previa = previa;
