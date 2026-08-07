@@ -7,8 +7,7 @@ import {
   escritaAindaVale,
   estadoVisivel,
   mensagemDisparoLote,
-  nomeDoPacote,
-  nomeNoPacote,
+  nomeDoArquivo,
   porTela,
   semNoticia,
   versaoDaImagem,
@@ -185,7 +184,7 @@ describe("versaoDaImagem", () => {
   });
 });
 
-describe("nomes de download", () => {
+describe("nomeDoArquivo", () => {
   const imagem: CapturaImagem = {
     ancora: "hero",
     tela: "celular",
@@ -195,23 +194,23 @@ describe("nomes de download", () => {
     altura: 1688,
   };
 
-  it("o nome dentro do pacote é legível, não o id do lugar", () => {
-    expect(nomeNoPacote(imagem, "Barbearia Norte", "moldura")).toBe(
+  it("é legível, não o id do lugar — o operador vê seis destes na pasta", () => {
+    expect(nomeDoArquivo(imagem, "Barbearia Norte", "moldura")).toBe(
       "barbearia-norte-celular-01-hero-moldura.png",
     );
-    expect(nomeNoPacote(imagem, "Barbearia Norte", "crua")).toBe(
+    expect(nomeDoArquivo(imagem, "Barbearia Norte", "crua")).toBe(
       "barbearia-norte-celular-01-hero.png",
     );
   });
 
   it("acento, pontuação e espaço viram nome de arquivo seguro", () => {
-    expect(nomeDoPacote("Açaí & Cia. — Sarandi", "celular", "crua")).toBe(
-      "acai-cia-sarandi-celular.zip",
+    expect(nomeDoArquivo(imagem, "Açaí & Cia. — Sarandi", "crua")).toBe(
+      "acai-cia-sarandi-celular-01-hero.png",
     );
   });
 
   it("nome que some inteiro na limpeza ainda gera um arquivo nomeável", () => {
-    expect(nomeDoPacote("!!!", "tudo", "moldura")).toBe("lead-capturas-moldura.zip");
+    expect(nomeDoArquivo(imagem, "!!!", "crua")).toBe("lead-celular-01-hero.png");
   });
 });
 

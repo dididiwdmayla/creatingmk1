@@ -1,10 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import {
   CAPTURA_TELAS,
+  nomeDoArquivo,
   porTela,
   versaoDaImagem,
   type CapturaImagem,
@@ -13,22 +14,30 @@ import {
   type CapturaVersao,
 } from "@/lib/demos/capturas/estado";
 
+import {
+  baixarUmAUm,
+  buscarArquivos,
+  classificarFalha,
+  podeCompartilharArquivos,
+  type ImagemParaAcao,
+} from "./acoes";
+
 /**
  * As capturas prontas de um lead, em DUAS SEÇÕES — celular e desktop —
  * com alternância entre a versão crua e a composta em moldura.
  *
- * Agrupar por tela (e não por âncora, como antes) é o que casa com o uso:
- * quem manda print no WhatsApp manda a sequência de celular OU a de
- * desktop, nunca uma de cada. A alternância existe porque as duas versões
- * servem a coisas diferentes — a composta é a que se manda inteira, a crua
- * é a que se recorta e manda como detalhe.
+ * Agrupar por tela (e não por âncora) é o que casa com o uso: quem manda
+ * print no WhatsApp manda a sequência de celular OU a de desktop, nunca
+ * uma de cada. A alternância existe porque as duas versões servem a coisas
+ * diferentes — a composta é a que se manda inteira, a crua é a que se
+ * recorta e manda como detalhe.
  *
- * Downloads em três tamanhos: uma imagem, as três de um grupo, ou as seis.
- * As duas últimas passam por `/api/leads/{id}/capturas/zip`, que empacota
- * no servidor: zipar no cliente exigiria buscar os objetos por `fetch`, e
- * o bucket não tem cabeçalho de CORS (é o mesmo motivo pelo qual o objeto
- * sobe com `Content-Disposition: attachment`, para o link de UMA imagem
- * salvar em vez de abrir uma aba).
+ * **Duas ações, distintas e explícitas**, nas três escalas (uma imagem, as
+ * três de um grupo, as seis): "Compartilhar" abre a folha nativa com as
+ * imagens anexadas e NÃO salva nada no aparelho; "Baixar" salva os
+ * arquivos, um por imagem, sem compactar. Onde a folha nativa não anexa
+ * arquivo, a ação de compartilhar não aparece — botão que não funciona é
+ * pior que botão nenhum.
  *
  * A miniatura é `unoptimized`: as imagens já saem do motor no tamanho e na
  * qualidade que vão para o WhatsApp, e passá-las pelo otimizador do Next
@@ -43,17 +52,15 @@ const VERSOES: Array<{ id: CapturaVersao; rotulo: string }> = [
 ];
 
 /**
- * As miniaturas são LADRILHOS de altura fixa, com a imagem cortada a
- * partir do topo — não a captura inteira reduzida.
+ * As miniaturas são LADRILHOS de altura fixa, com a imagem encaixada — não
+ * a captura inteira reduzida.
  *
  * Uma seção de celular tem três telas de altura; emoldurada, passa de
  * 2500px. Reduzida na proporção, viraria uma tira de meio metro na ficha,
  * e a grade ficaria cheia de buracos onde um ladrilho comprido empurra o
- * vizinho. Cortando a partir do topo, todas as capturas de um grupo se
- * alinham e a seção volta a ser uma folha de contatos — que é como se olha
- * seis imagens de uma vez. A imagem inteira continua a um clique.
+ * vizinho. A imagem inteira continua a um clique.
  */
-const LADRILHO: Record<CapturaTela, string> = { celular: "w-[104px]", desktop: "w-[196px]" };
+const LADRILHO: Record<CapturaTela, string> = { celular: "w-[116px]", desktop: "w-[200px]" };
 const ALTURA_LADRILHO = "h-[168px]";
 /**
  * O encaixe difere por tela porque a forma difere. A captura de celular é
@@ -66,6 +73,16 @@ const ENCAIXE: Record<CapturaTela, string> = {
   celular: "object-cover object-top",
   desktop: "object-contain",
 };
+
+/**
+ * A capacidade do aparelho é lida por `useSyncExternalStore`, e não por
+ * estado somado a efeito: no servidor não existe `navigator`, e responder
+ * no primeiro render divergiria da hidratação. O snapshot do servidor é
+ * `false` (sem botão), o do cliente é a sonda de verdade — e a capacidade
+ * não muda durante a sessão, então não há nada a que se inscrever.
+ */
+const SEM_MUDANCA = () => () => undefined;
+const NO_SERVIDOR = () => false;
 
 export function GaleriaCapturas({
   imagens,
@@ -81,12 +98,29 @@ export function GaleriaCapturas({
   // Começa na composta: é a versão que se manda numa conversa. A crua
   // continua a um clique, para quem vai recortar.
   const [versao, setVersao] = useState<CapturaVersao>("moldura");
+  const compartilhaArquivo = useSyncExternalStore(
+    SEM_MUDANCA,
+    podeCompartilharArquivos,
+    NO_SERVIDOR,
+  );
+
   const grupos = porTela(imagens);
   const total = imagens.length;
   if (total === 0) return null;
 
-  const pacote = (tela: CapturaTela | "tudo") =>
-    `/api/leads/${encodeURIComponent(leadId)}/capturas/zip?tela=${tela}&versao=${versao}`;
+  const paraAcao = (lista: CapturaImagem[]): ImagemParaAcao[] =>
+    lista.flatMap((imagem) => {
+      // Sem a versão pedida, a imagem fica de FORA da ação em vez de a
+      // seleção cair calada na outra versão.
+      if (!versaoDaImagem(imagem, versao)) return [];
+      const busca = new URLSearchParams({ tela: imagem.tela, ancora: imagem.ancora, versao });
+      return [
+        {
+          url: `/api/leads/${encodeURIComponent(leadId)}/capturas/arquivo?${busca}`,
+          nome: nomeDoArquivo(imagem, nomeLead, versao),
+        },
+      ];
+    });
 
   return (
     <div className="flex flex-col gap-4">
@@ -108,13 +142,27 @@ export function GaleriaCapturas({
             </button>
           ))}
         </div>
-        <a
-          href={pacote("tudo")}
-          className="rounded border border-line px-2.5 py-1 text-xs font-medium text-accent hover:border-accent/40"
-        >
-          Baixar as {total} ↓
-        </a>
+        <Acoes
+          imagens={paraAcao(imagens)}
+          rotuloCompartilhar={`Compartilhar as ${total}`}
+          rotuloBaixar={`Baixar as ${total}`}
+          compartilhaArquivo={compartilhaArquivo}
+          destaque
+        />
       </div>
+
+      {/* A diferença entre as duas ações é a única coisa que o operador não
+          adivinha: uma manda, a outra guarda. Dizer isso onde ele decide
+          evita a descoberta pelo caminho ruim — procurar na galeria do
+          celular uma imagem que nunca foi salva. */}
+      {compartilhaArquivo && (
+        <p className="-mt-2 text-[11px] leading-snug text-ink-muted">
+          <span className="font-medium text-ink-secondary">Compartilhar</span> abre a folha do
+          aparelho com as imagens anexadas e <strong className="font-medium">não salva nada no
+          aparelho</strong>. Para ficar com os arquivos, use{" "}
+          <span className="font-medium text-ink-secondary">Baixar</span>.
+        </p>
+      )}
 
       {CAPTURA_TELAS.map((tela) => (
         <SecaoTela
@@ -123,11 +171,81 @@ export function GaleriaCapturas({
           imagens={grupos[tela]}
           versao={versao}
           nomeLead={nomeLead}
-          urlPacote={pacote(tela)}
+          acoes={paraAcao(grupos[tela])}
+          compartilhaArquivo={compartilhaArquivo}
+          paraAcao={paraAcao}
         />
       ))}
 
       {previa && <PreviaDoLink previa={previa} nomeLead={nomeLead} />}
+    </div>
+  );
+}
+
+/**
+ * O par de ações. Guarda os arquivos já buscados: além de poupar a segunda
+ * busca, é o que faz o "toque de novo" do Safari funcionar na hora — com os
+ * arquivos em mãos, `share` é chamado ainda dentro do gesto.
+ */
+function Acoes({
+  imagens,
+  rotuloCompartilhar,
+  rotuloBaixar,
+  compartilhaArquivo,
+  destaque = false,
+}: {
+  imagens: ImagemParaAcao[];
+  rotuloCompartilhar: string;
+  rotuloBaixar: string;
+  compartilhaArquivo: boolean;
+  destaque?: boolean;
+}) {
+  const [ocupado, setOcupado] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [prontos, setProntos] = useState<File[] | null>(null);
+
+  if (imagens.length === 0) return null;
+
+  async function compartilhar() {
+    setAviso(null);
+    try {
+      let arquivos = prontos;
+      if (!arquivos) {
+        setOcupado(true);
+        arquivos = await buscarArquivos(imagens);
+        setProntos(arquivos);
+      }
+      await navigator.share({ files: arquivos });
+    } catch (erro) {
+      const falha = classificarFalha(erro);
+      if (falha === "gesto-expirado") setAviso("Toque de novo para abrir o compartilhamento.");
+      else if (falha === "falhou") setAviso("Não deu para compartilhar.");
+      // "cancelado" é o operador fechando a folha — não é erro, não vira aviso.
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function baixar() {
+    setAviso(null);
+    await baixarUmAUm(imagens);
+  }
+
+  const classe = destaque
+    ? "rounded border border-line px-2.5 py-1 text-xs font-medium text-accent hover:border-accent/40 disabled:opacity-50"
+    : "text-xs font-medium text-accent hover:underline disabled:opacity-50";
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {compartilhaArquivo && (
+        <button type="button" onClick={compartilhar} disabled={ocupado} className={classe}>
+          {ocupado ? "Preparando…" : rotuloCompartilhar}
+        </button>
+      )}
+      <button type="button" onClick={baixar} className={classe}>
+        {rotuloBaixar} ↓
+      </button>
+      {aviso && <span className="text-[11px] text-warning">{aviso}</span>}
     </div>
   );
 }
@@ -137,13 +255,17 @@ function SecaoTela({
   imagens,
   versao,
   nomeLead,
-  urlPacote,
+  acoes,
+  compartilhaArquivo,
+  paraAcao,
 }: {
   tela: CapturaTela;
   imagens: CapturaImagem[];
   versao: CapturaVersao;
   nomeLead: string;
-  urlPacote: string;
+  acoes: ImagemParaAcao[];
+  compartilhaArquivo: boolean;
+  paraAcao: (lista: CapturaImagem[]) => ImagemParaAcao[];
 }) {
   if (imagens.length === 0) {
     // Grupo inteiro ausente é diferente de uma captura que faltou: dizer
@@ -157,14 +279,17 @@ function SecaoTela({
 
   return (
     <section>
-      <div className="mb-2 flex items-baseline justify-between gap-2">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-secondary">
           {ROTULO_TELA[tela]}{" "}
           <span className="font-normal text-ink-muted">· {imagens.length}</span>
         </h3>
-        <a href={urlPacote} className="text-xs font-medium text-accent hover:underline">
-          Baixar as {imagens.length} ↓
-        </a>
+        <Acoes
+          imagens={acoes}
+          rotuloCompartilhar={`Compartilhar as ${acoes.length}`}
+          rotuloBaixar={`Baixar as ${acoes.length}`}
+          compartilhaArquivo={compartilhaArquivo}
+        />
       </div>
       <div className="flex flex-wrap gap-3">
         {imagens.map((imagem) => (
@@ -173,6 +298,8 @@ function SecaoTela({
             imagem={imagem}
             versao={versao}
             nomeLead={nomeLead}
+            acoes={paraAcao([imagem])}
+            compartilhaArquivo={compartilhaArquivo}
           />
         ))}
       </div>
@@ -184,10 +311,14 @@ function Figura({
   imagem,
   versao,
   nomeLead,
+  acoes,
+  compartilhaArquivo,
 }: {
   imagem: CapturaImagem;
   versao: CapturaVersao;
   nomeLead: string;
+  acoes: ImagemParaAcao[];
+  compartilhaArquivo: boolean;
 }) {
   const alvo = versaoDaImagem(imagem, versao);
 
@@ -221,13 +352,21 @@ function Figura({
           className={`h-full w-full ${ENCAIXE[imagem.tela]}`}
         />
       </a>
-      <figcaption className="mt-1 flex items-baseline justify-between gap-1.5 text-[11px]">
-        <span className="truncate text-ink-muted" title={imagem.ancora}>
+      <figcaption className="mt-1 text-[11px]">
+        <span className="block truncate text-ink-muted" title={imagem.ancora}>
           {String(imagem.ordem).padStart(2, "0")} {imagem.ancora}
         </span>
-        <a href={alvo.url} download className="shrink-0 font-medium text-accent hover:underline">
-          Baixar
-        </a>
+        {/* Empilhadas: no ladrilho de celular as duas não cabem lado a lado,
+            e abreviar "Compartilhar" apagaria justo a palavra que diz o que
+            a ação faz. */}
+        <span className="mt-0.5 flex flex-col items-start">
+          <Acoes
+            imagens={acoes}
+            rotuloCompartilhar="Compartilhar"
+            rotuloBaixar="Baixar"
+            compartilhaArquivo={compartilhaArquivo}
+          />
+        </span>
       </figcaption>
     </figure>
   );

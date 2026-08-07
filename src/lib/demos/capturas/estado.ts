@@ -255,12 +255,14 @@ function apelido(texto: string): string {
 }
 
 /**
- * Nome de uma captura DENTRO do pacote. Legível de propósito: quem abre o
- * zip precisa saber o que é cada arquivo sem abrir um por um, e o nome no
- * Storage (`{placeId}-01-hero-celular.png`) começa com um id que não diz
- * nada a ninguém.
+ * Nome do arquivo de uma captura, como ele chega na pasta de downloads.
+ *
+ * Legível de propósito: o nome no Storage começa com o `placeId`
+ * (`ChIJN1t_tDeuEmsRUsoyG83frY4-01-hero-celular.png`), que não diz nada a
+ * ninguém que abre a pasta depois — e agora que o download é arquivo a
+ * arquivo, é ESTE nome que o operador vê seis vezes seguidas.
  */
-export function nomeNoPacote(
+export function nomeDoArquivo(
   imagem: CapturaImagem,
   nomeLead: string,
   versao: CapturaVersao,
@@ -268,16 +270,6 @@ export function nomeNoPacote(
   const sufixo = versao === "moldura" ? "-moldura" : "";
   const ordem = String(imagem.ordem).padStart(2, "0");
   return `${apelido(nomeLead)}-${imagem.tela}-${ordem}-${imagem.ancora}${sufixo}.png`;
-}
-
-/** Nome do pacote em si — o arquivo que o operador vê na pasta de downloads. */
-export function nomeDoPacote(
-  nomeLead: string,
-  grupo: CapturaTela | "tudo",
-  versao: CapturaVersao,
-): string {
-  const parte = grupo === "tudo" ? "capturas" : grupo;
-  return `${apelido(nomeLead)}-${parte}${versao === "moldura" ? "-moldura" : ""}.zip`;
 }
 
 /**
