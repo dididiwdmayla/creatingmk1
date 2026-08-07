@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   enderecoExibido,
+  FATIAS_MAX,
   fundoClaro,
   htmlMoldura,
   luminancia,
@@ -70,7 +71,7 @@ describe("medidasMoldura", () => {
 
   it("captura de até uma tela vira APARELHO, em proporção de aparelho real", () => {
     const m = medidasCelular({ ...CELULAR, altura: UMA_TELA });
-    expect(m.modo).toBe("aparelho");
+    if (m.modo !== "aparelho") throw new Error("esperava aparelho");
     expect(m.cortada).toBe(false);
     // A proporção da TELA é a da viewport do motor, que é a de um aparelho
     // de verdade — não um número inventado aqui.
@@ -79,7 +80,7 @@ describe("medidasMoldura", () => {
 
   it("seção CURTA não vira celular atarracado: a tela continua com uma tela", () => {
     const m = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 0.6) });
-    expect(m.modo).toBe("aparelho");
+    if (m.modo !== "aparelho") throw new Error("esperava aparelho");
     expect(m.alturaVisivel).toBe(UMA_TELA);
     // A sobra é preenchida com o fundo da demo — a página continuando, não
     // uma tarja preta.
@@ -87,30 +88,25 @@ describe("medidasMoldura", () => {
     expect(m.cortada).toBe(false);
   });
 
-  it("captura mais alta que uma tela NÃO vira aparelho esticado", () => {
+  it("captura mais alta que uma tela vira FATIADA, não aparelho esticado", () => {
     const m = medidasCelular({ ...CELULAR, altura: UMA_TELA * 2 });
-    expect(m.modo).toBe("cartao");
+    if (m.modo !== "fatiado") throw new Error("esperava fatiado");
     // O defeito que isto impede: um corpo de aparelho com proporção de 1:4.
+    expect(m.numFatias).toBe(2);
     expect(m.cortada).toBe(false);
-    expect(m.alturaVisivel).toBe(UMA_TELA * 2);
-    expect(m.folga).toBe(0);
   });
 
-  it("o cartão mostra a seção INTEIRA — quem corta seria a versão enviada", () => {
-    const alta = medidasCelular({ ...CELULAR, altura: 5200 });
-    expect(alta.alturaVisivel).toBe(5200);
-    expect(alta.cortada).toBe(false);
-  });
-
-  it("uma folga de arredondamento não joga a captura para o cartão", () => {
+  it("uma folga de arredondamento não joga a captura para fatiado", () => {
     expect(medidasCelular({ ...CELULAR, altura: UMA_TELA + 4 }).modo).toBe("aparelho");
-    expect(medidasCelular({ ...CELULAR, altura: UMA_TELA + 40 }).modo).toBe("cartao");
+    expect(medidasCelular({ ...CELULAR, altura: UMA_TELA + 40 }).modo).toBe("fatiado");
   });
 
-  it("o aparelho tem canto bem mais arredondado que o cartão", () => {
+  it("o aparelho e cada quadro do fatiado têm o MESMO raio — a mesma moldura de aparelho", () => {
     const aparelho = medidasCelular({ ...CELULAR, altura: UMA_TELA });
-    const cartao = medidasCelular({ ...CELULAR, altura: UMA_TELA * 2 });
-    expect(aparelho.raio).toBeGreaterThan(cartao.raio * 2);
+    const fatiado = medidasCelular({ ...CELULAR, altura: UMA_TELA * 2 });
+    if (aparelho.modo !== "aparelho" || fatiado.modo !== "fatiado") throw new Error("modo inesperado");
+    expect(fatiado.raio).toBe(aparelho.raio);
+    expect(fatiado.borda).toBe(aparelho.borda);
   });
 
   it("sem a altura da tela, cai na proporção de aparelho de reserva", () => {
@@ -130,25 +126,63 @@ describe("medidasMoldura", () => {
     expect(m.largura).toBe(DESKTOP.largura + 2 * m.margem);
   });
 
-  it("borda e raio saem da LARGURA, nunca da altura", () => {
-    const curta = medidasCelular({ ...CELULAR, altura: 3000 });
-    const comprida = medidasCelular({ ...CELULAR, altura: 5200 });
-    expect(comprida.borda).toBe(curta.borda);
-    expect(comprida.raio).toBe(curta.raio);
-    expect(comprida.largura).toBe(curta.largura);
+  it("borda e raio do fatiado saem da LARGURA, nunca da altura da seção", () => {
+    const duasTelas = medidasCelular({ ...CELULAR, altura: UMA_TELA * 2 });
+    const quatroTelas = medidasCelular({ ...CELULAR, altura: UMA_TELA * 4 });
+    if (duasTelas.modo !== "fatiado" || quatroTelas.modo !== "fatiado") throw new Error("modo inesperado");
+    expect(quatroTelas.borda).toBe(duasTelas.borda);
+    expect(quatroTelas.raio).toBe(duasTelas.raio);
   });
 });
 
-describe("moldura de celular", () => {
+describe("medidasMoldura — fatiado (seção mais alta que uma tela)", () => {
+  it(`no máximo ${FATIAS_MAX} fatias, mesmo com a seção MUITO mais alta`, () => {
+    const m = medidasCelular({ ...CELULAR, altura: UMA_TELA * 10 });
+    if (m.modo !== "fatiado") throw new Error("esperava fatiado");
+    expect(m.numFatias).toBe(FATIAS_MAX);
+    // Passou do teto: só as primeiras telas saem, e o contrato precisa
+    // dizer isso — é o que "mostra as 3 primeiras" significa.
+    expect(m.cortada).toBe(true);
+  });
+
+  it("seção com 2,4 telas vira 3 fatias (arredonda pra cima) e não fica cortada", () => {
+    const m = medidasCelular({ ...CELULAR, altura: Math.round(UMA_TELA * 2.4) });
+    if (m.modo !== "fatiado") throw new Error("esperava fatiado");
+    expect(m.numFatias).toBe(3);
+    expect(m.cortada).toBe(false);
+  });
+
+  it("a composição final é DEITADA: mais larga que alta", () => {
+    const m = medidasCelular({ ...CELULAR, altura: UMA_TELA * 3 });
+    expect(m.largura).toBeGreaterThan(m.altura);
+  });
+
+  it("a largura cresce com o número de fatias — cada quadro é uma tela inteira lado a lado", () => {
+    const duas = medidasCelular({ ...CELULAR, altura: UMA_TELA * 2 });
+    const tres = medidasCelular({ ...CELULAR, altura: UMA_TELA * 3 });
+    if (duas.modo !== "fatiado" || tres.modo !== "fatiado") throw new Error("modo inesperado");
+    expect(tres.numFatias).toBe(3);
+    expect(duas.numFatias).toBe(2);
+    expect(tres.largura).toBeGreaterThan(duas.largura);
+  });
+
+  it("a altura do fatiado é sempre UMA tela — nunca cresce com a seção (é isso que faz caber lado a lado)", () => {
+    const duas = medidasCelular({ ...CELULAR, altura: UMA_TELA * 2 });
+    const dez = medidasCelular({ ...CELULAR, altura: UMA_TELA * 10 });
+    expect(dez.altura).toBe(duas.altura);
+  });
+});
+
+describe("moldura de celular — aparelho (cabe numa tela)", () => {
   it("não exibe endereço nenhum — é aparelho, não navegador", () => {
-    const html = htmlMoldura({ ...CELULAR, endereco: "https://radar.exemplo.com/demo/abc" });
+    const html = htmlMoldura({ ...CELULAR, altura: UMA_TELA, endereco: "https://radar.exemplo.com/demo/abc" });
     expect(html).not.toContain("radar.exemplo.com");
     expect(html).not.toContain("/demo/abc");
     expect(html).not.toMatch(/https?:\/\//);
   });
 
   it("não estampa relógio, ilha nem botão — a moldura é borda e canto, nada mais", () => {
-    const moldura = soAMoldura(htmlMoldura(CELULAR));
+    const moldura = soAMoldura(htmlMoldura({ ...CELULAR, altura: UMA_TELA }));
     expect(moldura).not.toMatch(/\d{1,2}:\d{2}/);
     // Sem gradiente no corpo: gradiente ali é brilho de fotografia de
     // produto, e o objetivo é ler como site num celular, não como retrato
@@ -157,8 +191,60 @@ describe("moldura de celular", () => {
   });
 
   it("aponta para a captura crua pelo caminho relativo recebido", () => {
-    const html = htmlMoldura({ ...CELULAR, src: "./lead-01-hero-celular.png" });
+    const html = htmlMoldura({ ...CELULAR, altura: UMA_TELA, src: "./lead-01-hero-celular.png" });
     expect(html).toContain('src="./lead-01-hero-celular.png"');
+  });
+
+  it("um quadro só — nenhuma segunda tela aparece pra uma seção que cabe numa só", () => {
+    const html = soAMoldura(htmlMoldura({ ...CELULAR, altura: UMA_TELA }));
+    expect(html.match(/class="captura"/g)).toHaveLength(1);
+  });
+});
+
+/**
+ * FATIADO — seção mais alta que uma tela. O que a moldura de celular tinha
+ * antes ("cartão", um corpo alongado sem chrome) não existe mais: agora é
+ * uma fileira de quadros de aparelho, cada um mostrando uma tela da MESMA
+ * captura (técnica de sprite-sheet — várias `<img class="captura">` com o
+ * mesmo `src`, cada uma deslocada por `top`).
+ */
+describe("moldura de celular — fatiado (seção mais alta que uma tela)", () => {
+  const ALTA = { ...CELULAR, altura: UMA_TELA * 2 };
+
+  it("nunca vira um corpo de aparelho esticado ('cartão') — não existe mais", () => {
+    const html = htmlMoldura(ALTA);
+    // O cartão antigo não tinha chrome de aparelho nenhum; o fatiado usa a
+    // MESMA sombra/moldura do aparelho em cada quadro.
+    expect(html).toContain("box-shadow");
+  });
+
+  it("uma <img class=\"captura\"> por fatia — o mesmo src repetido, não a imagem cortada em arquivos", () => {
+    const duasTelas = soAMoldura(htmlMoldura(ALTA));
+    const imgs = [...duasTelas.matchAll(/<img class="captura" src="([^"]+)"/g)];
+    expect(imgs).toHaveLength(2);
+    expect(imgs.every(([, src]) => src === CELULAR.src)).toBe(true);
+  });
+
+  it(`seção com ${FATIAS_MAX + 2} telas mostra só ${FATIAS_MAX} quadros`, () => {
+    const html = soAMoldura(htmlMoldura({ ...CELULAR, altura: UMA_TELA * (FATIAS_MAX + 2) }));
+    expect(html.match(/class="captura"/g)).toHaveLength(FATIAS_MAX);
+  });
+
+  it("cada quadro desloca a imagem por uma tela a mais — a 2ª fatia começa onde a 1ª parou", () => {
+    const html = soAMoldura(htmlMoldura(ALTA));
+    expect(html).toContain("top: 0px");
+    expect(html).toContain(`top: -${UMA_TELA}px`);
+  });
+
+  it("não exibe endereço nenhum, igual ao aparelho — continua sem chrome de navegador", () => {
+    const html = htmlMoldura({ ...ALTA, endereco: "https://radar.exemplo.com/demo/abc" });
+    expect(html).not.toContain("radar.exemplo.com");
+    expect(html).not.toMatch(/https?:\/\//);
+  });
+
+  it("os quadros ficam lado a lado (flex row), não empilhados", () => {
+    const html = soAMoldura(htmlMoldura(ALTA));
+    expect(html).toMatch(/display:\s*flex[^"]*gap/);
   });
 });
 

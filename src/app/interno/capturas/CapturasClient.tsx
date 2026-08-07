@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import { CAPTURAS_MAX_ANCORAS } from "@/lib/demos/capturas/ancoras";
 import { medirSecao, neutralizarCromo, prepararPagina } from "@/lib/demos/capturas/dom.mjs";
+import { FATIAS_MAX } from "@/lib/demos/capturas/moldura.mjs";
 
 /**
  * Cliente da tela de marcação (ver o comentário do page.tsx irmão).
@@ -245,6 +246,7 @@ export function CapturasClient({ catalogo }: { catalogo: SkinCatalogo[] }) {
                       secaoId={secaoId}
                       nome={skin.secoes.find((s) => s.id === secaoId)?.nome ?? secaoId}
                       ordem={i + 1}
+                      tela={tela}
                       largura={TELAS.find((t) => t.id === tela)!.largura}
                       altura={TELAS.find((t) => t.id === tela)!.altura}
                     />
@@ -259,32 +261,42 @@ export function CapturasClient({ catalogo }: { catalogo: SkinCatalogo[] }) {
   );
 }
 
+/** Mesmo teto de tentativas da perseguição em `capturar()` (scripts/capturas.mjs). */
+const TENTATIVAS_MAX = 3;
+
 /**
  * Uma prévia: o harness da skin num iframe, deslocado e escalado para
  * mostrar exatamente a seção marcada.
  *
- * DUAS PASSADAS, e a razão é uma armadilha achada na primeira captura
- * desta tela: esticar o iframe até a altura do documento (o jeito óbvio de
- * ter tudo "em vista" de uma vez) muda o que `100vh` significa lá dentro.
- * O hero de toda skin é `min-h-screen`, então ele passou a medir 7737px em
- * vez de 900 — a prévia enquadrava o documento inteiro e chamava aquilo de
- * hero.
+ * A razão de crescer o iframe em vez de mostrar o documento inteiro de
+ * cara é uma armadilha achada na primeira captura desta tela: esticar o
+ * iframe até a altura do documento (o jeito óbvio de ter tudo "em vista"
+ * de uma vez) muda o que `100vh` significa lá dentro. O hero de toda skin
+ * é `min-h-screen`, então ele passou a medir 7737px em vez de 900 — a
+ * prévia enquadrava o documento inteiro e chamava aquilo de hero.
  *
- *   1ª passada, iframe na altura REAL da tela: rola até o fim e volta (é o
+ *   1ª medida, iframe na altura REAL da tela: rola até o fim e volta (é o
  *      que dispara as revelações `whileInView` e o lazy-load do
  *      `next/image`) e mede a caixa da seção. Esta é a medida VERDADEIRA,
  *      a mesma que o motor de captura vai usar.
- *   2ª passada, só se a seção não couber numa tela: cresce o iframe pra
- *      conseguir MOSTRAR a seção inteira. Aqui o hero volta a inchar e
- *      empurra tudo pra baixo, então o TOPO é remedido; a ALTURA exibida
- *      continua sendo a da 1ª passada, e se ela mudou (seção que também
- *      depende de `vh`) a prévia avisa em vez de mentir.
+ *   Perseguição, só se a seção não couber numa tela: cresce o iframe pra
+ *      conseguir MOSTRAR a seção inteira, e remede — mesma lógica e mesmo
+ *      teto (3 tentativas) da perseguição do motor. Uma seção com altura
+ *      calculada em JS que muda a cada resize (o defeito histórico do
+ *      `portfolio` da tatuagem-pigmento-vivo, corrigido na marcação padrão
+ *      mas que qualquer seção nova pode repetir) NUNCA estabiliza — e é
+ *      exatamente essa não-estabilização que o motor lê como "não coube
+ *      na viewport" e reprova a captura inteira. Replicar aqui o MESMO
+ *      teto é o que faz o aviso de "não vai caber" refletir a condição
+ *      real que reprova a geração, em vez de uma aproximação de um passo
+ *      só — hoje isso só se descobre depois de gerar.
  */
 function PreviaEnquadramento({
   skinId,
   secaoId,
   nome,
   ordem,
+  tela,
   largura,
   altura,
 }: {
@@ -292,6 +304,7 @@ function PreviaEnquadramento({
   secaoId: string;
   nome: string;
   ordem: number;
+  tela: TelaId;
   /** Largura da tela que o motor captura (1440 desktop / 390 celular). */
   largura: number;
   /** Altura REAL dessa tela — é o que faz `100vh` valer o que deve. */
@@ -301,7 +314,10 @@ function PreviaEnquadramento({
   const [medida, setMedida] = useState<{
     altura: number;
     alturaIframe: number;
-    esticou: boolean;
+    /** A altura nunca estabilizou em `TENTATIVAS_MAX` tentativas — o motor reprova a captura. */
+    naoVaiCaber: boolean;
+    /** Nas telas que o motor consegue capturar, quantas o CELULAR fatia (ver moldura.mjs). Sempre 1 no desktop. */
+    fatias: number;
   } | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
 
@@ -324,7 +340,7 @@ function PreviaEnquadramento({
     // diferente do que a captura entrega.
     prepararPagina({ alturaTela: altura }, win)
       .then(async () => {
-        // 1ª passada, altura real da tela: só aqui `100vh` vale o que deve.
+        // 1ª medida, altura real da tela: só aqui `100vh` vale o que deve.
         const verdadeira = medirSecao(secaoId, win);
         if (!verdadeira) {
           setFalha(`a skin não renderizou a seção "${secaoId}" (oculta no exemplo?)`);
@@ -332,33 +348,40 @@ function PreviaEnquadramento({
         }
         neutralizarCromo(secaoId, win);
 
-        // 2ª passada, SÓ quando a seção não cabe numa tela: o iframe cresce
-        // pra conseguir MOSTRÁ-LA inteira (o motor não precisa disso — ele
-        // captura além da viewport sem redimensionar nada). O topo é
-        // remedido porque o hero (`min-h-screen`) cresce junto e empurra o
-        // resto pra baixo; a altura exibida continua sendo a verdadeira.
-        const cabe = verdadeira.altura <= altura;
-        const alturaIframe = cabe ? altura : Math.ceil(verdadeira.altura);
-        let depois = verdadeira;
-        if (!cabe) {
-          iframe.style.height = `${alturaIframe}px`;
+        // Perseguição: cresce o iframe até a seção estabilizar, no máximo
+        // TENTATIVAS_MAX vezes — mesma lógica e mesmo teto de `capturar()`
+        // em scripts/capturas.mjs. `naoVaiCaber` só fica `true` se a altura
+        // AINDA estava mudando na última tentativa: é a mesma condição que
+        // faz o motor desistir e reprovar com "não coube na viewport".
+        let alvoAltura = verdadeira.altura;
+        let atual = verdadeira;
+        let naoVaiCaber = false;
+        for (let i = 0; i < TENTATIVAS_MAX && alvoAltura > altura; i += 1) {
+          iframe.style.height = `${Math.ceil(alvoAltura)}px`;
           await espera(600);
-          depois = medirSecao(secaoId, win) ?? verdadeira;
+          const depois = medirSecao(secaoId, win);
+          if (!depois) break;
+          naoVaiCaber = Math.abs(depois.altura - alvoAltura) > 2;
+          atual = depois;
+          if (!naoVaiCaber) break;
+          alvoAltura = depois.altura;
         }
+        const alturaIframe = atual.altura > altura ? Math.ceil(atual.altura) : altura;
 
         // Posicionar é ROLAR O DOCUMENTO DE DENTRO, não transladar o
         // elemento: um iframe pinta só a própria viewport, então deslocar a
         // caixa por transform deixava tudo abaixo da primeira tela em
         // branco (era o que a primeira captura desta tela mostrou — hero
         // certo, Serviços e Depoimentos vazios).
-        win.scrollTo(0, depois.topo);
+        win.scrollTo(0, atual.topo);
         await espera(300);
 
-        setMedida({
-          altura: verdadeira.altura,
-          alturaIframe,
-          esticou: !cabe && Math.abs(depois.altura - verdadeira.altura) > 2,
-        });
+        // Quantas telas de aparelho a composição de CELULAR vai fatiar
+        // (ver `medidasMoldura`/`FATIAS_MAX` em moldura.mjs) — no desktop a
+        // janela do navegador sempre mostra a seção inteira, sem fatiar.
+        const fatias = tela === "celular" ? Math.max(1, Math.ceil(verdadeira.altura / altura)) : 1;
+
+        setMedida({ altura: verdadeira.altura, alturaIframe, naoVaiCaber, fatias });
       })
       .catch(() => setFalha("prévia indisponível"));
   }
@@ -416,9 +439,31 @@ function PreviaEnquadramento({
         <p className="mt-1.5 font-mono text-[11px] text-[#6b7f92]">
           {largura} × {Math.round(medida.altura)} px · {(medida.altura / largura).toFixed(2)}× a
           largura
-          {medida.esticou && (
-            <span className="block text-[#e0b050]">
-              seção depende de vh: a prévia estica pra caber, a medida acima é a real
+          {/* NÃO VAI CABER: a mesma condição que faz o motor reprovar a
+              captura com "não coube na viewport" (altura calculada em JS
+              que muda a cada resize — nunca estabiliza). Aviso no momento
+              da escolha, não depois de gerar. */}
+          {medida.naoVaiCaber && (
+            <span className="mt-1 block rounded border border-[#7f2b2b] bg-[#2a1416] px-2 py-1 text-[#ffb4b4]">
+              ✗ esta seção não estabiliza de altura (depende da janela) — o motor tende a reprovar
+              &quot;não coube na viewport&quot; ao gerar. Escolha outra seção ou espere ela ficar com
+              altura fixa.
+            </span>
+          )}
+          {/* Fatiada, mas dentro do teto: informativo, não é erro (ver
+              "Moldura de celular" em ARCHITECTURE.md). */}
+          {!medida.naoVaiCaber && tela === "celular" && medida.fatias > 1 && medida.fatias <= FATIAS_MAX && (
+            <span className="mt-1 block text-[#8fa3b4]">
+              não cabe numa tela: a composição de celular sai fatiada em {medida.fatias} telas lado a
+              lado
+            </span>
+          )}
+          {/* Fatiada E cortada: o operador precisa saber ANTES de gerar que
+              parte da seção não vai aparecer na composição final. */}
+          {!medida.naoVaiCaber && tela === "celular" && medida.fatias > FATIAS_MAX && (
+            <span className="mt-1 block rounded border border-[#5a4a1a] bg-[#251f10] px-2 py-1 text-[#e0b050]">
+              ⚠ esta seção tem {medida.fatias} telas — a composição de celular mostra só as{" "}
+              {FATIAS_MAX} primeiras, o resto fica de fora
             </span>
           )}
         </p>

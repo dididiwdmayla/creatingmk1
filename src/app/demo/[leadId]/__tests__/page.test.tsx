@@ -196,6 +196,86 @@ describe("/demo/[leadId] — selo de visita interna", () => {
 });
 
 /**
+ * `og:image` — o cartão que aparece quando alguém cola o link numa
+ * conversa. Regressão do bug em que a prévia composta (a que o motor sobe
+ * pro Storage junto com as 6 capturas) existia mas o `og:image` continuava
+ * apontando pro recurso de reserva em `next/og` (ver `previa/route.ts` e
+ * `capturas/previa.mjs`): a URL do Storage tem que VENCER sempre que
+ * `lead.capturas.previa` existir, e o recurso de reserva só entra na
+ * ausência dela — nunca o contrário, e nunca uma antiga mistura das duas.
+ */
+describe("/demo/[leadId] — og:image aponta pra composição do Storage quando ela existe", () => {
+  it("com capturas prontas e prévia composta, og:image é a URL do Storage", async () => {
+    await seedDemo();
+    db.seed("leads/A", {
+      placeId: "A",
+      nome: "Barbearia do Zé",
+      status: "novo",
+      enriquecido: false,
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+      demo: db.getDoc("leads/A")?.demo,
+      capturas: {
+        estado: "pronto",
+        execucaoId: "exec-1",
+        pedidoEm: "2026-08-01T00:00:00.000Z",
+        geradoEm: "2026-08-01T00:05:00.000Z",
+        imagens: [
+          {
+            ancora: "identidade",
+            tela: "celular",
+            ordem: 1,
+            url: "https://storage.googleapis.com/bucket/capturas/A/A-01-identidade-celular.png?v=1",
+            largura: 780,
+            altura: 1688,
+          },
+        ],
+        previa: {
+          url: "https://storage.googleapis.com/bucket/capturas/A/A-previa-1.jpg?v=1",
+          largura: 1200,
+          altura: 630,
+          nome: "Barbearia do Zé",
+        },
+      },
+    });
+    const { generateMetadata } = await import("../page");
+
+    const metadata = await generateMetadata({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+
+    expect(metadata.openGraph?.images).toEqual([
+      expect.objectContaining({
+        url: "https://storage.googleapis.com/bucket/capturas/A/A-previa-1.jpg?v=1",
+        width: 1200,
+        height: 630,
+      }),
+    ]);
+    expect(metadata.twitter?.images).toEqual([
+      "https://storage.googleapis.com/bucket/capturas/A/A-previa-1.jpg?v=1",
+    ]);
+  });
+
+  it("sem capturas.previa (nunca rodou, ou a rodada falhou nela), og:image cai no recurso de reserva", async () => {
+    await seedDemo();
+
+    const { generateMetadata } = await import("../page");
+
+    const metadata = await generateMetadata({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+
+    expect(metadata.openGraph?.images).toEqual([
+      expect.objectContaining({
+        url: expect.stringContaining("/demo/A/previa"),
+      }),
+    ]);
+  });
+});
+
+/**
  * <html lang> do layout raiz é fixo "pt-BR" (o app é uma ferramenta interna
  * em pt-BR) — a demo pública é a única rota cujo idioma de CONTEÚDO varia
  * por lead (ver "Idioma da IA na demo"). Um script síncrono (mesmo padrão

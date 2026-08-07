@@ -48,17 +48,37 @@ const PALETA_RESERVA = {
  * resultado): as duas molduras não têm as mesmas partes, e um retorno
  * único com `barra: 0` no celular seria um número mentiroso circulando.
  *
- * @typedef {object} MedidasCelular
+ * `modo` decide o FORMATO inteiro do corpo (ver `corpoAparelho`/`corpoFatiado`
+ * abaixo): "aparelho" tem um campo só (`alturaVisivel`/`folga`); "fatiado"
+ * tem uma LISTA de quadros (`numFatias`/`umaTela`/`gap`) e nenhum dos dois
+ * conjuntos de campos aparece no modo errado.
+ *
+ * @typedef {object} MedidasCelularAparelho
  * @property {"celular"} tela
- * @property {"aparelho" | "cartao"} modo como esta captura é emoldurada
+ * @property {"aparelho"} modo
  * @property {number} largura composição inteira, com a margem de fundo
  * @property {number} altura
  * @property {number} margem
  * @property {number} borda espessura da moldura
  * @property {number} raio raio dos cantos da tela
  * @property {number} alturaVisivel altura da tela na composição
- * @property {boolean} cortada sobrou captura fora do enquadramento?
+ * @property {boolean} cortada sempre `false`: a seção cabe inteira num aparelho
  * @property {number} folga sobra de tela preenchida com o fundo da demo
+ *
+ * @typedef {object} MedidasCelularFatiado
+ * @property {"celular"} tela
+ * @property {"fatiado"} modo
+ * @property {number} largura composição inteira (deitada), com a margem de fundo
+ * @property {number} altura
+ * @property {number} margem
+ * @property {number} borda espessura da moldura de CADA quadro
+ * @property {number} raio raio dos cantos de CADA quadro
+ * @property {number} gap espaço entre um quadro e o próximo
+ * @property {number} umaTela altura de uma tela de aparelho, em pixel
+ * @property {number} numFatias quantos quadros saem (1 a 3)
+ * @property {boolean} cortada a seção tem mais de 3 telas — só as 3 primeiras saem
+ *
+ * @typedef {MedidasCelularAparelho | MedidasCelularFatiado} MedidasCelular
  *
  * @typedef {object} MedidasDesktop
  * @property {"desktop"} tela
@@ -143,6 +163,9 @@ export const PROPORCAO_APARELHO = 19.5 / 9;
 /** Folga de arredondamento ao comparar a captura com uma tela cheia. */
 const TOLERANCIA_UMA_TELA = 8;
 
+/** Quantas telas, no máximo, uma seção fatiada mostra — ver `medidasMoldura`. */
+export const FATIAS_MAX = 3;
+
 /**
  * Medidas da composição.
  *
@@ -152,10 +175,15 @@ const TOLERANCIA_UMA_TELA = 8;
  * na hora. A altura de uma tela não é inventada aqui: vem do motor, cuja
  * viewport de celular (390×844, dpr 2) já é a de um aparelho de verdade.
  *
- * Captura mais alta que uma tela não cabe num aparelho, então ela não ganha
- * aparelho nenhum: sai num **cartão** — borda fina, cantos arredondados,
- * sem chrome de aparelho — com a seção inteira. Ver "Moldura de celular" em
- * ARCHITECTURE.md para a comparação que decidiu isso.
+ * Captura mais alta que uma tela não cabe num aparelho único, então ela é
+ * **fatiada**: uma tela por quadro, cada quadro num aparelho de proporção
+ * real, lado a lado, na ordem de leitura (a imagem final fica deitada). O
+ * cartão alongado sem chrome — que existiu antes — não existe mais: ele
+ * prometia "site num celular" com uma proporção que nenhum aparelho tem, e
+ * fatiar em telas reais resolve isso sem cortar a seção pela metade (o
+ * defeito que a moldura de aparelho esticada tinha). No máximo `FATIAS_MAX`
+ * quadros — seção maior que isso mostra só as primeiras telas, na ordem em
+ * que a página é lida. Ver "Moldura de celular" em ARCHITECTURE.md.
  *
  * @param {{
  *   tela: "celular" | "desktop",
@@ -168,34 +196,57 @@ const TOLERANCIA_UMA_TELA = 8;
 export function medidasMoldura({ tela, largura, altura, alturaTela }) {
   if (tela === "celular") {
     const umaTela = Math.round(alturaTela ?? largura * PROPORCAO_APARELHO);
-    const modo = altura <= umaTela + TOLERANCIA_UMA_TELA ? "aparelho" : "cartao";
-    // No aparelho a tela tem SEMPRE uma tela de altura, mesmo que a seção
-    // seja mais curta: uma seção de 0,6 tela numa moldura de 0,6 tela vira
-    // um celular atarracado (1:1,5), que é a mesma proporção impossível do
-    // celular esticado, só do outro lado. A sobra é preenchida com o fundo
-    // da PRÓPRIA demo — é o que um aparelho de verdade mostraria acima e
-    // abaixo de uma seção curta, porque a página continua.
-    const alturaVisivel = modo === "aparelho" ? umaTela : altura;
-
-    // Moldura fina nos dois modos; o que muda é o RAIO. Canto muito
-    // arredondado é o que lê como aparelho, e é justamente o que o cartão
-    // não deve prometer.
-    const borda = Math.max(2, Math.round(largura * (modo === "aparelho" ? 0.013 : 0.006)));
-    const raio = Math.round(largura * (modo === "aparelho" ? 0.092 : 0.026));
+    const cabeNumaTela = altura <= umaTela + TOLERANCIA_UMA_TELA;
     const margem = Math.round(largura * 0.07);
+
+    if (cabeNumaTela) {
+      // No aparelho a tela tem SEMPRE uma tela de altura, mesmo que a seção
+      // seja mais curta: uma seção de 0,6 tela numa moldura de 0,6 tela
+      // vira um celular atarracado (1:1,5), a mesma proporção impossível do
+      // celular esticado, só do outro lado. A sobra é preenchida com o
+      // fundo da PRÓPRIA demo — o que um aparelho de verdade mostraria
+      // acima e abaixo de uma seção curta, porque a página continua.
+      const borda = Math.max(2, Math.round(largura * 0.013));
+      const raio = Math.round(largura * 0.092);
+      return {
+        tela: "celular",
+        modo: "aparelho",
+        largura: largura + 2 * (borda + margem),
+        altura: umaTela + 2 * (borda + margem),
+        margem,
+        borda,
+        raio,
+        alturaVisivel: umaTela,
+        cortada: false,
+        folga: Math.max(0, umaTela - altura),
+      };
+    }
+
+    // FATIADO: uma tela por quadro, cada quadro no MESMO desenho de
+    // aparelho do modo acima (a "proporção real" pedida) — só o corpo é
+    // diferente (uma fileira de quadros em vez de um só). O raio/borda são
+    // os do aparelho: canto bem arredondado é o que lê como aparelho.
+    const borda = Math.max(2, Math.round(largura * 0.013));
+    const raio = Math.round(largura * 0.092);
+    const gap = Math.round(largura * 0.05);
+    const numFatias = Math.min(FATIAS_MAX, Math.ceil(altura / umaTela));
+    const quadroLargura = largura + 2 * borda;
+    const quadroAltura = umaTela + 2 * borda;
 
     return {
       tela: "celular",
-      modo,
-      largura: largura + 2 * (borda + margem),
-      altura: alturaVisivel + 2 * (borda + margem),
+      modo: "fatiado",
+      largura: numFatias * quadroLargura + (numFatias - 1) * gap + 2 * margem,
+      altura: quadroAltura + 2 * margem,
       margem,
       borda,
       raio,
-      alturaVisivel,
-      cortada: alturaVisivel < altura,
-      /** Sobra de tela a preencher com o fundo da demo (só no aparelho). */
-      folga: Math.max(0, alturaVisivel - altura),
+      gap,
+      umaTela,
+      numFatias,
+      // A seção tem mais telas do que o teto mostra: as fatias além da
+      // terceira ficam de fora, na mesma lógica de "mostra as 3 primeiras".
+      cortada: altura > numFatias * umaTela,
     };
   }
 
@@ -257,7 +308,7 @@ export function fundoDaComposicao(paleta) {
  * uma janela sem endereço é honesta, um domínio inventado não.
  *
  * `alturaTela` é a altura de UMA tela do aparelho, em pixel — é o que
- * decide se a captura ganha moldura de aparelho ou de cartão (ver
+ * decide se a captura ganha moldura de aparelho único ou fatiada (ver
  * `medidasMoldura`). Quem chama sabe: é a viewport do motor.
  *
  * @param {{
@@ -275,7 +326,9 @@ export function htmlMoldura({ tela, src, largura, altura, alturaTela, endereco, 
   const m = medidasMoldura({ tela, largura, altura, alturaTela });
   const corpo =
     m.tela === "celular"
-      ? corpoCelular(m, src, largura, altura, paleta, fundoClaro(paleta))
+      ? m.modo === "aparelho"
+        ? corpoAparelho(m, src, largura, altura, paleta, fundoClaro(paleta))
+        : corpoFatiado(m, src, largura, altura, paleta, fundoClaro(paleta))
       : molduraNavegador(m, src, endereco, fundoClaro(paleta));
 
   return `<!doctype html>
@@ -294,8 +347,10 @@ export function htmlMoldura({ tela, src, largura, altura, alturaTela, endereco, 
 }
 
 /**
- * APARELHO ou CARTÃO — a moldura de celular, reduzida ao essencial: borda
- * fina, cantos arredondados, nada mais.
+ * O CORPO do aparelho, sem o que está dentro (a tela) — moldura fina, canto
+ * bem arredondado, sombra fraca. Compartilhado por `corpoAparelho` (um
+ * quadro) e `corpoFatiado` (vários lado a lado): a MESMA moldura, só o que
+ * está dentro da tela muda.
  *
  * O que saiu, e por quê: o corpo grafite com gradiente (era brilho de
  * fotografia de produto), a ilha e a faixa de status (entalhe desenhado é
@@ -304,38 +359,48 @@ export function htmlMoldura({ tela, src, largura, altura, alturaTela, endereco, 
  * navegador, e quem recebe a foto não precisa ler URL aqui. O objetivo é
  * ler como "site num celular", não como retrato de um aparelho.
  *
- * O que separa a moldura do fundo é a borda mais uma sombra fraca; a borda
- * é escura e chapada nos dois modos, porque uma tela de celular tem beirada
- * escura em qualquer aparelho, e chapada não vira brilho.
- *
- * @param {MedidasCelular} m
- * @param {string} src
- * @param {number} largura largura do PNG cru
- * @param {number} altura altura do PNG cru (pode passar do enquadramento)
- * @param {PaletaDemo | undefined} paleta
+ * @param {{ raio: number, borda: number, margem: number }} m
+ * @param {number} larguraQuadro
+ * @param {number} alturaQuadro altura da TELA (sem a moldura)
+ * @param {string} miolo o conteúdo da tela, já pronto (HTML)
  * @param {boolean} claro
  * @returns {string}
  */
-function corpoCelular(m, src, largura, altura, paleta, claro) {
+function quadroAparelho(m, larguraQuadro, alturaQuadro, miolo, claro) {
   const aro = claro ? "rgba(0,0,0,.22)" : "rgba(255,255,255,.14)";
-  // A sobra da tela é o FUNDO DA DEMO, não preto: preto viraria tarja de
-  // letterbox, e o que se quer é a página continuando fora da seção.
-  const fundoTela = paleta?.fundo || "#000";
-
   return `
   <div style="
-    width: ${largura + 2 * m.borda}px; height: ${m.alturaVisivel + 2 * m.borda}px;
+    flex: none;
+    width: ${larguraQuadro + 2 * m.borda}px; height: ${alturaQuadro + 2 * m.borda}px;
     border-radius: ${m.raio + m.borda}px;
     padding: ${m.borda}px;
     background: #15171b;
     box-shadow:
       0 0 0 1px ${aro},
       0 ${Math.round(m.margem * 0.35)}px ${Math.round(m.margem * 1.1)}px rgba(0,0,0,.38);
-  ">
+  ">${miolo}</div>`;
+}
+
+/**
+ * APARELHO — um quadro só, a seção inteira dentro (ela cabe numa tela, que
+ * é a definição do modo).
+ *
+ * @param {MedidasCelularAparelho} m
+ * @param {string} src
+ * @param {number} largura largura do PNG cru
+ * @param {number} altura altura do PNG cru
+ * @param {PaletaDemo | undefined} paleta
+ * @param {boolean} claro
+ * @returns {string}
+ */
+function corpoAparelho(m, src, largura, altura, paleta, claro) {
+  // A sobra da tela é o FUNDO DA DEMO, não preto: preto viraria tarja de
+  // letterbox, e o que se quer é a página continuando fora da seção.
+  const fundoTela = paleta?.fundo || "#000";
+  const miolo = `
     <!-- A captura nunca é REDUZIDA para caber: reduzir encolheria o texto
-         da demo, que é o que a imagem existe pra mostrar. No aparelho ela
-         cabe inteira por definição (é o que define o modo) e é centrada na
-         tela; no cartão a tela tem a altura dela. -->
+         da demo, que é o que a imagem existe pra mostrar. Ela cabe inteira
+         por definição (é o que define o modo) e é centrada na tela. -->
     <div style="
       overflow: hidden;
       width: ${largura}px; height: ${m.alturaVisivel}px;
@@ -344,8 +409,53 @@ function corpoCelular(m, src, largura, altura, paleta, claro) {
       display: flex; align-items: center; justify-content: center;
     ">
       <img class="captura" src="${escapar(src)}" alt="">
-    </div>
-  </div>`;
+    </div>`;
+  return quadroAparelho(m, largura, m.alturaVisivel, miolo, claro);
+}
+
+/**
+ * FATIADO — seção mais alta que uma tela. Um quadro por tela, no máximo
+ * `FATIAS_MAX`, lado a lado na ordem de leitura (a primeira tela da seção
+ * fica à esquerda). Cada quadro é uma JANELA fixa (uma tela de altura,
+ * `overflow: hidden`) sobre a MESMA captura crua, deslocada verticalmente
+ * pelo `top` negativo — é a técnica de sprite-sheet: uma imagem só, N
+ * recortes dela, sem duplicar arquivo nem recompor nada por fatia.
+ *
+ * Se a seção não fecha um número inteiro de telas, a ÚLTIMA janela mostra
+ * menos conteúdo que as outras — o resto da janela, abaixo do fim da
+ * imagem, sai com o fundo da própria demo por trás (mesma lógica da folga
+ * do aparelho de seção curta): a imagem deslocada simplesmente não cobre
+ * aquele pedaço, e o `overflow: hidden` do lado de fora dela não entra em
+ * jogo — quem preenche é o fundo posto atrás da imagem, dentro da mesma
+ * janela.
+ *
+ * @param {MedidasCelularFatiado} m
+ * @param {string} src
+ * @param {number} largura largura do PNG cru
+ * @param {number} altura altura do PNG cru
+ * @param {PaletaDemo | undefined} paleta
+ * @param {boolean} claro
+ * @returns {string}
+ */
+function corpoFatiado(m, src, largura, altura, paleta, claro) {
+  const fundoTela = paleta?.fundo || "#000";
+  const quadros = [];
+  for (let i = 0; i < m.numFatias; i += 1) {
+    const miolo = `
+      <div style="
+        overflow: hidden; position: relative;
+        width: ${largura}px; height: ${m.umaTela}px;
+        border-radius: ${m.raio}px;
+        background: ${fundoTela};
+      ">
+        <img class="captura" src="${escapar(src)}" alt="" style="
+          position: absolute; top: ${-i * m.umaTela}px; left: 0;
+          width: ${largura}px; height: ${altura}px; display: block;
+        ">
+      </div>`;
+    quadros.push(quadroAparelho(m, largura, m.umaTela, miolo, claro));
+  }
+  return `<div style="display: flex; align-items: flex-start; gap: ${m.gap}px;">${quadros.join("")}</div>`;
 }
 
 /**
