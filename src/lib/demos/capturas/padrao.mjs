@@ -26,5 +26,10 @@ export const ANCORAS_PADRAO = /** @type {Record<string, string[]>} */ ({
   "multimarcas-vortice": ["hero", "estoque", "simulador"],
   "petshop-focinho-feliz": ["hero", "servicos", "depoimentos"],
   "tatuagem-editorial": ["hero", "portfolio", "investimento"],
-  "tatuagem-pigmento-vivo": ["hero", "portfolio", "estilos"],
+  // Sem "portfolio": é galeria rolável com altura calculada em JS,
+  // recomputada a cada resize (chega a passar de 11000px no celular) —
+  // nenhum congelamento de CSS a segura, e o motor reprova em vez de gerar
+  // imagem errada (ver "Estado da última rodada" acima). "investimento" no
+  // lugar dela.
+  "tatuagem-pigmento-vivo": ["hero", "investimento", "estilos"],
 });
