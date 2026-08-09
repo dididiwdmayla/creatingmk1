@@ -45,15 +45,42 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      # A versão RESOLVIDA no lockfile (não o range do package.json) é a
+      # chave do cache abaixo: só ela garante que uma rodada só baixa
+      # Chromium de novo quando `playwright-core` de fato muda de versão.
+      - name: Versão do Playwright no lockfile
+        id: playwright-versao
+        run: |
+          VERSAO=$(node -p "require('./package-lock.json').packages['node_modules/playwright-core'].version")
+          echo "versao=$VERSAO" >> "$GITHUB_OUTPUT"
+
+      # O navegador (~300MB) é o mesmo em toda rodada até `playwright-core`
+      # mudar de versão — cachear evita rebaixar o Chromium a cada disparo.
+      - name: Cache do navegador do Playwright
+        id: cache-playwright-browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ steps.playwright-versao.outputs.versao }}
+
       # O projeto depende de `playwright-core`, que NÃO baixa navegador (é
       # deliberado: no ambiente de desenvolvimento o Chromium já vem
       # instalado). No runner é preciso buscar um, e o instalador vem do
       # pacote `playwright` completo, usado aqui só como ferramenta.
+      #
+      # Sem `--with-deps`: a imagem `ubuntu-latest` já traz as bibliotecas
+      # que o Chromium do Playwright precisa, e pular o `apt-get` do
+      # `--with-deps` é o que faz um cache-hit não baixar NADA e não
+      # instalar NADA. Se uma versão futura do runner deixar de trazer
+      # alguma lib e o Chromium falhar ao abrir, isto volta a exigir
+      # `--with-deps` (só no cache-miss custaria o apt de novo mesmo assim,
+      # porque a VM é nova a cada rodada).
       - name: Instalar Chromium
         run: |
-          VERSAO=$(node -p "require('./package.json').devDependencies['playwright-core'].replace(/[^0-9.]/g,'')")
-          PLAYWRIGHT_BROWSERS_PATH="$HOME/pw-browsers" npx --yes "playwright@$VERSAO" install --with-deps chromium
-          CAMINHO=$(find "$HOME/pw-browsers" -name chrome -type f | head -1)
+          if [ "${{ steps.cache-playwright-browsers.outputs.cache-hit }}" != "true" ]; then
+            npx --yes "playwright@${{ steps.playwright-versao.outputs.versao }}" install chromium
+          fi
+          CAMINHO=$(find "$HOME/.cache/ms-playwright" -name chrome -type f | head -1)
           test -n "$CAMINHO" || { echo "Chromium não encontrado após a instalação"; exit 1; }
           echo "QA_CHROMIUM=$CAMINHO" >> "$GITHUB_ENV"
 
