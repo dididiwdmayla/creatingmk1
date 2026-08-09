@@ -220,11 +220,17 @@ function ancorasDe(ancoras, skinId) {
 }
 
 /**
- * Uma captura. Cada passo existe por um defeito que a captura mostrou:
+ * Uma captura. `page` já chegou NAVEGADA e PREPARADA por `prepararTrilha` —
+ * a varredura que dispara revelações/lazy-load e o congelamento de `vh`
+ * rodam UMA VEZ por trilha (celular ou desktop), não a cada âncora:
+ * recarregar a página a cada seção era o "relançar por âncora" que fazia o
+ * motor pagar `networkidle` + varredura completa da página até 3 vezes por
+ * tela. Cada passo daqui existe por um defeito que a captura mostrou:
  *
- *   1. `prepararPagina` — varre a página (dispara as revelações de entrada
- *      e o lazy-load das imagens) e espera fontes + imagens decodificadas.
- *      Sem isso entra fonte de reserva ou buraco de imagem na foto.
+ *   1. reset de viewport (desfaz o crescimento que a âncora ANTERIOR desta
+ *      trilha possa ter deixado, ver passo 3) e `forcarImagensDaSecao` —
+ *      força o lazy-load da seção, inclusive trilhos horizontais que a
+ *      varredura vertical de `prepararPagina` não alcança.
  *   2. mede a seção com a viewport na altura REAL da tela. É o único
  *      momento em que `100vh` vale o que deve — o hero de toda skin é
  *      `min-h-screen`, e medir com a viewport esticada dava "hero" de
@@ -247,14 +253,9 @@ function ancorasDe(ancoras, skinId) {
  *   7. `tituloCoberto` — o PORTÃO: sobrou algo por cima do título?
  */
 async function capturar(page, alvo, ancora, tela, destino) {
+  // Desfaz o crescimento que a âncora anterior desta trilha possa ter
+  // deixado (passo 3 abaixo) — sem reload, o viewport não volta sozinho.
   await page.setViewportSize({ width: tela.largura, height: tela.altura });
-  await page.goto(alvo.url, { waitUntil: "networkidle" });
-  await page.evaluate(prepararPagina, { alturaTela: tela.altura });
-
-  // Prende as alturas em `vh` ANTES de qualquer redimensionamento — com a
-  // viewport ainda na altura real da tela, que é onde `100vh` vale o que
-  // deve. Sem isso a seção cresce junto com a viewport e nunca cabe.
-  const presos = await page.evaluate(fixarUnidadesDeTela);
   const imagensForcadas = await page.evaluate(forcarImagensDaSecao, ancora);
   await page.waitForTimeout(300);
 
@@ -331,7 +332,35 @@ async function capturar(page, alvo, ancora, tela, destino) {
     clip: { x: recorte.x, y: recorte.y, width: recorte.width, height: recorte.height },
   });
 
-  return { caixa: recorte, cromo, gelo, portao, imagens, esticou, presos, imagensForcadas, paleta, texto };
+  return { caixa: recorte, cromo, gelo, portao, imagens, esticou, imagensForcadas, paleta, texto };
+}
+
+/**
+ * Prepara uma TRILHA (uma tela — celular ou desktop — de um alvo) para as
+ * capturas por âncora que virão: navega e varre a página UMA VEZ só. Antes,
+ * essa navegação e varredura completa (`prepararPagina`, que rola o
+ * documento inteiro e espera fontes/imagens) rodavam DENTRO de `capturar`,
+ * uma vez por âncora — 3 recargas + 3 varreduras completas por tela, quando
+ * a página é a MESMA para as 3. As revelações de seção (`whileInView` com
+ * `once: true`) e o lazy-load, uma vez disparados, não voltam ao estado
+ * inicial só porque a próxima âncora está noutra parte da página — não há
+ * motivo pra refazer a varredura inteira a cada uma.
+ *
+ * @returns {Promise<{ presos: number }>} quantos elementos tiveram `vh`
+ *   preso em pixel — só pra log; a captura em si não depende do número.
+ */
+async function prepararTrilha(page, alvo, tela) {
+  await page.setViewportSize({ width: tela.largura, height: tela.altura });
+  await page.goto(alvo.url, { waitUntil: "networkidle" });
+  await page.evaluate(prepararPagina, { alturaTela: tela.altura });
+
+  // Prende as alturas em `vh` ANTES de qualquer redimensionamento — com a
+  // viewport ainda na altura real da tela, que é onde `100vh` vale o que
+  // deve. Sem isso a seção cresce junto com a viewport e nunca cabe. Uma
+  // vez preso em pixel, o valor não depende mais de QUAL âncora está sendo
+  // capturada — por isso entra aqui, e não dentro de `capturar`.
+  const presos = await page.evaluate(fixarUnidadesDeTela);
+  return { presos: presos.presos };
 }
 
 /**
@@ -540,6 +569,130 @@ async function gerarPrevia(page, paginaMoldura, alvo, tela) {
   return { ...composta, nome };
 }
 
+/**
+ * Uma TRILHA inteira: uma tela (celular OU desktop) de um alvo, do início ao
+ * fim — navega UMA VEZ (`prepararTrilha`) e percorre as âncoras sobre a
+ * MESMA página, em vez de recarregar a cada uma (ver `capturar`). Duas
+ * trilhas do mesmo alvo rodam em PARALELO (`Promise.all` em `main`, uma por
+ * tela) sobre a MESMA instância de navegador — contextos são isolados entre
+ * si (cada um com seu cookie, sua viewport, seu DOM), então não há corrida
+ * de estado entre elas.
+ *
+ * O compositor de moldura é PRÓPRIO desta trilha, não um só compartilhado
+ * entre as duas: `comporMoldura` navega e tira print numa página de
+ * Playwright, e duas trilhas em paralelo chamando isso na MESMA página
+ * pisariam uma no resultado da outra (a segunda `goto` interromperia o
+ * `screenshot` da primeira). A prévia do link, que roda DEPOIS das duas
+ * trilhas (sequencial, ver `main`), continua usando o `paginaMoldura` geral.
+ */
+async function capturarTrilha({ browser, alvo, tela, cookie, manifestoAlvo, reprovadas }) {
+  const ctx = await browser.newContext({
+    viewport: { width: tela.largura, height: tela.altura },
+    deviceScaleFactor: tela.dpr,
+  });
+  // A rota /interno/* exige sessão; a demo pública NÃO — e é deliberado não
+  // mandar cookie nenhum pra ela: com sessão (ou com o marcador de
+  // dispositivo) a demo estampa o selo "Vendo como membro" na página, e ele
+  // entraria na imagem que vai pro lead.
+  if (alvo.url.includes("/interno/")) await ctx.addCookies([cookie]);
+  const page = await ctx.newPage();
+
+  const ctxMoldura = await browser.newContext({ deviceScaleFactor: 1 });
+  const paginaMoldura = await ctxMoldura.newPage();
+
+  let geradas = 0;
+  let compostas = 0;
+
+  try {
+    const { presos } = await prepararTrilha(page, alvo, tela);
+
+    for (const [i, ancora] of alvo.ancoras.entries()) {
+      const arquivo = `${alvo.nome}-${String(i + 1).padStart(2, "0")}-${ancora}-${tela.id}.png`;
+      const destino = path.join(SAIDA, arquivo);
+      const r = await capturar(page, alvo, ancora, tela, destino);
+      if (r.erro) {
+        console.log(`  ✗ ${tela.id}/${ancora}: ${r.erro}`);
+        reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: ${r.erro}`);
+        manifestoAlvo.reprovadas.push(`${ancora}/${tela.id}: ${r.erro}`);
+        continue;
+      }
+      geradas += 1;
+      const entradaImagem = {
+        arquivo,
+        caminhoLocal: destino,
+        ancora,
+        tela: tela.id,
+        ordem: i + 1,
+        largura: r.caixa.width,
+        altura: r.caixa.height,
+      };
+      manifestoAlvo.imagens.push(entradaImagem);
+
+      // A composta é DERIVADA da crua: só existe se a crua saiu, e uma
+      // falha aqui não invalida a imagem que já está no disco — a
+      // ficha simplesmente não oferece a moldura daquela captura.
+      const composta = await comporMoldura(paginaMoldura, {
+        tela: tela.id,
+        arquivo,
+        // Em PIXEL, não em px de CSS. A caixa medida vem em px de CSS
+        // (`getBoundingClientRect`), e o PNG do celular sai com o dobro
+        // disso porque a captura é em dpr 2 — de propósito, pra imagem
+        // vista NUM celular não chegar serrilhada. Montar a moldura na
+        // medida de CSS encolheria a captura à metade dentro dela e
+        // jogaria fora exatamente essa nitidez.
+        largura: r.caixa.width * tela.dpr,
+        altura: r.caixa.height * tela.dpr,
+        // A altura de UMA tela do aparelho, em pixel. É o que decide se
+        // a captura ganha moldura de aparelho (proporção real) ou de
+        // cartão — e não é número inventado: a viewport de celular do
+        // motor já é a de um aparelho de verdade.
+        alturaTela: tela.altura * tela.dpr,
+        endereco: alvo.enderecoPublico,
+        paleta: r.paleta ?? undefined,
+      }).catch((e) => ({ erro: e instanceof Error ? e.message : String(e) }));
+
+      if (composta.erro) {
+        reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: moldura não saiu (${composta.erro})`);
+      } else {
+        compostas += 1;
+        entradaImagem.composta = composta;
+      }
+
+      const alerta = r.portao.coberto ? ` ✗ TÍTULO COBERTO por ${r.portao.porQuem}` : "";
+      if (r.portao.coberto) {
+        reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: título coberto (${r.portao.porQuem})`);
+      }
+      const semImagem = r.imagens.prontas < r.imagens.total;
+      if (semImagem) {
+        reprovadas.push(
+          `${alvo.nome}/${ancora}/${tela.id}: ${r.imagens.total - r.imagens.prontas} imagem(ns) da seção não carregaram`,
+        );
+      }
+      console.log(
+        `  ${r.portao.coberto || semImagem ? "✗" : "ok"} ${tela.id}/${ancora}: ${r.caixa.width}×${r.caixa.height}` +
+          ` (${(r.caixa.height / tela.altura).toFixed(1)} telas)` +
+          ` · cromo oculto ${r.cromo.escondidos}` +
+          ` · congeladas ${r.gelo.congeladas}/${r.gelo.infinitas} infinitas` +
+          ` · imagens ${r.imagens.prontas}/${r.imagens.total}` +
+          (presos > 0 ? ` · vh preso em ${presos}` : "") +
+          (r.imagensForcadas.trilhos > 0 ? ` · ${r.imagensForcadas.trilhos} trilho(s)` : "") +
+          (r.esticou ? " · ⚠ seção ainda cresceu" : "") +
+          (r.texto.estavel ? "" : " · ⚠ texto ainda mudava") +
+          ` · título "${r.portao.titulo ?? "—"}"${alerta}` +
+          (entradaImagem.composta
+            ? ` · moldura ${entradaImagem.composta.modo ?? "janela"}` +
+              ` ${entradaImagem.composta.largura}×${entradaImagem.composta.altura}`
+            : " · ✗ sem moldura"),
+      );
+    }
+  } finally {
+    await ctx.close();
+    await ctxMoldura.close().catch(() => undefined);
+  }
+
+  return { geradas, compostas };
+}
+
 async function main() {
   const { base, cookie, encerrar } = await subirServidor({ build: !temFlag("sem-build") });
   await fs.mkdir(SAIDA, { recursive: true });
@@ -569,99 +722,25 @@ async function main() {
         imagens: [],
         reprovadas: [],
       });
-      for (const tela of telas) {
-        const ctx = await browser.newContext({
-          viewport: { width: tela.largura, height: tela.altura },
-          deviceScaleFactor: tela.dpr,
-        });
-        // A rota /interno/* exige sessão; a demo pública NÃO — e é
-        // deliberado não mandar cookie nenhum pra ela: com sessão (ou com o
-        // marcador de dispositivo) a demo estampa o selo "Vendo como
-        // membro" na página, e ele entraria na imagem que vai pro lead.
-        if (alvo.url.includes("/interno/")) await ctx.addCookies([cookie]);
-        const page = await ctx.newPage();
-
-        for (const [i, ancora] of alvo.ancoras.entries()) {
-          const arquivo = `${alvo.nome}-${String(i + 1).padStart(2, "0")}-${ancora}-${tela.id}.png`;
-          const destino = path.join(SAIDA, arquivo);
-          const r = await capturar(page, alvo, ancora, tela, destino);
-          if (r.erro) {
-            console.log(`  ✗ ${tela.id}/${ancora}: ${r.erro}`);
-            reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: ${r.erro}`);
-            manifesto.get(alvo.nome).reprovadas.push(`${ancora}/${tela.id}: ${r.erro}`);
-            continue;
-          }
-          geradas += 1;
-          const entradaImagem = {
-            arquivo,
-            caminhoLocal: destino,
-            ancora,
-            tela: tela.id,
-            ordem: i + 1,
-            largura: r.caixa.width,
-            altura: r.caixa.height,
-          };
-          manifesto.get(alvo.nome).imagens.push(entradaImagem);
-
-          // A composta é DERIVADA da crua: só existe se a crua saiu, e uma
-          // falha aqui não invalida a imagem que já está no disco — a
-          // ficha simplesmente não oferece a moldura daquela captura.
-          const composta = await comporMoldura(paginaMoldura, {
-            tela: tela.id,
-            arquivo,
-            // Em PIXEL, não em px de CSS. A caixa medida vem em px de CSS
-            // (`getBoundingClientRect`), e o PNG do celular sai com o dobro
-            // disso porque a captura é em dpr 2 — de propósito, pra imagem
-            // vista NUM celular não chegar serrilhada. Montar a moldura na
-            // medida de CSS encolheria a captura à metade dentro dela e
-            // jogaria fora exatamente essa nitidez.
-            largura: r.caixa.width * tela.dpr,
-            altura: r.caixa.height * tela.dpr,
-            // A altura de UMA tela do aparelho, em pixel. É o que decide se
-            // a captura ganha moldura de aparelho (proporção real) ou de
-            // cartão — e não é número inventado: a viewport de celular do
-            // motor já é a de um aparelho de verdade.
-            alturaTela: tela.altura * tela.dpr,
-            endereco: alvo.enderecoPublico,
-            paleta: r.paleta ?? undefined,
-          }).catch((e) => ({ erro: e instanceof Error ? e.message : String(e) }));
-
-          if (composta.erro) {
-            reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: moldura não saiu (${composta.erro})`);
-          } else {
-            compostas += 1;
-            entradaImagem.composta = composta;
-          }
-
-          const alerta = r.portao.coberto ? ` ✗ TÍTULO COBERTO por ${r.portao.porQuem}` : "";
-          if (r.portao.coberto) {
-            reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: título coberto (${r.portao.porQuem})`);
-          }
-          const semImagem = r.imagens.prontas < r.imagens.total;
-          if (semImagem) {
-            reprovadas.push(
-              `${alvo.nome}/${ancora}/${tela.id}: ${r.imagens.total - r.imagens.prontas} imagem(ns) da seção não carregaram`,
-            );
-          }
-          console.log(
-            `  ${r.portao.coberto || semImagem ? "✗" : "ok"} ${tela.id}/${ancora}: ${r.caixa.width}×${r.caixa.height}` +
-              ` (${(r.caixa.height / tela.altura).toFixed(1)} telas)` +
-              ` · cromo oculto ${r.cromo.escondidos}` +
-              ` · congeladas ${r.gelo.congeladas}/${r.gelo.infinitas} infinitas` +
-              ` · imagens ${r.imagens.prontas}/${r.imagens.total}` +
-              (r.presos.presos > 0 ? ` · vh preso em ${r.presos.presos}` : "") +
-              (r.imagensForcadas.trilhos > 0 ? ` · ${r.imagensForcadas.trilhos} trilho(s)` : "") +
-              (r.esticou ? " · ⚠ seção ainda cresceu" : "") +
-              (r.texto.estavel ? "" : " · ⚠ texto ainda mudava") +
-              ` · título "${r.portao.titulo ?? "—"}"${alerta}` +
-              (entradaImagem.composta
-                ? ` · moldura ${entradaImagem.composta.modo ?? "janela"}` +
-                  ` ${entradaImagem.composta.largura}×${entradaImagem.composta.altura}`
-                : " · ✗ sem moldura"),
-          );
-        }
-
-        await ctx.close();
+      // Celular e desktop são DUAS trilhas independentes (contextos
+      // separados do mesmo navegador) e rodam em PARALELO — é o que faz o
+      // tempo de parede das 6 imagens ficar perto do tempo da trilha mais
+      // lenta, em vez da soma das duas.
+      const trilhas = await Promise.all(
+        telas.map((tela) =>
+          capturarTrilha({
+            browser,
+            alvo,
+            tela,
+            cookie,
+            manifestoAlvo: manifesto.get(alvo.nome),
+            reprovadas,
+          }),
+        ),
+      );
+      for (const trilha of trilhas) {
+        geradas += trilha.geradas;
+        compostas += trilha.compostas;
       }
 
       // A PRÉVIA DO LINK, sempre — nunca condicionada a QUAIS telas este
