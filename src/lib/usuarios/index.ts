@@ -9,12 +9,22 @@ export {
   salvarMetaFaixaMinimizada,
   salvarNivelIA,
   salvarPrecoBaseSlider,
+  salvarPreferenciasListas,
   salvarTemaUsuario,
   seedUsuariosSeVazio,
   type LimitesPatch,
   type MetasPatch,
   type UsuarioPatch,
 } from "./repo";
+export {
+  LISTAS,
+  MAX_GRUPOS_FECHADOS,
+  PREFERENCIAS_LISTAS_PADRAO,
+  alternarGrupo,
+  normalizaPreferenciasListas,
+  type Lista,
+  type PreferenciasListas,
+} from "./preferencias";
 export { hashSenha, verificarSenha } from "./senha";
 export { requireAdmin, sessaoDaRequest, usuarioDaRequest } from "./session";
 export {

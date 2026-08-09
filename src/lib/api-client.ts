@@ -13,6 +13,7 @@ import type { ConversaResumo, Mensagem } from "@/lib/mensagens/types";
 import type { RegiaoIndice } from "@/lib/regioes";
 import type { TemaApp } from "@/lib/tema";
 import type { ProgressoMetas } from "@/lib/usuarios/metas";
+import type { PreferenciasListas } from "@/lib/usuarios/preferencias";
 import type { LimitesUsuario, MetasUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
 
 /** Espelha o formato de erro padrão das rotas (ver ARCHITECTURE.md). */
@@ -314,6 +315,14 @@ export const api = {
       body: JSON.stringify({ minimizada }),
     }),
   cronStatus: () => request<CronStatusResponse>("/api/cron/status"),
+
+  preferenciasListas: () =>
+    request<{ preferencias: PreferenciasListas }>("/api/preferencias/listas"),
+  salvarPreferenciasListas: (preferencias: PreferenciasListas) =>
+    request<{ preferencias: PreferenciasListas }>("/api/preferencias/listas", {
+      method: "PUT",
+      body: JSON.stringify({ preferencias }),
+    }),
 
   listBuscas: () => request<{ buscas: Busca[] }>("/api/buscas"),
   patchBusca: (

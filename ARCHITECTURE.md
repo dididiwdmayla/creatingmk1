@@ -81,6 +81,7 @@ src/
       regioes/regenerar/route.ts    # ✅ POST regenera o índice (admin; reaproveita cidade/país já salvos)
       regioes/ajustar/route.ts      # ✅ PATCH indiceAjustado (admin; number seta, null limpa)
       precificacao/slider/route.ts  # ✅ GET/PUT última posição do slider da calculadora (self-service, por usuário)
+      preferencias/listas/route.ts  # ✅ GET/PUT preferências das listas longas (/leads e /buscas): grupos dobrados por tela + modo compacto dos leads (self-service, por usuário)
       buscas/route.ts               # ✅ GET buscas salvas
       buscas/[id]/route.ts          # ✅ PATCH cor / mensagem do grupo
       leads/route.ts                # ✅ GET lista de leads com filtros
@@ -425,6 +426,10 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
   "ultimoPrecoBaseSlider": 2500,     // ✅ opcional: última posição do slider da calculadora de precificação (self-service)
   "ultimoNivelIA": "equilibrado",    // ✅ opcional: último nível de intervenção da IA na Forja (self-service, ver "IA na Forja")
   "tema": "escuro",                  // ✅ opcional: tema da PLATAFORMA deste usuário (self-service, ver "Sistema de temas da plataforma")
+  "preferenciasListas": {            // ✅ opcional: compactação das listas longas (self-service, ver "Compactação de /leads e /buscas")
+    "leadsCompacto": true,           //    lista de leads em modo linha (uma linha por lead)
+    "gruposFechados": { "leads": ["<buscaId>"], "buscas": ["mes:2026-08", "<buscaId>"] }
+  },
   "criadoEm": "<ISO 8601>",
   "atualizadoEm": "<ISO 8601>"
 }
@@ -434,6 +439,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
 - **Sem DELETE**: desativar preserva a atribuição histórica (buscas/demos/contatos apontam para o id). Guarda-corpo: o último admin ativo não pode ser desativado nem rebaixado.
 - Hash de senha: PBKDF2 (Web Crypto, 100k iterações, salt aleatório) — sem dependência nova, roda em Node e Edge.
 - `limites`: cada campo é opcional e independente (ausente = sem limite naquela janela); editável só via `PATCH /api/usuarios/[id]` (admin) — nunca pelo próprio usuário, nenhum caminho client-side escreve nele. Não revoga sessão (não é credencial).
+- `preferenciasListas`: preferência de UI **self-service** (o próprio usuário grava, via `PUT /api/preferencias/listas`) — como `tema`, `ultimoNivelIA` e `metaFaixaMinimizada`, não mexe em `atualizadoEm` nem em `sessao`: compactar uma lista não é edição administrativa e não derruba sessão nenhuma. Ver "Compactação de /leads e /buscas".
 - `metas`: mesma semântica de edição de `limites` (só admin, `PATCH /api/usuarios/[id]`, não revoga sessão) mas indicador puro — nunca bloqueia uma busca. Ver "Metas de prospecção por integrante".
 
 ### `/config/app` — documento único de configuração
@@ -755,6 +761,8 @@ Formato de erro padrão em todas as rotas:
 | `/api/regioes/ajustar` | PATCH | `{ regiao, indiceAjustado }` (number seta, `null` limpa; admin) | `200 { regiao }` · `400` · `401` · `403` · `404` | — |
 | `/api/precificacao/slider` | GET | — (exige sessão identificável) | `200 { precoBase }` (`null` = ainda não mexeu) · `401` | — |
 | `/api/precificacao/slider` | PUT | `{ precoBase }` (inteiro 700–10.000) | `200 { precoBase }` · `400` · `401` | — |
+| `/api/preferencias/listas` | GET | — (exige sessão identificável) | `200 { preferencias: { leadsCompacto, gruposFechados: { leads[], buscas[] } } }` (doc ausente/sujo cai no padrão) · `401` | — |
+| `/api/preferencias/listas` | PUT | `{ preferencias }` (o objeto INTEIRO, não patch; normalizado no servidor: chave inválida cai, teto de 200 chaves por tela) | `200 { preferencias }` · `400` · `401` | — |
 | `/api/buscas` | GET | — | `200 { buscas[] }` (mais recentes primeiro) | — |
 | `/api/buscas/[id]` | PATCH | `{ cor? (da paleta), mensagemPadrao? (≤1000, "" limpa), recorrente? }` (≥1 campo; ligar recorrente respeita o teto `maxBuscasRecorrentes`) | `200 { busca }` · `400` · `404` | — |
 | `/api/hoje` | GET | — (exige sessão identificável) | `200 { novos[], followUps[], demosParadas[], novosDesde, followUpDias, mensagemPadrao, metaProspeccao: { dia, semana }, buscas[] }` · `401` | — |
@@ -1687,6 +1695,42 @@ Fix: `dynamicComponents.ts` virou `dynamicComponents.tsx` e ganhou `EfeitoDinami
 ### Token de envio por canal (`src/lib/demos/envio.ts` + `EnvioDemo.canal`)
 
 Cada demo mantém um token vigente **por canal** (`EnvioCanal`: `"link"` | `"whatsapp"`), não um único token global: "Copiar link" (ficha e `/demos`) usa o vigente do canal `"link"`; a variável `{demo}` da mensagem de WhatsApp usa o vigente do canal `"whatsapp"`. Cada canal consome (rotaciona) seu próprio token de forma independente — copiar o link não queima o token que já pode estar numa mensagem de WhatsApp montada pro mesmo lead, e vice-versa. `demoVisitas[].canal` grava de qual canal veio o token da visita. Self-heal (`garantirEnvioToken`, chamado no GET da ficha/`/hoje`/`/api/leads`) garante os dois canais; entradas antigas sem `canal` (de antes desta feature) contam como `"whatsapp"` na leitura (`canalDoEnvio`) — era o único canal que de fato usava token antes. O "Abrir demo" do EDITOR continua sem token (preview, ver acima); "Abrir demo" da ficha e de `/demos` também continuam sem token (mesmo raciocínio de preview interno, não é um envio pro lead).
+
+## Compactação de /leads e /buscas (`src/lib/usuarios/preferencias.ts` + `/api/preferencias/listas`)
+
+**Relato**: as duas telas mais usadas do dia são filas longas de cards
+altos — no celular, achar a busca de ontem custa uma dúzia de arrastadas de
+polegar. A compactação tem **dois níveis independentes**, porque são dois
+problemas diferentes: o que ocupa tela é o GRUPO inteiro (dobrar) ou o
+MIOLO de cada card (modo compacto).
+
+**Onde o estado mora — e por que não é mais a querystring.** O colapso de
+grupo vivia em `?fechados=` (em `/leads`), ou seja, era do NAVEGADOR e da
+NAVEGAÇÃO: recarregar a aba, abrir o app no celular ou chegar por um deep
+link devolvia tudo aberto — e uma compactação que não sobrevive não
+compacta nada. Agora a escolha mora em `/usuarios/{id}.preferenciasListas`,
+mesmo padrão self-service de `tema`/`ultimoNivelIA`/`metaFaixaMinimizada`:
+
+- `GET`/`PUT /api/preferencias/listas` — qualquer sessão lê e grava só o
+  PRÓPRIO doc; `salvarPreferenciasListas` não toca `atualizadoEm` nem
+  `sessao`.
+- O `PUT` recebe a preferência INTEIRA (não um patch): a tela já tem o
+  estado em mãos ao alternar, e o servidor normaliza — chave inválida cai,
+  duplicata some, e o teto de `MAX_GRUPOS_FECHADOS` (200 por tela) corta as
+  chaves mais ANTIGAS, para o doc do usuário não virar um acumulador
+  infinito de grupos dobrados. Chave cortada só faz o grupo voltar a
+  aparecer aberto, que é o padrão.
+- **Normalização é a migração**: todo doc é "antigo" até o usuário mexer
+  pela primeira vez, e `normalizaPreferenciasListas` resolve ausência e
+  sujeira no mesmo caminho (`{ leadsCompacto: false, gruposFechados:
+  { leads: [], buscas: [] } }`), sem código de migração à parte.
+- As chaves de grupo são **por tela** (`gruposFechados.leads` /
+  `.buscas`) porque as duas telas dobram coisas diferentes: em `/leads` a
+  chave é o id da busca (ou `__sem_busca__`); em `/buscas` convivem ids de
+  busca e as chaves dos agrupamentos por mês/nicho (`mes:2026-08`,
+  `nicho:dentista`).
+- **Gravação otimista**, no padrão do `MetaFaixa`: aplica local, dispara o
+  `PUT`, reverte no erro — dobrar um grupo não pode esperar a rede.
 
 ## UI (implementada)
 
