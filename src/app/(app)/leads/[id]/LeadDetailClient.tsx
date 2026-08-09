@@ -22,6 +22,7 @@ import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { formatDateTime, formatDuracao } from "@/lib/format";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
+import { handleInstagram } from "@/lib/leads/instagram";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
 import { useWhatsAppContato } from "@/lib/useWhatsAppContato";
@@ -297,6 +298,7 @@ export function LeadDetailClient({ id }: { id: string }) {
   // Derivado no servidor (asLead): true = site próprio; false = sem site OU
   // só rede social/agregador; undefined = desconhecido.
   const siteEhProprio = lead.siteProprio;
+  const instagramHandle = handleInstagram(detalhes?.site ?? lead.siteUrl);
   const estado = estadoAtual(lead.horarios);
   const momento = melhorMomento(lead.horarios);
 
@@ -328,6 +330,16 @@ export function LeadDetailClient({ id }: { id: string }) {
           <StatusBadge status={lead.status} />
         </div>
         {lead.endereco && <p className="mt-1 text-sm text-ink-secondary">{lead.endereco}</p>}
+        {instagramHandle && (
+          <a
+            href={`https://instagram.com/${instagramHandle}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 rounded border border-line bg-surface-2 px-3 py-2 text-sm font-medium text-foreground hover:border-accent/40 hover:bg-surface-2/70"
+          >
+            Instagram ↗
+          </a>
+        )}
         {lead.descartado && (
           <p className="mt-2 inline-block rounded border border-critical/40 bg-critical/10 px-2 py-1 text-xs text-critical">
             Lead descartado — continua na base e pode ser restaurado.

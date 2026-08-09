@@ -86,7 +86,10 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Tudo passa pela sessão, menos assets estáticos do Next e arquivos públicos.
+  // manifest.webmanifest precisa ficar de fora igual favicon.ico: é lido pelo
+  // navegador pra decidir se oferece "instalar" ANTES do login (extensão
+  // .webmanifest não cai no padrão de arquivos abaixo).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml)$).*)",
   ],
 };
