@@ -56,12 +56,18 @@ jobs:
 
       # O navegador (~300MB) é o mesmo em toda rodada até `playwright-core`
       # mudar de versão — cachear evita rebaixar o Chromium a cada disparo.
+      # `save-always`: o Chromium já foi instalado com sucesso mesmo quando a
+      # rodada falha DEPOIS (Firestore, lead sem demo) — sem isto o padrão do
+      # actions/cache é só salvar em job que termina bem, e essas falhas
+      # tardias, que nada têm a ver com o navegador, forçariam rebaixar os
+      # ~300MB de novo na rodada seguinte.
       - name: Cache do navegador do Playwright
         id: cache-playwright-browsers
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-browsers-${{ steps.playwright-versao.outputs.versao }}
+          save-always: true
 
       # O projeto depende de `playwright-core`, que NÃO baixa navegador (é
       # deliberado: no ambiente de desenvolvimento o Chromium já vem
