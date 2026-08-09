@@ -1730,7 +1730,28 @@ mesmo padrão self-service de `tema`/`ultimoNivelIA`/`metaFaixaMinimizada`:
   busca e as chaves dos agrupamentos por mês/nicho (`mes:2026-08`,
   `nicho:dentista`).
 - **Gravação otimista**, no padrão do `MetaFaixa`: aplica local, dispara o
-  `PUT`, reverte no erro — dobrar um grupo não pode esperar a rede.
+  `PUT`, reverte no erro — dobrar um grupo não pode esperar a rede. O hook
+  `usePreferenciasListas` (`src/components/`) é o único ponto que fala com
+  a rota; falha de rede cai no padrão em vez de prender a tela no
+  esqueleto.
+
+### Nível 1 — o grupo (`src/components/CabecalhoBusca.tsx`)
+
+Fechado, o cabeçalho é a ÚNICA coisa do grupo na tela — então ele carrega
+sozinho tudo que identifica a busca: **cor, nome, nicho e região, data,
+autor e contagem de leads**, em duas linhas densas (a primeira é o que se
+lê de relance; a segunda é a procedência). O mesmo componente serve as duas
+telas, e é por isso que ele existe: em `/leads` o grupo é a seção de leads
+daquela busca (contagem = leads carregados, com os filtros atuais); em
+`/buscas` o grupo é a própria busca (contagem = criados + já existentes, o
+detalhe fica no `title`). A cor continua sendo reforço redundante e nunca
+canal único — o nome está escrito ao lado do ponto e o triângulo ▸/▾ diz o
+estado da dobra sem depender de cor.
+
+Diferenças legítimas entre as duas telas entram por slot, não por
+duplicação: `onTrocarCor` (só `/buscas` cicla a paleta ao tocar no ponto) e
+`acoes` (o atalho "leads →", que substitui o "card inteiro é um link" que
+existia antes de o card dobrar).
 
 ## UI (implementada)
 
@@ -1740,8 +1761,8 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
 - **`(app)/` (route group)**: layout com nav inferior fixa (Hoje/Painel/Leads/Buscas/Demos/Chat/Config) + botão Sair; a aba Chat carrega o badge de não-lidas (polling leve de `/api/mensagens/nao-lidas`); todas as páginas autenticadas vivem aqui.
   - **`/hoje` (Fila do dia)**: contadores no topo + as 3 seções de `GET /api/hoje` (novos por score com badge da busca de origem, follow-ups com "Xd sem resposta", demos paradas), cada item com WhatsApp/Ficha/Demo diretos e, quando `lead.horarios` existe, "melhor momento pra contatar" ao lado do item — ver "Operação diária".
   - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite"), um KPI row de prospecção com `/api/metrics`, o widget "Buscas recorrentes" (última execução do cron via `/api/cron/status`: quando rodou, quanto achou, interrupção/erros e quantas recorrentes estão ligadas) e o card "Demos criadas" (total de `metrics.demosCriadas`, linka para `/demos`). **Membro vê os números escopados a ele** (a API já escopa); **admin ganha a seção "Por usuário"** (requests por SKU, buscas, demos, contatos de cada um).
-  - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`user_quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5), o indicador `CotaIndicador` de cota individual de buscas (permanente, atualizado após cada busca, botão desabilitado como cortesia ao esgotar) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (toggle, header com dot da cor + nome + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto). Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha —, os dots de cor das buscas, destaque "sem site (lead quente)" e, quando `lead.horarios` existe, o estado atual ("Aberto agora · fecha 18h" / "Fechado · abre 9h", `estadoAtual` de `lib/leads/horarios.ts`). Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
-  - **`/buscas`**: buscas salvas (dot de cor, nome, nicho/sub-nicho, região, data, totais); tocar no dot cicla a cor pela paleta e persiste (`PATCH /api/buscas/[id]`); clicar no card navega para `/leads?buscaId=…`; toggle "tornar recorrente"/"recorrente ✓" por card (mesmo PATCH — o 400 do teto de recorrentes aparece como erro na página) com badge "recorrente" no nome.
+  - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`user_quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5), o indicador `CotaIndicador` de cota individual de buscas (permanente, atualizado após cada busca, botão desabilitado como cortesia ao esgotar) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (o mesmo `CabecalhoBusca` de `/buscas`: dot da cor + nome + badge "recorrente" + nicho·sub-nicho — região + data + autor + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto — sem procedência, porque não há busca de origem). O estado da dobra é do USUÁRIO, não da querystring (ver "Compactação de /leads e /buscas"). Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha —, os dots de cor das buscas, destaque "sem site (lead quente)" e, quando `lead.horarios` existe, o estado atual ("Aberto agora · fecha 18h" / "Fechado · abre 9h", `estadoAtual` de `lib/leads/horarios.ts`). Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
+  - **`/buscas`**: cada busca é um **grupo colapsável** (ver "Compactação de /leads e /buscas") — fechada, sobra só a faixa do `CabecalhoBusca` (dot de cor, nome, badge "recorrente", nicho·sub-nicho — região, data, autor, contagem de leads); aberta, revela os totais, a mensagem do grupo e o toggle "tornar recorrente"/"recorrente ✓" (`PATCH /api/buscas/[id]` — o 400 do teto de recorrentes aparece como erro na página). Tocar no dot cicla a cor pela paleta e persiste (mesmo PATCH). A navegação para `/leads?buscaId=…` deixou de ser "o card inteiro é um link" (o card agora dobra) e ganhou o atalho explícito "leads →" no cabeçalho.
   - **`/demos`**: todas as demos ativas (leads com `demo` salva) — nome do lead, skin, data de criação/edição (`demo.criadoEm`/`atualizadoEm`), selo de prontidão, link público copiável e atalhos "Editar" (`/leads/{id}/demo/editar`) e "Excluir" (confirmação inline, mesmo `DELETE /api/leads/[id]/demo` do editor). Reaproveita `GET /api/leads` (sem filtros) e filtra client-side pelos leads com `demo` — mesma escala de "centenas de leads" do resto do app, sem rota nova. **Agrupamento por busca** (checkbox "Agrupar por busca", ligado por default — mesmo padrão colapsável de `/leads`: dot de cor, nome, contagem, `agruparPorBusca` de `src/lib/buscas/agrupar.ts`, extraído pra ser compartilhado entre as duas páginas em vez de duplicado). Demo criada pelo diálogo de lote (`GerarDemosLoteDialog`) já nasce no grupo certo sem nenhum código especial: o `PUT /demo` nunca toca `lead.buscaId`, então o agrupamento por busca da própria demo cai no mesmo grupo de origem do lead.
 
 **Filtro por autor** (`LeadDemo.criadoPor`, select "Todos os autores" — só aparece quando há mais de um autor com demo, sem opção morta): nomes resolvidos por `GET /api/usuarios/nomes` (qualquer sessão válida, o mesmo usado pelos selos de contato), demo sem `criadoPor` (salva antes do campo existir, ou sem sessão identificável) entra como "Sem autor registrado". **Combinável com o agrupamento**: o filtro roda ANTES de agrupar — um grupo de busca sem nenhuma demo do autor escolhido simplesmente não aparece, em vez de aparecer vazio.

@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 
 import { ApiError, api } from "@/lib/api-client";
 import { BUSCA_CORES, type Busca } from "@/lib/buscas/types";
-import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
-import { formatDateTime, formatInt } from "@/lib/format";
+import type { NomesUsuarios } from "@/lib/contato-selo";
+import { formatInt } from "@/lib/format";
+import { CabecalhoBusca } from "@/components/CabecalhoBusca";
 import { SkeletonRows } from "@/components/Skeleton";
+import { usePreferenciasListas } from "@/components/usePreferenciasListas";
 
 const MENSAGEM_MAX = 1000; // espelha o limite da rota PATCH
 
@@ -26,6 +28,11 @@ export default function BuscasPage() {
   const [msgDraft, setMsgDraft] = useState("");
   const [salvandoMsg, setSalvandoMsg] = useState(false);
   const [salvandoRecorrente, setSalvandoRecorrente] = useState<string | null>(null);
+
+  // Cada busca é um GRUPO colapsável: fechada, sobra só a faixa do
+  // CabecalhoBusca (a mesma de /leads). O estado da dobra é do usuário,
+  // não da navegação — ver "Compactação de /leads e /buscas".
+  const { preferencias, alternarGrupoLista } = usePreferenciasListas();
 
   useEffect(() => {
     let ignore = false;
@@ -112,7 +119,10 @@ export default function BuscasPage() {
     return <p className="text-sm text-critical">{erro}</p>;
   }
 
-  if (buscas === null) {
+  // A dobra só pode pintar depois que a preferência resolve: grupo que
+  // nasce aberto e fecha meio segundo depois empurra a lista inteira (é o
+  // deslocamento de layout que o portão de CLS reprova).
+  if (buscas === null || preferencias === null) {
     return <SkeletonRows count={3} className="h-20 rounded-lg border border-line" />;
   }
 
@@ -131,130 +141,118 @@ export default function BuscasPage() {
   return (
     <div className="flex flex-col gap-2">
       {erro && <p className="text-sm text-critical">{erro}</p>}
-      <ul className="flex flex-col gap-2">
-        {buscas.map((busca) => (
-          <li
-            key={busca.id}
-            className="card-lift rounded-lg border border-line bg-surface p-3"
-          >
-            <div className="flex items-start gap-2.5">
-              <button
-                type="button"
-                onClick={() => trocarCor(busca)}
-                disabled={trocandoCor === busca.id}
-                title="Trocar a cor da busca (cicla a paleta)"
-                aria-label={`Trocar a cor da busca ${busca.nome}`}
-                className="mt-1 h-3.5 w-3.5 shrink-0 rounded-full ring-2 ring-transparent transition hover:ring-[var(--ring-soft)] disabled:opacity-50"
-                style={{ backgroundColor: busca.cor }}
+      <ul className="flex flex-col gap-1.5">
+        {buscas.map((busca) => {
+          const fechada = preferencias.gruposFechados.buscas.includes(busca.id);
+          return (
+            <li
+              key={busca.id}
+              className="rounded-lg border border-line bg-surface px-2 py-1"
+            >
+              <CabecalhoBusca
+                titulo={busca.nome}
+                cor={busca.cor}
+                busca={busca}
+                contagem={busca.totalCriados + busca.totalExistentes}
+                contagemTitulo={`${formatInt(busca.totalCriados)} novo(s) · ${formatInt(busca.totalExistentes)} já existente(s)`}
+                aberto={!fechada}
+                onToggle={() => alternarGrupoLista("buscas", busca.id)}
+                nomes={nomes}
+                onTrocarCor={() => trocarCor(busca)}
+                trocandoCor={trocandoCor === busca.id}
+                acoes={
+                  <Link
+                    href={`/leads?buscaId=${encodeURIComponent(busca.id)}&buscaNome=${encodeURIComponent(busca.nome)}`}
+                    title={`Ver os leads de ${busca.nome}`}
+                    className="shrink-0 rounded px-1.5 py-1 text-xs font-medium text-accent hover:underline"
+                  >
+                    leads <span aria-hidden>→</span>
+                  </Link>
+                }
               />
-              <div className="min-w-0 flex-1">
-                <Link
-                  href={`/leads?buscaId=${encodeURIComponent(busca.id)}&buscaNome=${encodeURIComponent(busca.nome)}`}
-                  className="block"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
-                      <span className="truncate">{busca.nome}</span>
-                      {busca.recorrente && (
-                        <span
-                          title="Busca recorrente: o cron re-executa 1x/dia"
-                          className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
-                        >
-                          recorrente
-                        </span>
-                      )}
-                    </p>
-                    <span className="shrink-0 text-xs text-ink-muted">
-                      {formatDateTime(busca.criadaEm)}
-                    </span>
-                  </div>
-                  <p className="mt-1 truncate text-xs text-ink-secondary">
-                    {[busca.nicho, busca.subNicho].filter(Boolean).join(" · ")} —{" "}
-                    {busca.regiao}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-ink-muted">
-                    por {busca.userId ? nomeUsuario(nomes, busca.userId) : "autor não registrado"}
-                  </p>
-                  <p className="mt-2 text-xs text-ink-muted">
+
+              {!fechada && (
+                <div className="border-t border-line px-1 pb-1.5 pt-2">
+                  <p className="text-xs text-ink-muted">
                     {formatInt(busca.totalCriados)} novo(s) ·{" "}
                     {formatInt(busca.totalExistentes)} já existente(s)
                   </p>
-                </Link>
 
-                {editandoMsg === busca.id ? (
-                  <div className="mt-2">
-                    <textarea
-                      value={msgDraft}
-                      onChange={(event) =>
-                        setMsgDraft(event.target.value.slice(0, MENSAGEM_MAX))
-                      }
-                      rows={3}
-                      autoFocus
-                      placeholder="Mensagem do WhatsApp deste grupo — {nome} vira o nome do lead, {demo} vira o link da demo, {penetracao} vira o argumento de penetração de site. Vazio volta pra mensagem global."
-                      className="w-full rounded border border-line bg-surface-2 px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
-                    />
-                    <div className="mt-1 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => salvarMensagem(busca)}
-                        disabled={salvandoMsg}
-                        className="rounded bg-accent px-2 py-1 text-xs font-semibold text-accent-ink disabled:opacity-50"
-                      >
-                        {salvandoMsg ? "Salvando…" : "Salvar"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditandoMsg(null)}
-                        className="text-xs text-ink-muted hover:text-foreground"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-                    {busca.mensagemPadrao ? (
-                      <p className="min-w-0 flex-1 truncate text-xs italic text-ink-secondary">
-                        ✉ {busca.mensagemPadrao}
-                      </p>
-                    ) : (
-                      <span className="text-xs text-ink-muted">mensagem: global</span>
-                    )}
-                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <button
-                        type="button"
-                        onClick={() => toggleRecorrente(busca)}
-                        disabled={salvandoRecorrente === busca.id}
-                        title={
-                          busca.recorrente
-                            ? "Desligar a re-execução diária desta busca"
-                            : "Re-executar esta busca 1x/dia (cron da madrugada)"
+                  {editandoMsg === busca.id ? (
+                    <div className="mt-2">
+                      <textarea
+                        value={msgDraft}
+                        onChange={(event) =>
+                          setMsgDraft(event.target.value.slice(0, MENSAGEM_MAX))
                         }
-                        className={`text-xs disabled:opacity-50 ${
-                          busca.recorrente
-                            ? "text-accent hover:text-foreground"
-                            : "text-ink-muted hover:text-accent"
-                        }`}
-                      >
-                        {busca.recorrente ? "recorrente ✓" : "tornar recorrente"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditandoMsg(busca.id);
-                          setMsgDraft(busca.mensagemPadrao ?? "");
-                        }}
-                        className="text-xs text-ink-muted hover:text-accent"
-                      >
-                        {busca.mensagemPadrao ? "editar mensagem" : "+ mensagem do grupo"}
-                      </button>
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </li>
-        ))}
+                        rows={3}
+                        autoFocus
+                        placeholder="Mensagem do WhatsApp deste grupo — {nome} vira o nome do lead, {demo} vira o link da demo, {penetracao} vira o argumento de penetração de site. Vazio volta pra mensagem global."
+                        className="w-full rounded border border-line bg-surface-2 px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
+                      />
+                      <div className="mt-1 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => salvarMensagem(busca)}
+                          disabled={salvandoMsg}
+                          className="rounded bg-accent px-2 py-1 text-xs font-semibold text-accent-ink disabled:opacity-50"
+                        >
+                          {salvandoMsg ? "Salvando…" : "Salvar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditandoMsg(null)}
+                          className="text-xs text-ink-muted hover:text-foreground"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+                      {busca.mensagemPadrao ? (
+                        <p className="min-w-0 flex-1 truncate text-xs italic text-ink-secondary">
+                          ✉ {busca.mensagemPadrao}
+                        </p>
+                      ) : (
+                        <span className="text-xs text-ink-muted">mensagem: global</span>
+                      )}
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleRecorrente(busca)}
+                          disabled={salvandoRecorrente === busca.id}
+                          title={
+                            busca.recorrente
+                              ? "Desligar a re-execução diária desta busca"
+                              : "Re-executar esta busca 1x/dia (cron da madrugada)"
+                          }
+                          className={`text-xs disabled:opacity-50 ${
+                            busca.recorrente
+                              ? "text-accent hover:text-foreground"
+                              : "text-ink-muted hover:text-accent"
+                          }`}
+                        >
+                          {busca.recorrente ? "recorrente ✓" : "tornar recorrente"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditandoMsg(busca.id);
+                            setMsgDraft(busca.mensagemPadrao ?? "");
+                          }}
+                          className="text-xs text-ink-muted hover:text-accent"
+                        >
+                          {busca.mensagemPadrao ? "editar mensagem" : "+ mensagem do grupo"}
+                        </button>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

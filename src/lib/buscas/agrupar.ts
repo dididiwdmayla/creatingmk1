@@ -10,6 +10,13 @@ export interface GrupoBusca<T> {
   chave: string;
   titulo: string;
   cor?: string;
+  /**
+   * Busca de origem do grupo — ausente só no grupo "Sem busca". O
+   * cabeçalho do grupo fechado é a única coisa na tela e precisa mostrar a
+   * procedência inteira (nicho, região, data, autor), então o grupo
+   * carrega a busca em vez de só o nome e a cor dela.
+   */
+  busca?: Busca;
   itens: T[];
 }
 
@@ -33,7 +40,7 @@ export function agruparPorBusca<T>(
     const doGrupo = itens.filter((item) => (buscaIdDoItem(item) ?? []).includes(busca.id));
     if (doGrupo.length === 0) continue;
     doGrupo.forEach((item) => agrupados.add(item));
-    grupos.push({ chave: busca.id, titulo: busca.nome, cor: busca.cor, itens: doGrupo });
+    grupos.push({ chave: busca.id, titulo: busca.nome, cor: busca.cor, busca, itens: doGrupo });
   }
   const semBusca = itens.filter((item) => !agrupados.has(item));
   if (semBusca.length > 0) {
