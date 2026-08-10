@@ -512,17 +512,27 @@ async function folhaDeContato(page, titulo, arquivo, linhas) {
 /**
  * As duas telas longas, no CELULAR, dirigindo os controles DE VERDADE —
  * não uma preferência semeada no banco. Estado semeado provaria só que o
- * componente sabe renderizar fechado; o que precisa ser verificado é o
+ * componente sabe renderizar denso; o que precisa ser verificado é o
  * caminho inteiro: tocar no controle → gravar no doc → recarregar e
- * continuar compactado.
+ * continuar na densidade escolhida.
  *
- * Junto das capturas, o PORTÃO deste item: **nenhuma linha da lista pode
- * renderizar com altura zero**. É o análogo, para as listas, do
- * `--so=colapso` das skins — um card que "some" por colapsar a caixa não
- * aparece como erro em captura nenhuma (a tela só fica mais curta), mas
- * come um lead da fila do operador. Também cobra que a linha compacta seja
- * mais BAIXA que o card completo (senão não houve compactação nenhuma) e
- * que nada vaze horizontalmente da viewport do celular.
+ * Junto das capturas, o PORTÃO deste item, em quatro cobranças:
+ *
+ *   1. **nenhum slot renderiza com altura OU largura zero** — e "slot" aqui
+ *      não é só a linha da lista: é cada folha com conteúdo dentro dela
+ *      (ponto de cor, selo de status, chip de score, nome). É o análogo,
+ *      para as listas, do `--so=colapso` das skins: um selo que "some" por
+ *      colapsar a caixa não aparece como erro em captura nenhuma — a tela
+ *      só fica um pouco mais vazia —, mas leva embora o estado do lead. A
+ *      largura entrou junto da altura porque é ela que colapsa nas
+ *      densidades altas, onde a coluna tem ~85px;
+ *   2. **a grade tem mesmo N colunas** — contando quantos cards dividem a
+ *      primeira linha. Sem isso, `grid-cols-N` montado em runtime (que o
+ *      Tailwind não gera) passaria despercebido: a tela continuaria certa,
+ *      só que sempre em 1 coluna;
+ *   3. **densidade maior encurta a lista** — senão não houve densificação
+ *      nenhuma;
+ *   4. nada vaza horizontalmente da viewport do celular.
  */
 async function medirListas(browser, secret) {
   const gerados = [];
@@ -544,6 +554,7 @@ async function medirListas(browser, secret) {
           altura: Math.round(r.height),
           largura: Math.round(r.width),
           direita: Math.round(r.right),
+          topo: Math.round(r.top),
           texto: (no.textContent ?? "").trim().slice(0, 40),
         };
       }),
@@ -562,6 +573,62 @@ async function medirListas(browser, secret) {
     }
   };
 
+  /**
+   * As FOLHAS com conteúdo dentro de cada card. É onde a densidade
+   * machuca: o card continua com altura, e o que colapsa é o selo, o ponto
+   * ou o chip lá dentro.
+   *
+   * Folha sem texto E sem fundo é pulada de propósito — o card completo
+   * tem um `<span />` vazio de espaçamento, que é legitimamente 0×0. O que
+   * sobra é exatamente o que se vê: quem tem texto, e quem é pintado (os
+   * pontos de cor e de status, que são spans vazios COM fundo).
+   */
+  const conferirSlots = async (onde, seletor) => {
+    const slots = await page.$$eval(seletor, (nos) =>
+      nos.flatMap((no) =>
+        [...no.querySelectorAll("*")]
+          .filter((el) => {
+            if (el.children.length > 0) return false;
+            if (el.closest("svg")) return false;
+            const estilo = getComputedStyle(el);
+            if (estilo.display === "none") return false;
+            const pintado =
+              estilo.backgroundImage !== "none" ||
+              !/^rgba\(0, 0, 0, 0\)$|^transparent$/.test(estilo.backgroundColor);
+            return (el.textContent ?? "").trim().length > 0 || pintado;
+          })
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            return {
+              altura: Math.round(r.height),
+              largura: Math.round(r.width),
+              tag: el.tagName.toLowerCase(),
+              texto: (el.textContent ?? "").trim().slice(0, 24),
+            };
+          }),
+      ),
+    );
+    for (const slot of slots) {
+      if (slot.altura <= 0 || slot.largura <= 0) {
+        problemas.push(
+          `${onde}: slot <${slot.tag}> com caixa zerada (${slot.largura}×${slot.altura}) — "${slot.texto}"`,
+        );
+      }
+    }
+    return slots.length;
+  };
+
+  /**
+   * Quantos cards dividem a PRIMEIRA linha da grade — é a única maneira de
+   * provar que a grade saiu do lugar. Comparar por `top` e não por `left`
+   * porque cards da mesma linha podem ter alturas diferentes.
+   */
+  const colunasNaPrimeiraLinha = (linhas) => {
+    if (linhas.length === 0) return 0;
+    const topo = Math.min(...linhas.map((l) => l.topo));
+    return linhas.filter((l) => Math.abs(l.topo - topo) <= 2).length;
+  };
+
   const conferir = async (onde, seletor) => {
     const linhas = await medirLinhas(seletor);
     if (linhas.length === 0) problemas.push(`${onde}: nenhuma linha renderizada (${seletor})`);
@@ -577,8 +644,16 @@ async function medirListas(browser, secret) {
         );
       }
     }
+    const slots = await conferirSlots(onde, seletor);
+    if (slots === 0) problemas.push(`${onde}: nenhum slot com conteúdo dentro dos cards`);
     await conferirPontos(onde);
     return linhas;
+  };
+
+  /** Toca no botão de N cards por linha e espera a gravação otimista. */
+  const escolherDensidade = async (n) => {
+    await page.getByRole("button", { name: `${n} card${n > 1 ? "s" : ""} por linha` }).click();
+    await page.waitForTimeout(350);
   };
 
   const capturar = async (rotulo, arquivo) => {
@@ -592,44 +667,61 @@ async function medirListas(browser, secret) {
   const alturaMedia = (linhas) =>
     linhas.length === 0 ? 0 : linhas.reduce((s, l) => s + l.altura, 0) / linhas.length;
 
-  // ── /leads: completo → compacto → um card expandido ────────────────
+  // ── /leads: as quatro densidades, uma a uma ───────────────────────
   await page.goto(`${BASE}/leads`, { waitUntil: "domcontentloaded" });
   await assentar(page);
   await exigirLogado(page, "listas/leads");
-  const completas = await conferir("leads completo", "section ul > li");
-  await capturar("leads · completo", "leads-completo");
 
-  await page.getByRole("button", { name: /Completo|Compacto/ }).click();
-  await page.waitForTimeout(400);
-  const compactas = await conferir("leads compacto", "section ul > li");
-  await capturar("leads · compacto", "leads-compacto");
-
-  if (alturaMedia(compactas) >= alturaMedia(completas)) {
-    problemas.push(
-      `modo compacto não compactou: média ${alturaMedia(compactas).toFixed(0)}px vs ${alturaMedia(
-        completas,
-      ).toFixed(0)}px do card completo`,
-    );
+  const alturaPorDensidade = {};
+  for (const n of [1, 2, 3, 4]) {
+    await escolherDensidade(n);
+    const linhas = await conferir(`leads densidade ${n}`, "section ul > li");
+    alturaPorDensidade[n] = alturaMedia(linhas);
+    const colunas = colunasNaPrimeiraLinha(linhas);
+    // `Math.min` porque o último grupo da tela pode ter menos cards do que
+    // colunas — o que se cobra é que a grade não fique ABAIXO do escolhido.
+    if (colunas !== Math.min(n, linhas.length)) {
+      problemas.push(
+        `leads densidade ${n}: ${colunas} card(s) na primeira linha (esperado ${Math.min(n, linhas.length)}) — a grade não aplicou`,
+      );
+    }
+    await capturar(`leads · ${n} por linha`, `leads-d${n}`);
   }
 
-  // Recarrega: a preferência tem que ter ido pro DOC, não pro estado local.
+  for (const [menor, maior] of [
+    [1, 2],
+    [2, 3],
+    [3, 4],
+  ]) {
+    if (alturaPorDensidade[maior] >= alturaPorDensidade[menor]) {
+      problemas.push(
+        `leads: densidade ${maior} não encurtou o card (média ${alturaPorDensidade[maior].toFixed(
+          0,
+        )}px vs ${alturaPorDensidade[menor].toFixed(0)}px da ${menor})`,
+      );
+    }
+  }
+
+  // Recarrega: a escolha tem que ter ido pro DOC, não pro estado local.
   await page.reload({ waitUntil: "domcontentloaded" });
   await assentar(page);
-  const persistidas = await conferir("leads compacto (recarregado)", "section ul > li");
-  if (alturaMedia(persistidas) >= alturaMedia(completas)) {
-    problemas.push("modo compacto não sobreviveu à recarga (preferência não foi pro doc)");
+  const persistidas = await conferir("leads densidade 4 (recarregado)", "section ul > li");
+  if (colunasNaPrimeiraLinha(persistidas) !== Math.min(4, persistidas.length)) {
+    problemas.push("densidade não sobreviveu à recarga (preferência não foi pro doc)");
   }
-  await capturar("leads · compacto após recarga", "leads-compacto-recarga");
+  await capturar("leads · 4 por linha após recarga", "leads-d4-recarga");
 
-  // Tocar num card expande SÓ aquele.
-  await page.locator("section ul > li button").first().click();
+  // Densidade 1 mantém o recolher local: tocar no ▴ recolhe SÓ aquele card.
+  await escolherDensidade(1);
+  const antesDoRecolher = await medirLinhas("section ul > li");
+  await page.getByRole("button", { name: /^Recolher / }).first().click();
   await page.waitForTimeout(300);
-  const expandidas = await conferir("leads com um expandido", "section ul > li");
-  const maiores = expandidas.filter((l) => l.altura > alturaMedia(compactas) * 1.5);
-  if (maiores.length !== 1) {
-    problemas.push(`tocar no card expandiu ${maiores.length} cards (esperado exatamente 1)`);
+  const recolhidas = await conferir("leads com um recolhido", "section ul > li");
+  const menores = recolhidas.filter((l) => l.altura < alturaMedia(antesDoRecolher) * 0.6);
+  if (menores.length !== 1) {
+    problemas.push(`tocar no ▴ recolheu ${menores.length} cards (esperado exatamente 1)`);
   }
-  await capturar("leads · um card expandido", "leads-expandido");
+  await capturar("leads · um card recolhido", "leads-recolhido");
 
   // Grupo dobrado: o cabeçalho tem que se bastar sozinho na tela.
   await page.locator('section > div > button[aria-expanded="true"]').first().click();
@@ -657,6 +749,37 @@ async function medirListas(browser, secret) {
   }
   await capturar("buscas · dobrado", "buscas-dobrado");
 
+  // A grade vale para as faixas FECHADAS — e é por isso que ela só é
+  // medida agora, com tudo dobrado.
+  const alturaBuscaPorDensidade = {};
+  for (const n of [1, 2, 3, 4]) {
+    await escolherDensidade(n);
+    const linhas = await conferir(`buscas densidade ${n}`, "section ul > li");
+    alturaBuscaPorDensidade[n] = alturaMedia(linhas);
+    const colunas = colunasNaPrimeiraLinha(linhas);
+    if (colunas !== Math.min(n, linhas.length)) {
+      problemas.push(
+        `buscas densidade ${n}: ${colunas} faixa(s) na primeira linha (esperado ${Math.min(n, linhas.length)}) — a grade não aplicou`,
+      );
+    }
+    await capturar(`buscas · ${n} por linha`, `buscas-d${n}`);
+  }
+  if (alturaBuscaPorDensidade[4] >= alturaBuscaPorDensidade[1]) {
+    problemas.push("buscas: densidade 4 não encurtou a faixa fechada");
+  }
+
+  // Busca ABERTA volta a ocupar a linha inteira, mesmo na grade de 4.
+  await page.locator('li button[aria-expanded="false"]').first().click();
+  await page.waitForTimeout(350);
+  const comUmaAberta = await conferir("buscas com uma aberta", "section ul > li");
+  const abertaLarga = comUmaAberta.some((l) => l.largura > VIEWPORT_CELULAR.width * 0.8);
+  if (!abertaLarga) {
+    problemas.push("busca aberta não ocupou a linha inteira (col-span-full não aplicou)");
+  }
+  await capturar("buscas · uma aberta na grade de 4", "buscas-d4-aberta");
+  await escolherDensidade(1);
+  await page.waitForTimeout(200);
+
   for (const [modo, rotulo] of [
     ["mes", "por mês"],
     ["nicho", "por nicho"],
@@ -672,10 +795,12 @@ async function medirListas(browser, secret) {
   }
 
   gerados.push(
-    await folhaDeContato(page, "Compactação de /leads e /buscas (celular)", "listas", [
-      { rotulo: "leads", itens: itens.slice(0, 3) },
-      { rotulo: "leads", itens: itens.slice(3, 5) },
-      { rotulo: "buscas", itens: itens.slice(5) },
+    await folhaDeContato(page, "Densidade de /leads e /buscas (celular)", "listas", [
+      { rotulo: "leads · densidades", itens: itens.slice(0, 4) },
+      { rotulo: "leads · persistência e dobras", itens: itens.slice(4, 7) },
+      { rotulo: "buscas · dobra", itens: itens.slice(7, 9) },
+      { rotulo: "buscas · densidades", itens: itens.slice(9, 14) },
+      { rotulo: "buscas · agrupado", itens: itens.slice(14) },
     ]),
   );
   await ctx.close();
@@ -684,7 +809,9 @@ async function medirListas(browser, secret) {
   if (problemas.length > 0) {
     throw new Error(`[listas] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
   }
-  console.log("[listas] ok — nenhuma linha com altura zero, nenhuma vazando, compactação medida.");
+  console.log(
+    "[listas] ok — nenhum slot com caixa zerada, nada vazando, grade e escada de densidade medidas.",
+  );
   return gerados;
 }
 

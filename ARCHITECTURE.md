@@ -1753,27 +1753,77 @@ duplicação: `onTrocarCor` (só `/buscas` cicla a paleta ao tocar no ponto) e
 `acoes` (o atalho "leads →", que substitui o "card inteiro é um link" que
 existia antes de o card dobrar).
 
-### Nível 2 — o lead (`LeadCard compacto`)
+### Nível 2 — o lead, por DENSIDADE (`LeadCard` + `SeletorDensidade`)
 
-Ligado (`preferenciasListas.leadsCompacto`), cada card vira **uma linha**:
-nome truncado · `site✓/✕/?` `tel✓/✕/?` · score · selo de status. Some
-tudo que é de DEPOIS da escolha — endereço, a faixa de "já contatou"
-(`SeloContato`) e as ações de nota/descartar —, que é justamente o miolo
-que fazia a fila de cards ficar alta. O que sobra é o que decide "abro
-esta ficha ou passo pra próxima".
+A grade tem **1, 2, 3 ou 4 cards por linha**, e a densidade não muda só
+quantas colunas cabem: ela é também **o nível de conteúdo do card**. Uma
+coisa depende da outra — não adianta pôr quatro colunas se o card
+continuar do tamanho de uma.
 
-- **Tocar expande SÓ aquele card** (estado local do próprio `LeadCard`):
-  o modo da lista continua ligado, os outros continuam em linha, e o card
-  expandido é o card completo de sempre — link pra ficha, notas, descarte
-  — mais um `▴` pra recolher. Nenhum estado de expansão é persistido: é
-  gesto de leitura, não preferência.
+| dens. | o que o card mostra |
+|---|---|
+| 1 | o card inteiro de sempre (nome, endereço, site/tel, horário, `SeloContato`, notas, ações) |
+| 2 | sem endereço; a faixa de "já contatou" vira um **ponto** (texto inteiro no `title` e no leitor de tela); ficam nome, score, selo, site/tel e as cores das buscas |
+| 3 | nome truncado, selo de status e score |
+| 4 | cor da busca, nome curto e ponto de status |
+
+O que sai a cada degrau é sempre o que só interessa DEPOIS da escolha; o
+que fica é o que decide "abro esta ficha ou passo pra próxima".
+
+- **O padrão sai da largura da tela; a escolha do usuário sobrepõe.**
+  `densidade: null` no doc é o automático (celular em 1, e daí
+  acompanhando os breakpoints do Tailwind: 640 → 2, 1024 → 3, 1280 → 4).
+  Guardar `null` em vez do número já resolvido é o que faz quem nunca
+  escolheu continuar acompanhando a largura ao trocar de aparelho, e quem
+  escolheu levar a escolha para todos eles. É **por tela**: 3 buscas por
+  linha cabem onde 3 leads não caberiam.
+- **A lista espera a largura atrás do esqueleto.** Grade que nasce com 1
+  coluna e vira 4 meio segundo depois é o "elemento que entra depois do
+  primeiro desenho e empurra o resto" que o portão de CLS reprova. A
+  largura é medida em efeito (não no inicializador do estado, que
+  divergiria na hidratação), e o esqueleto já reserva a altura.
+- **De 2 para cima o card inteiro é link pra ficha.** Numa coluna de
+  ~85px do celular não cabe ação nenhuma dentro do card, e o toque passa a
+  ter um destino só em vez de dois.
+- **O recolher local sobrevive só na densidade 1**: ali o card continua
+  como sempre foi — `▴` recolhe para a linha única, tocar na linha
+  expande de volta, e nada disso é persistido (é gesto de leitura, não
+  preferência).
+- **O selo de status encolhe sem virar "só a cor decide"**, que é a regra
+  que o `StatusBadge` existe para segurar. Nas três variantes
+  (`completo`/`glifo`/`ponto`) o que sai é o texto VISÍVEL: o glifo de
+  progresso (○◐◑●), a forma (quadrada no começo do funil, pill no fim) e
+  o rótulo por extenso (`title` + leitor de tela) continuam nas três.
 - **O indicador de site/tel é glifo, não cor.** "Sem site" é o caso BOM
   aqui (lead quente), então cor sozinha inverteria a leitura de quem não
   distingue os matizes: quem carrega o estado é o `✓/✕/?`, com o `title`
   por extenso; a cor só reforça.
-- **A alternância fica no topo da lista, junto dos filtros**, com o rótulo
-  do MODO ("Compacto"/"Completo") e `aria-pressed` — largura estável nos
-  dois estados, senão alternar empurraria a própria barra de filtros.
+- **O seletor tomou o lugar do botão "≡ Compacto/Completo"**, que
+  governava a mesma coisa por outro nome. Os dois juntos produziam estados
+  que se contradizem (compacto ligado + 1 coluna, que é justamente o card
+  inteiro), e a barra de filtros do celular não tinha espaço para um oitavo
+  controle. Saldo: zero. O ícone é a própria grade (1 a 4 barras), com
+  largura fixa por botão — um controle que mudasse de tamanho ao alternar
+  empurraria a barra inteira.
+- **O modo compacto legado vira o degrau 2**, dentro da própria
+  `normalizaPreferenciasListas` — nada de código de migração à parte, e
+  `leadsCompacto` some do doc no primeiro `PUT`. 2 e não 3 porque quem
+  ligou o compacto pediu mais leads por tela, não a fila mínima.
+
+### A faixa da busca também encolhe (`CabecalhoBusca`)
+
+Em `/buscas` a grade vale para as faixas **FECHADAS**, e o cabeçalho tem a
+escada dele: em 2 a procedência cai para nicho e região (data e autor são
+o que menos distingue uma busca da outra na mesma tela — quase sempre o
+mesmo autor, datas próximas) e o selo "recorrente" sai; em 3 a procedência
+sai inteira; em 4 sobram cor, nome curto e o triângulo da dobra.
+
+**Busca ABERTA volta a ocupar a linha inteira e, junto, volta à densidade
+1.** Mensagem do grupo, recorrência e ações não cabem numa coluna de
+~85px — e é assim que o atalho "leads →" continua alcançável em qualquer
+densidade, sem ninguém ter que trocar a grade para chegar nele. Em
+`/leads` o cabeçalho fica sempre em densidade 1: lá ele encima uma seção
+que ocupa a linha inteira, então nunca aperta.
 
 ### Agrupamento de `/buscas` por mês e por nicho (`agruparBuscas`)
 
@@ -1799,22 +1849,44 @@ e uma agrupada divergindo com o tempo.
 
 As duas telas, no CELULAR (390×844, dpr 2), **dirigindo os controles de
 verdade** — não uma preferência semeada no banco: estado semeado provaria
-só que o componente sabe renderizar fechado, e o que precisa ser
-verificado é o caminho inteiro (tocar → gravar no doc → **recarregar** e
-continuar compactado, que é uma asserção do laço). Nove estados
-capturados: `/leads` completo → compacto → recarregado → um card
-expandido → grupo dobrado; `/buscas` aberto → dobrado → por mês → por
-nicho.
+só que o componente sabe renderizar denso, e o que precisa ser verificado
+é o caminho inteiro (tocar → gravar no doc → **recarregar** e continuar na
+densidade escolhida, que é uma asserção do laço). Dezesseis estados
+capturados: `/leads` nas quatro densidades → recarregado → um card
+recolhido → grupo dobrado; `/buscas` aberto → dobrado → as quatro
+densidades → uma aberta dentro da grade de 4 → por mês → por nicho.
 
-**O portão** (é o análogo do `--so=colapso` das skins, para listas):
-nenhuma linha pode renderizar com **altura zero**, nada pode vazar da
-viewport, a linha compacta tem que ser mais BAIXA que o card completo
-(senão não houve compactação) e dobrar as buscas tem que reduzir altura.
+**O portão** (é o análogo do `--so=colapso` das skins, para listas), em
+quatro cobranças:
+
+1. **nenhum slot renderiza com altura OU largura zero** — e "slot" não é
+   só a linha da lista: é cada folha com conteúdo dentro dela (ponto de
+   cor, selo, chip de score, nome). Folha sem texto e sem fundo é pulada
+   de propósito (o card completo tem um `<span />` de espaçamento que é
+   legitimamente 0×0). A **largura** entrou junto da altura nesta rodada
+   porque é ela que colapsa nas densidades altas, onde a coluna tem ~85px;
+2. **a grade tem mesmo N colunas**, contando quantos cards dividem a
+   primeira linha. Sem isso, `grid-cols-${n}` montado em runtime — que o
+   Tailwind não gera, porque ele varre o TEXTO dos arquivos — passaria
+   despercebido: a tela continuaria certa, só que sempre em 1 coluna;
+3. **densidade maior encurta o card** (senão não houve densificação);
+4. nada vaza horizontalmente da viewport do celular.
+
 `[data-ponto-busca]` tem asserção própria — e ela existe porque o ponto de
 cor **já sumiu uma vez**: `<span>` inline ignora `width`/`height`, então
 bastou ele deixar de ser filho direto de um flex (entrou dentro do botão
 de trocar cor) pra virar uma caixa 0×0. A tela continuava "certa", só sem
 o ponto; nenhuma asserção de altura de LINHA pegaria isso.
+
+**O que a cobrança de LARGURA achou na primeira rodada da densidade**: o
+nome da busca em `/buscas` densidade 2, renderizado em **0×20**. `truncate`
+traz `overflow: hidden`, e um item de flex com overflow escondido pode
+encolher até ZERO — o selo "recorrente" tem largura fixa de ~68px e, numa
+faixa de ~170px, comia o nome inteiro. Duas correções: o título passou a
+tomar o espaço que sobra explicitamente (`min-w-0 flex-1`, para truncar em
+vez de sumir) e o selo "recorrente" saiu já na densidade 2. Nenhuma
+captura denunciaria isso sozinha — a faixa continuava com altura, cor e
+contagem; o que faltava era o nome.
 
 **O que a captura achou e a leitura de código não acharia**: além do ponto
 sumido, a data do cabeçalho contradizendo o grupo — "01/08" dentro de
@@ -1822,8 +1894,8 @@ sumido, a data do cabeçalho contradizendo o grupo — "01/08" dentro de
 saía no relógio do navegador (daí `formatDateShortSP`).
 
 **Deslocamento de layout** (`qa-cls.mjs --so=app`, portão 0.1): as 7 abas
-em 0.0000, menos `config` em 0.0260 (pré-existente, sem relação com estas
-telas). A primeira medição pegou **0.0050 em Buscas**, com origem em
+em 0.0000 — Leads e Buscas incluídas, já com a densidade —, menos `config`
+em 0.0258 (pré-existente, sem relação com estas telas). A primeira medição pegou **0.0050 em Buscas**, com origem em
 `div.border-t.border-line, li.rounded-lg.border`: o autor aparece no
 cabeçalho de toda busca e o fallback "usuário removido" é mais longo que o
 nome real, então a linha da procedência encolhia de duas para uma quando

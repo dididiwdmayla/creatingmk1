@@ -81,7 +81,11 @@ export function CabecalhoBusca({
   const comProcedencia = densidade <= 2;
   const comDataEAutor = densidade === 1;
   const comContagem = densidade <= 3;
-  const comChips = densidade <= 2;
+  // O selo "recorrente" some já na densidade 2: ele tem largura fixa de
+  // ~68px e, numa faixa de ~170px, comia o nome inteiro — foi assim que o
+  // portão de slots pegou o título em 0×20. A recorrência continua visível
+  // (e alternável) na busca ABERTA, que volta à densidade 1.
+  const comChips = densidade === 1;
 
   // `block` não é decoração: um <span> inline ignora width/height, e o
   // ponto some (caixa 0×0) assim que deixa de ser filho direto de um flex —
@@ -125,8 +129,12 @@ export function CabecalhoBusca({
             {aberto ? "▾" : "▸"}
           </span>
           {onTrocarCor ? null : ponto}
+          {/* `min-w-0 flex-1`: `truncate` traz `overflow: hidden`, e um
+              item de flex com overflow escondido pode encolher até ZERO —
+              sem tomar o espaço que sobra explicitamente, o nome some
+              (caixa 0×altura) assim que os chips ao lado enchem a faixa. */}
           <span
-            className={`truncate font-medium text-foreground ${
+            className={`min-w-0 flex-1 truncate font-medium text-foreground ${
               densidade >= 4 ? "text-xs" : "text-sm"
             }`}
           >

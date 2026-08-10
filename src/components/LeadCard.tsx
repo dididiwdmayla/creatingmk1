@@ -198,14 +198,17 @@ export function LeadCard({
       <Link
         href={`/leads/${lead.placeId}`}
         title={lead.nome}
-        className={`card-lift flex h-full flex-col justify-center gap-1 rounded-lg border border-line bg-surface px-2 py-2 ${
-          densidade === 4 ? "min-h-9" : "min-h-11"
+        // Em 4 o respiro horizontal encolhe junto: numa coluna de ~85px do
+        // celular, cada píxel de padding sai direto do nome, que é a única
+        // coisa que identifica a linha.
+        className={`card-lift flex h-full flex-col justify-center gap-1 rounded-lg border border-line bg-surface py-2 ${
+          densidade === 4 ? "min-h-9 px-1.5" : "min-h-11 px-2"
         } ${lead.descartado ? "lead-descartado" : ""}`}
       >
         {densidade === 4 ? (
           // Cor, nome curto e ponto de status — o mínimo que ainda
           // identifica a linha e diz em que pé ela está.
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1">
             {pontosCor}
             <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
               {lead.nome}
