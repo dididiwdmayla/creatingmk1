@@ -69,6 +69,18 @@ const QUANTIDADE_MAX = 40;
 /** Posição de scroll da lista, para restaurar ao voltar da ficha. */
 const SCROLL_KEY = "radar:leads:scroll";
 /**
+ * Marca gravada só no instante em que o operador SAI de `/leads` para a
+ * ficha de um lead (`LeadCard`, via `onAbrirFicha`) — é o único jeito
+ * confiável de diferenciar "voltando da ficha" de qualquer outra chegada em
+ * `/leads` (nav inferior, aba nova, deep link). `SCROLL_KEY` sozinho não
+ * bastava: ele é reescrito a cada scroll e nunca é limpo, então uma vez
+ * rolada a lista, QUALQUER entrada em `/leads` reaplicava a posição antiga
+ * — inclusive tocar "Leads" na nav inferior vindo de outra aba, que deveria
+ * abrir no topo. Consumida (lida e apagada) uma vez só, no mount que decide
+ * restaurar ou não.
+ */
+const VOLTA_DA_FICHA_KEY = "radar:leads:volta-da-ficha";
+/**
  * Última querystring da lista (filtros, ordenação, agrupamento aberto,
  * grupo ativo) — navegação hierárquica (ficha → Leads) sempre aponta pra
  * "/leads" fixo, sem querystring; é esta chave que devolve o operador pro
@@ -426,6 +438,14 @@ function LeadsPageInner() {
   // de resetar pro default. Uma URL já com params (deep link de /buscas,
   // por exemplo) nunca é sobrescrita — só o mount inicial em branco dispara
   // a restauração; qualquer alteração de filtro depois disso só grava.
+  //
+  // `querystringPronta` fica falsa enquanto o `router.replace` do restauro
+  // não voltou com a URL final — a rolagem (abaixo) depende disto: sem
+  // esperar, ela podia assentar numa /leads AINDA sem `buscaId` (a versão
+  // limpa, de passagem, antes do replace aplicar), medindo uma altura menor
+  // do que a que a tela realmente vai ter quando "Mostrando leads da
+  // busca"/Precificação entrarem.
+  const [querystringPronta, setQuerystringPronta] = useState(false);
   const queryInicial = useRef(true);
   useEffect(() => {
     const qs = searchParams.toString();
@@ -435,37 +455,43 @@ function LeadsPageInner() {
         const salvo = sessionStorage.getItem(QUERY_KEY);
         if (salvo) {
           router.replace(`/leads?${salvo}`, { scroll: false });
-          return;
+          return; // não marca pronta agora — o efeito roda de novo quando a URL chegar
         }
       }
     }
     if (qs) sessionStorage.setItem(QUERY_KEY, qs);
     else sessionStorage.removeItem(QUERY_KEY);
+    setQuerystringPronta(true);
   }, [searchParams, router]);
 
-  // ── Scroll restoration: volta da ficha exatamente onde estava ─────────
+  // ── Scroll restoration: SÓ volta da ficha, e só depois de tudo assentar ──
+  // As causas do "abre rolado" achadas ao reproduzir: (1) a leitura de
+  // SCROLL_KEY não distinguia "voltando da ficha" de qualquer outra chegada
+  // em /leads — corrigido com VOLTA_DA_FICHA_KEY, gravada só por quem SAI
+  // daqui para uma ficha (ver onAbrirFicha em LeadCard); (2) a restauração
+  // disparava assim que `leads` chegava, antes de `querystringPronta`/
+  // `buscas`/densidade resolverem e do navegador pintar a altura FINAL da
+  // grade — dava scrollTo numa página ainda curta (ex.: "Mostrando leads da
+  // busca"/Precificação nem tinham entrado, porque a URL ainda não tinha
+  // voltado o `buscaId`), que o navegador recorta pro scroll máximo do
+  // instante, não o do tamanho final. Preso ao mesmo trio que decide se a
+  // grade sai do esqueleto, mais `querystringPronta`, e a duas rAF de folga
+  // pra garantir que o layout do conteúdo real já assentou.
   const scrollRestaurado = useRef(false);
   useEffect(() => {
-    if (leads === null || scrollRestaurado.current) return;
+    if (scrollRestaurado.current) return;
+    if (!querystringPronta || leads === null || buscas === null || !pronto) return;
     scrollRestaurado.current = true;
+    if (sessionStorage.getItem(VOLTA_DA_FICHA_KEY) !== "1") return;
+    sessionStorage.removeItem(VOLTA_DA_FICHA_KEY);
     const salvo = sessionStorage.getItem(SCROLL_KEY);
-    if (salvo) window.scrollTo(0, Number(salvo));
-  }, [leads]);
-
-  useEffect(() => {
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+    if (!salvo) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, Number(salvo));
       });
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(raf);
-    };
-  }, []);
+    });
+  }, [querystringPronta, leads, buscas, pronto]);
 
   function onLeadChange(updated: Lead) {
     setLeads((current) =>
@@ -473,6 +499,20 @@ function LeadsPageInner() {
         ? current.map((lead) => (lead.placeId === updated.placeId ? updated : lead))
         : current,
     );
+  }
+
+  /**
+   * Único ponto que grava VOLTA_DA_FICHA_KEY e SCROLL_KEY — ver o comentário
+   * na constante. A posição É capturada AQUI, na hora de sair (não por um
+   * listener de scroll contínuo, que era a terceira causa achada ao
+   * reproduzir): a navegação em si dispara um scroll pra 0 no MESMO
+   * `window`, e um listener sempre ligado grava esse 0 por cima de qualquer
+   * posição real antes de a página antiga acabar de desmontar — a
+   * restauração então "funcionava", só que sempre voltava pro topo.
+   */
+  function marcarVoltaDaFicha() {
+    sessionStorage.setItem(VOLTA_DA_FICHA_KEY, "1");
+    sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
   }
 
   // Guarda sincrona contra reenvio (toque duplo/triplo no mobile antes do
@@ -973,6 +1013,7 @@ function LeadsPageInner() {
                           nomes={nomes}
                           densidade={densidade}
                           onChange={onLeadChange}
+                          onAbrirFicha={marcarVoltaDaFicha}
                         />
                       </li>
                     ))}
@@ -995,6 +1036,7 @@ function LeadsPageInner() {
                 nomes={nomes}
                 densidade={densidade}
                 onChange={onLeadChange}
+                onAbrirFicha={marcarVoltaDaFicha}
               />
             </li>
           ))}

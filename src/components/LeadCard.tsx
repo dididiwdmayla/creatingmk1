@@ -73,6 +73,7 @@ export function LeadCard({
   nomes,
   densidade = 1,
   onChange,
+  onAbrirFicha,
 }: {
   lead: Lead;
   /** buscaId → cor (badge de cor das buscas em que o lead apareceu). */
@@ -91,6 +92,14 @@ export function LeadCard({
    */
   densidade?: Densidade;
   onChange: (lead: Lead) => void;
+  /**
+   * Disparado ao tocar no link pra ficha (`/leads/{id}`) — quem chama usa
+   * isso pra saber que a PRÓXIMA chegada em `/leads` está "voltando da
+   * ficha" (ver VOLTA_DA_FICHA_KEY em `/leads/page.tsx`). Opcional: quem
+   * não precisa (nenhum outro lugar usa `LeadCard` hoje) simplesmente não
+   * passa.
+   */
+  onAbrirFicha?: () => void;
 }) {
   /**
    * Recolher/expandir é SÓ da densidade 1, e só local. Nas densidades 2–4
@@ -198,6 +207,7 @@ export function LeadCard({
       <Link
         href={`/leads/${lead.placeId}`}
         title={lead.nome}
+        onClick={onAbrirFicha}
         // Em 4 o respiro horizontal encolhe junto: numa coluna de ~85px do
         // celular, cada píxel de padding sai direto do nome, que é a única
         // coisa que identifica a linha.
@@ -278,7 +288,11 @@ export function LeadCard({
       }`}
     >
       <div className="flex items-start justify-between gap-2">
-        <Link href={`/leads/${lead.placeId}`} className="min-w-0 flex-1 hover:opacity-80">
+        <Link
+          href={`/leads/${lead.placeId}`}
+          onClick={onAbrirFicha}
+          className="min-w-0 flex-1 hover:opacity-80"
+        >
           <p className="truncate text-sm font-medium text-foreground">{lead.nome}</p>
           {lead.endereco && (
             <p className="truncate text-xs text-ink-muted">{lead.endereco}</p>
