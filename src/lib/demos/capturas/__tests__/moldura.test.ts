@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import { SKINS } from "@/lib/demos/registry";
 import {
+  AFASTAMENTO_MIN,
   calcularToposFatias,
+  claridade,
+  corDaComposicao,
   enderecoExibido,
   FATIAS_MAX,
   fundoClaro,
+  fundoDaComposicao,
   htmlMoldura,
   LIMITE_FATIA_UNICA,
   luminancia,
@@ -31,6 +36,15 @@ const CELULAR = {
   alturaTela: UMA_TELA,
 };
 const DESKTOP = { tela: "desktop" as const, src: "./x.png", largura: 1440, altura: 1100 };
+
+/** A paleta real do preset default do petshop — a demo clara que sumia no papel. */
+const PALETA_PETSHOP = {
+  fundo: "#FFF6EA",
+  fundoAlt: "#EFEBFF",
+  fundoElevado: "#FFEFDD",
+  destaque: "#FF6B2C",
+  texto: "#2B2277",
+};
 
 // As medidas voltam discriminadas por tela (as duas molduras não têm as
 // mesmas partes). Estes dois estreitam a união para o teste conseguir
@@ -470,5 +484,110 @@ describe("luminancia / fundoClaro", () => {
     expect(fundoClaro({ fundo: "#faf7f2", fundoAlt: "#ffffff" })).toBe(true);
     expect(fundoClaro({ fundo: "#0b0b0c", fundoAlt: "#121214" })).toBe(false);
     expect(fundoClaro(undefined)).toBe(false);
+  });
+});
+
+/**
+ * O FUNDO DA COMPOSIÇÃO. Antes ele era um degradê da própria `--d-bg`, e a
+ * moldura sumia no papel: o desktop do petshop saía creme sobre creme, o da
+ * tatuagem, quase-preto sobre quase-preto. A regra agora é medida — o fundo
+ * sai da paleta da demo (nunca de branco/preto fixos) e fica a
+ * `AFASTAMENTO_MIN` pontos de L* do fundo do site.
+ */
+describe("corDaComposicao — afastamento garantido do fundo do site", () => {
+  /** Todo preset das 8 skins: é a matriz real que a composição encontra. */
+  const paletas = SKINS.flatMap((skin) =>
+    skin.themePresets.map((tema) => ({ nome: `${skin.id}/${tema.id}`, paleta: tema.paleta })),
+  );
+
+  it("cobre as 8 skins do registro (senão este bloco não prova nada)", () => {
+    expect(SKINS).toHaveLength(8);
+    expect(paletas.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("em TODO preset das 8 skins, o papel se afasta do fundo do site", () => {
+    for (const { nome, paleta } of paletas) {
+      const c = corDaComposicao(paleta);
+      const doSite = claridade(paleta.fundo) ?? 0;
+      const doPapel = claridade(c.papel) ?? 0;
+      expect(Math.abs(doPapel - doSite), `${nome}: L* ${doSite} → ${doPapel}`).toBeGreaterThanOrEqual(
+        AFASTAMENTO_MIN - 0.5,
+      );
+    }
+  });
+
+  it("a direção do afastamento se resolve sozinha: demo escura clareia, demo clara escurece", () => {
+    const escura = corDaComposicao({ fundo: "#0a0a0a", texto: "#ededed", destaque: "#c81e1e" });
+    const clara = corDaComposicao({ fundo: "#fff6ea", texto: "#2b2277", destaque: "#ff6b2c" });
+
+    expect(claridade(escura.papel)!).toBeGreaterThan(claridade("#0a0a0a")!);
+    expect(claridade(clara.papel)!).toBeLessThan(claridade("#fff6ea")!);
+  });
+
+  it("para na MENOR mistura que resolve — o papel continua da família da demo", () => {
+    const c = corDaComposicao({ fundo: "#0a0a0a", texto: "#ededed" });
+    expect(c.mistura).toBeLessThan(0.35);
+  });
+
+  it("não usa branco nem preto fixos em lugar nenhum do fundo", () => {
+    for (const { nome, paleta } of paletas) {
+      const css = fundoDaComposicao(paleta);
+      expect(css, nome).not.toMatch(/#fff\b|#ffffff|#000\b|#000000|\bwhite\b|\bblack\b/i);
+      expect(css, nome).not.toMatch(/rgb\(255, 255, 255\)|rgb\(0, 0, 0\)/);
+    }
+  });
+
+  it("a sombra é um tom escuro da cor do PRÓPRIO site, não um preto neutro", () => {
+    // Demo quente: a sombra guarda o desequilíbrio de canais do fundo dela.
+    const c = corDaComposicao({ fundo: "#fff6ea", texto: "#2b2277" });
+    const [r, g, b] = /rgba\((\d+), (\d+), (\d+)/.exec(c.sombra)!.slice(1).map(Number);
+    expect(r).toBeGreaterThan(b);
+    expect(r + g + b).toBeGreaterThan(0);
+  });
+
+  it("papel escuro pede sombra mais pesada — no claro ela some, no escuro ela grita", () => {
+    const escura = corDaComposicao({ fundo: "#0a0a0a", texto: "#ededed" });
+    const clara = corDaComposicao({ fundo: "#fff6ea", texto: "#2b2277" });
+    const alfa = (cor: string) => Number(/,\s*([\d.]+)\)$/.exec(cor)![1]);
+
+    expect(alfa(escura.sombraLarga)).toBeGreaterThan(alfa(clara.sombraLarga));
+  });
+
+  it("sem paleta nenhuma, cai na composição de reserva em vez de quebrar", () => {
+    const c = corDaComposicao(undefined);
+    expect(c.papel).toMatch(/^rgb\(/);
+    expect(c.afastamento).toBeGreaterThanOrEqual(AFASTAMENTO_MIN - 0.5);
+  });
+
+  it("tinta igual ao fundo (tema quebrado) reporta o afastamento que deu, sem fingir", () => {
+    const c = corDaComposicao({ fundo: "#808080", texto: "#808080" });
+    expect(c.afastamento).toBe(0);
+  });
+});
+
+describe("sombra sob a moldura", () => {
+  it("o aparelho pousa no papel: sombra em duas camadas, nenhuma delas preto fixo", () => {
+    const html = soAMoldura(htmlMoldura({ ...CELULAR, altura: 1200, paleta: PALETA_PETSHOP }));
+    const c = corDaComposicao(PALETA_PETSHOP);
+
+    expect(html).toContain(c.sombra);
+    expect(html).toContain(c.sombraLarga);
+    expect(html).not.toContain("rgba(0,0,0,.38)");
+  });
+
+  it("a janela de navegador usa a MESMA sombra derivada, não uma própria", () => {
+    const html = soAMoldura(htmlMoldura({ ...DESKTOP, paleta: PALETA_PETSHOP }));
+    const c = corDaComposicao(PALETA_PETSHOP);
+
+    expect(html).toContain(c.sombraLarga);
+    expect(html).not.toContain("rgba(0,0,0,.45)");
+  });
+
+  it("o fio de 1px em volta é a tinta da demo, não um branco/preto de sistema", () => {
+    const html = soAMoldura(htmlMoldura({ ...DESKTOP, paleta: PALETA_PETSHOP }));
+
+    expect(html).toContain(corDaComposicao(PALETA_PETSHOP).aro);
+    expect(html).not.toContain("rgba(0,0,0,.22)");
+    expect(html).not.toContain("rgba(255,255,255,.14)");
   });
 });
