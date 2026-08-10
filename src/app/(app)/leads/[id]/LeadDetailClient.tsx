@@ -12,7 +12,7 @@ import { SeloContato } from "@/components/SeloContato";
 import { SeloProntidao } from "@/components/SeloProntidao";
 import { Skeleton, SkeletonRows } from "@/components/Skeleton";
 import { StatusBadge } from "@/components/StatusBadge";
-import { ApiError, api } from "@/lib/api-client";
+import { ApiError, api, type FrasesResponse } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
@@ -21,12 +21,13 @@ import type { UsoUsuario } from "@/lib/costs";
 import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { formatDateTime, formatDuracao } from "@/lib/format";
+import { comIndiceAtualizado, resolverMensagem, rotuloOrigem } from "@/lib/frases/resolver";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
 import { handleInstagram } from "@/lib/leads/instagram";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
 import { useWhatsAppContato } from "@/lib/useWhatsAppContato";
-import { buildWhatsAppLink } from "@/lib/wa";
+import { aplicarMarcadores, linkWhatsApp } from "@/lib/wa";
 
 const TRANSITION_LABELS: Record<LeadStatus, string> = {
   novo: "Marcar como novo",
@@ -35,23 +36,14 @@ const TRANSITION_LABELS: Record<LeadStatus, string> = {
   fechado: "Marcar como fechado",
 };
 
-/**
- * Mensagem do WhatsApp: a do grupo (busca) mais recente do lead que tiver
- * mensagem própria; senão a global da config.
- */
-function mensagemParaLead(lead: Lead, buscas: Busca[], config: AppConfig): string {
-  const porId = new Map(buscas.map((busca) => [busca.id, busca]));
-  for (const id of [...(lead.buscaId ?? [])].reverse()) {
-    const propria = porId.get(id)?.mensagemPadrao;
-    if (propria) return propria;
-  }
-  return config.mensagemPadrao;
-}
-
 export function LeadDetailClient({ id }: { id: string }) {
   const [lead, setLead] = useState<Lead | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [buscas, setBuscas] = useState<Busca[]>([]);
+  const [frases, setFrases] = useState<FrasesResponse | null>(null);
+  // Edição livre da frase antes de disparar. null = ainda não editada (a
+  // caixa mostra a frase da vez); qualquer string = o que você digitou.
+  const [rascunho, setRascunho] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,12 +78,22 @@ export function LeadDetailClient({ id }: { id: string }) {
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([api.getLead(id), api.getConfig(), api.listBuscas()])
-      .then(([{ lead: leadData }, { config: configData }, { buscas: buscasData }]) => {
+    Promise.all([
+      api.getLead(id),
+      api.getConfig(),
+      api.listBuscas(),
+      // Frases junto do resto para a caixa já nascer com a frase da vez (sem
+      // troca de texto depois do primeiro desenho), mas com catch próprio:
+      // se elas falharem, a precedência cai no grupo/global e a ficha abre
+      // normalmente — nunca vira página de erro por causa disto.
+      api.listFrases().catch(() => null),
+    ])
+      .then(([{ lead: leadData }, { config: configData }, { buscas: buscasData }, frasesData]) => {
         if (ignore) return;
         setLead(leadData);
         setConfig(configData);
         setBuscas(buscasData);
+        setFrases(frasesData);
         setNotFound(false);
         setErro(null);
       })
@@ -137,9 +139,40 @@ export function LeadDetailClient({ id }: { id: string }) {
     };
   }, [id]);
 
+  // Resolvida no corpo do componente (função pura, sem efeito): frases do
+  // nicho → genéricas → mensagem do grupo → mensagem global.
+  const resolvida =
+    lead && config
+      ? resolverMensagem({
+          lead,
+          buscas,
+          conjuntos: frases?.conjuntos ?? [],
+          genericas: frases?.genericas,
+          global: config.mensagemPadrao,
+        })
+      : null;
+
+  /**
+   * O ENVIO aconteceu (ver useWhatsAppContato): gira a rotação do conjunto
+   * que forneceu a frase e devolve a caixa para a frase da vez seguinte.
+   * Mensagem de grupo/global não tem rotação — nada a girar.
+   */
+  function handleEnviado() {
+    const rotacao = resolvida?.rotacao;
+    if (!rotacao) return;
+    setRascunho(null);
+    api
+      .avancarFrase(rotacao.nicho)
+      .then(({ indice }) => setFrases((atual) => comIndiceAtualizado(atual, rotacao.nicho, indice)))
+      .catch(() => {
+        // rotação é cortesia, como o selo: falhar aqui não desfaz o envio
+      });
+  }
+
   const { pendente, clicar, confirmar, cancelar, mensagemConfirmacao } = useWhatsAppContato(
     meuId,
     setLead,
+    handleEnviado,
   );
 
   async function handleEnrich() {
@@ -311,13 +344,17 @@ export function LeadDetailClient({ id }: { id: string }) {
       ? argumentoPenetracao(penetracaoInfo.nicho, penetracaoInfo.regiao, penetracaoInfo.penetracao, lead.nome)
       : undefined;
 
-  const waLink =
-    telefoneIntl && config
-      ? buildWhatsAppLink(mensagemParaLead(lead, buscas, config), lead.nome, telefoneIntl, {
-          demoUrl: demoUrlParaEnvio,
-          penetracao: argumento,
-        })
-      : null;
+  // A frase da vez com os marcadores JÁ substituídos — é o que aparece na
+  // caixa ao abrir a ficha. O que você digitar por cima (`rascunho`) vence
+  // até o próximo envio, e é ele que vai no link.
+  const mensagemDaVez = resolvida
+    ? aplicarMarcadores(resolvida.texto, lead.nome, {
+        demoUrl: demoUrlParaEnvio,
+        penetracao: argumento,
+      })
+    : "";
+  const mensagemParaEnviar = rascunho ?? mensagemDaVez;
+  const waLink = telefoneIntl ? linkWhatsApp(mensagemParaEnviar, telefoneIntl) : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -474,6 +511,38 @@ export function LeadDetailClient({ id }: { id: string }) {
 
       {waLink && (
         <div className="flex flex-col gap-1.5">
+          <section className="rounded-lg border border-line bg-surface p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Mensagem do WhatsApp
+              </h2>
+              {resolvida && (
+                <span className="text-[11px] text-ink-muted">{rotuloOrigem(resolvida)}</span>
+              )}
+            </div>
+            {/*
+              Marcadores já substituídos: o que está aqui é literalmente o
+              que vai ser enviado. Editar à vontade antes de disparar — a
+              edição vale só para este envio e NÃO gira a rotação (quem gira
+              é o clique no botão abaixo).
+            */}
+            <textarea
+              value={mensagemParaEnviar}
+              onChange={(event) => setRascunho(event.target.value)}
+              rows={4}
+              aria-label="Mensagem do WhatsApp"
+              className="mt-2 w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+            />
+            {rascunho !== null && rascunho !== mensagemDaVez && (
+              <button
+                type="button"
+                onClick={() => setRascunho(null)}
+                className="mt-1 text-xs text-ink-muted hover:text-accent"
+              >
+                voltar à frase da vez
+              </button>
+            )}
+          </section>
           <a
             href={waLink}
             onClick={(event) => clicar(event, lead, waLink)}
