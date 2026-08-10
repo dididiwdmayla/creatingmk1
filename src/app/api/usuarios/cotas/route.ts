@@ -7,9 +7,9 @@ import { listUsuarios, requireAdmin } from "@/lib/usuarios";
 
 /**
  * Tabela do painel admin (/config): uso de hoje/semana/mês × limite, por
- * usuário, para os dois tipos de cota individual (buscas/enriquecimentos).
- * Admin nunca é bloqueado por esses limites — ainda assim aparece na
- * tabela (limites dele, se definidos, ficam só informativos).
+ * usuário, para os três tipos de cota individual (buscas/enriquecimentos/
+ * gerações de IA). Admin nunca é bloqueado por esses limites — ainda assim
+ * aparece na tabela (limites dele, se definidos, ficam só informativos).
  */
 export async function GET(req: Request) {
   try {
@@ -27,6 +27,7 @@ export async function GET(req: Request) {
         limites: usuario.limites ?? {},
         buscas: await getUsoUsuario(db, usuario.id, "buscas", usuario.limites, now),
         enriquecimentos: await getUsoUsuario(db, usuario.id, "enriquecimentos", usuario.limites, now),
+        geracoesIA: await getUsoUsuario(db, usuario.id, "geracoesIA", usuario.limites, now),
       })),
     );
 

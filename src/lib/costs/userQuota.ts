@@ -23,15 +23,19 @@ export type { TipoCotaUsuario, JanelaCotaUsuario } from "./errors";
  * a collection... does not contain an odd number of components", erro que
  * só apareceu em produção porque o FakeFirestore dos testes não validava
  * isso — ver o teste de paridade em fake-firestore.test.ts), um doc por
- * dia, com contadores abertos: o item do roadmap de fotos/reviews (Places)
- * pode ganhar um terceiro tipo aqui sem redesenho.
+ * dia, com contadores abertos: `geracoesIA` (gerações de texto da demo,
+ * tradução de frase por skin e análise interna do grupo — três ações
+ * distintas, um contador só, mesmo espírito de "buscas" somar toda página
+ * do Text Search) entrou sem redesenho, e o item do roadmap de fotos/
+ * reviews (Places) tem o mesmo caminho livre.
  */
 export interface ContadorDiaUsuario {
   buscas: number;
   enriquecimentos: number;
+  geracoesIA: number;
 }
 
-const ZERO_DIA: ContadorDiaUsuario = { buscas: 0, enriquecimentos: 0 };
+const ZERO_DIA: ContadorDiaUsuario = { buscas: 0, enriquecimentos: 0, geracoesIA: 0 };
 
 export function usageUsuariosCollection(userId: string): string {
   return `usage_users/${userId}/dias`;
@@ -40,7 +44,7 @@ export function usageUsuariosCollection(userId: string): string {
 /** Contadores malformados (string, negativo, NaN) viram 0 — mesma postura do módulo global. */
 function readContadorDia(data: Record<string, unknown> | undefined): ContadorDiaUsuario {
   const contador = { ...ZERO_DIA };
-  for (const tipo of ["buscas", "enriquecimentos"] as const) {
+  for (const tipo of ["buscas", "enriquecimentos", "geracoesIA"] as const) {
     const valor = data?.[tipo];
     if (typeof valor === "number" && Number.isFinite(valor) && valor > 0) {
       contador[tipo] = Math.floor(valor);
@@ -55,6 +59,11 @@ const CAMPO_LIMITE: Record<TipoCotaUsuario, Record<JanelaCotaUsuario, keyof Limi
     dia: "enriquecimentosDia",
     semana: "enriquecimentosSemana",
     mes: "enriquecimentosMes",
+  },
+  geracoesIA: {
+    dia: "geracoesIADia",
+    semana: "geracoesIASemana",
+    mes: "geracoesIAMes",
   },
 };
 

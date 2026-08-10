@@ -37,6 +37,8 @@ const SKUS_COTA_INDIVIDUAL: Sku[] = [
   "textSearchEnterprise",
   "detailsEnterprise",
   "detailsProHours",
+  "aiGeneration",
+  "aiTraducao",
 ];
 
 type CampoLimite = keyof LimitesUsuario;
@@ -703,13 +705,22 @@ function UsuariosSection() {
 
 /**
  * Cotas individuais (admin): tabela usado/limite × dia/semana/mês, por
- * usuário, para os dois tipos (buscas/enriquecimentos) — reserveQuota já
- * garante o bloqueio no servidor; esta seção só edita os limites e mostra
- * o uso. Edição inline com efeito imediato (cada campo salva sozinho no
- * blur, sem botão "Salvar" à parte — a config é lida fresca a cada
- * request, então vale na busca/enriquecimento seguinte). "Zerar dia" refaz
- * a leitura inteira: mais simples e correto que tentar ajustar local a
- * soma de semana/mês, que é agregação pura sobre os dias.
+ * usuário, para os três tipos (buscas/enriquecimentos/gerações de IA) —
+ * reserveQuota já garante o bloqueio no servidor; esta seção só edita os
+ * limites e mostra o uso. Edição inline com efeito imediato (cada campo
+ * salva sozinho no blur, sem botão "Salvar" à parte — a config é lida
+ * fresca a cada request, então vale na ação seguinte). "Zerar dia" refaz a
+ * leitura inteira: mais simples e correto que tentar ajustar local a soma
+ * de semana/mês, que é agregação pura sobre os dias.
+ *
+ * `geracoesIA` é UM contador para três ações distintas — geração de texto
+ * da demo (SKU `aiGeneration`), tradução de frase por skin (SKU
+ * `aiTraducao`) e análise interna do grupo (SKU `aiGeneration`) — cada uma
+ * disputando o mesmo limite individual, embora consumam SKUs (tetos
+ * globais) diferentes. Precificação regional e tradução de nicho também
+ * usam `aiGeneration`, mas ficam de fora desta cota individual: são
+ * geradas uma vez e cacheadas para o time inteiro, não uma ação pessoal
+ * repetida — cobrar do primeiro a abrir uma região nova seria injusto.
  */
 function CotasUsuariosSection() {
   const [linhas, setLinhas] = useState<CotasUsuariosResponse["usuarios"] | null>(null);
@@ -835,7 +846,7 @@ function CotasUsuariosSection() {
                 Zerar dia
               </button>
             </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <LinhaCota
                 label="Buscas"
                 uso={linha.buscas}
@@ -848,6 +859,14 @@ function CotasUsuariosSection() {
                 label="Enriquecimentos"
                 uso={linha.enriquecimentos}
                 prefixo="enriquecimentos"
+                userId={linha.id}
+                ocupado={ocupado}
+                onSalvar={salvarLimite}
+              />
+              <LinhaCota
+                label="Gerações de IA"
+                uso={linha.geracoesIA}
+                prefixo="geracoesIA"
                 userId={linha.id}
                 ocupado={ocupado}
                 onSalvar={salvarLimite}
@@ -1366,7 +1385,7 @@ function LinhaCota({
 }: {
   label: string;
   uso: UsoUsuario;
-  prefixo: "buscas" | "enriquecimentos";
+  prefixo: "buscas" | "enriquecimentos" | "geracoesIA";
   userId: string;
   ocupado: string | null;
   onSalvar: (id: string, campo: CampoLimite, valor: number | null) => void;

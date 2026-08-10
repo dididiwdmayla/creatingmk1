@@ -76,6 +76,7 @@ export interface UsageResponse {
 export interface CotasResponse {
   buscas: UsoUsuario;
   enriquecimentos: UsoUsuario;
+  geracoesIA: UsoUsuario;
 }
 
 /** Tabela do painel admin (/config): uso × limite de cada usuário. */
@@ -88,6 +89,7 @@ export interface CotasUsuariosResponse {
     limites: LimitesUsuario;
     buscas: UsoUsuario;
     enriquecimentos: UsoUsuario;
+    geracoesIA: UsoUsuario;
   }>;
 }
 

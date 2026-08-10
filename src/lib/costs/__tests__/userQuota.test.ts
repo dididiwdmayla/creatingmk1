@@ -54,6 +54,25 @@ describe("getUsoUsuario", () => {
     expect(buscas.dia.usado).toBe(5);
     expect(enrich.dia.usado).toBe(2);
   });
+
+  it("geracoesIA é um contador independente de buscas/enriquecimentos", async () => {
+    const db = new FakeFirestore();
+    db.seed("usage_users/membro-1/dias/2026-07-02", {
+      buscas: 5,
+      enriquecimentos: 2,
+      geracoesIA: 7,
+    });
+
+    const geracoes = await getUsoUsuario(
+      db,
+      "membro-1",
+      "geracoesIA",
+      { geracoesIADia: 10, geracoesIASemana: 30, geracoesIAMes: 60 },
+      NOW,
+    );
+
+    expect(geracoes.dia).toMatchObject({ usado: 7, limite: 10 });
+  });
 });
 
 describe("zerarCotaDia", () => {

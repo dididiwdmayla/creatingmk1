@@ -293,6 +293,24 @@ describe("reserveQuota", () => {
     });
     expect(result.usage.detailsEnterprise).toBe(1);
   });
+
+  it("geracoesIA soma reservas de SKUs globais DIFERENTES (aiGeneration e aiTraducao) no mesmo contador individual", async () => {
+    const db = new FakeFirestore();
+    const opts = {
+      userId: "membro-1",
+      userQuota: { tipo: "geracoesIA" as const, limites: { geracoesIADia: 2 } },
+    };
+
+    await reserveQuota(db, "aiGeneration", caps(), NOW, opts); // geração de texto da demo
+    await reserveQuota(db, "aiTraducao", caps(), NOW, opts); // tradução de frase por skin
+    await expect(reserveQuota(db, "aiGeneration", caps(), NOW, opts)).rejects.toThrow(
+      UserQuotaExceededError, // análise interna, 3ª ação do dia — estoura o limite de 2
+    );
+
+    expect(db.getDoc(`usage_users/membro-1/dias/${saoPauloDateKey(NOW)}`)?.geracoesIA).toBe(2);
+    // os tetos GLOBAIS de cada SKU continuam contados separadamente
+    expect(db.getDoc(DOC)).toMatchObject({ aiGeneration: 1, aiTraducao: 1 });
+  });
 });
 
 describe("getUsage", () => {

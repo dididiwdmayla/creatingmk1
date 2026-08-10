@@ -9,9 +9,9 @@ export const PAPEIS = ["admin", "membro"] as const;
 export type Papel = (typeof PAPEIS)[number];
 
 /**
- * Limites individuais de cota (buscas/enriquecimentos), três janelas
- * independentes por tipo. Campo ausente = sem limite naquela janela.
- * Nunca editável pelo próprio usuário — só via rota admin
+ * Limites individuais de cota (buscas/enriquecimentos/gerações de IA), três
+ * janelas independentes por tipo. Campo ausente = sem limite naquela
+ * janela. Nunca editável pelo próprio usuário — só via rota admin
  * (atualizarUsuario/PATCH /api/usuarios/[id]).
  */
 export interface LimitesUsuario {
@@ -21,6 +21,9 @@ export interface LimitesUsuario {
   enriquecimentosDia?: number;
   enriquecimentosSemana?: number;
   enriquecimentosMes?: number;
+  geracoesIADia?: number;
+  geracoesIASemana?: number;
+  geracoesIAMes?: number;
 }
 
 export const CAMPOS_LIMITE_USUARIO = [
@@ -30,6 +33,9 @@ export const CAMPOS_LIMITE_USUARIO = [
   "enriquecimentosDia",
   "enriquecimentosSemana",
   "enriquecimentosMes",
+  "geracoesIADia",
+  "geracoesIASemana",
+  "geracoesIAMes",
 ] as const satisfies readonly (keyof LimitesUsuario)[];
 
 /**
@@ -76,7 +82,7 @@ export interface Usuario {
    * Atualizado pelo próprio GET /api/hoje.
    */
   ultimaVisitaEm?: string;
-  /** Cotas individuais de buscas/enriquecimentos. Ausente = sem limite algum. */
+  /** Cotas individuais de buscas/enriquecimentos/gerações de IA. Ausente = sem limite algum. */
   limites?: LimitesUsuario;
   /** Meta de prospecção (dia/semana), definida pelo admin. Ausente = sem meta. */
   metas?: MetasUsuario;

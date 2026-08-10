@@ -61,6 +61,7 @@ export async function POST(req: Request, { params }: Params) {
       {
         userId: usuario?.id,
         isAdmin: usuario?.papel === "admin",
+        limites: usuario?.limites,
       },
       idioma,
     );

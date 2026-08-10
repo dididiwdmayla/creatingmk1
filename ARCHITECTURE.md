@@ -810,7 +810,7 @@ Formato de erro padrão em todas as rotas:
 | `/api/frases` | GET | — (qualquer sessão) | `200 { conjuntos[] }` — UMA entrada por skin do registro (vazia inclusive), com `skinNome`/`nicho` resolvidos · `401` | — |
 | `/api/frases` | PUT | `{ skinId, frases[] }` (skin do registro; ≤3 frases de ≤1000 caracteres; admin) | `200 { conjunto }` · `400 validation_error` (inclui `skinId` fora do registro) · `401` · `403` | — |
 | `/api/frases/avancar` | POST | `{ skinId }` (qualquer sessão) | `200 { indice }` (skin sem conjunto salvo → `0`, sem gravar) · `400` · `401` | — |
-| `/api/frases/traduzir` | POST | `{ leadId }` (qualquer sessão) | `200 { conjunto, idioma }` — traduz as frases da skin da demo do lead para o idioma DELE (SKU `aiTraducao`) · `400` (lead do Brasil, sem demo ou skin sem frase) · `404` · `429 quota_exceeded` · `502 ai_error` · `503 ai_unavailable` | Gemini (1 chamada, até 2 com retry) |
+| `/api/frases/traduzir` | POST | `{ leadId }` (qualquer sessão) | `200 { conjunto, idioma }` — traduz as frases da skin da demo do lead para o idioma DELE (SKU `aiTraducao`) · `400` (lead do Brasil, sem demo ou skin sem frase) · `404` · `429 quota_exceeded` · `429 user_quota_exceeded` (cota individual `geracoesIA`) · `502 ai_error` · `503 ai_unavailable` | Gemini (1 chamada, até 2 com retry) |
 | `/api/frases/migrar` | GET | — (admin) | `200 { legados, relatorio }` — prévia da migração das entradas antigas, sem escrever nada · `401` · `403` | — |
 | `/api/frases/migrar` | POST | — (admin) | `200 { relatorio }` — executa; apaga só o legado aproveitado · `401` · `403` | — |
 | `/api/frases/migrar` | DELETE | — (admin) | `200 { apagadas }` — descarta as entradas antigas restantes · `401` · `403` | — |
@@ -831,7 +831,7 @@ Formato de erro padrão em todas as rotas:
 | `/api/ia` | GET | — | `200 { disponivel, modelo }` (nunca expõe a chave) | — |
 | `/api/ia/nivel` | GET | — (exige sessão) | `200 { nivel }` (default `"equilibrado"`) · `401` | — |
 | `/api/ia/nivel` | PUT | `{ nivel }` (`toque-leve`\|`equilibrado`\|`completo`) | `200 { nivel }` · `400` · `401` | — |
-| `/api/leads/[id]/demo/sugestao` | POST | `{ skinId, nivel? }` (`nivel` default `"equilibrado"`) | `200 { sugestao }` · `400` · `404` · `429 quota_exceeded` · `502 ai_error` · `503 ai_unavailable` | Gemini generateContent · **aiGeneration** (1 por tentativa; retry de resposta inválida = 2) |
+| `/api/leads/[id]/demo/sugestao` | POST | `{ skinId, nivel? }` (`nivel` default `"equilibrado"`) | `200 { sugestao }` · `400` · `404` · `429 quota_exceeded` · `429 user_quota_exceeded` (cota individual `geracoesIA`) · `502 ai_error` · `503 ai_unavailable` | Gemini generateContent · **aiGeneration** (1 por tentativa; retry de resposta inválida = 2) |
 | `/api/mensagens` | GET | query opcional `com` | sem `com`: `200 { usuarios[], conversas[], totalNaoLidas }` · com `com`: `200 { mensagens[] }` (marca recebidas como lidas) · `401` | — |
 | `/api/mensagens` | POST | `{ paraUserId, texto (≤2000) }` | `200 { mensagem }` · `400` · `401` · `404` (destinatário) | — |
 | `/api/mensagens/nao-lidas` | GET | — | `200 { total }` · `401` | — |
@@ -908,14 +908,14 @@ Decisões de projeto:
 
 ## Cotas individuais por usuário (`src/lib/costs/{periodoUsuario,userQuota}.ts`)
 
-Além do teto global mensal (segurança contra a fatura, UTC), cada usuário pode ter limites PRÓPRIOS de **buscas** (cada página do Text Search conta) e **enriquecimentos** (só o clique em "Enriquecer" — Place Details do enriquecimento principal; o horário de funcionamento, avulso ou embutido no enrich, nunca conta contra essa cota), em três janelas independentes e opcionais: dia, semana (começa segunda) e mês. Campo ausente = sem limite naquela janela.
+Além do teto global mensal (segurança contra a fatura, UTC), cada usuário pode ter limites PRÓPRIOS de **buscas** (cada página do Text Search conta), **enriquecimentos** (só o clique em "Enriquecer" — Place Details do enriquecimento principal; o horário de funcionamento, avulso ou embutido no enrich, nunca conta contra essa cota) e **gerações de IA** (`geracoesIA` — ver abaixo), em três janelas independentes e opcionais: dia, semana (começa segunda) e mês. Campo ausente = sem limite naquela janela.
 
 Decisões:
-- **Admin nunca é bloqueado** — nem pelo teto global, nem pelo limite individual. A trava absoluta de fatura passa a ser só a cota configurada no console do Google; `caps`/limites individuais são "para todo mundo, menos quem loga como admin". O uso do admin continua incrementando os contadores (dashboard/projeção corretos).
+- **Admin nunca é bloqueado** — nem pelo teto global, nem pelo limite individual. A trava absoluta de fatura passa a ser só a cota configurada no console do Google; `caps`/limites individuais são "para todo mundo, menos quem loga como admin". O uso do admin continua incrementando os contadores GLOBAIS (dashboard/projeção corretos), mas **nunca ganha doc de cota individual** — `checarCotaUsuario` só roda quando `!isAdmin`, então `usage_users/{adminId}/dias` simplesmente não é escrito nas reservas dele.
 - **Fuso de Brasília, nunca UTC** (`periodoUsuario.ts`): chaves de data via `Intl.DateTimeFormat` com `timeZone: "America/Sao_Paulo"` (não offset fixo) — 23h59 em Brasília ainda é o dia corrente mesmo já sendo o dia seguinte em UTC. Reset por composição de chave com a data, **sem cron**: semana/mês são somas puras dos docs diários dentro da janela.
-- **Contador por usuário/dia**: `usage_users/{userId}/dias` (coleção — 3 segmentos, nunca 2, ver nota de paridade acima) → doc `{YYYY-MM-DD}` → `{ buscas, enriquecimentos }`. Mapa aberto de propósito — um terceiro tipo (ex.: item 2 do roadmap, fotos/reviews) encaixa sem redesenho.
+- **Contador por usuário/dia**: `usage_users/{userId}/dias` (coleção — 3 segmentos, nunca 2, ver nota de paridade acima) → doc `{YYYY-MM-DD}` → `{ buscas, enriquecimentos, geracoesIA }`. Mapa aberto de propósito — um quarto tipo (ex.: item 2 do roadmap, fotos/reviews) encaixa sem redesenho.
 - **Atomicidade**: a checagem/incremento do limite individual (`checarCotaUsuario`) roda na MESMA transação Firestore do `reserveQuota` global — ou os dois passam, ou nenhum conta. Só busca os docs de semana/mês quando aquela janela tem limite configurado (evita até 31 leituras à toa).
-- **Sessão obrigatória**: `/api/search`, `/api/leads/[id]/enrich` e `/api/leads/[id]/horarios` passam a exigir sessão identificável (401 sem ela) — diferente do resto do app, que é best-effort (ver "Proteção por sessão" abaixo). Sem saber quem é o usuário não dá pra aplicar o limite dele.
+- **Sessão obrigatória**: `/api/search`, `/api/leads/[id]/enrich` e `/api/leads/[id]/horarios` passam a exigir sessão identificável (401 sem ela) — diferente do resto do app, que é best-effort (ver "Proteção por sessão" abaixo). Sem saber quem é o usuário não dá pra aplicar o limite dele. As três rotas de IA (abaixo) continuam best-effort: sem sessão identificável, a ação funciona sem cota individual, só o teto global se aplica.
 - **Cron**: a busca recorrente conta no usuário que a marcou como recorrente (`busca.userId`, resolvido por id, sem sessão HTTP). Dono sem cota individual pula **só aquela busca** (`pulada`, fila continua) — diferente do teto global, que interrompe a fila inteira (mesmo espírito de "erro do Google não trava as demais").
 - `UserQuotaExceededError` (código `user_quota_exceeded`, HTTP 429) carrega `tipo`/`janela`/`used`/`limite`/`resetaEm` — distinto do `QuotaExceededError` do teto global.
 
@@ -923,12 +923,26 @@ Rotas novas:
 
 | Rota | Método | Quem | Devolve |
 |---|---|---|---|
-| `/api/cotas` | GET | qualquer sessão | uso × limite (dia/semana/mês) do PRÓPRIO usuário, buscas + enriquecimentos |
+| `/api/cotas` | GET | qualquer sessão | uso × limite (dia/semana/mês) do PRÓPRIO usuário, buscas + enriquecimentos + geracoesIA |
 | `/api/usuarios/cotas` | GET | admin | o mesmo, de todos os usuários (tabela do painel) |
-| `/api/usuarios/[id]/zerar-dia` | POST | admin | `204`; zera o contador do dia corrente daquele usuário |
+| `/api/usuarios/[id]/zerar-dia` | POST | admin | `204`; zera o contador do dia corrente daquele usuário (as três cotas de uma vez — o doc do dia é um só) |
 | `/api/usuarios/[id]` | PATCH | admin | ganhou o campo `limites` (number seta, `null` limpa uma janela) |
 
 UI: `/config` ganhou a seção "Cotas por usuário" (resumo do teto global relevante + um cartão por usuário com edição inline dos limites e botão "Zerar dia"); `/leads` e a ficha do lead mostram `CotaIndicador` (componente compartilhado em `src/components/CotaIndicador.tsx`) — permanente, atualizado após cada busca/enriquecimento, com o botão desabilitado como cortesia quando a cota esgota (o bloqueio real é sempre do servidor).
+
+### Cota individual de gerações de IA (`geracoesIA`)
+
+Um QUARTO tipo de cota individual (mesmo módulo `userQuota.ts`, mesmo padrão de três janelas/fuso de Brasília/admin nunca bloqueado/`429 user_quota_exceeded` de buscas e enriquecimentos), mas com uma diferença: **um único contador cobre três ações distintas**, cada uma reservando um SKU global diferente:
+
+1. **Geração de texto da demo** — `POST /api/leads/[id]/demo/sugestao` (SKU global `aiGeneration`).
+2. **Tradução de frase de prospecção por skin** — `POST /api/frases/traduzir` (SKU global `aiTraducao`).
+3. **Análise interna do grupo** (Radar/`gerarAnaliseBusca`) — `POST /api/buscas/[id]/analise` (SKU global `aiGeneration`).
+
+O teto GLOBAL mensal continua por SKU (`aiGeneration`/`aiTraducao` contados separadamente, como sempre); a cota INDIVIDUAL é que soma as três ações num contador só (`geracoesIA` em `usage_users/{userId}/dias`) — a pessoa que gera 2 sugestões de demo e traduz 1 frase já gastou 3 unidades do limite diário dela, não 2 e 1 em cotas separadas. Implementado via `src/lib/ai/ctx.ts` (`CtxIA`/`reserveQuotaOptsIA`): as três funções de geração (`gerarSugestaoDemo`, `traduzirFrases`, `gerarAnaliseBusca`) recebem `ctx.limites` (o `Usuario.limites` de quem chamou) e montam a mesma opção `userQuota: { tipo: "geracoesIA", limites }` para TODA chamada real ao Gemini, inclusive retries — um retry de resposta inválida gasta uma segunda unidade da cota individual, igual ao teto global.
+
+**Precificação regional** (`gerarIndiceRegiao`) e **tradução de termo de nicho** (`gerarTermoLocal`) também usam o SKU global `aiGeneration`, mas ficam DE FORA da cota individual `geracoesIA` de propósito: são geradas uma vez por região/termo e cacheadas PERMANENTEMENTE para o time inteiro (ver "Precificação regional por IA") — cobrar do primeiro operador a abrir uma cidade nova do bolso da cota pessoal dele seria injusto, já que o benefício é de todo mundo.
+
+Testes: `src/lib/costs/__tests__/{usage,userQuota}.test.ts` cobrem o contador isolado; `src/app/api/__tests__/cota-geracoes-ia.route.test.ts` cruza as três rotas de verdade (sugestão → tradução → análise) para provar que dividem o mesmo contador do usuário, que a 3ª ação do dia estoura com `429 user_quota_exceeded` quando as duas primeiras já bateram o limite, e que o admin nunca é bloqueado nem ganha doc de cota individual.
 
 ## Metas de prospecção por integrante (`src/lib/usuarios/metas.ts`)
 
@@ -1658,7 +1672,7 @@ A IA da Forja (acima) gera TUDO no idioma do prospect, não em pt-BR fixo — a 
 Botão "🧩 Gerar demos em lote" em `/leads?buscaId=` (só existe na página de um grupo de busca): cria a demo de N leads sem demo do grupo de uma vez, com skin/preset de tema/efeito/modo de imagem escolhidos UMA vez no diálogo para o lote inteiro. Duas ações DISTINTAS, cada uma com botão e confirmação próprios — nunca combinadas num botão só:
 
 1. **Criar demos (grátis)**: `patchCriacaoLote` (`src/lib/demos/lote.ts`, puro, testado) monta `{dados, tema}` a partir da config do diálogo (efeito "nenhum"/modo "foto" — os defaults — não escrevem nada no patch). Cada lead selecionado recebe um `PUT /api/leads/[id]/demo` normal — a mesma rota que o editor usa, Firestore puro, nenhum request pago. Não existe endpoint de lote no servidor: o "lote" é inteiramente orquestração no cliente. **Lead com demo já salva é PULADO por padrão, sempre**: a lista de candidatos (`leads.filter(lead => !lead.demo)`) nem oferece esses leads no checklist — rodar o lote de novo sobre um grupo já processado nunca cria duplicata nem sobrescreve edição manual; sem opção de "forçar sobrescrever" (rota de edição individual, pela ficha, continua sendo o caminho pra mudar uma demo já existente).
-2. **Gerar textos com IA (opcional, consome cota)**: opera só sobre os leads que a etapa 1 acabou de criar com sucesso, nunca sobre o lote inteiro por padrão. Antes de confirmar (via `ConfirmModal`), mostra o número EXATO de chamadas (`projecaoChamadasIA`: 1 por lead no caso normal, até 2× se algum precisar do retry de resposta inválida que `gerarSugestaoDemo` já faz) e a projeção da cota de IA do mês (`projecaoCotaIA` sobre `GET /api/usage` — não existe hoje um teto POR USUÁRIO de `aiGeneration`, só o teto global com quebra `porUsuario`; a projeção usa essa quebra como "cota individual" de fato mostrada ao operador). Por lead: `POST /demo/sugestao` (gera, não salva) → `aplicarSugestaoTexto` (abaixo) mescla só os campos de TEXTO sobre o `DemoData` efetivo atual → `montarPatch` reduz ao diff mínimo → `PUT /demo` salva. **Nunca aplica `themeId`/`destaque`/`fonteDisplay`/`animacao` da sugestão** — o tema do lote é o escolhido no diálogo, não o que a IA sugeriria lead a lead.
+2. **Gerar textos com IA (opcional, consome cota)**: opera só sobre os leads que a etapa 1 acabou de criar com sucesso, nunca sobre o lote inteiro por padrão. Antes de confirmar (via `ConfirmModal`), mostra o número EXATO de chamadas (`projecaoChamadasIA`: 1 por lead no caso normal, até 2× se algum precisar do retry de resposta inválida que `gerarSugestaoDemo` já faz) e a projeção da cota de IA do mês (`projecaoCotaIA` sobre `GET /api/usage`, o teto GLOBAL com quebra `porUsuario` — a tela não projeta a cota INDIVIDUAL `geracoesIA`, ver "Cota individual de gerações de IA"; cada `POST /demo/sugestao` do loop passa por ela normalmente, então um lote pode parar no meio com `429 user_quota_exceeded` mesmo com o teto global longe do limite). Por lead: `POST /demo/sugestao` (gera, não salva) → `aplicarSugestaoTexto` (abaixo) mescla só os campos de TEXTO sobre o `DemoData` efetivo atual → `montarPatch` reduz ao diff mínimo → `PUT /demo` salva. **Nunca aplica `themeId`/`destaque`/`fonteDisplay`/`animacao` da sugestão** — o tema do lote é o escolhido no diálogo, não o que a IA sugeriria lead a lead.
 
 **`src/lib/demos/sugestaoTexto.ts`** (puro, testado) extrai a parte de mesclagem de texto de uma `SugestaoDemo` que antes vivia só dentro de `EditorClient.handleAplicarSugestao` — o editor foi refatorado para chamar a mesma função (`aplicarSugestaoTexto`/`sugestaoTemTexto`), uma única fonte de verdade entre a geração individual (editor) e a em lote.
 

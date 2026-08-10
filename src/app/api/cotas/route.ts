@@ -8,9 +8,10 @@ import { usuarioDaRequest } from "@/lib/usuarios";
 
 /**
  * Cota individual do usuário LOGADO (dia/semana/mês × buscas/
- * enriquecimentos) — alimenta o indicador permanente na tela de busca e na
- * ficha do lead. Admin nunca tem limite aplicado; a rota ainda responde
- * (útil pra conferir o próprio uso), só que `limite` vem sempre ausente.
+ * enriquecimentos/gerações de IA) — alimenta o indicador permanente na
+ * tela de busca e na ficha do lead. Admin nunca tem limite aplicado; a
+ * rota ainda responde (útil pra conferir o próprio uso), só que `limite`
+ * vem sempre ausente.
  */
 export async function GET(req: Request) {
   try {
@@ -20,12 +21,13 @@ export async function GET(req: Request) {
 
     const now = new Date();
     const limites = usuario.papel === "admin" ? undefined : usuario.limites;
-    const [buscas, enriquecimentos] = await Promise.all([
+    const [buscas, enriquecimentos, geracoesIA] = await Promise.all([
       getUsoUsuario(db, usuario.id, "buscas", limites, now),
       getUsoUsuario(db, usuario.id, "enriquecimentos", limites, now),
+      getUsoUsuario(db, usuario.id, "geracoesIA", limites, now),
     ]);
 
-    return NextResponse.json({ buscas, enriquecimentos });
+    return NextResponse.json({ buscas, enriquecimentos, geracoesIA });
   } catch (error) {
     return handleRouteError(error);
   }
