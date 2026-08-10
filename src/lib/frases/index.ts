@@ -1,4 +1,5 @@
 export { chaveNicho, colideComGenericas, normalizaNicho } from "./chave";
+export { montarConjuntos } from "./listagem";
 export {
   avancarRotacao,
   chaveDoAlvo,
