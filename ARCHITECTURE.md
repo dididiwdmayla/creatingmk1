@@ -2261,6 +2261,30 @@ Relatório: `docs/temas/barra.md`.
 
 ## Verificação da UI
 
+### Qual laço cobre o quê
+
+Os nomes se parecem e o custo de errar é alto: rodar o laço errado
+devolve "ok" sem ter olhado a tela em questão. A divisão é por SUPERFÍCIE,
+não por assunto.
+
+| laço | superfície | o que ele julga |
+|---|---|---|
+| `scripts/qa-visual.mjs` | **camada decorativa das DEMOS** (rota pública das 8 skins, via o harness `/interno/demo-qa`) | efeito × intensidade × tema, estilos de LED, modos de cor, animação por seção, cor da barra do navegador, fps no celular com CPU 4× (`--so=fps`) e o portão de foto colapsada (`--so=colapso`). **Não conhece `/leads` nem `/buscas`** — não há tela da plataforma nele |
+| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz e — em `--so=listas` — o portão de `/leads` e `/buscas` no celular: caixa zerada, colunas da grade, escada de densidade, nada vazando |
+| `scripts/qa-cls.mjs` | **deslocamento de layout**, nas três | `--so=skins` (rota pública), `--so=editor` (o preview do editor) e `--so=app` (as 7 abas da plataforma). Portão 0.1, o mesmo piso "bom" do Core Web Vital real |
+
+Os outros são de recorte estreito e o nome já diz: `qa-aura.mjs`,
+`qa-editor.mjs`, `qa-titulo.mjs`, `qa-perfil-blur.mjs`, `qa-servidor.mjs`,
+`qa-diff.mjs` (compara duas capturas pixel a pixel — é ele que denuncia
+"as levas saíram idênticas").
+
+Dois deles (`qa-plataforma.mjs` e `qa-cls.mjs --so=editor|app`) precisam do
+**patch temporário de banco falso** (`RADAR_FAKE_DB=1` +
+`src/lib/testing/qa-fake-db.ts`), aplicado e revertido na mesma sessão e
+nunca commitado — princípio 2, nenhum caminho de banco falso no código do
+app. `qa-visual.mjs` e `qa-cls.mjs --so=skins` não precisam: o harness
+`/interno/demo-qa` renderiza sem banco.
+
 Sem Firebase real neste ambiente de sessão, a verificação de ponta a ponta foi feita ligando temporariamente o `FakeFirestore` (o mesmo fake dos testes) no lugar do Firestore via uma env var (`RADAR_FAKE_DB=1`), com dados de exemplo, rodando `next build && next start` e navegando o app real com Playwright (login errado/certo, dashboard com os três estados de meter, filtros de leads, ficha enriquecida/não enriquecida, botão Enriquecer com erro real de `GOOGLE_PLACES_API_KEY` ausente, transição de status, link `wa.me` com telefone e `{nome}` corretos, salvar config, logout e bloqueio pós-logout). O patch em `admin.ts` e os dados de exemplo foram revertidos antes do commit — não fazem parte do código do app.
 
 O **editor visual de demos** foi verificado no app real com o mesmo esquema (fake Firestore + fake Storage via env var temporária, revertidos antes do commit; `next dev` + Playwright): abrir `/leads/{id}/demo/editar` com preview renderizando a skin e os dados do lead; digitar no painel e ver o preview atualizar ao vivo; clicar num slot do preview e ver o campo correspondente focado; ocultar seção na aba Estrutura sumindo do preview; trocar cor primária na aba Tema; salvar e conferir `/demo/{id}` **200** com as edições e a cor custom no HTML; excluir com confirmação voltando à ficha e `/demo/{id}` de volta a **404** (também 404 antes do primeiro save); e, em viewport mobile (390px, touch), o painel começando fechado, abrindo pelo botão flutuante como drawer editável e fechando.
