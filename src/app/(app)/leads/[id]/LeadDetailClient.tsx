@@ -30,7 +30,8 @@ import {
 } from "@/lib/frases/resolver";
 import { idiomaLabelRegional } from "@/lib/idioma";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
-import { linhaRecomendacaoContato } from "@/lib/leads/janelaContato";
+import { BarraDoDia } from "@/components/BarraDoDia";
+import { barraDoDia, linhaEstadoContato } from "@/lib/leads/barraDoDia";
 import { handleInstagram } from "@/lib/leads/instagram";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
@@ -425,7 +426,11 @@ export function LeadDetailClient({ id }: { id: string }) {
   const instagramHandle = handleInstagram(detalhes?.site ?? lead.siteUrl);
   const estado = estadoAtual(lead.horarios);
   const momento = melhorMomento(lead.horarios);
-  const linhaJanela = config ? linhaRecomendacaoContato(config.janelasContato, lead) : undefined;
+  const barra = config ? barraDoDia(config.janelasContato, lead) : undefined;
+  const linhaJanela = barra && linhaEstadoContato(barra);
+  // "Hora boa" agora vem das FAIXAS da família; `melhorMomento` só sabe
+  // dizer "está aberto", que a própria barra contradiria ao lado.
+  const horaBoa = barra ? barra.nivelAgora === "bom" : momento?.agora === true;
 
   // Argumento de venda pronto: só para leads sem site próprio, e só quando
   // a penetração do nicho+região dele já foi calculada (busca que o trouxe
@@ -504,6 +509,27 @@ export function LeadDetailClient({ id }: { id: string }) {
           <p className={`mt-2 text-sm font-medium ${estado.aberto ? "text-good" : "text-ink-muted"}`}>
             {estado.texto}
           </p>
+        )}
+        {/*
+          A barra do dia mora aqui, junto do horário de funcionamento de que
+          ela depende. O bloco reserva a altura (min-h-25 ≈ o desenho
+          completo) sempre que o horário AINDA pode chegar — o botão "buscar
+          horários" acima —, então a resposta dessa busca troca o conteúdo
+          sem empurrar nada abaixo (ARCHITECTURE.md, "Deslocamento de
+          layout"). Sem fuso derivável e sem horário por vir, o bloco nem
+          existe: nunca uma hora inventada.
+        */}
+        {(barra || !lead.horarios) && (
+          <div className="mt-3 min-h-25">
+            {barra ? (
+              <BarraDoDia barra={barra} />
+            ) : (
+              <p className="text-xs text-ink-muted">
+                Fuso do lead desconhecido — a barra do dia só aparece com o horário de
+                funcionamento (ou um país reconhecível no endereço).
+              </p>
+            )}
+          </div>
         )}
         {horariosErro && <p className="mt-1 text-xs text-critical">{horariosErro}</p>}
         {lead.enriquecido && detalhes ? (
@@ -675,21 +701,29 @@ export function LeadDetailClient({ id }: { id: string }) {
             target="_blank"
             rel="noopener noreferrer"
             className={`rounded px-3 py-2 text-center text-sm font-semibold text-good-ink transition ${
-              momento?.agora
+              horaBoa
                 ? "bg-good ring-2 ring-good ring-offset-2 ring-offset-background hover:bg-good/90"
                 : "bg-good/80 hover:bg-good"
             }`}
           >
             Chamar no WhatsApp
           </a>
-          {momento && (
-            <p
-              className={`text-center text-xs ${momento.agora ? "font-medium text-good" : "text-ink-muted"}`}
-            >
-              Melhor momento pra contatar: {momento.agora ? "agora" : momento.texto}
+          {/* Com a barra na seção acima, a linha aqui é a MESMA frase dela —
+              uma só verdade sobre "é hora?". Sem barra (fuso desconhecido),
+              volta o "melhor momento" derivado só do funcionamento. */}
+          {linhaJanela ? (
+            <p className={`text-center text-xs ${horaBoa ? "font-medium text-good" : "text-ink-muted"}`}>
+              {linhaJanela}
             </p>
+          ) : (
+            momento && (
+              <p
+                className={`text-center text-xs ${momento.agora ? "font-medium text-good" : "text-ink-muted"}`}
+              >
+                Melhor momento pra contatar: {momento.agora ? "agora" : momento.texto}
+              </p>
+            )
           )}
-          {linhaJanela && <p className="text-center text-xs text-ink-muted">{linhaJanela}</p>}
         </div>
       )}
 

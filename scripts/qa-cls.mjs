@@ -101,6 +101,13 @@ const SKINS = [
  * Precificação e o badge "argumento forte" nunca renderizam, e o banco
  * falso podia ficar com dado incompleto pra eles sem o portão notar (ver
  * ARCHITECTURE.md, "Deslocamento de layout").
+ *
+ * A FICHA entra DUAS vezes, com o mesmo lead em dois estados: sem horário
+ * de funcionamento (a barra do dia cai no intervalo comercial estimado) e
+ * com ele (expediente real). Não é redundância — é o par que prova que a
+ * chegada do horário DEPOIS do primeiro desenho não empurra nada: além do
+ * CLS de cada carga, o laço compara a ALTURA do bloco da barra nos dois
+ * estados e reprova se ela mudar (ver "Barra do dia por família").
  */
 const ABAS = [
   { id: "hoje", url: "/hoje", rotulo: "Hoje" },
@@ -114,7 +121,16 @@ const ABAS = [
   { id: "demos", url: "/demos", rotulo: "Demos" },
   { id: "chat", url: "/mensagens", rotulo: "Chat" },
   { id: "config", url: "/config", rotulo: "Config" },
+  { id: "ficha", url: "/leads/lead-qa", rotulo: "Ficha (sem horário)" },
+  { id: "ficha-horarios", url: "/leads/lead-horarios", rotulo: "Ficha (com horário)" },
 ];
+
+/**
+ * O bloco que reserva o espaço da barra do dia na ficha. A classe é o
+ * contrato aqui (o laço mede o DOM real, não tem como perguntar ao React) —
+ * ver `LeadDetailClient.tsx`.
+ */
+const SELETOR_BLOCO_BARRA = '[class*="min-h-25"]';
 
 function criarSessaoToken({ userId, papel, versao }, secret) {
   const payload = `${userId}.${papel}.${versao}`;
@@ -250,6 +266,34 @@ function semear() {
         criadoEm: iso(3),
         atualizadoEm: iso(1),
       },
+    },
+    // Mesmo lead da ficha, com horário de funcionamento — o par de
+    // "leads/lead-qa" para a comparação de altura do bloco da barra.
+    "leads/lead-horarios": {
+      placeId: "lead-horarios",
+      nome: "Barbearia Sul",
+      endereco: "Rua das Tesouras, 200 - Porto Alegre, RS, Brasil",
+      status: "novo",
+      enriquecido: true,
+      temTelefone: true,
+      telefone: "(51) 99999-1111",
+      telefoneIntl: "5551999991111",
+      busca: { nicho: "barbearia", regiao: "Porto Alegre RS", em: iso(3) },
+      buscaId: ["busca-centro"],
+      horarios: {
+        obtidoEm: iso(1),
+        utcOffsetMinutes: -180,
+        faixas: [1, 2, 3, 4, 5, 6].map((dia) => ({
+          diaAbre: dia,
+          horaAbre: 9,
+          minAbre: 0,
+          diaFecha: dia,
+          horaFecha: 19,
+          minFecha: 0,
+        })),
+      },
+      criadoEm: iso(3),
+      atualizadoEm: iso(1),
     },
     "leads/lead-2": {
       placeId: "lead-2",
@@ -499,10 +543,30 @@ async function main() {
     if (querido("app")) {
       console.log("\n── Abas do Radar ──");
       await page.goto(`${BASE}/hoje`, { waitUntil: "networkidle" }); // aquece sessão/tema
+      const alturasBarra = {};
       for (const aba of ABAS) {
         const resultado = await medirPagina(page, `${BASE}${aba.url}`);
         relatorio.push({ tela: `app:${aba.id}`, ...resultado });
         imprimirResultado(aba.rotulo, resultado);
+        if (aba.id.startsWith("ficha")) {
+          alturasBarra[aba.id] = await page.evaluate(
+            (seletor) => document.querySelector(seletor)?.getBoundingClientRect().height ?? null,
+            SELETOR_BLOCO_BARRA,
+          );
+        }
+      }
+      const semHorario = alturasBarra["ficha"];
+      const comHorario = alturasBarra["ficha-horarios"];
+      console.log(
+        `\nbloco da barra do dia: sem horário ${semHorario}px · com horário ${comHorario}px`,
+      );
+      if (semHorario === null || comHorario === null) {
+        throw new Error("[cls] bloco da barra do dia não encontrado na ficha — a barra sumiu");
+      }
+      if (semHorario !== comHorario) {
+        throw new Error(
+          `[cls] o bloco da barra do dia muda de altura quando o horário chega (${semHorario}px → ${comHorario}px) — a ficha vai ser empurrada`,
+        );
       }
     }
 

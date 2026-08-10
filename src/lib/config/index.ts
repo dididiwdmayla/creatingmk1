@@ -12,6 +12,7 @@ import { ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import {
   DEFAULT_JANELAS_CONTATO,
+  mesclarJanelasContato,
   validarJanelasContato,
   type JanelasContatoConfig,
 } from "@/lib/leads/janelaContato";
@@ -421,8 +422,11 @@ export function mergeConfig(base: AppConfig, patch: Partial<AppConfig>): AppConf
     },
     // Merge POR FAMÍLIA, mesmo espírito de capturas.ancoras acima — a tela
     // salva a família que o admin acabou de editar, as outras continuam
-    // valendo o que já valia (default ou edição anterior).
-    janelasContato: { ...base.janelasContato, ...patch.janelasContato },
+    // valendo o que já valia (default ou edição anterior). Família em
+    // formato antigo (a tabela de janela ideal/alternativa que a barra do
+    // dia substituiu) é DESCARTADA em favor do padrão novo — ver
+    // `mesclarJanelasContato`.
+    janelasContato: mesclarJanelasContato(base.janelasContato, patch.janelasContato),
   };
 }
 
