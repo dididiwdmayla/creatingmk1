@@ -170,12 +170,15 @@ src/
       horarios.ts                   # ✅ estadoAtual/melhorMomento: funções puras sobre lead.horarios (fuso do lead)
       hoje.ts                       # ✅ montarFilaDoDia: seleção pura das 3 seções de /hoje
       penetracao.ts                 # ✅ calcularPenetracaoSite/argumentoPenetracao/argumentoForte (ver "Penetração de site")
-    frases/                         # ✅ frases de prospecção por nicho (ver seção própria)
-      types.ts                      #    FrasesProspeccao (3 slots + indice) e o doc reservado do conjunto genérico
-      rotacao.ts                    #    funções PURAS: frases efetivas, frase da vez, próximo índice
-      repo.ts                       #    /frasesProspeccao/{chave}: salvar textos e avançar contador, escritas disjuntas
-      listagem.ts                   #    une conjuntos salvos + nichos vistos em /buscas (a lista da tela de admin)
-      resolver.ts                   #    precedência nicho → genéricas → grupo → global (usada pela ficha e por /hoje)
+    frases/                         # ✅ frases de prospecção por SKIN (ver seção própria)
+      types.ts                      #    FrasesProspeccao (3 slots + indice), chaveada pelo skinId do registro
+      rotacao.ts                    #    funções PURAS: frases efetivas, frase da vez, slot da vez, próximo índice
+      repo.ts                       #    /frasesProspeccao/{skinId}: salvar textos e avançar contador, escritas disjuntas
+      listagem.ts                   #    uma linha por skin do registro, com o conjunto salvo por cima (tela de admin)
+      migracao.ts                   #    aproveita o texto das entradas antigas (chave por nicho digitado) nas skins
+      traducao.ts                   #    funções PURAS da tradução gravada por idioma (aplicada/desatualizada/ausente)
+      custoTraducao.ts              #    projeção de chamadas e custo mostrada antes de confirmar a tradução
+      resolver.ts                   #    precedência skin da demo → grupo → global (usada pela ficha e por /hoje)
     buscas/                         # ✅ registro das buscas executadas
       types.ts                      #    + recorrente/qualificada/quantidade, BuscaExecucao e penetracao (cache)
       repo.ts                       #    + listBuscasRecorrentes (ordem determinística), registrarExecucao e salvarPenetracao
@@ -187,7 +190,6 @@ src/
       idioma.ts                     # ✅ idiomaPadraoDoLead/idiomaEfetivoDemo (ver "Idioma da IA na demo")
       patch.ts                      # montarPatch: diff mínimo que o editor salva (inverso de aplicarPatch)
       registry.ts                   # registro de skins (a lista canônica)
-      skinNichos.ts                 # ✅ skinId→nicho SEM os componentes junto (desempate de nicho em /hoje sem inchar o bundle)
       validate.ts                   # validação do PUT /api/leads/[id]/demo (dados + tema + estrutura)
       fontes.ts                     # lista curada de fontes do editor (ids → CSS vars de next/font)
       tema.ts                       # aplicarTema (preset ← TemaPatch), TEMA_RAIOS, ink por contraste
@@ -502,28 +504,36 @@ Observações:
 - `capturas.ancoras` é marcado em `/interno/capturas`, não em /config: o merge é **por skin** (marcar uma não apaga as outras), lista vazia significa "não capturar esta skin", e skin/seção fora do registro são rejeitadas com 400. Skin ausente do doc cai no padrão do código.
 - **Migração de SKU (jul/2026)**: `detailsPro` foi renomeado para `detailsEnterprise` (a tabela do Google classifica telefone/site/rating como tier Enterprise). Docs antigos com chaves `detailsPro` em `caps`/`precos` são lidos via alias e regravados com o nome novo; PUTs novos com o nome antigo são rejeitados (400).
 
-### `/frasesProspeccao/{chave}` — um doc por nicho (+ o conjunto genérico)
+### `/frasesProspeccao/{skinId}` — um doc por SKIN do registro
 
-**O ID do documento é o nicho NORMALIZADO** (minúsculas, espaços colapsados, `encodeURIComponent`) — a mesma receita de `/traducoesNicho` e de `multiplicadoresNicho`, então "Dentista" e "dentista " compartilham o mesmo doc. O conjunto genérico de fallback vive no id reservado **`__genericas__`**, com a mesma forma: rotação, edição e leitura têm um caminho de código só.
+**O ID do documento é o id da skin** (`barbearia2-sul`, `petshop-focinho-feliz` — os ids de `lib/demos/registry.ts`), não o texto do nicho digitado na busca. A chave anterior era o nicho normalizado, e texto livre não é chave: "Barbearia", "barbearia old school" e "barbería" viravam três conjuntos distintos, e a tela enchia de duplicata e erro de digitação. Id de skin é um slug do próprio código — não precisa de normalização nenhuma, e o conjunto de valores possíveis é fechado pelo registro.
 
 ```jsonc
 {
-  "nicho": "dentista",                          // grafia de EXIBIÇÃO (a chave é que é normalizada); "" no genérico
   "frases": [                                   // SEMPRE 3 slots; slot vazio é legítimo e não entra na rotação
     "Oi {nome}, montei uma prévia do site de vocês: {demo}",
     "Olá {nome}! Fiz uma demonstração rápida: {demo}",
     ""
   ],
-  "indice": 1,                                  // contador da rotação — ÚNICO por nicho, compartilhado pelo time
+  "indice": 1,                                  // contador da rotação — ÚNICO por skin, compartilhado pelo time
+  "traducoes": {                                // derivado e opcional; as frases acima são SEMPRE em português
+    "es-AR": {                                  // idioma BCP-47 COM variante regional (nunca só "es")
+      "frases": ["Hola {nome}, ...", "", ""],   // MESMOS slots das frases (slot vazio continua vazio)
+      "origem": ["Oi {nome}, ...", "", ""],     // o português que gerou cada slot — muda o de cima, a tradução vira desatualizada
+      "em": "<timestamp>"
+    }
+  },
   "atualizadoEm": "<timestamp>"
 }
 ```
 
 Observações:
+- **O `skinId` não é gravado como campo**: ele é o id do doc, e duplicá-lo dentro só criaria a chance de os dois divergirem. `getConjunto`/`listConjuntos` preenchem `FrasesProspeccao.skinId` a partir do id lido.
 - As frases usam os **mesmos marcadores** da mensagem global e da mensagem por grupo (`{nome}`, `{demo}`, `{penetracao}`) — não existe marcador exclusivo das frases.
-- **As duas escritas são disjuntas, ambas com `merge`**: o PUT do admin grava `nicho`/`frases`/`atualizadoEm` e nunca toca em `indice`; o POST de avanço grava `indice`/`atualizadoEm` e nunca toca em `frases`. Editar um texto não reinicia a rotação, e girar a rotação não desfaz uma edição salva no mesmo segundo.
-- **Guarda-corpo**: um nicho cuja forma normalizada bata `__genericas__` é rejeitado no PUT (400) — sem isso ele sobrescreveria o conjunto de fallback.
-- Nicho sem doc, ou com doc de três slots vazios, **não participa da precedência** (ver "Frases de prospecção por nicho"). O avanço de um nicho sem doc devolve 0 e **não cria doc**: um clique não cadastra nicho.
+- **As três escritas são disjuntas, todas com `merge`**: o PUT do admin grava `frases`/`atualizadoEm` e nunca toca em `indice`; o POST de avanço grava `indice`/`atualizadoEm` e nunca toca em `frases`; a tradução grava só `traducoes`. O mapa `traducoes` é lido-mesclado-gravado inteiro em vez de depender do merge profundo do Firestore em mapas aninhados — assim o fake dos testes e o banco real se comportam igual. Editar um texto não reinicia a rotação, e girar a rotação não desfaz uma edição salva no mesmo segundo.
+- **Guarda-corpo**: `skinId` fora do registro é rejeitado no PUT e no avanço (400) — é o que impede a coleção de voltar a acumular doc por texto livre.
+- Skin sem doc, ou com doc de três slots vazios, **não participa da precedência** (ver "Frases de prospecção por skin"). O avanço de uma skin sem doc devolve 0 e **não cria doc**: um clique não cadastra nada.
+- **Docs legados** (chaveados pelo texto do nicho, incluindo o antigo `__genericas__`) continuam na coleção até a migração rodar, mas não casam com nenhum id de skin e por isso não viram linha na tela nem entram em precedência nenhuma.
 
 ### `/leads/{placeId}` — um doc por lead
 
@@ -797,9 +807,13 @@ Formato de erro padrão em todas as rotas:
 | `/api/preferencias/listas` | PUT | `{ preferencias }` (o objeto INTEIRO, não patch; normalizado no servidor: chave inválida cai, teto de 200 chaves por tela) | `200 { preferencias }` · `400` · `401` | — |
 | `/api/buscas` | GET | — | `200 { buscas[] }` (mais recentes primeiro) | — |
 | `/api/buscas/[id]` | PATCH | `{ cor? (da paleta), mensagemPadrao? (≤1000, "" limpa), recorrente? }` (≥1 campo; ligar recorrente respeita o teto `maxBuscasRecorrentes`) | `200 { busca }` · `400` · `404` | — |
-| `/api/frases` | GET | — (qualquer sessão) | `200 { conjuntos[], genericas }` — `conjuntos` traz TODO nicho já visto em `/buscas` (vazio inclusive) mais os que têm frases salvas · `401` | — |
-| `/api/frases` | PUT | `{ nicho, frases[] }` (`nicho: null` = o conjunto genérico; ≤3 frases de ≤1000 caracteres; admin) | `200 { conjunto }` · `400 validation_error` · `401` · `403` | — |
-| `/api/frases/avancar` | POST | `{ nicho }` (`null` = o genérico; qualquer sessão) | `200 { indice }` (nicho sem conjunto salvo → `0`, sem gravar) · `400` · `401` | — |
+| `/api/frases` | GET | — (qualquer sessão) | `200 { conjuntos[] }` — UMA entrada por skin do registro (vazia inclusive), com `skinNome`/`nicho` resolvidos · `401` | — |
+| `/api/frases` | PUT | `{ skinId, frases[] }` (skin do registro; ≤3 frases de ≤1000 caracteres; admin) | `200 { conjunto }` · `400 validation_error` (inclui `skinId` fora do registro) · `401` · `403` | — |
+| `/api/frases/avancar` | POST | `{ skinId }` (qualquer sessão) | `200 { indice }` (skin sem conjunto salvo → `0`, sem gravar) · `400` · `401` | — |
+| `/api/frases/traduzir` | POST | `{ leadId }` (qualquer sessão) | `200 { conjunto, idioma }` — traduz as frases da skin da demo do lead para o idioma DELE (SKU `aiTraducao`) · `400` (lead do Brasil, sem demo ou skin sem frase) · `404` · `429 quota_exceeded` · `502 ai_error` · `503 ai_unavailable` | Gemini (1 chamada, até 2 com retry) |
+| `/api/frases/migrar` | GET | — (admin) | `200 { legados, relatorio }` — prévia da migração das entradas antigas, sem escrever nada · `401` · `403` | — |
+| `/api/frases/migrar` | POST | — (admin) | `200 { relatorio }` — executa; apaga só o legado aproveitado · `401` · `403` | — |
+| `/api/frases/migrar` | DELETE | — (admin) | `200 { apagadas }` — descarta as entradas antigas restantes · `401` · `403` | — |
 | `/api/hoje` | GET | — (exige sessão identificável) | `200 { novos[], followUps[], demosParadas[], novosDesde, followUpDias, mensagemPadrao, metaProspeccao: { dia, semana }, buscas[] }` · `401` | — |
 | `/api/cron` | GET | header `Authorization: Bearer ${CRON_SECRET}` (fora da sessão — exceção no proxy) | `200 { execucao }` · `401` · `503 config_error` (sem CRON_SECRET) | mesmo pipeline de `/api/search`, por busca recorrente |
 | `/api/cron/status` | GET | — | `200 { ultima, recorrentes }` | — |
@@ -839,7 +853,7 @@ Semântica fixa:
 - **Enriquecimento automático pós-busca é do cliente, não do servidor**: a página de leads, com o checkbox ligado, chama `POST /enrich` **em série** para os primeiros N resultados ainda não enriquecidos (N ≤ 5, default desligado). Cada chamada passa pelo `reserveQuota` normal do servidor; no primeiro `429` o loop para e a UI informa quantos foram feitos. Não existe rota de enriquecimento em lote — mantém o princípio "enriquecimento sob demanda" com um único caminho de cota.
 - `/api/leads/[id]/enrich` grava `detalhes`, marca `enriquecido: true`. Lead já enriquecido **retorna do cache sempre** — re-enriquecimento não existe. **Horário de funcionamento é buscado JUNTO** (2 requests distintos ao Google, um por SKU: `detailsEnterprise` para `detalhes`, `detailsProHours` — tier Pro, cota grátis própria de 5.000/mês — para `horarios`). Falha no 2º request (teto do Pro estourado, erro do Google) não derruba o enriquecimento principal, já persistido — o lead fica sem `horarios` e o botão dedicado "buscar horários" da ficha cobre depois. `/api/leads/[id]/horarios` é a rota desse botão: busca só o SKU novo (idempotente — lead com `horarios` retorna do cache), pensada para leads enriquecidos ANTES desta feature (têm `detalhes`, não têm `horarios`).
 - **Estado atual e "melhor momento pra contatar"** (`src/lib/leads/horarios.ts`, funções puras `estadoAtual`/`melhorMomento` sobre `lead.horarios` + um `now`): os períodos do Google vêm em hora LOCAL do lugar, então o cálculo desloca `now` por `utcOffsetMinutes` em vez de depender do fuso da máquina — sem `utcOffsetMinutes` ou sem `faixas`, as duas funções devolvem `null` (nada é mostrado). `estadoAtual` monta "Aberto agora · fecha Xh" / "Fechado · abre Xh" (ficha e `LeadCard`); `melhorMomento` sugere **agora** se aberto (destaque verde no botão WhatsApp da ficha) ou a **próxima abertura + 1h** se fechado, com prefixo "hoje"/"amanhã"/dia da semana conforme a distância ("amanhã ~10h") — exibido na ficha e ao lado de cada item da fila em `/hoje`. Faixas que cruzam a meia-noite (madrugada) são representadas com o dia de fechamento podendo ser o seguinte; a implementação testa fusos diferentes, madrugada e fechamento num dia específico (domingo).
-- O botão WhatsApp é montado **no cliente** a partir de dados já persistidos (`wa.me/<telefoneIntl sem símbolos>?text=<mensagem com os marcadores substituídos>`) — não há rota nem chamada externa. O telefone da **busca qualificada** já sustenta o botão sem enriquecer. A mensagem usada segue a precedência **frases do nicho → frases genéricas → mensagem do grupo → mensagem global** (ver "Frases de prospecção por nicho"): sem nenhuma frase cadastrada, o comportamento é exatamente o antigo — a do grupo (busca mais recente do lead que tiver `mensagemPadrao` própria) e, na falta, a global da config.
+- O botão WhatsApp é montado **no cliente** a partir de dados já persistidos (`wa.me/<telefoneIntl sem símbolos>?text=<mensagem com os marcadores substituídos>`) — não há rota nem chamada externa. O telefone da **busca qualificada** já sustenta o botão sem enriquecer. A mensagem usada segue a precedência **frases da skin da demo → mensagem do grupo → mensagem global** (ver "Frases de prospecção por skin"): sem demo, ou sem nenhuma frase cadastrada naquela skin, o comportamento é exatamente o antigo — a do grupo (busca mais recente do lead que tiver `mensagemPadrao` própria) e, na falta, a global da config.
 - **Descarte suave** (`descartado: true` via PATCH): o lead não é deletado — vai pro fim da lista com marcação e pode ser restaurado. Reversível por design: apagar de verdade perderia o histórico de contato.
 - `/api/metrics`: "hoje" usa o dia corrente em UTC (mesma convenção do período de custos); "semana" é uma janela rolante dos últimos 7 dias (não semana de calendário). `taxaResposta` é `leads com respondeuEm ÷ leads com primeiroContatoEm`, `0` (não `NaN`) sem contatos.
 - `/api/hoje` é a única rota de leitura que **exige** sessão identificável (401 sem ela): o delta de "novos" depende do `ultimaVisitaEm` do usuário. A rota calcula a fila com o carimbo **anterior** e grava o novo ao responder — recarregar a página zera o delta por design ("novos desde a última visita" é literal).
@@ -862,6 +876,7 @@ O Google cobra a chamada pelo **campo de tier mais alto presente no field mask**
 | `detailsProHours` | `GET places/{id}` | `regularOpeningHours,utcOffsetMinutes` | Pro · US$17/1.000 · 5.000 grátis | Horário de funcionamento — contador PRÓPRIO, chamado junto do enriquecimento (2 requests) ou sozinho pelo botão "buscar horários" |
 | `geocoding` | `GET geocode/json` | — (Geocoding API não usa field mask) | Essentials · US$5/1.000 · 10.000 grátis | Resolver a região da busca (com cache permanente em `/geocache`) |
 | `aiGeneration` | `POST models/gemini-3.5-flash:generateContent` (Gemini, não Places) | — | Free tier do Flash · US$0 default · teto 50/mês | Sugestões de IA da Forja (ver "IA na Forja") |
+| `aiTraducao` | `POST models/gemini-3.5-flash:generateContent` (Gemini, não Places) | — | Free tier do Flash · US$0 default · teto 30/mês | Tradução das frases de prospecção para o idioma do lead estrangeiro — contador PRÓPRIO (ver "Frases de prospecção por skin") |
 
 > ⚠️ **Tiers conferidos na tabela vigente (jul/2026)**: telefone/site/rating são tier **Enterprise** (não Pro); displayName/endereço/location no Text Search são tier **Pro** (5.000 grátis/mês — não os 10k de Essentials). O SKU antigo `detailsPro` foi renomeado para `detailsEnterprise` com migração de leitura dos contadores e da config. `displayName` foi removido do mask de `detailsEssentials` (é campo Pro em Place Details). Os defaults continuam **todos sobrescrevíveis via `/config/app`** — corrigir preço/cota é mudança de configuração, não de código.
 
@@ -1634,7 +1649,9 @@ A IA da Forja (acima) gera TUDO no idioma do prospect, não em pt-BR fixo — a 
 1. **País do endereço do PRÓPRIO lead, não da região da busca**: `cidadeDoEndereco` (`src/lib/leads/cidade.ts`) extrai cidade E país do `Lead.endereco` (o último segmento do endereço formatado — Places API sempre chamada com `languageCode=pt-BR`). `src/lib/idioma.ts` centraliza o mapa país (pt-BR) → idioma BCP-47 (`idiomaDoPais`) — compartilhado com `lib/geo/geocode.ts` (idioma da REGIÃO geocodificada da busca, `lead.busca.idioma`, uma aproximação de mercado usada só como contexto de busca) para não duplicar a lista. `src/lib/demos/idioma.ts#idiomaPadraoDoLead` deriva o idioma-alvo do endereço do lead — mais específico que o da região. Sem país reconhecido (ou Brasil) → `IDIOMA_PADRAO` ("pt-BR").
 2. **Seletor no editor, sobrescrita persistida**: a aba Tema tem um select "Idioma dos textos" (`IDIOMAS_SUPORTADOS`, curada a partir do mapa país→idioma) com o valor derivado do endereço como default (marcado "do endereço do lead" na opção); trocar e Salvar persiste em `LeadDemo.idioma` (ausente = segue o default derivado, não precisa persistir o caso comum) — mesmo padrão de patch mínimo do resto da demo.
 3. **Passado ao Gemini em toda geração de conteúdo** (níveis equilibrado/completo): `gerarSugestaoDemo` resolve o idioma-alvo (override escolhido AGORA no seletor, ainda não salvo → `LeadDemo.idioma` persistido → derivado do endereço → `IDIOMA_PADRAO`) e instrui o prompt ("escreva os TEXTOS em {idioma}") + fixa o campo `idioma` do schema como enum de 1 valor (reforço). UMA chamada por geração, mesmo preview aplicar/descartar e degradação sem `GEMINI_API_KEY` de sempre.
-4. **`resumirHorarios` localizado, sem IA** (`src/lib/leads/horarios.ts`): recebe o mesmo idioma-alvo e troca só a APRESENTAÇÃO — abreviação de dia (SEG-SEX → MO-FR) e formato de hora (9h/9h30 → 09:00, 24h) por raiz do BCP-47 (`pt`, `de`, `en`, `es`, `fr`, `it`, `nl` — idioma sem entrada cai no padrão pt-BR); os dados (horário de funcionamento em si) não mudam, só como aparecem escritos. `estadoAtual`/`melhorMomento` (UI interna do operador) continuam sempre pt-BR — não são conteúdo da demo pública.
+4. **A MESMA derivação vale para as frases de prospecção**: o botão de traduzir na ficha (ver "Frases de prospecção por skin") usa `idiomaEfetivoDemo`, e o rótulo/prompt usam `idiomaLabelRegional` — o mapa país→idioma invertido, para o alvo ser "espanhol (Argentina)" e não "espanhol". Nenhuma tabela de idioma nova entrou no projeto por causa da tradução.
+
+5. **`resumirHorarios` localizado, sem IA** (`src/lib/leads/horarios.ts`): recebe o mesmo idioma-alvo e troca só a APRESENTAÇÃO — abreviação de dia (SEG-SEX → MO-FR) e formato de hora (9h/9h30 → 09:00, 24h) por raiz do BCP-47 (`pt`, `de`, `en`, `es`, `fr`, `it`, `nl` — idioma sem entrada cai no padrão pt-BR); os dados (horário de funcionamento em si) não mudam, só como aparecem escritos. `estadoAtual`/`melhorMomento` (UI interna do operador) continuam sempre pt-BR — não são conteúdo da demo pública.
 
 ## Geração de demos em lote (`src/lib/demos/lote.ts` + `GerarDemosLoteDialog`)
 
@@ -1672,34 +1689,47 @@ Calculadora interativa na ficha do lead e no grupo de busca: quanto cobrar por u
 7. **Card "Precificação"** (`src/components/PrecificacaoCard.tsx`, na ficha do lead e no grupo de busca — `/leads?buscaId=`): slider 700–10.000 BRL (passo 100) posiciona o preço-base; botões de preset reposicionam o slider; abaixo, ao vivo: preço sugerido em BRL e (quando há câmbio) na moeda local rotulado "≈ estimado", faixa de mercado local, confiança e justificativa. Membros veem e usam a calculadora; só o admin vê os controles de editar/regenerar o índice. Todos os membros disparam a geração inicial (primeira vez que a região é aberta) — regenerar é ação exclusiva do admin.
 8. **Última posição do slider é por usuário** (`GET`/`PUT /api/precificacao/slider`, self-service — qualquer sessão lê/grava a PRÓPRIA posição): persistida em `usuarios/{id}.ultimoPrecoBaseSlider`, carregada ao abrir o card. Debounce de 500ms no cliente evita gravar a cada pixel arrastado do slider.
 
-## Frases de prospecção por nicho (`src/lib/frases` + seção em /config)
+## Frases de prospecção por skin (`src/lib/frases` + seção em /config)
 
-Abordagem que varia por NICHO em vez de um texto único para todo mundo, e que gira sozinha entre três frases para o mesmo nicho não chegar sempre com a mesma primeira linha. Editável na tela de administração, **sem deploy** — mesma escolha do `capturas.ancoras` e dos `multiplicadoresNicho`.
+Abordagem que varia pela SKIN da demo em vez de um texto único para todo mundo, e que gira sozinha entre três frases para a mesma skin não chegar sempre com a mesma primeira linha. Editável na tela de administração, **sem deploy** — mesma escolha do `capturas.ancoras` e dos `multiplicadoresNicho`.
 
-1. **Onde mora** — `/frasesProspeccao/{chave}`, um doc por nicho mais o doc reservado `__genericas__` (ver "Modelo de dados"). Três slots de frase e o contador no mesmo doc, com as duas escritas disjuntas por `merge`. Firestore, nunca `localStorage`: o contador é compartilhado entre membros, e preferência de tela guardada no navegador já vazou entre colegas na mesma máquina uma vez (ver "Sistema de temas da plataforma").
+1. **Onde mora** — `/frasesProspeccao/{skinId}`, um doc por skin do registro (ver "Modelo de dados"). Três slots de frase e o contador no mesmo doc, com as duas escritas disjuntas por `merge`. Firestore, nunca `localStorage`: o contador é compartilhado entre membros, e preferência de tela guardada no navegador já vazou entre colegas na mesma máquina uma vez (ver "Sistema de temas da plataforma").
 
-2. **Precedência do envio individual** (`resolverMensagem`, função pura em `lib/frases/resolver.ts`, a MESMA na ficha e em `/hoje` — antes cada tela tinha a sua cópia de `mensagemParaLead`):
+2. **A chave é a SKIN REGISTRADA, nunca o texto da busca.** A primeira versão chaveava pelo nicho digitado no campo de busca; como o campo é texto livre, "Barbearia", "barbearia old school" e "barbería" viraram entradas distintas e a tela virou uma lista de duplicatas e erros de digitação. O registro de skins é um conjunto fechado, versionado no código e com id estável: uma skin, um conjunto, sempre. **Skin nova aparece na tela sozinha ao ser registrada** — a listagem é montada a partir de `SKINS`, não de dado digitado, e não existe cadastro manual de conjunto em lugar nenhum.
 
-   1. frases do **nicho** do lead, se o nicho tiver alguma preenchida;
-   2. frases **genéricas** de fallback, se tiverem alguma preenchida;
-   3. mensagem do **grupo** (a busca mais recente do lead que tenha uma);
-   4. mensagem **global** da config — continua sendo o último caso, sempre.
+3. **Precedência do envio individual** (`resolverMensagem`, função pura em `lib/frases/resolver.ts`, a MESMA na ficha e em `/hoje` — antes cada tela tinha a sua cópia de `mensagemParaLead`):
 
-   Nada foi removido: um time que nunca preencher uma frase segue no comportamento anterior, letra por letra. Vale saber que, preenchido o conjunto genérico, ele passa à frente da mensagem por grupo — foi decisão explícita, não efeito colateral.
+   1. frases da **skin da demo do lead**, se aquela skin tiver alguma preenchida;
+   2. mensagem do **grupo** (a busca mais recente do lead que tenha uma);
+   3. mensagem **global** da config — continua sendo o último caso, sempre.
 
-3. **De onde vem o nicho do lead** — de `lead.busca.nicho`, que já está salvo no doc do lead (mesma fonte do card de precificação). A **skin da demo só desempata** quando o nicho da busca está vazio, via `lib/demos/skinNichos.ts`: um mapa `skinId→nicho` sem os componentes das skins junto, porque importar o registro arrastaria as 8 skins inteiras para o bundle de `/hoje` só pra ler um campo de texto. Um teste compara o mapa com o registro real e reprova se uma skin nova entrar sem passar por lá.
+   **Lead sem demo entra direto no passo 2** — exatamente o que ele já usava antes das frases existirem, letra por letra. Não existe conjunto genérico nem conjunto por família de skins: se a skin do lead não tem frase, ninguém adivinha por ela. Por consequência, **a frase mostrada muda sozinha quando o lead ganha demo**: antes dela, a do grupo ou a global; depois, a da skin escolhida — a resolução lê `lead.demo.skinId` a cada render, não há estado a sincronizar.
 
-4. **Rotação 1→2→3→1** — sobre as frases EFETIVAS (slots preenchidos): com duas preenchidas ela alterna entre as duas, em vez de gastar um turno num slot vazio. O módulo é aplicado também na LEITURA, porque o admin pode apagar uma frase depois de o contador já ter passado dela e o índice guardado ficaria fora da faixa.
+4. **Skins irmãs do mesmo nicho são conjuntos independentes** (`barbearia-editorial` e `barbearia2-sul` etc.): cada uma com o seu texto e o seu contador. Era justamente o que a chave por nicho não conseguia expressar — a frase que combina com uma skin editorial escura não é a mesma que combina com a minimalista.
 
-5. **O contador anda no ENVIO, e só nele.** O incremento vive dentro de `registrar()`, em `src/lib/useWhatsAppContato.ts` — o único ponto por onde os dois caminhos de envio passam (o direto e o de depois do modal de "já contatado"), exatamente uma vez cada. Por consequência ele vale para os dois botões de WhatsApp da plataforma (ficha e fila do dia) sem o gancho ser repetido em nenhum deles, e abrir a ficha, copiar o link ou editar o texto — que não passam por ali — não giram nada. Falhar no avanço é **cortesia**, como o selo de contato: não desfaz nem bloqueia o envio.
+5. **Rotação 1→2→3→1** — sobre as frases EFETIVAS (slots preenchidos): com duas preenchidas ela alterna entre as duas, em vez de gastar um turno num slot vazio. O módulo é aplicado também na LEITURA, porque o admin pode apagar uma frase depois de o contador já ter passado dela e o índice guardado ficaria fora da faixa.
 
-6. **Incremento otimista, sem trava** (`avancarRotacao`): lê, calcula o próximo e grava. Dois envios no mesmo instante podem repetir uma frase — irrelevante para o uso, e uma transação custaria mais do que resolve.
+6. **O contador anda no ENVIO, e só nele.** O incremento vive dentro de `registrar()`, em `src/lib/useWhatsAppContato.ts` — o único ponto por onde os dois caminhos de envio passam (o direto e o de depois do modal de "já contatado"), exatamente uma vez cada. Por consequência ele vale para os dois botões de WhatsApp da plataforma (ficha e fila do dia) sem o gancho ser repetido em nenhum deles, e abrir a ficha, copiar o link ou editar o texto — que não passam por ali — não giram nada. Falhar no avanço é **cortesia**, como o selo de contato: não desfaz nem bloqueia o envio.
 
-7. **A caixa editável da ficha** — abre com a frase da vez e os marcadores JÁ substituídos, ou seja, exatamente o texto que vai ser enviado; editar à mão vale **só para aquele envio** e não gira nada. Depois do disparo a caixa volta para a frase da vez seguinte. `wa.ts` foi separado em `aplicarMarcadores` + `linkWhatsApp` para isso (o link precisa ser remontado a partir do texto já editado); `buildWhatsAppLink` continua existindo com a mesma assinatura, agora como a composição dos dois.
+7. **Incremento otimista, sem trava** (`avancarRotacao`): lê, calcula o próximo e grava. Dois envios no mesmo instante podem repetir uma frase — irrelevante para o uso, e uma transação custaria mais do que resolve.
 
-8. **O token de envio não mudou em nada.** Continua emitido no GET (`garantirEnvioToken` em `/api/leads/[id]` e `/api/hoje`), e o `{demo}` da frase continua levando o token vigente do canal `whatsapp` — o rastreio de abertura funciona igual, venha o texto de uma frase de nicho ou da mensagem global.
+8. **A caixa editável da ficha** — abre com a frase da vez e os marcadores JÁ substituídos, ou seja, exatamente o texto que vai ser enviado; editar à mão vale **só para aquele envio** e não gira nada. Depois do disparo a caixa volta para a frase da vez seguinte. `wa.ts` foi separado em `aplicarMarcadores` + `linkWhatsApp` para isso (o link precisa ser remontado a partir do texto já editado); `buildWhatsAppLink` continua existindo com a mesma assinatura, agora como a composição dos dois.
 
-9. **A tela de administração** (seção em `/config`, PUT restrito ao admin) lista o conjunto genérico e **todo nicho que já apareceu em alguma busca**, com os já salvos por cima — nicho novo aparece sozinho na próxima carga e não existe cadastro manual de nicho em lugar nenhum. Cada conjunto salva sozinho e mostra em que ponto da rotação o time está ("na vez: frase 2 de 3") ou avisa que aquele nicho não participa. É o ÚLTIMO bloco da página de propósito: a lista tem tamanho variável e chega depois do primeiro desenho — no meio da página empurraria o formulário inteiro a cada carga (ver "Deslocamento de layout").
+9. **O token de envio não mudou em nada.** Continua emitido no GET (`garantirEnvioToken` em `/api/leads/[id]` e `/api/hoje`), e o `{demo}` da frase continua levando o token vigente do canal `whatsapp` — o rastreio de abertura funciona igual, venha o texto de uma frase da skin ou da mensagem global.
+
+10. **Migração das entradas antigas** (`lib/frases/migracao.ts` + `/api/frases/migrar`, admin): as entradas chaveadas por texto de busca já somem da tela sozinhas (não casam com id de skin nenhum), então a migração existe só para **não perder o texto já escrito**. O nicho antigo é comparado, normalizado, com o `nicho` das skins do REGISTRO: casando com mais de uma (skins irmãs), o texto é COPIADO para cada uma — cópia de partida, editável separadamente, não um conjunto por família (nada em tempo de execução consulta "as skins do nicho X"). Skin que já tem frase própria nunca é sobrescrita, e o `indice` antigo não é herdado. O que não casa com skin nenhuma ("barbearia old school", "barbería", o antigo `__genericas__`) vira **pendência listada na tela com as frases inteiras**, para copiar à mão. `GET` é prévia pura (não escreve), `POST` executa e apaga só os docs aproveitados (e os que estavam vazios), `DELETE` é o "já copiei, pode limpar" das pendências — sempre atrás de confirmação, nunca embutido no POST. Rodar duas vezes é inofensivo: na segunda não sobra legado a aproveitar.
+
+11. **Tradução para o lead estrangeiro, sempre atrás de um clique** (`lib/frases/traducao.ts` + `lib/ai/traducaoFrases.ts` + `/api/frases/traduzir`). As frases são SEMPRE escritas em português; o que existe por idioma é um texto DERIVADO, gravado e reusado:
+
+    - **O idioma vem da derivação que a demo já usa** (`idiomaEfetivoDemo`: sobrescrita salva no editor → país do endereço do PRÓPRIO lead → pt-BR). Nenhum mapa paralelo — a mesma fonte que faz a demo do argentino sair em espanhol faz a frase sair em espanhol.
+    - **A variante regional é o ponto**: o alvo é `es-AR`, e o prompt recebe "espanhol (Argentina)" com pedido explícito de vocabulário e tratamento daquele país (`idiomaLabelRegional`, o mapa país→idioma de `lib/idioma.ts` invertido — sem lista nova a manter). Espanhol genérico não é o que se manda para um lead argentino.
+    - **Gravada e reusada, nunca refeita ao abrir**: `traducoes[idioma]` no doc da skin, endereçada por SLOT (não pela posição na rotação — com o slot 2 vazio, a segunda frase mora no slot 3). Junto vai a `origem`: o português que gerou cada slot. Editar o português depois deixa aquele slot **desatualizado**, e aí vale o português — mandar a versão antiga de uma frase reescrita seria pior — com o botão voltando a aparecer. Retraduzir é decisão de gasto, então nunca acontece sozinho.
+    - **Uma tradução serve todos os leads daquele idioma naquela skin**, para sempre. É por isso que o SKU tem contador próprio e cota menor que o de sugestões.
+    - **Chamada paga, com o preço na tela antes do OK** (SKU `aiTraducao`, `reserveQuota` antes do request como todo request pago): o botão na ficha abre um `ConfirmModal` com o número de chamadas (1, até 2 se a resposta vier fora do formato), o custo em BRL (`custoIncrementalUSD` — o custo REAL daquele clique, 0 dentro da cota grátis) e o uso do mês. Sem o `/api/usage` em mãos, o texto diz isso em vez de inventar número. **Nenhum caminho traduz automaticamente.**
+    - **Os marcadores são intocáveis**: a validação exige que `{nome}`/`{demo}`/`{penetracao}` cheguem íntegros e na mesma quantidade da frase original — um `{demo}` perdido na tradução quebraria o link da demo e o token de rastreio junto. Falhou, é retry; insistiu, é `502` e nada é gravado.
+    - As três frases vão numa chamada só (dá contexto ao modelo e custa 1 request em vez de 3).
+
+12. **A tela de administração** (seção em `/config`, PUT restrito ao admin) lista **uma linha por skin do registro**, com os conjuntos já salvos por cima — skin nova aparece sozinha na próxima carga. O nome e o nicho da skin vêm resolvidos do SERVIDOR (`montarConjuntos`), porque importar `SKINS` numa tela do app arrastaria os componentes das 8 skins para o bundle de `/config` só pra escrever um título. Cada conjunto salva sozinho e mostra em que ponto da rotação o time está ("na vez: frase 2 de 3") ou avisa que aquela skin não participa. É o ÚLTIMO bloco da página de propósito: a lista tem tamanho variável e chega depois do primeiro desenho — no meio da página empurraria o formulário inteiro a cada carga (ver "Deslocamento de layout").
 
 ## Mensagens entre usuários (`src/lib/mensagens` + `/mensagens`)
 

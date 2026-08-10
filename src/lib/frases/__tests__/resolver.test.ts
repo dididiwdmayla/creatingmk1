@@ -1,167 +1,133 @@
 import { describe, expect, it } from "vitest";
 
 import type { Lead } from "@/lib/leads/types";
-import {
-  conjuntoDoNicho,
-  nichoDoLead,
-  resolverMensagem,
-  rotuloOrigem,
-} from "../resolver";
+import { conjuntoDaSkin, resolverMensagem, rotuloOrigem } from "../resolver";
 import type { FrasesProspeccao } from "../types";
 
-function conjunto(nicho: string, frases: string[], indice = 0): FrasesProspeccao {
-  return { nicho, frases, indice };
+const BARBEARIA = "barbearia-editorial";
+const PETSHOP = "petshop-focinho-feliz";
+
+function conjunto(skinId: string, frases: string[], indice = 0): FrasesProspeccao {
+  return { skinId, frases, indice };
 }
 
-function lead(extra: Partial<Lead> = {}): Pick<Lead, "busca" | "buscaId" | "demo"> {
+function lead(extra: Partial<Lead> = {}): Pick<Lead, "buscaId" | "demo"> {
   return {
-    busca: { nicho: "dentista", regiao: "Sarandi PR", em: "2026-08-01T00:00:00.000Z" },
     buscaId: ["b1"],
+    demo: { skinId: BARBEARIA } as Lead["demo"],
     ...extra,
-  } as Pick<Lead, "busca" | "buscaId" | "demo">;
+  } as Pick<Lead, "buscaId" | "demo">;
 }
 
 const BUSCAS = [{ id: "b1", mensagemPadrao: "Mensagem do grupo" }];
 const GLOBAL = "Mensagem global";
 
-describe("nichoDoLead", () => {
-  it("usa o nicho da busca que originou o lead", () => {
-    expect(nichoDoLead(lead())).toBe("dentista");
+describe("conjuntoDaSkin", () => {
+  it("casa pelo id da skin da demo", () => {
+    const achado = conjuntoDaSkin(BARBEARIA, [conjunto(PETSHOP, ["p"]), conjunto(BARBEARIA, ["b"])]);
+
+    expect(achado?.skinId).toBe(BARBEARIA);
   });
 
-  it("a skin da demo só desempata quando o nicho da busca está vazio", () => {
-    const semNicho = lead({
-      busca: { nicho: "  ", regiao: "x", em: "2026-08-01T00:00:00.000Z" },
-      demo: { skinId: "petshop-focinho-feliz" } as Lead["demo"],
-    });
-
-    expect(nichoDoLead(semNicho)).toBe("petshop");
-  });
-
-  it("com nicho na busca, a skin não interfere", () => {
-    const comAmbos = lead({ demo: { skinId: "petshop-focinho-feliz" } as Lead["demo"] });
-
-    expect(nichoDoLead(comAmbos)).toBe("dentista");
-  });
-
-  it("sem busca e sem demo, não há nicho", () => {
-    expect(nichoDoLead({ busca: undefined, demo: undefined })).toBeUndefined();
+  it("lead sem demo não tem conjunto", () => {
+    expect(conjuntoDaSkin(undefined, [conjunto(BARBEARIA, ["b"])])).toBeUndefined();
   });
 });
 
-describe("conjuntoDoNicho", () => {
-  it("casa ignorando caixa e espaços", () => {
-    const achado = conjuntoDoNicho("  DENTISTA ", [conjunto("Dentista", ["a"])]);
-
-    expect(achado?.nicho).toBe("Dentista");
-  });
-});
-
-describe("precedência: nicho → genéricas → grupo → global", () => {
-  it("1º as frases do nicho", () => {
+describe("precedência: skin da demo → grupo → global", () => {
+  it("1º as frases da skin da demo do lead", () => {
     const resolvida = resolverMensagem({
       lead: lead(),
       buscas: BUSCAS,
-      conjuntos: [conjunto("dentista", ["N1", "N2", "N3"], 1)],
-      genericas: conjunto("", ["G1"]),
+      conjuntos: [conjunto(BARBEARIA, ["N1", "N2", "N3"], 1)],
       global: GLOBAL,
     });
 
     expect(resolvida).toEqual({
       texto: "N2",
-      origem: "nicho",
-      rotacao: { nicho: "dentista", posicao: 2, total: 3 },
+      origem: "skin",
+      rotacao: { skinId: BARBEARIA, posicao: 2, total: 3, slot: 1 },
     });
   });
 
-  it("2º as genéricas, quando o nicho não tem nenhuma frase preenchida", () => {
+  it("skin sem nenhuma frase preenchida não participa: cai no grupo", () => {
     const resolvida = resolverMensagem({
       lead: lead(),
       buscas: BUSCAS,
-      conjuntos: [conjunto("dentista", ["", "", ""])],
-      genericas: conjunto("", ["G1", "G2"], 1),
-      global: GLOBAL,
-    });
-
-    expect(resolvida).toEqual({
-      texto: "G2",
-      origem: "genericas",
-      rotacao: { nicho: null, posicao: 2, total: 2 },
-    });
-  });
-
-  it("2º as genéricas também quando o nicho não tem conjunto nenhum", () => {
-    const resolvida = resolverMensagem({
-      lead: lead(),
-      buscas: BUSCAS,
-      conjuntos: [],
-      genericas: conjunto("", ["G1"]),
-      global: GLOBAL,
-    });
-
-    expect(resolvida.origem).toBe("genericas");
-  });
-
-  it("3º a mensagem do grupo, quando nicho e genéricas estão vazios", () => {
-    const resolvida = resolverMensagem({
-      lead: lead(),
-      buscas: BUSCAS,
-      conjuntos: [conjunto("dentista", ["", "", ""])],
-      genericas: conjunto("", ["", "", ""]),
+      conjuntos: [conjunto(BARBEARIA, ["", "", ""])],
       global: GLOBAL,
     });
 
     expect(resolvida).toEqual({ texto: "Mensagem do grupo", origem: "grupo" });
   });
 
-  it("4º a global — e ela continua sendo o último caso", () => {
+  it("a frase da skin IRMÃ do mesmo nicho nunca é usada como fallback", () => {
     const resolvida = resolverMensagem({
-      lead: lead({ buscaId: [] }),
+      lead: lead(),
+      buscas: BUSCAS,
+      conjuntos: [conjunto("barbearia2-sul", ["da irmã"])],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.origem).toBe("grupo");
+  });
+
+  it("lead SEM demo usa exatamente o que já usava antes das frases", () => {
+    const semDemo = lead({ demo: undefined });
+
+    expect(
+      resolverMensagem({
+        lead: semDemo,
+        buscas: BUSCAS,
+        conjuntos: [conjunto(BARBEARIA, ["N1", "N2", "N3"])],
+        global: GLOBAL,
+      }),
+    ).toEqual({ texto: "Mensagem do grupo", origem: "grupo" });
+
+    expect(
+      resolverMensagem({
+        lead: { ...semDemo, buscaId: [] },
+        buscas: BUSCAS,
+        conjuntos: [conjunto(BARBEARIA, ["N1"])],
+        global: GLOBAL,
+      }),
+    ).toEqual({ texto: GLOBAL, origem: "global" });
+  });
+
+  it("ganhar demo troca a frase sozinho: mesma entrada, só o skinId a mais", () => {
+    const entrada = {
+      buscas: BUSCAS,
+      conjuntos: [conjunto(BARBEARIA, ["Frase da barbearia"])],
+      global: GLOBAL,
+    };
+
+    expect(resolverMensagem({ lead: lead({ demo: undefined }), ...entrada }).origem).toBe("grupo");
+    expect(resolverMensagem({ lead: lead(), ...entrada }).texto).toBe("Frase da barbearia");
+  });
+
+  it("a global continua sendo o último caso, sempre", () => {
+    const resolvida = resolverMensagem({
+      lead: lead({ buscaId: [], demo: undefined }),
       buscas: BUSCAS,
       conjuntos: [],
-      genericas: undefined,
       global: GLOBAL,
     });
 
     expect(resolvida).toEqual({ texto: GLOBAL, origem: "global" });
   });
 
-  it("sem nenhuma frase cadastrada, o comportamento antigo é idêntico", () => {
-    const semFrases = { conjuntos: [], genericas: undefined, global: GLOBAL };
-
-    expect(resolverMensagem({ lead: lead(), buscas: BUSCAS, ...semFrases }).texto).toBe(
-      "Mensagem do grupo",
-    );
-    expect(
-      resolverMensagem({ lead: lead(), buscas: [{ id: "b1" }], ...semFrases }).texto,
-    ).toBe(GLOBAL);
-  });
-
   it("entre grupos, vence a busca MAIS RECENTE com mensagem própria", () => {
     const resolvida = resolverMensagem({
-      lead: lead({ buscaId: ["b1", "b2"] }),
+      lead: lead({ buscaId: ["b1", "b2"], demo: undefined }),
       buscas: [
         { id: "b1", mensagemPadrao: "antiga" },
         { id: "b2", mensagemPadrao: "recente" },
       ],
       conjuntos: [],
-      genericas: undefined,
       global: GLOBAL,
     });
 
     expect(resolvida.texto).toBe("recente");
-  });
-
-  it("lead sem nicho nenhum pula direto para as genéricas", () => {
-    const resolvida = resolverMensagem({
-      lead: { busca: undefined, buscaId: ["b1"], demo: undefined },
-      buscas: BUSCAS,
-      conjuntos: [conjunto("dentista", ["N1"])],
-      genericas: conjunto("", ["G1"]),
-      global: GLOBAL,
-    });
-
-    expect(resolvida.origem).toBe("genericas");
   });
 });
 
@@ -170,11 +136,110 @@ describe("rotuloOrigem", () => {
     expect(
       rotuloOrigem({
         texto: "x",
-        origem: "nicho",
-        rotacao: { nicho: "dentista", posicao: 2, total: 3 },
+        origem: "skin",
+        rotacao: { skinId: BARBEARIA, posicao: 2, total: 3, slot: 1 },
       }),
-    ).toBe("frases do nicho — frase 2 de 3");
+    ).toBe("frases da skin — frase 2 de 3");
     expect(rotuloOrigem({ texto: "x", origem: "grupo" })).toBe("mensagem do grupo");
     expect(rotuloOrigem({ texto: "x", origem: "global" })).toBe("mensagem padrão global");
+  });
+});
+
+describe("tradução do lead estrangeiro", () => {
+  const ARGENTINO = { endereco: "Av. Corrientes 1234, Buenos Aires, Argentina" } as Partial<Lead>;
+
+  function comTraducao(frases: string[], traduzidas: string[], origem = frases): FrasesProspeccao {
+    return {
+      skinId: BARBEARIA,
+      frases,
+      indice: 0,
+      traducoes: { "es-AR": { frases: traduzidas, origem, em: "2026-08-01T00:00:00.000Z" } },
+    };
+  }
+
+  it("lead do Brasil não fala de tradução nenhuma", () => {
+    const resolvida = resolverMensagem({
+      lead: lead(),
+      buscas: BUSCAS,
+      conjuntos: [conjunto(BARBEARIA, ["Oi {nome}"])],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.traducao).toBeUndefined();
+  });
+
+  it("sem tradução gravada, manda o português e pede o botão", () => {
+    const resolvida = resolverMensagem({
+      lead: lead(ARGENTINO),
+      buscas: BUSCAS,
+      conjuntos: [conjunto(BARBEARIA, ["Oi {nome}, veja: {demo}"])],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.texto).toBe("Oi {nome}, veja: {demo}");
+    expect(resolvida.traducao).toEqual({ idioma: "es-AR", estado: "ausente" });
+  });
+
+  it("com tradução gravada, o texto sai traduzido — sem chamar nada", () => {
+    const resolvida = resolverMensagem({
+      lead: lead(ARGENTINO),
+      buscas: BUSCAS,
+      conjuntos: [comTraducao(["Oi {nome}", "", ""], ["Hola {nome}", "", ""])],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.texto).toBe("Hola {nome}");
+    expect(resolvida.traducao).toEqual({ idioma: "es-AR", estado: "aplicada" });
+  });
+
+  it("português editado depois da tradução: volta ao português e marca desatualizada", () => {
+    const resolvida = resolverMensagem({
+      lead: lead(ARGENTINO),
+      buscas: BUSCAS,
+      conjuntos: [
+        comTraducao(["Oi {nome}, mudei", "", ""], ["Hola {nome}", "", ""], ["Oi {nome}", "", ""]),
+      ],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.texto).toBe("Oi {nome}, mudei");
+    expect(resolvida.traducao?.estado).toBe("desatualizada");
+  });
+
+  it("a tradução é endereçada pelo SLOT, não pela posição na rotação", () => {
+    const conjuntoComVazio: FrasesProspeccao = {
+      skinId: BARBEARIA,
+      frases: ["Oi", "", "Terceira"],
+      indice: 1,
+      traducoes: {
+        "es-AR": {
+          frases: ["Hola", "", "Tercera"],
+          origem: ["Oi", "", "Terceira"],
+          em: "2026-08-01T00:00:00.000Z",
+        },
+      },
+    };
+
+    const resolvida = resolverMensagem({
+      lead: lead(ARGENTINO),
+      buscas: BUSCAS,
+      conjuntos: [conjuntoComVazio],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.rotacao?.slot).toBe(2);
+    expect(resolvida.texto).toBe("Tercera");
+  });
+
+  it("mensagem do grupo/global nunca é traduzida (não é frase de skin)", () => {
+    const resolvida = resolverMensagem({
+      lead: lead({ ...ARGENTINO, demo: undefined }),
+      buscas: BUSCAS,
+      conjuntos: [],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.origem).toBe("grupo");
+    expect(resolvida.traducao).toBeUndefined();
   });
 });

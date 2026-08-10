@@ -118,7 +118,7 @@ describe("saveConfig", () => {
     expect((error as ValidationError).problemas).toEqual([
       "nicho deve ser string",
       "filtros.temSite deve ser um de: qualquer, com, sem",
-      "caps.inventado não é um SKU conhecido (textSearch, textSearchEnterprise, detailsEssentials, detailsEnterprise, detailsProHours, geocoding, aiGeneration)",
+      "caps.inventado não é um SKU conhecido (textSearch, textSearchEnterprise, detailsEssentials, detailsEnterprise, detailsProHours, geocoding, aiGeneration, aiTraducao)",
       "caps.textSearch deve ser número ≥ 0",
       "caps.detailsEnterprise deve ser inteiro",
       "precos.usdBrl deve ser número > 0",

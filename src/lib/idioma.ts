@@ -85,6 +85,34 @@ export function idiomaLabel(idioma: string): string {
 }
 
 /**
+ * País (em pt-BR) do idioma-alvo — o mapa acima invertido, sem lista nova a
+ * manter. Dois países com o mesmo idioma (Holanda/Países Baixos) resolvem
+ * pelo PRIMEIRO do mapa, que é o que aparece nos rótulos.
+ */
+const PAIS_POR_IDIOMA: Record<string, string> = Object.entries(IDIOMA_POR_PAIS).reduce(
+  (acc, [pais, idioma]) => (idioma in acc ? acc : { ...acc, [idioma]: pais }),
+  {} as Record<string, string>,
+);
+
+/** "estados unidos" → "Estados Unidos" (o mapa guarda tudo em minúsculas). */
+function capitalizarPais(pais: string): string {
+  return pais.replace(/(^|\s)(\p{L})/gu, (_, espaco: string, letra: string) => espaco + letra.toUpperCase());
+}
+
+/**
+ * Rótulo do idioma COM a variante regional: "espanhol (Argentina)",
+ * "inglês (Reino Unido)". A variante é o ponto — o que se escreve para um
+ * lead argentino não é espanhol genérico —, então a UI e o prompt de
+ * tradução usam este rótulo, não o `idiomaLabel` cru. Idioma sem país
+ * conhecido cai no rótulo simples.
+ */
+export function idiomaLabelRegional(idioma: string): string {
+  if (idioma === IDIOMA_PADRAO) return "português do Brasil";
+  const pais = PAIS_POR_IDIOMA[idioma];
+  return pais ? `${idiomaLabel(idioma)} (${capitalizarPais(pais)})` : idiomaLabel(idioma);
+}
+
+/**
  * Lista curada de idiomas-alvo oferecidos no seletor do editor: o default
  * + todo valor distinto do mapa país→idioma, ordenados por rótulo. Usada
  * também para validar o override manual salvo em `LeadDemo.idioma`.

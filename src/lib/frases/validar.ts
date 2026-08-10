@@ -1,16 +1,18 @@
+import { getSkin } from "@/lib/demos/registry";
 import { ValidationError } from "@/lib/errors";
-import { colideComGenericas } from "./chave";
 import { FRASES_SLOTS, FRASE_MAX } from "./types";
 
-/** Corpo aceito por PUT /api/frases — `nicho: null` é o conjunto genérico. */
+/** Corpo aceito por PUT /api/frases — um conjunto por vez, por skin. */
 export interface ConjuntoPatch {
-  nicho: string | null;
+  skinId: string;
   frases: string[];
 }
 
 /**
  * Valida o corpo do PUT. Chave desconhecida é rejeitada (mesmo espírito de
- * `validateConfigPatch`: pega typo em vez de ignorar em silêncio).
+ * `validateConfigPatch`: pega typo em vez de ignorar em silêncio), e o
+ * `skinId` precisa existir NO REGISTRO — é o que impede a coleção de voltar
+ * a acumular doc por texto livre.
  */
 export function validarConjuntoPatch(corpo: unknown): asserts corpo is ConjuntoPatch {
   const problemas: string[] = [];
@@ -20,23 +22,12 @@ export function validarConjuntoPatch(corpo: unknown): asserts corpo is ConjuntoP
   const patch = corpo as Record<string, unknown>;
 
   for (const chave of Object.keys(patch)) {
-    if (chave !== "nicho" && chave !== "frases") {
+    if (chave !== "skinId" && chave !== "frases") {
       problemas.push(`chave desconhecida: ${chave}`);
     }
   }
 
-  const { nicho } = patch;
-  if (nicho !== null && typeof nicho !== "string") {
-    problemas.push("nicho deve ser string (ou null para o conjunto genérico)");
-  } else if (typeof nicho === "string") {
-    if (!nicho.trim()) {
-      problemas.push("nicho não pode ser vazio (use null para o conjunto genérico)");
-    } else if (colideComGenericas(nicho)) {
-      // Sem este guarda-corpo, um nicho com esse nome exato sobrescreveria
-      // o doc reservado do conjunto genérico de fallback.
-      problemas.push(`nicho "${nicho}" é reservado pelo conjunto genérico`);
-    }
-  }
+  problemas.push(...problemasDoSkinId(patch.skinId));
 
   if (!Array.isArray(patch.frases)) {
     problemas.push("frases deve ser uma lista de strings");
@@ -59,15 +50,22 @@ export function validarConjuntoPatch(corpo: unknown): asserts corpo is ConjuntoP
 }
 
 /** Valida o corpo do POST de avanço da rotação. */
-export function validarAlvoRotacao(corpo: unknown): asserts corpo is { nicho: string | null } {
+export function validarAlvoRotacao(corpo: unknown): asserts corpo is { skinId: string } {
   if (typeof corpo !== "object" || corpo === null || Array.isArray(corpo)) {
     throw new ValidationError(["corpo deve ser um objeto JSON"]);
   }
-  const { nicho } = corpo as Record<string, unknown>;
-  if (nicho !== null && typeof nicho !== "string") {
-    throw new ValidationError(["nicho deve ser string (ou null para o conjunto genérico)"]);
+  const problemas = problemasDoSkinId((corpo as Record<string, unknown>).skinId);
+  if (problemas.length > 0) {
+    throw new ValidationError(problemas);
   }
-  if (typeof nicho === "string" && !nicho.trim()) {
-    throw new ValidationError(["nicho não pode ser vazio (use null para o conjunto genérico)"]);
+}
+
+function problemasDoSkinId(skinId: unknown): string[] {
+  if (typeof skinId !== "string" || !skinId.trim()) {
+    return ["skinId deve ser o id de uma skin do registro"];
   }
+  if (!getSkin(skinId)) {
+    return [`skinId "${skinId}" não é uma skin do registro`];
+  }
+  return [];
 }

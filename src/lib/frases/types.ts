@@ -11,30 +11,21 @@ export const FRASES_SLOTS = 3;
 export const FRASE_MAX = 1000;
 
 /**
- * ID do doc do conjunto GENÉRICO de fallback, na mesma coleção dos nichos.
- * Um doc por nicho + este: assim rotação, edição e leitura têm um único
- * caminho de código. Um nicho cuja forma normalizada bata este id é
- * rejeitado na escrita (ver `validarConjuntoPatch`) — sem isso, um nicho
- * chamado "__genericas__" sobrescreveria o conjunto de fallback.
- */
-export const CHAVE_GENERICAS = "__genericas__";
-
-/**
- * Conjunto de frases de abordagem de UM nicho (ou o genérico de fallback),
- * com o contador de rotação COMPARTILHADO: um só contador por nicho, valendo
- * para todos os leads e todos os membros do time.
+ * Conjunto de frases de abordagem de UMA SKIN do registro, com o contador
+ * de rotação COMPARTILHADO: um contador por skin, valendo para todos os
+ * leads que usam aquela skin e para todos os membros do time.
  *
- * Persistido em /frasesProspeccao/{chave} — ver "Frases de prospecção por
- * nicho" no ARCHITECTURE.md. As frases usam os MESMOS marcadores da mensagem
- * global e da mensagem por grupo ({nome}, {demo}, {penetracao}); nenhum
- * marcador novo existe.
+ * Persistido em /frasesProspeccao/{skinId} — ver "Frases de prospecção por
+ * skin" no ARCHITECTURE.md. A chave é o **id da skin registrada**, nunca o
+ * texto do nicho digitado na busca: texto livre gerava um conjunto novo a
+ * cada grafia ("Barbearia", "barbearia old school", "barbería").
+ *
+ * As frases usam os MESMOS marcadores da mensagem global e da mensagem por
+ * grupo ({nome}, {demo}, {penetracao}); nenhum marcador novo existe.
  */
 export interface FrasesProspeccao {
-  /**
-   * Grafia de exibição do nicho, como veio da busca (não normalizada) — a
-   * chave do doc é que é normalizada. String vazia no conjunto genérico.
-   */
-  nicho: string;
+  /** Id da skin no registro (`lib/demos/registry.ts`) — é também o id do doc. */
+  skinId: string;
   /**
    * Sempre `FRASES_SLOTS` posições; slot vazio = não preenchido. Guardar os
    * slots vazios (em vez de compactar a lista) mantém a numeração estável na
@@ -48,6 +39,77 @@ export interface FrasesProspeccao {
    * aceitável — o custo de uma trava não se paga aqui.
    */
   indice: number;
-  /** Ausente = conjunto nunca salvo (sintetizado vazio para um nicho novo). */
+  /**
+   * Traduções gravadas, por idioma BCP-47 com variante regional ("es-AR",
+   * nunca "es"). As frases são SEMPRE escritas em português; a tradução é
+   * derivada, paga e explícita (um clique por idioma) — nunca automática,
+   * e reusada em toda abertura seguinte. Ausente = nunca traduzido.
+   */
+  traducoes?: Record<string, TraducaoFrases>;
+  /** Ausente = conjunto nunca salvo (sintetizado vazio para uma skin nova). */
   atualizadoEm?: string;
+}
+
+/**
+ * A tradução de um conjunto para UM idioma. `frases` usa os MESMOS slots do
+ * conjunto (índice 0..2), e `origem` guarda o português que gerou cada uma:
+ * comparar os dois é o que detecta "o admin editou a frase depois de
+ * traduzir" sem precisar de versão nem timestamp — slot desatualizado cai
+ * de volta no português e o botão de traduzir reaparece.
+ */
+export interface TraducaoFrases {
+  frases: string[];
+  origem: string[];
+  em: string;
+}
+
+/**
+ * Um doc LEGADO da coleção: os que a versão anterior criava chaveados pelo
+ * texto do nicho digitado na busca (mais o antigo `__genericas__`). Não
+ * casam com skin nenhuma, então não aparecem na tela — existem só para a
+ * migração aproveitar o texto já escrito. Ver ./migracao.ts.
+ */
+export interface EntradaLegada {
+  /** Id do doc como está no Firestore (o nicho normalizado de antes). */
+  chave: string;
+  /** Grafia de exibição do nicho, como o doc antigo guardava. */
+  nicho: string;
+  frases: string[];
+}
+
+/** Uma entrada legada levada para o conjunto de uma skin. */
+export interface MigracaoFeita {
+  chave: string;
+  nicho: string;
+  skinId: string;
+  skinNome: string;
+}
+
+/** Uma entrada legada que a migração NÃO soube associar — com o texto junto, para copiar à mão. */
+export interface MigracaoPendente {
+  chave: string;
+  nicho: string;
+  frases: string[];
+  motivo: string;
+}
+
+/** Relatório do POST /api/frases/migrar (e a prévia do GET, com `feitas` vazio). */
+export interface RelatorioMigracao {
+  feitas: MigracaoFeita[];
+  pendentes: MigracaoPendente[];
+  /** Entradas legadas sem nenhum texto: apagadas sem relatório (não havia o que preservar). */
+  vazias: number;
+}
+
+/**
+ * O conjunto + a identidade da skin, como a tela de administração precisa.
+ * Montado no SERVIDOR (`montarConjuntos`) porque o registro de skins arrasta
+ * os componentes das 8 skins junto — `/config` não pode importá-lo só para
+ * ler nome e nicho.
+ */
+export interface ConjuntoSkin extends FrasesProspeccao {
+  /** Nome de exibição da skin no registro ("Barbearia Sul"). */
+  skinNome: string;
+  /** Nicho da skin no registro ("barbearia") — só rótulo, nunca chave. */
+  nicho: string;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { projectedCostBRL, projectedCostUSD } from "../cost";
+import { custoIncrementalUSD, projectedCostBRL, projectedCostUSD } from "../cost";
 import { ZERO_USAGE, type PricingTable } from "../skus";
 
 const PRICING: PricingTable = {
@@ -11,6 +11,7 @@ const PRICING: PricingTable = {
   detailsProHours: { usdPer1000: 17, freeQuota: 5_000 },
   geocoding: { usdPer1000: 5, freeQuota: 10_000 },
   aiGeneration: { usdPer1000: 0, freeQuota: 50 },
+  aiTraducao: { usdPer1000: 0, freeQuota: 30 },
 };
 
 describe("projectedCostUSD", () => {
@@ -27,6 +28,7 @@ describe("projectedCostUSD", () => {
       detailsProHours: 4_999,
       geocoding: 100,
       aiGeneration: 10,
+      aiTraducao: 0,
     };
     expect(projectedCostUSD(usage, PRICING)).toBe(0);
   });
@@ -40,6 +42,7 @@ describe("projectedCostUSD", () => {
       detailsProHours: 5_000,
       geocoding: 10_000,
       aiGeneration: 50,
+      aiTraducao: 0,
     };
     expect(projectedCostUSD(usage, PRICING)).toBe(0);
   });
@@ -59,6 +62,7 @@ describe("projectedCostUSD", () => {
       detailsProHours: 5_100, //   100 × $17/1000 = $1,7
       geocoding: 12_000, // 2.000 × $5/1000  = $10
       aiGeneration: 200, //   preço 0: excedente não custa nada
+      aiTraducao: 0,
     };
     expect(projectedCostUSD(usage, PRICING)).toBeCloseTo(46.7, 10);
   });
@@ -72,6 +76,7 @@ describe("projectedCostUSD", () => {
       detailsProHours: { usdPer1000: 0, freeQuota: 0 },
       geocoding: { usdPer1000: 0, freeQuota: 0 },
       aiGeneration: { usdPer1000: 0, freeQuota: 0 },
+      aiTraducao: { usdPer1000: 0, freeQuota: 30 },
     };
     expect(projectedCostUSD({ ...ZERO_USAGE, textSearch: 500 }, custom)).toBe(5);
   });
@@ -85,5 +90,30 @@ describe("projectedCostBRL", () => {
 
   it("é 0 em R$ quando é 0 em USD", () => {
     expect(projectedCostBRL(ZERO_USAGE, 5.5, PRICING)).toBe(0);
+  });
+});
+
+describe("custoIncrementalUSD", () => {
+  const sku = { usdPer1000: 20, freeQuota: 1_000 };
+
+  it("é 0 quando as chamadas cabem na cota grátis", () => {
+    expect(custoIncrementalUSD(990, 2, sku)).toBe(0);
+  });
+
+  it("cobra só a parte que atravessa a cota grátis", () => {
+    // 999 usadas + 3 chamadas = 1.002 → 2 cobráveis × US$20/1.000.
+    expect(custoIncrementalUSD(999, 3, sku)).toBeCloseTo(0.04);
+  });
+
+  it("já fora da cota, cobra as chamadas inteiras", () => {
+    expect(custoIncrementalUSD(2_000, 2, sku)).toBeCloseTo(0.04);
+  });
+
+  it("nenhuma chamada não custa nada, mesmo fora da cota", () => {
+    expect(custoIncrementalUSD(2_000, 0, sku)).toBe(0);
+  });
+
+  it("SKU de graça (IA) é sempre 0", () => {
+    expect(custoIncrementalUSD(100, 2, { usdPer1000: 0, freeQuota: 30 })).toBe(0);
   });
 });

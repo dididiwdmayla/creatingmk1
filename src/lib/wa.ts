@@ -1,6 +1,6 @@
 /**
  * Marcadores da mensagem de WhatsApp — os MESMOS na mensagem global, na
- * mensagem por grupo e nas frases de prospecção por nicho (não existe
+ * mensagem por grupo e nas frases de prospecção por skin (não existe
  * marcador exclusivo de nenhuma das três): {nome} vira o nome do lead;
  * {demo} vira o link da demo pública; {penetracao} vira a linha de argumento
  * pronta (src/lib/leads/penetracao.ts).
@@ -9,6 +9,8 @@
  * ausência de dado nunca apaga a variável em silêncio. Aplicar duas vezes é
  * inofensivo: depois da primeira não sobra marcador para substituir.
  */
+export const MARCADORES = ["{nome}", "{demo}", "{penetracao}"] as const;
+
 export function aplicarMarcadores(
   mensagem: string,
   nome: string,
