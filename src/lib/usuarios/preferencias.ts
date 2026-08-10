@@ -68,11 +68,21 @@ export interface PreferenciasListas {
   densidade: Record<Lista, Densidade | null>;
   /** Chaves dos grupos DOBRADOS, por tela (ausente/vazio = tudo aberto). */
   gruposFechados: Record<Lista, string[]>;
+  /**
+   * Precificação e Penetração de site (o resumo do grupo ativo em
+   * `/leads?buscaId=`) nascem COLAPSADOS — uma linha com título, dado
+   * principal e seta — porque é o próprio conteúdo assíncrono deles que
+   * empurrava a rolagem antes de estabilizar (ver "Correção de rolagem" no
+   * ARCHITECTURE.md). `true` = aberto. Não é por TELA como `densidade`/
+   * `gruposFechados` porque só existe em `/leads`.
+   */
+  blocosAbertos: { precificacao: boolean; penetracao: boolean };
 }
 
 export const PREFERENCIAS_LISTAS_PADRAO: PreferenciasListas = {
   densidade: { leads: null, buscas: null },
   gruposFechados: { leads: [], buscas: [] },
+  blocosAbertos: { precificacao: false, penetracao: false },
 };
 
 function chavesValidas(valor: unknown): string[] {
@@ -118,6 +128,7 @@ export function normalizaPreferenciasListas(valor: unknown): PreferenciasListas 
   const bruto = (valor ?? {}) as Partial<PreferenciasListas> & PreferenciasListasLegado;
   const fechados = (bruto.gruposFechados ?? {}) as Record<string, unknown>;
   const densidade = (bruto.densidade ?? {}) as Record<string, unknown>;
+  const blocos = (bruto.blocosAbertos ?? {}) as Record<string, unknown>;
   const legadoCompacto = bruto.leadsCompacto === true;
   return {
     densidade: {
@@ -129,6 +140,10 @@ export function normalizaPreferenciasListas(valor: unknown): PreferenciasListas 
     gruposFechados: {
       leads: chavesValidas(fechados.leads),
       buscas: chavesValidas(fechados.buscas),
+    },
+    blocosAbertos: {
+      precificacao: blocos.precificacao === true,
+      penetracao: blocos.penetracao === true,
     },
   };
 }
@@ -158,5 +173,16 @@ export function alternarGrupo(
   return {
     ...preferencias,
     gruposFechados: { ...preferencias.gruposFechados, [lista]: proximas },
+  };
+}
+
+/** Alterna aberto/fechado de um bloco do grupo ativo (Precificação, Penetração). */
+export function alternarBlocoAberto(
+  preferencias: PreferenciasListas,
+  bloco: keyof PreferenciasListas["blocosAbertos"],
+): PreferenciasListas {
+  return {
+    ...preferencias,
+    blocosAbertos: { ...preferencias.blocosAbertos, [bloco]: !preferencias.blocosAbertos[bloco] },
   };
 }

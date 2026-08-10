@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api-client";
 import {
+  alternarBlocoAberto,
   alternarGrupo,
   definirDensidade,
   densidadePadrao,
@@ -99,6 +100,14 @@ export function usePreferenciasListas() {
     alternarGrupoLista(lista: Lista, chave: string) {
       if (!preferencias) return;
       void salvar(alternarGrupo(preferencias, lista, chave));
+    },
+    /** Aberto/fechado do bloco (Precificação, Penetração) — padrão é fechado. */
+    blocoAberto(bloco: keyof PreferenciasListas["blocosAbertos"]): boolean {
+      return preferencias?.blocosAbertos[bloco] ?? false;
+    },
+    alternarBloco(bloco: keyof PreferenciasListas["blocosAbertos"]) {
+      if (!preferencias) return;
+      void salvar(alternarBlocoAberto(preferencias, bloco));
     },
   };
 }

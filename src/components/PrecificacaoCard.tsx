@@ -64,14 +64,27 @@ function PrecificacaoConteudoEsqueleto() {
  * ainda nem sabe nicho/região — o card some inteiro até então (ver uso em
  * `/leads`). Mesma moldura de `PrecificacaoCard`, pra trocar sem salto
  * quando o componente real assumir o lugar.
+ *
+ * `aberto` espelha a preferência persistida (ver `blocosAbertos`): o card
+ * nasce COLAPSADO por padrão — uma linha com título, dado principal (aqui,
+ * um chip em esqueleto) e seta —, então o esqueleto default já é essa
+ * linha única, não o miolo inteiro. Só quem já tinha expandido antes vê o
+ * miolo em esqueleto aqui, porque é isso que vai aparecer quando os dados
+ * chegarem.
  */
-export function PrecificacaoCardSkeleton() {
+export function PrecificacaoCardSkeleton({ aberto = false }: { aberto?: boolean } = {}) {
   return (
     <section className="rounded-lg border border-line bg-surface p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-        Precificação
-      </h2>
-      <PrecificacaoConteudoEsqueleto />
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Precificação
+        </h2>
+        <span className="flex shrink-0 items-center gap-1.5" aria-hidden="true">
+          <Skeleton className="h-3 w-14" />
+          <span className="text-xs text-ink-muted">{aberto ? "▾" : "▸"}</span>
+        </span>
+      </div>
+      {aberto && <PrecificacaoConteudoEsqueleto />}
     </section>
   );
 }
@@ -91,13 +104,26 @@ function useDebouncedCallback(fn: (valor: number) => void, delayMs: number) {
  * e na moeda local da região. Usado na ficha do lead e no grupo de busca
  * — quem chama só precisa passar nicho + texto da região (o mesmo usado
  * na busca/geocoding).
+ *
+ * `colapsavel` (só o grupo de `/leads` liga) troca o `<h2>` fixo por um
+ * botão que alterna `aberto`/`onToggleAberto` — o card nasce como uma
+ * linha (título + preço sugerido + seta) em vez do miolo inteiro, e quem
+ * chama é dono do estado persistido (ver `blocosAbertos` em
+ * `usePreferenciasListas`). Sem `colapsavel`, o comportamento é o de
+ * sempre: sempre expandido, sem seta — é o caso da ficha do lead.
  */
 export function PrecificacaoCard({
   nicho,
   regiaoTexto,
+  colapsavel = false,
+  aberto = true,
+  onToggleAberto,
 }: {
   nicho: string;
   regiaoTexto: string | undefined;
+  colapsavel?: boolean;
+  aberto?: boolean;
+  onToggleAberto?: () => void;
 }) {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -247,21 +273,50 @@ export function PrecificacaoCard({
 
   if (!regiaoTexto?.trim()) return null;
 
+  const mostrarConteudo = !colapsavel || aberto;
+
   return (
     <section className="rounded-lg border border-line bg-surface p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-        Precificação
-      </h2>
+      {colapsavel ? (
+        <button
+          type="button"
+          onClick={onToggleAberto}
+          aria-expanded={aberto}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Precificação
+          </h2>
+          <span className="flex shrink-0 items-center gap-1.5 text-xs">
+            {carregando ? (
+              <Skeleton className="h-3 w-14" />
+            ) : calculo ? (
+              <span className="font-medium text-foreground">
+                {formatBRL(calculo.precoSugerido)}
+              </span>
+            ) : erro ? (
+              <span className="text-critical">erro</span>
+            ) : null}
+            <span aria-hidden className="text-ink-muted">
+              {aberto ? "▾" : "▸"}
+            </span>
+          </span>
+        </button>
+      ) : (
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Precificação
+        </h2>
+      )}
 
-      {carregando && (
+      {mostrarConteudo && carregando && (
         <>
           <span className="sr-only">Calculando índice de mercado da região…</span>
           <PrecificacaoConteudoEsqueleto />
         </>
       )}
-      {erro && <p className="mt-1 text-xs text-critical">{erro}</p>}
+      {mostrarConteudo && erro && <p className="mt-1 text-xs text-critical">{erro}</p>}
 
-      {!carregando && regiaoData && calculo && (
+      {mostrarConteudo && !carregando && regiaoData && calculo && (
         <div className="mt-2 flex flex-col gap-2">
           <p className="text-xs text-ink-muted">
             {regiaoData.cidade}, {regiaoData.pais} ·{" "}
