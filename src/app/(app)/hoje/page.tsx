@@ -394,6 +394,10 @@ function ItemHoje({
   // barra (a fila é uma lista compacta), só o estado em palavras.
   const barra = barraDoDia(janelasContato, lead);
   const linhaJanela = barra && linhaEstadoContato(barra);
+  // "Hora boa" passa a sair das FAIXAS da família quando elas se aplicam
+  // (fuso conhecido); `melhorMomento` só diz "está aberto", que agora seria
+  // contradito pela própria linha ao lado ("agora: ruim").
+  const horaBoa = barra ? barra.nivelAgora === "bom" : momento?.agora === true;
   const telefoneIntl = lead.detalhes?.telefoneIntl ?? lead.telefoneIntl;
   const demoUrl =
     lead.demo && typeof window !== "undefined"
@@ -461,7 +465,7 @@ function ItemHoje({
           <span />
         )}
         <span className="flex shrink-0 items-center gap-3 text-xs">
-          {momento && (
+          {!barra && momento && (
             <span className={momento.agora ? "font-semibold text-good" : "text-ink-muted"}>
               {momento.agora ? "melhor momento: agora" : `melhor momento: ${momento.texto}`}
             </span>
@@ -473,7 +477,7 @@ function ItemHoje({
               target="_blank"
               rel="noopener noreferrer"
               className={
-                momento?.agora
+                horaBoa
                   ? "font-semibold text-good underline decoration-2 underline-offset-2"
                   : "font-semibold text-good hover:underline"
               }
@@ -496,7 +500,11 @@ function ItemHoje({
           </Link>
         </span>
       </div>
-      {linhaJanela && <p className="mt-1 text-right text-[11px] text-ink-muted">{linhaJanela}</p>}
+      {linhaJanela && (
+        <p className={`mt-1 text-right text-[11px] ${horaBoa ? "font-medium text-good" : "text-ink-muted"}`}>
+          {linhaJanela}
+        </p>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { BarraFaixasPreview } from "@/components/BarraDoDia";
 import { Button } from "@/components/Button";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { SkeletonRows } from "@/components/Skeleton";
@@ -1846,6 +1847,8 @@ function JanelaFamiliaEditor({
           );
         })}
       </div>
+
+      <BarraFaixasPreview faixas={faixas} className="mt-2" />
 
       <div className="mt-2 flex flex-col gap-2">
         {faixas.length === 0 && (
