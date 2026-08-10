@@ -393,6 +393,10 @@ export const api = {
     }),
   gerarAnaliseBusca: (id: string) =>
     request<{ busca: Busca }>(`/api/buscas/${id}/analise`, { method: "POST" }),
+  deleteDemosDoGrupo: (buscaId: string) =>
+    request<{ apagadas: number; busca: string }>(`/api/buscas/${buscaId}/demos`, {
+      method: "DELETE",
+    }),
 
   listLeads: (filters: {
     status?: string;
