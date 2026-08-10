@@ -9,6 +9,7 @@ import { ApiError, api } from "@/lib/api-client";
 import type { NomesUsuarios } from "@/lib/contato-selo";
 import { estadoAtual } from "@/lib/leads/horarios";
 import type { Lead } from "@/lib/leads/types";
+import type { Densidade } from "@/lib/usuarios/preferencias";
 
 const NOTAS_MAX = 500; // espelha o limite da rota PATCH
 
@@ -70,7 +71,7 @@ export function LeadCard({
   destaque,
   argumentoForte,
   nomes,
-  compacto,
+  densidade = 1,
   onChange,
 }: {
   lead: Lead;
@@ -85,13 +86,13 @@ export function LeadCard({
   /** id → nome, pra resolver o selo de contato (GET /api/usuarios/nomes). */
   nomes: NomesUsuarios;
   /**
-   * Modo compacto da LISTA (preferência do usuário): o card vira uma linha
-   * até alguém tocar nele. A expansão é por card e só local — abrir um não
-   * abre os outros nem desliga o modo da lista.
+   * Densidade da grade (cards por linha) — e, por tabela, quanto do card
+   * sobra: 1 é o card inteiro, e a partir de 2 o miolo vai saindo.
    */
-  compacto?: boolean;
+  densidade?: Densidade;
   onChange: (lead: Lead) => void;
 }) {
+  const compacto = densidade > 1;
   const [expandido, setExpandido] = useState(false);
   const [editandoNotas, setEditandoNotas] = useState(false);
   const [notasDraft, setNotasDraft] = useState(lead.notas ?? "");

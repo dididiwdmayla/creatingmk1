@@ -37,7 +37,7 @@ describe("GET /api/preferencias/listas", () => {
     expect((await GET(getReq())).status).toBe(401);
   });
 
-  it("usuário que nunca mexeu recebe o padrão (tudo aberto, sem compacto)", async () => {
+  it("usuário que nunca mexeu recebe o padrão (tudo aberto, densidade automática)", async () => {
     const cookie = await cookieDeSessao(db, { id: "m1" });
 
     const res = await GET(getReq(cookie));
@@ -45,7 +45,7 @@ describe("GET /api/preferencias/listas", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       preferencias: {
-        leadsCompacto: false,
+        densidade: { leads: null, buscas: null },
         gruposFechados: { leads: [], buscas: [] },
       },
     });
@@ -56,7 +56,7 @@ describe("GET /api/preferencias/listas", () => {
     db.seed("usuarios/m1", {
       ...(db.getDoc("usuarios/m1") as Record<string, unknown>),
       preferenciasListas: {
-        leadsCompacto: true,
+        densidade: { leads: 3, buscas: 2 },
         gruposFechados: { leads: ["b1"], buscas: ["mes:2026-08"] },
       },
     });
@@ -64,22 +64,54 @@ describe("GET /api/preferencias/listas", () => {
     const body = await (await GET(getReq(cookie))).json();
 
     expect(body.preferencias).toEqual({
-      leadsCompacto: true,
+      densidade: { leads: 3, buscas: 2 },
       gruposFechados: { leads: ["b1"], buscas: ["mes:2026-08"] },
     });
+  });
+
+  /**
+   * A migração do modo compacto legado (ver normalizaPreferenciasListas):
+   * doc que só conhece `leadsCompacto` abre no degrau 2 da densidade, sem
+   * código de migração à parte e sem nada para o usuário refazer.
+   */
+  it("doc com o modo compacto legado abre na densidade 2 de /leads", async () => {
+    const cookie = await cookieDeSessao(db, { id: "m1" });
+    db.seed("usuarios/m1", {
+      ...(db.getDoc("usuarios/m1") as Record<string, unknown>),
+      preferenciasListas: { leadsCompacto: true, gruposFechados: { leads: ["b1"] } },
+    });
+
+    const body = await (await GET(getReq(cookie))).json();
+
+    expect(body.preferencias).toEqual({
+      densidade: { leads: 2, buscas: null },
+      gruposFechados: { leads: ["b1"], buscas: [] },
+    });
+  });
+
+  it("densidade fora da escala 1–4 cai no automático", async () => {
+    const cookie = await cookieDeSessao(db, { id: "m1" });
+    db.seed("usuarios/m1", {
+      ...(db.getDoc("usuarios/m1") as Record<string, unknown>),
+      preferenciasListas: { densidade: { leads: 7, buscas: "2" } },
+    });
+
+    const body = await (await GET(getReq(cookie))).json();
+
+    expect(body.preferencias.densidade).toEqual({ leads: null, buscas: null });
   });
 
   it("doc sujo (formato antigo/errado) cai no padrão em vez de quebrar", async () => {
     const cookie = await cookieDeSessao(db, { id: "m1" });
     db.seed("usuarios/m1", {
       ...(db.getDoc("usuarios/m1") as Record<string, unknown>),
-      preferenciasListas: { leadsCompacto: "sim", gruposFechados: { leads: "b1" } },
+      preferenciasListas: { densidade: "2", gruposFechados: { leads: "b1" } },
     });
 
     const body = await (await GET(getReq(cookie))).json();
 
     expect(body.preferencias).toEqual({
-      leadsCompacto: false,
+      densidade: { leads: null, buscas: null },
       gruposFechados: { leads: [], buscas: [] },
     });
   });
@@ -87,7 +119,7 @@ describe("GET /api/preferencias/listas", () => {
 
 describe("PUT /api/preferencias/listas", () => {
   it("sem sessão → 401", async () => {
-    expect((await PUT(putReq({ leadsCompacto: true }))).status).toBe(401);
+    expect((await PUT(putReq({ densidade: { leads: 2 } }))).status).toBe(401);
   });
 
   it("corpo que não é objeto → 400", async () => {
@@ -102,19 +134,19 @@ describe("PUT /api/preferencias/listas", () => {
 
     const res = await PUT(
       putReq(
-        { leadsCompacto: true, gruposFechados: { leads: ["b1", "b1", "b2"] } },
+        { densidade: { leads: 4 }, gruposFechados: { leads: ["b1", "b1", "b2"] } },
         cookie,
       ),
     );
 
     expect(res.status).toBe(200);
     expect((await res.json()).preferencias).toEqual({
-      leadsCompacto: true,
+      densidade: { leads: 4, buscas: null },
       gruposFechados: { leads: ["b1", "b2"], buscas: [] },
     });
     expect(db.getDoc("usuarios/m1")).toMatchObject({
       preferenciasListas: {
-        leadsCompacto: true,
+        densidade: { leads: 4, buscas: null },
         gruposFechados: { leads: ["b1", "b2"], buscas: [] },
       },
     });
@@ -136,7 +168,7 @@ describe("PUT /api/preferencias/listas", () => {
     const cookie = await cookieDeSessao(db, { id: "m1" });
     const antes = db.getDoc("usuarios/m1") as Record<string, unknown>;
 
-    await PUT(putReq({ leadsCompacto: true }, cookie));
+    await PUT(putReq({ densidade: { leads: 2 } }, cookie));
 
     const depois = db.getDoc("usuarios/m1") as Record<string, unknown>;
     expect(depois.sessao).toBe(antes.sessao);

@@ -9,6 +9,7 @@ import { CapturasLoteAcao } from "@/components/capturas/CapturasLoteAcao";
 import { GerarDemosLoteDialog } from "@/components/GerarDemosLoteDialog";
 import { CabecalhoBusca } from "@/components/CabecalhoBusca";
 import { LeadCard } from "@/components/LeadCard";
+import { GRADE_DENSIDADE, SeletorDensidade } from "@/components/SeletorDensidade";
 import { usePreferenciasListas } from "@/components/usePreferenciasListas";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { RadarSweep } from "@/components/RadarSweep";
@@ -161,9 +162,9 @@ function LeadsPageInner() {
   const agrupar = searchParams.get("plano") !== "1";
   const ordem = (searchParams.get("ordem") ?? "recentes") as "recentes" | "prioridade";
 
-  // Grupos dobrados e modo compacto NÃO moram na URL: são preferência do
+  // Grupos dobrados e densidade NÃO moram na URL: são preferência do
   // usuário, persistida no doc dele (ver "Compactação de /leads e /buscas").
-  const { preferencias, alternarGrupoLista, definirLeadsCompacto } =
+  const { preferencias, pronto, densidadeDe, alternarGrupoLista, definirDensidadeLista } =
     usePreferenciasListas();
   const fechados = useMemo(
     () => new Set(preferencias?.gruposFechados.leads ?? []),
@@ -555,7 +556,8 @@ function LeadsPageInner() {
   // Top da lista toda quando plana; top DENTRO de cada grupo quando agrupado.
   const topFlat = !agrupado && leadsOrdenados ? topScoreIds(leadsOrdenados) : new Set<string>();
   const buscaAtual = buscaId ? buscas.find((b) => b.id === buscaId) : undefined;
-  const compactoAtivo = preferencias?.leadsCompacto === true;
+  const densidade = densidadeDe("leads");
+  const grade = `grid gap-2 ${GRADE_DENSIDADE[densidade]}`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -890,27 +892,15 @@ function LeadsPageInner() {
           <option value="recentes">Ordenar: mais recentes</option>
           <option value="prioridade">Ordenar: por prioridade</option>
         </select>
-        {/* Alternância do modo da lista, junto dos filtros: mesma largura
-            nos dois estados (o rótulo é o MODO, não a ação) — um botão que
-            mudasse de tamanho ao alternar empurraria a barra de filtros. */}
-        <button
-          type="button"
-          onClick={() => definirLeadsCompacto(!compactoAtivo)}
-          aria-pressed={compactoAtivo}
-          disabled={preferencias === null}
-          title={
-            compactoAtivo
-              ? "Cada lead numa linha — toque num card para expandir só ele"
-              : "Card inteiro de cada lead"
-          }
-          className={`rounded border px-2 py-1.5 text-xs disabled:opacity-50 ${
-            compactoAtivo
-              ? "border-accent/60 bg-accent/10 text-accent"
-              : "border-line bg-surface-2 text-ink-secondary hover:text-foreground"
-          }`}
-        >
-          <span aria-hidden>≡</span> {compactoAtivo ? "Compacto" : "Completo"}
-        </button>
+        {/* Densidade da grade, no lugar do antigo "≡ Compacto/Completo":
+            governa a mesma coisa (quanto do card aparece) com um controle
+            só, e cada botão tem largura fixa — um controle que mudasse de
+            tamanho ao alternar empurraria a barra de filtros. */}
+        <SeletorDensidade
+          valor={densidade}
+          onEscolher={(escolhida) => definirDensidadeLista("leads", escolhida)}
+          desabilitado={!pronto}
+        />
         {!buscaId && (
           <label className="ml-auto flex items-center gap-1.5 text-xs text-ink-secondary">
             <input
@@ -926,7 +916,7 @@ function LeadsPageInner() {
 
       {erroLista && <p className="text-sm text-critical">{erroLista}</p>}
 
-      {leads === null || preferencias === null ? (
+      {leads === null || !pronto ? (
         <SkeletonRows count={4} className="h-24 rounded-lg border border-line" />
       ) : leads.length === 0 ? (
         <p className="text-sm text-ink-muted">
@@ -950,9 +940,9 @@ function LeadsPageInner() {
                   nomes={nomes}
                 />
                 {!fechado && (
-                  <ul className="mt-1.5 flex flex-col gap-2">
+                  <ul className={`mt-1.5 ${grade}`}>
                     {grupo.itens.map((lead) => (
-                      <li key={`${grupo.chave}-${lead.placeId}`}>
+                      <li key={`${grupo.chave}-${lead.placeId}`} className="min-w-0">
                         <LeadCard
                           lead={lead}
                           cores={cores}
@@ -960,7 +950,7 @@ function LeadsPageInner() {
                           destaque={topDoGrupo.has(lead.placeId)}
                           argumentoForte={leadArgumentoForte(lead, buscas)}
                           nomes={nomes}
-                          compacto={compactoAtivo}
+                          densidade={densidade}
                           onChange={onLeadChange}
                         />
                       </li>
@@ -972,9 +962,9 @@ function LeadsPageInner() {
           })}
         </div>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className={grade}>
           {(leadsOrdenados ?? []).map((lead) => (
-            <li key={lead.placeId}>
+            <li key={lead.placeId} className="min-w-0">
               <LeadCard
                 lead={lead}
                 cores={cores}
@@ -982,7 +972,7 @@ function LeadsPageInner() {
                 destaque={topFlat.has(lead.placeId)}
                 argumentoForte={leadArgumentoForte(lead, buscas)}
                 nomes={nomes}
-                compacto={compactoAtivo}
+                densidade={densidade}
                 onChange={onLeadChange}
               />
             </li>
