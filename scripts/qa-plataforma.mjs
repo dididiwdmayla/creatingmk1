@@ -303,6 +303,10 @@ function semear() {
       siteProprio: true,
       siteUrl: "https://sorrisoecia.com.br",
       contato: { primeiroContatoEm: iso(7), primeiroContatoPor: "membro-1" },
+      // `seloContato` (clique no WhatsApp) é campo DIFERENTE de `contato`
+      // (mudança de status) — sem semear este aqui, a faixa amarela de
+      // "já contatou" (densidades 2-4) nunca aparece em nenhuma captura.
+      seloContato: { userId: "membro-1", em: iso(7) },
       detalhes: { telefone: "(51) 3333-1000", rating: 4.6, totalAvaliacoes: 88 },
     }),
     lead("lead-3", "Dental Prime", "respondeu", {
@@ -337,6 +341,7 @@ function semear() {
       siteProprio: false,
       siteUrl: "https://instagram.com/clinicaaurora",
       contato: { primeiroContatoEm: iso(9), primeiroContatoPor: "admin" },
+      seloContato: { userId: "admin", em: iso(9) },
     }),
     // Nome longo: é ele que prova que a linha do modo compacto TRUNCA em
     // vez de empurrar selo/score pra fora da tela do celular.
