@@ -305,9 +305,9 @@ function BuscasPageInner() {
             // aberto não é o que se está comparando de relance.
             <li
               key={busca.id}
-              className={`min-w-0 rounded-lg border border-line bg-surface px-2 py-1 ${
-                fechada ? "" : "col-span-full"
-              }`}
+              className={`min-w-0 rounded-lg border border-line bg-surface py-1 ${
+                fechada && densidade >= 3 ? "px-1" : "px-2"
+              } ${fechada ? "" : "col-span-full"}`}
             >
               <CabecalhoBusca
                 titulo={busca.nome}

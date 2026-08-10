@@ -1888,6 +1888,31 @@ vez de sumir) e o selo "recorrente" saiu já na densidade 2. Nenhuma
 captura denunciaria isso sozinha — a faixa continuava com altura, cor e
 contagem; o que faltava era o nome.
 
+**E o que só a CAPTURA achou, com o portão já verde**: nas mesmas faixas,
+o nome vinha como "D..". Três causas somadas, nenhuma delas caixa zerada —
+por isso o portão passou e o olho não:
+
+1. o atalho "leads →" (~60px) é irmão do botão de dobrar, então disputa a
+   MESMA linha do nome, não a da procedência. Saiu na densidade 2 (a busca
+   aberta volta à densidade 1 e o recupera);
+2. `line-clamp-2` **nunca cortou nada**, desde antes desta rodada: o clamp
+   precisa de `display: -webkit-box` e a utility `block`, na mesma
+   declaração, vence na cascata. Em largura cheia a procedência já cabia em
+   duas linhas e ninguém notou; na faixa de ~170px ela foi para quatro. O
+   `block` saiu;
+3. a contagem custa ~44px com a pílula — metade do nome numa faixa de
+   ~100px. Ficou só até a densidade 2.
+
+É a mesma lição do ponto de cor, na direção contrária: **o portão pega o
+que sumiu, a captura pega o que ficou ilegível.** Nenhum dos dois substitui
+o outro.
+
+**O limite honesto da densidade 4 no celular**: 390px divididos em quatro
+dão ~85px por coluna, e o nome sobra em 3–4 caracteres. Quem identifica ali
+é a COR, que é justamente o que a densidade 4 promete mostrar — duas buscas
+do mesmo nicho ficam distinguíveis pelo ponto, não pelo texto. É também por
+isso que o padrão automático do celular é 1, e não a densidade máxima.
+
 **O que a captura achou e a leitura de código não acharia**: além do ponto
 sumido, a data do cabeçalho contradizendo o grupo — "01/08" dentro de
 "Julho de 2026", porque o agrupamento resolvia o mês em São Paulo e a data

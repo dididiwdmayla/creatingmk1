@@ -80,7 +80,10 @@ export function CabecalhoBusca({
     : "";
   const comProcedencia = densidade <= 2;
   const comDataEAutor = densidade === 1;
-  const comContagem = densidade <= 3;
+  // A contagem custa ~44px com a pílula. Numa faixa de ~100px (3 colunas
+  // no celular) isso é metade do nome — e nome é o que a faixa existe para
+  // dizer. Ela fica só onde cabe sem comer a identificação.
+  const comContagem = densidade <= 2;
   // O selo "recorrente" some já na densidade 2: ele tem largura fixa de
   // ~68px e, numa faixa de ~170px, comia o nome inteiro — foi assim que o
   // portão de slots pegou o título em 0×20. A recorrência continua visível
@@ -158,7 +161,16 @@ export function CabecalhoBusca({
           )}
         </span>
         {busca && comProcedencia && (
-          <span className="mt-0.5 line-clamp-2 block text-[11px] text-ink-muted">
+          // Sem `block` junto: `line-clamp-*` PRECISA de
+          // `display: -webkit-box`, e a utility `block` vence a do clamp na
+          // cascata — com as duas, o clamp nunca cortou nada. Em largura
+          // cheia isso não aparecia (a procedência já cabia em duas
+          // linhas); na faixa de ~170px da densidade 2 ela foi para quatro.
+          <span
+            className={`mt-0.5 text-[11px] text-ink-muted ${
+              densidade === 1 ? "line-clamp-2" : "line-clamp-1"
+            }`}
+          >
             {procedencia}
             {comDataEAutor && (
               <>
@@ -170,7 +182,11 @@ export function CabecalhoBusca({
           </span>
         )}
       </button>
-      {densidade <= 2 ? acoes : null}
+      {/* As ações saem já na densidade 2: "leads →" mede ~60px e disputa a
+          MESMA linha do nome (é irmã do botão de dobrar, não da
+          procedência) — com ela ali, o nome da busca virava "D..". Na
+          busca aberta, que volta à densidade 1, o atalho reaparece. */}
+      {densidade === 1 ? acoes : null}
     </div>
   );
 }
