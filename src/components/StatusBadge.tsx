@@ -38,16 +38,50 @@ const STYLES: Record<
   },
 };
 
-export function StatusBadge({ status }: { status: LeadStatus }) {
+/**
+ * Três tamanhos, um significado. Nas densidades altas da grade não cabe
+ * "CONTACTADO" escrito ao lado do nome — mas encolher NÃO pode virar "só a
+ * cor decide", que é a regra que este componente existe para segurar. Por
+ * isso o que sai é o texto VISÍVEL, nunca os outros dois canais: o glifo de
+ * progresso (○◐◑●) e a forma (quadrada no começo do funil, pill no fim)
+ * continuam nos três, e o rótulo por extenso segue legível por leitor de
+ * tela e por `title`.
+ */
+export type VarianteStatus = "completo" | "glifo" | "ponto";
+
+export function StatusBadge({
+  status,
+  variante = "completo",
+}: {
+  status: LeadStatus;
+  variante?: VarianteStatus;
+}) {
   const { label, className, shape, mark } = STYLES[status];
+
+  if (variante === "completo") {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${shape} ${className}`}
+      >
+        <span aria-hidden className="text-[0.65rem] leading-none">
+          {mark}
+        </span>
+        {label}
+      </span>
+    );
+  }
+
+  // Caixa com altura e largura EXPLÍCITAS: o glifo sozinho não dá corpo ao
+  // elemento, e um selo de caixa zerada some da tela sem quebrar nada (ver
+  // [data-ponto-busca] e o portão de --so=listas).
+  const caixa = variante === "ponto" ? "h-3.5 w-3.5 text-[7px]" : "h-5 w-5 text-[10px]";
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${shape} ${className}`}
+      title={label}
+      className={`inline-flex shrink-0 items-center justify-center leading-none ${caixa} ${shape} ${className}`}
     >
-      <span aria-hidden className="text-[0.65rem] leading-none">
-        {mark}
-      </span>
-      {label}
+      <span aria-hidden>{mark}</span>
+      <span className="sr-only">{label}</span>
     </span>
   );
 }
