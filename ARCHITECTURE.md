@@ -168,6 +168,8 @@ src/
       metrics.ts                    # ✅ contatosHoje/contatosSemana/taxaResposta
       score.ts                      # ✅ score de priorização por regras (ordenação + badge)
       horarios.ts                   # ✅ estadoAtual/melhorMomento: funções puras sobre lead.horarios (fuso do lead)
+      janelaContato.ts              # ✅ faixas de nível (bom/razoável/ruim) por família e por dia da semana + defaults e validação (ver "Barra do dia")
+      barraDoDia.ts                 # ✅ funções PURAS: faixas ∩ horário de funcionamento → trechos da barra, marcador de agora, próximo bom
       hoje.ts                       # ✅ montarFilaDoDia: seleção pura das 3 seções de /hoje
       penetracao.ts                 # ✅ calcularPenetracaoSite/argumentoPenetracao/argumentoForte (ver "Penetração de site")
     frases/                         # ✅ frases de prospecção por SKIN (ver seção própria)
@@ -262,6 +264,7 @@ src/
     MetaProgresso.tsx               # ✅ barra de progresso de UMA meta (dia OU semana) — polaridade oposta ao UsageMeter (mais uso é melhor, nunca "crítico"); só renderiza quando a janela tem `meta`
     PrecificacaoCard.tsx            # ✅ card "Precificação": slider + cálculo ao vivo + edição de índice (admin) — ver seção própria
     LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site, badge "argumento forte"
+    BarraDoDia.tsx                  # ✅ a barra do dia da ficha (cor + ALTURA + legenda + descrição) e a prévia das faixas em /config
     PageTransition.tsx              # fade-in de página por troca de rota (client)
     RadarSweep.tsx                  # decoração de sweep de radar (CSS puro)
     demos/                          # ✅ skins da Forja de Demos (um pacote por skin)
@@ -494,6 +497,16 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
       "barbearia-editorial": ["hero", "servicos", "depoimentos"]
     }
   },
+  "janelasContato": {                           // ✅ faixas de nível por família e por dia (ver "Barra do dia")
+    "barbearia": {
+      "dias": {                                 // 0=domingo…6=sábado; dia ausente/vazio = DESMARCADO
+        "2": [                                  // terça
+          { "inicio": { "hora": 9, "minuto": 0 },  "fim": { "hora": 11, "minuto": 30 }, "nivel": "bom" },
+          { "inicio": { "hora": 16, "minuto": 30 }, "fim": { "hora": 20, "minuto": 0 },  "nivel": "ruim" }
+        ]
+      }
+    }
+  },
   "atualizadoEm": "<timestamp>"
 }
 ```
@@ -501,6 +514,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
 Observações:
 - Os **filtros "tem site/telefone" são filtros de listagem**, não de busca. O filtro de site usa a classificação **`siteProprio`** (rede social/agregador conta como SEM site próprio — ver "Classificação de site próprio"); vale para leads enriquecidos E para leads da **busca qualificada**. Telefone vale após enriquecer ou pela qualificada. Leads sem informação aparecem como "desconhecido" e ficam fora de com/sem.
 - `caps` é o teto de segurança (hard stop). `precos.cotaGratis` é informativo (dashboard e projeção de custo). Por default o teto = cota grátis, ou seja, o app nunca gasta um centavo sem o usuário aumentar o teto conscientemente.
+- `janelasContato` é editado em /config, com merge **por família** (mesma ideia de `capturas.ancoras`). Só o que é opinião fica gravado: minuto aberto que nenhuma faixa cobre vale `razoavel`. Família gravada no formato ANTIGO (a janela ideal/alternativa que a barra do dia substituiu) é descartada na leitura em favor do padrão novo — ver "Barra do dia por família".
 - `capturas.ancoras` é marcado em `/interno/capturas`, não em /config: o merge é **por skin** (marcar uma não apaga as outras), lista vazia significa "não capturar esta skin", e skin/seção fora do registro são rejeitadas com 400. Skin ausente do doc cai no padrão do código.
 - **Migração de SKU (jul/2026)**: `detailsPro` foi renomeado para `detailsEnterprise` (a tabela do Google classifica telefone/site/rating como tier Enterprise). Docs antigos com chaves `detailsPro` em `caps`/`precos` são lidos via alias e regravados com o nome novo; PUTs novos com o nome antigo são rejeitados (400).
 
@@ -853,7 +867,7 @@ Semântica fixa:
 - **Busca qualificada (`qualificada: true`, checkbox "Só sem site")**: field mask ganha `places.websiteUri` + telefones e a chamada passa a contar no SKU **textSearchEnterprise** (tier Enterprise, cota grátis 1.000/mês). Como o campo foi pedido no mask, a resposta é **definitiva**: todo lead volta com `temSite` e `siteProprio` preenchidos (ausência de `websiteUri` = `false`, nunca "desconhecido"). URL de rede social/agregador → `siteProprio: false` (ver "Classificação de site próprio") — o lead aparece no filtro "sem site próprio" e é destacado como quente. Sem o checkbox, a busca continua no mask básico (SKU textSearch) e site/telefone ficam desconhecidos.
 - **Enriquecimento automático pós-busca é do cliente, não do servidor**: a página de leads, com o checkbox ligado, chama `POST /enrich` **em série** para os primeiros N resultados ainda não enriquecidos (N ≤ 5, default desligado). Cada chamada passa pelo `reserveQuota` normal do servidor; no primeiro `429` o loop para e a UI informa quantos foram feitos. Não existe rota de enriquecimento em lote — mantém o princípio "enriquecimento sob demanda" com um único caminho de cota.
 - `/api/leads/[id]/enrich` grava `detalhes`, marca `enriquecido: true`. Lead já enriquecido **retorna do cache sempre** — re-enriquecimento não existe. **Horário de funcionamento é buscado JUNTO** (2 requests distintos ao Google, um por SKU: `detailsEnterprise` para `detalhes`, `detailsProHours` — tier Pro, cota grátis própria de 5.000/mês — para `horarios`). Falha no 2º request (teto do Pro estourado, erro do Google) não derruba o enriquecimento principal, já persistido — o lead fica sem `horarios` e o botão dedicado "buscar horários" da ficha cobre depois. `/api/leads/[id]/horarios` é a rota desse botão: busca só o SKU novo (idempotente — lead com `horarios` retorna do cache), pensada para leads enriquecidos ANTES desta feature (têm `detalhes`, não têm `horarios`).
-- **Estado atual e "melhor momento pra contatar"** (`src/lib/leads/horarios.ts`, funções puras `estadoAtual`/`melhorMomento` sobre `lead.horarios` + um `now`): os períodos do Google vêm em hora LOCAL do lugar, então o cálculo desloca `now` por `utcOffsetMinutes` em vez de depender do fuso da máquina — sem `utcOffsetMinutes` ou sem `faixas`, as duas funções devolvem `null` (nada é mostrado). `estadoAtual` monta "Aberto agora · fecha Xh" / "Fechado · abre Xh" (ficha e `LeadCard`); `melhorMomento` sugere **agora** se aberto (destaque verde no botão WhatsApp da ficha) ou a **próxima abertura + 1h** se fechado, com prefixo "hoje"/"amanhã"/dia da semana conforme a distância ("amanhã ~10h") — exibido na ficha e ao lado de cada item da fila em `/hoje`. Faixas que cruzam a meia-noite (madrugada) são representadas com o dia de fechamento podendo ser o seguinte; a implementação testa fusos diferentes, madrugada e fechamento num dia específico (domingo).
+- **Estado atual e "melhor momento pra contatar"** (`src/lib/leads/horarios.ts`, funções puras `estadoAtual`/`melhorMomento` sobre `lead.horarios` + um `now`): os períodos do Google vêm em hora LOCAL do lugar, então o cálculo desloca `now` por `utcOffsetMinutes` em vez de depender do fuso da máquina — sem `utcOffsetMinutes` ou sem `faixas`, as duas funções devolvem `null` (nada é mostrado). `estadoAtual` monta "Aberto agora · fecha Xh" / "Fechado · abre Xh" (ficha e `LeadCard`); `melhorMomento` sugere **agora** se aberto (destaque verde no botão WhatsApp da ficha) ou a **próxima abertura + 1h** se fechado, com prefixo "hoje"/"amanhã"/dia da semana conforme a distância ("amanhã ~10h") — exibido na ficha e ao lado de cada item da fila em `/hoje`. Faixas que cruzam a meia-noite (madrugada) são representadas com o dia de fechamento podendo ser o seguinte; a implementação testa fusos diferentes, madrugada e fechamento num dia específico (domingo). **O destaque de "hora boa" no botão de WhatsApp não é mais dele**: passou para o nível da barra do dia quando o fuso do lead é conhecido (ver "Barra do dia por família") — `melhorMomento` só sabe dizer "está aberto", e ao lado de uma barra dizendo "agora: ruim" isso se contradizia.
 - O botão WhatsApp é montado **no cliente** a partir de dados já persistidos (`wa.me/<telefoneIntl sem símbolos>?text=<mensagem com os marcadores substituídos>`) — não há rota nem chamada externa. O telefone da **busca qualificada** já sustenta o botão sem enriquecer. A mensagem usada segue a precedência **frases da skin da demo → mensagem do grupo → mensagem global** (ver "Frases de prospecção por skin"): sem demo, ou sem nenhuma frase cadastrada naquela skin, o comportamento é exatamente o antigo — a do grupo (busca mais recente do lead que tiver `mensagemPadrao` própria) e, na falta, a global da config.
 - **Descarte suave** (`descartado: true` via PATCH): o lead não é deletado — vai pro fim da lista com marcação e pode ser restaurado. Reversível por design: apagar de verdade perderia o histórico de contato.
 - `/api/metrics`: "hoje" usa o dia corrente em UTC (mesma convenção do período de custos); "semana" é uma janela rolante dos últimos 7 dias (não semana de calendário). `taxaResposta` é `leads com respondeuEm ÷ leads com primeiroContatoEm`, `0` (não `NaN`) sem contatos.
@@ -1756,6 +1770,34 @@ Abordagem que varia pela SKIN da demo em vez de um texto único para todo mundo,
     - As três frases vão numa chamada só (dá contexto ao modelo e custa 1 request em vez de 3).
 
 12. **A tela de administração** (seção em `/config`, PUT restrito ao admin) lista **uma linha por skin do registro**, com os conjuntos já salvos por cima — skin nova aparece sozinha na próxima carga. O nome e o nicho da skin vêm resolvidos do SERVIDOR (`montarConjuntos`), porque importar `SKINS` numa tela do app arrastaria os componentes das 8 skins para o bundle de `/config` só pra escrever um título. Cada conjunto salva sozinho e mostra em que ponto da rotação o time está ("na vez: frase 2 de 3") ou avisa que aquela skin não participa. É o ÚLTIMO bloco da página de propósito: a lista tem tamanho variável e chega depois do primeiro desenho — no meio da página empurraria o formulário inteiro a cada carga (ver "Deslocamento de layout").
+
+## Barra do dia por família (`src/lib/leads/{janelaContato,barraDoDia}.ts` + `src/components/BarraDoDia.tsx`)
+
+"Qual a hora de falar com este lead" era UMA janela por família (ideal + alternativa opcional) e um rótulo por dia da semana (recomendado / pouco indicado / não abordar). O defeito era estrutural: a recomendação mostrava uma janela só, e quando ela passava saltava direto para o dia seguinte — o resto do dia do lead simplesmente não existia na tela. No lugar dela entra a **barra do dia**: o expediente inteiro, pintado em três níveis.
+
+1. **Três níveis, e só três** — `bom`, `razoavel`, `ruim`. A tabela (`/config/app.janelasContato`, editável em /config **sem deploy**) guarda faixas de nível ao longo do dia, **por família de negócio e por dia da semana**. Tudo determinístico: nenhuma IA gera horário aqui, como em `multiplicadoresNicho` (precificação) e nas âncoras de captura.
+
+2. **A tabela só guarda o que é OPINIÃO.** Minuto aberto que nenhuma faixa cobre vale `razoavel` (`NIVEL_PADRAO`) — o neutro. É isso que deixa "fim de semana desmarcado" ser representável sem inventar um quarto nível: dia com lista vazia é dia sobre o qual a tabela não opina, não dia proibido. O modelo antigo precisava de um `indisponivel` justamente porque não sabia dizer "não tenho opinião".
+
+3. **O padrão por família** (`DEFAULT_JANELAS_CONTATO`): barbearia boa de manhã e ruim no fim de tarde; lancheria ruim nos picos de almoço e janta, boa no meio da tarde; tatuagem boa no início da tarde; imobiliária boa em meados de manhã e no meio da tarde; petshop e multimarcas bons no meio da tarde. **Sexta** sai do padrão de segunda a quinta com todo `bom` rebaixado a `razoavel` (vale menos, mas não é dia ruim inteiro — rebaixar os `ruim` também pintaria a sexta de vermelho e diria uma coisa mais forte do que "menos indicada"). **Fim de semana desmarcado**, com UMA exceção deliberada: o **sábado da barbearia é `ruim` o dia inteiro**, porque é o movimento deles — a instrução específica vence a regra geral, e ela é editável como qualquer outra.
+
+4. **A barra cobre apenas o intervalo ABERTO** (`barraDoDia`, função pura, `now` sempre vem de fora): as faixas da família são recortadas pelo horário de funcionamento já salvo (`lead.horarios`, SKU `detailsProHours`) e o que sobra são os trechos abertos, cada um com o seu nível. Fechado pro almoço vira **buraco** na trilha, não faixa vermelha — **vermelho quer dizer "aberto, mas hora ruim"**, e pintar o fechado repetiria com cor o que a ausência já diz. Dia inteiro fechado não desenha faixa nenhuma, só "fechado hoje" em palavras. Faixa que cruza a meia-noite entra recortada nos dois dias que toca (mesma convenção de `horarios.ts`).
+
+5. **Sem fuso, sem barra.** O deslocamento vem de `horarios.utcOffsetMinutes` ou, na falta dele, do país do endereço (`utcOffsetDoLead`); sem nenhum dos dois, `barraDoDia` devolve `undefined` e a ficha não desenha nada — melhor faltar do que mostrar hora errada. **Sem horário de funcionamento** (mas com fuso), a barra usa o intervalo comercial 9h-18h e a linha de texto avisa "horário estimado".
+
+6. **Cor nunca é o único canal** (a regra de legibilidade do projeto vale aqui): cada nível tem também uma **altura** dentro da trilha — bom preenche inteiro, razoável pouco mais da metade, ruim uma tira baixa —, a legenda repete os três em palavras com a mesma escada de altura, cada trecho tem `title` com hora e nível, a barra inteira tem `aria-label` descrevendo a sequência, e a **linha curta abaixo** (`linhaEstadoContato`) diz o estado atual e o próximo momento bom sem depender de nada visual: "Hora do lead 17h · agora: ruim · próximo bom amanhã 9h". Nenhum gradiente entra na barra — os retângulos são cor chapada, e o `globals.css` não ganhou seletor nenhum (o teste de legibilidade continua com a mesma lista).
+
+7. **Altura reservada desde o primeiro desenho.** Eixo, trilha, legenda e a linha de texto (duas linhas reservadas) têm altura fixa, e o bloco na ficha reserva o espaço **sempre que o horário de funcionamento ainda pode chegar** — isto é, enquanto o botão "buscar horários" existe. Assim a resposta dessa busca troca o CONTEÚDO da barra (estimativa → expediente real, ou nada → barra) sem empurrar o que está abaixo. Sem fuso e sem horário por vir, o bloco nem existe. Ver "Deslocamento de layout".
+
+8. **"É hora boa?" passou a sair das faixas.** O anel do botão de WhatsApp e a linha ao lado dele (ficha e `/hoje`) usavam `melhorMomento`, que só sabe dizer "está aberto" — ao lado de uma barra dizendo "agora: ruim" isso vira contradição na mesma tela. Agora, quando a barra existe, quem decide o destaque é `nivelAgora === "bom"` e a linha é a MESMA frase da barra; sem fuso conhecido, tudo volta ao comportamento anterior (`melhorMomento` intacto, ele continua sendo o dono de "Aberto agora · fecha 18h").
+
+9. **`/hoje` não ganhou barra**, de propósito: a fila é uma lista compacta de cards, e uma barra por item viraria ruído. Cada item mostra a mesma **linha de texto** — uma verdade só sobre "é hora?", nas duas telas.
+
+10. **A tela de edição** (seção "Faixas de contato por família" em /config): os 7 dias como abas por família (o chip mostra quantas faixas o dia tem, ou "—" quando desmarcado), a prévia da barra daquele dia sobre as 24h com as MESMAS cores e alturas da ficha, e cada faixa com início, fim e o nível em três botões. "Aplicar a seg–qui" copia o dia editado para os outros dias úteis. A validação recusa hora fora de faixa, fim ≤ início, nível desconhecido e **faixas sobrepostas no mesmo dia** — com sobreposição, "qual nível vale às 15h" passaria a depender da ordem da lista e a barra deixaria de ser determinística.
+
+11. **Doc antigo não derruba a barra** (`mesclarJanelasContato`): o `/config/app` gravado antes desta troca guarda o formato da janela ideal/alternativa. O merge é por família e **descarta a família que não bate com o modelo atual**, caindo no padrão novo. Sem essa peneira, a família velha substituiria a nova e a ficha ficaria sem barra até alguém reabrir /config e salvar.
+
+12. **O registro do disparo continua igual** (`Lead.registrosEnvio` + `horarioLocalNoDisparo`): cada clique no botão de WhatsApp grava a hora e o dia da semana LOCAIS do lead. Nada disso é analisado ainda — é o material para comparar taxa de resposta **por faixa** mais adiante, que é justamente o que a barra passa a tornar comparável.
 
 ## Mensagens entre usuários (`src/lib/mensagens` + `/mensagens`)
 
