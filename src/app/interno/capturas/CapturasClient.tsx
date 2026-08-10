@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "@/lib/api-client";
 import { CAPTURAS_MAX_ANCORAS } from "@/lib/demos/capturas/ancoras";
-import { medirSecao, neutralizarCromo, prepararPagina } from "@/lib/demos/capturas/dom.mjs";
+import {
+  forcarRevelacaoDasSecoes,
+  medirSecao,
+  neutralizarCromo,
+  prepararPagina,
+} from "@/lib/demos/capturas/dom.mjs";
 import { FATIAS_MAX, LIMITE_FATIA_UNICA } from "@/lib/demos/capturas/moldura.mjs";
 
 /**
@@ -339,6 +344,7 @@ function PreviaEnquadramento({
     // iframe. É o que impede a prévia de prometer um enquadramento
     // diferente do que a captura entrega.
     prepararPagina({ alturaTela: altura }, win)
+      .then(() => forcarRevelacaoDasSecoes({}, win))
       .then(async () => {
         // 1ª medida, altura real da tela: só aqui `100vh` vale o que deve.
         const verdadeira = medirSecao(secaoId, win);
