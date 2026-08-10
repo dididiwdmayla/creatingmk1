@@ -10,6 +10,7 @@ import {
   ApiError,
   api,
   type CotasUsuariosResponse,
+  type FrasesResponse,
   type MetasUsuariosResponse,
   type UsageResponse,
 } from "@/lib/api-client";
@@ -20,6 +21,9 @@ import {
   type PresetPrecificacao,
 } from "@/lib/config";
 import type { Sku, UsoUsuario } from "@/lib/costs";
+import { chaveNicho } from "@/lib/frases/chave";
+import { frasesEfetivas, normalizarSlots, posicaoAtual } from "@/lib/frases/rotacao";
+import { CHAVE_GENERICAS, FRASES_SLOTS, type FrasesProspeccao } from "@/lib/frases/types";
 import { SLIDER_MAX_BRL, SLIDER_MIN_BRL, SLIDER_STEP_BRL } from "@/lib/precificacao/calc";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
 import type { LimitesUsuario, MetasUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
@@ -411,6 +415,16 @@ export default function ConfigPage() {
         Salvar
       </Button>
       </form>
+      {/*
+        Última seção da página DE PROPÓSITO: a lista de nichos tem tamanho
+        variável (cresce com as buscas) e só chega depois do primeiro
+        desenho — no meio da página ela empurraria o formulário inteiro pra
+        baixo a cada carga. Sendo o último bloco, não há nada abaixo pra
+        deslocar, que é a mesma razão de efeito/LED serem `fixed` nas demos
+        (ver ARCHITECTURE.md, "Deslocamento de layout"). Ela tem salvamento
+        próprio, então também não pertence ao formulário acima.
+      */}
+      <FrasesSection />
     </div>
   );
 }
@@ -965,6 +979,220 @@ function MetasUsuariosSection() {
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </section>
+  );
+}
+
+/**
+ * Frases de abordagem por nicho (ver "Frases de prospecção por nicho" no
+ * ARCHITECTURE.md). A lista vem pronta de GET /api/frases: TODO nicho que já
+ * apareceu em alguma busca, mais os que já têm frases salvas — nicho novo
+ * aparece sozinho aqui na próxima carga, sem cadastro manual e sem deploy.
+ *
+ * Cada conjunto salva sozinho (PUT de um conjunto por vez), como as demais
+ * seções auto-suficientes desta página — por isso vive FORA do formulário
+ * principal, que tem um "Salvar" só para a config.
+ */
+function FrasesSection() {
+  const [dados, setDados] = useState<FrasesResponse | null>(null);
+  // Rascunho por conjunto (chave do nicho normalizada, ou a do genérico):
+  // o que está nas caixas de texto antes de salvar.
+  const [rascunhos, setRascunhos] = useState<Record<string, string[]>>({});
+  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState<string | null>(null);
+  const [salvo, setSalvo] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .listFrases()
+      .then((resposta) => {
+        if (ignore) return;
+        setDados(resposta);
+        setRascunhos(rascunhosDe(resposta));
+        setErro(null);
+      })
+      .catch((error) => {
+        if (ignore) return;
+        setErro(error instanceof ApiError ? error.message : "Falha ao carregar as frases.");
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function salvar(chave: string, nicho: string | null) {
+    setSalvando(chave);
+    setErro(null);
+    setSalvo(null);
+    try {
+      const { conjunto } = await api.salvarFrases(nicho, rascunhos[chave] ?? []);
+      setDados((atual) => (atual ? aplicarConjunto(atual, chave, conjunto) : atual));
+      setRascunhos((atual) => ({ ...atual, [chave]: normalizarSlots(conjunto.frases) }));
+      setSalvo(chave);
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : "Falha ao salvar as frases.");
+    } finally {
+      setSalvando(null);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+        Frases de prospecção por nicho
+      </h2>
+      <p className="mt-1 text-xs text-ink-muted">
+        Três frases por nicho, girando 1 → 2 → 3 → 1. O contador é único por nicho e vale para
+        o time inteiro; ele só anda no clique de enviar pro WhatsApp — abrir a ficha, copiar ou
+        editar a frase não giram nada. Nicho sem nenhuma frase preenchida não participa: cai no
+        conjunto genérico, depois na mensagem do grupo e por fim na mensagem padrão global.
+      </p>
+      <p className="mt-1 text-xs text-ink-muted">
+        Valem os mesmos marcadores da mensagem padrão: <code className="font-mono">{"{nome}"}</code>,{" "}
+        <code className="font-mono">{"{demo}"}</code> e{" "}
+        <code className="font-mono">{"{penetracao}"}</code>.
+      </p>
+
+      <div className="mt-3 flex flex-col gap-3">
+        {dados === null ? (
+          <SkeletonRows count={3} className="h-44 rounded border border-line" />
+        ) : (
+          <>
+            <ConjuntoFrasesEditor
+              titulo="Conjunto genérico (fallback)"
+              descricao="Usado quando o nicho do lead não tem frases próprias."
+              conjunto={dados.genericas}
+              valor={rascunhos[CHAVE_GENERICAS] ?? ["", "", ""]}
+              onChange={(frases) =>
+                setRascunhos((atual) => ({ ...atual, [CHAVE_GENERICAS]: frases }))
+              }
+              salvando={salvando === CHAVE_GENERICAS}
+              salvo={salvo === CHAVE_GENERICAS}
+              onSalvar={() => salvar(CHAVE_GENERICAS, null)}
+            />
+            {dados.conjuntos.map((conjunto) => {
+              const chave = chaveNicho(conjunto.nicho);
+              return (
+                <ConjuntoFrasesEditor
+                  key={chave}
+                  titulo={conjunto.nicho}
+                  conjunto={conjunto}
+                  valor={rascunhos[chave] ?? ["", "", ""]}
+                  onChange={(frases) => setRascunhos((atual) => ({ ...atual, [chave]: frases }))}
+                  salvando={salvando === chave}
+                  salvo={salvo === chave}
+                  onSalvar={() => salvar(chave, conjunto.nicho)}
+                />
+              );
+            })}
+            {dados.conjuntos.length === 0 && (
+              <p className="text-sm text-ink-muted">
+                Nenhum nicho ainda — a primeira busca já traz o nicho dela para cá.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
+    </section>
+  );
+}
+
+/** Rascunhos iniciais: o que está salvo, por chave de conjunto. */
+function rascunhosDe(resposta: FrasesResponse): Record<string, string[]> {
+  const rascunhos: Record<string, string[]> = {
+    [CHAVE_GENERICAS]: normalizarSlots(resposta.genericas.frases),
+  };
+  for (const conjunto of resposta.conjuntos) {
+    rascunhos[chaveNicho(conjunto.nicho)] = normalizarSlots(conjunto.frases);
+  }
+  return rascunhos;
+}
+
+/** Substitui um conjunto na resposta carregada, preservando a ordem da lista. */
+function aplicarConjunto(
+  atual: FrasesResponse,
+  chave: string,
+  conjunto: FrasesProspeccao,
+): FrasesResponse {
+  if (chave === CHAVE_GENERICAS) return { ...atual, genericas: conjunto };
+  return {
+    ...atual,
+    conjuntos: atual.conjuntos.map((c) => (chaveNicho(c.nicho) === chave ? conjunto : c)),
+  };
+}
+
+/** Um conjunto: os três campos, o estado da rotação e o próprio Salvar. */
+function ConjuntoFrasesEditor({
+  titulo,
+  descricao,
+  conjunto,
+  valor,
+  onChange,
+  salvando,
+  salvo,
+  onSalvar,
+}: {
+  titulo: string;
+  descricao?: string;
+  conjunto: FrasesProspeccao;
+  valor: string[];
+  onChange: (frases: string[]) => void;
+  salvando: boolean;
+  salvo: boolean;
+  onSalvar: () => void;
+}) {
+  // O estado da rotação é o do que está SALVO (o rascunho ainda não vale
+  // para ninguém) — por isso lê `conjunto`, não `valor`.
+  const efetivas = frasesEfetivas(conjunto);
+  const posicao = posicaoAtual(conjunto);
+  const alterado =
+    JSON.stringify(normalizarSlots(valor)) !== JSON.stringify(normalizarSlots(conjunto.frases));
+
+  return (
+    <div className="rounded border border-line p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-sm font-medium text-foreground">{titulo}</span>
+        <span className="text-[11px] text-ink-muted">
+          {posicao === undefined
+            ? "sem frases — não participa"
+            : `na vez: frase ${posicao + 1} de ${efetivas.length}`}
+        </span>
+      </div>
+      {descricao && <p className="mt-0.5 text-xs text-ink-muted">{descricao}</p>}
+      <div className="mt-2 flex flex-col gap-2">
+        {Array.from({ length: FRASES_SLOTS }, (_, i) => (
+          <textarea
+            key={i}
+            value={valor[i] ?? ""}
+            onChange={(e) => {
+              const frases = normalizarSlots(valor);
+              frases[i] = e.target.value;
+              onChange(frases);
+            }}
+            // 3 linhas, não 2: no celular a coluna é estreita e uma frase
+            // típica (com {nome} e {demo}) quebra em três — com 2 o texto
+            // ficava cortado dentro da caixa.
+            rows={3}
+            placeholder={`Frase ${i + 1} — vazia não entra na rotação`}
+            className={INPUT_CLS}
+          />
+        ))}
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onSalvar}
+          loading={salvando}
+          disabled={!alterado}
+        >
+          Salvar
+        </Button>
+        {salvo && !alterado && <span className="text-xs text-good">Frases salvas.</span>}
+      </div>
+    </div>
   );
 }
 
