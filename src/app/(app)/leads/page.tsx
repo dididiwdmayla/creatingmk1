@@ -163,7 +163,8 @@ function LeadsPageInner() {
 
   // Grupos dobrados e modo compacto NÃO moram na URL: são preferência do
   // usuário, persistida no doc dele (ver "Compactação de /leads e /buscas").
-  const { preferencias, alternarGrupoLista } = usePreferenciasListas();
+  const { preferencias, alternarGrupoLista, definirLeadsCompacto } =
+    usePreferenciasListas();
   const fechados = useMemo(
     () => new Set(preferencias?.gruposFechados.leads ?? []),
     [preferencias],
@@ -554,6 +555,7 @@ function LeadsPageInner() {
   // Top da lista toda quando plana; top DENTRO de cada grupo quando agrupado.
   const topFlat = !agrupado && leadsOrdenados ? topScoreIds(leadsOrdenados) : new Set<string>();
   const buscaAtual = buscaId ? buscas.find((b) => b.id === buscaId) : undefined;
+  const compactoAtivo = preferencias?.leadsCompacto === true;
 
   return (
     <div className="flex flex-col gap-6">
@@ -888,6 +890,27 @@ function LeadsPageInner() {
           <option value="recentes">Ordenar: mais recentes</option>
           <option value="prioridade">Ordenar: por prioridade</option>
         </select>
+        {/* Alternância do modo da lista, junto dos filtros: mesma largura
+            nos dois estados (o rótulo é o MODO, não a ação) — um botão que
+            mudasse de tamanho ao alternar empurraria a barra de filtros. */}
+        <button
+          type="button"
+          onClick={() => definirLeadsCompacto(!compactoAtivo)}
+          aria-pressed={compactoAtivo}
+          disabled={preferencias === null}
+          title={
+            compactoAtivo
+              ? "Cada lead numa linha — toque num card para expandir só ele"
+              : "Card inteiro de cada lead"
+          }
+          className={`rounded border px-2 py-1.5 text-xs disabled:opacity-50 ${
+            compactoAtivo
+              ? "border-accent/60 bg-accent/10 text-accent"
+              : "border-line bg-surface-2 text-ink-secondary hover:text-foreground"
+          }`}
+        >
+          <span aria-hidden>≡</span> {compactoAtivo ? "Compacto" : "Completo"}
+        </button>
         {!buscaId && (
           <label className="ml-auto flex items-center gap-1.5 text-xs text-ink-secondary">
             <input
@@ -937,6 +960,7 @@ function LeadsPageInner() {
                           destaque={topDoGrupo.has(lead.placeId)}
                           argumentoForte={leadArgumentoForte(lead, buscas)}
                           nomes={nomes}
+                          compacto={compactoAtivo}
                           onChange={onLeadChange}
                         />
                       </li>
@@ -958,6 +982,7 @@ function LeadsPageInner() {
                 destaque={topFlat.has(lead.placeId)}
                 argumentoForte={leadArgumentoForte(lead, buscas)}
                 nomes={nomes}
+                compacto={compactoAtivo}
                 onChange={onLeadChange}
               />
             </li>
