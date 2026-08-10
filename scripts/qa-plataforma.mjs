@@ -734,6 +734,28 @@ async function medirListas(browser, secret) {
   await conferir("leads grupo dobrado", "section > div");
   await capturar("leads · grupo dobrado", "leads-grupo-dobrado");
 
+  // Regressão (ver "Correção de rolagem" no ARCHITECTURE.md): entrar em
+  // /leads pela NAV INFERIOR — não voltando de uma ficha — tem que abrir no
+  // TOPO, mesmo que a lista já tenha sido rolada nesta sessão. A causa era
+  // a restauração de rolagem não distinguir "voltando da ficha" de
+  // QUALQUER OUTRA chegada em /leads: uma vez a lista rolada, até o toque
+  // no próprio ícone "Leads" da nav reabria no meio da fila.
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await page.waitForTimeout(250);
+  await page.getByRole("link", { name: "Hoje" }).click();
+  await page.waitForLoadState("networkidle");
+  await page.getByRole("link", { name: "Leads" }).click();
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(1200);
+  const scrollNaChegada = await page.evaluate(() => window.scrollY);
+  if (scrollNaChegada !== 0) {
+    problemas.push(
+      `leads: entrada pela nav inferior abriu com scrollY=${scrollNaChegada} (esperado 0) — ` +
+        `a restauração de rolagem só devia valer voltando de uma ficha de lead`,
+    );
+  }
+  await capturar("leads · entrada pela nav inferior (topo)", "leads-nav-topo");
+
   // ── /buscas: cards dobrados + agrupamento por mês e por nicho ──────
   await page.goto(`${BASE}/buscas`, { waitUntil: "domcontentloaded" });
   await assentar(page);
@@ -802,10 +824,10 @@ async function medirListas(browser, secret) {
   gerados.push(
     await folhaDeContato(page, "Densidade de /leads e /buscas (celular)", "listas", [
       { rotulo: "leads · densidades", itens: itens.slice(0, 4) },
-      { rotulo: "leads · persistência e dobras", itens: itens.slice(4, 7) },
-      { rotulo: "buscas · dobra", itens: itens.slice(7, 9) },
-      { rotulo: "buscas · densidades", itens: itens.slice(9, 14) },
-      { rotulo: "buscas · agrupado", itens: itens.slice(14) },
+      { rotulo: "leads · persistência, dobras e rolagem", itens: itens.slice(4, 8) },
+      { rotulo: "buscas · dobra", itens: itens.slice(8, 10) },
+      { rotulo: "buscas · densidades", itens: itens.slice(10, 15) },
+      { rotulo: "buscas · agrupado", itens: itens.slice(15) },
     ]),
   );
   await ctx.close();
