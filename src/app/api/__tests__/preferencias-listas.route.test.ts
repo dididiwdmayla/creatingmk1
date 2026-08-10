@@ -47,6 +47,7 @@ describe("GET /api/preferencias/listas", () => {
       preferencias: {
         densidade: { leads: null, buscas: null },
         gruposFechados: { leads: [], buscas: [] },
+        blocosAbertos: { precificacao: false, penetracao: false },
       },
     });
   });
@@ -66,6 +67,7 @@ describe("GET /api/preferencias/listas", () => {
     expect(body.preferencias).toEqual({
       densidade: { leads: 3, buscas: 2 },
       gruposFechados: { leads: ["b1"], buscas: ["mes:2026-08"] },
+      blocosAbertos: { precificacao: false, penetracao: false },
     });
   });
 
@@ -86,6 +88,7 @@ describe("GET /api/preferencias/listas", () => {
     expect(body.preferencias).toEqual({
       densidade: { leads: 2, buscas: null },
       gruposFechados: { leads: ["b1"], buscas: [] },
+      blocosAbertos: { precificacao: false, penetracao: false },
     });
   });
 
@@ -113,7 +116,24 @@ describe("GET /api/preferencias/listas", () => {
     expect(body.preferencias).toEqual({
       densidade: { leads: null, buscas: null },
       gruposFechados: { leads: [], buscas: [] },
+      blocosAbertos: { precificacao: false, penetracao: false },
     });
+  });
+
+  /**
+   * Precificação e Penetração nascem colapsadas (ver "Correção de
+   * rolagem"): só "true" de verdade abre, qualquer outra coisa cai fechado.
+   */
+  it("blocosAbertos com lixo cai no padrão fechado", async () => {
+    const cookie = await cookieDeSessao(db, { id: "m1" });
+    db.seed("usuarios/m1", {
+      ...(db.getDoc("usuarios/m1") as Record<string, unknown>),
+      preferenciasListas: { blocosAbertos: { precificacao: "sim", penetracao: 1 } },
+    });
+
+    const body = await (await GET(getReq(cookie))).json();
+
+    expect(body.preferencias.blocosAbertos).toEqual({ precificacao: false, penetracao: false });
   });
 });
 
@@ -134,7 +154,11 @@ describe("PUT /api/preferencias/listas", () => {
 
     const res = await PUT(
       putReq(
-        { densidade: { leads: 4 }, gruposFechados: { leads: ["b1", "b1", "b2"] } },
+        {
+          densidade: { leads: 4 },
+          gruposFechados: { leads: ["b1", "b1", "b2"] },
+          blocosAbertos: { precificacao: true },
+        },
         cookie,
       ),
     );
@@ -143,11 +167,13 @@ describe("PUT /api/preferencias/listas", () => {
     expect((await res.json()).preferencias).toEqual({
       densidade: { leads: 4, buscas: null },
       gruposFechados: { leads: ["b1", "b2"], buscas: [] },
+      blocosAbertos: { precificacao: true, penetracao: false },
     });
     expect(db.getDoc("usuarios/m1")).toMatchObject({
       preferenciasListas: {
         densidade: { leads: 4, buscas: null },
         gruposFechados: { leads: ["b1", "b2"], buscas: [] },
+        blocosAbertos: { precificacao: true, penetracao: false },
       },
     });
   });

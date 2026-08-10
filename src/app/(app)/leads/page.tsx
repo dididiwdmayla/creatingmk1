@@ -152,6 +152,11 @@ function leadArgumentoForte(lead: Lead, buscas: Busca[]): boolean {
   return info !== undefined && argumentoForte(info.penetracao);
 }
 
+/** Dado principal da linha colapsada do bloco de Penetração de site. */
+function resumoPenetracao(penetracao: NonNullable<Busca["penetracao"]>): string {
+  return penetracao.percentuais ? `${penetracao.percentuais.comSiteProprio}% com site` : "amostra pequena";
+}
+
 export default function LeadsPage() {
   return (
     <Suspense fallback={<p className="text-sm text-ink-muted">Carregando…</p>}>
@@ -176,8 +181,15 @@ function LeadsPageInner() {
 
   // Grupos dobrados e densidade NÃO moram na URL: são preferência do
   // usuário, persistida no doc dele (ver "Compactação de /leads e /buscas").
-  const { preferencias, pronto, densidadeDe, alternarGrupoLista, definirDensidadeLista } =
-    usePreferenciasListas();
+  const {
+    preferencias,
+    pronto,
+    densidadeDe,
+    alternarGrupoLista,
+    definirDensidadeLista,
+    blocoAberto,
+    alternarBloco,
+  } = usePreferenciasListas();
   const fechados = useMemo(
     () => new Set(preferencias?.gruposFechados.leads ?? []),
     [preferencias],
@@ -610,6 +622,10 @@ function LeadsPageInner() {
   // do bloco "Mostrando leads da busca"/grade de cards, senão é exatamente o
   // "elemento que entra depois e empurra o resto" que o portão de CLS reprova.
   const prontoGrupo = buscas !== null && leads !== null;
+  // Precificação e Penetração nascem colapsadas (ver blocosAbertos) — a
+  // escolha de expandir é por usuário, no mesmo padrão de densidade/grupos.
+  const abertoPenetracao = blocoAberto("penetracao");
+  const abertoPrecificacao = blocoAberto("precificacao");
 
   return (
     <div className="flex flex-col gap-6">
@@ -781,42 +797,71 @@ function LeadsPageInner() {
 
           {!prontoGrupo && (
             <div className="border-t border-accent/20 pt-2">
-              <Skeleton className="h-3 w-32" />
-              <Skeleton className="mt-1.5 h-3.5 w-11/12" />
-              <Skeleton className="mt-1 h-3 w-2/3" />
+              <div className="flex items-center justify-between gap-2">
+                <Skeleton className="h-3 w-32" />
+                <span className="flex items-center gap-1.5">
+                  <Skeleton className="h-3 w-14" />
+                  <span aria-hidden className="text-xs text-ink-muted">
+                    {abertoPenetracao ? "▾" : "▸"}
+                  </span>
+                </span>
+              </div>
+              {abertoPenetracao && (
+                <>
+                  <Skeleton className="mt-1.5 h-3.5 w-11/12" />
+                  <Skeleton className="mt-1 h-3 w-2/3" />
+                </>
+              )}
             </div>
           )}
 
           {prontoGrupo && buscaAtual?.penetracao && (
             <div className="border-t border-accent/20 pt-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                Penetração de site
-              </h3>
-              {buscaAtual.penetracao.percentuais ? (
-                <p className="mt-1 text-sm text-ink-secondary">
-                  Neste nicho nesta cidade:{" "}
-                  <strong className="font-semibold text-foreground">
-                    {buscaAtual.penetracao.percentuais.comSiteProprio}%
-                  </strong>{" "}
-                  têm site próprio · {buscaAtual.penetracao.percentuais.soRedeSocial}% só rede
-                  social · {buscaAtual.penetracao.percentuais.semNada}% sem presença{" "}
-                  <span className="text-xs text-ink-muted">
-                    (base: {buscaAtual.penetracao.total} estabelecimento
-                    {buscaAtual.penetracao.total === 1 ? "" : "s"})
+              <button
+                type="button"
+                onClick={() => alternarBloco("penetracao")}
+                aria-expanded={abertoPenetracao}
+                className="flex w-full items-center justify-between gap-2 text-left"
+              >
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  Penetração de site
+                </h3>
+                <span className="flex shrink-0 items-center gap-1.5 text-xs text-ink-secondary">
+                  {resumoPenetracao(buscaAtual.penetracao)}
+                  <span aria-hidden className="text-ink-muted">
+                    {abertoPenetracao ? "▾" : "▸"}
                   </span>
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-ink-muted">
-                  Base pequena demais ({buscaAtual.penetracao.total} estabelecimento
-                  {buscaAtual.penetracao.total === 1 ? "" : "s"} mapeado
-                  {buscaAtual.penetracao.total === 1 ? "" : "s"}) para mostrar percentual.
-                </p>
-              )}
-              {buscaAtual.penetracao.desconhecidos > 0 && (
-                <p className="mt-1 text-xs text-ink-muted">
-                  + {buscaAtual.penetracao.desconhecidos} lead(s) com site desconhecido (ainda
-                  não enriquecido nem de busca qualificada).
-                </p>
+                </span>
+              </button>
+              {abertoPenetracao && (
+                <>
+                  {buscaAtual.penetracao.percentuais ? (
+                    <p className="mt-1 text-sm text-ink-secondary">
+                      Neste nicho nesta cidade:{" "}
+                      <strong className="font-semibold text-foreground">
+                        {buscaAtual.penetracao.percentuais.comSiteProprio}%
+                      </strong>{" "}
+                      têm site próprio · {buscaAtual.penetracao.percentuais.soRedeSocial}% só rede
+                      social · {buscaAtual.penetracao.percentuais.semNada}% sem presença{" "}
+                      <span className="text-xs text-ink-muted">
+                        (base: {buscaAtual.penetracao.total} estabelecimento
+                        {buscaAtual.penetracao.total === 1 ? "" : "s"})
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-ink-muted">
+                      Base pequena demais ({buscaAtual.penetracao.total} estabelecimento
+                      {buscaAtual.penetracao.total === 1 ? "" : "s"} mapeado
+                      {buscaAtual.penetracao.total === 1 ? "" : "s"}) para mostrar percentual.
+                    </p>
+                  )}
+                  {buscaAtual.penetracao.desconhecidos > 0 && (
+                    <p className="mt-1 text-xs text-ink-muted">
+                      + {buscaAtual.penetracao.desconhecidos} lead(s) com site desconhecido (ainda
+                      não enriquecido nem de busca qualificada).
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -884,12 +929,15 @@ function LeadsPageInner() {
         />
       )}
 
-      {buscaId && !prontoGrupo && <PrecificacaoCardSkeleton />}
+      {buscaId && !prontoGrupo && <PrecificacaoCardSkeleton aberto={abertoPrecificacao} />}
       {prontoGrupo && buscaAtual && (
         <PrecificacaoCard
           key={buscaAtual.id}
           nicho={buscaAtual.nicho}
           regiaoTexto={buscaAtual.regiao}
+          colapsavel
+          aberto={abertoPrecificacao}
+          onToggleAberto={() => alternarBloco("precificacao")}
         />
       )}
 
