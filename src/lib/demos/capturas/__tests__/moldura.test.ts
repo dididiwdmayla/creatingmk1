@@ -101,10 +101,23 @@ describe("medidasMoldura", () => {
     if (m.modo !== "aparelho") throw new Error("esperava aparelho");
     expect(m.escala).toBe(1);
     expect(m.alturaVisivel).toBe(UMA_TELA);
-    // A sobra é preenchida com o fundo da demo — a página continuando, não
-    // uma tarja preta.
+    // `folga` é a sobra de tela preenchida com cor chapada. Ela não deveria
+    // mais chegar aqui — o motor enquadra a seção curta como uma TELA
+    // INTEIRA (ver `centralizarSecao`), e o portão de `comporMoldura`
+    // reprova a captura em que este número não for zero. O comportamento
+    // continua definido porque a composição não pode quebrar quando ele
+    // acontece; o que mudou é que ele passou a ser reprovação, não plano A.
     expect(m.folga).toBe(UMA_TELA - Math.round(UMA_TELA * 0.6));
     expect(m.cortada).toBe(false);
+  });
+
+  it("captura de uma tela cheia (o enquadramento do motor) não deixa folga nenhuma", () => {
+    const m = medidasCelular({ ...CELULAR, altura: UMA_TELA });
+    if (m.modo !== "aparelho") throw new Error("esperava aparelho");
+    // É esta a condição que o portão do motor cobra: sem folga, não há
+    // região vazia acima nem abaixo do recorte dentro do aparelho.
+    expect(m.folga).toBe(0);
+    expect(m.escala).toBe(1);
   });
 
   it("captura mais alta que uma tela vira FATIADA, não aparelho esticado", () => {

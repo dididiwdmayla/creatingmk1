@@ -493,6 +493,73 @@ export function caixaNaViewport(secaoId, win = window) {
 }
 
 /**
+ * CENTRALIZA a seção na viewport — o enquadramento de uma seção mais curta
+ * que a tela.
+ *
+ * Uma seção de 0,6 tela recortada no pixel dela deixa a composição de
+ * celular com 40% da tela do aparelho pra preencher, e o que ia ali era o
+ * fundo chapado da demo: duas faixas lisas, acima e abaixo, exatamente onde
+ * o visitante veria as seções vizinhas. A intenção sempre foi "a página
+ * continua" — isto é a página continuando de verdade, em vez de uma cor
+ * fazendo as vezes dela.
+ *
+ * `behavior: "instant"` pelo mesmo motivo de `rolarAteSecao`. Quando não dá
+ * pra centrar (seção perto do começo ou do fim do documento) o scroll fica
+ * no limite e `centrada` volta `false`: o quadro continua sendo uma tela
+ * REAL da página, só não com a seção no meio — que é o que um aparelho
+ * mostraria ali também.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ centrada: boolean, alvo: number, scroll: number } | null}
+ */
+export function centralizarSecao(secaoId, win = window) {
+  const doc = win.document;
+  const el = Array.from(doc.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  const alvo = r.top + win.scrollY - (win.innerHeight - r.height) / 2;
+  const teto = Math.max(0, doc.documentElement.scrollHeight - win.innerHeight);
+  const escolhido = Math.min(teto, Math.max(0, alvo));
+  win.scrollTo({ top: escolhido, behavior: "instant" });
+  return { centrada: Math.abs(escolhido - alvo) <= 1, alvo: Math.round(alvo), scroll: Math.round(escolhido) };
+}
+
+/**
+ * A TELA INTEIRA como recorte, com a seção dentro — o par de
+ * `centralizarSecao`.
+ *
+ * Devolve também quanto de página REAL sobrou acima e abaixo da seção
+ * dentro do quadro: é o número que prova que a faixa lisa virou conteúdo, e
+ * o que o motor loga. Não usa `cabe`, porque aqui não há o que caber — o
+ * recorte É a viewport.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ x: number, y: number, width: number, height: number, acima: number, abaixo: number } | null}
+ */
+export function caixaDaTela(secaoId, win = window) {
+  const doc = win.document;
+  const el = Array.from(doc.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  const largura = doc.documentElement.clientWidth;
+  const altura = win.innerHeight;
+  return {
+    x: 0,
+    y: 0,
+    width: Math.round(largura),
+    height: Math.round(altura),
+    acima: Math.max(0, Math.round(r.top)),
+    abaixo: Math.max(0, Math.round(altura - r.bottom)),
+  };
+}
+
+/**
  * Imagens DENTRO da seção que vai virar foto — e quantas delas de fato
  * carregaram. É o número que importa: uma imagem pendente noutro canto do
  * documento não aparece no enquadramento, mas uma pendente aqui vira

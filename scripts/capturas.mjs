@@ -34,7 +34,9 @@ import { chromium } from "playwright-core";
 
 import {
   assentarLed,
+  caixaDaTela,
   caixaNaViewport,
+  centralizarSecao,
   congelarAnimacoes,
   esperarTextoEstavel,
   fixarUnidadesDeTela,
@@ -329,13 +331,30 @@ async function capturar(page, alvo, ancora, tela, destino) {
   // viewport, rolar, esperar imagem e texto), porque cada um desses passos
   // é uma chance de a foto pegar uma entrada de seção no meio do voo. Ver
   // `forcarRevelacaoDasSecoes`.
+  // SEÇÃO MAIS CURTA QUE A TELA, no celular: o recorte deixa de ser a caixa
+  // da seção e passa a ser UMA TELA INTEIRA, com a seção centrada. Recortar
+  // no pixel dela deixava a composição de aparelho com faixa lisa acima e
+  // abaixo — o fundo chapado da demo fazendo as vezes das seções vizinhas
+  // (`folga` em moldura.mjs). A intenção sempre foi "a página continua";
+  // isto é a página continuando de verdade. Ver `centralizarSecao`.
+  const medida = await page.evaluate(caixaNaViewport, ancora);
+  const curta = tela.id === "celular" && Boolean(medida?.cabe) && medida.height < tela.altura - 1;
+  const enquadramento = curta ? await page.evaluate(centralizarSecao, ancora) : null;
+  if (enquadramento) await page.waitForTimeout(350);
+
   const revelacao = await page.evaluate(forcarRevelacaoDasSecoes, {});
-  // E o LED assentado por último de todos: ele reage a scroll/resize, então
-  // fixar a fase antes de qualquer um dos dois seria fixar e perder.
+  // E o LED assentado por último de todos: ele reage a scroll/resize (e o
+  // enquadramento de tela cheia acima é um scroll), então fixar a fase antes
+  // de qualquer um dos dois seria fixar e perder.
   const led = await page.evaluate(assentarLed, {});
   const pendente = await page.evaluate(revelacaoPendente, ancora);
 
-  const recorte = await page.evaluate(caixaNaViewport, ancora);
+  const recorte = enquadramento
+    ? await page.evaluate(caixaDaTela, ancora)
+    : await page.evaluate(caixaNaViewport, ancora);
+  // No enquadramento de tela cheia não há o que caber: o recorte É a
+  // viewport. `cabe` só faz sentido pro recorte da caixa da seção.
+  if (recorte && enquadramento) recorte.cabe = true;
   const portao = await page.evaluate(tituloCoberto, ancora);
   const imagens = await page.evaluate(imagensDaSecao, ancora);
   // A paleta da própria demo, que vira o fundo da composição em moldura.
@@ -363,6 +382,7 @@ async function capturar(page, alvo, ancora, tela, destino) {
     revelacao,
     led,
     pendente,
+    enquadramento,
   };
 }
 
@@ -451,9 +471,13 @@ async function comporMoldura(pagina, { tela, arquivo, largura, altura, alturaTel
       caminhoLocal: destino,
       largura: m.largura,
       altura: m.altura,
-      // `modo`/`cortada` só existem no celular; no desktop a janela sempre
-      // cabe a captura inteira.
-      ...(m.tela === "celular" ? { modo: m.modo, cortada: m.cortada } : {}),
+      // `modo`/`cortada`/`folga` só existem no celular; no desktop a janela
+      // sempre cabe a captura inteira. `folga` volta porque é ela o PORTÃO
+      // da região vazia: sobra de tela preenchida com cor chapada onde
+      // deveria haver a página vizinha (ver `centralizarSecao`).
+      ...(m.tela === "celular"
+        ? { modo: m.modo, cortada: m.cortada, folga: m.modo === "aparelho" ? m.folga : 0 }
+        : {}),
     };
   } finally {
     await fs.unlink(paginaHtml).catch(() => undefined);
@@ -717,6 +741,19 @@ async function capturarTrilha({ browser, alvo, tela, cookie, manifestoAlvo, repr
             ` — ${r.pendente.exemplos.join(", ")}`,
         );
       }
+      // PORTÃO DA REGIÃO VAZIA: no aparelho, sobra de tela é preenchida com
+      // cor chapada — e cor chapada acima ou abaixo do recorte é a página
+      // vizinha faltando, não "a página continuando". O enquadramento de
+      // tela cheia (ver `centralizarSecao`) existe pra este número ser zero;
+      // se ele voltar a crescer, a rodada reprova em vez de a faixa lisa
+      // chegar na conversa com o lead.
+      const comVazio = (entradaImagem.composta?.folga ?? 0) > 0;
+      if (comVazio) {
+        reprovadas.push(
+          `${alvo.nome}/${ancora}/${tela.id}: ${entradaImagem.composta.folga}px de região vazia` +
+            ` acima/abaixo do recorte na composição`,
+        );
+      }
       const semImagem = r.imagens.prontas < r.imagens.total;
       if (semImagem) {
         reprovadas.push(
@@ -724,7 +761,7 @@ async function capturarTrilha({ browser, alvo, tela, cookie, manifestoAlvo, repr
         );
       }
       console.log(
-        `  ${r.portao.coberto || semImagem || semRevelar ? "✗" : "ok"} ${tela.id}/${ancora}: ${r.caixa.width}×${r.caixa.height}` +
+        `  ${r.portao.coberto || semImagem || semRevelar || comVazio ? "✗" : "ok"} ${tela.id}/${ancora}: ${r.caixa.width}×${r.caixa.height}` +
           ` (${(r.caixa.height / tela.altura).toFixed(1)} telas)` +
           ` · cromo oculto ${r.cromo.escondidos}` +
           ` · congeladas ${r.gelo.congeladas}/${r.gelo.infinitas} infinitas` +
@@ -734,6 +771,9 @@ async function capturarTrilha({ browser, alvo, tela, cookie, manifestoAlvo, repr
           (r.revelacao.restantes > 0 ? ` ⚠ ${r.revelacao.restantes} ainda voltando` : "") +
           (r.pendente.total > 0 ? ` · ✗ ${r.pendente.total} sem revelar` : "") +
           (r.led.leds > 0 ? ` · LED na fase ${r.led.fase}` : "") +
+          (r.enquadramento
+            ? ` · tela cheia (${r.caixa.acima}px acima, ${r.caixa.abaixo}px abaixo${r.enquadramento.centrada ? "" : ", sem centrar"})`
+            : "") +
           (r.imagensForcadas.trilhos > 0 ? ` · ${r.imagensForcadas.trilhos} trilho(s)` : "") +
           (r.esticou ? " · ⚠ seção ainda cresceu" : "") +
           (r.texto.estavel ? "" : " · ⚠ texto ainda mudava") +
