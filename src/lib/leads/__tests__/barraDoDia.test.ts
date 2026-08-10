@@ -110,6 +110,17 @@ describe("barraDoDia", () => {
     expect(linhaEstadoContato(barra)).toContain("horário estimado");
   });
 
+  it("estimativa fora do comercial não afirma \"fechado\" — não é um horário conhecido", () => {
+    const l = lead({
+      busca: { nicho: "barbearia", regiao: "x", em: "" },
+      endereco: "Rua X, 123, São Paulo, Brasil",
+    });
+    const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 20, 0))!;
+    expect(linhaEstadoContato(barra)).toBe(
+      "Hora do lead 20h · fora do horário comercial · próximo bom amanhã 9h · horário estimado",
+    );
+  });
+
   it("madrugada: faixa que cruza a meia-noite entra recortada nos dois dias", () => {
     // Terça 18h → quarta 2h.
     const l = barbearia([{ diaAbre: 2, horaAbre: 18, minAbre: 0, diaFecha: 3, horaFecha: 2, minFecha: 0 }]);

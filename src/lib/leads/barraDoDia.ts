@@ -278,7 +278,9 @@ export function linhaEstadoContato(barra: BarraDoDia): string {
   if (!barra.abertura) {
     partes.push("fechado hoje");
   } else if (!barra.aberto) {
-    partes.push("fechado agora");
+    // Com intervalo estimado não dá pra afirmar "fechado" — o que se sabe é
+    // que está fora do comercial que a estimativa assume.
+    partes.push(barra.estimado ? "fora do horário comercial" : "fechado agora");
   } else {
     partes.push(`agora: ${ROTULO_NIVEL[barra.nivelAgora!]}`);
   }

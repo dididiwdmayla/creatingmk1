@@ -2876,6 +2876,8 @@ vez; trocas de fonte já em edição (o usuário mexendo na aba Tema) não
 passam pelo gate de novo — o preview seria mais irritante piscando em
 branco a cada escolha do que o reflow pontual que já existia.
 
+**A ficha do lead entrou nas telas medidas junto com a barra do dia**, e em DOIS estados do mesmo lead: sem horário de funcionamento (a barra cai no intervalo comercial estimado) e com ele (expediente real). Além do CLS de cada carga, o laço mede a ALTURA do bloco que reserva a barra nos dois estados e **reprova se ela mudar** — é essa igualdade que garante que o horário chegando DEPOIS do primeiro desenho (botão "buscar horários") troque só o conteúdo. Medido: bloco de **100px nos dois estados**; `app:ficha` 0,0241 e `app:ficha-horarios` 0,0153, ambos abaixo do piso de 0.1. Com o bloco da barra REMOVIDO à mão, as mesmas telas deram 0,0420 e 0,0167 — ou seja, o resíduo é a própria ficha montando (o `textarea` da mensagem), não a barra, que não acrescenta deslocamento nenhum. O portão também foi verificado ao contrário: sem a barra, ele falha com "a barra do dia não foi encontrada na ficha", em vez de passar contando zero.
+
 **Uso**: `node scripts/qa-cls.mjs` (as três telas, portão ligado) ·
 `--so=skins|editor|app` · `--sem-portao` (só mede) · `--marca=<rotulo>`.
 `--so=editor`/`--so=app` (e a rodada default) exigem o mesmo patch
