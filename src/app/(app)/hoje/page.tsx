@@ -15,6 +15,7 @@ import { formatDateTime, formatInt, formatTempoRelativo } from "@/lib/format";
 import { comIndiceAtualizado, resolverMensagem } from "@/lib/frases/resolver";
 import { ultimaAberturaNaoInterna } from "@/lib/leads/hoje";
 import { melhorMomento } from "@/lib/leads/horarios";
+import { linhaRecomendacaoContato, type JanelasContatoConfig } from "@/lib/leads/janelaContato";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { calculaScore } from "@/lib/leads/score";
 import type { Lead } from "@/lib/leads/types";
@@ -240,6 +241,7 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              janelasContato={dados.janelasContato}
               frases={frases}
               nomes={nomes}
               onWhatsAppClick={clicar}
@@ -267,6 +269,7 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              janelasContato={dados.janelasContato}
               frases={frases}
               nomes={nomes}
               onWhatsAppClick={clicar}
@@ -291,6 +294,7 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              janelasContato={dados.janelasContato}
               frases={frases}
               nomes={nomes}
               onWhatsAppClick={clicar}
@@ -317,6 +321,7 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              janelasContato={dados.janelasContato}
               frases={frases}
               nomes={nomes}
               onWhatsAppClick={clicar}
@@ -366,6 +371,7 @@ function ItemHoje({
   lead,
   porId,
   mensagemGlobal,
+  janelasContato,
   frases,
   nomes,
   onWhatsAppClick,
@@ -374,6 +380,7 @@ function ItemHoje({
   lead: Lead;
   porId: Map<string, BuscaResumo>;
   mensagemGlobal: string;
+  janelasContato: JanelasContatoConfig;
   /** Conjuntos de frases por nicho; null enquanto carrega ou se a leitura falhou. */
   frases: FrasesResponse | null;
   nomes: NomesUsuarios;
@@ -382,6 +389,7 @@ function ItemHoje({
 }) {
   const origem = buscaDeOrigem(lead, porId);
   const momento = melhorMomento(lead.horarios);
+  const linhaJanela = linhaRecomendacaoContato(janelasContato, lead);
   const telefoneIntl = lead.detalhes?.telefoneIntl ?? lead.telefoneIntl;
   const demoUrl =
     lead.demo && typeof window !== "undefined"
@@ -484,6 +492,7 @@ function ItemHoje({
           </Link>
         </span>
       </div>
+      {linhaJanela && <p className="mt-1 text-right text-[11px] text-ink-muted">{linhaJanela}</p>}
     </div>
   );
 }

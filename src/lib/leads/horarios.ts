@@ -12,7 +12,7 @@ import type { Lead } from "./types";
  * resultado — o mesmo truque que evita depender de Intl/tz do sistema.
  */
 
-const MIN_DIA = 1_440;
+export const MIN_DIA = 1_440;
 const MIN_SEMANA = 7 * MIN_DIA;
 
 const NOMES_DIA = [
@@ -43,12 +43,12 @@ export interface MelhorMomento {
 type Horarios = NonNullable<Lead["horarios"]>;
 type Faixa = Horarios["faixas"][number];
 
-function formatHora(hora: number, minuto: number): string {
+export function formatHora(hora: number, minuto: number): string {
   return minuto === 0 ? `${hora}h` : `${hora}h${String(minuto).padStart(2, "0")}`;
 }
 
 /** Minuto-da-semana (0..10079) da hora LOCAL do lugar no instante `instante`. */
-function minutoDaSemanaLocal(utcOffsetMinutes: number, instante: Date): number {
+export function minutoDaSemanaLocal(utcOffsetMinutes: number, instante: Date): number {
   const local = new Date(instante.getTime() + utcOffsetMinutes * 60_000);
   return local.getUTCDay() * MIN_DIA + local.getUTCHours() * 60 + local.getUTCMinutes();
 }

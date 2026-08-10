@@ -109,6 +109,15 @@ export interface Lead {
     em: string;
   };
   /**
+   * Histórico de disparos pelo WhatsApp (ficha e /hoje) — cada clique no
+   * botão soma uma entrada aqui, ao contrário de `seloContato` (só o
+   * primeiro). Guarda a hora LOCAL do lead no momento do disparo — só o
+   * REGISTRO por enquanto, para comparar taxa de resposta por janela no
+   * futuro (nenhuma análise ainda). Ver `registrarSeloContato` em repo.ts e
+   * `horarioLocalNoDisparo` em `lib/leads/janelaContato.ts`.
+   */
+  registrosEnvio?: RegistroEnvioContato[];
+  /**
    * Visitas à demo pública (/demo/{placeId}) — só cresce, uma entrada por
    * carregamento com um `?t=` de envio válido (URL sem token, de "Copiar
    * link"/"Abrir demo", nunca gera entrada). `interna` = o navegador tinha
@@ -129,6 +138,21 @@ export interface Lead {
   capturas?: LeadCapturas;
   criadoEm: string;
   atualizadoEm: string;
+}
+
+/**
+ * Um disparo pelo WhatsApp — ver `Lead.registrosEnvio`. Ausência de
+ * `horaLocalLead`/`diaSemanaLocalLead` = fuso do lead desconhecido naquele
+ * momento (sem utcOffsetMinutes do enriquecimento nem país derivável do
+ * endereço) — melhor faltar o dado do que gravar hora local errada.
+ */
+export interface RegistroEnvioContato {
+  /** Instante UTC do disparo (ISO). */
+  em: string;
+  /** Hora local do lead no disparo, "HH:MM" (24h). */
+  horaLocalLead?: string;
+  /** Dia da semana local do lead no disparo (0=domingo…6=sábado). */
+  diaSemanaLocalLead?: number;
 }
 
 /** Uma visita registrada à demo pública do lead — ver `Lead.demoVisitas`. */

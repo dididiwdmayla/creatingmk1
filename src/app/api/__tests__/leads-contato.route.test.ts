@@ -73,4 +73,38 @@ describe("POST /api/leads/[id]/contato — selo de contato (item 1)", () => {
     const res = await REGISTRAR_CONTATO(...postRequest("X", cookie));
     expect(res.status).toBe(404);
   });
+
+  it("cada clique soma um registro de envio, mesmo depois do primeiro (selo não gira, o registro sim)", async () => {
+    const cookieAna = await cookieDeSessao(db, { id: "ana", papel: "membro" });
+    const primeiro = await (await REGISTRAR_CONTATO(...postRequest("A", cookieAna))).json();
+    expect(primeiro.lead.registrosEnvio).toHaveLength(1);
+
+    const cookieBeto = await cookieDeSessao(db, { id: "beto", papel: "membro" });
+    const segundo = await (await REGISTRAR_CONTATO(...postRequest("A", cookieBeto))).json();
+    expect(segundo.lead.registrosEnvio).toHaveLength(2);
+    // Selo continua do primeiro, mas o registro do segundo clique existe do mesmo jeito.
+    expect(segundo.lead.seloContato.userId).toBe("ana");
+    expect(segundo.lead.registrosEnvio[1].em).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("registro de envio traz a hora local do lead quando o fuso é conhecido, e nada quando não é", async () => {
+    db.seed("leads/B", {
+      placeId: "B",
+      nome: "Lead B",
+      status: "novo",
+      enriquecido: false,
+      horarios: { faixas: [], utcOffsetMinutes: -180, obtidoEm: "2026-07-01T00:00:00.000Z" },
+      criadoEm: "2026-07-01T00:00:00.000Z",
+      atualizadoEm: "2026-07-01T00:00:00.000Z",
+    });
+    const cookie = await cookieDeSessao(db, { id: "ana", papel: "membro" });
+
+    const comFuso = await (await REGISTRAR_CONTATO(...postRequest("B", cookie))).json();
+    expect(comFuso.lead.registrosEnvio[0]).toHaveProperty("horaLocalLead");
+    expect(comFuso.lead.registrosEnvio[0]).toHaveProperty("diaSemanaLocalLead");
+
+    const semFuso = await (await REGISTRAR_CONTATO(...postRequest("A", cookie))).json();
+    expect(semFuso.lead.registrosEnvio[0].horaLocalLead).toBeUndefined();
+    expect(semFuso.lead.registrosEnvio[0].diaSemanaLocalLead).toBeUndefined();
+  });
 });
