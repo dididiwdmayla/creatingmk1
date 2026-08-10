@@ -20,14 +20,56 @@ import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import type { UsoUsuario } from "@/lib/costs";
 import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getSkin, getTheme } from "@/lib/demos/registry";
-import { formatDateTime, formatDuracao } from "@/lib/format";
-import { comIndiceAtualizado, resolverMensagem, rotuloOrigem } from "@/lib/frases/resolver";
+import { formatBRL, formatDateTime, formatDuracao } from "@/lib/format";
+import { projecaoTraducao } from "@/lib/frases/custoTraducao";
+import {
+  comConjuntoAtualizado,
+  comIndiceAtualizado,
+  resolverMensagem,
+  rotuloOrigem,
+} from "@/lib/frases/resolver";
+import { idiomaLabelRegional } from "@/lib/idioma";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
 import { handleInstagram } from "@/lib/leads/instagram";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
 import { useWhatsAppContato } from "@/lib/useWhatsAppContato";
 import { aplicarMarcadores, linkWhatsApp } from "@/lib/wa";
+
+/**
+ * Texto da confirmação da tradução: quantas chamadas e quanto custa, ANTES
+ * do OK. Sem o uso do mês em mãos (falha do /api/usage), diz isso em vez de
+ * inventar um número — o teto real quem aplica é o servidor.
+ */
+function mensagemTraducao(
+  idioma: string | undefined,
+  config: AppConfig | null,
+  uso: { usado: number; teto: number } | null,
+): string {
+  const alvo = idioma ? idiomaLabelRegional(idioma) : "o idioma do lead";
+  const base = `As 3 frases da skin vão para ${alvo} numa única chamada de IA (até 2 se a resposta vier fora do formato). A tradução fica gravada e passa a valer para todo lead deste idioma nesta skin — só é refeita se você mandar.`;
+  if (!config || !uso) {
+    return `${base} Não deu pra carregar a cota de tradução do mês — o servidor ainda barra se o teto estourar.`;
+  }
+
+  const projecao = projecaoTraducao(
+    uso.usado,
+    uso.teto,
+    {
+      usdPer1000: config.precos.usdPor1000.aiTraducao,
+      freeQuota: config.precos.cotaGratis.aiTraducao,
+    },
+    config.precos.usdBrl,
+  );
+  const custo =
+    projecao.custoBRL.maximo === projecao.custoBRL.minimo
+      ? formatBRL(projecao.custoBRL.minimo)
+      : `${formatBRL(projecao.custoBRL.minimo)}–${formatBRL(projecao.custoBRL.maximo)}`;
+  const estouro = projecao.podeEstourar
+    ? " Atenção: o pior caso passa do teto do mês e o servidor pode recusar."
+    : "";
+  return `${base} Custo: ${custo}. Traduções este mês: ${uso.usado}/${uso.teto}.${estouro}`;
+}
 
 const TRANSITION_LABELS: Record<LeadStatus, string> = {
   novo: "Marcar como novo",
@@ -58,6 +100,13 @@ export function LeadDetailClient({ id }: { id: string }) {
   const [demoErro, setDemoErro] = useState<string | null>(null);
   const [demoAviso, setDemoAviso] = useState<string | null>(null);
   const [argumentoAviso, setArgumentoAviso] = useState<string | null>(null);
+
+  // Tradução das frases (chamada PAGA, SKU aiTraducao): nunca dispara
+  // sozinha — abre a confirmação com chamadas e custo, e só o OK chama.
+  const [confirmandoTraducao, setConfirmandoTraducao] = useState(false);
+  const [usoTraducao, setUsoTraducao] = useState<{ usado: number; teto: number } | null>(null);
+  const [traduzindo, setTraduzindo] = useState(false);
+  const [traducaoErro, setTraducaoErro] = useState<string | null>(null);
 
   // Selo de contato (item independente do status): quem sou eu + nomes pra
   // resolver o selo/badge, e se sou admin (ajuste do vendedor do fechamento).
@@ -177,6 +226,44 @@ export function LeadDetailClient({ id }: { id: string }) {
     setLead,
     handleEnviado,
   );
+
+  /**
+   * Abre a confirmação da tradução e busca o uso do mês só aí — o custo
+   * precisa estar na tela ANTES do OK, e nada é chamado enquanto ele não
+   * vier (ou falhar, e aí o texto avisa que o servidor é quem barra).
+   */
+  function abrirConfirmacaoTraducao() {
+    if (traduzindo) return;
+    setTraducaoErro(null);
+    api
+      .getUsage()
+      .then(({ usage, caps }) => setUsoTraducao({ usado: usage.aiTraducao, teto: caps.aiTraducao }))
+      .catch(() => setUsoTraducao(null));
+    setConfirmandoTraducao(true);
+  }
+
+  async function traduzir() {
+    setConfirmandoTraducao(false);
+    setTraduzindo(true);
+    setTraducaoErro(null);
+    try {
+      const { conjunto } = await api.traduzirFrases(id);
+      // A tradução gravada entra no estado local: a caixa passa a mostrar o
+      // texto no idioma do lead sem recarregar a ficha.
+      setFrases((atual) => comConjuntoAtualizado(atual, conjunto));
+      setRascunho(null);
+    } catch (error) {
+      setTraducaoErro(
+        error instanceof ApiError && error.code === "quota_exceeded"
+          ? `Teto mensal de traduções atingido (${error.extra.used}/${error.extra.cap} em ${error.extra.period}).`
+          : error instanceof ApiError
+            ? error.message
+            : "Falha ao traduzir as frases.",
+      );
+    } finally {
+      setTraduzindo(false);
+    }
+  }
 
   async function handleEnrich() {
     setEnriching(true);
@@ -545,6 +632,40 @@ export function LeadDetailClient({ id }: { id: string }) {
                 voltar à frase da vez
               </button>
             )}
+            {/*
+              Lead de fora do Brasil: as frases são sempre escritas em
+              português, e a tradução é um clique explícito (chamada paga).
+              Traduzida, a linha só informa — e a caixa acima já está no
+              idioma dele. Editada depois, ela volta a oferecer o botão.
+            */}
+            {resolvida?.traducao && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2">
+                {resolvida.traducao.estado === "aplicada" ? (
+                  <span className="text-[11px] text-good">
+                    traduzida para {idiomaLabelRegional(resolvida.traducao.idioma)}
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-[11px] text-ink-muted">
+                      {resolvida.traducao.estado === "desatualizada"
+                        ? `a frase mudou depois da tradução — indo em português para este lead de ${idiomaLabelRegional(resolvida.traducao.idioma)}`
+                        : `lead de ${idiomaLabelRegional(resolvida.traducao.idioma)} — a frase vai em português`}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={abrirConfirmacaoTraducao}
+                      loading={traduzindo}
+                    >
+                      {resolvida.traducao.estado === "desatualizada"
+                        ? "Traduzir de novo"
+                        : "Traduzir com IA"}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+            {traducaoErro && <p className="mt-1 text-xs text-critical">{traducaoErro}</p>}
           </section>
           <a
             href={waLink}
@@ -568,6 +689,15 @@ export function LeadDetailClient({ id }: { id: string }) {
           )}
         </div>
       )}
+
+      <ConfirmModal
+        aberto={confirmandoTraducao}
+        titulo="Traduzir as frases com IA"
+        mensagem={mensagemTraducao(resolvida?.traducao?.idioma, config, usoTraducao)}
+        confirmarLabel="Traduzir"
+        onConfirmar={traduzir}
+        onCancelar={() => setConfirmandoTraducao(false)}
+      />
 
       <ConfirmModal
         aberto={pendente !== null}

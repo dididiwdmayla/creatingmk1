@@ -1,6 +1,6 @@
 import type { AppDb } from "@/lib/firestore-like";
 import { normalizarSlots, proximoIndice } from "./rotacao";
-import { FRASES_COLLECTION, type FrasesProspeccao } from "./types";
+import { FRASES_COLLECTION, type FrasesProspeccao, type TraducaoFrases } from "./types";
 
 /**
  * Repositório de /frasesProspeccao — um doc por SKIN do registro, com o id
@@ -10,10 +10,11 @@ import { FRASES_COLLECTION, type FrasesProspeccao } from "./types";
  * deixava "Barbearia", "barbearia old school" e "barbería" virarem três
  * conjuntos distintos.
  *
- * As duas escritas usam `merge` e são DISJUNTAS de propósito: salvar textos
- * nunca zera o contador, e avançar o contador nunca sobrescreve os textos —
- * o admin editando na tela de administração e um membro disparando um
- * WhatsApp no mesmo segundo não se atropelam.
+ * As TRÊS escritas usam `merge` e são DISJUNTAS de propósito (`frases`,
+ * `indice` e `traducoes`): salvar textos nunca zera o contador, avançar o
+ * contador nunca sobrescreve os textos, e gravar uma tradução não toca em
+ * nenhum dos dois — o admin editando na tela de administração e um membro
+ * disparando um WhatsApp no mesmo segundo não se atropelam.
  */
 
 function docRef(db: AppDb, skinId: string) {
@@ -27,12 +28,30 @@ export function conjuntoVazio(skinId: string): FrasesProspeccao {
 
 function asConjunto(id: string, data: Record<string, unknown>): FrasesProspeccao {
   const bruto = data as unknown as Partial<FrasesProspeccao>;
+  const traducoes = asTraducoes(bruto.traducoes);
   return {
     skinId: id,
     frases: normalizarSlots(bruto.frases),
     indice: Number.isInteger(bruto.indice) && (bruto.indice as number) >= 0 ? (bruto.indice as number) : 0,
+    ...(traducoes && { traducoes }),
     ...(typeof bruto.atualizadoEm === "string" && { atualizadoEm: bruto.atualizadoEm }),
   };
+}
+
+/** Leitura tolerante do mapa de traduções — entrada malformada é ignorada, não derruba a tela. */
+function asTraducoes(bruto: unknown): Record<string, TraducaoFrases> | undefined {
+  if (typeof bruto !== "object" || bruto === null || Array.isArray(bruto)) return undefined;
+  const traducoes: Record<string, TraducaoFrases> = {};
+  for (const [idioma, valor] of Object.entries(bruto as Record<string, unknown>)) {
+    if (typeof valor !== "object" || valor === null) continue;
+    const { frases, origem, em } = valor as Partial<TraducaoFrases>;
+    traducoes[idioma] = {
+      frases: normalizarSlots(frases),
+      origem: normalizarSlots(origem),
+      em: typeof em === "string" ? em : "",
+    };
+  }
+  return Object.keys(traducoes).length > 0 ? traducoes : undefined;
 }
 
 /** Conjunto salvo da skin — undefined se nunca foi salvo. */
@@ -79,6 +98,36 @@ export async function salvarConjunto(
   );
   const atual = await getConjunto(db, skinId);
   return atual ?? { skinId, frases: slots, indice: 0 };
+}
+
+/**
+ * Grava a tradução de UM idioma. Terceira escrita disjunta do doc: mexe só
+ * em `traducoes`, então salvar texto e girar a rotação continuam sem se
+ * atropelar com ela.
+ *
+ * O mapa inteiro é reescrito (lê, mescla o idioma, grava) em vez de contar
+ * com o merge profundo do Firestore em mapas aninhados: o comportamento
+ * fica idêntico no fake dos testes e no banco real. Duas traduções de
+ * idiomas diferentes disparadas no MESMO segundo podem perder uma — cada
+ * uma custa um clique explícito de um humano, e a perda se resolve
+ * clicando de novo.
+ */
+export async function salvarTraducao(
+  db: AppDb,
+  skinId: string,
+  idioma: string,
+  traducao: TraducaoFrases,
+  now: Date = new Date(),
+): Promise<FrasesProspeccao | undefined> {
+  const atual = await getConjunto(db, skinId);
+  await docRef(db, skinId).set(
+    {
+      traducoes: { ...(atual?.traducoes ?? {}), [idioma]: traducao },
+      atualizadoEm: now.toISOString(),
+    },
+    { merge: true },
+  );
+  return getConjunto(db, skinId);
 }
 
 /**

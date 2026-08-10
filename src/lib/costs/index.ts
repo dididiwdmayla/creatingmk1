@@ -1,4 +1,4 @@
-export { projectedCostBRL, projectedCostUSD } from "./cost";
+export { custoIncrementalUSD, projectedCostBRL, projectedCostUSD } from "./cost";
 export {
   QuotaExceededError,
   UserQuotaExceededError,

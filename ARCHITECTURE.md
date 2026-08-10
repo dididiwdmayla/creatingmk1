@@ -176,6 +176,8 @@ src/
       repo.ts                       #    /frasesProspeccao/{skinId}: salvar textos e avançar contador, escritas disjuntas
       listagem.ts                   #    uma linha por skin do registro, com o conjunto salvo por cima (tela de admin)
       migracao.ts                   #    aproveita o texto das entradas antigas (chave por nicho digitado) nas skins
+      traducao.ts                   #    funções PURAS da tradução gravada por idioma (aplicada/desatualizada/ausente)
+      custoTraducao.ts              #    projeção de chamadas e custo mostrada antes de confirmar a tradução
       resolver.ts                   #    precedência skin da demo → grupo → global (usada pela ficha e por /hoje)
     buscas/                         # ✅ registro das buscas executadas
       types.ts                      #    + recorrente/qualificada/quantidade, BuscaExecucao e penetracao (cache)
@@ -514,6 +516,13 @@ Observações:
     ""
   ],
   "indice": 1,                                  // contador da rotação — ÚNICO por skin, compartilhado pelo time
+  "traducoes": {                                // derivado e opcional; as frases acima são SEMPRE em português
+    "es-AR": {                                  // idioma BCP-47 COM variante regional (nunca só "es")
+      "frases": ["Hola {nome}, ...", "", ""],   // MESMOS slots das frases (slot vazio continua vazio)
+      "origem": ["Oi {nome}, ...", "", ""],     // o português que gerou cada slot — muda o de cima, a tradução vira desatualizada
+      "em": "<timestamp>"
+    }
+  },
   "atualizadoEm": "<timestamp>"
 }
 ```
@@ -521,7 +530,7 @@ Observações:
 Observações:
 - **O `skinId` não é gravado como campo**: ele é o id do doc, e duplicá-lo dentro só criaria a chance de os dois divergirem. `getConjunto`/`listConjuntos` preenchem `FrasesProspeccao.skinId` a partir do id lido.
 - As frases usam os **mesmos marcadores** da mensagem global e da mensagem por grupo (`{nome}`, `{demo}`, `{penetracao}`) — não existe marcador exclusivo das frases.
-- **As duas escritas são disjuntas, ambas com `merge`**: o PUT do admin grava `frases`/`atualizadoEm` e nunca toca em `indice`; o POST de avanço grava `indice`/`atualizadoEm` e nunca toca em `frases`. Editar um texto não reinicia a rotação, e girar a rotação não desfaz uma edição salva no mesmo segundo.
+- **As três escritas são disjuntas, todas com `merge`**: o PUT do admin grava `frases`/`atualizadoEm` e nunca toca em `indice`; o POST de avanço grava `indice`/`atualizadoEm` e nunca toca em `frases`; a tradução grava só `traducoes`. O mapa `traducoes` é lido-mesclado-gravado inteiro em vez de depender do merge profundo do Firestore em mapas aninhados — assim o fake dos testes e o banco real se comportam igual. Editar um texto não reinicia a rotação, e girar a rotação não desfaz uma edição salva no mesmo segundo.
 - **Guarda-corpo**: `skinId` fora do registro é rejeitado no PUT e no avanço (400) — é o que impede a coleção de voltar a acumular doc por texto livre.
 - Skin sem doc, ou com doc de três slots vazios, **não participa da precedência** (ver "Frases de prospecção por skin"). O avanço de uma skin sem doc devolve 0 e **não cria doc**: um clique não cadastra nada.
 - **Docs legados** (chaveados pelo texto do nicho, incluindo o antigo `__genericas__`) continuam na coleção até a migração rodar, mas não casam com nenhum id de skin e por isso não viram linha na tela nem entram em precedência nenhuma.
@@ -801,6 +810,7 @@ Formato de erro padrão em todas as rotas:
 | `/api/frases` | GET | — (qualquer sessão) | `200 { conjuntos[] }` — UMA entrada por skin do registro (vazia inclusive), com `skinNome`/`nicho` resolvidos · `401` | — |
 | `/api/frases` | PUT | `{ skinId, frases[] }` (skin do registro; ≤3 frases de ≤1000 caracteres; admin) | `200 { conjunto }` · `400 validation_error` (inclui `skinId` fora do registro) · `401` · `403` | — |
 | `/api/frases/avancar` | POST | `{ skinId }` (qualquer sessão) | `200 { indice }` (skin sem conjunto salvo → `0`, sem gravar) · `400` · `401` | — |
+| `/api/frases/traduzir` | POST | `{ leadId }` (qualquer sessão) | `200 { conjunto, idioma }` — traduz as frases da skin da demo do lead para o idioma DELE (SKU `aiTraducao`) · `400` (lead do Brasil, sem demo ou skin sem frase) · `404` · `429 quota_exceeded` · `502 ai_error` · `503 ai_unavailable` | Gemini (1 chamada, até 2 com retry) |
 | `/api/frases/migrar` | GET | — (admin) | `200 { legados, relatorio }` — prévia da migração das entradas antigas, sem escrever nada · `401` · `403` | — |
 | `/api/frases/migrar` | POST | — (admin) | `200 { relatorio }` — executa; apaga só o legado aproveitado · `401` · `403` | — |
 | `/api/frases/migrar` | DELETE | — (admin) | `200 { apagadas }` — descarta as entradas antigas restantes · `401` · `403` | — |
@@ -866,6 +876,7 @@ O Google cobra a chamada pelo **campo de tier mais alto presente no field mask**
 | `detailsProHours` | `GET places/{id}` | `regularOpeningHours,utcOffsetMinutes` | Pro · US$17/1.000 · 5.000 grátis | Horário de funcionamento — contador PRÓPRIO, chamado junto do enriquecimento (2 requests) ou sozinho pelo botão "buscar horários" |
 | `geocoding` | `GET geocode/json` | — (Geocoding API não usa field mask) | Essentials · US$5/1.000 · 10.000 grátis | Resolver a região da busca (com cache permanente em `/geocache`) |
 | `aiGeneration` | `POST models/gemini-3.5-flash:generateContent` (Gemini, não Places) | — | Free tier do Flash · US$0 default · teto 50/mês | Sugestões de IA da Forja (ver "IA na Forja") |
+| `aiTraducao` | `POST models/gemini-3.5-flash:generateContent` (Gemini, não Places) | — | Free tier do Flash · US$0 default · teto 30/mês | Tradução das frases de prospecção para o idioma do lead estrangeiro — contador PRÓPRIO (ver "Frases de prospecção por skin") |
 
 > ⚠️ **Tiers conferidos na tabela vigente (jul/2026)**: telefone/site/rating são tier **Enterprise** (não Pro); displayName/endereço/location no Text Search são tier **Pro** (5.000 grátis/mês — não os 10k de Essentials). O SKU antigo `detailsPro` foi renomeado para `detailsEnterprise` com migração de leitura dos contadores e da config. `displayName` foi removido do mask de `detailsEssentials` (é campo Pro em Place Details). Os defaults continuam **todos sobrescrevíveis via `/config/app`** — corrigir preço/cota é mudança de configuração, não de código.
 
@@ -1638,7 +1649,9 @@ A IA da Forja (acima) gera TUDO no idioma do prospect, não em pt-BR fixo — a 
 1. **País do endereço do PRÓPRIO lead, não da região da busca**: `cidadeDoEndereco` (`src/lib/leads/cidade.ts`) extrai cidade E país do `Lead.endereco` (o último segmento do endereço formatado — Places API sempre chamada com `languageCode=pt-BR`). `src/lib/idioma.ts` centraliza o mapa país (pt-BR) → idioma BCP-47 (`idiomaDoPais`) — compartilhado com `lib/geo/geocode.ts` (idioma da REGIÃO geocodificada da busca, `lead.busca.idioma`, uma aproximação de mercado usada só como contexto de busca) para não duplicar a lista. `src/lib/demos/idioma.ts#idiomaPadraoDoLead` deriva o idioma-alvo do endereço do lead — mais específico que o da região. Sem país reconhecido (ou Brasil) → `IDIOMA_PADRAO` ("pt-BR").
 2. **Seletor no editor, sobrescrita persistida**: a aba Tema tem um select "Idioma dos textos" (`IDIOMAS_SUPORTADOS`, curada a partir do mapa país→idioma) com o valor derivado do endereço como default (marcado "do endereço do lead" na opção); trocar e Salvar persiste em `LeadDemo.idioma` (ausente = segue o default derivado, não precisa persistir o caso comum) — mesmo padrão de patch mínimo do resto da demo.
 3. **Passado ao Gemini em toda geração de conteúdo** (níveis equilibrado/completo): `gerarSugestaoDemo` resolve o idioma-alvo (override escolhido AGORA no seletor, ainda não salvo → `LeadDemo.idioma` persistido → derivado do endereço → `IDIOMA_PADRAO`) e instrui o prompt ("escreva os TEXTOS em {idioma}") + fixa o campo `idioma` do schema como enum de 1 valor (reforço). UMA chamada por geração, mesmo preview aplicar/descartar e degradação sem `GEMINI_API_KEY` de sempre.
-4. **`resumirHorarios` localizado, sem IA** (`src/lib/leads/horarios.ts`): recebe o mesmo idioma-alvo e troca só a APRESENTAÇÃO — abreviação de dia (SEG-SEX → MO-FR) e formato de hora (9h/9h30 → 09:00, 24h) por raiz do BCP-47 (`pt`, `de`, `en`, `es`, `fr`, `it`, `nl` — idioma sem entrada cai no padrão pt-BR); os dados (horário de funcionamento em si) não mudam, só como aparecem escritos. `estadoAtual`/`melhorMomento` (UI interna do operador) continuam sempre pt-BR — não são conteúdo da demo pública.
+4. **A MESMA derivação vale para as frases de prospecção**: o botão de traduzir na ficha (ver "Frases de prospecção por skin") usa `idiomaEfetivoDemo`, e o rótulo/prompt usam `idiomaLabelRegional` — o mapa país→idioma invertido, para o alvo ser "espanhol (Argentina)" e não "espanhol". Nenhuma tabela de idioma nova entrou no projeto por causa da tradução.
+
+5. **`resumirHorarios` localizado, sem IA** (`src/lib/leads/horarios.ts`): recebe o mesmo idioma-alvo e troca só a APRESENTAÇÃO — abreviação de dia (SEG-SEX → MO-FR) e formato de hora (9h/9h30 → 09:00, 24h) por raiz do BCP-47 (`pt`, `de`, `en`, `es`, `fr`, `it`, `nl` — idioma sem entrada cai no padrão pt-BR); os dados (horário de funcionamento em si) não mudam, só como aparecem escritos. `estadoAtual`/`melhorMomento` (UI interna do operador) continuam sempre pt-BR — não são conteúdo da demo pública.
 
 ## Geração de demos em lote (`src/lib/demos/lote.ts` + `GerarDemosLoteDialog`)
 
@@ -1706,7 +1719,17 @@ Abordagem que varia pela SKIN da demo em vez de um texto único para todo mundo,
 
 10. **Migração das entradas antigas** (`lib/frases/migracao.ts` + `/api/frases/migrar`, admin): as entradas chaveadas por texto de busca já somem da tela sozinhas (não casam com id de skin nenhum), então a migração existe só para **não perder o texto já escrito**. O nicho antigo é comparado, normalizado, com o `nicho` das skins do REGISTRO: casando com mais de uma (skins irmãs), o texto é COPIADO para cada uma — cópia de partida, editável separadamente, não um conjunto por família (nada em tempo de execução consulta "as skins do nicho X"). Skin que já tem frase própria nunca é sobrescrita, e o `indice` antigo não é herdado. O que não casa com skin nenhuma ("barbearia old school", "barbería", o antigo `__genericas__`) vira **pendência listada na tela com as frases inteiras**, para copiar à mão. `GET` é prévia pura (não escreve), `POST` executa e apaga só os docs aproveitados (e os que estavam vazios), `DELETE` é o "já copiei, pode limpar" das pendências — sempre atrás de confirmação, nunca embutido no POST. Rodar duas vezes é inofensivo: na segunda não sobra legado a aproveitar.
 
-11. **A tela de administração** (seção em `/config`, PUT restrito ao admin) lista **uma linha por skin do registro**, com os conjuntos já salvos por cima — skin nova aparece sozinha na próxima carga. O nome e o nicho da skin vêm resolvidos do SERVIDOR (`montarConjuntos`), porque importar `SKINS` numa tela do app arrastaria os componentes das 8 skins para o bundle de `/config` só pra escrever um título. Cada conjunto salva sozinho e mostra em que ponto da rotação o time está ("na vez: frase 2 de 3") ou avisa que aquela skin não participa. É o ÚLTIMO bloco da página de propósito: a lista tem tamanho variável e chega depois do primeiro desenho — no meio da página empurraria o formulário inteiro a cada carga (ver "Deslocamento de layout").
+11. **Tradução para o lead estrangeiro, sempre atrás de um clique** (`lib/frases/traducao.ts` + `lib/ai/traducaoFrases.ts` + `/api/frases/traduzir`). As frases são SEMPRE escritas em português; o que existe por idioma é um texto DERIVADO, gravado e reusado:
+
+    - **O idioma vem da derivação que a demo já usa** (`idiomaEfetivoDemo`: sobrescrita salva no editor → país do endereço do PRÓPRIO lead → pt-BR). Nenhum mapa paralelo — a mesma fonte que faz a demo do argentino sair em espanhol faz a frase sair em espanhol.
+    - **A variante regional é o ponto**: o alvo é `es-AR`, e o prompt recebe "espanhol (Argentina)" com pedido explícito de vocabulário e tratamento daquele país (`idiomaLabelRegional`, o mapa país→idioma de `lib/idioma.ts` invertido — sem lista nova a manter). Espanhol genérico não é o que se manda para um lead argentino.
+    - **Gravada e reusada, nunca refeita ao abrir**: `traducoes[idioma]` no doc da skin, endereçada por SLOT (não pela posição na rotação — com o slot 2 vazio, a segunda frase mora no slot 3). Junto vai a `origem`: o português que gerou cada slot. Editar o português depois deixa aquele slot **desatualizado**, e aí vale o português — mandar a versão antiga de uma frase reescrita seria pior — com o botão voltando a aparecer. Retraduzir é decisão de gasto, então nunca acontece sozinho.
+    - **Uma tradução serve todos os leads daquele idioma naquela skin**, para sempre. É por isso que o SKU tem contador próprio e cota menor que o de sugestões.
+    - **Chamada paga, com o preço na tela antes do OK** (SKU `aiTraducao`, `reserveQuota` antes do request como todo request pago): o botão na ficha abre um `ConfirmModal` com o número de chamadas (1, até 2 se a resposta vier fora do formato), o custo em BRL (`custoIncrementalUSD` — o custo REAL daquele clique, 0 dentro da cota grátis) e o uso do mês. Sem o `/api/usage` em mãos, o texto diz isso em vez de inventar número. **Nenhum caminho traduz automaticamente.**
+    - **Os marcadores são intocáveis**: a validação exige que `{nome}`/`{demo}`/`{penetracao}` cheguem íntegros e na mesma quantidade da frase original — um `{demo}` perdido na tradução quebraria o link da demo e o token de rastreio junto. Falhou, é retry; insistiu, é `502` e nada é gravado.
+    - As três frases vão numa chamada só (dá contexto ao modelo e custa 1 request em vez de 3).
+
+12. **A tela de administração** (seção em `/config`, PUT restrito ao admin) lista **uma linha por skin do registro**, com os conjuntos já salvos por cima — skin nova aparece sozinha na próxima carga. O nome e o nicho da skin vêm resolvidos do SERVIDOR (`montarConjuntos`), porque importar `SKINS` numa tela do app arrastaria os componentes das 8 skins para o bundle de `/config` só pra escrever um título. Cada conjunto salva sozinho e mostra em que ponto da rotação o time está ("na vez: frase 2 de 3") ou avisa que aquela skin não participa. É o ÚLTIMO bloco da página de propósito: a lista tem tamanho variável e chega depois do primeiro desenho — no meio da página empurraria o formulário inteiro a cada carga (ver "Deslocamento de layout").
 
 ## Mensagens entre usuários (`src/lib/mensagens` + `/mensagens`)
 

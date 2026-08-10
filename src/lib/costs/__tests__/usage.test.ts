@@ -28,6 +28,7 @@ describe("reserveQuota", () => {
       detailsProHours: 0,
       geocoding: 0,
       aiGeneration: 0,
+      aiTraducao: 0,
     });
     expect(db.getDoc(DOC)).toMatchObject({ textSearch: 1, detailsEnterprise: 0 });
   });
@@ -57,6 +58,7 @@ describe("reserveQuota", () => {
       detailsProHours: 0,
       geocoding: 0,
       aiGeneration: 0,
+      aiTraducao: 0,
     });
   });
 
@@ -171,6 +173,7 @@ describe("reserveQuota", () => {
       detailsProHours: 0,
       geocoding: 0,
       aiGeneration: 0,
+      aiTraducao: 0,
     });
   });
 
@@ -308,6 +311,7 @@ describe("getUsage", () => {
         detailsProHours: 0,
         geocoding: 0,
         aiGeneration: 0,
+        aiTraducao: 0,
       },
       porUsuario: {},
     });
@@ -331,6 +335,7 @@ describe("getUsage", () => {
         detailsProHours: 0,
         geocoding: 0,
         aiGeneration: 0,
+        aiTraducao: 0,
       },
     });
   });
@@ -349,6 +354,7 @@ describe("getUsage", () => {
       detailsProHours: 0,
       geocoding: 0,
       aiGeneration: 0,
+      aiTraducao: 0,
     });
   });
 

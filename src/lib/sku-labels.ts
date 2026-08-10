@@ -8,6 +8,7 @@ export const SKU_LABELS: Record<Sku, string> = {
   detailsProHours: "Horário de funcionamento (Pro)",
   geocoding: "Região da busca (Geocoding)",
   aiGeneration: "Sugestões de IA (Gemini)",
+  aiTraducao: "Tradução das frases (Gemini)",
 };
 
 export { SKUS };

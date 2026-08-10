@@ -46,7 +46,7 @@ describe("precedência: skin da demo → grupo → global", () => {
     expect(resolvida).toEqual({
       texto: "N2",
       origem: "skin",
-      rotacao: { skinId: BARBEARIA, posicao: 2, total: 3 },
+      rotacao: { skinId: BARBEARIA, posicao: 2, total: 3, slot: 1 },
     });
   });
 
@@ -137,10 +137,109 @@ describe("rotuloOrigem", () => {
       rotuloOrigem({
         texto: "x",
         origem: "skin",
-        rotacao: { skinId: BARBEARIA, posicao: 2, total: 3 },
+        rotacao: { skinId: BARBEARIA, posicao: 2, total: 3, slot: 1 },
       }),
     ).toBe("frases da skin — frase 2 de 3");
     expect(rotuloOrigem({ texto: "x", origem: "grupo" })).toBe("mensagem do grupo");
     expect(rotuloOrigem({ texto: "x", origem: "global" })).toBe("mensagem padrão global");
+  });
+});
+
+describe("tradução do lead estrangeiro", () => {
+  const ARGENTINO = { endereco: "Av. Corrientes 1234, Buenos Aires, Argentina" } as Partial<Lead>;
+
+  function comTraducao(frases: string[], traduzidas: string[], origem = frases): FrasesProspeccao {
+    return {
+      skinId: BARBEARIA,
+      frases,
+      indice: 0,
+      traducoes: { "es-AR": { frases: traduzidas, origem, em: "2026-08-01T00:00:00.000Z" } },
+    };
+  }
+
+  it("lead do Brasil não fala de tradução nenhuma", () => {
+    const resolvida = resolverMensagem({
+      lead: lead(),
+      buscas: BUSCAS,
+      conjuntos: [conjunto(BARBEARIA, ["Oi {nome}"])],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.traducao).toBeUndefined();
+  });
+
+  it("sem tradução gravada, manda o português e pede o botão", () => {
+    const resolvida = resolverMensagem({
+      lead: lead(ARGENTINO),
+      buscas: BUSCAS,
+      conjuntos: [conjunto(BARBEARIA, ["Oi {nome}, veja: {demo}"])],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.texto).toBe("Oi {nome}, veja: {demo}");
+    expect(resolvida.traducao).toEqual({ idioma: "es-AR", estado: "ausente" });
+  });
+
+  it("com tradução gravada, o texto sai traduzido — sem chamar nada", () => {
+    const resolvida = resolverMensagem({
+      lead: lead(ARGENTINO),
+      buscas: BUSCAS,
+      conjuntos: [comTraducao(["Oi {nome}", "", ""], ["Hola {nome}", "", ""])],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.texto).toBe("Hola {nome}");
+    expect(resolvida.traducao).toEqual({ idioma: "es-AR", estado: "aplicada" });
+  });
+
+  it("português editado depois da tradução: volta ao português e marca desatualizada", () => {
+    const resolvida = resolverMensagem({
+      lead: lead(ARGENTINO),
+      buscas: BUSCAS,
+      conjuntos: [
+        comTraducao(["Oi {nome}, mudei", "", ""], ["Hola {nome}", "", ""], ["Oi {nome}", "", ""]),
+      ],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.texto).toBe("Oi {nome}, mudei");
+    expect(resolvida.traducao?.estado).toBe("desatualizada");
+  });
+
+  it("a tradução é endereçada pelo SLOT, não pela posição na rotação", () => {
+    const conjuntoComVazio: FrasesProspeccao = {
+      skinId: BARBEARIA,
+      frases: ["Oi", "", "Terceira"],
+      indice: 1,
+      traducoes: {
+        "es-AR": {
+          frases: ["Hola", "", "Tercera"],
+          origem: ["Oi", "", "Terceira"],
+          em: "2026-08-01T00:00:00.000Z",
+        },
+      },
+    };
+
+    const resolvida = resolverMensagem({
+      lead: lead(ARGENTINO),
+      buscas: BUSCAS,
+      conjuntos: [conjuntoComVazio],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.rotacao?.slot).toBe(2);
+    expect(resolvida.texto).toBe("Tercera");
+  });
+
+  it("mensagem do grupo/global nunca é traduzida (não é frase de skin)", () => {
+    const resolvida = resolverMensagem({
+      lead: lead({ ...ARGENTINO, demo: undefined }),
+      buscas: BUSCAS,
+      conjuntos: [],
+      global: GLOBAL,
+    });
+
+    expect(resolvida.origem).toBe("grupo");
+    expect(resolvida.traducao).toBeUndefined();
   });
 });

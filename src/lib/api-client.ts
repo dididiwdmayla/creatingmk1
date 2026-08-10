@@ -291,6 +291,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ skinId }),
     }),
+  /**
+   * Traduz as frases da skin da demo deste lead para o idioma DELE — chamada
+   * PAGA (SKU aiTraducao). Só é chamada depois da confirmação com o número
+   * de chamadas e o custo na tela.
+   */
+  traduzirFrases: (leadId: string) =>
+    request<{ conjunto: FrasesProspeccao; idioma: string }>("/api/frases/traduzir", {
+      method: "POST",
+      body: JSON.stringify({ leadId }),
+    }),
   /** Prévia da migração das frases antigas (admin) — não escreve nada. */
   previaMigracaoFrases: () => request<MigracaoFrasesResponse>("/api/frases/migrar"),
   /** Executa a migração das frases antigas (admin). */

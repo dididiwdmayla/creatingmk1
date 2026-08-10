@@ -39,8 +39,28 @@ export interface FrasesProspeccao {
    * aceitável — o custo de uma trava não se paga aqui.
    */
   indice: number;
+  /**
+   * Traduções gravadas, por idioma BCP-47 com variante regional ("es-AR",
+   * nunca "es"). As frases são SEMPRE escritas em português; a tradução é
+   * derivada, paga e explícita (um clique por idioma) — nunca automática,
+   * e reusada em toda abertura seguinte. Ausente = nunca traduzido.
+   */
+  traducoes?: Record<string, TraducaoFrases>;
   /** Ausente = conjunto nunca salvo (sintetizado vazio para uma skin nova). */
   atualizadoEm?: string;
+}
+
+/**
+ * A tradução de um conjunto para UM idioma. `frases` usa os MESMOS slots do
+ * conjunto (índice 0..2), e `origem` guarda o português que gerou cada uma:
+ * comparar os dois é o que detecta "o admin editou a frase depois de
+ * traduzir" sem precisar de versão nem timestamp — slot desatualizado cai
+ * de volta no português e o botão de traduzir reaparece.
+ */
+export interface TraducaoFrases {
+  frases: string[];
+  origem: string[];
+  em: string;
 }
 
 /**
