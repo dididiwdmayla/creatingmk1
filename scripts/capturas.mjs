@@ -33,17 +33,22 @@ import path from "node:path";
 import { chromium } from "playwright-core";
 
 import {
+  assentarLed,
+  caixaDaTela,
   caixaNaViewport,
+  centralizarSecao,
   congelarAnimacoes,
   esperarTextoEstavel,
   fixarUnidadesDeTela,
   forcarImagensDaSecao,
+  forcarRevelacaoDasSecoes,
   identidadeDaPagina,
   imagensDaSecao,
   medirSecao,
   neutralizarCromo,
   paletaDaPagina,
   prepararPagina,
+  revelacaoPendente,
   rolarAteSecao,
   tituloCoberto,
 } from "../src/lib/demos/capturas/dom.mjs";
@@ -277,6 +282,10 @@ async function capturar(page, alvo, ancora, tela, destino) {
     // altura de quem está acima. Medir antes disso mede um layout que já
     // não existe na hora do disparo.
     await page.evaluate(prepararPagina, { alturaTela: alvoAltura, quietoMs: 500 });
+    // Revelar ANTES de remedir: uma seção presa em `translateY(56px)` mede
+    // uma caixa que não é a que vai ser fotografada, e a perseguição de
+    // altura passaria a convergir para o número errado.
+    await page.evaluate(forcarRevelacaoDasSecoes, {});
     const depois = await page.evaluate(medirSecao, ancora);
     if (!depois) break;
     esticou = Math.abs(depois.altura - alvoAltura) > 2;
@@ -317,7 +326,35 @@ async function capturar(page, alvo, ancora, tela, destino) {
   // título do negócio pela metade. Ver `esperarTextoEstavel`.
   const texto = await page.evaluate(esperarTextoEstavel, { secaoId: ancora });
 
-  const recorte = await page.evaluate(caixaNaViewport, ancora);
+  // ÚLTIMO passo antes do disparo, e nesta ordem de propósito: a revelação
+  // é imposta DEPOIS de tudo que ainda podia mexer na página (crescer a
+  // viewport, rolar, esperar imagem e texto), porque cada um desses passos
+  // é uma chance de a foto pegar uma entrada de seção no meio do voo. Ver
+  // `forcarRevelacaoDasSecoes`.
+  // SEÇÃO MAIS CURTA QUE A TELA, no celular: o recorte deixa de ser a caixa
+  // da seção e passa a ser UMA TELA INTEIRA, com a seção centrada. Recortar
+  // no pixel dela deixava a composição de aparelho com faixa lisa acima e
+  // abaixo — o fundo chapado da demo fazendo as vezes das seções vizinhas
+  // (`folga` em moldura.mjs). A intenção sempre foi "a página continua";
+  // isto é a página continuando de verdade. Ver `centralizarSecao`.
+  const medida = await page.evaluate(caixaNaViewport, ancora);
+  const curta = tela.id === "celular" && Boolean(medida?.cabe) && medida.height < tela.altura - 1;
+  const enquadramento = curta ? await page.evaluate(centralizarSecao, ancora) : null;
+  if (enquadramento) await page.waitForTimeout(350);
+
+  const revelacao = await page.evaluate(forcarRevelacaoDasSecoes, {});
+  // E o LED assentado por último de todos: ele reage a scroll/resize (e o
+  // enquadramento de tela cheia acima é um scroll), então fixar a fase antes
+  // de qualquer um dos dois seria fixar e perder.
+  const led = await page.evaluate(assentarLed, {});
+  const pendente = await page.evaluate(revelacaoPendente, ancora);
+
+  const recorte = enquadramento
+    ? await page.evaluate(caixaDaTela, ancora)
+    : await page.evaluate(caixaNaViewport, ancora);
+  // No enquadramento de tela cheia não há o que caber: o recorte É a
+  // viewport. `cabe` só faz sentido pro recorte da caixa da seção.
+  if (recorte && enquadramento) recorte.cabe = true;
   const portao = await page.evaluate(tituloCoberto, ancora);
   const imagens = await page.evaluate(imagensDaSecao, ancora);
   // A paleta da própria demo, que vira o fundo da composição em moldura.
@@ -332,7 +369,21 @@ async function capturar(page, alvo, ancora, tela, destino) {
     clip: { x: recorte.x, y: recorte.y, width: recorte.width, height: recorte.height },
   });
 
-  return { caixa: recorte, cromo, gelo, portao, imagens, esticou, imagensForcadas, paleta, texto };
+  return {
+    caixa: recorte,
+    cromo,
+    gelo,
+    portao,
+    imagens,
+    esticou,
+    imagensForcadas,
+    paleta,
+    texto,
+    revelacao,
+    led,
+    pendente,
+    enquadramento,
+  };
 }
 
 /**
@@ -353,6 +404,11 @@ async function prepararTrilha(page, alvo, tela) {
   await page.setViewportSize({ width: tela.largura, height: tela.altura });
   await page.goto(alvo.url, { waitUntil: "networkidle" });
   await page.evaluate(prepararPagina, { alturaTela: tela.altura });
+  // A varredura acima DISPARA as revelações; esta linha garante o resultado
+  // delas antes de qualquer medida da trilha. Sem isso, `fixarUnidadesDeTela`
+  // e a primeira `medirSecao` leem um layout em que parte da página ainda
+  // está deslocada. Ver `forcarRevelacaoDasSecoes`.
+  const revelacao = await page.evaluate(forcarRevelacaoDasSecoes, {});
 
   // Prende as alturas em `vh` ANTES de qualquer redimensionamento — com a
   // viewport ainda na altura real da tela, que é onde `100vh` vale o que
@@ -360,7 +416,7 @@ async function prepararTrilha(page, alvo, tela) {
   // vez preso em pixel, o valor não depende mais de QUAL âncora está sendo
   // capturada — por isso entra aqui, e não dentro de `capturar`.
   const presos = await page.evaluate(fixarUnidadesDeTela);
-  return { presos: presos.presos };
+  return { presos: presos.presos, revelados: revelacao.forcados };
 }
 
 /**
@@ -415,9 +471,13 @@ async function comporMoldura(pagina, { tela, arquivo, largura, altura, alturaTel
       caminhoLocal: destino,
       largura: m.largura,
       altura: m.altura,
-      // `modo`/`cortada` só existem no celular; no desktop a janela sempre
-      // cabe a captura inteira.
-      ...(m.tela === "celular" ? { modo: m.modo, cortada: m.cortada } : {}),
+      // `modo`/`cortada`/`folga` só existem no celular; no desktop a janela
+      // sempre cabe a captura inteira. `folga` volta porque é ela o PORTÃO
+      // da região vazia: sobra de tela preenchida com cor chapada onde
+      // deveria haver a página vizinha (ver `centralizarSecao`).
+      ...(m.tela === "celular"
+        ? { modo: m.modo, cortada: m.cortada, folga: m.modo === "aparelho" ? m.folga : 0 }
+        : {}),
     };
   } finally {
     await fs.unlink(paginaHtml).catch(() => undefined);
@@ -451,6 +511,12 @@ async function capturarTopo(page, alvo, tela, destino) {
   });
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   await page.waitForTimeout(400);
+  // Mesma garantia das capturas por âncora: o topo é a primeira coisa que o
+  // buscador de prévia mostra, e um hero meio revelado ali vira um cartão de
+  // conversa com o nome do negócio apagado. O LED NÃO é assentado aqui de
+  // propósito — no topo da página `--d-led-scroll` já vale 0, que é
+  // exatamente o que o visitante vê ao chegar.
+  await page.evaluate(forcarRevelacaoDasSecoes, {});
   // O topo é justamente onde mora a máquina de escrever do título: sem
   // esta espera a prévia do link sairia com o nome do negócio truncado
   // dentro do print (ver `esperarTextoEstavel`).
@@ -604,7 +670,7 @@ async function capturarTrilha({ browser, alvo, tela, cookie, manifestoAlvo, repr
   let compostas = 0;
 
   try {
-    const { presos } = await prepararTrilha(page, alvo, tela);
+    const { presos, revelados } = await prepararTrilha(page, alvo, tela);
 
     for (const [i, ancora] of alvo.ancoras.entries()) {
       const arquivo = `${alvo.nome}-${String(i + 1).padStart(2, "0")}-${ancora}-${tela.id}.png`;
@@ -662,6 +728,32 @@ async function capturarTrilha({ browser, alvo, tela, cookie, manifestoAlvo, repr
       if (r.portao.coberto) {
         reprovadas.push(`${alvo.nome}/${ancora}/${tela.id}: título coberto (${r.portao.porQuem})`);
       }
+      // PORTÃO DA REVELAÇÃO: nenhuma parte da página pode entrar na rodada
+      // ainda presa no estado inicial da entrada de seção — nem dentro do
+      // recorte (buraco na foto) nem acima/abaixo dele (a página vizinha em
+      // branco, que é o que a prévia de enquadramento e a moldura mostram
+      // em volta). Ver `revelacaoPendente`.
+      const semRevelar = r.pendente.total > 0;
+      if (semRevelar) {
+        reprovadas.push(
+          `${alvo.nome}/${ancora}/${tela.id}: ${r.pendente.total} elemento(s) sem revelar` +
+            ` (${r.pendente.acima} acima, ${r.pendente.dentro} dentro, ${r.pendente.abaixo} abaixo)` +
+            ` — ${r.pendente.exemplos.join(", ")}`,
+        );
+      }
+      // PORTÃO DA REGIÃO VAZIA: no aparelho, sobra de tela é preenchida com
+      // cor chapada — e cor chapada acima ou abaixo do recorte é a página
+      // vizinha faltando, não "a página continuando". O enquadramento de
+      // tela cheia (ver `centralizarSecao`) existe pra este número ser zero;
+      // se ele voltar a crescer, a rodada reprova em vez de a faixa lisa
+      // chegar na conversa com o lead.
+      const comVazio = (entradaImagem.composta?.folga ?? 0) > 0;
+      if (comVazio) {
+        reprovadas.push(
+          `${alvo.nome}/${ancora}/${tela.id}: ${entradaImagem.composta.folga}px de região vazia` +
+            ` acima/abaixo do recorte na composição`,
+        );
+      }
       const semImagem = r.imagens.prontas < r.imagens.total;
       if (semImagem) {
         reprovadas.push(
@@ -669,12 +761,19 @@ async function capturarTrilha({ browser, alvo, tela, cookie, manifestoAlvo, repr
         );
       }
       console.log(
-        `  ${r.portao.coberto || semImagem ? "✗" : "ok"} ${tela.id}/${ancora}: ${r.caixa.width}×${r.caixa.height}` +
+        `  ${r.portao.coberto || semImagem || semRevelar || comVazio ? "✗" : "ok"} ${tela.id}/${ancora}: ${r.caixa.width}×${r.caixa.height}` +
           ` (${(r.caixa.height / tela.altura).toFixed(1)} telas)` +
           ` · cromo oculto ${r.cromo.escondidos}` +
           ` · congeladas ${r.gelo.congeladas}/${r.gelo.infinitas} infinitas` +
           ` · imagens ${r.imagens.prontas}/${r.imagens.total}` +
           (presos > 0 ? ` · vh preso em ${presos}` : "") +
+          ` · revelados ${revelados}+${r.revelacao.forcados}` +
+          (r.revelacao.restantes > 0 ? ` ⚠ ${r.revelacao.restantes} ainda voltando` : "") +
+          (r.pendente.total > 0 ? ` · ✗ ${r.pendente.total} sem revelar` : "") +
+          (r.led.leds > 0 ? ` · LED na fase ${r.led.fase}` : "") +
+          (r.enquadramento
+            ? ` · tela cheia (${r.caixa.acima}px acima, ${r.caixa.abaixo}px abaixo${r.enquadramento.centrada ? "" : ", sem centrar"})`
+            : "") +
           (r.imagensForcadas.trilhos > 0 ? ` · ${r.imagensForcadas.trilhos} trilho(s)` : "") +
           (r.esticou ? " · ⚠ seção ainda cresceu" : "") +
           (r.texto.estavel ? "" : " · ⚠ texto ainda mudava") +

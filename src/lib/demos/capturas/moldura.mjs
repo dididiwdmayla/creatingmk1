@@ -32,6 +32,7 @@ const PALETA_RESERVA = {
   fundoAlt: "#171a20",
   fundoElevado: "#1f232b",
   destaque: "#6b7280",
+  texto: "#e7e9ee",
 };
 
 /**
@@ -158,6 +159,147 @@ export function luminancia(cor) {
 export function fundoClaro(paleta) {
   const l = luminancia(paleta?.fundoAlt) ?? luminancia(paleta?.fundo);
   return l !== null && l > 0.45;
+}
+
+/**
+ * CLAREZA PERCEPTUAL (L*, 0–100) de uma cor CSS.
+ *
+ * `luminancia` devolve Y, que é energia, não percepção: perto do preto ela
+ * anda devagar demais (a tatuagem, quase preta, tem Y ≈ 0,003) e perto do
+ * branco, depressa demais. Um afastamento fixo medido em Y sairia enorme
+ * numa demo escura e invisível numa clara — que é justamente o defeito que
+ * o afastamento existe pra evitar. L* é uniforme: 8 pontos de L* são o
+ * mesmo degrau para o olho nos dois extremos.
+ *
+ * @param {string | undefined} cor
+ * @returns {number | null}
+ */
+export function claridade(cor) {
+  const y = luminancia(cor);
+  if (y === null) return null;
+  return y > 0.008856 ? 116 * Math.cbrt(y) - 16 : 903.3 * y;
+}
+
+/**
+ * AFASTAMENTO MÍNIMO, em pontos de L*, entre o fundo da composição e o fundo
+ * do SITE. Abaixo disto a moldura encosta no papel e deixa de existir: era o
+ * caso da composição de desktop do petshop, creme sobre creme, em que a borda
+ * da janela do navegador sumia no fundo.
+ *
+ * 10 é o degrau que se lê como "duas superfícies" sem virar contraste de
+ * cartaz — a imagem é do site do lead, não de uma vitrine do Radar.
+ */
+export const AFASTAMENTO_MIN = 10;
+
+/** Até onde a mistura vai atrás do afastamento (1 = a própria cor de texto). */
+const MISTURA_MAX = 0.62;
+
+/** Interpreta uma cor CSS como `[r, g, b]` (mesmos formatos de `luminancia`). */
+function canais(cor, reserva) {
+  const texto = typeof cor === "string" ? cor.trim().toLowerCase() : "";
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(texto);
+  if (hex) {
+    const d = hex[1];
+    const largo =
+      d.length === 3 ? [...d].map((c) => c + c) : [d.slice(0, 2), d.slice(2, 4), d.slice(4, 6)];
+    return largo.map((p) => parseInt(p, 16));
+  }
+  const func = /^rgba?\(([^)]+)\)$/.exec(texto);
+  if (func) {
+    const partes = func[1].split(/[\s,/]+/).filter(Boolean).slice(0, 3).map(Number);
+    if (partes.length === 3 && partes.every(Number.isFinite)) {
+      return partes.map((v) => Math.min(255, Math.max(0, v)));
+    }
+  }
+  return reserva;
+}
+
+const misturar = (a, b, f) => a.map((v, i) => Math.round(v + (b[i] - v) * f));
+const comoCss = ([r, g, b]) => `rgb(${r}, ${g}, ${b})`;
+const comAlfa = ([r, g, b], alfa) => `rgba(${r}, ${g}, ${b}, ${alfa})`;
+
+/**
+ * AS CORES DA COMPOSIÇÃO — o papel sobre o qual a moldura é apoiada, o fio
+ * em volta dela e a sombra debaixo.
+ *
+ * Duas regras, e as duas vêm de defeito visto em captura:
+ *
+ * 1. **Sai da paleta da própria demo, nunca de branco ou preto fixos.** Uma
+ *    cor da plataforma carimbaria o Radar na imagem que vai pro lead, e um
+ *    branco/preto chapado transforma qualquer demo num slide genérico. Todas
+ *    as cores daqui nascem de `--d-bg`, `--d-text` e `--d-accent` lidos da
+ *    página (ver `paletaDaPagina` em dom.mjs).
+ *
+ * 2. **Com afastamento GARANTIDO de luminância em relação ao fundo do site.**
+ *    O fundo da composição era um degradê da mesma `--d-bg`, então a moldura
+ *    ficava creme sobre creme (petshop) ou quase-preto sobre quase-preto
+ *    (tatuagem) e a borda desaparecia. Aqui o fundo do site é empurrado na
+ *    direção da TINTA da própria demo — que é clara em tema escuro e escura
+ *    em tema claro, então a direção do afastamento se resolve sozinha — até
+ *    o afastamento em L* chegar a `AFASTAMENTO_MIN`. A menor mistura que
+ *    resolve é a escolhida: o objetivo é a moldura existir, não a composição
+ *    chamar atenção.
+ *
+ * A SOMBRA sai do mesmo lugar: um tom escuro da cor do próprio site (não um
+ * preto neutro), suave e larga, pra a moldura pousar no papel em vez de ser
+ * colada nele.
+ *
+ * @param {PaletaDemo | undefined} paleta
+ * @returns {{
+ *   papel: string, papelAlto: string, realce: string,
+ *   sombra: string, sombraLarga: string, aro: string,
+ *   claro: boolean, afastamento: number, mistura: number,
+ * }}
+ */
+export function corDaComposicao(paleta) {
+  const p = { ...PALETA_RESERVA, ...(paleta ?? {}) };
+  const fundo = canais(p.fundo, canais(PALETA_RESERVA.fundo, [17, 19, 24]));
+  const tinta = canais(p.texto, fundo.map((v) => 255 - v));
+  const destaque = canais(p.destaque, fundo);
+  const base = claridade(comoCss(fundo)) ?? 0;
+
+  // A MENOR mistura que já afasta o suficiente. Passo fino (2%) porque o
+  // objetivo é parar assim que a moldura passa a existir — cada ponto a
+  // mais de mistura é um passo a mais na direção de uma cor que não é a
+  // da demo.
+  let mistura = MISTURA_MAX;
+  let afastamento = 0;
+  for (let f = 0.02; f <= MISTURA_MAX + 1e-9; f += 0.02) {
+    const l = claridade(comoCss(misturar(fundo, tinta, f))) ?? base;
+    afastamento = Math.abs(l - base);
+    if (afastamento >= AFASTAMENTO_MIN) {
+      mistura = f;
+      break;
+    }
+  }
+  if (afastamento < AFASTAMENTO_MIN) {
+    // Tinta perto demais do fundo (tema quebrado): vai até o teto e reporta
+    // o afastamento que deu, em vez de fingir que alcançou.
+    afastamento = Math.abs((claridade(comoCss(misturar(fundo, tinta, MISTURA_MAX))) ?? base) - base);
+  }
+
+  const papel = misturar(fundo, tinta, mistura);
+  const papelAlto = misturar(fundo, tinta, Math.min(MISTURA_MAX, mistura * 1.7));
+  const claro = (claridade(comoCss(papel)) ?? 0) > 55;
+
+  // Sombra: a cor do PRÓPRIO site puxada pro escuro. Preto neutro debaixo de
+  // uma demo quente sai como sujeira cinza; assim ela fica na família da
+  // imagem. Em tema escuro a sombra pesa mais, senão some no papel.
+  const sombraBase = fundo.map((v) => Math.round(v * 0.28));
+
+  return {
+    papel: comoCss(papel),
+    papelAlto: comoCss(papelAlto),
+    realce: comoCss(misturar(papelAlto, destaque, 0.14)),
+    sombra: comAlfa(sombraBase, claro ? 0.2 : 0.3),
+    sombraLarga: comAlfa(sombraBase, claro ? 0.3 : 0.45),
+    // O fio de 1px que fecha a silhueta da moldura: a tinta da demo, quase
+    // apagada. Era `rgba(0,0,0,.22)`/`rgba(255,255,255,.14)` fixos.
+    aro: comAlfa(tinta, claro ? 0.24 : 0.16),
+    claro,
+    afastamento,
+    mistura,
+  };
 }
 
 /**
@@ -385,18 +527,20 @@ export function escapar(texto) {
 
 /**
  * Fundo da composição: a paleta da PRÓPRIA demo, nunca uma cor da
- * plataforma. Compartilhado com a prévia do link, que é composta sobre o
- * mesmo fundo pelo mesmo motivo.
+ * plataforma — e afastada em luminância do fundo do SITE, senão a moldura
+ * encosta no papel e some (ver `corDaComposicao`, que é onde as duas regras
+ * moram). Compartilhado com a prévia do link, que é composta sobre o mesmo
+ * fundo pelo mesmo motivo.
  *
  * @param {PaletaDemo | undefined} paleta
  * @returns {string} bloco CSS de `background`
  */
 export function fundoDaComposicao(paleta) {
-  const p = { ...PALETA_RESERVA, ...(paleta ?? {}) };
+  const c = corDaComposicao(paleta);
   return `
     background:
-      radial-gradient(120% 90% at 50% -10%, color-mix(in srgb, ${p.destaque} 16%, ${p.fundoElevado}) 0%, transparent 60%),
-      linear-gradient(168deg, ${p.fundoAlt} 0%, ${p.fundo} 55%, color-mix(in srgb, ${p.fundo} 82%, black) 100%);
+      radial-gradient(120% 90% at 50% -10%, ${c.realce} 0%, transparent 62%),
+      linear-gradient(168deg, ${c.papelAlto} 0%, ${c.papel} 62%, ${c.papel} 100%);
   `;
 }
 
@@ -427,12 +571,16 @@ export function fundoDaComposicao(paleta) {
  */
 export function htmlMoldura({ tela, src, largura, altura, alturaTela, endereco, paleta }) {
   const m = medidasMoldura({ tela, largura, altura, alturaTela });
+  // Uma leitura só da paleta pra composição inteira: o papel, o aro e a
+  // sombra têm que sair do MESMO afastamento, senão a sombra pousa numa cor
+  // que não é a do fundo em que ela cai.
+  const cor = corDaComposicao(paleta);
   const corpo =
     m.tela === "celular"
       ? m.modo === "aparelho"
-        ? corpoAparelho(m, src, largura, altura, paleta, fundoClaro(paleta))
-        : corpoFatiado(m, src, largura, altura, paleta, fundoClaro(paleta))
-      : molduraNavegador(m, src, endereco, fundoClaro(paleta));
+        ? corpoAparelho(m, src, largura, altura, paleta, cor)
+        : corpoFatiado(m, src, largura, altura, paleta, cor)
+      : molduraNavegador(m, src, endereco, fundoClaro(paleta), cor);
 
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -462,15 +610,20 @@ export function htmlMoldura({ tela, src, largura, altura, alturaTela, endereco, 
  * navegador, e quem recebe a foto não precisa ler URL aqui. O objetivo é
  * ler como "site num celular", não como retrato de um aparelho.
  *
+ * A SOMBRA sai da paleta da demo (ver `corDaComposicao`), não de um preto
+ * fixo: preto neutro debaixo de uma demo quente lê como sujeira cinza, e num
+ * papel escuro ele simplesmente não existe. Duas camadas — uma curta e
+ * fechada, uma longa e aberta — pra a moldura POUSAR no papel em vez de
+ * ganhar um contorno borrado.
+ *
  * @param {{ raio: number, borda: number, margem: number }} m
  * @param {number} larguraQuadro
  * @param {number} alturaQuadro altura da TELA (sem a moldura)
  * @param {string} miolo o conteúdo da tela, já pronto (HTML)
- * @param {boolean} claro
+ * @param {ReturnType<typeof corDaComposicao>} cor
  * @returns {string}
  */
-function quadroAparelho(m, larguraQuadro, alturaQuadro, miolo, claro) {
-  const aro = claro ? "rgba(0,0,0,.22)" : "rgba(255,255,255,.14)";
+function quadroAparelho(m, larguraQuadro, alturaQuadro, miolo, cor) {
   return `
   <div style="
     flex: none;
@@ -479,8 +632,9 @@ function quadroAparelho(m, larguraQuadro, alturaQuadro, miolo, claro) {
     padding: ${m.borda}px;
     background: #15171b;
     box-shadow:
-      0 0 0 1px ${aro},
-      0 ${Math.round(m.margem * 0.35)}px ${Math.round(m.margem * 1.1)}px rgba(0,0,0,.38);
+      0 0 0 1px ${cor.aro},
+      0 ${Math.round(m.margem * 0.18)}px ${Math.round(m.margem * 0.5)}px ${cor.sombra},
+      0 ${Math.round(m.margem * 0.5)}px ${Math.round(m.margem * 1.6)}px ${cor.sombraLarga};
   ">${miolo}</div>`;
 }
 
@@ -499,10 +653,10 @@ function quadroAparelho(m, larguraQuadro, alturaQuadro, miolo, claro) {
  * @param {number} largura largura do PNG cru
  * @param {number} altura altura do PNG cru
  * @param {PaletaDemo | undefined} paleta
- * @param {boolean} claro
+ * @param {ReturnType<typeof corDaComposicao>} cor
  * @returns {string}
  */
-function corpoAparelho(m, src, largura, altura, paleta, claro) {
+function corpoAparelho(m, src, largura, altura, paleta, cor) {
   // A sobra da tela é o FUNDO DA DEMO, não preto: preto viraria tarja de
   // letterbox, e o que se quer é a página continuando fora da seção.
   const fundoTela = paleta?.fundo || "#000";
@@ -520,7 +674,7 @@ function corpoAparelho(m, src, largura, altura, paleta, claro) {
         display: block; width: ${larguraImg}px; height: ${alturaImg}px;
       ">
     </div>`;
-  return quadroAparelho(m, largura, m.alturaVisivel, miolo, claro);
+  return quadroAparelho(m, largura, m.alturaVisivel, miolo, cor);
 }
 
 /**
@@ -547,10 +701,10 @@ function corpoAparelho(m, src, largura, altura, paleta, claro) {
  * @param {number} largura largura do PNG cru
  * @param {number} altura altura do PNG cru
  * @param {PaletaDemo | undefined} paleta
- * @param {boolean} claro
+ * @param {ReturnType<typeof corDaComposicao>} cor
  * @returns {string}
  */
-function corpoFatiado(m, src, largura, altura, paleta, claro) {
+function corpoFatiado(m, src, largura, altura, paleta, cor) {
   const fundoTela = paleta?.fundo || "#000";
   const quadros = m.topos.map((topo) => {
     const miolo = `
@@ -565,7 +719,7 @@ function corpoFatiado(m, src, largura, altura, paleta, claro) {
           width: ${largura}px; height: ${altura}px; display: block;
         ">
       </div>`;
-    return quadroAparelho(m, largura, m.umaTela, miolo, claro);
+    return quadroAparelho(m, largura, m.umaTela, miolo, cor);
   });
   return `<div style="display: flex; align-items: flex-start; gap: ${m.gap}px;">${quadros.join("")}</div>`;
 }
@@ -580,13 +734,19 @@ function corpoFatiado(m, src, largura, altura, paleta, claro) {
  * ajuste, e aí a moldura da galeria e a do cartão de conversa passariam a
  * mostrar navegadores diferentes do mesmo site.
  *
+ * A SOMBRA e o fio em volta saem da paleta da demo (`cor`, ver
+ * `corDaComposicao`) pelo mesmo motivo do aparelho; sem `cor` — quem chama
+ * de fora sem paleta nenhuma — cai na composição de reserva, nunca num preto
+ * fixo escondido aqui dentro.
+ *
  * @param {MedidasDesktop} m
  * @param {string} src
  * @param {string | undefined} endereco
- * @param {boolean} claro
+ * @param {boolean} claro cromo claro ou escuro (decidido pelo fundo do SITE)
+ * @param {ReturnType<typeof corDaComposicao>} [cor] cores da composição
  * @returns {string}
  */
-export function molduraNavegador(m, src, endereco, claro) {
+export function molduraNavegador(m, src, endereco, claro, cor = corDaComposicao(undefined)) {
   const cromo = claro
     ? { fundo: "#e9ebee", borda: "rgba(0,0,0,.10)", pastilha: "#ffffff", texto: "#3c4043", suave: "#80868b" }
     : { fundo: "#24272c", borda: "rgba(255,255,255,.10)", pastilha: "#15171a", texto: "#e3e6ea", suave: "#9aa0a6" };
@@ -598,8 +758,9 @@ export function molduraNavegador(m, src, endereco, claro) {
     width: ${largura}px; height: ${m.altura - 2 * m.margem}px;
     border-radius: ${m.raio}px; overflow: hidden;
     box-shadow:
-      0 0 0 1px ${cromo.borda},
-      0 ${Math.round(m.margem * 0.4)}px ${Math.round(m.margem * 1.5)}px rgba(0,0,0,.45);
+      0 0 0 1px ${cor.aro},
+      0 ${Math.round(m.margem * 0.2)}px ${Math.round(m.margem * 0.6)}px ${cor.sombra},
+      0 ${Math.round(m.margem * 0.6)}px ${Math.round(m.margem * 2)}px ${cor.sombraLarga};
   ">
     <div style="
       height:${m.barra}px; display:flex; align-items:center; gap:${Math.round(m.ponto * 0.8)}px;

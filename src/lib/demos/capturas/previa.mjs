@@ -20,6 +20,7 @@
  */
 
 import {
+  corDaComposicao,
   escapar,
   fundoClaro,
   fundoDaComposicao,
@@ -142,6 +143,6 @@ export function htmlPrevia({ src, largura, altura, nome, apoio, endereco, paleta
     <div class="nome">${escapar(nome)}</div>
     ${linha ? `<div class="apoio">${escapar(linha)}</div>` : ""}
   </div>
-  <div class="janela"><div>${molduraNavegador(m, src, endereco, fundoClaro(paleta))}</div></div>
+  <div class="janela"><div>${molduraNavegador(m, src, endereco, fundoClaro(paleta), corDaComposicao(paleta))}</div></div>
 </body></html>`;
 }

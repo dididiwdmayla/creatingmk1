@@ -35,6 +35,17 @@
  * fonte DEPOIS da varredura porque é a varredura que traz para a página as
  * imagens (e com elas o resto do texto que ainda não tinha sido pedido).
  *
+ * `behavior: "instant"` em CADA passo, pelo mesmo motivo que `rolarAteSecao`
+ * documenta — e aqui o estrago era maior. `imobiliaria` e `multimarcas`
+ * declaram `html { scroll-behavior: smooth }` (nav de âncora), então um
+ * `scrollTo` sem `behavior` ANIMA: cada passo do laço reiniciava a animação
+ * do passo anterior, a varredura mal saía do topo e o `scrollTo(0, 0)` do
+ * fim cancelava o resto. Medido nas duas skins: tudo abaixo das primeiras
+ * telas ficava em `opacity: 0; translateY(56px)` — a revelação por entrada
+ * na viewport nunca disparava, e a seção capturada saía com buracos (e as
+ * vizinhas, em branco, na prévia de enquadramento de /interno/capturas, que
+ * chama esta MESMA função dentro do iframe).
+ *
  * @param {{ alturaTela: number, quietoMs?: number }} opcoes
  * @param {Window} [win] janela alvo (default: a da própria página)
  * @returns {Promise<{ altura: number, imagens: number, imagensProntas: number }>}
@@ -45,10 +56,10 @@ export async function prepararPagina({ alturaTela, quietoMs = 900 }, win = windo
   const passo = Math.max(200, Math.round(alturaTela * 0.8));
 
   for (let y = 0; y < doc.documentElement.scrollHeight; y += passo) {
-    win.scrollTo(0, y);
+    win.scrollTo({ top: y, behavior: "instant" });
     await espera(60);
   }
-  win.scrollTo(0, 0);
+  win.scrollTo({ top: 0, behavior: "instant" });
   await espera(quietoMs);
 
   await doc.fonts.ready;
@@ -74,6 +85,179 @@ export async function prepararPagina({ alturaTela, quietoMs = 900 }, win = windo
     imagens: imgs.length,
     imagensProntas: imgs.filter((i) => i.complete && i.naturalWidth > 0).length,
   };
+}
+
+/**
+ * FORÇA todas as seções ao estado REVELADO — a garantia de que nenhuma
+ * parte da página entra na foto ainda transparente ou deslocada.
+ *
+ * A varredura de `prepararPagina` DISPARA as revelações; esta função
+ * garante o RESULTADO delas, que é coisa diferente. Uma revelação depende
+ * de IntersectionObserver e de uma animação de até 0,75s, e o motor mexe na
+ * viewport entre um passo e outro (cresce pra caber a seção alta): basta a
+ * foto sair no meio desse caminho pra a imagem que vai pro lead ter um
+ * pedaço apagado. Aqui o estado final é IMPOSTO, não esperado.
+ *
+ * SÓ NO CONTEXTO DE CAPTURA. Isto roda por `page.evaluate` (e no
+ * `contentWindow` do iframe da prévia de marcação); nenhuma linha da demo
+ * muda, e quem abre o link continua vendo as seções entrarem por scroll
+ * exatamente como antes.
+ *
+ * COMO SE RECONHECE UMA REVELAÇÃO PRESA, sem a skin precisar declarar nada:
+ * `motion` pinta o estado inicial de `whileInView` INLINE no elemento
+ * (`style="opacity:0;transform:translateY(56px)"`). Então o alvo é o
+ * elemento com opacidade INLINE abaixo de 1 que ou está em zero, ou carrega
+ * um transform inline junto. O que fica de fora, de propósito:
+ *
+ *   - opacidade inline de DESENHO, sem transform (o degradê a 0.9 sobre o
+ *     card de imóvel) — mexer nela mudaria o visual da demo, não revelaria
+ *     nada;
+ *   - transform inline SEM opacidade: é carrossel, parallax, barra de
+ *     progresso e contador rolante (medidos: `translateX(-680px)`,
+ *     `scaleX(0.4)`, `translateY(-2.2em)`). Zerar esses transforms
+ *     desmontaria o conteúdo em vez de revelá-lo;
+ *   - a camada decorativa (`[data-d-efeito-camada]`, `[data-d-led-estilo]`),
+ *     cuja opacidade é escrita no DOM por design (ver LedEdges).
+ *
+ * O laço repete porque uma animação EM VOO reescreve o inline no quadro
+ * seguinte: força, cede um quadro, confere. `restantes > 0` significa que
+ * alguma coisa continuou reescrevendo até o fim do orçamento — quem chama
+ * trata como reprovação, não como detalhe.
+ *
+ * @param {{ limiteMs?: number }} [opcoes]
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {Promise<{ forcados: number, restantes: number, esperouMs: number }>}
+ */
+export async function forcarRevelacaoDasSecoes({ limiteMs = 2000 } = {}, win = window) {
+  const doc = win.document;
+  const inicio = Date.now();
+  const quadro = () =>
+    new Promise((r) =>
+      typeof win.requestAnimationFrame === "function"
+        ? win.requestAnimationFrame(() => r(undefined))
+        : setTimeout(r, 16),
+    );
+
+  let forcados = 0;
+  let restantes = 0;
+
+  for (;;) {
+    restantes = 0;
+    for (const node of Array.from(doc.querySelectorAll("[data-d-secao] *"))) {
+      const inline = node.style;
+      if (!inline) continue;
+      const op = inline.opacity;
+      if (op === "" || op === undefined) continue;
+      const valor = Number(op);
+      if (!Number.isFinite(valor) || valor >= 0.98) continue;
+      const transform = String(inline.transform ?? "");
+      const comTransform = /translate|scale|rotate|skew|matrix/.test(transform);
+      if (valor > 0.02 && !comTransform) continue;
+      if (node.closest("[data-d-efeito-camada], [data-d-led-estilo]")) continue;
+
+      inline.removeProperty("opacity");
+      if (comTransform) inline.removeProperty("transform");
+      // Marca quem foi forçado: é o que permite a uma captura reprovada
+      // dizer ONDE estava o buraco, em vez de só quantos eram.
+      node.setAttribute("data-d-captura-revelado", "1");
+      forcados += 1;
+      restantes += 1;
+    }
+    if (restantes === 0 || Date.now() - inicio >= limiteMs) break;
+    await quadro();
+  }
+
+  return { forcados, restantes, esperouMs: Date.now() - inicio };
+}
+
+/**
+ * O PORTÃO da revelação: sobrou alguma coisa presa no estado inicial?
+ *
+ * Mesmo critério de `forcarRevelacaoDasSecoes` (a regra de ouro deste
+ * arquivo proíbe helper compartilhado — `page.evaluate` avalia cada função
+ * noutro realm), só que aqui ele MEDE em vez de corrigir, e reparte o
+ * resultado pela posição em relação ao recorte: `acima`, `dentro` e
+ * `abaixo` da seção capturada.
+ *
+ * A repartição é o ponto. Um buraco DENTRO do recorte é um pedaço apagado
+ * na foto que vai pro lead; um buraco ACIMA ou ABAixo é a página vizinha em
+ * branco — que é o que aparece na prévia de enquadramento de
+ * /interno/capturas e no que a moldura mostra em volta da seção. Nenhum dos
+ * dois pode sair de uma rodada aprovada, então os três números voltam
+ * separados e quem chama reprova com o lugar na mão.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ total: number, acima: number, dentro: number, abaixo: number, exemplos: string[] }}
+ */
+export function revelacaoPendente(secaoId, win = window) {
+  const doc = win.document;
+  const secao = Array.from(doc.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  const caixa = secao?.getBoundingClientRect();
+  const topoSecao = caixa ? caixa.top + win.scrollY : 0;
+  const baseSecao = caixa ? topoSecao + caixa.height : 0;
+
+  let acima = 0;
+  let dentro = 0;
+  let abaixo = 0;
+  const exemplos = [];
+
+  for (const node of Array.from(doc.querySelectorAll("[data-d-secao] *"))) {
+    const inline = node.style;
+    if (!inline) continue;
+    const op = inline.opacity;
+    if (op === "" || op === undefined) continue;
+    const valor = Number(op);
+    if (!Number.isFinite(valor) || valor >= 0.98) continue;
+    const transform = String(inline.transform ?? "");
+    const comTransform = /translate|scale|rotate|skew|matrix/.test(transform);
+    if (valor > 0.02 && !comTransform) continue;
+    if (node.closest("[data-d-efeito-camada], [data-d-led-estilo]")) continue;
+
+    const r = node.getBoundingClientRect();
+    const topo = r.top + win.scrollY;
+    if (!caixa || (topo + r.height > topoSecao && topo < baseSecao)) dentro += 1;
+    else if (topo < topoSecao) acima += 1;
+    else abaixo += 1;
+
+    if (exemplos.length < 5) {
+      const dono = node.closest("[data-d-secao]")?.getAttribute("data-d-secao") ?? "?";
+      exemplos.push(`${dono}/${node.tagName.toLowerCase()}(opacity ${op})`);
+    }
+  }
+
+  return { total: acima + dentro + abaixo, acima, dentro, abaixo, exemplos };
+}
+
+/**
+ * ASSENTA o LED de borda para a foto.
+ *
+ * O LED é `position: fixed` e o ponto mais brilhante viaja com
+ * `--d-led-scroll` (0–1, a posição do scroll na página). Numa captura isso
+ * não sobrevive: pra enquadrar uma seção mais alta que a tela o motor
+ * CRESCE a viewport, e a barra — que ocupa a viewport inteira — passa a
+ * espalhar por uma altura que nenhum visitante tem. Medido na
+ * tatuagem-editorial: `--d-led-scroll` 0,67 em "investimento" e 0,81 em
+ * "depoimentos", com a viewport esticada de 844 para 1457 e 1330px. O
+ * resultado na imagem é uma FAIXA acesa no meio do recorte, com as duas
+ * pontas apagadas — o LED deixa de ler como luz de borda.
+ *
+ * Prender a fase é a mesma decisão de `congelarAnimacoes`, pelo mesmo
+ * motivo: a foto não pode sair no instante em que o efeito está apagado. A
+ * meia-fase centra a luz no recorte, que é o que um visitante vê ao chegar
+ * na seção. Capture-only: o valor é escrito no DOM depois do último
+ * scroll/resize da rodada, e nada na demo muda.
+ *
+ * @param {{ fase?: number }} [opcoes]
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ leds: number, fase: number }}
+ */
+export function assentarLed({ fase = 0.5 } = {}, win = window) {
+  const leds = Array.from(win.document.querySelectorAll("[data-d-led-estilo]"));
+  for (const el of leds) el.style.setProperty("--d-led-scroll", String(fase));
+  return { leds: leds.length, fase };
 }
 
 /**
@@ -305,6 +489,73 @@ export function caixaNaViewport(secaoId, win = window) {
     width: Math.round(r.width),
     height: Math.round(r.height),
     cabe: r.top >= -1 && r.top + r.height <= win.innerHeight + 1,
+  };
+}
+
+/**
+ * CENTRALIZA a seção na viewport — o enquadramento de uma seção mais curta
+ * que a tela.
+ *
+ * Uma seção de 0,6 tela recortada no pixel dela deixa a composição de
+ * celular com 40% da tela do aparelho pra preencher, e o que ia ali era o
+ * fundo chapado da demo: duas faixas lisas, acima e abaixo, exatamente onde
+ * o visitante veria as seções vizinhas. A intenção sempre foi "a página
+ * continua" — isto é a página continuando de verdade, em vez de uma cor
+ * fazendo as vezes dela.
+ *
+ * `behavior: "instant"` pelo mesmo motivo de `rolarAteSecao`. Quando não dá
+ * pra centrar (seção perto do começo ou do fim do documento) o scroll fica
+ * no limite e `centrada` volta `false`: o quadro continua sendo uma tela
+ * REAL da página, só não com a seção no meio — que é o que um aparelho
+ * mostraria ali também.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ centrada: boolean, alvo: number, scroll: number } | null}
+ */
+export function centralizarSecao(secaoId, win = window) {
+  const doc = win.document;
+  const el = Array.from(doc.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  const alvo = r.top + win.scrollY - (win.innerHeight - r.height) / 2;
+  const teto = Math.max(0, doc.documentElement.scrollHeight - win.innerHeight);
+  const escolhido = Math.min(teto, Math.max(0, alvo));
+  win.scrollTo({ top: escolhido, behavior: "instant" });
+  return { centrada: Math.abs(escolhido - alvo) <= 1, alvo: Math.round(alvo), scroll: Math.round(escolhido) };
+}
+
+/**
+ * A TELA INTEIRA como recorte, com a seção dentro — o par de
+ * `centralizarSecao`.
+ *
+ * Devolve também quanto de página REAL sobrou acima e abaixo da seção
+ * dentro do quadro: é o número que prova que a faixa lisa virou conteúdo, e
+ * o que o motor loga. Não usa `cabe`, porque aqui não há o que caber — o
+ * recorte É a viewport.
+ *
+ * @param {string} secaoId
+ * @param {Window} [win] janela alvo (default: a da própria página)
+ * @returns {{ x: number, y: number, width: number, height: number, acima: number, abaixo: number } | null}
+ */
+export function caixaDaTela(secaoId, win = window) {
+  const doc = win.document;
+  const el = Array.from(doc.querySelectorAll("[data-d-secao]")).find(
+    (n) => n.getAttribute("data-d-secao") === secaoId,
+  );
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  const largura = doc.documentElement.clientWidth;
+  const altura = win.innerHeight;
+  return {
+    x: 0,
+    y: 0,
+    width: Math.round(largura),
+    height: Math.round(altura),
+    acima: Math.max(0, Math.round(r.top)),
+    abaixo: Math.max(0, Math.round(altura - r.bottom)),
   };
 }
 
