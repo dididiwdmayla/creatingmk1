@@ -4,7 +4,11 @@ import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
-import type { ConjuntoSkin, FrasesProspeccao } from "@/lib/frases/types";
+import type {
+  ConjuntoSkin,
+  FrasesProspeccao,
+  RelatorioMigracao,
+} from "@/lib/frases/types";
 import type { UsageCounts, UsoUsuario } from "@/lib/costs";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
@@ -165,6 +169,16 @@ export interface FrasesResponse {
   conjuntos: ConjuntoSkin[];
 }
 
+/**
+ * GET/POST /api/frases/migrar: as entradas antigas (chaveadas pelo texto do
+ * nicho) levadas para as skins. `legados` é quantas ainda existem no banco —
+ * a seção de frases só mostra o bloco de migração quando é > 0.
+ */
+export interface MigracaoFrasesResponse {
+  legados?: number;
+  relatorio: RelatorioMigracao;
+}
+
 /** GET /api/regioes: índice de mercado da região (calculadora de precificação). */
 export interface RegiaoIndiceResponse {
   regiao: RegiaoIndice;
@@ -277,6 +291,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ skinId }),
     }),
+  /** Prévia da migração das frases antigas (admin) — não escreve nada. */
+  previaMigracaoFrases: () => request<MigracaoFrasesResponse>("/api/frases/migrar"),
+  /** Executa a migração das frases antigas (admin). */
+  migrarFrases: () =>
+    request<MigracaoFrasesResponse>("/api/frases/migrar", { method: "POST" }),
+  /** Apaga as entradas antigas que sobraram, depois de eu ter copiado o texto (admin). */
+  descartarFrasesLegadas: () =>
+    request<{ apagadas: number }>("/api/frases/migrar", { method: "DELETE" }),
 
   getUsage: () => request<UsageResponse>("/api/usage"),
   getMetrics: () => request<MetricsResponse>("/api/metrics"),

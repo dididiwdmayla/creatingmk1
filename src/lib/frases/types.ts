@@ -44,6 +44,44 @@ export interface FrasesProspeccao {
 }
 
 /**
+ * Um doc LEGADO da coleção: os que a versão anterior criava chaveados pelo
+ * texto do nicho digitado na busca (mais o antigo `__genericas__`). Não
+ * casam com skin nenhuma, então não aparecem na tela — existem só para a
+ * migração aproveitar o texto já escrito. Ver ./migracao.ts.
+ */
+export interface EntradaLegada {
+  /** Id do doc como está no Firestore (o nicho normalizado de antes). */
+  chave: string;
+  /** Grafia de exibição do nicho, como o doc antigo guardava. */
+  nicho: string;
+  frases: string[];
+}
+
+/** Uma entrada legada levada para o conjunto de uma skin. */
+export interface MigracaoFeita {
+  chave: string;
+  nicho: string;
+  skinId: string;
+  skinNome: string;
+}
+
+/** Uma entrada legada que a migração NÃO soube associar — com o texto junto, para copiar à mão. */
+export interface MigracaoPendente {
+  chave: string;
+  nicho: string;
+  frases: string[];
+  motivo: string;
+}
+
+/** Relatório do POST /api/frases/migrar (e a prévia do GET, com `feitas` vazio). */
+export interface RelatorioMigracao {
+  feitas: MigracaoFeita[];
+  pendentes: MigracaoPendente[];
+  /** Entradas legadas sem nenhum texto: apagadas sem relatório (não havia o que preservar). */
+  vazias: number;
+}
+
+/**
  * O conjunto + a identidade da skin, como a tela de administração precisa.
  * Montado no SERVIDOR (`montarConjuntos`) porque o registro de skins arrasta
  * os componentes das 8 skins junto — `/config` não pode importá-lo só para

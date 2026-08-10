@@ -5,6 +5,11 @@ import { FRASES_COLLECTION } from "@/lib/frases/types";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { cookieDeSessao } from "@/lib/testing/sessao";
 import { POST as AVANCAR } from "../frases/avancar/route";
+import {
+  DELETE as DESCARTAR,
+  GET as PREVIA,
+  POST as MIGRAR,
+} from "../frases/migrar/route";
 import { GET, PUT } from "../frases/route";
 
 let db: FakeFirestore;
@@ -183,5 +188,68 @@ describe("POST /api/frases/avancar", () => {
 
     expect(res.status).toBe(400);
     expect((await res.json()).error.code).toBe("validation_error");
+  });
+});
+
+describe("/api/frases/migrar (restrita ao admin)", () => {
+  const migrarRequest = (metodo: string, cookie?: string) =>
+    new Request("http://localhost/api/frases/migrar", {
+      method: metodo,
+      headers: { ...(cookie && { cookie }) },
+    });
+
+  function seedLegado(chave: string, nicho: string, frases: string[]) {
+    db.seed(`${FRASES_COLLECTION}/${chave}`, { nicho, frases, indice: 1 });
+  }
+
+  it("a prévia mostra o plano sem escrever nada", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    seedLegado("petshop", "petshop", ["p1", "", ""]);
+
+    const { legados, relatorio } = await (await PREVIA(migrarRequest("GET", cookie))).json();
+
+    expect(legados).toBe(1);
+    expect(relatorio.feitas[0].skinId).toBe("petshop-focinho-feliz");
+    expect(db.getDoc(`${FRASES_COLLECTION}/petshop-focinho-feliz`)).toBeUndefined();
+    expect(db.getDoc(`${FRASES_COLLECTION}/petshop`)).toBeDefined();
+  });
+
+  it("o POST migra o texto antigo e ele passa a aparecer na skin", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    seedLegado("petshop", "petshop", ["p1", "p2", ""]);
+
+    const { relatorio } = await (await MIGRAR(migrarRequest("POST", cookie))).json();
+
+    expect(relatorio.feitas).toHaveLength(1);
+    expect(doConjunto(await listar(), "petshop-focinho-feliz").frases).toEqual(["p1", "p2", ""]);
+  });
+
+  it("o que não deu volta com o texto junto e continua no banco", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    seedLegado("barbearia%20old%20school", "barbearia old school", ["minha frase", "", ""]);
+
+    const { relatorio } = await (await MIGRAR(migrarRequest("POST", cookie))).json();
+
+    expect(relatorio.pendentes[0].frases[0]).toBe("minha frase");
+    expect(db.getDoc(`${FRASES_COLLECTION}/barbearia%20old%20school`)).toBeDefined();
+  });
+
+  it("o DELETE só limpa o que sobrou, e nunca o conjunto de uma skin", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    await PUT(putRequest({ skinId: BARBEARIA, frases: ["da skin"] }, cookie));
+    seedLegado("barbearia old school", "barbearia old school", ["solta", "", ""]);
+
+    const { apagadas } = await (await DESCARTAR(migrarRequest("DELETE", cookie))).json();
+
+    expect(apagadas).toBe(1);
+    expect(doConjunto(await listar(), BARBEARIA).frases[0]).toBe("da skin");
+  });
+
+  it("membro → 403 nas três operações", async () => {
+    const cookie = await cookieDeSessao(db, { id: "m1", papel: "membro" });
+
+    expect((await PREVIA(migrarRequest("GET", cookie))).status).toBe(403);
+    expect((await MIGRAR(migrarRequest("POST", cookie))).status).toBe(403);
+    expect((await DESCARTAR(migrarRequest("DELETE", cookie))).status).toBe(403);
   });
 });

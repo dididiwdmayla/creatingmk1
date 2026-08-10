@@ -175,6 +175,7 @@ src/
       rotacao.ts                    #    funções PURAS: frases efetivas, frase da vez, slot da vez, próximo índice
       repo.ts                       #    /frasesProspeccao/{skinId}: salvar textos e avançar contador, escritas disjuntas
       listagem.ts                   #    uma linha por skin do registro, com o conjunto salvo por cima (tela de admin)
+      migracao.ts                   #    aproveita o texto das entradas antigas (chave por nicho digitado) nas skins
       resolver.ts                   #    precedência skin da demo → grupo → global (usada pela ficha e por /hoje)
     buscas/                         # ✅ registro das buscas executadas
       types.ts                      #    + recorrente/qualificada/quantidade, BuscaExecucao e penetracao (cache)
@@ -797,9 +798,12 @@ Formato de erro padrão em todas as rotas:
 | `/api/preferencias/listas` | PUT | `{ preferencias }` (o objeto INTEIRO, não patch; normalizado no servidor: chave inválida cai, teto de 200 chaves por tela) | `200 { preferencias }` · `400` · `401` | — |
 | `/api/buscas` | GET | — | `200 { buscas[] }` (mais recentes primeiro) | — |
 | `/api/buscas/[id]` | PATCH | `{ cor? (da paleta), mensagemPadrao? (≤1000, "" limpa), recorrente? }` (≥1 campo; ligar recorrente respeita o teto `maxBuscasRecorrentes`) | `200 { busca }` · `400` · `404` | — |
-| `/api/frases` | GET | — (qualquer sessão) | `200 { conjuntos[], genericas }` — `conjuntos` traz TODO nicho já visto em `/buscas` (vazio inclusive) mais os que têm frases salvas · `401` | — |
-| `/api/frases` | PUT | `{ nicho, frases[] }` (`nicho: null` = o conjunto genérico; ≤3 frases de ≤1000 caracteres; admin) | `200 { conjunto }` · `400 validation_error` · `401` · `403` | — |
-| `/api/frases/avancar` | POST | `{ nicho }` (`null` = o genérico; qualquer sessão) | `200 { indice }` (nicho sem conjunto salvo → `0`, sem gravar) · `400` · `401` | — |
+| `/api/frases` | GET | — (qualquer sessão) | `200 { conjuntos[] }` — UMA entrada por skin do registro (vazia inclusive), com `skinNome`/`nicho` resolvidos · `401` | — |
+| `/api/frases` | PUT | `{ skinId, frases[] }` (skin do registro; ≤3 frases de ≤1000 caracteres; admin) | `200 { conjunto }` · `400 validation_error` (inclui `skinId` fora do registro) · `401` · `403` | — |
+| `/api/frases/avancar` | POST | `{ skinId }` (qualquer sessão) | `200 { indice }` (skin sem conjunto salvo → `0`, sem gravar) · `400` · `401` | — |
+| `/api/frases/migrar` | GET | — (admin) | `200 { legados, relatorio }` — prévia da migração das entradas antigas, sem escrever nada · `401` · `403` | — |
+| `/api/frases/migrar` | POST | — (admin) | `200 { relatorio }` — executa; apaga só o legado aproveitado · `401` · `403` | — |
+| `/api/frases/migrar` | DELETE | — (admin) | `200 { apagadas }` — descarta as entradas antigas restantes · `401` · `403` | — |
 | `/api/hoje` | GET | — (exige sessão identificável) | `200 { novos[], followUps[], demosParadas[], novosDesde, followUpDias, mensagemPadrao, metaProspeccao: { dia, semana }, buscas[] }` · `401` | — |
 | `/api/cron` | GET | header `Authorization: Bearer ${CRON_SECRET}` (fora da sessão — exceção no proxy) | `200 { execucao }` · `401` · `503 config_error` (sem CRON_SECRET) | mesmo pipeline de `/api/search`, por busca recorrente |
 | `/api/cron/status` | GET | — | `200 { ultima, recorrentes }` | — |
@@ -1700,7 +1704,9 @@ Abordagem que varia pela SKIN da demo em vez de um texto único para todo mundo,
 
 9. **O token de envio não mudou em nada.** Continua emitido no GET (`garantirEnvioToken` em `/api/leads/[id]` e `/api/hoje`), e o `{demo}` da frase continua levando o token vigente do canal `whatsapp` — o rastreio de abertura funciona igual, venha o texto de uma frase da skin ou da mensagem global.
 
-10. **A tela de administração** (seção em `/config`, PUT restrito ao admin) lista **uma linha por skin do registro**, com os conjuntos já salvos por cima — skin nova aparece sozinha na próxima carga. O nome e o nicho da skin vêm resolvidos do SERVIDOR (`montarConjuntos`), porque importar `SKINS` numa tela do app arrastaria os componentes das 8 skins para o bundle de `/config` só pra escrever um título. Cada conjunto salva sozinho e mostra em que ponto da rotação o time está ("na vez: frase 2 de 3") ou avisa que aquela skin não participa. É o ÚLTIMO bloco da página de propósito: a lista tem tamanho variável e chega depois do primeiro desenho — no meio da página empurraria o formulário inteiro a cada carga (ver "Deslocamento de layout").
+10. **Migração das entradas antigas** (`lib/frases/migracao.ts` + `/api/frases/migrar`, admin): as entradas chaveadas por texto de busca já somem da tela sozinhas (não casam com id de skin nenhum), então a migração existe só para **não perder o texto já escrito**. O nicho antigo é comparado, normalizado, com o `nicho` das skins do REGISTRO: casando com mais de uma (skins irmãs), o texto é COPIADO para cada uma — cópia de partida, editável separadamente, não um conjunto por família (nada em tempo de execução consulta "as skins do nicho X"). Skin que já tem frase própria nunca é sobrescrita, e o `indice` antigo não é herdado. O que não casa com skin nenhuma ("barbearia old school", "barbería", o antigo `__genericas__`) vira **pendência listada na tela com as frases inteiras**, para copiar à mão. `GET` é prévia pura (não escreve), `POST` executa e apaga só os docs aproveitados (e os que estavam vazios), `DELETE` é o "já copiei, pode limpar" das pendências — sempre atrás de confirmação, nunca embutido no POST. Rodar duas vezes é inofensivo: na segunda não sobra legado a aproveitar.
+
+11. **A tela de administração** (seção em `/config`, PUT restrito ao admin) lista **uma linha por skin do registro**, com os conjuntos já salvos por cima — skin nova aparece sozinha na próxima carga. O nome e o nicho da skin vêm resolvidos do SERVIDOR (`montarConjuntos`), porque importar `SKINS` numa tela do app arrastaria os componentes das 8 skins para o bundle de `/config` só pra escrever um título. Cada conjunto salva sozinho e mostra em que ponto da rotação o time está ("na vez: frase 2 de 3") ou avisa que aquela skin não participa. É o ÚLTIMO bloco da página de propósito: a lista tem tamanho variável e chega depois do primeiro desenho — no meio da página empurraria o formulário inteiro a cada carga (ver "Deslocamento de layout").
 
 ## Mensagens entre usuários (`src/lib/mensagens` + `/mensagens`)
 

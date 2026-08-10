@@ -22,7 +22,11 @@ import {
 } from "@/lib/config";
 import type { Sku, UsoUsuario } from "@/lib/costs";
 import { frasesEfetivas, normalizarSlots, posicaoAtual } from "@/lib/frases/rotacao";
-import { FRASES_SLOTS, type FrasesProspeccao } from "@/lib/frases/types";
+import {
+  FRASES_SLOTS,
+  type FrasesProspeccao,
+  type RelatorioMigracao,
+} from "@/lib/frases/types";
 import { SLIDER_MAX_BRL, SLIDER_MIN_BRL, SLIDER_STEP_BRL } from "@/lib/precificacao/calc";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
 import type { LimitesUsuario, MetasUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
@@ -1020,6 +1024,22 @@ function FrasesSection() {
     };
   }, []);
 
+  /**
+   * Recarrega depois da migração: o texto antigo acabou de virar frase de
+   * uma skin, e as caixas precisam mostrá-lo sem exigir F5.
+   */
+  function recarregar() {
+    api
+      .listFrases()
+      .then((resposta) => {
+        setDados(resposta);
+        setRascunhos(rascunhosDe(resposta));
+      })
+      .catch(() => {
+        // o relatório da migração continua na tela — recarregar é conforto
+      });
+  }
+
   async function salvar(skinId: string) {
     setSalvando(skinId);
     setErro(null);
@@ -1054,6 +1074,8 @@ function FrasesSection() {
         <code className="font-mono">{"{penetracao}"}</code>.
       </p>
 
+      <MigracaoFrasesLegadas onMigrado={recarregar} />
+
       <div className="mt-3 flex flex-col gap-3">
         {dados === null ? (
           <SkeletonRows count={3} className="h-44 rounded border border-line" />
@@ -1078,6 +1100,164 @@ function FrasesSection() {
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </section>
+  );
+}
+
+/**
+ * Bloco da MIGRAÇÃO das frases antigas — as que a versão anterior criava
+ * chaveadas pelo texto do nicho digitado na busca. Só aparece enquanto
+ * sobrar alguma entrada dessas no banco (`legados > 0`); sem nada legado,
+ * ou para quem não é admin (403 na prévia), ele simplesmente não existe.
+ *
+ * O texto antigo nunca some em silêncio: a prévia já diz, item a item, o
+ * que vai ser associado e o que não deu — e o que não deu vem com as
+ * frases inteiras na tela, para copiar à mão antes de descartar.
+ */
+function MigracaoFrasesLegadas({ onMigrado }: { onMigrado: () => void }) {
+  const [legados, setLegados] = useState(0);
+  const [relatorio, setRelatorio] = useState<RelatorioMigracao | null>(null);
+  const [migrado, setMigrado] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .previaMigracaoFrases()
+      .then((resposta) => {
+        if (ignore) return;
+        setLegados(resposta.legados ?? 0);
+        setRelatorio(resposta.relatorio);
+      })
+      .catch(() => {
+        // membro (403) ou falha de rede: o bloco só não aparece
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function migrar() {
+    setOcupado(true);
+    setErro(null);
+    try {
+      const { relatorio: feito } = await api.migrarFrases();
+      setRelatorio(feito);
+      setMigrado(true);
+      setLegados(feito.pendentes.length);
+      onMigrado();
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : "Falha ao migrar as frases antigas.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function descartar() {
+    setConfirmandoDescarte(false);
+    setOcupado(true);
+    setErro(null);
+    try {
+      await api.descartarFrasesLegadas();
+      setLegados(0);
+      setRelatorio(null);
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : "Falha ao descartar as antigas.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  if (legados === 0 && !migrado) return null;
+
+  return (
+    <div className="mt-3 rounded border border-warning/40 bg-warning/10 p-3">
+      <p className="text-sm font-medium text-foreground">
+        {migrado ? "Migração das frases antigas" : `${legados} entrada(s) de frases antigas`}
+      </p>
+      <p className="mt-0.5 text-xs text-ink-muted">
+        São as frases da versão anterior, chaveadas pelo texto do nicho digitado na busca. Elas já
+        não valem para envio nenhum. Migrar copia o texto para as skins do mesmo nicho (skin que já
+        tem frase própria nunca é sobrescrita) e apaga só as entradas aproveitadas.
+      </p>
+
+      {relatorio && (
+        <div className="mt-2 flex flex-col gap-2">
+          {relatorio.feitas.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-good">
+                {migrado ? "Migradas" : "Serão migradas"}:
+              </p>
+              <ul className="mt-0.5 flex flex-col gap-0.5">
+                {relatorio.feitas.map((feita) => (
+                  <li key={`${feita.chave}:${feita.skinId}`} className="text-xs text-ink-secondary">
+                    {feita.nicho} → {feita.skinNome}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {relatorio.pendentes.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-critical">
+                Não deu pra associar — copie o texto antes de descartar:
+              </p>
+              <ul className="mt-0.5 flex flex-col gap-1.5">
+                {relatorio.pendentes.map((pendente) => (
+                  <li key={pendente.chave} className="rounded border border-line bg-surface-2 p-2">
+                    <p className="text-xs text-foreground">
+                      {pendente.nicho} <span className="text-ink-muted">— {pendente.motivo}</span>
+                    </p>
+                    {pendente.frases
+                      .filter((frase) => frase.trim())
+                      .map((frase, i) => (
+                        <p key={i} className="mt-1 whitespace-pre-wrap text-[11px] text-ink-secondary">
+                          {frase}
+                        </p>
+                      ))}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {relatorio.feitas.length === 0 && relatorio.pendentes.length === 0 && (
+            <p className="text-xs text-ink-muted">
+              Nada a aproveitar: as entradas antigas estavam sem texto.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {!migrado && (
+          <Button type="button" variant="secondary" onClick={migrar} loading={ocupado}>
+            Migrar para as skins
+          </Button>
+        )}
+        {legados > 0 && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setConfirmandoDescarte(true)}
+            disabled={ocupado}
+          >
+            Descartar as antigas
+          </Button>
+        )}
+      </div>
+
+      {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
+
+      <ConfirmModal
+        aberto={confirmandoDescarte}
+        titulo="Descartar as frases antigas"
+        mensagem={`Apaga ${legados} entrada(s) antiga(s) do banco, incluindo o texto que não deu pra associar. Não dá pra desfazer — copie o que quiser guardar antes.`}
+        confirmarLabel="Descartar"
+        onConfirmar={descartar}
+        onCancelar={() => setConfirmandoDescarte(false)}
+      />
+    </div>
   );
 }
 
