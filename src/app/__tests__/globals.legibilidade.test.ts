@@ -47,6 +47,11 @@ const SELETORES_PERMITIDOS = new Set([
   ".radar-sweep",
   ".radar-sweep::before",
 
+  // Mesma categoria: o ladrilho do ícone de Instagram na ficha do lead
+  // contém só o traço da câmera. O rótulo "Instagram" fica FORA dele, em
+  // superfície sólida — é por isso que o gradiente pode existir aqui.
+  ".cromo-instagram",
+
   // Scrim POR CIMA, não fundo por baixo: a listra de descarte é um ::after
   // que pinta depois do texto, e o esmaecimento é deliberado ("este lead foi
   // descartado"). A regra fala de gradiente SOB texto de leitura; isto é o
