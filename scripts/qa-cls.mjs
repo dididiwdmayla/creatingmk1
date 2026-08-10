@@ -93,11 +93,23 @@ const SKINS = [
   "petshop-focinho-feliz",
 ];
 
-/** As abas principais da nav inferior (mesma lista de qa-plataforma.mjs). */
+/**
+ * As abas principais da nav inferior (mesma lista de qa-plataforma.mjs).
+ *
+ * `leads` entra com `?buscaId=` (o link real de "leads →" em `/buscas`),
+ * não `/leads` pelado: sem o grupo ativo, "Mostrando leads da busca",
+ * Precificação e o badge "argumento forte" nunca renderizam, e o banco
+ * falso podia ficar com dado incompleto pra eles sem o portão notar (ver
+ * ARCHITECTURE.md, "Deslocamento de layout").
+ */
 const ABAS = [
   { id: "hoje", url: "/hoje", rotulo: "Hoje" },
   { id: "painel", url: "/", rotulo: "Painel" },
-  { id: "leads", url: "/leads", rotulo: "Leads" },
+  {
+    id: "leads",
+    url: "/leads?buscaId=busca-centro&buscaNome=Dentistas%20%E2%80%94%20Centro",
+    rotulo: "Leads (grupo)",
+  },
   { id: "buscas", url: "/buscas", rotulo: "Buscas" },
   { id: "demos", url: "/demos", rotulo: "Demos" },
   { id: "chat", url: "/mensagens", rotulo: "Chat" },
@@ -168,7 +180,21 @@ function semear() {
       totalCriados: 14,
       totalExistentes: 6,
       userId: "membro-1",
-      penetracao: { comSiteProprio: 9, semSiteProprio: 11, total: 20, percentual: 0.45 },
+      // Forma REAL de `PenetracaoSite` (lib/leads/penetracao.ts) — não
+      // `{ comSiteProprio, semSiteProprio, total, percentual }` (formato
+      // antigo, nunca lido pela UI): sem `percentuais`, o bloco "Penetração
+      // de site" caía sempre no ramo "base pequena demais" e o badge
+      // "argumento forte" nunca acendia — o portão de CLS media uma tela
+      // que não tinha, de fato, o conteúdo que o relato descreveu.
+      // >60% em comSiteProprio também cobre o badge "argumento forte".
+      penetracao: {
+        total: 20,
+        comSiteProprio: 13,
+        soRedeSocial: 4,
+        semNada: 3,
+        desconhecidos: 2,
+        percentuais: { comSiteProprio: 65, soRedeSocial: 20, semNada: 15 },
+      },
     },
     "buscas/busca-zona-sul": {
       id: "busca-zona-sul",

@@ -11,9 +11,9 @@ import { CabecalhoBusca } from "@/components/CabecalhoBusca";
 import { LeadCard } from "@/components/LeadCard";
 import { GRADE_DENSIDADE, SeletorDensidade } from "@/components/SeletorDensidade";
 import { usePreferenciasListas } from "@/components/usePreferenciasListas";
-import { PrecificacaoCard } from "@/components/PrecificacaoCard";
+import { PrecificacaoCard, PrecificacaoCardSkeleton } from "@/components/PrecificacaoCard";
 import { RadarSweep } from "@/components/RadarSweep";
-import { SkeletonRows } from "@/components/Skeleton";
+import { Skeleton, SkeletonRows } from "@/components/Skeleton";
 import { ApiError, api, type TermoLocalResponse } from "@/lib/api-client";
 import { agruparPorBusca } from "@/lib/buscas/agrupar";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
@@ -187,7 +187,12 @@ function LeadsPageInner() {
   }
 
   const [leads, setLeads] = useState<Lead[] | null>(null);
-  const [buscas, setBuscas] = useState<Busca[]>([]);
+  // null = ainda não carregou (distinto de "carregou e não tem nenhuma") —
+  // é o que deixa a lista e o grupo esperarem o dado de verdade antes do
+  // primeiro desenho, em vez de mostrar "sem argumento forte"/"sem
+  // penetração" e trocar depois (ver "Deslocamento de layout" no
+  // ARCHITECTURE.md).
+  const [buscas, setBuscas] = useState<Busca[] | null>(null);
   const [nomes, setNomes] = useState<NomesUsuarios>({});
   const [erroLista, setErroLista] = useState<string | null>(null);
 
@@ -264,7 +269,9 @@ function LeadsPageInner() {
         if (!ignore) setBuscas(data);
       })
       .catch(() => {
-        // agrupamento/cores degradam para a lista plana; sem erro fatal
+        // agrupamento/cores degradam para a lista plana; sem erro fatal —
+        // mas precisa sair de `null`, senão a lista fica presa no esqueleto.
+        if (!ignore) setBuscas([]);
       });
     api
       .getConfig()
@@ -314,7 +321,7 @@ function LeadsPageInner() {
     setIaErro(null);
     try {
       const { busca: atualizada } = await api.gerarAnaliseBusca(buscaId);
-      setBuscas((atual) => atual.map((b) => (b.id === atualizada.id ? atualizada : b)));
+      setBuscas((atual) => (atual ?? []).map((b) => (b.id === atualizada.id ? atualizada : b)));
     } catch (error) {
       if (error instanceof ApiError && error.code === "quota_exceeded") {
         setIaErro(
@@ -544,20 +551,25 @@ function LeadsPageInner() {
   }
 
   const cores: Record<string, string> = Object.fromEntries(
-    buscas.map((busca) => [busca.id, busca.cor]),
+    (buscas ?? []).map((busca) => [busca.id, busca.cor]),
   );
   const agrupado = agrupar && !buscaId;
   const leadsOrdenados =
     ordem === "prioridade" && leads ? ordenarPorPrioridade(leads) : leads;
   const grupos =
     agrupado && leadsOrdenados
-      ? agruparPorBusca(leadsOrdenados, buscas, (lead) => lead.buscaId)
+      ? agruparPorBusca(leadsOrdenados, buscas ?? [], (lead) => lead.buscaId)
       : [];
   // Top da lista toda quando plana; top DENTRO de cada grupo quando agrupado.
   const topFlat = !agrupado && leadsOrdenados ? topScoreIds(leadsOrdenados) : new Set<string>();
-  const buscaAtual = buscaId ? buscas.find((b) => b.id === buscaId) : undefined;
+  const buscaAtual = buscaId ? (buscas ?? []).find((b) => b.id === buscaId) : undefined;
   const densidade = densidadeDe("leads");
   const grade = `grid gap-2 ${GRADE_DENSIDADE[densidade]}`;
+  // Falta `buscas` (penetração/argumento forte/cores) OU `leads` (ações em
+  // lote do grupo) — nenhum dos dois pode chegar DEPOIS do primeiro desenho
+  // do bloco "Mostrando leads da busca"/grade de cards, senão é exatamente o
+  // "elemento que entra depois e empurra o resto" que o portão de CLS reprova.
+  const prontoGrupo = buscas !== null && leads !== null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -727,7 +739,15 @@ function LeadsPageInner() {
             </button>
           </div>
 
-          {buscaAtual?.penetracao && (
+          {!prontoGrupo && (
+            <div className="border-t border-accent/20 pt-2">
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="mt-1.5 h-3.5 w-11/12" />
+              <Skeleton className="mt-1 h-3 w-2/3" />
+            </div>
+          )}
+
+          {prontoGrupo && buscaAtual?.penetracao && (
             <div className="border-t border-accent/20 pt-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 Penetração de site
@@ -761,7 +781,7 @@ function LeadsPageInner() {
             </div>
           )}
 
-          {iaDisponivel && (
+          {prontoGrupo && iaDisponivel && (
             <div className="border-t border-accent/20 pt-2">
               {analisando ? (
                 <p className="text-xs text-ink-muted">Analisando o grupo com IA…</p>
@@ -810,7 +830,7 @@ function LeadsPageInner() {
 
           {/* Equivalente em lote do botão da ficha: enfileira o grupo num
               disparo só e mostra o andamento agregado. */}
-          {leads && <CapturasLoteAcao leads={leads} />}
+          {prontoGrupo && leads && <CapturasLoteAcao leads={leads} />}
         </div>
       )}
 
@@ -824,7 +844,8 @@ function LeadsPageInner() {
         />
       )}
 
-      {buscaAtual && (
+      {buscaId && !prontoGrupo && <PrecificacaoCardSkeleton />}
+      {prontoGrupo && buscaAtual && (
         <PrecificacaoCard
           key={buscaAtual.id}
           nicho={buscaAtual.nicho}
@@ -916,7 +937,7 @@ function LeadsPageInner() {
 
       {erroLista && <p className="text-sm text-critical">{erroLista}</p>}
 
-      {leads === null || !pronto ? (
+      {leads === null || buscas === null || !pronto ? (
         <SkeletonRows count={4} className="h-24 rounded-lg border border-line" />
       ) : leads.length === 0 ? (
         <p className="text-sm text-ink-muted">
@@ -948,7 +969,7 @@ function LeadsPageInner() {
                           cores={cores}
                           score={calculaScore(lead)}
                           destaque={topDoGrupo.has(lead.placeId)}
-                          argumentoForte={leadArgumentoForte(lead, buscas)}
+                          argumentoForte={leadArgumentoForte(lead, buscas ?? [])}
                           nomes={nomes}
                           densidade={densidade}
                           onChange={onLeadChange}
@@ -970,7 +991,7 @@ function LeadsPageInner() {
                 cores={cores}
                 score={calculaScore(lead)}
                 destaque={topFlat.has(lead.placeId)}
-                argumentoForte={leadArgumentoForte(lead, buscas)}
+                argumentoForte={leadArgumentoForte(lead, buscas ?? [])}
                 nomes={nomes}
                 densidade={densidade}
                 onChange={onLeadChange}
