@@ -7,11 +7,12 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { MetaProgresso } from "@/components/MetaProgresso";
 import { SeloContato } from "@/components/SeloContato";
 import { StatusBadge } from "@/components/StatusBadge";
-import { ApiError, api, type HojeResponse } from "@/lib/api-client";
+import { ApiError, api, type FrasesResponse, type HojeResponse } from "@/lib/api-client";
 import { penetracaoParaLead } from "@/lib/buscas/penetracao";
 import { envioVigente } from "@/lib/demos/envio";
 import type { NomesUsuarios } from "@/lib/contato-selo";
 import { formatDateTime, formatInt, formatTempoRelativo } from "@/lib/format";
+import { comIndiceAtualizado, resolverMensagem } from "@/lib/frases/resolver";
 import { ultimaAberturaNaoInterna } from "@/lib/leads/hoje";
 import { melhorMomento } from "@/lib/leads/horarios";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
@@ -37,17 +38,24 @@ function buscaDeOrigem(lead: Lead, porId: Map<string, BuscaResumo>): BuscaResumo
   return primeira ? porId.get(primeira) : undefined;
 }
 
-/** Mesma regra da ficha: mensagem do grupo mais recente com própria; senão a global. */
+/**
+ * Mesma precedência da ficha, na mesma função pura (frases do nicho →
+ * genéricas → mensagem do grupo → global). A fila não tem caixa de edição:
+ * aqui a frase da vez vai direto para o link.
+ */
 function mensagemParaLead(
   lead: Lead,
   porId: Map<string, BuscaResumo>,
   global: string,
+  frases: FrasesResponse | null,
 ): string {
-  for (const id of [...(lead.buscaId ?? [])].reverse()) {
-    const propria = porId.get(id)?.mensagemPadrao;
-    if (propria) return propria;
-  }
-  return global;
+  return resolverMensagem({
+    lead,
+    buscas: [...porId.values()],
+    conjuntos: frases?.conjuntos ?? [],
+    genericas: frases?.genericas,
+    global,
+  }).texto;
 }
 
 function diasSemResposta(lead: Lead, agora: number): number {
@@ -64,6 +72,7 @@ export default function HojePage() {
   const [erro, setErro] = useState<string | null>(null);
   const [meuId, setMeuId] = useState<string | null>(null);
   const [nomes, setNomes] = useState<NomesUsuarios>({});
+  const [frases, setFrases] = useState<FrasesResponse | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -97,6 +106,14 @@ export default function HojePage() {
       .catch(() => {
         // selo cai no fallback "usuário removido" — não é bloqueante
       });
+    api
+      .listFrases()
+      .then((resposta) => {
+        if (!ignore) setFrases(resposta);
+      })
+      .catch(() => {
+        // sem as frases a precedência cai no grupo/global — a fila não quebra
+      });
     return () => {
       ignore = true;
     };
@@ -117,9 +134,33 @@ export default function HojePage() {
     });
   }
 
+  /**
+   * O envio aconteceu (ver useWhatsAppContato): gira a rotação do conjunto
+   * que forneceu a frase deste lead. O contador é o mesmo da ficha — o
+   * clique aqui e o clique lá alimentam a mesma sequência.
+   */
+  function handleEnviado(lead: Lead) {
+    if (!dados) return;
+    const rotacao = resolverMensagem({
+      lead,
+      buscas: dados.buscas,
+      conjuntos: frases?.conjuntos ?? [],
+      genericas: frases?.genericas,
+      global: dados.mensagemPadrao,
+    }).rotacao;
+    if (!rotacao) return;
+    api
+      .avancarFrase(rotacao.nicho)
+      .then(({ indice }) => setFrases((atual) => comIndiceAtualizado(atual, rotacao.nicho, indice)))
+      .catch(() => {
+        // rotação é cortesia, como o selo: falhar aqui não desfaz o envio
+      });
+  }
+
   const { pendente, clicar, confirmar, cancelar, mensagemConfirmacao } = useWhatsAppContato(
     meuId,
     onLeadChange,
+    handleEnviado,
   );
 
   if (erro) {
@@ -199,6 +240,7 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              frases={frases}
               nomes={nomes}
               onWhatsAppClick={clicar}
               extra={
@@ -225,6 +267,7 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              frases={frases}
               nomes={nomes}
               onWhatsAppClick={clicar}
               extra={
@@ -248,6 +291,7 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              frases={frases}
               nomes={nomes}
               onWhatsAppClick={clicar}
               extra={
@@ -273,6 +317,7 @@ export default function HojePage() {
               lead={lead}
               porId={porId}
               mensagemGlobal={dados.mensagemPadrao}
+              frases={frases}
               nomes={nomes}
               onWhatsAppClick={clicar}
               extra={
@@ -321,6 +366,7 @@ function ItemHoje({
   lead,
   porId,
   mensagemGlobal,
+  frases,
   nomes,
   onWhatsAppClick,
   extra,
@@ -328,6 +374,8 @@ function ItemHoje({
   lead: Lead;
   porId: Map<string, BuscaResumo>;
   mensagemGlobal: string;
+  /** Conjuntos de frases por nicho; null enquanto carrega ou se a leitura falhou. */
+  frases: FrasesResponse | null;
   nomes: NomesUsuarios;
   onWhatsAppClick: (event: { preventDefault: () => void }, lead: Lead, href: string) => void;
   extra?: React.ReactNode;
@@ -352,7 +400,7 @@ function ItemHoje({
       ? argumentoPenetracao(penetracaoInfo.nicho, penetracaoInfo.regiao, penetracaoInfo.penetracao, lead.nome)
       : undefined;
   const waHref = telefoneIntl
-    ? buildWhatsAppLink(mensagemParaLead(lead, porId, mensagemGlobal), lead.nome, telefoneIntl, {
+    ? buildWhatsAppLink(mensagemParaLead(lead, porId, mensagemGlobal, frases), lead.nome, telefoneIntl, {
         demoUrl: demoUrlParaEnvio,
         penetracao: argumentoTexto,
       })

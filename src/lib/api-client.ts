@@ -4,6 +4,7 @@ import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
+import type { FrasesProspeccao } from "@/lib/frases/types";
 import type { UsageCounts, UsoUsuario } from "@/lib/costs";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
@@ -155,6 +156,16 @@ export interface HojeResponse {
   }>;
 }
 
+/**
+ * GET /api/frases: os conjuntos de frases de abordagem. `conjuntos` traz TODO
+ * nicho já visto em alguma busca (vazio inclusive) e `genericas` é o conjunto
+ * de fallback — ver "Frases de prospecção por nicho".
+ */
+export interface FrasesResponse {
+  conjuntos: FrasesProspeccao[];
+  genericas: FrasesProspeccao;
+}
+
 /** GET /api/regioes: índice de mercado da região (calculadora de precificação). */
 export interface RegiaoIndiceResponse {
   regiao: RegiaoIndice;
@@ -252,6 +263,20 @@ export const api = {
     request<{ config: AppConfig }>("/api/config", {
       method: "PUT",
       body: JSON.stringify(patch),
+    }),
+
+  listFrases: () => request<FrasesResponse>("/api/frases"),
+  /** `nicho: null` = o conjunto genérico de fallback (admin). */
+  salvarFrases: (nicho: string | null, frases: string[]) =>
+    request<{ conjunto: FrasesProspeccao }>("/api/frases", {
+      method: "PUT",
+      body: JSON.stringify({ nicho, frases }),
+    }),
+  /** Gira a rotação do nicho — só o clique de enviar pro WhatsApp chama isto. */
+  avancarFrase: (nicho: string | null) =>
+    request<{ indice: number }>("/api/frases/avancar", {
+      method: "POST",
+      body: JSON.stringify({ nicho }),
     }),
 
   getUsage: () => request<UsageResponse>("/api/usage"),

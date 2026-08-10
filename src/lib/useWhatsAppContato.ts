@@ -17,11 +17,24 @@ interface PendingWhatsApp {
  * selo de contato deste lead, pede confirmação antes de abrir; senão abre
  * direto e registra o selo (POST idempotente — primeiro contato prevalece).
  * Usado na ficha do lead e em /hoje (os dois lugares com o link wa.me).
+ *
+ * `onEnviado` é o gancho do ENVIO EM SI — é onde a rotação das frases de
+ * prospecção avança. Fica dentro de `registrar`, que é o único ponto por
+ * onde os DOIS caminhos de envio passam (o direto e o de depois do modal),
+ * exatamente uma vez cada: assim o contador anda uma vez por envio, nas duas
+ * telas, sem o gancho precisar ser repetido em cada botão. Copiar o link,
+ * abrir a demo ou editar a frase não passam por aqui — e por isso não giram
+ * o contador.
  */
-export function useWhatsAppContato(meuId: string | null, onRegistrado: (lead: Lead) => void) {
+export function useWhatsAppContato(
+  meuId: string | null,
+  onRegistrado: (lead: Lead) => void,
+  onEnviado?: (lead: Lead) => void,
+) {
   const [pendente, setPendente] = useState<PendingWhatsApp | null>(null);
 
   function registrar(lead: Lead) {
+    onEnviado?.(lead);
     api
       .registrarContato(lead.placeId)
       .then(({ lead: atualizado }) => onRegistrado(atualizado))
