@@ -10,6 +10,11 @@ import {
 import { ANCORAS_PADRAO, validarAncoras } from "@/lib/demos/capturas/ancoras";
 import { ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
+import {
+  DEFAULT_JANELAS_CONTATO,
+  validarJanelasContato,
+  type JanelasContatoConfig,
+} from "@/lib/leads/janelaContato";
 
 export const CONFIG_COLLECTION = "config";
 export const CONFIG_DOC = "app";
@@ -42,6 +47,12 @@ export interface AppConfig {
   precificacao: PrecificacaoConfig;
   /** Âncoras de captura por skin (tela /interno/capturas). */
   capturas: CapturasConfig;
+  /**
+   * Janelas recomendadas de contato por família de negócio (ficha do lead e
+   * botão de WhatsApp) — ver `@/lib/leads/janelaContato`. Determinístico,
+   * editável aqui sem deploy.
+   */
+  janelasContato: JanelasContatoConfig;
 }
 
 export interface CapturasConfig {
@@ -113,6 +124,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     ],
   },
   capturas: { ancoras: structuredClone(ANCORAS_PADRAO) },
+  janelasContato: structuredClone(DEFAULT_JANELAS_CONTATO),
 };
 
 const FILTRO_VALUES: FiltroPresenca[] = ["qualquer", "com", "sem"];
@@ -128,6 +140,7 @@ const TOP_LEVEL_KEYS = new Set([
   "precos",
   "precificacao",
   "capturas",
+  "janelasContato",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -270,6 +283,10 @@ export function validateConfigPatch(patch: unknown): asserts patch is Partial<Ap
     }
   }
 
+  if (patch.janelasContato !== undefined) {
+    validarJanelasContato(patch.janelasContato, "janelasContato", problemas);
+  }
+
   if (problemas.length > 0) {
     throw new ValidationError(problemas);
   }
@@ -402,6 +419,10 @@ export function mergeConfig(base: AppConfig, patch: Partial<AppConfig>): AppConf
       // truthiness.
       ancoras: { ...base.capturas.ancoras, ...patch.capturas?.ancoras },
     },
+    // Merge POR FAMÍLIA, mesmo espírito de capturas.ancoras acima — a tela
+    // salva a família que o admin acabou de editar, as outras continuam
+    // valendo o que já valia (default ou edição anterior).
+    janelasContato: { ...base.janelasContato, ...patch.janelasContato },
   };
 }
 

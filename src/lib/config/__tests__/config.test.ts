@@ -331,6 +331,45 @@ describe("capturas.ancoras (marcação de âncoras de captura)", () => {
       ValidationError,
     );
   });
+
+  it("janelasContato: default já vem populado, e o patch mescla POR FAMÍLIA", async () => {
+    const db = new FakeFirestore();
+    expect(DEFAULT_CONFIG.janelasContato.barbearia.ideal).toEqual({
+      inicio: { hora: 9, minuto: 30 },
+      fim: { hora: 11, minuto: 0 },
+    });
+
+    const config = await saveConfig(db, {
+      janelasContato: {
+        barbearia: {
+          ideal: { inicio: { hora: 8, minuto: 0 }, fim: { hora: 9, minuto: 0 } },
+          dias: { 1: "recomendado" },
+        },
+      },
+    });
+
+    expect(config.janelasContato.barbearia.ideal).toEqual({
+      inicio: { hora: 8, minuto: 0 },
+      fim: { hora: 9, minuto: 0 },
+    });
+    // As outras famílias continuam com o default — merge é por chave, não substituição do mapa inteiro.
+    expect(config.janelasContato.lancheria).toEqual(DEFAULT_CONFIG.janelasContato.lancheria);
+  });
+
+  it("rejeita janelasContato inválida (fim antes do início)", async () => {
+    const db = new FakeFirestore();
+
+    await expect(
+      saveConfig(db, {
+        janelasContato: {
+          barbearia: {
+            ideal: { inicio: { hora: 10, minuto: 0 }, fim: { hora: 9, minuto: 0 } },
+            dias: { 1: "recomendado" },
+          },
+        },
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
 });
 
 describe("pricingFromConfig", () => {

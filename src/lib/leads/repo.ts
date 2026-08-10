@@ -7,6 +7,7 @@ import { InvalidTransitionError, NotFoundError, ValidationError } from "@/lib/er
 import type { AppDb } from "@/lib/firestore-like";
 import type { DetalhesLugar, HorariosLugar, PlaceBasico } from "@/lib/places/client";
 import { isSiteProprio } from "@/lib/site-proprio";
+import { horarioLocalNoDisparo } from "./janelaContato";
 import {
   LEADS_COLLECTION,
   LEAD_STATUSES,
@@ -14,6 +15,7 @@ import {
   type DemoVisita,
   type Lead,
   type LeadStatus,
+  type RegistroEnvioContato,
 } from "./types";
 
 /**
@@ -259,9 +261,13 @@ export async function changeStatus(
 }
 
 /**
- * Selo "já contatou este lead": carimbado ao clicar no WhatsApp, à parte da
- * transição de status. Primeiro clique prevalece — cliques seguintes (do
- * mesmo usuário ou de outro, após confirmar o modal) são no-op aqui.
+ * Selo "já contatou este lead" + registro do disparo: chamado a cada clique
+ * no botão WhatsApp (ficha e /hoje). O selo carimba só uma vez (primeiro
+ * clique prevalece — cliques seguintes, do mesmo usuário ou de outro após
+ * confirmar o modal, são no-op nele); `registrosEnvio` cresce em TODOS os
+ * cliques, com a hora local do lead naquele instante — só o registro por
+ * enquanto, para comparar taxa de resposta por janela no futuro (ver
+ * `Lead.registrosEnvio`).
  */
 export async function registrarSeloContato(
   db: AppDb,
@@ -270,11 +276,13 @@ export async function registrarSeloContato(
   now: Date = new Date(),
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
-  if (lead.seloContato) return lead;
+  const em = now.toISOString();
+  const registro: RegistroEnvioContato = { em, ...horarioLocalNoDisparo(lead, now) };
   const updated: Lead = {
     ...lead,
-    seloContato: { userId, em: now.toISOString() },
-    atualizadoEm: now.toISOString(),
+    ...(lead.seloContato ? {} : { seloContato: { userId, em } }),
+    registrosEnvio: [...(lead.registrosEnvio ?? []), registro],
+    atualizadoEm: em,
   };
   await docRef(db, placeId).set(toDoc(updated));
   return updated;

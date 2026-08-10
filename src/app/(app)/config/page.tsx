@@ -23,6 +23,13 @@ import {
 import type { Sku, UsoUsuario } from "@/lib/costs";
 import { frasesEfetivas, normalizarSlots, posicaoAtual } from "@/lib/frases/rotacao";
 import {
+  FAMILIAS_JANELA_CONTATO,
+  FAMILIA_GENERICA,
+  type FamiliaJanelaContato,
+  type HoraMinuto,
+  type PrioridadeDiaContato,
+} from "@/lib/leads/janelaContato";
+import {
   FRASES_SLOTS,
   type FrasesProspeccao,
   type RelatorioMigracao,
@@ -403,6 +410,32 @@ export default function ConfigPage() {
               setForm({ ...form, precificacao: { ...form.precificacao, presets } })
             }
           />
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Janelas de contato por família
+        </h2>
+        <p className="mt-1 text-xs text-ink-muted">
+          Janela ideal (e alternativa, quando houver) por família de negócio, determinística — sem
+          IA gerando horário. Mostrada na ficha do lead e no botão de WhatsApp, na hora local do
+          lead, sempre cruzada com o horário de funcionamento declarado.
+        </p>
+        <div className="mt-3 flex flex-col gap-3">
+          {FAMILIAS_JANELA_CONTATO.map((familiaId) => (
+            <JanelaFamiliaEditor
+              key={familiaId}
+              familiaId={familiaId}
+              valor={form.janelasContato[familiaId]}
+              onChange={(valor) =>
+                setForm({
+                  ...form,
+                  janelasContato: { ...form.janelasContato, [familiaId]: valor },
+                })
+              }
+            />
+          ))}
         </div>
       </section>
 
@@ -1629,6 +1662,173 @@ function PresetsEditor({
       >
         + Adicionar preset
       </button>
+    </div>
+  );
+}
+
+const NOME_FAMILIA: Record<string, string> = {
+  barbearia: "Barbearia",
+  lancheria: "Lancheria",
+  tatuagem: "Tatuagem",
+  imobiliaria: "Imobiliária",
+  petshop: "Petshop",
+  multimarcas: "Multimarcas",
+  [FAMILIA_GENERICA]: "Genérico (nicho não reconhecido)",
+};
+
+// Segunda primeiro (semana de trabalho), domingo por último — mesma ordem
+// de leitura de `resumirHorarios` (lib/leads/horarios.ts).
+const DIAS_SEMANA_ORDEM: Array<{ dia: number; abrev: string }> = [
+  { dia: 1, abrev: "SEG" },
+  { dia: 2, abrev: "TER" },
+  { dia: 3, abrev: "QUA" },
+  { dia: 4, abrev: "QUI" },
+  { dia: 5, abrev: "SEX" },
+  { dia: 6, abrev: "SÁB" },
+  { dia: 0, abrev: "DOM" },
+];
+
+const PROXIMA_PRIORIDADE: Record<PrioridadeDiaContato, PrioridadeDiaContato> = {
+  recomendado: "poucoIndicado",
+  poucoIndicado: "indisponivel",
+  indisponivel: "recomendado",
+};
+
+const PRIORIDADE_CLS: Record<PrioridadeDiaContato, string> = {
+  recomendado: "border-good/50 bg-good/15 text-good",
+  poucoIndicado: "border-warning/50 bg-warning/15 text-warning",
+  indisponivel: "border-line bg-surface-2 text-ink-muted",
+};
+
+const PRIORIDADE_LABEL: Record<PrioridadeDiaContato, string> = {
+  recomendado: "recomendado",
+  poucoIndicado: "pouco indicado",
+  indisponivel: "não abordar",
+};
+
+/** "9h30" ↔ "09:30" — HoraMinuto guarda hora/minuto separados; <input type="time"> quer "HH:MM". */
+function horaMinutoParaInputTime(valor: HoraMinuto): string {
+  return `${String(valor.hora).padStart(2, "0")}:${String(valor.minuto).padStart(2, "0")}`;
+}
+
+function inputTimeParaHoraMinuto(valor: string): HoraMinuto | null {
+  const [horaTexto, minutoTexto] = valor.split(":");
+  const hora = Number(horaTexto);
+  const minuto = Number(minutoTexto);
+  if (!Number.isInteger(hora) || !Number.isInteger(minuto)) return null;
+  return { hora, minuto };
+}
+
+/** Um campo de horário (início–fim) de uma janela — usado tanto para a ideal quanto a alternativa. */
+function FaixaContatoEditor({
+  inicio,
+  fim,
+  onChange,
+}: {
+  inicio: HoraMinuto;
+  fim: HoraMinuto;
+  onChange: (inicio: HoraMinuto, fim: HoraMinuto) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="time"
+        value={horaMinutoParaInputTime(inicio)}
+        onChange={(e) => {
+          const novo = inputTimeParaHoraMinuto(e.target.value);
+          if (novo) onChange(novo, fim);
+        }}
+        className="rounded border border-line bg-surface-2 px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+      />
+      <span className="text-xs text-ink-muted">até</span>
+      <input
+        type="time"
+        value={horaMinutoParaInputTime(fim)}
+        onChange={(e) => {
+          const novo = inputTimeParaHoraMinuto(e.target.value);
+          if (novo) onChange(inicio, novo);
+        }}
+        className="rounded border border-line bg-surface-2 px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
+      />
+    </div>
+  );
+}
+
+/**
+ * Uma família: janela ideal, alternativa opcional (checkbox liga/desliga) e
+ * os 7 dias da semana como chips que ciclam recomendado → pouco indicado →
+ * não abordar num clique — sem select nenhum, edição de um toque só.
+ */
+function JanelaFamiliaEditor({
+  familiaId,
+  valor,
+  onChange,
+}: {
+  familiaId: string;
+  valor: FamiliaJanelaContato;
+  onChange: (valor: FamiliaJanelaContato) => void;
+}) {
+  return (
+    <div className="rounded border border-line p-3">
+      <p className="text-sm font-medium text-foreground">{NOME_FAMILIA[familiaId] ?? familiaId}</p>
+
+      <div className="mt-2 flex flex-col gap-2">
+        <Field label="Janela ideal">
+          <FaixaContatoEditor
+            inicio={valor.ideal.inicio}
+            fim={valor.ideal.fim}
+            onChange={(inicio, fim) => onChange({ ...valor, ideal: { inicio, fim } })}
+          />
+        </Field>
+
+        <label className="flex items-center gap-2 text-xs text-ink-secondary">
+          <input
+            type="checkbox"
+            checked={valor.alternativa !== undefined}
+            onChange={(e) =>
+              onChange({
+                ...valor,
+                alternativa: e.target.checked
+                  ? { inicio: { hora: 16, minuto: 0 }, fim: { hora: 17, minuto: 0 } }
+                  : undefined,
+              })
+            }
+          />
+          Janela alternativa
+        </label>
+        {valor.alternativa && (
+          <FaixaContatoEditor
+            inicio={valor.alternativa.inicio}
+            fim={valor.alternativa.fim}
+            onChange={(inicio, fim) => onChange({ ...valor, alternativa: { inicio, fim } })}
+          />
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {DIAS_SEMANA_ORDEM.map(({ dia, abrev }) => {
+          const prioridade = valor.dias[dia] ?? "indisponivel";
+          return (
+            <button
+              key={dia}
+              type="button"
+              title={PRIORIDADE_LABEL[prioridade]}
+              onClick={() =>
+                onChange({
+                  ...valor,
+                  dias: { ...valor.dias, [dia]: PROXIMA_PRIORIDADE[prioridade] },
+                })
+              }
+              className={`rounded border px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide ${PRIORIDADE_CLS[prioridade]}`}
+            >
+              {abrev}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-1 text-[11px] text-ink-muted">
+        Clique num dia para alternar: recomendado → pouco indicado → não abordar.
+      </p>
     </div>
   );
 }

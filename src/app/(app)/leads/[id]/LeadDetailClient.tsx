@@ -30,6 +30,7 @@ import {
 } from "@/lib/frases/resolver";
 import { idiomaLabelRegional } from "@/lib/idioma";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
+import { linhaRecomendacaoContato } from "@/lib/leads/janelaContato";
 import { handleInstagram } from "@/lib/leads/instagram";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
@@ -424,6 +425,7 @@ export function LeadDetailClient({ id }: { id: string }) {
   const instagramHandle = handleInstagram(detalhes?.site ?? lead.siteUrl);
   const estado = estadoAtual(lead.horarios);
   const momento = melhorMomento(lead.horarios);
+  const linhaJanela = config ? linhaRecomendacaoContato(config.janelasContato, lead) : undefined;
 
   // Argumento de venda pronto: só para leads sem site próprio, e só quando
   // a penetração do nicho+região dele já foi calculada (busca que o trouxe
@@ -687,6 +689,7 @@ export function LeadDetailClient({ id }: { id: string }) {
               Melhor momento pra contatar: {momento.agora ? "agora" : momento.texto}
             </p>
           )}
+          {linhaJanela && <p className="text-center text-xs text-ink-muted">{linhaJanela}</p>}
         </div>
       )}
 

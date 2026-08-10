@@ -12,6 +12,7 @@ import type {
 import type { UsageCounts, UsoUsuario } from "@/lib/costs";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
+import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 import type { PenetracaoSite } from "@/lib/leads/penetracao";
 import type { Metrics, MetricsUsuario } from "@/lib/leads/metrics";
 import type { ConversaResumo, Mensagem } from "@/lib/mensagens/types";
@@ -149,6 +150,8 @@ export interface HojeResponse {
   followUpDias: number;
   /** Mensagem global do WhatsApp (fallback quando o grupo não tem própria). */
   mensagemPadrao: string;
+  /** Recomendação de janela de contato por família — ver `@/lib/leads/janelaContato`. */
+  janelasContato: JanelasContatoConfig;
   /** Meta de prospecção do PRÓPRIO usuário logado (dia/semana); janela sem `meta` não exibe nada. */
   metaProspeccao: ProgressoMetas;
   buscas: Array<{

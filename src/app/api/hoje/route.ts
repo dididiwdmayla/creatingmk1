@@ -75,6 +75,8 @@ export async function GET(req: Request) {
       metaProspeccao,
       /** Para o botão WhatsApp e o badge da busca de origem, sem outra chamada. */
       mensagemPadrao: config.mensagemPadrao,
+      /** Recomendação de janela de contato por família — ver `@/lib/leads/janelaContato`. */
+      janelasContato: config.janelasContato,
       buscas: buscas.map(({ id, nome, cor, mensagemPadrao, nicho, regiao, penetracao }) => ({
         id,
         nome,
