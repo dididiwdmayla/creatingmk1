@@ -14,6 +14,7 @@ import { BUSCA_CORES, type Busca } from "@/lib/buscas/types";
 import type { NomesUsuarios } from "@/lib/contato-selo";
 import { formatInt } from "@/lib/format";
 import { CabecalhoBusca } from "@/components/CabecalhoBusca";
+import { GRADE_DENSIDADE, SeletorDensidade } from "@/components/SeletorDensidade";
 import { SkeletonRows } from "@/components/Skeleton";
 import { usePreferenciasListas } from "@/components/usePreferenciasListas";
 
@@ -82,7 +83,8 @@ function BuscasPageInner() {
   // Cada busca é um GRUPO colapsável: fechada, sobra só a faixa do
   // CabecalhoBusca (a mesma de /leads). O estado da dobra é do usuário,
   // não da navegação — ver "Compactação de /leads e /buscas".
-  const { preferencias, alternarGrupoLista } = usePreferenciasListas();
+  const { preferencias, pronto, densidadeDe, alternarGrupoLista, definirDensidadeLista } =
+    usePreferenciasListas();
 
   useEffect(() => {
     let ignore = false;
@@ -217,7 +219,7 @@ function BuscasPageInner() {
   // A dobra só pode pintar depois que a preferência resolve: grupo que
   // nasce aberto e fecha meio segundo depois empurra a lista inteira (é o
   // deslocamento de layout que o portão de CLS reprova).
-  if (buscas === null || preferencias === null || nomes === null) {
+  if (buscas === null || preferencias === null || !pronto || nomes === null) {
     return <SkeletonRows count={3} className="h-20 rounded-lg border border-line" />;
   }
 
@@ -236,6 +238,7 @@ function BuscasPageInner() {
   // "nenhum" devolve um grupo único: um caminho de render só para os três
   // modos, em vez de uma lista plana e outra agrupada divergindo com o tempo.
   const grupos = agruparBuscas(buscas, modo);
+  const densidade = densidadeDe("buscas");
 
   return (
     <div className="flex flex-col gap-2">
@@ -253,6 +256,11 @@ function BuscasPageInner() {
             </option>
           ))}
         </select>
+        <SeletorDensidade
+          valor={densidade}
+          onEscolher={(escolhida) => definirDensidadeLista("buscas", escolhida)}
+          desabilitado={!pronto}
+        />
       </div>
 
       {grupos.map((grupo) => {
@@ -283,13 +291,23 @@ function BuscasPageInner() {
               </button>
             )}
             {!grupoFechado && (
-              <ul className={`flex flex-col gap-1.5 ${comCabecalho ? "mt-1.5" : ""}`}>
+              <ul
+                className={`grid gap-1.5 ${GRADE_DENSIDADE[densidade]} ${
+                  comCabecalho ? "mt-1.5" : ""
+                }`}
+              >
                 {grupo.itens.map((busca) => {
                   const fechada = preferencias.gruposFechados.buscas.includes(busca.id);
                   return (
+            // A grade vale para as faixas FECHADAS. Busca aberta volta a
+            // ocupar a linha inteira: mensagem do grupo, recorrência e
+            // ações não cabem numa coluna de ~85px do celular, e o card
+            // aberto não é o que se está comparando de relance.
             <li
               key={busca.id}
-              className="rounded-lg border border-line bg-surface px-2 py-1"
+              className={`min-w-0 rounded-lg border border-line bg-surface py-1 ${
+                fechada && densidade >= 3 ? "px-1" : "px-2"
+              } ${fechada ? "" : "col-span-full"}`}
             >
               <CabecalhoBusca
                 titulo={busca.nome}
@@ -302,6 +320,10 @@ function BuscasPageInner() {
                 nomes={nomes}
                 onTrocarCor={() => trocarCor(busca)}
                 trocandoCor={trocandoCor === busca.id}
+                // Aberta, a busca já ocupa a linha inteira — então a faixa
+                // dela volta à densidade 1 e recupera procedência, contagem
+                // e o atalho "leads →" junto com o miolo.
+                densidade={fechada ? densidade : 1}
                 acoes={
                   <Link
                     href={`/leads?buscaId=${encodeURIComponent(busca.id)}&buscaNome=${encodeURIComponent(busca.nome)}`}

@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { SeloContato } from "./SeloContato";
+import { PontoContato, SeloContato } from "./SeloContato";
 import { StatusBadge } from "./StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
 import type { NomesUsuarios } from "@/lib/contato-selo";
 import { estadoAtual } from "@/lib/leads/horarios";
 import type { Lead } from "@/lib/leads/types";
+import type { Densidade } from "@/lib/usuarios/preferencias";
 
 const NOTAS_MAX = 500; // espelha o limite da rota PATCH
 
@@ -70,7 +71,7 @@ export function LeadCard({
   destaque,
   argumentoForte,
   nomes,
-  compacto,
+  densidade = 1,
   onChange,
 }: {
   lead: Lead;
@@ -85,14 +86,19 @@ export function LeadCard({
   /** id → nome, pra resolver o selo de contato (GET /api/usuarios/nomes). */
   nomes: NomesUsuarios;
   /**
-   * Modo compacto da LISTA (preferência do usuário): o card vira uma linha
-   * até alguém tocar nele. A expansão é por card e só local — abrir um não
-   * abre os outros nem desliga o modo da lista.
+   * Densidade da grade (cards por linha) — e, por tabela, quanto do card
+   * sobra: 1 é o card inteiro, e a partir de 2 o miolo vai saindo.
    */
-  compacto?: boolean;
+  densidade?: Densidade;
   onChange: (lead: Lead) => void;
 }) {
-  const [expandido, setExpandido] = useState(false);
+  /**
+   * Recolher/expandir é SÓ da densidade 1, e só local. Nas densidades 2–4
+   * o card já é curto por definição e o toque leva para a ficha — dois
+   * destinos para o mesmo gesto no mesmo card seria a ambiguidade que a
+   * densidade veio resolver.
+   */
+  const [recolhido, setRecolhido] = useState(false);
   const [editandoNotas, setEditandoNotas] = useState(false);
   const [notasDraft, setNotasDraft] = useState(lead.notas ?? "");
   const [salvandoNotas, setSalvandoNotas] = useState(false);
@@ -168,17 +174,83 @@ export function LeadCard({
     </span>
   );
 
-  // ── Modo compacto: uma linha por lead ────────────────────────────────
-  // Fica só o que decide "abro esta ficha ou passo pra próxima": nome,
-  // status, score e a presença de site/telefone. Endereço, faixa de "já
-  // contatou" e as ações de nota/descartar saem — são coisas de quando o
-  // lead JÁ foi escolhido, e é o miolo delas que faz a fila de cards ficar
-  // alta. Tocar expande SÓ este card (o modo da lista continua ligado).
-  if (compacto && !expandido) {
+  const pontosCor =
+    dots.length > 0 ? (
+      <span className="flex shrink-0 gap-1" aria-hidden>
+        {dots.map((cor, i) => (
+          <span
+            key={`${cor}-${i}`}
+            className="block h-2.5 w-2.5 rounded-full"
+            style={{ backgroundColor: cor }}
+          />
+        ))}
+      </span>
+    ) : null;
+
+  // ── Densidades 2–4: a escada de conteúdo ─────────────────────────────
+  // O que sai a cada degrau é sempre o que só interessa DEPOIS da escolha
+  // (endereço, faixa de "já contatou", notas, ações), e o que fica é o que
+  // decide "abro esta ficha ou passo pra próxima". O card inteiro vira
+  // link: em duas a quatro colunas não há espaço para ação nenhuma dentro
+  // do card, e o destino do toque passa a ser um só.
+  if (densidade > 1) {
+    return (
+      <Link
+        href={`/leads/${lead.placeId}`}
+        title={lead.nome}
+        // Em 4 o respiro horizontal encolhe junto: numa coluna de ~85px do
+        // celular, cada píxel de padding sai direto do nome, que é a única
+        // coisa que identifica a linha.
+        className={`card-lift flex h-full flex-col justify-center gap-1 rounded-lg border border-line bg-surface py-2 ${
+          densidade === 4 ? "min-h-9 px-1.5" : "min-h-11 px-2"
+        } ${lead.descartado ? "lead-descartado" : ""}`}
+      >
+        {densidade === 4 ? (
+          // Cor, nome curto e ponto de status — o mínimo que ainda
+          // identifica a linha e diz em que pé ela está.
+          <span className="flex items-center gap-1">
+            {pontosCor}
+            <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+              {lead.nome}
+            </span>
+            <StatusBadge status={lead.status} variante="ponto" />
+          </span>
+        ) : densidade === 3 ? (
+          <>
+            <span className="block truncate text-sm font-medium text-foreground">
+              {lead.nome}
+            </span>
+            <span className="flex items-center gap-1.5">
+              {scoreChip}
+              <StatusBadge status={lead.status} variante="glifo" />
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="flex items-start gap-1.5">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                {lead.nome}
+              </span>
+              {scoreChip}
+            </span>
+            <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+              <StatusBadge status={lead.status} />
+              <PresencaCurta lead={lead} />
+              <PontoContato lead={lead} nomes={nomes} />
+              {pontosCor}
+            </span>
+          </>
+        )}
+      </Link>
+    );
+  }
+
+  // ── Densidade 1, recolhido: a linha única, com o toque que expande ────
+  if (recolhido) {
     return (
       <button
         type="button"
-        onClick={() => setExpandido(true)}
+        onClick={() => setRecolhido(false)}
         aria-expanded={false}
         aria-label={`Expandir ${lead.nome}`}
         className={`card-lift flex w-full items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-2 text-left ${
@@ -211,17 +283,15 @@ export function LeadCard({
         <div className="flex shrink-0 items-center gap-2">
           {scoreChip}
           <StatusBadge status={lead.status} />
-          {compacto && (
-            <button
-              type="button"
-              onClick={() => setExpandido(false)}
-              aria-label={`Recolher ${lead.nome}`}
-              title="Recolher"
-              className="text-xs text-ink-muted hover:text-foreground"
-            >
-              ▴
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setRecolhido(true)}
+            aria-label={`Recolher ${lead.nome}`}
+            title="Recolher"
+            className="text-xs text-ink-muted hover:text-foreground"
+          >
+            ▴
+          </button>
           <button
             type="button"
             onClick={toggleFavorito}
@@ -256,17 +326,7 @@ export function LeadCard({
             argumento forte
           </span>
         )}
-        {dots.length > 0 && (
-          <span className="flex shrink-0 gap-1" aria-hidden>
-            {dots.map((cor, i) => (
-              <span
-                key={`${cor}-${i}`}
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: cor }}
-              />
-            ))}
-          </span>
-        )}
+        {pontosCor}
       </div>
 
       {estado && (

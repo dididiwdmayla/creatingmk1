@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import type { Busca } from "@/lib/buscas/types";
 import { formatDateShortSP, formatInt } from "@/lib/format";
+import type { Densidade } from "@/lib/usuarios/preferencias";
 
 /**
  * Cabeçalho de um GRUPO DE BUSCA, compartilhado por `/leads` (o grupo é a
@@ -33,6 +34,7 @@ export function CabecalhoBusca({
   onTrocarCor,
   trocandoCor,
   acoes,
+  densidade = 1,
 }: {
   /** Nome do grupo — o da busca, ou "Sem busca" no resto. */
   titulo: string;
@@ -50,7 +52,19 @@ export function CabecalhoBusca({
   trocandoCor?: boolean;
   /** Ações à direita do cabeçalho (fora do botão de dobrar). */
   acoes?: ReactNode;
+  /**
+   * Densidade da grade em que esta faixa está (só `/buscas` usa: em
+   * `/leads` o cabeçalho é de uma seção que ocupa a linha inteira, então
+   * ele nunca aperta). A escada aqui é a mesma ideia do `LeadCard` — some
+   * primeiro o que é procedência, depois o que é contagem —, e vale só
+   * para a faixa FECHADA: busca aberta volta à densidade 1, porque ela
+   * também volta a ocupar a linha inteira.
+   */
+  densidade?: Densidade;
 }) {
+  // Em 2 a procedência encolhe para nicho e região: data e autor são o
+  // que menos distingue uma busca da outra na mesma tela (quase sempre o
+  // mesmo autor, datas próximas) e são as primeiras a sair.
   const procedencia = busca
     ? [
         [busca.nicho, busca.subNicho].filter(Boolean).join(" · "),
@@ -64,6 +78,17 @@ export function CabecalhoBusca({
       ? nomeUsuario(nomes, busca.userId)
       : "autor não registrado"
     : "";
+  const comProcedencia = densidade <= 2;
+  const comDataEAutor = densidade === 1;
+  // A contagem custa ~44px com a pílula. Numa faixa de ~100px (3 colunas
+  // no celular) isso é metade do nome — e nome é o que a faixa existe para
+  // dizer. Ela fica só onde cabe sem comer a identificação.
+  const comContagem = densidade <= 2;
+  // O selo "recorrente" some já na densidade 2: ele tem largura fixa de
+  // ~68px e, numa faixa de ~170px, comia o nome inteiro — foi assim que o
+  // portão de slots pegou o título em 0×20. A recorrência continua visível
+  // (e alternável) na busca ABERTA, que volta à densidade 1.
+  const comChips = densidade === 1;
 
   // `block` não é decoração: um <span> inline ignora width/height, e o
   // ponto some (caixa 0×0) assim que deixa de ser filho direto de um flex —
@@ -86,7 +111,9 @@ export function CabecalhoBusca({
           disabled={trocandoCor}
           title="Trocar a cor da busca (cicla a paleta)"
           aria-label={`Trocar a cor da busca ${titulo}`}
-          className="mt-2 flex shrink-0 rounded-full p-1 ring-2 ring-transparent transition hover:ring-[var(--ring-soft)] disabled:opacity-50"
+          className={`flex shrink-0 rounded-full ring-2 ring-transparent transition hover:ring-[var(--ring-soft)] disabled:opacity-50 ${
+            densidade <= 2 ? "mt-2 p-1" : "mt-1.5 p-0.5"
+          }`}
         >
           {ponto}
         </button>
@@ -95,17 +122,28 @@ export function CabecalhoBusca({
         type="button"
         onClick={onToggle}
         aria-expanded={aberto}
+        title={titulo}
         className="min-w-0 flex-1 rounded px-1 py-1.5 text-left hover:bg-surface-2"
       >
         {/* A procedência é a linha larga: contagem e ação ficam na de cima,
             senão sobram ~50px pra ela e o autor é o primeiro a ser cortado. */}
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5">
           <span aria-hidden className="shrink-0 text-xs text-ink-muted">
             {aberto ? "▾" : "▸"}
           </span>
           {onTrocarCor ? null : ponto}
-          <span className="truncate text-sm font-medium text-foreground">{titulo}</span>
-          {busca?.recorrente && (
+          {/* `min-w-0 flex-1`: `truncate` traz `overflow: hidden`, e um
+              item de flex com overflow escondido pode encolher até ZERO —
+              sem tomar o espaço que sobra explicitamente, o nome some
+              (caixa 0×altura) assim que os chips ao lado enchem a faixa. */}
+          <span
+            className={`min-w-0 flex-1 truncate font-medium text-foreground ${
+              densidade >= 4 ? "text-xs" : "text-sm"
+            }`}
+          >
+            {titulo}
+          </span>
+          {comChips && busca?.recorrente && (
             <span
               title="Busca recorrente: o cron re-executa 1x/dia"
               className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
@@ -113,21 +151,42 @@ export function CabecalhoBusca({
               recorrente
             </span>
           )}
-          <span
-            title={contagemTitulo}
-            className="ml-auto shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-secondary"
-          >
-            {formatInt(contagem)}
-          </span>
+          {comContagem && (
+            <span
+              title={contagemTitulo}
+              className="ml-auto shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-secondary"
+            >
+              {formatInt(contagem)}
+            </span>
+          )}
         </span>
-        {busca && (
-          <span className="mt-0.5 line-clamp-2 block text-[11px] text-ink-muted">
-            {procedencia} <span aria-hidden>·</span> {formatDateShortSP(busca.criadaEm)}{" "}
-            <span aria-hidden>·</span> {autor}
+        {busca && comProcedencia && (
+          // Sem `block` junto: `line-clamp-*` PRECISA de
+          // `display: -webkit-box`, e a utility `block` vence a do clamp na
+          // cascata — com as duas, o clamp nunca cortou nada. Em largura
+          // cheia isso não aparecia (a procedência já cabia em duas
+          // linhas); na faixa de ~170px da densidade 2 ela foi para quatro.
+          <span
+            className={`mt-0.5 text-[11px] text-ink-muted ${
+              densidade === 1 ? "line-clamp-2" : "line-clamp-1"
+            }`}
+          >
+            {procedencia}
+            {comDataEAutor && (
+              <>
+                {" "}
+                <span aria-hidden>·</span> {formatDateShortSP(busca.criadaEm)}{" "}
+                <span aria-hidden>·</span> {autor}
+              </>
+            )}
           </span>
         )}
       </button>
-      {acoes}
+      {/* As ações saem já na densidade 2: "leads →" mede ~60px e disputa a
+          MESMA linha do nome (é irmã do botão de dobrar, não da
+          procedência) — com ela ali, o nome da busca virava "D..". Na
+          busca aberta, que volta à densidade 1, o atalho reaparece. */}
+      {densidade === 1 ? acoes : null}
     </div>
   );
 }

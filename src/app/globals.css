@@ -81,6 +81,21 @@
     var(--iris-3) 100%
   );
 
+  /*
+   * ARCO ROXO→MAGENTA DO BOTÃO DE INSTAGRAM. É o TRECHO FINAL do arco do
+   * tema Prisma (85° → 255° → 320°), pegado do violeta em diante:
+   * 263° → 295° → 327°. Ou seja, não é uma paleta nova — é a mesma
+   * película de óleo dos temas iridescentes, girada até a faixa que a
+   * marca usa.
+   *
+   * Dois motivos para ele ser FIXO e não acompanhar o tema, ao contrário
+   * de todo o resto do cromo: a cor aqui identifica uma marca de fora, não
+   * a preferência do usuário; e os stops estão escurecidos até o glifo
+   * BRANCO passar de 4,5:1 nos três (7,10 · 6,32 · 5,49), o que os tons
+   * claros de `--iris-2`/`--faisca` de cada tema não fazem (2,66 e 2,76).
+   */
+  --iris-instagram: linear-gradient(135deg, #6d28d9 0%, #a21caf 55%, #c41f7a 100%);
+
   /* Alturas fixas do chrome do app (Nav.tsx: header + barra inferior),
      iguais nos dois temas — usadas por telas que precisam ocupar EXATAMENTE
      o espaço restante da viewport dinâmica (ex.: o chat em /mensagens, via
@@ -400,6 +415,21 @@ body {
  */
 .cromo-realce {
   background-image: var(--iris-linha);
+}
+
+/*
+ * Ladrilho do ícone de Instagram na ficha do lead: o gradiente pinta o
+ * QUADRADO DO ÍCONE, e o rótulo "Instagram" fica ao lado, em superfície
+ * sólida. Não é detalhe de gosto — é a regra de legibilidade deste projeto
+ * (gradiente nunca sob texto de leitura), e por sorte é também exatamente
+ * como a marca desenha o ícone dela. Dentro do ladrilho só existe o traço
+ * da câmera; nenhuma letra.
+ *
+ * A fonte do logotipo do Instagram é proprietária e não entra aqui: o que
+ * identifica é o glifo da câmera mais o arco de cor.
+ */
+.cromo-instagram {
+  background-image: var(--iris-instagram);
 }
 
 /* ── Animações ─────────────────────────────────────────────────────────── */

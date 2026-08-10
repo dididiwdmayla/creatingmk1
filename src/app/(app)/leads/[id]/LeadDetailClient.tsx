@@ -335,9 +335,12 @@ export function LeadDetailClient({ id }: { id: string }) {
             href={`https://instagram.com/${instagramHandle}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 rounded border border-line bg-surface-2 px-3 py-2 text-sm font-medium text-foreground hover:border-accent/40 hover:bg-surface-2/70"
+            className="mt-2 inline-flex items-center gap-2 rounded border border-line bg-surface-2 py-1.5 pl-1.5 pr-3 text-sm font-medium text-foreground hover:border-accent/40 hover:bg-surface-2/70"
           >
-            Instagram ↗
+            <IconeInstagram />
+            <span>
+              @{instagramHandle} <span aria-hidden>↗</span>
+            </span>
           </a>
         )}
         {lead.descartado && (
@@ -683,6 +686,40 @@ export function LeadDetailClient({ id }: { id: string }) {
 
       {erro && <p className="text-sm text-critical">{erro}</p>}
     </div>
+  );
+}
+
+/**
+ * Ícone do Instagram: o glifo da CÂMERA (moldura arredondada, lente e o
+ * ponto do flash) sobre o arco roxo→magenta de `.cromo-instagram`, que é o
+ * trecho final do arco iridescente do tema Prisma (ver globals.css).
+ *
+ * A fonte do logotipo da marca é PROPRIETÁRIA e por isso não aparece em
+ * lugar nenhum daqui — quem identifica é o glifo mais a cor. O ladrilho
+ * tem largura e altura explícitas, e o gradiente vive só dentro dele: o
+ * rótulo fica fora, em superfície sólida, como manda a regra de
+ * legibilidade (o teste `globals.legibilidade` cobra isso).
+ */
+function IconeInstagram() {
+  return (
+    <span
+      aria-hidden
+      className="cromo-instagram flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-4 w-4"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="3" y="3" width="18" height="18" rx="5.5" />
+        <circle cx="12" cy="12" r="4.2" />
+        <circle cx="17.4" cy="6.6" r="1.1" fill="#ffffff" stroke="none" />
+      </svg>
+    </span>
   );
 }
 
