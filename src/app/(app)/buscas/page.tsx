@@ -66,7 +66,12 @@ function BuscasPageInner() {
   }
 
   const [buscas, setBuscas] = useState<Busca[] | null>(null);
-  const [nomes, setNomes] = useState<NomesUsuarios>({});
+  // `null` = ainda carregando. O autor aparece no cabeçalho de TODA
+  // busca, e o fallback ("usuário removido") é mais longo que o nome
+  // real: deixar a lista pintar antes dos nomes faz a linha da
+  // procedência encolher de duas para uma e empurrar tudo abaixo dela —
+  // foi o resíduo de CLS que a medição pegou nesta tela.
+  const [nomes, setNomes] = useState<NomesUsuarios | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [trocandoCor, setTrocandoCor] = useState<string | null>(null);
   const [editandoMsg, setEditandoMsg] = useState<string | null>(null);
@@ -100,6 +105,7 @@ function BuscasPageInner() {
       })
       .catch(() => {
         // autor cai no fallback "usuário removido" — não é bloqueante
+        if (!ignore) setNomes({});
       });
     return () => {
       ignore = true;
@@ -211,7 +217,7 @@ function BuscasPageInner() {
   // A dobra só pode pintar depois que a preferência resolve: grupo que
   // nasce aberto e fecha meio segundo depois empurra a lista inteira (é o
   // deslocamento de layout que o portão de CLS reprova).
-  if (buscas === null || preferencias === null) {
+  if (buscas === null || preferencias === null || nomes === null) {
     return <SkeletonRows count={3} className="h-20 rounded-lg border border-line" />;
   }
 

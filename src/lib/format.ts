@@ -26,6 +26,27 @@ export function formatDateShort(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
+/**
+ * "27/07" no fuso de **America/Sao_Paulo**, não no do navegador.
+ *
+ * Existe por um motivo específico: o cabeçalho de grupo (`CabecalhoBusca`)
+ * aparece ao lado do agrupamento por mês de `/buscas`, que resolve o mês em
+ * São Paulo (uma busca das 22h do dia 31 é de julho pra quem a rodou, ver
+ * `agruparBuscas`). Formatar a data do cabeçalho no relógio do navegador
+ * faz a mesma tela dizer "01/08" dentro do grupo "Julho de 2026" — os dois
+ * precisam sair do MESMO fuso, e o fuso certo é o de quem opera.
+ */
+const DATA_CURTA_SP = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  day: "2-digit",
+  month: "2-digit",
+});
+
+export function formatDateShortSP(iso: string): string {
+  const data = new Date(iso);
+  return Number.isNaN(data.getTime()) ? "—" : DATA_CURTA_SP.format(data);
+}
+
 /** "45s" / "2min" / "2min 30s" — duração de uma visita à demo. */
 export function formatDuracao(segundos: number): string {
   if (segundos < 60) return `${segundos}s`;

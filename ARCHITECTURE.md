@@ -19,7 +19,7 @@ scripts/
   qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato; `--so=fps` é o PORTÃO: efeito × os 5 modos de cor, celular com CPU 4×, rolando a página — piso de 45 fps por CÉLULA (modo que reprova é desabilitado, não o efeito) + a superfície repintada em Mpx/s ao lado (ver "Verificação da UI")
   qa-editor.mjs                     # ✅ laço de captura do EDITOR (não da rota pública): digita num campo com o efeito ativo e reporta fps do preview + contagem de <style> antes/depois; exige o patch temporário de fake DB documentado no cabeçalho
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
-  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma")
+  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma"); `--so=listas` é o PORTÃO das duas listas longas (/leads e /buscas no celular, dirigindo os controles de verdade): nenhuma linha com altura zero, nada vazando da viewport e a compactação MEDIDA (ver "Compactação de /leads e /buscas")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
   qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia e prova que o seletor de fontes de título alcança o título — desktop e celular × (nome curto/longo com quebra/longo sem quebra × nível imagem e vídeo) (ver "Título hero: uma caixa de texto, a mídia como máscara")
   capturas-ci.mjs                   # ✅ orquestrador do workflow: move o estado no doc do lead e chama o motor como processo filho (não captura nada por conta própria)
@@ -1795,6 +1795,42 @@ e uma agrupada divergindo com o tempo.
 - **A ordem sai de graça**: a rota já devolve as buscas mais recentes
   primeiro, e agrupar preservando a ordem de chegada dá meses em ordem
   decrescente e nichos na ordem do uso mais recente.
+### Verificação (`qa-plataforma.mjs --so=listas` + `qa-cls.mjs --so=app`)
+
+As duas telas, no CELULAR (390×844, dpr 2), **dirigindo os controles de
+verdade** — não uma preferência semeada no banco: estado semeado provaria
+só que o componente sabe renderizar fechado, e o que precisa ser
+verificado é o caminho inteiro (tocar → gravar no doc → **recarregar** e
+continuar compactado, que é uma asserção do laço). Nove estados
+capturados: `/leads` completo → compacto → recarregado → um card
+expandido → grupo dobrado; `/buscas` aberto → dobrado → por mês → por
+nicho.
+
+**O portão** (é o análogo do `--so=colapso` das skins, para listas):
+nenhuma linha pode renderizar com **altura zero**, nada pode vazar da
+viewport, a linha compacta tem que ser mais BAIXA que o card completo
+(senão não houve compactação) e dobrar as buscas tem que reduzir altura.
+`[data-ponto-busca]` tem asserção própria — e ela existe porque o ponto de
+cor **já sumiu uma vez**: `<span>` inline ignora `width`/`height`, então
+bastou ele deixar de ser filho direto de um flex (entrou dentro do botão
+de trocar cor) pra virar uma caixa 0×0. A tela continuava "certa", só sem
+o ponto; nenhuma asserção de altura de LINHA pegaria isso.
+
+**O que a captura achou e a leitura de código não acharia**: além do ponto
+sumido, a data do cabeçalho contradizendo o grupo — "01/08" dentro de
+"Julho de 2026", porque o agrupamento resolvia o mês em São Paulo e a data
+saía no relógio do navegador (daí `formatDateShortSP`).
+
+**Deslocamento de layout** (`qa-cls.mjs --so=app`, portão 0.1): as 7 abas
+em 0.0000, menos `config` em 0.0260 (pré-existente, sem relação com estas
+telas). A primeira medição pegou **0.0050 em Buscas**, com origem em
+`div.border-t.border-line, li.rounded-lg.border`: o autor aparece no
+cabeçalho de toda busca e o fallback "usuário removido" é mais longo que o
+nome real, então a linha da procedência encolhia de duas para uma quando
+`/api/usuarios/nomes` respondia — e empurrava tudo abaixo dela. Corrigido
+pondo `nomes` no mesmo portão de esqueleto de `buscas`/`preferencias`;
+nova medição: **0.0000**.
+
 - **Voltar de um nível não perde o lugar**: o modo mora na querystring
   (`?agrupar=mes`) e é espelhado em `sessionStorage` (`radar:buscas:query`)
   porque a nav inferior aponta pra `/buscas` fixo; a posição de rolagem

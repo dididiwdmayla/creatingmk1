@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import type { Busca } from "@/lib/buscas/types";
-import { formatDateShort, formatInt } from "@/lib/format";
+import { formatDateShortSP, formatInt } from "@/lib/format";
 
 /**
  * Cabeçalho de um GRUPO DE BUSCA, compartilhado por `/leads` (o grupo é a
@@ -65,16 +65,20 @@ export function CabecalhoBusca({
       : "autor não registrado"
     : "";
 
+  // `block` não é decoração: um <span> inline ignora width/height, e o
+  // ponto some (caixa 0×0) assim que deixa de ser filho direto de um flex —
+  // foi o que aconteceu quando ele entrou dentro do botão de trocar cor.
   const ponto = (
     <span
       aria-hidden
-      className="h-2.5 w-2.5 shrink-0 rounded-full"
+      data-ponto-busca=""
+      className="block h-2.5 w-2.5 shrink-0 rounded-full"
       style={{ backgroundColor: cor ?? "var(--ink-muted)" }}
     />
   );
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-start gap-1.5">
       {onTrocarCor ? (
         <button
           type="button"
@@ -82,7 +86,7 @@ export function CabecalhoBusca({
           disabled={trocandoCor}
           title="Trocar a cor da busca (cicla a paleta)"
           aria-label={`Trocar a cor da busca ${titulo}`}
-          className="shrink-0 rounded-full p-1 ring-2 ring-transparent transition hover:ring-[var(--ring-soft)] disabled:opacity-50"
+          className="mt-2 flex shrink-0 rounded-full p-1 ring-2 ring-transparent transition hover:ring-[var(--ring-soft)] disabled:opacity-50"
         >
           {ponto}
         </button>
@@ -91,37 +95,37 @@ export function CabecalhoBusca({
         type="button"
         onClick={onToggle}
         aria-expanded={aberto}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 py-1.5 text-left hover:bg-surface-2"
+        className="min-w-0 flex-1 rounded px-1 py-1.5 text-left hover:bg-surface-2"
       >
-        <span aria-hidden className="shrink-0 text-xs text-ink-muted">
-          {aberto ? "▾" : "▸"}
-        </span>
-        {onTrocarCor ? null : ponto}
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-medium text-foreground">{titulo}</span>
-            {busca?.recorrente && (
-              <span
-                title="Busca recorrente: o cron re-executa 1x/dia"
-                className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
-              >
-                recorrente
-              </span>
-            )}
+        {/* A procedência é a linha larga: contagem e ação ficam na de cima,
+            senão sobram ~50px pra ela e o autor é o primeiro a ser cortado. */}
+        <span className="flex items-center gap-2">
+          <span aria-hidden className="shrink-0 text-xs text-ink-muted">
+            {aberto ? "▾" : "▸"}
           </span>
-          {busca && (
-            <span className="mt-0.5 block truncate text-[11px] text-ink-muted">
-              {procedencia} <span aria-hidden>·</span> {formatDateShort(busca.criadaEm)}{" "}
-              <span aria-hidden>·</span> {autor}
+          {onTrocarCor ? null : ponto}
+          <span className="truncate text-sm font-medium text-foreground">{titulo}</span>
+          {busca?.recorrente && (
+            <span
+              title="Busca recorrente: o cron re-executa 1x/dia"
+              className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
+            >
+              recorrente
             </span>
           )}
+          <span
+            title={contagemTitulo}
+            className="ml-auto shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-secondary"
+          >
+            {formatInt(contagem)}
+          </span>
         </span>
-        <span
-          title={contagemTitulo}
-          className="shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-secondary"
-        >
-          {formatInt(contagem)}
-        </span>
+        {busca && (
+          <span className="mt-0.5 line-clamp-2 block text-[11px] text-ink-muted">
+            {procedencia} <span aria-hidden>·</span> {formatDateShortSP(busca.criadaEm)}{" "}
+            <span aria-hidden>·</span> {autor}
+          </span>
+        )}
       </button>
       {acoes}
     </div>

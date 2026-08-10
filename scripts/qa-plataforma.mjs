@@ -43,6 +43,7 @@
  *   node scripts/qa-plataforma.mjs --so=custo
  *   node scripts/qa-plataforma.mjs --so=barra
  *   node scripts/qa-plataforma.mjs --so=fps
+ *   node scripts/qa-plataforma.mjs --so=listas    # PORTÃO das listas longas: /leads e /buscas no celular
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
  *   node scripts/qa-plataforma.mjs --sem-build    # reusa o .next já buildado
@@ -246,6 +247,19 @@ function semear() {
       totalExistentes: 2,
       userId: "admin",
     },
+    // Outro MÊS e outro NICHO: sem ela, o agrupamento de /buscas cairia
+    // sempre num grupo só e a captura não provaria nada (ver --so=listas).
+    "buscas/busca-barbearias": {
+      id: "busca-barbearias",
+      nome: "Barbearias — Cidade Baixa",
+      nicho: "barbearia",
+      regiao: "Porto Alegre RS",
+      cor: "#c98500",
+      criadaEm: iso(47),
+      totalCriados: 11,
+      totalExistentes: 4,
+      userId: "membro-1",
+    },
     // Forma COMPLETA de CronExecucao (lib/buscas/cron.ts). Um doc encurtado
     // aqui não é "dado de exemplo pobre": o widget do painel formata
     // `totalNovos`/`buscas.length` direto, então campo faltando derruba a
@@ -289,6 +303,7 @@ function semear() {
       siteProprio: true,
       siteUrl: "https://sorrisoecia.com.br",
       contato: { primeiroContatoEm: iso(7), primeiroContatoPor: "membro-1" },
+      detalhes: { telefone: "(51) 3333-1000", rating: 4.6, totalAvaliacoes: 88 },
     }),
     lead("lead-3", "Dental Prime", "respondeu", {
       temSite: false,
@@ -322,6 +337,21 @@ function semear() {
       siteProprio: false,
       siteUrl: "https://instagram.com/clinicaaurora",
       contato: { primeiroContatoEm: iso(9), primeiroContatoPor: "admin" },
+    }),
+    // Nome longo: é ele que prova que a linha do modo compacto TRUNCA em
+    // vez de empurrar selo/score pra fora da tela do celular.
+    lead("lead-7", "Centro de Odontologia Estética e Implantodontia Vale do Sol", "novo", {
+      buscaId: ["busca-barbearias"],
+      temSite: false,
+      siteProprio: false,
+      notas: "Fachada nova, sem site. Ligar depois das 14h.",
+    }),
+    lead("lead-8", "Studio Barba & Navalha", "respondeu", {
+      buscaId: ["busca-barbearias"],
+      temSite: true,
+      siteProprio: true,
+      siteUrl: "https://barbaenavalha.com.br",
+      contato: { primeiroContatoEm: iso(5), primeiroContatoPor: "membro-1" },
     }),
   ];
   for (const l of leads) mapa[`leads/${l.placeId}`] = l;
@@ -475,6 +505,187 @@ async function folhaDeContato(page, titulo, arquivo, linhas) {
   const destino = path.join(SAIDA, `_folha-${arquivo}${marca}.png`);
   await page.screenshot({ path: destino, fullPage: true });
   return destino;
+}
+
+/* ── Item: compactação de /leads e /buscas (`--so=listas`) ───────────── */
+
+/**
+ * As duas telas longas, no CELULAR, dirigindo os controles DE VERDADE —
+ * não uma preferência semeada no banco. Estado semeado provaria só que o
+ * componente sabe renderizar fechado; o que precisa ser verificado é o
+ * caminho inteiro: tocar no controle → gravar no doc → recarregar e
+ * continuar compactado.
+ *
+ * Junto das capturas, o PORTÃO deste item: **nenhuma linha da lista pode
+ * renderizar com altura zero**. É o análogo, para as listas, do
+ * `--so=colapso` das skins — um card que "some" por colapsar a caixa não
+ * aparece como erro em captura nenhuma (a tela só fica mais curta), mas
+ * come um lead da fila do operador. Também cobra que a linha compacta seja
+ * mais BAIXA que o card completo (senão não houve compactação nenhuma) e
+ * que nada vaze horizontalmente da viewport do celular.
+ */
+async function medirListas(browser, secret) {
+  const gerados = [];
+  const ctx = await contextoLogado(browser, {
+    viewport: VIEWPORT_CELULAR,
+    secret,
+    tema: "escuro",
+  });
+  const page = await ctx.newPage();
+  const problemas = [];
+  const itens = [];
+
+  /** Altura de cada item de lista + do cabeçalho de grupo visíveis na tela. */
+  const medirLinhas = (seletor) =>
+    page.$$eval(seletor, (nos) =>
+      nos.map((no) => {
+        const r = no.getBoundingClientRect();
+        return {
+          altura: Math.round(r.height),
+          largura: Math.round(r.width),
+          direita: Math.round(r.right),
+          texto: (no.textContent ?? "").trim().slice(0, 40),
+        };
+      }),
+    );
+
+  // O ponto de cor da busca tem hook próprio porque ele já sumiu uma vez
+  // sem ninguém notar: <span> inline ignora width/height, então bastou ele
+  // deixar de ser filho direto de um flex pra virar uma caixa 0×0 — a tela
+  // continua "certa", só sem o ponto.
+  const conferirPontos = async (onde) => {
+    const pontos = await medirLinhas("[data-ponto-busca]");
+    for (const ponto of pontos) {
+      if (ponto.altura <= 0 || ponto.largura <= 0) {
+        problemas.push(`${onde}: ponto de cor com caixa zerada (${ponto.largura}×${ponto.altura})`);
+      }
+    }
+  };
+
+  const conferir = async (onde, seletor) => {
+    const linhas = await medirLinhas(seletor);
+    if (linhas.length === 0) problemas.push(`${onde}: nenhuma linha renderizada (${seletor})`);
+    for (const linha of linhas) {
+      if (linha.altura <= 0 || linha.largura <= 0) {
+        problemas.push(
+          `${onde}: linha com caixa zerada (${linha.largura}×${linha.altura}) — "${linha.texto}"`,
+        );
+      }
+      if (linha.direita > VIEWPORT_CELULAR.width + 1) {
+        problemas.push(
+          `${onde}: linha vazando ${linha.direita - VIEWPORT_CELULAR.width}px da viewport — "${linha.texto}"`,
+        );
+      }
+    }
+    await conferirPontos(onde);
+    return linhas;
+  };
+
+  const capturar = async (rotulo, arquivo) => {
+    const png = path.join(SAIDA, `listas-${arquivo}${marca}.png`);
+    await page.screenshot({ path: png, fullPage: true });
+    gerados.push(png);
+    itens.push({ rotulo, png });
+    return png;
+  };
+
+  const alturaMedia = (linhas) =>
+    linhas.length === 0 ? 0 : linhas.reduce((s, l) => s + l.altura, 0) / linhas.length;
+
+  // ── /leads: completo → compacto → um card expandido ────────────────
+  await page.goto(`${BASE}/leads`, { waitUntil: "domcontentloaded" });
+  await assentar(page);
+  await exigirLogado(page, "listas/leads");
+  const completas = await conferir("leads completo", "section ul > li");
+  await capturar("leads · completo", "leads-completo");
+
+  await page.getByRole("button", { name: /Completo|Compacto/ }).click();
+  await page.waitForTimeout(400);
+  const compactas = await conferir("leads compacto", "section ul > li");
+  await capturar("leads · compacto", "leads-compacto");
+
+  if (alturaMedia(compactas) >= alturaMedia(completas)) {
+    problemas.push(
+      `modo compacto não compactou: média ${alturaMedia(compactas).toFixed(0)}px vs ${alturaMedia(
+        completas,
+      ).toFixed(0)}px do card completo`,
+    );
+  }
+
+  // Recarrega: a preferência tem que ter ido pro DOC, não pro estado local.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await assentar(page);
+  const persistidas = await conferir("leads compacto (recarregado)", "section ul > li");
+  if (alturaMedia(persistidas) >= alturaMedia(completas)) {
+    problemas.push("modo compacto não sobreviveu à recarga (preferência não foi pro doc)");
+  }
+  await capturar("leads · compacto após recarga", "leads-compacto-recarga");
+
+  // Tocar num card expande SÓ aquele.
+  await page.locator("section ul > li button").first().click();
+  await page.waitForTimeout(300);
+  const expandidas = await conferir("leads com um expandido", "section ul > li");
+  const maiores = expandidas.filter((l) => l.altura > alturaMedia(compactas) * 1.5);
+  if (maiores.length !== 1) {
+    problemas.push(`tocar no card expandiu ${maiores.length} cards (esperado exatamente 1)`);
+  }
+  await capturar("leads · um card expandido", "leads-expandido");
+
+  // Grupo dobrado: o cabeçalho tem que se bastar sozinho na tela.
+  await page.locator('section > div > button[aria-expanded="true"]').first().click();
+  await page.waitForTimeout(400);
+  await conferir("leads grupo dobrado", "section > div");
+  await capturar("leads · grupo dobrado", "leads-grupo-dobrado");
+
+  // ── /buscas: cards dobrados + agrupamento por mês e por nicho ──────
+  await page.goto(`${BASE}/buscas`, { waitUntil: "domcontentloaded" });
+  await assentar(page);
+  await exigirLogado(page, "listas/buscas");
+  const buscasAbertas = await conferir("buscas aberto", "section ul > li");
+  await capturar("buscas · aberto", "buscas-aberto");
+
+  // Sempre o PRIMEIRO ainda aberto: coletar os handles antes e clicar em
+  // sequência não funciona — cada clique remonta a lista e invalida o resto.
+  const aindaAbertas = page.locator('li button[aria-expanded="true"]');
+  for (let i = 0; (await aindaAbertas.count()) > 0 && i < 20; i += 1) {
+    await aindaAbertas.first().click();
+    await page.waitForTimeout(150);
+  }
+  const buscasDobradas = await conferir("buscas dobrado", "section ul > li");
+  if (alturaMedia(buscasDobradas) >= alturaMedia(buscasAbertas)) {
+    problemas.push("dobrar as buscas não reduziu a altura dos cards");
+  }
+  await capturar("buscas · dobrado", "buscas-dobrado");
+
+  for (const [modo, rotulo] of [
+    ["mes", "por mês"],
+    ["nicho", "por nicho"],
+  ]) {
+    await page.selectOption("select", modo);
+    await page.waitForTimeout(400);
+    await conferir(`buscas ${modo}`, "section ul > li");
+    const grupos = await medirLinhas("section > button");
+    if (grupos.length < 2) {
+      problemas.push(`agrupamento ${modo} rendeu ${grupos.length} grupo(s) — seed sem variedade?`);
+    }
+    await capturar(`buscas · ${rotulo}`, `buscas-${modo}`);
+  }
+
+  gerados.push(
+    await folhaDeContato(page, "Compactação de /leads e /buscas (celular)", "listas", [
+      { rotulo: "leads", itens: itens.slice(0, 3) },
+      { rotulo: "leads", itens: itens.slice(3, 5) },
+      { rotulo: "buscas", itens: itens.slice(5) },
+    ]),
+  );
+  await ctx.close();
+
+  console.log(`[listas] ${itens.length} estados capturados no celular.`);
+  if (problemas.length > 0) {
+    throw new Error(`[listas] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[listas] ok — nenhuma linha com altura zero, nenhuma vazando, compactação medida.");
+  return gerados;
 }
 
 /* ── Item: tema × aba ────────────────────────────────────────────────── */
@@ -1360,6 +1571,7 @@ async function main() {
       gerados.push(...(await capturarTemasEAbas(browser, secret, VIEWPORT_DESKTOP, "desktop")));
       gerados.push(...(await capturarTemasEAbas(browser, secret, VIEWPORT_CELULAR, "celular")));
     }
+    if (querido("listas")) gerados.push(...(await medirListas(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));
