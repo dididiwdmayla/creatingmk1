@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Skeleton } from "@/components/Skeleton";
 import { ApiError, api } from "@/lib/api-client";
 import { DEFAULT_CONFIG, type AppConfig } from "@/lib/config";
 import { formatBRL, formatDateTime } from "@/lib/format";
@@ -30,6 +31,49 @@ const CONFIANCA_CLASS: Record<RegiaoIndice["confianca"], string> = {
 
 function formatMoedaLocal(valor: number, moeda: string): string {
   return `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} ${moeda}`;
+}
+
+/**
+ * Miolo do card no MESMO tamanho aproximado do conteúdo final (presets +
+ * slider + caixa de preço) — reaproveitado nos dois pontos em que o card
+ * ainda não tem o que mostrar: aqui dentro, enquanto `getRegiaoIndice`
+ * resolve, e por quem monta o card antes de saber nicho/região (ver
+ * `PrecificacaoCardSkeleton`). Sem isso, o card nasce com uma linha de
+ * "Calculando…" e salta para ~250px quando o índice chega — exatamente o
+ * "elemento que entra depois do primeiro desenho" que o portão de CLS
+ * reprova.
+ */
+function PrecificacaoConteudoEsqueleto() {
+  return (
+    <div className="mt-2 flex flex-col gap-2" aria-hidden="true">
+      <Skeleton className="h-3 w-2/3" />
+      <div className="flex flex-wrap gap-1.5">
+        <Skeleton className="h-6 w-16 rounded-full" />
+        <Skeleton className="h-6 w-16 rounded-full" />
+        <Skeleton className="h-6 w-20 rounded-full" />
+      </div>
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-16 w-full rounded" />
+      <Skeleton className="h-3 w-1/2" />
+    </div>
+  );
+}
+
+/**
+ * Casca completa do card (moldura + título + miolo em esqueleto), para quem
+ * ainda nem sabe nicho/região — o card some inteiro até então (ver uso em
+ * `/leads`). Mesma moldura de `PrecificacaoCard`, pra trocar sem salto
+ * quando o componente real assumir o lugar.
+ */
+export function PrecificacaoCardSkeleton() {
+  return (
+    <section className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+        Precificação
+      </h2>
+      <PrecificacaoConteudoEsqueleto />
+    </section>
+  );
 }
 
 /** Debounce simples: persiste a posição do slider só depois de parar de arrastar. */
@@ -210,7 +254,10 @@ export function PrecificacaoCard({
       </h2>
 
       {carregando && (
-        <p className="mt-1 text-xs text-ink-muted">Calculando índice de mercado da região…</p>
+        <>
+          <span className="sr-only">Calculando índice de mercado da região…</span>
+          <PrecificacaoConteudoEsqueleto />
+        </>
       )}
       {erro && <p className="mt-1 text-xs text-critical">{erro}</p>}
 
