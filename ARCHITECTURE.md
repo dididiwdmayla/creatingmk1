@@ -1775,6 +1775,32 @@ esta ficha ou passo pra próxima".
   do MODO ("Compacto"/"Completo") e `aria-pressed` — largura estável nos
   dois estados, senão alternar empurraria a própria barra de filtros.
 
+### Agrupamento de `/buscas` por mês e por nicho (`agruparBuscas`)
+
+Além da fila única de sempre (`nenhum`, o padrão), `/buscas` agrupa por
+**mês** e por **nicho** — as duas dobras que o operador de fato procura
+("o que rodei em julho", "o que já rodei de dentista"). Os três modos
+passam pelo MESMO caminho de render: `nenhum` devolve um grupo único e a
+tela só não desenha cabeçalho pra ele, em vez de existirem uma lista plana
+e uma agrupada divergindo com o tempo.
+
+- **O mês é o de America/Sao_Paulo, não o do ISO cru.** Uma busca rodada
+  às 22h do dia 31 é de julho pra quem a rodou, e cairia em agosto se a
+  chave saísse de `criadaEm.slice(0, 7)` — mesma razão das janelas de cota
+  (ver `saoPauloDateKey`).
+- **Nada some por dado sujo**: data ilegível vira "Sem data", busca sem
+  nicho vira "Sem nicho" — grupos próprios, nunca despejadas no primeiro
+  grupo que aparecer. Caixa e espaço não criam dois grupos do mesmo nicho
+  ("Dentista" e " dentista " são o mesmo).
+- **A ordem sai de graça**: a rota já devolve as buscas mais recentes
+  primeiro, e agrupar preservando a ordem de chegada dá meses em ordem
+  decrescente e nichos na ordem do uso mais recente.
+- **Voltar de um nível não perde o lugar**: o modo mora na querystring
+  (`?agrupar=mes`) e é espelhado em `sessionStorage` (`radar:buscas:query`)
+  porque a nav inferior aponta pra `/buscas` fixo; a posição de rolagem
+  volta por `radar:buscas:scroll`. É o mesmo par de chaves que `/leads` já
+  usava para sobreviver à ida e volta da ficha.
+
 ## UI (implementada)
 
 Client Components (`"use client"`) que buscam dados via `fetch` no próprio cliente (não Server Components lendo o Firestore direto) — decisão deliberada: cada ação do usuário (buscar, enriquecer, mudar status, salvar config) precisa do feedback de erro específico das rotas (429/502/400/404/409), então a mesma rota HTTP serve tanto a carga inicial quanto a mutação, com um único caminho de tratamento de erro (`src/lib/api-client.ts`, classe `ApiError`).
@@ -1784,7 +1810,7 @@ Client Components (`"use client"`) que buscam dados via `fetch` no próprio clie
   - **`/hoje` (Fila do dia)**: contadores no topo + as 3 seções de `GET /api/hoje` (novos por score com badge da busca de origem, follow-ups com "Xd sem resposta", demos paradas), cada item com WhatsApp/Ficha/Demo diretos e, quando `lead.horarios` existe, "melhor momento pra contatar" ao lado do item — ver "Operação diária".
   - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite"), um KPI row de prospecção com `/api/metrics`, o widget "Buscas recorrentes" (última execução do cron via `/api/cron/status`: quando rodou, quanto achou, interrupção/erros e quantas recorrentes estão ligadas) e o card "Demos criadas" (total de `metrics.demosCriadas`, linka para `/demos`). **Membro vê os números escopados a ele** (a API já escopa); **admin ganha a seção "Por usuário"** (requests por SKU, buscas, demos, contatos de cada um).
   - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`user_quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5), o indicador `CotaIndicador` de cota individual de buscas (permanente, atualizado após cada busca, botão desabilitado como cortesia ao esgotar) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (o mesmo `CabecalhoBusca` de `/buscas`: dot da cor + nome + badge "recorrente" + nicho·sub-nicho — região + data + autor + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto — sem procedência, porque não há busca de origem). O estado da dobra é do USUÁRIO, não da querystring (ver "Compactação de /leads e /buscas"), e a barra de filtros tem a alternância **Compacto/Completo**, que transforma cada card numa linha (nome · site/tel · score · status) até alguém tocar nele. Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha —, os dots de cor das buscas, destaque "sem site (lead quente)" e, quando `lead.horarios` existe, o estado atual ("Aberto agora · fecha 18h" / "Fechado · abre 9h", `estadoAtual` de `lib/leads/horarios.ts`). Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
-  - **`/buscas`**: cada busca é um **grupo colapsável** (ver "Compactação de /leads e /buscas") — fechada, sobra só a faixa do `CabecalhoBusca` (dot de cor, nome, badge "recorrente", nicho·sub-nicho — região, data, autor, contagem de leads); aberta, revela os totais, a mensagem do grupo e o toggle "tornar recorrente"/"recorrente ✓" (`PATCH /api/buscas/[id]` — o 400 do teto de recorrentes aparece como erro na página). Tocar no dot cicla a cor pela paleta e persiste (mesmo PATCH). A navegação para `/leads?buscaId=…` deixou de ser "o card inteiro é um link" (o card agora dobra) e ganhou o atalho explícito "leads →" no cabeçalho.
+  - **`/buscas`**: cada busca é um **grupo colapsável** (ver "Compactação de /leads e /buscas") — fechada, sobra só a faixa do `CabecalhoBusca` (dot de cor, nome, badge "recorrente", nicho·sub-nicho — região, data, autor, contagem de leads); aberta, revela os totais, a mensagem do grupo e o toggle "tornar recorrente"/"recorrente ✓" (`PATCH /api/buscas/[id]` — o 400 do teto de recorrentes aparece como erro na página). Tocar no dot cicla a cor pela paleta e persiste (mesmo PATCH). A navegação para `/leads?buscaId=…` deixou de ser "o card inteiro é um link" (o card agora dobra) e ganhou o atalho explícito "leads →" no cabeçalho. No topo, o seletor de **agrupamento** (sem agrupar · por mês · por nicho) — o modo fica na querystring e volta junto com a posição de rolagem quando o operador retorna dos leads do grupo.
   - **`/demos`**: todas as demos ativas (leads com `demo` salva) — nome do lead, skin, data de criação/edição (`demo.criadoEm`/`atualizadoEm`), selo de prontidão, link público copiável e atalhos "Editar" (`/leads/{id}/demo/editar`) e "Excluir" (confirmação inline, mesmo `DELETE /api/leads/[id]/demo` do editor). Reaproveita `GET /api/leads` (sem filtros) e filtra client-side pelos leads com `demo` — mesma escala de "centenas de leads" do resto do app, sem rota nova. **Agrupamento por busca** (checkbox "Agrupar por busca", ligado por default — mesmo padrão colapsável de `/leads`: dot de cor, nome, contagem, `agruparPorBusca` de `src/lib/buscas/agrupar.ts`, extraído pra ser compartilhado entre as duas páginas em vez de duplicado). Demo criada pelo diálogo de lote (`GerarDemosLoteDialog`) já nasce no grupo certo sem nenhum código especial: o `PUT /demo` nunca toca `lead.buscaId`, então o agrupamento por busca da própria demo cai no mesmo grupo de origem do lead.
 
 **Filtro por autor** (`LeadDemo.criadoPor`, select "Todos os autores" — só aparece quando há mais de um autor com demo, sem opção morta): nomes resolvidos por `GET /api/usuarios/nomes` (qualquer sessão válida, o mesmo usado pelos selos de contato), demo sem `criadoPor` (salva antes do campo existir, ou sem sessão identificável) entra como "Sem autor registrado". **Combinável com o agrupamento**: o filtro roda ANTES de agrupar — um grupo de busca sem nenhuma demo do autor escolhido simplesmente não aparece, em vez de aparecer vazio.

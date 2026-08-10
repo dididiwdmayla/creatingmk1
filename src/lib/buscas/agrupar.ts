@@ -48,3 +48,93 @@ export function agruparPorBusca<T>(
   }
   return grupos;
 }
+
+/* ── Agrupamento da própria lista de buscas (/buscas) ────────────────── */
+
+/**
+ * Como `/buscas` empilha as buscas: `nenhum` é a fila única de sempre;
+ * `mes` e `nicho` são as duas dobras que o operador realmente procura
+ * ("o que eu rodei em julho", "o que já rodei de dentista").
+ */
+export const MODOS_AGRUPAMENTO_BUSCAS = ["nenhum", "mes", "nicho"] as const;
+
+export type ModoAgrupamentoBuscas = (typeof MODOS_AGRUPAMENTO_BUSCAS)[number];
+
+export function modoAgrupamentoBuscasValido(valor: unknown): valor is ModoAgrupamentoBuscas {
+  return (MODOS_AGRUPAMENTO_BUSCAS as readonly unknown[]).includes(valor);
+}
+
+/** Grupo sem busca de origem (o grupo é o mês ou o nicho, não uma busca). */
+export interface GrupoBuscas {
+  chave: string;
+  titulo: string;
+  itens: Busca[];
+}
+
+const SP_TIME_ZONE = "America/Sao_Paulo";
+
+// Mês em America/Sao_Paulo, não UTC: uma busca rodada às 22h do dia 31 é de
+// julho pra quem a rodou, e cairia em agosto se a chave saísse do ISO cru.
+const MES_CHAVE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: SP_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+});
+
+const MES_TITULO = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: SP_TIME_ZONE,
+  year: "numeric",
+  month: "long",
+});
+
+function primeiraMaiuscula(texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/**
+ * Agrupa a lista de buscas por mês ou por nicho, preservando a ordem em
+ * que ela chegou (a rota já devolve as mais recentes primeiro) — daí os
+ * meses saírem em ordem decrescente e os nichos na ordem do uso mais
+ * recente, sem nenhuma reordenação extra.
+ *
+ * `nenhum` devolve um grupo único sem chave visível: quem renderiza decide
+ * não desenhar cabeçalho nesse caso, e a lista fica idêntica à de antes.
+ */
+export function agruparBuscas(
+  buscas: Busca[],
+  modo: ModoAgrupamentoBuscas,
+): GrupoBuscas[] {
+  if (modo === "nenhum") {
+    return buscas.length > 0 ? [{ chave: "todas", titulo: "Todas", itens: buscas }] : [];
+  }
+
+  const porChave = new Map<string, GrupoBuscas>();
+  for (const busca of buscas) {
+    const { chave, titulo } = modo === "mes" ? chaveMes(busca) : chaveNicho(busca);
+    const grupo = porChave.get(chave);
+    if (grupo) grupo.itens.push(busca);
+    else porChave.set(chave, { chave, titulo, itens: [busca] });
+  }
+  return [...porChave.values()];
+}
+
+function chaveMes(busca: Busca): { chave: string; titulo: string } {
+  const data = new Date(busca.criadaEm);
+  if (Number.isNaN(data.getTime())) {
+    // Data ilegível (doc sujo) não some da tela nem contamina outro mês.
+    return { chave: "mes:sem-data", titulo: "Sem data" };
+  }
+  return {
+    chave: `mes:${MES_CHAVE.format(data)}`,
+    titulo: primeiraMaiuscula(MES_TITULO.format(data)),
+  };
+}
+
+function chaveNicho(busca: Busca): { chave: string; titulo: string } {
+  const nicho = busca.nicho?.trim();
+  if (!nicho) return { chave: "nicho:sem-nicho", titulo: "Sem nicho" };
+  return {
+    chave: `nicho:${nicho.toLocaleLowerCase("pt-BR")}`,
+    titulo: primeiraMaiuscula(nicho),
+  };
+}
