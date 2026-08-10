@@ -320,6 +320,10 @@ function BuscasPageInner() {
                 nomes={nomes}
                 onTrocarCor={() => trocarCor(busca)}
                 trocandoCor={trocandoCor === busca.id}
+                // Aberta, a busca já ocupa a linha inteira — então a faixa
+                // dela volta à densidade 1 e recupera procedência, contagem
+                // e o atalho "leads →" junto com o miolo.
+                densidade={fechada ? densidade : 1}
                 acoes={
                   <Link
                     href={`/leads?buscaId=${encodeURIComponent(busca.id)}&buscaNome=${encodeURIComponent(busca.nome)}`}

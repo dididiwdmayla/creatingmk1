@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { nomeUsuario, type NomesUsuarios } from "@/lib/contato-selo";
 import type { Busca } from "@/lib/buscas/types";
 import { formatDateShortSP, formatInt } from "@/lib/format";
+import type { Densidade } from "@/lib/usuarios/preferencias";
 
 /**
  * Cabeçalho de um GRUPO DE BUSCA, compartilhado por `/leads` (o grupo é a
@@ -33,6 +34,7 @@ export function CabecalhoBusca({
   onTrocarCor,
   trocandoCor,
   acoes,
+  densidade = 1,
 }: {
   /** Nome do grupo — o da busca, ou "Sem busca" no resto. */
   titulo: string;
@@ -50,7 +52,19 @@ export function CabecalhoBusca({
   trocandoCor?: boolean;
   /** Ações à direita do cabeçalho (fora do botão de dobrar). */
   acoes?: ReactNode;
+  /**
+   * Densidade da grade em que esta faixa está (só `/buscas` usa: em
+   * `/leads` o cabeçalho é de uma seção que ocupa a linha inteira, então
+   * ele nunca aperta). A escada aqui é a mesma ideia do `LeadCard` — some
+   * primeiro o que é procedência, depois o que é contagem —, e vale só
+   * para a faixa FECHADA: busca aberta volta à densidade 1, porque ela
+   * também volta a ocupar a linha inteira.
+   */
+  densidade?: Densidade;
 }) {
+  // Em 2 a procedência encolhe para nicho e região: data e autor são o
+  // que menos distingue uma busca da outra na mesma tela (quase sempre o
+  // mesmo autor, datas próximas) e são as primeiras a sair.
   const procedencia = busca
     ? [
         [busca.nicho, busca.subNicho].filter(Boolean).join(" · "),
@@ -64,6 +78,10 @@ export function CabecalhoBusca({
       ? nomeUsuario(nomes, busca.userId)
       : "autor não registrado"
     : "";
+  const comProcedencia = densidade <= 2;
+  const comDataEAutor = densidade === 1;
+  const comContagem = densidade <= 3;
+  const comChips = densidade <= 2;
 
   // `block` não é decoração: um <span> inline ignora width/height, e o
   // ponto some (caixa 0×0) assim que deixa de ser filho direto de um flex —
@@ -86,7 +104,9 @@ export function CabecalhoBusca({
           disabled={trocandoCor}
           title="Trocar a cor da busca (cicla a paleta)"
           aria-label={`Trocar a cor da busca ${titulo}`}
-          className="mt-2 flex shrink-0 rounded-full p-1 ring-2 ring-transparent transition hover:ring-[var(--ring-soft)] disabled:opacity-50"
+          className={`flex shrink-0 rounded-full ring-2 ring-transparent transition hover:ring-[var(--ring-soft)] disabled:opacity-50 ${
+            densidade <= 2 ? "mt-2 p-1" : "mt-1.5 p-0.5"
+          }`}
         >
           {ponto}
         </button>
@@ -95,17 +115,24 @@ export function CabecalhoBusca({
         type="button"
         onClick={onToggle}
         aria-expanded={aberto}
+        title={titulo}
         className="min-w-0 flex-1 rounded px-1 py-1.5 text-left hover:bg-surface-2"
       >
         {/* A procedência é a linha larga: contagem e ação ficam na de cima,
             senão sobram ~50px pra ela e o autor é o primeiro a ser cortado. */}
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-1.5">
           <span aria-hidden className="shrink-0 text-xs text-ink-muted">
             {aberto ? "▾" : "▸"}
           </span>
           {onTrocarCor ? null : ponto}
-          <span className="truncate text-sm font-medium text-foreground">{titulo}</span>
-          {busca?.recorrente && (
+          <span
+            className={`truncate font-medium text-foreground ${
+              densidade >= 4 ? "text-xs" : "text-sm"
+            }`}
+          >
+            {titulo}
+          </span>
+          {comChips && busca?.recorrente && (
             <span
               title="Busca recorrente: o cron re-executa 1x/dia"
               className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent"
@@ -113,21 +140,29 @@ export function CabecalhoBusca({
               recorrente
             </span>
           )}
-          <span
-            title={contagemTitulo}
-            className="ml-auto shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-secondary"
-          >
-            {formatInt(contagem)}
-          </span>
+          {comContagem && (
+            <span
+              title={contagemTitulo}
+              className="ml-auto shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-secondary"
+            >
+              {formatInt(contagem)}
+            </span>
+          )}
         </span>
-        {busca && (
+        {busca && comProcedencia && (
           <span className="mt-0.5 line-clamp-2 block text-[11px] text-ink-muted">
-            {procedencia} <span aria-hidden>·</span> {formatDateShortSP(busca.criadaEm)}{" "}
-            <span aria-hidden>·</span> {autor}
+            {procedencia}
+            {comDataEAutor && (
+              <>
+                {" "}
+                <span aria-hidden>·</span> {formatDateShortSP(busca.criadaEm)}{" "}
+                <span aria-hidden>·</span> {autor}
+              </>
+            )}
           </span>
         )}
       </button>
-      {acoes}
+      {densidade <= 2 ? acoes : null}
     </div>
   );
 }
