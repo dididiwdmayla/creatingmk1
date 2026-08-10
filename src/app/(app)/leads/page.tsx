@@ -7,7 +7,9 @@ import { Button } from "@/components/Button";
 import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { CapturasLoteAcao } from "@/components/capturas/CapturasLoteAcao";
 import { GerarDemosLoteDialog } from "@/components/GerarDemosLoteDialog";
+import { CabecalhoBusca } from "@/components/CabecalhoBusca";
 import { LeadCard } from "@/components/LeadCard";
+import { usePreferenciasListas } from "@/components/usePreferenciasListas";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { RadarSweep } from "@/components/RadarSweep";
 import { SkeletonRows } from "@/components/Skeleton";
@@ -158,9 +160,14 @@ function LeadsPageInner() {
   const soFavoritos = searchParams.get("fav") === "1";
   const agrupar = searchParams.get("plano") !== "1";
   const ordem = (searchParams.get("ordem") ?? "recentes") as "recentes" | "prioridade";
+
+  // Grupos dobrados e modo compacto NÃO moram na URL: são preferência do
+  // usuário, persistida no doc dele (ver "Compactação de /leads e /buscas").
+  const { preferencias, alternarGrupoLista, definirLeadsCompacto } =
+    usePreferenciasListas();
   const fechados = useMemo(
-    () => new Set((searchParams.get("fechados") ?? "").split(",").filter(Boolean)),
-    [searchParams],
+    () => new Set(preferencias?.gruposFechados.leads ?? []),
+    [preferencias],
   );
 
   function updateParams(mutate: (params: URLSearchParams) => void) {
@@ -460,13 +467,6 @@ function LeadsPageInner() {
     );
   }
 
-  function toggleColapsado(chave: string) {
-    const next = new Set(fechados);
-    if (next.has(chave)) next.delete(chave);
-    else next.add(chave);
-    setParam("fechados", [...next].join(","));
-  }
-
   // Guarda sincrona contra reenvio (toque duplo/triplo no mobile antes do
   // re-render desabilitar o botão): checada e setada ANTES de qualquer
   // await, então nenhuma segunda chamada síncrona passa.
@@ -555,6 +555,7 @@ function LeadsPageInner() {
   // Top da lista toda quando plana; top DENTRO de cada grupo quando agrupado.
   const topFlat = !agrupado && leadsOrdenados ? topScoreIds(leadsOrdenados) : new Set<string>();
   const buscaAtual = buscaId ? buscas.find((b) => b.id === buscaId) : undefined;
+  const compactoAtivo = preferencias?.leadsCompacto === true;
 
   return (
     <div className="flex flex-col gap-6">
@@ -889,6 +890,27 @@ function LeadsPageInner() {
           <option value="recentes">Ordenar: mais recentes</option>
           <option value="prioridade">Ordenar: por prioridade</option>
         </select>
+        {/* Alternância do modo da lista, junto dos filtros: mesma largura
+            nos dois estados (o rótulo é o MODO, não a ação) — um botão que
+            mudasse de tamanho ao alternar empurraria a barra de filtros. */}
+        <button
+          type="button"
+          onClick={() => definirLeadsCompacto(!compactoAtivo)}
+          aria-pressed={compactoAtivo}
+          disabled={preferencias === null}
+          title={
+            compactoAtivo
+              ? "Cada lead numa linha — toque num card para expandir só ele"
+              : "Card inteiro de cada lead"
+          }
+          className={`rounded border px-2 py-1.5 text-xs disabled:opacity-50 ${
+            compactoAtivo
+              ? "border-accent/60 bg-accent/10 text-accent"
+              : "border-line bg-surface-2 text-ink-secondary hover:text-foreground"
+          }`}
+        >
+          <span aria-hidden>≡</span> {compactoAtivo ? "Compacto" : "Completo"}
+        </button>
         {!buscaId && (
           <label className="ml-auto flex items-center gap-1.5 text-xs text-ink-secondary">
             <input
@@ -904,7 +926,7 @@ function LeadsPageInner() {
 
       {erroLista && <p className="text-sm text-critical">{erroLista}</p>}
 
-      {leads === null ? (
+      {leads === null || preferencias === null ? (
         <SkeletonRows count={4} className="h-24 rounded-lg border border-line" />
       ) : leads.length === 0 ? (
         <p className="text-sm text-ink-muted">
@@ -917,25 +939,16 @@ function LeadsPageInner() {
             const topDoGrupo = topScoreIds(grupo.itens);
             return (
               <section key={grupo.chave}>
-                <button
-                  type="button"
-                  onClick={() => toggleColapsado(grupo.chave)}
-                  aria-expanded={!fechado}
-                  className="flex w-full items-center gap-2 rounded px-1 py-1.5 text-left hover:bg-surface"
-                >
-                  <span className="text-xs text-ink-muted">{fechado ? "▸" : "▾"}</span>
-                  <span
-                    aria-hidden
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: grupo.cor ?? "var(--ink-muted)" }}
-                  />
-                  <span className="truncate text-sm font-medium text-foreground">
-                    {grupo.titulo}
-                  </span>
-                  <span className="ml-auto shrink-0 text-xs text-ink-muted">
-                    {grupo.itens.length}
-                  </span>
-                </button>
+                <CabecalhoBusca
+                  titulo={grupo.titulo}
+                  cor={grupo.cor}
+                  busca={grupo.busca}
+                  contagem={grupo.itens.length}
+                  contagemTitulo="Leads deste grupo (com os filtros atuais)"
+                  aberto={!fechado}
+                  onToggle={() => alternarGrupoLista("leads", grupo.chave)}
+                  nomes={nomes}
+                />
                 {!fechado && (
                   <ul className="mt-1.5 flex flex-col gap-2">
                     {grupo.itens.map((lead) => (
@@ -947,6 +960,7 @@ function LeadsPageInner() {
                           destaque={topDoGrupo.has(lead.placeId)}
                           argumentoForte={leadArgumentoForte(lead, buscas)}
                           nomes={nomes}
+                          compacto={compactoAtivo}
                           onChange={onLeadChange}
                         />
                       </li>
@@ -968,6 +982,7 @@ function LeadsPageInner() {
                 destaque={topFlat.has(lead.placeId)}
                 argumentoForte={leadArgumentoForte(lead, buscas)}
                 nomes={nomes}
+                compacto={compactoAtivo}
                 onChange={onLeadChange}
               />
             </li>

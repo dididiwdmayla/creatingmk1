@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDuracao, formatTempoRelativo } from "../format";
+import { formatDateShortSP, formatDuracao, formatTempoRelativo } from "../format";
 
 describe("formatDuracao", () => {
   it("segundos puros abaixo de 1min", () => {
@@ -46,3 +46,16 @@ describe("formatTempoRelativo", () => {
     expect(formatTempoRelativo(new Date(agora + 60_000).toISOString(), agora)).toBe("agora mesmo");
   });
 });
+
+describe("formatDateShortSP", () => {
+  it("usa o fuso de São Paulo, não o do processo", () => {
+    // 01/08 01:00 UTC = 31/07 22:00 em Brasília — e é 31/07 que precisa
+    // aparecer ao lado do grupo "Julho" de /buscas.
+    expect(formatDateShortSP("2026-08-01T01:00:00.000Z")).toBe("31/07");
+  });
+
+  it("data ilegível vira travessão em vez de Invalid Date", () => {
+    expect(formatDateShortSP("sei lá")).toBe("—");
+  });
+});
+

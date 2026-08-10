@@ -21,6 +21,48 @@ function presencaTexto(presenca: boolean | undefined): string {
   return presenca === undefined ? "?" : presenca ? "sim" : "não";
 }
 
+/**
+ * Indicador CURTO de site/telefone do modo compacto: a informação que
+ * decide se vale abordar o lead, no espaço de um selo. O glifo carrega o
+ * estado sozinho (✓/✕/?) — a cor é só reforço, porque "sem site" é
+ * justamente o caso BOM aqui (lead quente) e cor sozinha inverteria a
+ * leitura de quem não distingue os matizes.
+ */
+function PresencaCurta({ lead }: { lead: Lead }) {
+  const siteProprio = lead.siteProprio;
+  const tel = telPresenca(lead);
+  const marca = (presenca: boolean | undefined) =>
+    presenca === undefined ? "?" : presenca ? "✓" : "✕";
+  return (
+    <span className="flex shrink-0 items-center gap-1 font-mono text-[10px]">
+      <span
+        title={
+          siteProprio === false
+            ? "Sem site próprio (lead quente)"
+            : siteProprio === true
+              ? "Já tem site próprio"
+              : "Site desconhecido (não enriquecido)"
+        }
+        className={siteProprio === false ? "font-semibold text-good" : "text-ink-muted"}
+      >
+        site{marca(siteProprio)}
+      </span>
+      <span
+        title={
+          tel === true
+            ? "Tem telefone"
+            : tel === false
+              ? "Sem telefone"
+              : "Telefone desconhecido (não enriquecido)"
+        }
+        className={tel === true ? "text-ink-secondary" : "text-ink-muted"}
+      >
+        tel{marca(tel)}
+      </span>
+    </span>
+  );
+}
+
 export function LeadCard({
   lead,
   cores,
@@ -28,6 +70,7 @@ export function LeadCard({
   destaque,
   argumentoForte,
   nomes,
+  compacto,
   onChange,
 }: {
   lead: Lead;
@@ -41,8 +84,15 @@ export function LeadCard({
   argumentoForte?: boolean;
   /** id → nome, pra resolver o selo de contato (GET /api/usuarios/nomes). */
   nomes: NomesUsuarios;
+  /**
+   * Modo compacto da LISTA (preferência do usuário): o card vira uma linha
+   * até alguém tocar nele. A expansão é por card e só local — abrir um não
+   * abre os outros nem desliga o modo da lista.
+   */
+  compacto?: boolean;
   onChange: (lead: Lead) => void;
 }) {
+  const [expandido, setExpandido] = useState(false);
   const [editandoNotas, setEditandoNotas] = useState(false);
   const [notasDraft, setNotasDraft] = useState(lead.notas ?? "");
   const [salvandoNotas, setSalvandoNotas] = useState(false);
@@ -106,6 +156,45 @@ export function LeadCard({
     }
   }
 
+  const scoreChip = (
+    <span
+      title="Score de priorização"
+      className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+        destaque ? "bg-warning/15 text-warning" : "bg-surface-2 text-ink-muted"
+      }`}
+    >
+      {destaque && <span aria-hidden>🎯</span>}
+      {score > 0 ? `+${score}` : score}
+    </span>
+  );
+
+  // ── Modo compacto: uma linha por lead ────────────────────────────────
+  // Fica só o que decide "abro esta ficha ou passo pra próxima": nome,
+  // status, score e a presença de site/telefone. Endereço, faixa de "já
+  // contatou" e as ações de nota/descartar saem — são coisas de quando o
+  // lead JÁ foi escolhido, e é o miolo delas que faz a fila de cards ficar
+  // alta. Tocar expande SÓ este card (o modo da lista continua ligado).
+  if (compacto && !expandido) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpandido(true)}
+        aria-expanded={false}
+        aria-label={`Expandir ${lead.nome}`}
+        className={`card-lift flex w-full items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-2 text-left ${
+          lead.descartado ? "lead-descartado" : ""
+        }`}
+      >
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+          {lead.nome}
+        </span>
+        <PresencaCurta lead={lead} />
+        {scoreChip}
+        <StatusBadge status={lead.status} />
+      </button>
+    );
+  }
+
   return (
     <div
       className={`card-lift rounded-lg border border-line bg-surface p-3 ${
@@ -120,18 +209,19 @@ export function LeadCard({
           )}
         </Link>
         <div className="flex shrink-0 items-center gap-2">
-          <span
-            title="Score de priorização"
-            className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
-              destaque
-                ? "bg-warning/15 text-warning"
-                : "bg-surface-2 text-ink-muted"
-            }`}
-          >
-            {destaque && <span aria-hidden>🎯</span>}
-            {score > 0 ? `+${score}` : score}
-          </span>
+          {scoreChip}
           <StatusBadge status={lead.status} />
+          {compacto && (
+            <button
+              type="button"
+              onClick={() => setExpandido(false)}
+              aria-label={`Recolher ${lead.nome}`}
+              title="Recolher"
+              className="text-xs text-ink-muted hover:text-foreground"
+            >
+              ▴
+            </button>
+          )}
           <button
             type="button"
             onClick={toggleFavorito}

@@ -4,6 +4,7 @@ import type { AppDb } from "@/lib/firestore-like";
 import type { TemaApp } from "@/lib/tema";
 import { usageUsuariosCollection } from "@/lib/costs/userQuota";
 import { hashSenha } from "./senha";
+import type { PreferenciasListas } from "./preferencias";
 import {
   CAMPOS_LIMITE_USUARIO,
   CAMPOS_META_USUARIO,
@@ -199,6 +200,22 @@ export async function salvarMetaFaixaMinimizada(
   const usuario = await getUsuario(db, id);
   if (!usuario) return;
   await docRef(db, id).set(toDoc({ ...usuario, metaFaixaMinimizada: minimizada }));
+}
+
+/**
+ * Salva as preferências de lista (/leads e /buscas) deste usuário —
+ * grupos dobrados e modo compacto (self-service, mesmo espírito de
+ * salvarMetaFaixaMinimizada: é preferência de UI, não edição
+ * administrativa, então não mexe em `atualizadoEm` nem em `sessao`).
+ */
+export async function salvarPreferenciasListas(
+  db: AppDb,
+  id: string,
+  preferencias: PreferenciasListas,
+): Promise<void> {
+  const usuario = await getUsuario(db, id);
+  if (!usuario) return;
+  await docRef(db, id).set(toDoc({ ...usuario, preferenciasListas: preferencias }));
 }
 
 /**

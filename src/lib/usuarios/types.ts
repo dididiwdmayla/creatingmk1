@@ -1,5 +1,6 @@
 import type { NivelIA } from "@/lib/ai/nivel";
 import type { TemaApp } from "@/lib/tema";
+import type { PreferenciasListas } from "./preferencias";
 
 export const USUARIOS_COLLECTION = "usuarios";
 
@@ -98,6 +99,14 @@ export interface Usuario {
    * dispositivos. Ausente = expandida (padrão).
    */
   metaFaixaMinimizada?: boolean;
+  /**
+   * Preferências das LISTAS longas (/leads e /buscas): grupos dobrados por
+   * tela e o modo compacto dos leads — self-service, gravado pelo próprio
+   * PUT /api/preferencias/listas. É o que faz a compactação sobreviver a
+   * recarga, deep link e troca de aparelho, em vez de morrer na
+   * querystring da página. Ausente = PREFERENCIAS_LISTAS_PADRAO.
+   */
+  preferenciasListas?: PreferenciasListas;
   /**
    * Tema da PLATAFORMA escolhido por ESTE usuário (ver lib/tema.ts) —
    * self-service, atualizado pelo próprio PUT /api/tema. É o que torna a
