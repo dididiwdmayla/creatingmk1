@@ -4,6 +4,7 @@ import { montarTraducao, slotsATraduzir } from "@/lib/frases/traducao";
 import type { FrasesProspeccao, TraducaoFrases } from "@/lib/frases/types";
 import { IDIOMA_PADRAO, idiomaLabelRegional } from "@/lib/idioma";
 import { MARCADORES } from "@/lib/wa";
+import { type CtxIA, reserveQuotaOptsIA } from "./ctx";
 import { AiError, gerarJson } from "./gemini";
 
 /**
@@ -105,7 +106,7 @@ export async function traduzirFrases(
   conjunto: Pick<FrasesProspeccao, "frases">,
   idioma: string,
   caps: UsageCounts,
-  ctx: { userId?: string; isAdmin?: boolean } = {},
+  ctx: CtxIA = {},
   now: Date = new Date(),
 ): Promise<TraducaoFrases> {
   if (idioma === IDIOMA_PADRAO) {
@@ -120,7 +121,7 @@ export async function traduzirFrases(
   const prompt = montarPromptTraducao(originais, idioma);
   const schema = schemaTraducao(originais.length);
 
-  await reserveQuota(db, "aiTraducao", caps, undefined, ctx);
+  await reserveQuota(db, "aiTraducao", caps, undefined, reserveQuotaOptsIA(ctx));
   const primeira = validarTraducao(await gerarJson(prompt, schema), originais);
   const traduzidas =
     primeira.frases ?? (await retry(db, prompt, schema, originais, primeira.problemas, caps, ctx));
@@ -141,7 +142,7 @@ async function retry(
   originais: string[],
   problemas: string[],
   caps: UsageCounts,
-  ctx: { userId?: string; isAdmin?: boolean },
+  ctx: CtxIA,
 ): Promise<string[]> {
   const promptRetry = [
     prompt,
@@ -150,7 +151,7 @@ async function retry(
     ...problemas.map((problema) => `- ${problema}`),
   ].join("\n");
 
-  await reserveQuota(db, "aiTraducao", caps, undefined, ctx);
+  await reserveQuota(db, "aiTraducao", caps, undefined, reserveQuotaOptsIA(ctx));
   const segunda = validarTraducao(await gerarJson(promptRetry, schema), originais);
   if (segunda.frases) return segunda.frases;
   throw new AiError(`tradução inválida: ${segunda.problemas.join("; ")}`);

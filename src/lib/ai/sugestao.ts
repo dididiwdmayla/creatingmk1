@@ -6,6 +6,7 @@ import { ANIMACOES, type Animacao, type DemoItem, type SkinDefinition } from "@/
 import type { UsageDb } from "@/lib/firestore-like";
 import { IDIOMA_PADRAO, idiomaLabel } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
+import { type CtxIA, reserveQuotaOptsIA } from "./ctx";
 import { AiError, gerarJson } from "./gemini";
 import { NIVEL_IA_PADRAO, type NivelIA } from "./nivel";
 
@@ -749,7 +750,7 @@ export async function gerarSugestaoDemo(
   skin: SkinDefinition,
   caps: UsageCounts,
   nivel: NivelIA = NIVEL_IA_PADRAO,
-  ctx: { userId?: string; isAdmin?: boolean } = {},
+  ctx: CtxIA = {},
   /**
    * Idioma escolhido AGORA no seletor do editor (pode ainda não ter sido
    * salvo) — vence o default. Ausente → `LeadDemo.idioma` já persistido ou,
@@ -764,7 +765,7 @@ export async function gerarSugestaoDemo(
   const prompt = montarPromptSugestao(skin, lead, nivel, idioma);
   const schema = schemaSugestao(skin, nivel, idioma);
 
-  await reserveQuota(db, "aiGeneration", caps, undefined, ctx);
+  await reserveQuota(db, "aiGeneration", caps, undefined, reserveQuotaOptsIA(ctx));
   const primeira = validarSugestao(await gerarJson(prompt, schema), skin, nivel, idioma);
   if (primeira.sugestao) return primeira.sugestao;
 
@@ -775,7 +776,7 @@ export async function gerarSugestaoDemo(
     ...primeira.problemas.map((problema) => `- ${problema}`),
   ].join("\n");
 
-  await reserveQuota(db, "aiGeneration", caps, undefined, ctx);
+  await reserveQuota(db, "aiGeneration", caps, undefined, reserveQuotaOptsIA(ctx));
   const segunda = validarSugestao(await gerarJson(promptRetry, schema), skin, nivel, idioma);
   if (segunda.sugestao) return segunda.sugestao;
 

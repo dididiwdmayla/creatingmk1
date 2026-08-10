@@ -35,6 +35,7 @@ export async function POST(req: Request, { params }: Params) {
     const analise = await gerarAnaliseBusca(db, busca, leads, config.caps, {
       userId: usuario?.id,
       isAdmin: usuario?.papel === "admin",
+      limites: usuario?.limites,
     });
     const atualizada = await salvarAnaliseIA(db, id, analise);
     return NextResponse.json({ busca: atualizada });

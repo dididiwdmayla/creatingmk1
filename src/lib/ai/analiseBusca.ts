@@ -4,6 +4,7 @@ import type { UsageDb } from "@/lib/firestore-like";
 import { presenca } from "@/lib/leads/repo";
 import { calculaScore } from "@/lib/leads/score";
 import type { Lead } from "@/lib/leads/types";
+import { type CtxIA, reserveQuotaOptsIA } from "./ctx";
 import { AiError, gerarJson } from "./gemini";
 
 /**
@@ -97,10 +98,10 @@ export async function gerarAnaliseBusca(
   busca: Busca,
   leads: Lead[],
   caps: UsageCounts,
-  ctx: { userId?: string; isAdmin?: boolean } = {},
+  ctx: CtxIA = {},
 ): Promise<string> {
   const prompt = montarPromptAnaliseBusca(busca, leads);
-  await reserveQuota(db, "aiGeneration", caps, undefined, ctx);
+  await reserveQuota(db, "aiGeneration", caps, undefined, reserveQuotaOptsIA(ctx));
   const resultado = validarAnaliseBusca(await gerarJson(prompt, schemaAnaliseBusca()));
   if (resultado.analise) return resultado.analise;
   throw new AiError(`resposta fora do schema: ${resultado.problemas.join("; ")}`);

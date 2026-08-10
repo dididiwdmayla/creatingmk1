@@ -26,12 +26,13 @@ export class QuotaExceededError extends Error {
   }
 }
 
-export type TipoCotaUsuario = "buscas" | "enriquecimentos";
+export type TipoCotaUsuario = "buscas" | "enriquecimentos" | "geracoesIA";
 export type JanelaCotaUsuario = "dia" | "semana" | "mes";
 
 const NOME_TIPO: Record<TipoCotaUsuario, string> = {
   buscas: "buscas",
   enriquecimentos: "enriquecimentos",
+  geracoesIA: "gerações de IA",
 };
 
 const NOME_JANELA: Record<JanelaCotaUsuario, string> = {

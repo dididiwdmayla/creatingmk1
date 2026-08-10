@@ -58,6 +58,7 @@ export async function POST(req: Request) {
     const traducao = await traduzirFrases(db, conjunto, idioma, config.caps, {
       userId: usuario?.id,
       isAdmin: usuario?.papel === "admin",
+      limites: usuario?.limites,
     });
 
     const atualizado = await salvarTraducao(db, skinId, idioma, traducao);
