@@ -15,7 +15,8 @@ import { formatDateTime, formatInt, formatTempoRelativo } from "@/lib/format";
 import { comIndiceAtualizado, resolverMensagem } from "@/lib/frases/resolver";
 import { ultimaAberturaNaoInterna } from "@/lib/leads/hoje";
 import { melhorMomento } from "@/lib/leads/horarios";
-import { linhaRecomendacaoContato, type JanelasContatoConfig } from "@/lib/leads/janelaContato";
+import { barraDoDia, linhaEstadoContato } from "@/lib/leads/barraDoDia";
+import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { calculaScore } from "@/lib/leads/score";
 import type { Lead } from "@/lib/leads/types";
@@ -389,7 +390,10 @@ function ItemHoje({
 }) {
   const origem = buscaDeOrigem(lead, porId);
   const momento = melhorMomento(lead.horarios);
-  const linhaJanela = linhaRecomendacaoContato(janelasContato, lead);
+  // A mesma linha que fica abaixo da barra do dia na ficha — aqui sem a
+  // barra (a fila é uma lista compacta), só o estado em palavras.
+  const barra = barraDoDia(janelasContato, lead);
+  const linhaJanela = barra && linhaEstadoContato(barra);
   const telefoneIntl = lead.detalhes?.telefoneIntl ?? lead.telefoneIntl;
   const demoUrl =
     lead.demo && typeof window !== "undefined"

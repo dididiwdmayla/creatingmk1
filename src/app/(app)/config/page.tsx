@@ -25,9 +25,11 @@ import { frasesEfetivas, normalizarSlots, posicaoAtual } from "@/lib/frases/rota
 import {
   FAMILIAS_JANELA_CONTATO,
   FAMILIA_GENERICA,
+  NIVEIS_CONTATO,
+  type FaixaNivelContato,
   type FamiliaJanelaContato,
   type HoraMinuto,
-  type PrioridadeDiaContato,
+  type NivelContato,
 } from "@/lib/leads/janelaContato";
 import {
   FRASES_SLOTS,
@@ -415,12 +417,13 @@ export default function ConfigPage() {
 
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Janelas de contato por família
+          Faixas de contato por família
         </h2>
         <p className="mt-1 text-xs text-ink-muted">
-          Janela ideal (e alternativa, quando houver) por família de negócio, determinística — sem
-          IA gerando horário. Mostrada na ficha do lead e no botão de WhatsApp, na hora local do
-          lead, sempre cruzada com o horário de funcionamento declarado.
+          Três níveis — bom, razoável e ruim — ao longo do dia, por família de negócio e por dia da
+          semana. Determinístico: nenhuma IA gera horário aqui. É esta tabela que pinta a barra do
+          dia na ficha do lead, sempre recortada pelo horário de funcionamento e na hora local
+          dele. Trecho aberto sem faixa marcada vale &ldquo;razoável&rdquo;.
         </p>
         <div className="mt-3 flex flex-col gap-3">
           {FAMILIAS_JANELA_CONTATO.map((familiaId) => (
@@ -1688,22 +1691,25 @@ const DIAS_SEMANA_ORDEM: Array<{ dia: number; abrev: string }> = [
   { dia: 0, abrev: "DOM" },
 ];
 
-const PROXIMA_PRIORIDADE: Record<PrioridadeDiaContato, PrioridadeDiaContato> = {
-  recomendado: "poucoIndicado",
-  poucoIndicado: "indisponivel",
-  indisponivel: "recomendado",
+
+/** Dias úteis que o botão "aplicar a seg–qui" preenche de uma vez. */
+const DIAS_UTEIS = [1, 2, 3, 4];
+
+const NIVEL_LABEL: Record<NivelContato, string> = {
+  bom: "bom",
+  razoavel: "razoável",
+  ruim: "ruim",
 };
 
-const PRIORIDADE_CLS: Record<PrioridadeDiaContato, string> = {
-  recomendado: "border-good/50 bg-good/15 text-good",
-  poucoIndicado: "border-warning/50 bg-warning/15 text-warning",
-  indisponivel: "border-line bg-surface-2 text-ink-muted",
-};
-
-const PRIORIDADE_LABEL: Record<PrioridadeDiaContato, string> = {
-  recomendado: "recomendado",
-  poucoIndicado: "pouco indicado",
-  indisponivel: "não abordar",
+/**
+ * Cor + preenchimento por nível, o mesmo par usado na barra do dia da ficha
+ * (`components/BarraDoDia.tsx`) — quem edita aqui vê a mesma linguagem que
+ * vai aparecer lá.
+ */
+const NIVEL_CLS: Record<NivelContato, string> = {
+  bom: "border-good/60 bg-good/20 text-good",
+  razoavel: "border-warning/60 bg-warning/20 text-warning",
+  ruim: "border-critical/60 bg-critical/20 text-critical",
 };
 
 /** "9h30" ↔ "09:30" — HoraMinuto guarda hora/minuto separados; <input type="time"> quer "HH:MM". */
@@ -1719,45 +1725,79 @@ function inputTimeParaHoraMinuto(valor: string): HoraMinuto | null {
   return { hora, minuto };
 }
 
-/** Um campo de horário (início–fim) de uma janela — usado tanto para a ideal quanto a alternativa. */
-function FaixaContatoEditor({
-  inicio,
-  fim,
+function ordenarFaixas(faixas: FaixaNivelContato[]): FaixaNivelContato[] {
+  return [...faixas].sort(
+    (a, b) => a.inicio.hora * 60 + a.inicio.minuto - (b.inicio.hora * 60 + b.inicio.minuto),
+  );
+}
+
+/** Uma faixa do dia: início, fim e o nível em três botões (sem select). */
+function FaixaNivelEditor({
+  faixa,
   onChange,
+  onRemover,
 }: {
-  inicio: HoraMinuto;
-  fim: HoraMinuto;
-  onChange: (inicio: HoraMinuto, fim: HoraMinuto) => void;
+  faixa: FaixaNivelContato;
+  onChange: (faixa: FaixaNivelContato) => void;
+  onRemover: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <input
         type="time"
-        value={horaMinutoParaInputTime(inicio)}
+        aria-label="início"
+        value={horaMinutoParaInputTime(faixa.inicio)}
         onChange={(e) => {
           const novo = inputTimeParaHoraMinuto(e.target.value);
-          if (novo) onChange(novo, fim);
+          if (novo) onChange({ ...faixa, inicio: novo });
         }}
         className="rounded border border-line bg-surface-2 px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
       />
       <span className="text-xs text-ink-muted">até</span>
       <input
         type="time"
-        value={horaMinutoParaInputTime(fim)}
+        aria-label="fim"
+        value={horaMinutoParaInputTime(faixa.fim)}
         onChange={(e) => {
           const novo = inputTimeParaHoraMinuto(e.target.value);
-          if (novo) onChange(inicio, novo);
+          if (novo) onChange({ ...faixa, fim: novo });
         }}
         className="rounded border border-line bg-surface-2 px-2 py-1.5 text-sm text-foreground outline-none focus:border-accent"
       />
+      <div className="flex gap-1">
+        {NIVEIS_CONTATO.map((nivel) => (
+          <button
+            key={nivel}
+            type="button"
+            aria-pressed={faixa.nivel === nivel}
+            onClick={() => onChange({ ...faixa, nivel })}
+            className={`rounded border px-2 py-1 text-[11px] font-medium ${
+              faixa.nivel === nivel
+                ? NIVEL_CLS[nivel]
+                : "border-line bg-surface-2 text-ink-muted hover:text-foreground"
+            }`}
+          >
+            {NIVEL_LABEL[nivel]}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onRemover}
+        aria-label="remover faixa"
+        className="ml-auto text-xs text-ink-muted hover:text-critical"
+      >
+        remover
+      </button>
     </div>
   );
 }
 
 /**
- * Uma família: janela ideal, alternativa opcional (checkbox liga/desliga) e
- * os 7 dias da semana como chips que ciclam recomendado → pouco indicado →
- * não abordar num clique — sem select nenhum, edição de um toque só.
+ * Uma família: os 7 dias como abas (o dia selecionado é o que se edita) e,
+ * dentro do dia, as faixas de nível. Dia sem faixa nenhuma é um dia
+ * DESMARCADO — o que estiver aberto vale "razoável", que é o neutro; não
+ * existe quarto nível.
  */
 function JanelaFamiliaEditor({
   familiaId,
@@ -1768,67 +1808,90 @@ function JanelaFamiliaEditor({
   valor: FamiliaJanelaContato;
   onChange: (valor: FamiliaJanelaContato) => void;
 }) {
+  const [diaAtivo, setDiaAtivo] = useState(1);
+  const faixas = ordenarFaixas(valor.dias[diaAtivo] ?? []);
+
+  function trocarDia(dia: number, lista: FaixaNivelContato[]) {
+    onChange({ ...valor, dias: { ...valor.dias, [dia]: ordenarFaixas(lista) } });
+  }
+
   return (
     <div className="rounded border border-line p-3">
       <p className="text-sm font-medium text-foreground">{NOME_FAMILIA[familiaId] ?? familiaId}</p>
 
-      <div className="mt-2 flex flex-col gap-2">
-        <Field label="Janela ideal">
-          <FaixaContatoEditor
-            inicio={valor.ideal.inicio}
-            fim={valor.ideal.fim}
-            onChange={(inicio, fim) => onChange({ ...valor, ideal: { inicio, fim } })}
-          />
-        </Field>
-
-        <label className="flex items-center gap-2 text-xs text-ink-secondary">
-          <input
-            type="checkbox"
-            checked={valor.alternativa !== undefined}
-            onChange={(e) =>
-              onChange({
-                ...valor,
-                alternativa: e.target.checked
-                  ? { inicio: { hora: 16, minuto: 0 }, fim: { hora: 17, minuto: 0 } }
-                  : undefined,
-              })
-            }
-          />
-          Janela alternativa
-        </label>
-        {valor.alternativa && (
-          <FaixaContatoEditor
-            inicio={valor.alternativa.inicio}
-            fim={valor.alternativa.fim}
-            onChange={(inicio, fim) => onChange({ ...valor, alternativa: { inicio, fim } })}
-          />
-        )}
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1.5">
         {DIAS_SEMANA_ORDEM.map(({ dia, abrev }) => {
-          const prioridade = valor.dias[dia] ?? "indisponivel";
+          const doDia = valor.dias[dia] ?? [];
+          const ativo = dia === diaAtivo;
           return (
             <button
               key={dia}
               type="button"
-              title={PRIORIDADE_LABEL[prioridade]}
-              onClick={() =>
-                onChange({
-                  ...valor,
-                  dias: { ...valor.dias, [dia]: PROXIMA_PRIORIDADE[prioridade] },
-                })
-              }
-              className={`rounded border px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide ${PRIORIDADE_CLS[prioridade]}`}
+              aria-pressed={ativo}
+              title={doDia.length === 0 ? "desmarcado" : `${doDia.length} faixa(s)`}
+              onClick={() => setDiaAtivo(dia)}
+              className={`rounded border px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide ${
+                ativo
+                  ? "border-accent bg-accent/15 text-accent"
+                  : doDia.length > 0
+                    ? "border-line bg-surface-2 text-foreground"
+                    : "border-line bg-surface-2 text-ink-muted"
+              }`}
             >
               {abrev}
+              <span className="ml-1 font-sans font-normal normal-case">
+                {doDia.length === 0 ? "—" : doDia.length}
+              </span>
             </button>
           );
         })}
       </div>
-      <p className="mt-1 text-[11px] text-ink-muted">
-        Clique num dia para alternar: recomendado → pouco indicado → não abordar.
-      </p>
+
+      <div className="mt-2 flex flex-col gap-2">
+        {faixas.length === 0 && (
+          <p className="text-xs text-ink-muted">
+            Dia desmarcado — o expediente inteiro vale &ldquo;razoável&rdquo;.
+          </p>
+        )}
+        {faixas.map((faixa, i) => (
+          <FaixaNivelEditor
+            key={i}
+            faixa={faixa}
+            onChange={(nova) => trocarDia(diaAtivo, faixas.map((f, j) => (j === i ? nova : f)))}
+            onRemover={() => trocarDia(diaAtivo, faixas.filter((_, j) => j !== i))}
+          />
+        ))}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() =>
+            trocarDia(diaAtivo, [
+              ...faixas,
+              {
+                inicio: { hora: 9, minuto: 0 },
+                fim: { hora: 11, minuto: 0 },
+                nivel: "bom",
+              },
+            ])
+          }
+          className="text-xs font-medium text-accent hover:underline"
+        >
+          + Adicionar faixa
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const dias = { ...valor.dias };
+            for (const dia of DIAS_UTEIS) dias[dia] = faixas.map((f) => ({ ...f }));
+            onChange({ ...valor, dias });
+          }}
+          className="text-xs text-ink-muted hover:text-foreground"
+        >
+          aplicar a seg–qui
+        </button>
+      </div>
     </div>
   );
 }

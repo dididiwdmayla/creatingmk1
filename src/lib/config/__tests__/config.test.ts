@@ -334,24 +334,22 @@ describe("capturas.ancoras (marcação de âncoras de captura)", () => {
 
   it("janelasContato: default já vem populado, e o patch mescla POR FAMÍLIA", async () => {
     const db = new FakeFirestore();
-    expect(DEFAULT_CONFIG.janelasContato.barbearia.ideal).toEqual({
-      inicio: { hora: 9, minuto: 30 },
-      fim: { hora: 11, minuto: 0 },
-    });
+    expect(DEFAULT_CONFIG.janelasContato.barbearia.dias[2]).toEqual([
+      { inicio: { hora: 9, minuto: 0 }, fim: { hora: 11, minuto: 30 }, nivel: "bom" },
+      { inicio: { hora: 16, minuto: 30 }, fim: { hora: 20, minuto: 0 }, nivel: "ruim" },
+    ]);
 
     const config = await saveConfig(db, {
       janelasContato: {
         barbearia: {
-          ideal: { inicio: { hora: 8, minuto: 0 }, fim: { hora: 9, minuto: 0 } },
-          dias: { 1: "recomendado" },
+          dias: { 1: [{ inicio: { hora: 8, minuto: 0 }, fim: { hora: 9, minuto: 0 }, nivel: "bom" }] },
         },
       },
     });
 
-    expect(config.janelasContato.barbearia.ideal).toEqual({
-      inicio: { hora: 8, minuto: 0 },
-      fim: { hora: 9, minuto: 0 },
-    });
+    expect(config.janelasContato.barbearia.dias[1]).toEqual([
+      { inicio: { hora: 8, minuto: 0 }, fim: { hora: 9, minuto: 0 }, nivel: "bom" },
+    ]);
     // As outras famílias continuam com o default — merge é por chave, não substituição do mapa inteiro.
     expect(config.janelasContato.lancheria).toEqual(DEFAULT_CONFIG.janelasContato.lancheria);
   });
@@ -363,12 +361,27 @@ describe("capturas.ancoras (marcação de âncoras de captura)", () => {
       saveConfig(db, {
         janelasContato: {
           barbearia: {
-            ideal: { inicio: { hora: 10, minuto: 0 }, fim: { hora: 9, minuto: 0 } },
-            dias: { 1: "recomendado" },
+            dias: { 1: [{ inicio: { hora: 10, minuto: 0 }, fim: { hora: 9, minuto: 0 }, nivel: "bom" }] },
           },
         },
       }),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("doc gravado no formato ANTIGO da janela de contato não derruba a config efetiva", async () => {
+    const db = new FakeFirestore();
+    // O doc que existe em produção desde antes da barra do dia.
+    await db.collection("config").doc("app").set({
+      janelasContato: {
+        barbearia: {
+          ideal: { inicio: { hora: 9, minuto: 30 }, fim: { hora: 11, minuto: 0 } },
+          dias: { 1: "recomendado", 6: "indisponivel" },
+        },
+      },
+    });
+
+    const config = await loadConfig(db);
+    expect(config.janelasContato.barbearia).toEqual(DEFAULT_CONFIG.janelasContato.barbearia);
   });
 });
 

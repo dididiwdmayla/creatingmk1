@@ -2,26 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_JANELAS_CONTATO,
+  faixasDoDia,
   familiaDoLead,
   horarioLocalNoDisparo,
-  linhaRecomendacaoContato,
+  mesclarJanelasContato,
   utcOffsetDoLead,
   validarJanelasContato,
-  type JanelasContatoConfig,
+  type FamiliaJanelaContato,
 } from "../janelaContato";
 import type { Lead } from "../types";
 
-type Faixa = NonNullable<Lead["horarios"]>["faixas"][number];
-
-function faixaAbertura(dia: number, horaAbre: number, horaFecha: number): Faixa {
-  return { diaAbre: dia, horaAbre, minAbre: 0, diaFecha: dia, horaFecha, minFecha: 0 };
-}
-
 // Mesmas âncoras de horarios.test.ts: 2026-07-21 é terça.
-const TERCA = "2026-07-21";
 const QUARTA = "2026-07-22";
-const SEXTA = "2026-07-24";
-const SABADO = "2026-07-25";
 
 /** Instante UTC correspondente a `hora:min` LOCAL (-180, Brasília) na data informada. */
 function instanteLocal(data: string, hora: number, min = 0): Date {
@@ -39,14 +31,6 @@ function lead(overrides: Partial<Lead> = {}): Lead {
     atualizadoEm: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
-}
-
-/** Fuso conhecido (-180, Brasília), sem horário de funcionamento declarado. */
-function comFuso(overrides: Partial<Lead> = {}): Lead {
-  return lead({
-    horarios: { faixas: [], utcOffsetMinutes: -180, obtidoEm: "2026-01-01T00:00:00.000Z" },
-    ...overrides,
-  });
 }
 
 describe("familiaDoLead", () => {
@@ -83,77 +67,51 @@ describe("utcOffsetDoLead", () => {
   });
 });
 
-describe("linhaRecomendacaoContato", () => {
-  it("sem deslocamento UTC conhecido → undefined, nunca hora errada", () => {
-    expect(linhaRecomendacaoContato(DEFAULT_JANELAS_CONTATO, lead())).toBeUndefined();
+describe("tabela padrão de faixas por família", () => {
+  it("barbearia: manhã boa, fim de tarde ruim (o movimento deles)", () => {
+    const terca = faixasDoDia(DEFAULT_JANELAS_CONTATO.barbearia, 2);
+    expect(terca.map((f) => [f.inicio.hora, f.fim.hora, f.nivel])).toEqual([
+      [9, 11, "bom"],
+      [16, 20, "ruim"],
+    ]);
   });
 
-  it("janela ideal de hoje, ainda não passou", () => {
-    const l = comFuso({ busca: { nicho: "barbearia", regiao: "x", em: "" } });
-    const linha = linhaRecomendacaoContato(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 8, 0));
-    expect(linha).toBe("Hoje: 9h30–11h");
+  it("barbearia: sábado inteiro é ruim — a exceção ao fim de semana desmarcado", () => {
+    expect(faixasDoDia(DEFAULT_JANELAS_CONTATO.barbearia, 6)).toEqual([
+      { inicio: { hora: 9, minuto: 0 }, fim: { hora: 20, minuto: 0 }, nivel: "ruim" },
+    ]);
   });
 
-  it("janela ideal já passou e a família não tem alternativa → pula pro próximo dia", () => {
-    const l = comFuso({ busca: { nicho: "barbearia", regiao: "x", em: "" } });
-    // Terça 12h: ideal (9h30-11h) já passou, sem alternativa — próximo dia útil é amanhã (quarta).
-    const linha = linhaRecomendacaoContato(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 12, 0));
-    expect(linha).toBe("Amanhã: 9h30–11h");
+  it("lancheria: picos de almoço e janta ruins, meio da tarde bom", () => {
+    expect(faixasDoDia(DEFAULT_JANELAS_CONTATO.lancheria, 3).map((f) => f.nivel)).toEqual([
+      "ruim",
+      "bom",
+      "ruim",
+    ]);
   });
 
-  it("janela ideal já passou, mas a alternativa do mesmo dia ainda não", () => {
-    const l = comFuso({ busca: { nicho: "imobiliaria", regiao: "x", em: "" } });
-    const linha = linhaRecomendacaoContato(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 12, 0));
-    expect(linha).toBe("Hoje: 16h–17h");
+  it("tatuagem começo de tarde; imobiliária, petshop e multimarcas com seus bons", () => {
+    expect(faixasDoDia(DEFAULT_JANELAS_CONTATO.tatuagem, 1)).toEqual([
+      { inicio: { hora: 13, minuto: 0 }, fim: { hora: 15, minuto: 0 }, nivel: "bom" },
+    ]);
+    expect(faixasDoDia(DEFAULT_JANELAS_CONTATO.imobiliaria, 1).map((f) => f.inicio.hora)).toEqual([9, 14]);
+    expect(faixasDoDia(DEFAULT_JANELAS_CONTATO.petshop, 1)[0].nivel).toBe("bom");
+    expect(faixasDoDia(DEFAULT_JANELAS_CONTATO.multimarcas, 1)[0].inicio.hora).toBe(14);
   });
 
-  it("fim de semana desmarcado: pula sábado e domingo até a próxima segunda", () => {
-    const l = comFuso({ busca: { nicho: "barbearia", regiao: "x", em: "" } });
-    const linha = linhaRecomendacaoContato(DEFAULT_JANELAS_CONTATO, l, instanteLocal(SABADO, 10, 0));
-    expect(linha).toBe("Segunda: 9h30–11h");
+  it("sexta vale menos: os bons de segunda-quinta viram razoáveis, os ruins seguem ruins", () => {
+    for (const familia of Object.values(DEFAULT_JANELAS_CONTATO)) {
+      expect(faixasDoDia(familia, 5).some((f) => f.nivel === "bom")).toBe(false);
+      const ruinsQuinta = faixasDoDia(familia, 4).filter((f) => f.nivel === "ruim").length;
+      expect(faixasDoDia(familia, 5).filter((f) => f.nivel === "ruim")).toHaveLength(ruinsQuinta);
+    }
   });
 
-  it("sexta é pouco indicada mas ainda conta como dia disponível", () => {
-    const l = comFuso({ busca: { nicho: "barbearia", regiao: "x", em: "" } });
-    const linha = linhaRecomendacaoContato(DEFAULT_JANELAS_CONTATO, l, instanteLocal(SEXTA, 8, 0));
-    expect(linha).toBe("Hoje: 9h30–11h");
-  });
-
-  it("cruza com o horário de funcionamento: mostra a interseção quando existe", () => {
-    const l = lead({
-      busca: { nicho: "barbearia", regiao: "x", em: "" },
-      horarios: {
-        faixas: [faixaAbertura(2, 10, 18)], // terça: abre só às 10h
-        utcOffsetMinutes: -180,
-        obtidoEm: "2026-01-01T00:00:00.000Z",
-      },
-    });
-    const linha = linhaRecomendacaoContato(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 8, 0));
-    expect(linha).toBe("Hoje: 10h–11h");
-  });
-
-  it("sem interseção com o horário declarado: mostra a janela da família e sinaliza", () => {
-    const l = lead({
-      busca: { nicho: "barbearia", regiao: "x", em: "" },
-      horarios: {
-        faixas: [faixaAbertura(2, 18, 22)], // terça: só abre à noite
-        utcOffsetMinutes: -180,
-        obtidoEm: "2026-01-01T00:00:00.000Z",
-      },
-    });
-    const linha = linhaRecomendacaoContato(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 8, 0));
-    expect(linha).toBe("Hoje: 9h30–11h (fora do horário do estabelecimento)");
-  });
-
-  it("família sem nenhum dia disponível → undefined", () => {
-    const janelas: JanelasContatoConfig = {
-      generico: {
-        ideal: { inicio: { hora: 9, minuto: 0 }, fim: { hora: 10, minuto: 0 } },
-        dias: { 0: "indisponivel", 1: "indisponivel", 2: "indisponivel", 3: "indisponivel", 4: "indisponivel", 5: "indisponivel", 6: "indisponivel" },
-      },
-    };
-    const linha = linhaRecomendacaoContato(janelas, lead(), instanteLocal(TERCA, 8, 0));
-    expect(linha).toBeUndefined();
+  it("fim de semana desmarcado em todas as famílias, exceto o sábado da barbearia", () => {
+    for (const [id, familia] of Object.entries(DEFAULT_JANELAS_CONTATO)) {
+      expect(faixasDoDia(familia, 0), `${id} domingo`).toEqual([]);
+      if (id !== "barbearia") expect(faixasDoDia(familia, 6), `${id} sábado`).toEqual([]);
+    }
   });
 });
 
@@ -178,26 +136,91 @@ describe("validarJanelasContato", () => {
     expect(problemas).toEqual([]);
   });
 
-  it("acusa janela ideal ausente, hora fora de faixa e fim ≤ início", () => {
+  it("acusa dia inválido, hora fora de faixa, fim ≤ início e nível desconhecido", () => {
     const problemas: string[] = [];
     validarJanelasContato(
       {
-        barbearia: { dias: { 1: "recomendado" } },
+        barbearia: { dias: { 9: [] } },
         lancheria: {
-          ideal: { inicio: { hora: 25, minuto: 0 }, fim: { hora: 10, minuto: 0 } },
-          dias: { 1: "recomendado" },
+          dias: { 1: [{ inicio: { hora: 25, minuto: 0 }, fim: { hora: 10, minuto: 0 }, nivel: "bom" }] },
         },
         tatuagem: {
-          ideal: { inicio: { hora: 10, minuto: 0 }, fim: { hora: 9, minuto: 0 } },
-          dias: { 1: "abre-sempre" },
+          dias: { 1: [{ inicio: { hora: 10, minuto: 0 }, fim: { hora: 9, minuto: 0 }, nivel: "otimo" }] },
+        },
+        petshop: { dias: { 1: {} } },
+      },
+      "janelasContato",
+      problemas,
+    );
+    expect(problemas.some((p) => p.includes("barbearia.dias.9"))).toBe(true);
+    expect(problemas.some((p) => p.includes("lancheria.dias.1[0].inicio.hora"))).toBe(true);
+    expect(problemas.some((p) => p.includes("tatuagem.dias.1[0]") && p.includes("fim deve ser depois"))).toBe(true);
+    expect(problemas.some((p) => p.includes("tatuagem.dias.1[0].nivel"))).toBe(true);
+    expect(problemas.some((p) => p.includes("petshop.dias.1") && p.includes("lista"))).toBe(true);
+  });
+
+  it("acusa faixas sobrepostas no mesmo dia (o nível do minuto deixaria de ser determinístico)", () => {
+    const problemas: string[] = [];
+    validarJanelasContato(
+      {
+        generico: {
+          dias: {
+            1: [
+              { inicio: { hora: 9, minuto: 0 }, fim: { hora: 12, minuto: 0 }, nivel: "bom" },
+              { inicio: { hora: 11, minuto: 0 }, fim: { hora: 13, minuto: 0 }, nivel: "ruim" },
+            ],
+          },
         },
       },
       "janelasContato",
       problemas,
     );
-    expect(problemas.some((p) => p.includes("barbearia.ideal") && p.includes("obrigatória"))).toBe(true);
-    expect(problemas.some((p) => p.includes("lancheria.ideal.inicio.hora"))).toBe(true);
-    expect(problemas.some((p) => p.includes("tatuagem.ideal") && p.includes("fim deve ser depois"))).toBe(true);
-    expect(problemas.some((p) => p.includes("tatuagem.dias.1"))).toBe(true);
+    expect(problemas).toEqual(["janelasContato.generico.dias.1: faixas sobrepostas no mesmo dia"]);
+  });
+
+  it("faixas coladas (11h termina, 11h começa) não são sobreposição", () => {
+    const problemas: string[] = [];
+    validarJanelasContato(
+      {
+        generico: {
+          dias: {
+            1: [
+              { inicio: { hora: 9, minuto: 0 }, fim: { hora: 11, minuto: 0 }, nivel: "bom" },
+              { inicio: { hora: 11, minuto: 0 }, fim: { hora: 13, minuto: 0 }, nivel: "ruim" },
+            ],
+          },
+        },
+      },
+      "janelasContato",
+      problemas,
+    );
+    expect(problemas).toEqual([]);
+  });
+});
+
+describe("mesclarJanelasContato", () => {
+  const nova: FamiliaJanelaContato = {
+    dias: { 1: [{ inicio: { hora: 8, minuto: 0 }, fim: { hora: 9, minuto: 0 }, nivel: "bom" }] },
+  };
+
+  it("família válida do doc vence o padrão; as outras seguem no padrão", () => {
+    const saida = mesclarJanelasContato(DEFAULT_JANELAS_CONTATO, { barbearia: nova });
+    expect(saida.barbearia).toEqual(nova);
+    expect(saida.lancheria).toEqual(DEFAULT_JANELAS_CONTATO.lancheria);
+  });
+
+  it("doc no formato ANTIGO (janela ideal/alternativa) cai no padrão novo, não quebra a barra", () => {
+    const antigo = {
+      barbearia: {
+        ideal: { inicio: { hora: 9, minuto: 30 }, fim: { hora: 11, minuto: 0 } },
+        dias: { 1: "recomendado", 5: "poucoIndicado", 6: "indisponivel" },
+      },
+    };
+    const saida = mesclarJanelasContato(DEFAULT_JANELAS_CONTATO, antigo);
+    expect(saida.barbearia).toEqual(DEFAULT_JANELAS_CONTATO.barbearia);
+  });
+
+  it("valor que nem objeto é → padrão inteiro", () => {
+    expect(mesclarJanelasContato(DEFAULT_JANELAS_CONTATO, "nada")).toEqual(DEFAULT_JANELAS_CONTATO);
   });
 });
