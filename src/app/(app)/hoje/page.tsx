@@ -39,9 +39,9 @@ function buscaDeOrigem(lead: Lead, porId: Map<string, BuscaResumo>): BuscaResumo
 }
 
 /**
- * Mesma precedência da ficha, na mesma função pura (frases do nicho →
- * genéricas → mensagem do grupo → global). A fila não tem caixa de edição:
- * aqui a frase da vez vai direto para o link.
+ * Mesma precedência da ficha, na mesma função pura (frases da skin da demo
+ * → mensagem do grupo → global). A fila não tem caixa de edição: aqui a
+ * frase da vez vai direto para o link.
  */
 function mensagemParaLead(
   lead: Lead,
@@ -53,7 +53,6 @@ function mensagemParaLead(
     lead,
     buscas: [...porId.values()],
     conjuntos: frases?.conjuntos ?? [],
-    genericas: frases?.genericas,
     global,
   }).texto;
 }
@@ -145,13 +144,14 @@ export default function HojePage() {
       lead,
       buscas: dados.buscas,
       conjuntos: frases?.conjuntos ?? [],
-      genericas: frases?.genericas,
       global: dados.mensagemPadrao,
     }).rotacao;
     if (!rotacao) return;
     api
-      .avancarFrase(rotacao.nicho)
-      .then(({ indice }) => setFrases((atual) => comIndiceAtualizado(atual, rotacao.nicho, indice)))
+      .avancarFrase(rotacao.skinId)
+      .then(({ indice }) =>
+        setFrases((atual) => comIndiceAtualizado(atual, rotacao.skinId, indice)),
+      )
       .catch(() => {
         // rotação é cortesia, como o selo: falhar aqui não desfaz o envio
       });

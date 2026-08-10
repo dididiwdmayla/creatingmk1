@@ -4,7 +4,7 @@ import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
-import type { FrasesProspeccao } from "@/lib/frases/types";
+import type { ConjuntoSkin, FrasesProspeccao } from "@/lib/frases/types";
 import type { UsageCounts, UsoUsuario } from "@/lib/costs";
 import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
@@ -157,13 +157,12 @@ export interface HojeResponse {
 }
 
 /**
- * GET /api/frases: os conjuntos de frases de abordagem. `conjuntos` traz TODO
- * nicho já visto em alguma busca (vazio inclusive) e `genericas` é o conjunto
- * de fallback — ver "Frases de prospecção por nicho".
+ * GET /api/frases: os conjuntos de frases de abordagem — UM por skin do
+ * registro, vazios inclusive, já com nome/nicho da skin resolvidos no
+ * servidor. Ver "Frases de prospecção por skin".
  */
 export interface FrasesResponse {
-  conjuntos: FrasesProspeccao[];
-  genericas: FrasesProspeccao;
+  conjuntos: ConjuntoSkin[];
 }
 
 /** GET /api/regioes: índice de mercado da região (calculadora de precificação). */
@@ -266,17 +265,17 @@ export const api = {
     }),
 
   listFrases: () => request<FrasesResponse>("/api/frases"),
-  /** `nicho: null` = o conjunto genérico de fallback (admin). */
-  salvarFrases: (nicho: string | null, frases: string[]) =>
+  /** Textos de UMA skin do registro (admin). */
+  salvarFrases: (skinId: string, frases: string[]) =>
     request<{ conjunto: FrasesProspeccao }>("/api/frases", {
       method: "PUT",
-      body: JSON.stringify({ nicho, frases }),
+      body: JSON.stringify({ skinId, frases }),
     }),
-  /** Gira a rotação do nicho — só o clique de enviar pro WhatsApp chama isto. */
-  avancarFrase: (nicho: string | null) =>
+  /** Gira a rotação da skin — só o clique de enviar pro WhatsApp chama isto. */
+  avancarFrase: (skinId: string) =>
     request<{ indice: number }>("/api/frases/avancar", {
       method: "POST",
-      body: JSON.stringify({ nicho }),
+      body: JSON.stringify({ skinId }),
     }),
 
   getUsage: () => request<UsageResponse>("/api/usage"),

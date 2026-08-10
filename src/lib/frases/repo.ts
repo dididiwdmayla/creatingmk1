@@ -1,14 +1,14 @@
 import type { AppDb } from "@/lib/firestore-like";
-import { chaveNicho } from "./chave";
 import { normalizarSlots, proximoIndice } from "./rotacao";
-import { CHAVE_GENERICAS, FRASES_COLLECTION, type FrasesProspeccao } from "./types";
+import { FRASES_COLLECTION, type FrasesProspeccao } from "./types";
 
 /**
- * Repositório de /frasesProspeccao — um doc por nicho mais o doc reservado
- * do conjunto genérico (`CHAVE_GENERICAS`). Em toda função daqui,
- * `nicho: null` significa "o conjunto genérico de fallback": os dois têm a
- * mesma forma e a mesma rotação, então um único caminho de código serve aos
- * dois.
+ * Repositório de /frasesProspeccao — um doc por SKIN do registro, com o id
+ * da skin como id do doc. O id da skin é um slug do próprio código
+ * ("barbearia2-sul"), então não existe normalização de chave aqui: o que
+ * existia (nicho digitado, minúsculas, `encodeURIComponent`) era o que
+ * deixava "Barbearia", "barbearia old school" e "barbería" virarem três
+ * conjuntos distintos.
  *
  * As duas escritas usam `merge` e são DISJUNTAS de propósito: salvar textos
  * nunca zera o contador, e avançar o contador nunca sobrescreve os textos —
@@ -16,85 +16,69 @@ import { CHAVE_GENERICAS, FRASES_COLLECTION, type FrasesProspeccao } from "./typ
  * WhatsApp no mesmo segundo não se atropelam.
  */
 
-/** Chave do doc: o nicho normalizado, ou a reservada do conjunto genérico. */
-export function chaveDoAlvo(nicho: string | null): string {
-  return nicho === null ? CHAVE_GENERICAS : chaveNicho(nicho);
+function docRef(db: AppDb, skinId: string) {
+  return db.collection(FRASES_COLLECTION).doc(skinId);
 }
 
-function docRef(db: AppDb, nicho: string | null) {
-  return db.collection(FRASES_COLLECTION).doc(chaveDoAlvo(nicho));
+/** Conjunto vazio (nunca salvo) — a forma que uma skin nova assume na tela. */
+export function conjuntoVazio(skinId: string): FrasesProspeccao {
+  return { skinId, frases: normalizarSlots(undefined), indice: 0 };
 }
 
-/** Conjunto vazio (nunca salvo) — a forma que um nicho novo assume na tela. */
-export function conjuntoVazio(nicho: string): FrasesProspeccao {
-  return { nicho, frases: normalizarSlots(undefined), indice: 0 };
-}
-
-function asConjunto(data: Record<string, unknown>): FrasesProspeccao {
+function asConjunto(id: string, data: Record<string, unknown>): FrasesProspeccao {
   const bruto = data as unknown as Partial<FrasesProspeccao>;
   return {
-    nicho: typeof bruto.nicho === "string" ? bruto.nicho : "",
+    skinId: id,
     frases: normalizarSlots(bruto.frases),
     indice: Number.isInteger(bruto.indice) && (bruto.indice as number) >= 0 ? (bruto.indice as number) : 0,
     ...(typeof bruto.atualizadoEm === "string" && { atualizadoEm: bruto.atualizadoEm }),
   };
 }
 
-/** Conjunto salvo do nicho (ou o genérico) — undefined se nunca foi salvo. */
+/** Conjunto salvo da skin — undefined se nunca foi salvo. */
 export async function getConjunto(
   db: AppDb,
-  nicho: string | null,
+  skinId: string,
 ): Promise<FrasesProspeccao | undefined> {
-  const snap = await docRef(db, nicho).get();
+  const snap = await docRef(db, skinId).get();
   const data = snap.exists ? snap.data() : undefined;
-  return data ? asConjunto(data) : undefined;
+  return data ? asConjunto(skinId, data) : undefined;
 }
 
 /**
- * Todos os conjuntos salvos, separando o genérico dos nichos. A coleção tem
- * um doc por nicho já visto — dezenas, não milhares —, então ler inteira e
- * separar em memória segue a mesma escolha do resto do app (ver AppDb).
+ * Todos os docs salvos da coleção, na forma de conjunto. Inclui os docs
+ * LEGADOS chaveados por texto de nicho (o `skinId` deles é o id antigo) —
+ * quem separa o que é skin do registro é `montarConjuntos`/a migração, não
+ * o repositório. A coleção tem um doc por skin (mais o resto legado) —
+ * dezenas, não milhares —, então ler inteira segue a mesma escolha do resto
+ * do app (ver AppDb).
  */
-export async function listConjuntos(
-  db: AppDb,
-): Promise<{ nichos: FrasesProspeccao[]; genericas?: FrasesProspeccao }> {
+export async function listConjuntos(db: AppDb): Promise<FrasesProspeccao[]> {
   const snapshot = await db.collection(FRASES_COLLECTION).get();
-  const nichos: FrasesProspeccao[] = [];
-  let genericas: FrasesProspeccao | undefined;
-  for (const doc of snapshot.docs) {
-    const conjunto = asConjunto(doc.data());
-    if (doc.id === CHAVE_GENERICAS) {
-      genericas = conjunto;
-    } else {
-      nichos.push(conjunto);
-    }
-  }
-  nichos.sort((a, b) => a.nicho.localeCompare(b.nicho));
-  return { nichos, ...(genericas && { genericas }) };
+  return snapshot.docs.map((doc) => asConjunto(doc.id, doc.data()));
 }
 
 /**
  * Salva os TEXTOS do conjunto (tela de administração, admin). Escreve só
- * `nicho`/`frases`/`atualizadoEm` com merge: o `indice` já gravado
- * sobrevive — editar uma frase não reinicia a rotação do time.
+ * `frases`/`atualizadoEm` com merge: o `indice` já gravado sobrevive —
+ * editar uma frase não reinicia a rotação do time.
  */
 export async function salvarConjunto(
   db: AppDb,
-  nicho: string | null,
+  skinId: string,
   frases: string[],
   now: Date = new Date(),
 ): Promise<FrasesProspeccao> {
   const slots = normalizarSlots(frases);
-  await docRef(db, nicho).set(
+  await docRef(db, skinId).set(
     {
-      nicho: nicho ?? "",
       frases: slots,
       atualizadoEm: now.toISOString(),
     },
     { merge: true },
   );
-  const atual = await getConjunto(db, nicho);
-  return atual ?? { nicho: nicho ?? "", frases: slots, indice: 0 };
+  const atual = await getConjunto(db, skinId);
+  return atual ?? { skinId, frases: slots, indice: 0 };
 }
 
 /**
@@ -109,13 +93,16 @@ export async function salvarConjunto(
  */
 export async function avancarRotacao(
   db: AppDb,
-  nicho: string | null,
+  skinId: string,
   now: Date = new Date(),
 ): Promise<number> {
-  const conjunto = await getConjunto(db, nicho);
+  const conjunto = await getConjunto(db, skinId);
   if (!conjunto) return 0;
   const proximo = proximoIndice(conjunto);
   if (proximo === conjunto.indice) return conjunto.indice;
-  await docRef(db, nicho).set({ indice: proximo, atualizadoEm: now.toISOString() }, { merge: true });
+  await docRef(db, skinId).set(
+    { indice: proximo, atualizadoEm: now.toISOString() },
+    { merge: true },
+  );
   return proximo;
 }

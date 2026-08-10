@@ -1,42 +1,30 @@
-import { listBuscas } from "@/lib/buscas/repo";
+import { SKINS } from "@/lib/demos/registry";
 import type { AppDb } from "@/lib/firestore-like";
-import { chaveNicho } from "./chave";
 import { conjuntoVazio, listConjuntos } from "./repo";
-import { CHAVE_GENERICAS, type FrasesProspeccao } from "./types";
+import type { ConjuntoSkin } from "./types";
 
 /**
- * A lista que a tela de administração mostra: TODO nicho que já apareceu em
- * alguma busca, mais os que já têm conjunto salvo (um nicho pode ter frases e
- * a busca dele ter sido apagada depois). Nicho novo entra sozinho na próxima
- * carga — não existe cadastro manual de nicho em lugar nenhum.
+ * A lista que a tela de administração mostra: UMA linha por skin do
+ * REGISTRO, na ordem do registro. Skin nova aparece sozinha na próxima
+ * carga, só por ter sido registrada — não existe cadastro manual e nenhuma
+ * linha nasce de texto digitado numa busca.
  *
- * Nicho ainda sem frases vem como conjunto VAZIO, e não omitido: a tela
+ * Doc legado (chaveado pelo texto do nicho, antes da migração) simplesmente
+ * não casa com nenhum id de skin e não vira linha — é assim que as entradas
+ * duplicadas/com erro de digitação somem da tela. O texto delas não é
+ * apagado aqui: quem cuida disso é a migração (ver ./migracao.ts).
+ *
+ * Skin ainda sem frases vem como conjunto VAZIO, e não omitida: a tela
  * precisa dos três campos em branco pra você preencher, e um conjunto vazio
- * é exatamente o que faz o nicho não participar da precedência.
+ * é exatamente o que faz a skin não participar da precedência.
  */
-export async function montarConjuntos(
-  db: AppDb,
-): Promise<{ conjuntos: FrasesProspeccao[]; genericas: FrasesProspeccao }> {
-  const [{ nichos, genericas }, buscas] = await Promise.all([listConjuntos(db), listBuscas(db)]);
+export async function montarConjuntos(db: AppDb): Promise<{ conjuntos: ConjuntoSkin[] }> {
+  const salvos = new Map((await listConjuntos(db)).map((conjunto) => [conjunto.skinId, conjunto]));
 
-  // Chave normalizada → conjunto. Os salvos entram primeiro e mandam na
-  // grafia de exibição; a busca só acrescenta nicho que ainda não tem doc.
-  const porChave = new Map<string, FrasesProspeccao>();
-  for (const conjunto of nichos) {
-    porChave.set(chaveNicho(conjunto.nicho), conjunto);
-  }
-  for (const busca of buscas) {
-    const nicho = busca.nicho?.trim();
-    if (!nicho) continue;
-    const chave = chaveNicho(nicho);
-    // Um nicho de busca chamado como o doc reservado não pode virar linha:
-    // ele nunca teria conjunto próprio (ver validarConjuntoPatch).
-    if (chave === CHAVE_GENERICAS || porChave.has(chave)) continue;
-    porChave.set(chave, conjuntoVazio(nicho));
-  }
-
-  const conjuntos = [...porChave.values()].sort((a, b) =>
-    a.nicho.localeCompare(b.nicho, "pt-BR"),
-  );
-  return { conjuntos, genericas: genericas ?? { nicho: "", frases: ["", "", ""], indice: 0 } };
+  const conjuntos = SKINS.map((skin) => ({
+    ...(salvos.get(skin.id) ?? conjuntoVazio(skin.id)),
+    skinNome: skin.nome,
+    nicho: skin.nicho,
+  }));
+  return { conjuntos };
 }

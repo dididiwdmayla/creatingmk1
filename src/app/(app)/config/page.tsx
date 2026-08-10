@@ -21,9 +21,8 @@ import {
   type PresetPrecificacao,
 } from "@/lib/config";
 import type { Sku, UsoUsuario } from "@/lib/costs";
-import { chaveNicho } from "@/lib/frases/chave";
 import { frasesEfetivas, normalizarSlots, posicaoAtual } from "@/lib/frases/rotacao";
-import { CHAVE_GENERICAS, FRASES_SLOTS, type FrasesProspeccao } from "@/lib/frases/types";
+import { FRASES_SLOTS, type FrasesProspeccao } from "@/lib/frases/types";
 import { SLIDER_MAX_BRL, SLIDER_MIN_BRL, SLIDER_STEP_BRL } from "@/lib/precificacao/calc";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
 import type { LimitesUsuario, MetasUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
@@ -983,10 +982,11 @@ function MetasUsuariosSection() {
 }
 
 /**
- * Frases de abordagem por nicho (ver "Frases de prospecção por nicho" no
- * ARCHITECTURE.md). A lista vem pronta de GET /api/frases: TODO nicho que já
- * apareceu em alguma busca, mais os que já têm frases salvas — nicho novo
- * aparece sozinho aqui na próxima carga, sem cadastro manual e sem deploy.
+ * Frases de abordagem por SKIN (ver "Frases de prospecção por skin" no
+ * ARCHITECTURE.md). A lista vem pronta de GET /api/frases: uma linha por
+ * skin do registro — skin nova aparece aqui sozinha ao ser registrada, sem
+ * cadastro manual e sem deploy, e nada nesta tela nasce de texto digitado
+ * numa busca.
  *
  * Cada conjunto salva sozinho (PUT de um conjunto por vez), como as demais
  * seções auto-suficientes desta página — por isso vive FORA do formulário
@@ -994,8 +994,8 @@ function MetasUsuariosSection() {
  */
 function FrasesSection() {
   const [dados, setDados] = useState<FrasesResponse | null>(null);
-  // Rascunho por conjunto (chave do nicho normalizada, ou a do genérico):
-  // o que está nas caixas de texto antes de salvar.
+  // Rascunho por conjunto (id da skin): o que está nas caixas de texto
+  // antes de salvar.
   const [rascunhos, setRascunhos] = useState<Record<string, string[]>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState<string | null>(null);
@@ -1020,15 +1020,15 @@ function FrasesSection() {
     };
   }, []);
 
-  async function salvar(chave: string, nicho: string | null) {
-    setSalvando(chave);
+  async function salvar(skinId: string) {
+    setSalvando(skinId);
     setErro(null);
     setSalvo(null);
     try {
-      const { conjunto } = await api.salvarFrases(nicho, rascunhos[chave] ?? []);
-      setDados((atual) => (atual ? aplicarConjunto(atual, chave, conjunto) : atual));
-      setRascunhos((atual) => ({ ...atual, [chave]: normalizarSlots(conjunto.frases) }));
-      setSalvo(chave);
+      const { conjunto } = await api.salvarFrases(skinId, rascunhos[skinId] ?? []);
+      setDados((atual) => (atual ? aplicarConjunto(atual, conjunto) : atual));
+      setRascunhos((atual) => ({ ...atual, [skinId]: normalizarSlots(conjunto.frases) }));
+      setSalvo(skinId);
     } catch (error) {
       setErro(error instanceof ApiError ? error.message : "Falha ao salvar as frases.");
     } finally {
@@ -1039,13 +1039,14 @@ function FrasesSection() {
   return (
     <section className="rounded-lg border border-line bg-surface p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-        Frases de prospecção por nicho
+        Frases de prospecção por skin
       </h2>
       <p className="mt-1 text-xs text-ink-muted">
-        Três frases por nicho, girando 1 → 2 → 3 → 1. O contador é único por nicho e vale para
-        o time inteiro; ele só anda no clique de enviar pro WhatsApp — abrir a ficha, copiar ou
-        editar a frase não giram nada. Nicho sem nenhuma frase preenchida não participa: cai no
-        conjunto genérico, depois na mensagem do grupo e por fim na mensagem padrão global.
+        Três frases por skin da Forja, girando 1 → 2 → 3 → 1. O contador é único por skin e vale
+        para o time inteiro; ele só anda no clique de enviar pro WhatsApp — abrir a ficha, copiar
+        ou editar a frase não giram nada. A frase vale para o lead cuja DEMO usa aquela skin: skin
+        sem nenhuma frase preenchida não participa, e lead sem demo cai na mensagem do grupo e
+        depois na mensagem padrão global.
       </p>
       <p className="mt-1 text-xs text-ink-muted">
         Valem os mesmos marcadores da mensagem padrão: <code className="font-mono">{"{nome}"}</code>,{" "}
@@ -1057,40 +1058,21 @@ function FrasesSection() {
         {dados === null ? (
           <SkeletonRows count={3} className="h-44 rounded border border-line" />
         ) : (
-          <>
+          dados.conjuntos.map((conjunto) => (
             <ConjuntoFrasesEditor
-              titulo="Conjunto genérico (fallback)"
-              descricao="Usado quando o nicho do lead não tem frases próprias."
-              conjunto={dados.genericas}
-              valor={rascunhos[CHAVE_GENERICAS] ?? ["", "", ""]}
+              key={conjunto.skinId}
+              titulo={conjunto.skinNome}
+              descricao={`Skin ${conjunto.nicho} · ${conjunto.skinId}`}
+              conjunto={conjunto}
+              valor={rascunhos[conjunto.skinId] ?? ["", "", ""]}
               onChange={(frases) =>
-                setRascunhos((atual) => ({ ...atual, [CHAVE_GENERICAS]: frases }))
+                setRascunhos((atual) => ({ ...atual, [conjunto.skinId]: frases }))
               }
-              salvando={salvando === CHAVE_GENERICAS}
-              salvo={salvo === CHAVE_GENERICAS}
-              onSalvar={() => salvar(CHAVE_GENERICAS, null)}
+              salvando={salvando === conjunto.skinId}
+              salvo={salvo === conjunto.skinId}
+              onSalvar={() => salvar(conjunto.skinId)}
             />
-            {dados.conjuntos.map((conjunto) => {
-              const chave = chaveNicho(conjunto.nicho);
-              return (
-                <ConjuntoFrasesEditor
-                  key={chave}
-                  titulo={conjunto.nicho}
-                  conjunto={conjunto}
-                  valor={rascunhos[chave] ?? ["", "", ""]}
-                  onChange={(frases) => setRascunhos((atual) => ({ ...atual, [chave]: frases }))}
-                  salvando={salvando === chave}
-                  salvo={salvo === chave}
-                  onSalvar={() => salvar(chave, conjunto.nicho)}
-                />
-              );
-            })}
-            {dados.conjuntos.length === 0 && (
-              <p className="text-sm text-ink-muted">
-                Nenhum nicho ainda — a primeira busca já traz o nicho dela para cá.
-              </p>
-            )}
-          </>
+          ))
         )}
       </div>
 
@@ -1099,27 +1081,25 @@ function FrasesSection() {
   );
 }
 
-/** Rascunhos iniciais: o que está salvo, por chave de conjunto. */
+/** Rascunhos iniciais: o que está salvo, por id de skin. */
 function rascunhosDe(resposta: FrasesResponse): Record<string, string[]> {
-  const rascunhos: Record<string, string[]> = {
-    [CHAVE_GENERICAS]: normalizarSlots(resposta.genericas.frases),
-  };
+  const rascunhos: Record<string, string[]> = {};
   for (const conjunto of resposta.conjuntos) {
-    rascunhos[chaveNicho(conjunto.nicho)] = normalizarSlots(conjunto.frases);
+    rascunhos[conjunto.skinId] = normalizarSlots(conjunto.frases);
   }
   return rascunhos;
 }
 
-/** Substitui um conjunto na resposta carregada, preservando a ordem da lista. */
-function aplicarConjunto(
-  atual: FrasesResponse,
-  chave: string,
-  conjunto: FrasesProspeccao,
-): FrasesResponse {
-  if (chave === CHAVE_GENERICAS) return { ...atual, genericas: conjunto };
+/**
+ * Substitui um conjunto na resposta carregada, preservando a ordem da lista
+ * e o nome/nicho da skin (o PUT devolve só o conjunto salvo).
+ */
+function aplicarConjunto(atual: FrasesResponse, conjunto: FrasesProspeccao): FrasesResponse {
   return {
     ...atual,
-    conjuntos: atual.conjuntos.map((c) => (chaveNicho(c.nicho) === chave ? conjunto : c)),
+    conjuntos: atual.conjuntos.map((c) =>
+      c.skinId === conjunto.skinId ? { ...c, ...conjunto } : c,
+    ),
   };
 }
 

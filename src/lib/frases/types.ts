@@ -11,30 +11,21 @@ export const FRASES_SLOTS = 3;
 export const FRASE_MAX = 1000;
 
 /**
- * ID do doc do conjunto GENÉRICO de fallback, na mesma coleção dos nichos.
- * Um doc por nicho + este: assim rotação, edição e leitura têm um único
- * caminho de código. Um nicho cuja forma normalizada bata este id é
- * rejeitado na escrita (ver `validarConjuntoPatch`) — sem isso, um nicho
- * chamado "__genericas__" sobrescreveria o conjunto de fallback.
- */
-export const CHAVE_GENERICAS = "__genericas__";
-
-/**
- * Conjunto de frases de abordagem de UM nicho (ou o genérico de fallback),
- * com o contador de rotação COMPARTILHADO: um só contador por nicho, valendo
- * para todos os leads e todos os membros do time.
+ * Conjunto de frases de abordagem de UMA SKIN do registro, com o contador
+ * de rotação COMPARTILHADO: um contador por skin, valendo para todos os
+ * leads que usam aquela skin e para todos os membros do time.
  *
- * Persistido em /frasesProspeccao/{chave} — ver "Frases de prospecção por
- * nicho" no ARCHITECTURE.md. As frases usam os MESMOS marcadores da mensagem
- * global e da mensagem por grupo ({nome}, {demo}, {penetracao}); nenhum
- * marcador novo existe.
+ * Persistido em /frasesProspeccao/{skinId} — ver "Frases de prospecção por
+ * skin" no ARCHITECTURE.md. A chave é o **id da skin registrada**, nunca o
+ * texto do nicho digitado na busca: texto livre gerava um conjunto novo a
+ * cada grafia ("Barbearia", "barbearia old school", "barbería").
+ *
+ * As frases usam os MESMOS marcadores da mensagem global e da mensagem por
+ * grupo ({nome}, {demo}, {penetracao}); nenhum marcador novo existe.
  */
 export interface FrasesProspeccao {
-  /**
-   * Grafia de exibição do nicho, como veio da busca (não normalizada) — a
-   * chave do doc é que é normalizada. String vazia no conjunto genérico.
-   */
-  nicho: string;
+  /** Id da skin no registro (`lib/demos/registry.ts`) — é também o id do doc. */
+  skinId: string;
   /**
    * Sempre `FRASES_SLOTS` posições; slot vazio = não preenchido. Guardar os
    * slots vazios (em vez de compactar a lista) mantém a numeração estável na
@@ -48,6 +39,19 @@ export interface FrasesProspeccao {
    * aceitável — o custo de uma trava não se paga aqui.
    */
   indice: number;
-  /** Ausente = conjunto nunca salvo (sintetizado vazio para um nicho novo). */
+  /** Ausente = conjunto nunca salvo (sintetizado vazio para uma skin nova). */
   atualizadoEm?: string;
+}
+
+/**
+ * O conjunto + a identidade da skin, como a tela de administração precisa.
+ * Montado no SERVIDOR (`montarConjuntos`) porque o registro de skins arrasta
+ * os componentes das 8 skins junto — `/config` não pode importá-lo só para
+ * ler nome e nicho.
+ */
+export interface ConjuntoSkin extends FrasesProspeccao {
+  /** Nome de exibição da skin no registro ("Barbearia Sul"). */
+  skinNome: string;
+  /** Nicho da skin no registro ("barbearia") — só rótulo, nunca chave. */
+  nicho: string;
 }

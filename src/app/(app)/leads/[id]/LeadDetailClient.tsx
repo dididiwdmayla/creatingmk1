@@ -139,15 +139,16 @@ export function LeadDetailClient({ id }: { id: string }) {
     };
   }, [id]);
 
-  // Resolvida no corpo do componente (função pura, sem efeito): frases do
-  // nicho → genéricas → mensagem do grupo → mensagem global.
+  // Resolvida no corpo do componente (função pura, sem efeito): frases da
+  // skin da demo → mensagem do grupo → mensagem global. Sem demo, a
+  // precedência começa no grupo — e a caixa passa a mostrar a frase da skin
+  // sozinha assim que o lead ganha uma demo.
   const resolvida =
     lead && config
       ? resolverMensagem({
           lead,
           buscas,
           conjuntos: frases?.conjuntos ?? [],
-          genericas: frases?.genericas,
           global: config.mensagemPadrao,
         })
       : null;
@@ -162,8 +163,10 @@ export function LeadDetailClient({ id }: { id: string }) {
     if (!rotacao) return;
     setRascunho(null);
     api
-      .avancarFrase(rotacao.nicho)
-      .then(({ indice }) => setFrases((atual) => comIndiceAtualizado(atual, rotacao.nicho, indice)))
+      .avancarFrase(rotacao.skinId)
+      .then(({ indice }) =>
+        setFrases((atual) => comIndiceAtualizado(atual, rotacao.skinId, indice)),
+      )
       .catch(() => {
         // rotação é cortesia, como o selo: falhar aqui não desfaz o envio
       });

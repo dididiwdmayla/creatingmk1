@@ -6,6 +6,7 @@ import {
   normalizarSlots,
   posicaoAtual,
   proximoIndice,
+  slotAtual,
 } from "../rotacao";
 
 const TRES = ["primeira", "segunda", "terceira"];
@@ -57,6 +58,20 @@ describe("rotação 1→2→3→1", () => {
     const conjunto = { frases: ["única", "", ""], indice: 0 };
     expect(fraseAtual(conjunto)).toBe("única");
     expect(proximoIndice(conjunto)).toBe(0);
+  });
+});
+
+describe("slotAtual", () => {
+  it("é o SLOT do campo, não a posição entre as preenchidas", () => {
+    const conjunto = { frases: ["a", "", "c"] };
+
+    expect(posicaoAtual({ ...conjunto, indice: 1 })).toBe(1);
+    expect(slotAtual({ ...conjunto, indice: 1 })).toBe(2);
+    expect(slotAtual({ ...conjunto, indice: 0 })).toBe(0);
+  });
+
+  it("conjunto vazio não tem slot da vez", () => {
+    expect(slotAtual({ frases: ["", "", ""], indice: 0 })).toBeUndefined();
   });
 });
 

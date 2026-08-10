@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BUSCAS_COLLECTION } from "@/lib/buscas/types";
-import { CHAVE_GENERICAS, FRASES_COLLECTION } from "@/lib/frases/types";
+import { SKINS } from "@/lib/demos/registry";
+import { FRASES_COLLECTION } from "@/lib/frases/types";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { cookieDeSessao } from "@/lib/testing/sessao";
 import { POST as AVANCAR } from "../frases/avancar/route";
 import { GET, PUT } from "../frases/route";
 
 let db: FakeFirestore;
+
+const BARBEARIA = "barbearia-editorial";
 
 vi.mock("@/lib/firebase/admin", () => ({ getDb: () => db }));
 
@@ -30,66 +32,52 @@ function corpoRequest(path: string, method: string, body: unknown, cookie?: stri
 
 const putRequest = (body: unknown, cookie?: string) =>
   corpoRequest("/api/frases", "PUT", body, cookie);
-const avancarRequest = (body: unknown) =>
-  corpoRequest("/api/frases/avancar", "POST", body);
+const avancarRequest = (body: unknown) => corpoRequest("/api/frases/avancar", "POST", body);
 
-function seedBusca(id: string, nicho: string) {
-  db.seed(`${BUSCAS_COLLECTION}/${id}`, {
-    id,
-    nome: `${nicho} 01/08`,
-    nicho,
-    regiao: "Sarandi PR",
-    cor: "#2f82e0",
-    criadaEm: "2026-08-01T00:00:00.000Z",
-    totalCriados: 3,
-    totalExistentes: 0,
-  });
+interface ConjuntoJson {
+  skinId: string;
+  skinNome: string;
+  nicho: string;
+  frases: string[];
+  indice: number;
+}
+
+async function listar(): Promise<ConjuntoJson[]> {
+  const { conjuntos } = await (await GET()).json();
+  return conjuntos;
+}
+
+function doConjunto(conjuntos: ConjuntoJson[], skinId: string): ConjuntoJson {
+  const achado = conjuntos.find((c) => c.skinId === skinId);
+  if (!achado) throw new Error(`skin ${skinId} fora da listagem`);
+  return achado;
 }
 
 describe("GET /api/frases", () => {
-  it("lista todo nicho já visto em busca, mesmo sem frases preenchidas", async () => {
-    seedBusca("b1", "dentista");
-    seedBusca("b2", "petshop");
+  it("lista UMA entrada por skin do registro, mesmo sem frases preenchidas", async () => {
+    const conjuntos = await listar();
 
-    const { conjuntos, genericas } = await (await GET()).json();
-
-    expect(conjuntos.map((c: { nicho: string }) => c.nicho)).toEqual(["dentista", "petshop"]);
+    expect(conjuntos.map((c) => c.skinId)).toEqual(SKINS.map((skin) => skin.id));
     expect(conjuntos[0].frases).toEqual(["", "", ""]);
-    expect(genericas.frases).toEqual(["", "", ""]);
   });
 
-  it("nicho novo entra sozinho na listagem, sem cadastro manual", async () => {
-    seedBusca("b1", "dentista");
-    const antes = await (await GET()).json();
-    expect(antes.conjuntos).toHaveLength(1);
+  it("devolve nome e nicho da skin resolvidos (a tela não importa o registro)", async () => {
+    const conjunto = doConjunto(await listar(), BARBEARIA);
 
-    seedBusca("b2", "tatuagem");
-
-    const depois = await (await GET()).json();
-    expect(depois.conjuntos.map((c: { nicho: string }) => c.nicho)).toEqual([
-      "dentista",
-      "tatuagem",
-    ]);
+    expect(conjunto.skinNome).toBe("Barbearia Editorial");
+    expect(conjunto.nicho).toBe("barbearia");
   });
 
-  it("grafias diferentes do mesmo nicho viram UMA linha", async () => {
-    seedBusca("b1", "Dentista");
-    seedBusca("b2", "  dentista ");
+  it("doc legado chaveado por texto de nicho NÃO vira linha na tela", async () => {
+    db.seed(`${FRASES_COLLECTION}/barbearia`, { nicho: "barbearia", frases: ["antiga", "", ""] });
+    db.seed(`${FRASES_COLLECTION}/__genericas__`, { nicho: "", frases: ["genérica", "", ""] });
 
-    const { conjuntos } = await (await GET()).json();
+    const conjuntos = await listar();
 
-    expect(conjuntos).toHaveLength(1);
-  });
-
-  it("nicho com conjunto salvo mas sem busca continua na lista", async () => {
-    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
-    await PUT(putRequest({ nicho: "barbearia", frases: ["a", "", ""] }, cookie));
-
-    const { conjuntos } = await (await GET()).json();
-
-    expect(conjuntos).toEqual([
-      expect.objectContaining({ nicho: "barbearia", frases: ["a", "", ""] }),
-    ]);
+    expect(conjuntos).toHaveLength(SKINS.length);
+    expect(conjuntos.every((c) => c.frases[0] !== "antiga" && c.frases[0] !== "genérica")).toBe(
+      true,
+    );
   });
 });
 
@@ -97,26 +85,22 @@ describe("PUT /api/frases (restrito ao admin)", () => {
   it("admin salva os três slots e o GET seguinte reflete", async () => {
     const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
 
-    const res = await PUT(putRequest({ nicho: "dentista", frases: ["a", "b", "c"] }, cookie));
+    const res = await PUT(putRequest({ skinId: BARBEARIA, frases: ["a", "b", "c"] }, cookie));
 
     expect(res.status).toBe(200);
-    const { conjuntos } = await (await GET()).json();
-    expect(conjuntos[0].frases).toEqual(["a", "b", "c"]);
+    expect(doConjunto(await listar(), BARBEARIA).frases).toEqual(["a", "b", "c"]);
   });
 
-  it("salva o conjunto genérico com nicho null", async () => {
+  it("cada skin tem o seu conjunto — salvar uma não mexe na irmã do mesmo nicho", async () => {
     const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
 
-    await PUT(putRequest({ nicho: null, frases: ["g1", "g2", "g3"] }, cookie));
+    await PUT(putRequest({ skinId: BARBEARIA, frases: ["a", "", ""] }, cookie));
 
-    const { genericas, conjuntos } = await (await GET()).json();
-    expect(genericas.frases).toEqual(["g1", "g2", "g3"]);
-    // O genérico não vira linha de nicho na tela.
-    expect(conjuntos).toEqual([]);
+    expect(doConjunto(await listar(), "barbearia2-sul").frases).toEqual(["", "", ""]);
   });
 
   it("sem sessão → 401 unauthorized", async () => {
-    const res = await PUT(putRequest({ nicho: "dentista", frases: [] }));
+    const res = await PUT(putRequest({ skinId: BARBEARIA, frases: [] }));
 
     expect(res.status).toBe(401);
     expect((await res.json()).error.code).toBe("unauthorized");
@@ -125,7 +109,7 @@ describe("PUT /api/frases (restrito ao admin)", () => {
   it("membro → 403 forbidden", async () => {
     const cookie = await cookieDeSessao(db, { id: "m1", papel: "membro" });
 
-    const res = await PUT(putRequest({ nicho: "dentista", frases: [] }, cookie));
+    const res = await PUT(putRequest({ skinId: BARBEARIA, frases: [] }, cookie));
 
     expect(res.status).toBe(403);
     expect((await res.json()).error.code).toBe("forbidden");
@@ -134,7 +118,7 @@ describe("PUT /api/frases (restrito ao admin)", () => {
   it("corpo inválido → 400 validation_error com problemas", async () => {
     const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
 
-    const res = await PUT(putRequest({ nicho: "a", frases: [1], indice: 9 }, cookie));
+    const res = await PUT(putRequest({ skinId: BARBEARIA, frases: [1], indice: 9 }, cookie));
 
     expect(res.status).toBe(400);
     const { error } = await res.json();
@@ -142,69 +126,60 @@ describe("PUT /api/frases (restrito ao admin)", () => {
     expect(error.problemas).toEqual(["chave desconhecida: indice", "frases[0] deve ser string"]);
   });
 
-  it("nicho reservado pelo conjunto genérico → 400", async () => {
+  it("skinId fora do registro → 400 e nenhum doc criado", async () => {
     const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
 
-    const res = await PUT(putRequest({ nicho: CHAVE_GENERICAS, frases: ["x"] }, cookie));
+    const res = await PUT(putRequest({ skinId: "barbearia old school", frases: ["x"] }, cookie));
 
     expect(res.status).toBe(400);
-    expect(db.getDoc(`${FRASES_COLLECTION}/${CHAVE_GENERICAS}`)).toBeUndefined();
+    expect(db.getDoc(`${FRASES_COLLECTION}/barbearia old school`)).toBeUndefined();
   });
 });
 
 describe("POST /api/frases/avancar", () => {
-  async function seedFrases(nicho: string | null, frases: string[]) {
+  async function seedFrases(skinId: string, frases: string[]) {
     const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
-    await PUT(putRequest({ nicho, frases }, cookie));
+    await PUT(putRequest({ skinId, frases }, cookie));
   }
 
   it("gira 1→2→3→1 no contador compartilhado", async () => {
-    await seedFrases("dentista", ["a", "b", "c"]);
+    await seedFrases(BARBEARIA, ["a", "b", "c"]);
 
     const indices: number[] = [];
     for (let i = 0; i < 4; i++) {
-      indices.push((await (await AVANCAR(avancarRequest({ nicho: "dentista" }))).json()).indice);
+      indices.push((await (await AVANCAR(avancarRequest({ skinId: BARBEARIA }))).json()).indice);
     }
 
     expect(indices).toEqual([1, 2, 0, 1]);
   });
 
   it("qualquer sessão avança — o contador é do time inteiro", async () => {
-    await seedFrases("dentista", ["a", "b", "c"]);
+    await seedFrases(BARBEARIA, ["a", "b", "c"]);
 
-    const res = await AVANCAR(avancarRequest({ nicho: "dentista" }));
+    const res = await AVANCAR(avancarRequest({ skinId: BARBEARIA }));
 
     expect(res.status).toBe(200);
   });
 
   it("avançar não sobrescreve os textos que o admin acabou de salvar", async () => {
-    await seedFrases("dentista", ["a", "b", "c"]);
+    await seedFrases(BARBEARIA, ["a", "b", "c"]);
 
-    await AVANCAR(avancarRequest({ nicho: "dentista" }));
+    await AVANCAR(avancarRequest({ skinId: BARBEARIA }));
 
-    const { conjuntos } = await (await GET()).json();
-    expect(conjuntos[0].frases).toEqual(["a", "b", "c"]);
-    expect(conjuntos[0].indice).toBe(1);
+    const conjunto = doConjunto(await listar(), BARBEARIA);
+    expect(conjunto.frases).toEqual(["a", "b", "c"]);
+    expect(conjunto.indice).toBe(1);
   });
 
-  it("nicho sem conjunto salvo devolve 0 e não cria doc", async () => {
-    const res = await AVANCAR(avancarRequest({ nicho: "inexistente" }));
+  it("skin sem conjunto salvo devolve 0 e não cria doc", async () => {
+    const res = await AVANCAR(avancarRequest({ skinId: BARBEARIA }));
 
     expect((await res.json()).indice).toBe(0);
-    const { conjuntos } = await (await GET()).json();
-    expect(conjuntos).toEqual([]);
+    expect(db.getDoc(`${FRASES_COLLECTION}/${BARBEARIA}`)).toBeUndefined();
   });
 
-  it("avança o conjunto genérico com nicho null", async () => {
-    await seedFrases(null, ["g1", "g2", ""]);
-
-    const res = await AVANCAR(avancarRequest({ nicho: null }));
-
-    expect((await res.json()).indice).toBe(1);
-  });
-
-  it("nicho inválido → 400", async () => {
-    const res = await AVANCAR(avancarRequest({ nicho: 7 }));
+  it("skin fora do registro → 400", async () => {
+    const res = await AVANCAR(avancarRequest({ skinId: "dentista" }));
 
     expect(res.status).toBe(400);
     expect((await res.json()).error.code).toBe("validation_error");
