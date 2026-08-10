@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { PontoContato, SeloContato } from "./SeloContato";
+import { FaixaContato, SeloContato } from "./SeloContato";
 import { StatusBadge } from "./StatusBadge";
 import { ApiError, api } from "@/lib/api-client";
 import type { NomesUsuarios } from "@/lib/contato-selo";
@@ -207,9 +207,12 @@ export function LeadCard({
       >
         {densidade === 4 ? (
           // Cor, nome curto e ponto de status — o mínimo que ainda
-          // identifica a linha e diz em que pé ela está.
+          // identifica a linha e diz em que pé ela está. A faixa de contato
+          // entra ANTES do nome: depois dele, numa coluna de ~85px, ela
+          // seria a primeira coisa a sumir por falta de espaço.
           <span className="flex items-center gap-1">
             {pontosCor}
+            <FaixaContato lead={lead} nomes={nomes} />
             <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
               {lead.nome}
             </span>
@@ -223,6 +226,7 @@ export function LeadCard({
             <span className="flex items-center gap-1.5">
               {scoreChip}
               <StatusBadge status={lead.status} variante="glifo" />
+              <FaixaContato lead={lead} nomes={nomes} />
             </span>
           </>
         ) : (
@@ -236,7 +240,7 @@ export function LeadCard({
             <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               <StatusBadge status={lead.status} />
               <PresencaCurta lead={lead} />
-              <PontoContato lead={lead} nomes={nomes} />
+              <FaixaContato lead={lead} nomes={nomes} />
               {pontosCor}
             </span>
           </>
