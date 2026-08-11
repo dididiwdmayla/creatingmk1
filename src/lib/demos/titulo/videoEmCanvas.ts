@@ -70,7 +70,7 @@ export function useVideoEmCanvas({
     let pedido = 0;
     let porFrameDeVideo = false;
 
-    const desenhar = () => {
+    const pintar = () => {
       if (!vivo) return;
       const vw = video.videoWidth;
       const vh = video.videoHeight;
@@ -93,6 +93,10 @@ export function useVideoEmCanvas({
           canvas.height,
         );
       }
+    };
+
+    const desenharEAgendar = () => {
+      pintar();
       agendar();
     };
 
@@ -100,16 +104,27 @@ export function useVideoEmCanvas({
       if (!vivo) return;
       if (typeof video.requestVideoFrameCallback === "function") {
         porFrameDeVideo = true;
-        pedido = video.requestVideoFrameCallback(desenhar);
+        pedido = video.requestVideoFrameCallback(desenharEAgendar);
       } else {
         porFrameDeVideo = false;
-        pedido = requestAnimationFrame(desenhar);
+        pedido = requestAnimationFrame(desenharEAgendar);
       }
     };
 
+    // Uma pintura IMEDIATA antes de agendar: mexer em `canvas.width` limpa
+    // o bitmap, e este efeito roda de novo a cada recontagem da caixa
+    // (trocar alinhamento, escala, entre-letras…). Sem ela, o título
+    // ficaria só com o contorno até o próximo quadro do vídeo — um título
+    // sem preenchimento é pior que o defeito que se está corrigindo.
+    pintar();
+    // `loadeddata` cobre o outro lado: efeito montado antes de existir
+    // qualquer quadro decodificado, onde `pintar()` acima não teve o que
+    // desenhar e o `rAF` de fallback não sabe esperar por vídeo.
+    video.addEventListener("loadeddata", pintar);
     agendar();
     return () => {
       vivo = false;
+      video.removeEventListener("loadeddata", pintar);
       if (porFrameDeVideo) video.cancelVideoFrameCallback?.(pedido);
       else cancelAnimationFrame(pedido);
     };

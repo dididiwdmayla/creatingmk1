@@ -21,7 +21,7 @@ scripts/
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
   qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma"); `--so=listas` é o PORTÃO das duas listas longas (/leads e /buscas no celular, dirigindo os controles de verdade): nenhuma linha com altura zero, nada vazando da viewport e a compactação MEDIDA (ver "Compactação de /leads e /buscas")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
-  qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia e prova que o seletor de fontes de título alcança o título — desktop e celular × (nome curto/longo com quebra/longo sem quebra × nível imagem e vídeo) (ver "Título hero: uma caixa de texto, a mídia como máscara")
+  qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia, prova que o seletor de fontes alcança o título, refaz tudo com ALINHAMENTO/ESCALA/ENTRE-LETRAS trocados POR CÓDIGO (sem remontar) e mede a FAIXA ACIMA do título depois do repique da rolagem contra a mesma faixa sem vídeo — desktop e celular (ver "Título hero: uma caixa de texto, a mídia como máscara" e "O rastro na borda superior")
   capturas-ci.mjs                   # ✅ orquestrador do workflow: move o estado no doc do lead e chama o motor como processo filho (não captura nada por conta própria)
   capturas.mjs                      # ✅ MOTOR DE CAPTURA das demos (prints de prospecção): por âncora marcada × celular/desktop, enquadra a SEÇÃO inteira via `[data-d-secao]`, congela as animações (mesma técnica do qa-visual) e reprova se sobrou cromo fixo por cima do título; `--lead` captura a rota pública, `--skin`/`--skins` o harness (ver "Capturas por âncora de seção")
 src/
@@ -255,6 +255,11 @@ src/
         LedEdges.tsx                 #    ✅ componente ÚNICO (client) usado pelas 8 skins — todo o CSS dos 4 estilos vive aqui, sem import dinâmico por estilo
         __tests__/registry.test.ts  #    contrato do registro (ids únicos, nichos não vazios)
         __tests__/LedEdges.test.tsx #    DOM por estilo (2 barras / 4 cantos / 4 lados), fallback pro estilo padrão, pulso de clique
+      titulo/                        # ✅ VÍDEO-NO-TÍTULO: mecanismo compartilhado (opt-in por skin via SkinDefinition.videoSlots)
+        Wordmark.tsx                #    ✅ componente ÚNICO (client): UMA caixa de texto, a mídia é o preenchimento dela; a skin reexporta numa linha, como LedEdges
+        MascaraDoTexto.tsx          #    ✅ máscara DERIVADA das linhas da caixa (nunca uma 2ª cópia do texto) + useMedidaDoTexto, a medição VIVA
+        videoEmCanvas.ts            #    ✅ o vídeo pintado num <canvas> do tamanho da caixa — <video> ganha camada de composição própria e escapa da máscara (ver "O rastro na borda superior")
+        useNivelMidia.ts            #    ✅ vídeo → imagem → nada (conexão lenta, prefers-reduced-motion, vídeo que falhou)
     testing/
       fake-firestore.ts             # ✅ fake em memória com semântica de transação + paridade de path de coleção
       fake-firestore.test.ts        # ✅ paridade de segmentos do path (.collection() ímpar, como o SDK real)
@@ -294,7 +299,7 @@ src/
       tatuagem/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
         GothicLetters.tsx           # letras góticas gigantes atrás do conteúdo (chrome fixo)
-        Wordmark.tsx                # assinatura tipográfica (gradiente + contorno multicor, CSS puro) + overlay de vídeo-no-título
+        Wordmark.tsx                # ✅ reexporta o componente único (src/lib/demos/titulo/Wordmark.tsx)
         secoes.ts                   # contrato SkinSecaoDef[]
         themes.ts                   # default + presets de tema
         exemplo.ts                  # DemoData de exemplo (base da ficha)
@@ -307,7 +312,6 @@ src/
           IntroExperience.tsx        # orquestra cursor + intro + sessionStorage
           IntroLoader.tsx            # splash letra-a-letra fiel ao original
           LedEdges.tsx               # ✅ reexporta o componente único (src/lib/demos/led/LedEdges.tsx)
-          VideoNoTitulo.tsx          # ✅ vídeo/imagem mascarados pelas letras do wordmark (SVG mask + foreignObject)
       lancheria/
         Skin.tsx                    # composição { data, theme }, sem hooks próprios
         secoes.ts                   # contrato SkinSecaoDef[]
@@ -1285,8 +1289,9 @@ navegador, medida" em Verificação da UI) e `docs/temas/barra-demo.md`.
 
 Slot de conteúdo **opt-in por skin** (hoje só a tatuagem, slot `"titulo"`): vídeo rodando dentro das letras do wordmark, com o **texto como máscara** — fiel ao efeito do material bruto original (que usava um vídeo com máscara SVG; a conversão inicial da skin havia trocado isso por um efeito 100% CSS pra manter a Forja livre de assets binários — ver `Wordmark.tsx`). Ao contrário de `imagens`, **`videos` nunca tem placeholder**: a Forja não versiona vídeo de terceiros, e a ausência é o estado normal.
 
-- **Técnica** (`interactive/VideoNoTitulo.tsx`, "use client", camada por CIMA do wordmark CSS que continua sendo a base sempre renderizada): um `<svg>` com `<mask>` contendo um `<text>` (herda `font-family`/tamanho do `.d-wordmark` por CSS normal, já que é inline no DOM — sem precisar casar métricas manualmente) recorta um `<foreignObject>` com o `<video>` (ou, no fallback, um `<image>` de SVG).
-- **Três níveis de fallback, do mais rico ao mais seguro**: 1) vídeo mascarado, se houver `dados.videos.titulo`, a conexão não for lenta (`navigator.connection.saveData`/`effectiveType`, quando suportado) e `prefers-reduced-motion` não estiver ativo; 2) imagem mascarada (`dados.imagens.hero`) se o vídeo faltar, falhar (`onError`/`onStalled`) ou a conexão for lenta; 3) nada — a base CSS (gradiente + contorno multicor) do `Wordmark.tsx` continua visível por baixo. A decisão roda num `useEffect` deferido (`setTimeout(…, 0)`, mesmo padrão de `CustomCursor.tsx`) pra não chamar `setState` sincronamente no corpo do efeito.
+- **Técnica** (`src/lib/demos/titulo/`, "use client" — MECANISMO COMPARTILHADO, não da tatuagem: cada skin reexporta `Wordmark` numa linha, como já faz com `LedEdges`): UMA caixa de texto (`.d-wordmark-text`) e a mídia é o PREENCHIMENTO dela. No nível `imagem`, a foto entra por `background-image` da própria caixa, que já tem `background-clip: text`. No nível `video`, um `<svg>` com `<mask>` — cujas linhas são MEDIDAS da caixa, uma `<text>` por linha renderizada — recorta um `<foreignObject>` com um `<canvas>` no qual o vídeo é pintado quadro a quadro. A máscara herda `font-family`/tamanho do `.d-wordmark` por CSS normal (é inline no DOM), sem casar métricas na mão.
+  - **Por que `<canvas>` e não o `<video>` direto no `<foreignObject>`** — ver "O rastro na borda superior" abaixo: `<video>` ganha camada de composição PRÓPRIA e a `<mask>` é operação de PINTURA, que não faz parte do estado dessa camada.
+- **Três níveis de fallback, do mais rico ao mais seguro**: 1) vídeo mascarado, se houver `dados.videos.titulo`, a conexão não for lenta (`navigator.connection.saveData`/`effectiveType`, quando suportado) e `prefers-reduced-motion` não estiver ativo; 2) imagem mascarada (`dados.imagens.hero`) se o vídeo faltar, falhar (`onError`/`onStalled`) ou a conexão for lenta; 3) nada — a base CSS (gradiente + contorno multicor) da própria caixa de texto continua visível. A decisão roda num `useEffect` deferido (`setTimeout(…, 0)`, mesmo padrão de `CustomCursor.tsx`) pra não chamar `setState` sincronamente no corpo do efeito.
 - **Upload**: `POST /api/leads/[id]/demo/videos` (multipart `slot` + `arquivo` + `skinId?`), mp4/webm, **~15MB** de teto (bem maior que o de imagem — o editor avisa do peso e do fallback automático). Grava em `demos/{leadId}/video-{slot}-{ts}.{ext}` (prefixo `video-` nunca colide com uma imagem do mesmo nome de slot) via `src/lib/demos/videos.ts` (mesma interface `DemoStorage` de `imagens.ts`). `DELETE` aceita `skinId` opcional no corpo (cobre remover antes do primeiro save, quando `lead.demo` ainda não existe). "Excluir demo" já cobre a limpeza: apaga todo o prefixo `demos/{leadId}/`, vídeos inclusos.
 - Sem compressão client-side (ao contrário de imagem): vídeo não é reencodado no browser: o teto e o aviso de peso são a defesa contra upload gigante.
 
@@ -1296,8 +1301,10 @@ O título principal (hero) ganha controles próprios, separados do resto da tipo
 
 - **Texto**: `dados.secoes.hero.titulo`, com fallback pro nome do negócio (`s.hero?.titulo ?? data.nome`) em TODAS as skins que têm título hero. Quem preenche esse campo é `dadosDoLead` (`montarDemoData`), com o nome do lead já quebrado em duas linhas por `quebrarTitulo` — então na prática ele existe em toda demo salva e é sempre ele que aparece. **Nenhum `demoDataExemplo` declara `secoes.hero.titulo`**, de propósito: copy de exemplo estática aí apareceria no lugar do nome real de um lead novo. Como o painel Conteúdo só monta os campos de seção presentes no exemplo, o campo do título ficava de fora — e o título não tinha como ser editado (ver "Título hero: uma caixa de texto, a mídia como máscara"); hoje ele é uma exceção explícita do painel (`campoSempre` em `paineis.tsx`), coberta por `__tests__/hero-titulo.test.tsx` para todas as skins do registro. Esvaziar o campo devolve o título ao nome do lead — campo de seção vazio sai do patch e volta à base (ver `diffSecao` em `lib/demos/patch.ts`).
 - **Fonte**: `tema.heroTitulo.fonte`, id da lista curada (papel `"display"`); ausente = acompanha `fonteDisplay`/`fontes.display` do preset (permite trocar SÓ o título hero sem afetar os outros títulos da skin).
-- **Tamanho**: `tema.heroTitulo.escala` (slider, passo 0.05) multiplica o `clamp()` de tamanho da skin via `calc()`; recortado por `SkinDefinition.heroEscalaLimites` em `aplicarTema`.
+- **Tamanho**: `tema.heroTitulo.escala` (slider, passo 0.05) multiplica o `clamp()` de tamanho da skin via `calc()`; recortado por `SkinDefinition.heroEscalaLimites` em `aplicarTema`. O teto PADRÃO (`ESCALA_LIMITES_PADRAO`, para quem não declara os próprios) e o da `tatuagem-editorial` são **1.70**; as demais skins mantêm o teto que declararam.
+- **Entre-letras**: `tema.heroTitulo.espacamento`, em `em` e **somado** ao que a skin já usa (`calc(0.04em + var(--d-hero-espacamento, 0em))` na tatuagem), nunca no lugar dele — `0` mantém a assinatura do material bruto intocada. Em `em` e não em px para acompanhar a escala em vez de apertar as letras quando o título cresce; recortado em `[-0.05, 0.3]` (`ESPACAMENTO_HERO_LIMITES`) porque acima disso o título vira letras soltas. Campo OBRIGATÓRIO de `HeroTituloTema` (os 12 presets das 8 skins declaram `espacamento: 0`) e não opcional: `aplicarTema` devolve o preset intocado quando não há patch, então um campo opcional sairia `undefined` no caminho mais comum de todos.
 - **Alinhamento**: `tema.heroTitulo.alinhamento` (esquerda/centro/direita) — `text-align` (tatuagem, bloco centralizado por padrão) ou `self-*`/`text-align` (barbearia, bloco à esquerda por padrão) no elemento do título, sem afetar o resto do hero.
+- **Escala, entre-letras, fonte, alinhamento e texto disparam a MESMA recontagem da máscara do vídeo** — ver "A medição tem de ser viva" abaixo. Nenhum deles precisa avisar a máscara: ela é derivada da caixa medida, e a medição é que acompanha.
 
 ### Título hero: uma caixa de texto, a mídia como máscara
 
@@ -1407,6 +1414,110 @@ saíam Pirata One nas duas telas). Nada mais se mexeu: `qa-cls.mjs
 --so=skins` dá **0,0000 na tatuagem** (as 8 skins passam) e `qa-visual.mjs
 --so=colapso` checa os 90 slots de imagem das 8 skins sem colapso.
 
+#### O rastro na borda superior, e a medição que tem de ser viva
+
+Dois defeitos relatados DEPOIS da correção acima, no mesmo mecanismo — e o
+primeiro já tinha tido uma tentativa de conserto que não pegou.
+
+**A — "no celular, ao rolar até o topo do hero, o vídeo vaza para fora do
+recorte das letras e aparece como rastro claro na borda superior; acontece
+no repique da rolagem".** Não reproduz em Chromium headless: quatro
+condições foram tentadas (repique por roda, fling por toque,
+`ElasticOverscroll` ligado, CPU 6×, `UseSurfaceLayerForVideo` forçado) e em
+todas a cobertura clara dentro da caixa fica em 23,0–23,2% (a área dos
+glifos) com **0 px claros na faixa acima da caixa em todo quadro**. É a
+classe de defeito que só aparece onde o vídeo vai para um plano de
+hardware. O que a máquina do laço CONSEGUE medir é a árvore de camadas de
+composição (`LayerTree` do CDP), e ela dá a causa:
+
+| camada | o quê | tamanho |
+|---|---|---|
+| 41 | `SPAN.d-wordmark` | 342×167 (167 = a ink do `drop-shadow`) |
+| 42 | `foreignObject mask=…` | 342×152 |
+| 43 | `VIDEO` | 342×152 |
+| **39** | **`VIDEO`** | **342×192** |
+
+**A `<mask>` do SVG é operação de PINTURA, mas o `<video>` é o elemento que
+o navegador entrega a uma SUPERFÍCIE DE COMPOSIÇÃO própria.** As camadas do
+vídeo estavam penduradas na RAIZ (`pai=7`), não aninhadas na camada
+mascarada, e a de conteúdo media **342×192 numa caixa de 342×152**: o
+`object-fit: cover` de um vídeo mais alto que a caixa sobra 40px, **20
+acima e 20 abaixo**. A máscara não faz parte do estado dessas camadas —
+todo redesenho independente delas desenha a sobra, e os 20px de cima são
+exatamente a faixa clara na borda superior.
+
+**Por que a tentativa anterior não pegou.** Ela diagnosticou o artefato de
+rolagem como duas camadas irmãs do TEXTO (preenchimento e contorno)
+promovidas a compositor layers independentes e dessincronizadas por um
+quadro, e fundiu as duas num elemento só. A mudança é real, mas atua
+inteira sobre `.d-wordmark-text`: os pixels que vazam são de VÍDEO, de uma
+terceira superfície que a fusão nunca tocou — levou 2 camadas de texto a 1
+e deixou as do vídeo como estavam. Passou despercebida porque o portão só
+media geometria ESTÁTICA (quantos preenchimentos existem, se os avanços
+batem); uma máscara que deixa de valer na COMPOSIÇÃO não muda nenhum desses
+números.
+
+**A correção tira a causa em vez de cercá-la.** Quem entra no grupo
+mascarado é um `<canvas>` do tamanho EXATO da caixa; o `<video>` sai do
+grupo, reduzido a 1px transparente, e serve só de decodificador. O recorte
+do `cover` passa a ser feito no `drawImage`, na ORIGEM, então **não existe
+sobra para vazar**, com ou sem máscara. Canvas não é superfície de vídeo: é
+pintado pelo caminho normal, dentro do grupo. É a mesma decisão que a
+"Regra de superfície" já impõe aos efeitos de fundo ("quem pinta é o código
+do efeito, num bitmap do tamanho que ELE escolher"). **Cercar com `overflow:
+hidden` + `isolation: isolate` no envelope foi tentado ANTES e medido: a
+camada de conteúdo continuava com os mesmos 342×192** — por isso não ficou.
+Nada de `mix-blend-mode`, que multiplicaria a superfície repintada por ~25×
+(ver "Custo por quadro dos efeitos").
+
+Depois: nenhuma camada sobre o wordmark passa de 342×152 (a de 342×192
+sumiu, as do `<video>` são 1×1) e a imagem é a mesma — 11.954–11.959 px
+claros na caixa contra 11.961 antes. Custo: um `drawImage` por quadro do
+VÍDEO (`requestVideoFrameCallback`, não rAF), em bitmap de no máximo 2× a
+caixa — 0,21 Mpx por quadro, ~6 Mpx/s a 30 Hz, contra os 9,6 Mpx/s da
+própria página e o limiar de marcação de +40 Mpx/s do portão.
+
+**B — "com vídeo aplicado, trocar o alinhamento não reposiciona a camada do
+vídeo; mudar o tamanho da fonte conserta".** A geometria da máscara é
+MEDIDA da caixa de texto, e a medição rodava uma vez só: o efeito de layout
+tinha deps `[remedir, texto]` e o único observador vivo era um
+`ResizeObserver` na própria caixa. `.d-wordmark-text` é `inline-block` —
+trocar `text-align` **move** a caixa sem **redimensioná-la**, o observador
+não acorda e a máscara fica onde estava; mudar o tamanho da fonte
+redimensiona a caixa, o observador dispara e a medição se corrige sozinha.
+Era literalmente o "conserta" do relato. Medido no celular, alinhamento
+trocado por código: larguras de linha idênticas (257,9 / 251 / 160,6) e só
+o `x` divergindo — máscara parada em 42 / 45,5 / 90,7 contra 0 / 0 / 0 à
+esquerda e 84,1 / 91 / 181,4 à direita, até **90,7px de desvio numa caixa
+de 342px**.
+
+**A medição tem de ser VIVA**, e são três gatilhos porque nenhum sozinho
+pega as seis coisas que movem os glifos (alinhamento, texto, tamanho,
+fonte, entre-letras, largura do contêiner):
+
+1. o **efeito de layout SEM lista de dependências** — roda a cada commit,
+   que é por onde passa toda mudança vinda do editor;
+2. **`ResizeObserver` na caixa E no bloco que a envolve** — largura do
+   contêiner e rotação de tela não passam por render nenhum;
+3. **`MutationObserver` em `class`/`style`** do wordmark e do bloco — o
+   alinhamento é a troca que não redimensiona nada, e pode chegar sem
+   render.
+
+Medir a cada commit não realimenta render porque só um valor DIFERENTE vira
+estado (`mesmaMetrica`, tolerância de 0,05px). O `MutationObserver` é **sem
+`subtree` de propósito**: com ele, o canvas do vídeo sendo redimensionado
+realimentaria a medição.
+
+**O portão cresceu junto**, porque a geometria estática não enxergava nem um
+nem outro. `qa-titulo.mjs` passou a cobrir, nas duas telas: (a) alinhamento
+trocado POR CÓDIGO (estilo inline no bloco, sem passar por render nenhum do
+React — o caso mais duro, que cobre também o caminho do editor), (b) escala
+em 1,70/0,70 e entre-letras em 0,30em/-0,05em pelas custom properties, e (c)
+**a faixa de 70px ACIMA do título depois do repique da rolagem**, comparada
+com a MESMA faixa no nível `imagem`: o que o vídeo acrescenta ali é o
+vazamento. Antes da correção de B, (a) reprovava nas duas telas com desvios
+de 42 a 299,5px.
+
 ### Editor visual (`/leads/{id}/demo/editar`)
 
 A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta página em tela cheia (fora do route group `(app)`, sem o chrome do painel).
@@ -1429,7 +1540,7 @@ A seção Demo da ficha virou só um resumo + atalho; a edição acontece nesta 
    - `exemplo.ts` — `DemoData` completo com copy do material bruto e marca genérica.
 3. Coloque os placeholders em `public/demos/<nicho>/` (locais, um por slot de `imagens`) e uma miniatura `thumb.svg` (usada no passo de escolha de skin).
 4. Se a skin usa fonte nova, carregue-a em `src/app/demo/fonts/core.ts` (fontes que são default de algum preset — sempre carregadas) com var `--font-demo-*`, com o peso/estilo exatos do original (ex.: uma fonte carregada só em itálico 900 não é a mesma coisa que a mesma família em peso 400 normal). Fontes só alcançáveis por escolha explícita do editor entram como módulo próprio em `src/app/demo/fonts/dynamic/` + entrada no loader de `registry.ts` (carregadas sob demanda — ver "Fontes" acima).
-5. Se o original usa uma lib de animação (ex.: `motion`), adicione a dependência e port fielmente o timing/easing em vez de recriar com CSS aproximado — o objetivo é a demo parecer idêntica ao original com os dados de exemplo, exceto o que é slot/tema por design. `interactive/LedEdges.tsx` é sempre o mesmo reexport de uma linha (`export { LedEdges } from "@/lib/demos/led/LedEdges"`, ver "Micro-interações do tema"); se o original tinha vídeo-no-texto/logo, considere declarar `videoSlots` (opt-in — ver "Vídeo-no-título" acima) e portar a técnica de `VideoNoTitulo.tsx`.
+5. Se o original usa uma lib de animação (ex.: `motion`), adicione a dependência e port fielmente o timing/easing em vez de recriar com CSS aproximado — o objetivo é a demo parecer idêntica ao original com os dados de exemplo, exceto o que é slot/tema por design. `interactive/LedEdges.tsx` é sempre o mesmo reexport de uma linha (`export { LedEdges } from "@/lib/demos/led/LedEdges"`, ver "Micro-interações do tema"); se o original tinha vídeo-no-texto/logo, considere declarar `videoSlots` (opt-in — ver "Vídeo-no-título" acima) e REEXPORTAR `lib/demos/titulo/Wordmark` numa linha, do mesmo jeito (`export { Wordmark } from "@/lib/demos/titulo/Wordmark"`). Não porte a técnica de novo: o mecanismo é compartilhado, e o que a skin fornece é só o CSS de `.d-wordmark`/`.d-wordmark-text` (o contrato está escrito no topo do módulo).
 6. Acrescente a entrada em `src/lib/demos/registry.ts` (incluindo `heroEscalaLimites` e `thumbnail`, obrigatórios) — rota pública, ficha e editor passam a conhecê-la sem mais mudanças.
 7. Rode os testes: o teste de contrato do registro (`registry.test.ts`) valida ids únicos, default entre os presets, exemplo completo, existência física dos placeholders e da miniatura, `heroEscalaLimites` coerentes, `heroTitulo`/`led` resolvidos em todo preset, `videos` ausente no exemplo (vídeo nunca tem placeholder) e o contrato de seções (ids únicos, presentes no exemplo, `alignOptions` válidos, ao menos uma seção reordenável).
 

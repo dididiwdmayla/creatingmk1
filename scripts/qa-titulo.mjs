@@ -15,7 +15,14 @@
  *      que produz o texto duplicado/desalinhado;
  *   3. a `font-family` computada do título (o seletor de fontes de título
  *      do editor tem de alcançá-la);
- *   4. a caixa (x/y/largura/altura) de cada camada, pra provar alinhamento.
+ *   4. a caixa (x/y/largura/altura) de cada camada, pra provar alinhamento;
+ *   5. a mesma coisa com ALINHAMENTO, ESCALA e ENTRE-LETRAS trocados POR
+ *      CÓDIGO, sem remontar: a máscara é MEDIDA da caixa, e medição que só
+ *      roda uma vez deixa as duas camadas deslocadas (ver "A medição tem
+ *      de ser viva" em ARCHITECTURE.md);
+ *   6. a FAIXA ACIMA do título depois do repique da rolagem, contra a
+ *      mesma faixa no nível `imagem` — o que o vídeo acrescenta ali é o
+ *      "rastro claro na borda superior" do relato.
  *
  * PORTÃO: reprova (código ≠ 0) se qualquer caso tiver mais de UM
  * preenchimento de glifo (duas cópias do título na tela), se a máscara da
@@ -39,6 +46,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
+
+import { lerPng } from "./png.mjs";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SAIDA = path.join(RAIZ, "qa-shots");
@@ -371,6 +380,28 @@ function relatarCaso(linhas, rotulo, inv, foto) {
 /** Tolerância do centro de linha entre a caixa HTML e a máscara (px). */
 const TOL_CENTRO = 3;
 
+/** Altura da faixa medida acima do wordmark, em px CSS. */
+const ALTURA_FAIXA = 70;
+/**
+ * Quantos px claros a MAIS a faixa acima do título pode ter por causa do
+ * vídeo. Não é zero porque as duas capturas são de rodadas diferentes (a
+ * foto do hero é a mesma, mas o antialiasing do texto acima não é
+ * bit-a-bit); o vazamento relatado é uma faixa de ~20px de altura na
+ * largura do título — milhares de pixels, não dezenas.
+ */
+const TOL_RASTRO = 60;
+
+/** px claros de um PNG inteiro (luminância ≥ 150). */
+function clarosNoPng(arquivo) {
+  const { w, h, canais, px } = lerPng(arquivo);
+  let n = 0;
+  for (let i = 0; i < w * h; i++) {
+    const p = i * canais;
+    if (0.2126 * px[p] + 0.7152 * px[p + 1] + 0.0722 * px[p + 2] >= 150) n++;
+  }
+  return n;
+}
+
 /**
  * Veredito por caso:
  *
@@ -505,6 +536,71 @@ async function main() {
       const heroPng = path.join(SAIDA, `titulo-${tela.id}-hero${marca}.png`);
       await page.screenshot({ path: heroPng });
       relatorio.push("## Hero inteiro (nome longo com quebra, vídeo)", "", `![hero ${tela.id}](${path.basename(heroPng)})`, "");
+
+      // ── 2b. O RASTRO NA BORDA SUPERIOR, medido: o hero no topo da
+      //       rolagem DEPOIS do repique, que é o instante do relato ("o
+      //       vídeo vaza para fora do recorte das letras e aparece como
+      //       rastro claro na borda superior").
+      //
+      //       O que se mede é a faixa ACIMA da caixa do wordmark, onde
+      //       nenhum pixel de vídeo tem o que fazer. Sozinho o número não
+      //       diz nada — a foto do hero também é clara em pedaços —, então
+      //       a referência é a MESMA faixa no nível `imagem`, sem vídeo
+      //       nenhum: o que o vídeo ACRESCENTA ali é o vazamento.
+      const faixaAcima = async (comVideo) => {
+        await medir(page, url({ titulo: CASOS[1].titulo, video: comVideo ? video : undefined }));
+        const caixa = await page
+          .locator('[data-demo-slot="secoes.hero.titulo"]')
+          .boundingBox();
+        const recorte = {
+          x: 0,
+          y: Math.max(0, caixa.y - ALTURA_FAIXA),
+          width: page.viewportSize().width,
+          height: Math.min(ALTURA_FAIXA, caixa.y),
+        };
+        // Desce e volta ao topo: é a volta que obriga a camada a ser
+        // redesenhada. Gesto de toque, que é como acontece no celular.
+        for (let i = 0; i < 3; i++) {
+          await page.mouse.wheel(0, 900);
+          await page.waitForTimeout(120);
+          await page.mouse.wheel(0, -1600);
+          await page.waitForTimeout(200);
+        }
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(300);
+        const nivel = comVideo ? "video" : "imagem";
+        // O hero INTEIRO neste instante — a faixa medida é um recorte dele,
+        // e o número sozinho não substitui olhar a imagem.
+        const hero = path.join(SAIDA, `titulo-${tela.id}-repique-${nivel}${marca}.png`);
+        await page.screenshot({ path: hero });
+        const arquivo = path.join(SAIDA, `titulo-${tela.id}-topo-${nivel}${marca}.png`);
+        await page.screenshot({ path: arquivo, clip: recorte });
+        return { claros: clarosNoPng(arquivo), arquivo, hero };
+      };
+
+      const semVideo = await faixaAcima(false);
+      const comVideo = await faixaAcima(true);
+      const ganho = comVideo.claros - semVideo.claros;
+      relatorio.push(
+        "## Borda superior no topo da rolagem (o rastro do relato)",
+        "",
+        `- faixa de ${ALTURA_FAIXA}px acima do wordmark, depois do repique`,
+        `- px claros SEM vídeo (referência): **${semVideo.claros}**`,
+        `- px claros COM vídeo: **${comVideo.claros}** → ganho **${ganho}** (tolerância ${TOL_RASTRO})`,
+        "",
+        `![topo sem vídeo](${path.basename(semVideo.arquivo)})`,
+        `![topo com vídeo](${path.basename(comVideo.arquivo)})`,
+        "",
+        "O hero inteiro no mesmo instante (depois do repique, no topo):",
+        "",
+        `![hero no repique, com vídeo](${path.basename(comVideo.hero)})`,
+        "",
+      );
+      if (ganho > TOL_RASTRO) {
+        reprovados.push(
+          `${tela.id}-borda-superior: o vídeo acrescentou ${ganho} px claros acima do título (rastro fora do recorte)`,
+        );
+      }
 
       // ── 3. O seletor de fontes de título alcança o wordmark?
       relatorio.push("## Seletor de fontes do título (aba Tema)", "");
