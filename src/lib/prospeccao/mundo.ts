@@ -1,5 +1,6 @@
+import { horaDoMinuto } from "@/lib/leads/barraDoDia";
 import { cidadeDoEndereco } from "@/lib/leads/cidade";
-import { formatHora, MIN_DIA, minutoDaSemanaLocal } from "@/lib/leads/horarios";
+import { MIN_DIA, minutoDaSemanaLocal } from "@/lib/leads/horarios";
 import {
   faixasDoDia,
   familiaDoLead,
@@ -235,9 +236,11 @@ export function ordenarPaises(paises: PaisAgora[]): PaisAgora[] {
   );
 }
 
-export function horaDoMinuto(minuto: number): string {
-  return formatHora(Math.floor(minuto / 60) % 24, minuto % 60);
-}
+/**
+ * O MESMO formatador da barra do dia (reexportado, não recriado): as duas
+ * telas dizem hora do mesmo jeito, e "9h30" nunca vira "09:30" numa delas.
+ */
+export { horaDoMinuto };
 
 /**
  * A tela inteira, derivada. `familia` é uma chave de `janelasContato` (as

@@ -9,6 +9,7 @@ import { TemaSeletor } from "./TemaSeletor";
 
 const TABS = [
   { href: "/hoje", label: "Hoje" },
+  { href: "/mundo", label: "Mundo" },
   { href: "/", label: "Painel" },
   { href: "/leads", label: "Leads" },
   { href: "/buscas", label: "Buscas" },
