@@ -383,6 +383,41 @@ describe("capturas.ancoras (marcação de âncoras de captura)", () => {
     const config = await loadConfig(db);
     expect(config.janelasContato.barbearia).toEqual(DEFAULT_CONFIG.janelasContato.barbearia);
   });
+
+  it("paisesProspeccao: default populado, e o patch SUBSTITUI a lista (dá pra remover país)", async () => {
+    const db = new FakeFirestore();
+    expect(DEFAULT_CONFIG.paisesProspeccao).toHaveLength(15);
+
+    const config = await saveConfig(db, {
+      paisesProspeccao: [
+        { codigo: "PT", nome: "Portugal", utcOffsetMinutos: 0, idiomas: ["pt-PT"], indice: 1.6 },
+      ],
+    });
+
+    expect(config.paisesProspeccao).toEqual([
+      { codigo: "PT", nome: "Portugal", utcOffsetMinutos: 0, idiomas: ["pt-PT"], indice: 1.6 },
+    ]);
+  });
+
+  it("rejeita paisesProspeccao inválida (código fora do ISO)", async () => {
+    const db = new FakeFirestore();
+
+    await expect(
+      saveConfig(db, {
+        paisesProspeccao: [
+          { codigo: "BRA", nome: "Brasil", utcOffsetMinutos: -180, idiomas: ["pt-BR"], indice: 1 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("doc gravado antes da lista de países existir cai no default", async () => {
+    const db = new FakeFirestore();
+    await db.collection("config").doc("app").set({ nicho: "dentista" });
+
+    const config = await loadConfig(db);
+    expect(config.paisesProspeccao).toEqual(DEFAULT_CONFIG.paisesProspeccao);
+  });
 });
 
 describe("pricingFromConfig", () => {

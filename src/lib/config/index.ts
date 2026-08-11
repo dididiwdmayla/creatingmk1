@@ -16,6 +16,11 @@ import {
   validarJanelasContato,
   type JanelasContatoConfig,
 } from "@/lib/leads/janelaContato";
+import {
+  DEFAULT_PAISES_PROSPECCAO,
+  validarPaisesProspeccao,
+  type PaisesProspeccaoConfig,
+} from "@/lib/prospeccao/paises";
 
 export const CONFIG_COLLECTION = "config";
 export const CONFIG_DOC = "app";
@@ -54,6 +59,11 @@ export interface AppConfig {
    * editável aqui sem deploy.
    */
   janelasContato: JanelasContatoConfig;
+  /**
+   * Países candidatos à prospecção (tela /mundo) — ver
+   * `@/lib/prospeccao/paises`. Lista curta e editável aqui sem deploy.
+   */
+  paisesProspeccao: PaisesProspeccaoConfig;
 }
 
 export interface CapturasConfig {
@@ -126,6 +136,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   capturas: { ancoras: structuredClone(ANCORAS_PADRAO) },
   janelasContato: structuredClone(DEFAULT_JANELAS_CONTATO),
+  paisesProspeccao: structuredClone(DEFAULT_PAISES_PROSPECCAO),
 };
 
 const FILTRO_VALUES: FiltroPresenca[] = ["qualquer", "com", "sem"];
@@ -142,6 +153,7 @@ const TOP_LEVEL_KEYS = new Set([
   "precificacao",
   "capturas",
   "janelasContato",
+  "paisesProspeccao",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -288,6 +300,10 @@ export function validateConfigPatch(patch: unknown): asserts patch is Partial<Ap
     validarJanelasContato(patch.janelasContato, "janelasContato", problemas);
   }
 
+  if (patch.paisesProspeccao !== undefined) {
+    validarPaisesProspeccao(patch.paisesProspeccao, "paisesProspeccao", problemas);
+  }
+
   if (problemas.length > 0) {
     throw new ValidationError(problemas);
   }
@@ -427,6 +443,11 @@ export function mergeConfig(base: AppConfig, patch: Partial<AppConfig>): AppConf
     // dia substituiu) é DESCARTADA em favor do padrão novo — ver
     // `mesclarJanelasContato`.
     janelasContato: mesclarJanelasContato(base.janelasContato, patch.janelasContato),
+    // Substituição da lista INTEIRA (como `precificacao.presets`, e ao
+    // contrário do merge por chave de ancoras/janelasContato): a tela edita
+    // a lista como um todo, e sem substituir não haveria como REMOVER um
+    // país — a entrada removida voltaria do default a cada save.
+    paisesProspeccao: patch.paisesProspeccao ?? base.paisesProspeccao,
   };
 }
 
