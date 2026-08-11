@@ -532,6 +532,41 @@ async function main() {
         }
       }
       relatorio.push("");
+
+      // ── 4. REGRESSÃO: alinhamento trocado POR CÓDIGO, sem remontar.
+      //
+      //    A geometria da máscara é MEDIDA da caixa de texto. Medida UMA
+      //    vez, ela fica onde estava: trocar o alinhamento MOVE a caixa sem
+      //    REDIMENSIONÁ-LA (`.d-wordmark-text` é inline-block), o
+      //    ResizeObserver não dispara e as duas camadas ficam deslocadas —
+      //    era o defeito relatado, e mudar o TAMANHO da fonte o escondia,
+      //    porque aí a caixa muda de tamanho e o observador acorda.
+      //
+      //    A troca aqui é feita no DOM (estilo inline no bloco do título),
+      //    de propósito: é o caso mais duro, que não passa por render
+      //    nenhum do React, então passar nele cobre também o caminho do
+      //    editor (novo tema → nova classe no bloco, wordmark no lugar).
+      relatorio.push("## Alinhamento trocado por código (sem remontar)", "");
+      await medir(page, url({ titulo: CASOS[1].titulo, video }));
+      for (const alinhamento of ["left", "right", "center"]) {
+        await page.evaluate((a) => {
+          const alvo = document.querySelector('[data-demo-slot="secoes.hero.titulo"]');
+          alvo.parentElement.style.textAlign = a;
+        }, alinhamento);
+        // Folga para a recontagem (observadores + efeito de layout).
+        await page.waitForTimeout(400);
+        const inv = await page.evaluate(INVENTARIO);
+        const nome = `${tela.id}-alinhamento-${alinhamento}`;
+        const foto = await fotoDoTitulo(page, nome);
+        relatarCaso(relatorio, `text-align: ${alinhamento}`, inv, foto);
+        const problemas = veredito(inv);
+        if (inv.midia !== "video") {
+          problemas.push(`nível de mídia esperado \`video\`, obtido \`${inv.midia}\``);
+        }
+        if (problemas.length > 0) reprovados.push(`${nome}: ${problemas.join("; ")}`);
+      }
+      relatorio.push("");
+
       await ctx.close();
     }
 

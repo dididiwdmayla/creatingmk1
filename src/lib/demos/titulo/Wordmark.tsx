@@ -68,7 +68,7 @@ export function Wordmark({
     videoSrc: videoSrc && videoSrc !== videoComErro ? videoSrc : undefined,
     imagemFallback,
   });
-  const metrica = useMedidaDoTexto(caixaRef, nome, nivel === "video");
+  const metrica = useMedidaDoTexto(caixaRef, nivel === "video");
 
   // Sem medida da caixa não há máscara — e sem máscara o vídeo cobriria o
   // título inteiro. Nesse caso o nível cai um degrau, nunca pra um título
