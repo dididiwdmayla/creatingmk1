@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 import { MascaraDoTexto, useMedidaDoTexto } from "./MascaraDoTexto";
 import { useNivelMidia, type NivelMidia } from "./useNivelMidia";
+import { useVideoEmCanvas } from "./videoEmCanvas";
 
 /**
  * MECANISMO COMPARTILHADO do vídeo-no-título — não é da tatuagem. Vive
@@ -56,6 +57,8 @@ export function Wordmark({
   imagemFallback?: string;
 }) {
   const caixaRef = useRef<HTMLSpanElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   // Guarda a URL que falhou, não um "falhou?": um vídeo que erra/estola
   // cai pro nível de imagem e não volta a tentar, e trocar a URL (upload
   // novo no editor) rearma sozinho, sem efeito de reset.
@@ -72,6 +75,16 @@ export function Wordmark({
   // sem preenchimento.
   const midia: NivelMidia =
     nivel === "video" && !metrica ? (imagemFallback ? "imagem" : "nenhum") : nivel;
+
+  // O bitmap tem o tamanho da caixa MEDIDA — então a mesma recontagem que
+  // realinha a máscara também redimensiona o vídeo, sem um segundo caminho.
+  useVideoEmCanvas({
+    videoRef,
+    canvasRef,
+    ativo: midia === "video",
+    largura: metrica?.caixa.largura ?? 0,
+    altura: metrica?.caixa.altura ?? 0,
+  });
 
   return (
     <span className={`d-wordmark ${className}`} data-demo-slot={slot} aria-label={nome}>
@@ -96,23 +109,47 @@ export function Wordmark({
         {nome}
       </span>
       {midia === "video" && metrica && videoSrc && (
-        <MascaraDoTexto metrica={metrica}>
-          {(maskId) => (
-            <foreignObject x="0" y="0" width="100%" height="100%" mask={`url(#${maskId})`}>
-              <video
-                src={videoSrc}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="auto"
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                onError={() => setVideoComErro(videoSrc)}
-                onStalled={() => setVideoComErro(videoSrc)}
-              />
-            </foreignObject>
-          )}
-        </MascaraDoTexto>
+        <>
+          {/* O <video> fica FORA do grupo mascarado, reduzido a 1px e
+              transparente: ele é só o decodificador. Quem entra na máscara
+              é o <canvas>, do tamanho exato da caixa — ver videoEmCanvas.ts
+              para a medição que levou a isso (o <video> ganhava camada de
+              composição própria, de 342×192 numa caixa de 342×152, e a
+              máscara é operação de pintura que não vale nessa camada).
+              Nada de `mix-blend-mode`: ele multiplica a superfície
+              repintada por ~25× (ver "Custo por quadro dos efeitos"). */}
+          <video
+            ref={videoRef}
+            src={videoSrc}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: 1,
+              height: 1,
+              opacity: 0,
+              pointerEvents: "none",
+            }}
+            onError={() => setVideoComErro(videoSrc)}
+            onStalled={() => setVideoComErro(videoSrc)}
+          />
+          <MascaraDoTexto metrica={metrica}>
+            {(maskId) => (
+              <foreignObject x="0" y="0" width="100%" height="100%" mask={`url(#${maskId})`}>
+                <canvas
+                  ref={canvasRef}
+                  style={{ display: "block", width: "100%", height: "100%" }}
+                />
+              </foreignObject>
+            )}
+          </MascaraDoTexto>
+        </>
       )}
     </span>
   );

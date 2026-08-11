@@ -42,10 +42,12 @@ type LinhaMedida = {
   base: number;
 };
 
-type Metrica = {
+export type Metrica = {
   linhas: LinhaMedida[];
   letterSpacing: CSSProperties["letterSpacing"];
   textTransform: CSSProperties["textTransform"];
+  /** Caixa do wordmark em px CSS — o tamanho do bitmap do vídeo. */
+  caixa: { largura: number; altura: number };
 };
 
 /**
@@ -179,6 +181,7 @@ function medir(caixa: HTMLElement): Metrica | null {
     // espaçamento/caixa do wordmark, a máscara acompanha sozinha.
     letterSpacing: estilo.letterSpacing,
     textTransform: estilo.textTransform,
+    caixa: { largura: base.width, altura: base.height },
   };
 }
 
