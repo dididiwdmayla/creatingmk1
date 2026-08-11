@@ -220,9 +220,16 @@ function LeadsPageInner() {
   const [nomes, setNomes] = useState<NomesUsuarios>({});
   const [erroLista, setErroLista] = useState<string | null>(null);
 
-  const [nicho, setNicho] = useState("");
+  // `?nicho=`/`?regiao=` na URL são o PRÉ-PREENCHIMENTO vindo de /mundo
+  // ("abra a busca deste país neste nicho") — lidos no valor INICIAL do
+  // campo, não empurrados por efeito depois do primeiro desenho. A BUSCA
+  // não é disparada em hipótese nenhuma: ela é request pago e continua
+  // atrás do clique em "Buscar", com reserveQuota no servidor.
+  const [nicho, setNicho] = useState(() => searchParams.get("nicho") ?? "");
   const [subNicho, setSubNicho] = useState("");
-  const [regiao, setRegiao] = useState("");
+  const [regiao, setRegiao] = useState(() => searchParams.get("regiao") ?? "");
+  /** A região pré-preenchida, guardada porque o param some da URL logo depois. */
+  const regiaoPrefill = useRef(searchParams.get("regiao") ?? "");
   const [nomeBusca, setNomeBusca] = useState("");
   const [quantidade, setQuantidade] = useState(20);
   const [soSemSite, setSoSemSite] = useState(false);
@@ -387,11 +394,16 @@ function LeadsPageInner() {
       });
   }
 
+  // Hint "Buscando em: X" da região que o formulário vai usar sem ninguém
+  // digitar nada: a PRÉ-PREENCHIDA (chegada de /mundo), quando houver, ou a
+  // default da config. Mesmo geocode de sempre, com o cache permanente do
+  // servidor — e nada além do hint: nenhuma busca sai daqui.
   useEffect(() => {
-    if (!regiaoDefault) return;
+    const alvo = regiaoPrefill.current || regiaoDefault;
+    if (!alvo) return;
     let ignore = false;
     api
-      .geocode(regiaoDefault)
+      .geocode(alvo)
       .then((geo) => {
         if (!ignore) setRegiaoResolvida((atual) => atual ?? geo.endereco);
       })
@@ -475,6 +487,26 @@ function LeadsPageInner() {
     else sessionStorage.removeItem(QUERY_KEY);
     setQuerystringPronta(true);
   }, [searchParams, router]);
+
+  // Consumo dos params de pré-preenchimento: resolve a região pro hint
+  // "Buscando em: X" (o mesmo geocode cacheado que a página já faz sozinha
+  // pela região default) e APAGA os dois params da URL. Eles descrevem uma
+  // chegada, não um estado da lista — deixados ali ficariam grudados no
+  // `QUERY_KEY` e repreencheriam o formulário em toda visita futura.
+  const prefillConsumido = useRef(false);
+  useEffect(() => {
+    if (prefillConsumido.current) return;
+    if (!searchParams.has("nicho") && !searchParams.has("regiao")) return;
+    prefillConsumido.current = true;
+    updateParams((params) => {
+      params.delete("nicho");
+      params.delete("regiao");
+    });
+    // `updateParams` é função do corpo do componente (recriada a cada
+    // render) e o efeito roda uma vez só, guardado pelo ref — listá-la nas
+    // dependências só faria o efeito reavaliar à toa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // ── Scroll restoration: SÓ volta da ficha, e só depois de tudo assentar ──
   // As causas do "abre rolado" achadas ao reproduzir: (1) a leitura de
