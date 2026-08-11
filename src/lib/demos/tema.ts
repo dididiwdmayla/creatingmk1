@@ -47,7 +47,16 @@ export function migrarTemaPatch(patch: TemaPatch): TemaPatch {
 }
 
 /** Limites de escala do título hero quando a skin não declara os dela. */
-const ESCALA_LIMITES_PADRAO = { min: 0.75, max: 1.3 };
+const ESCALA_LIMITES_PADRAO = { min: 0.75, max: 1.7 };
+
+/**
+ * Entre-letras do título hero, em `em` somados ao que a skin já usa.
+ * Negativo aperta (título display grande aguenta), positivo abre. O teto
+ * é conservador de propósito: acima de 0.3em o título vira uma linha de
+ * letras soltas e a máscara do vídeo passa a recortar mais fundo que
+ * letra.
+ */
+export const ESPACAMENTO_HERO_LIMITES = { min: -0.05, max: 0.3 };
 
 /**
  * Aplicação do TemaPatch (LeadDemo.tema) por cima do preset escolhido.
@@ -115,6 +124,14 @@ export function aplicarTema(
     typeof escalaPedida === "number" && !Number.isNaN(escalaPedida)
       ? Math.min(limitesHero.max, Math.max(limitesHero.min, escalaPedida))
       : preset.heroTitulo.escala;
+  const espacamentoPedido = patch.heroTitulo?.espacamento;
+  const espacamento =
+    typeof espacamentoPedido === "number" && !Number.isNaN(espacamentoPedido)
+      ? Math.min(
+          ESPACAMENTO_HERO_LIMITES.max,
+          Math.max(ESPACAMENTO_HERO_LIMITES.min, espacamentoPedido),
+        )
+      : preset.heroTitulo.espacamento;
 
   return {
     ...preset,
@@ -147,6 +164,7 @@ export function aplicarTema(
     heroTitulo: {
       fonte: fonteHero ? fonteHero.css : preset.heroTitulo.fonte,
       escala,
+      espacamento,
       alinhamento:
         patch.heroTitulo?.alinhamento && ALINHAMENTOS.includes(patch.heroTitulo.alinhamento)
           ? patch.heroTitulo.alinhamento

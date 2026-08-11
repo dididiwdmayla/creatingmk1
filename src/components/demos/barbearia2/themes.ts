@@ -37,7 +37,7 @@ const INTERACOES_ORIGINAIS = {
   hover: "lift",
   clique: "nenhum",
   fundoEfeito: "nenhum",
-  heroTitulo: { fonte: "", escala: 1, alinhamento: "centro" },
+  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "centro" },
   led: "desligado",
   ledEstilo: "barra",
 } as const;

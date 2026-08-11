@@ -15,7 +15,7 @@ import { LED_ESTILOS } from "@/lib/demos/led/registry";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import { SKINS } from "@/lib/demos/registry";
-import { TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
+import { ESPACAMENTO_HERO_LIMITES, TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
 import { IDIOMAS_SUPORTADOS, idiomaLabel } from "@/lib/idioma";
 import type {
   Alinhamento,
@@ -1650,6 +1650,25 @@ export function PainelTema({
               setTema({
                 ...tema,
                 heroTitulo: { ...tema.heroTitulo, escala: Number(e.target.value) },
+              })
+            }
+            className="accent-accent"
+          />
+        </label>
+
+        <label className={LABEL_CLS}>
+          Espaço entre letras (
+          {(tema.heroTitulo?.espacamento ?? preset.heroTitulo.espacamento).toFixed(2)}em)
+          <input
+            type="range"
+            min={ESPACAMENTO_HERO_LIMITES.min}
+            max={ESPACAMENTO_HERO_LIMITES.max}
+            step={0.01}
+            value={tema.heroTitulo?.espacamento ?? preset.heroTitulo.espacamento}
+            onChange={(e) =>
+              setTema({
+                ...tema,
+                heroTitulo: { ...tema.heroTitulo, espacamento: Number(e.target.value) },
               })
             }
             className="accent-accent"

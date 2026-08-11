@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_SKIN } from "../registry";
-import { TEMA_RAIOS, aplicarTema, inkPara } from "../tema";
+import { ESPACAMENTO_HERO_LIMITES, TEMA_RAIOS, aplicarTema, inkPara } from "../tema";
 
 const PRESET = DEFAULT_SKIN.themeDefault;
 
@@ -110,6 +110,25 @@ describe("aplicarTema — heroTitulo e led", () => {
     expect(aplicarTema(PRESET, { heroTitulo: { escala: -1 } }, limites).heroTitulo.escala).toBe(
       0.8,
     );
+  });
+
+  it("sem limites da skin, a escala vai até o teto padrão de 1.7", () => {
+    expect(aplicarTema(PRESET, { heroTitulo: { escala: 1.7 } }).heroTitulo.escala).toBe(1.7);
+    expect(aplicarTema(PRESET, { heroTitulo: { escala: 9 } }).heroTitulo.escala).toBe(1.7);
+  });
+
+  it("espaçamento entre letras é recortado pelos limites do controle", () => {
+    expect(aplicarTema(PRESET, { heroTitulo: { espacamento: 0.12 } }).heroTitulo.espacamento).toBe(
+      0.12,
+    );
+    expect(aplicarTema(PRESET, { heroTitulo: { espacamento: 9 } }).heroTitulo.espacamento).toBe(
+      ESPACAMENTO_HERO_LIMITES.max,
+    );
+    expect(aplicarTema(PRESET, { heroTitulo: { espacamento: -9 } }).heroTitulo.espacamento).toBe(
+      ESPACAMENTO_HERO_LIMITES.min,
+    );
+    // Sem pedido, o valor do preset sobrevive (0 = o entre-letras da skin).
+    expect(aplicarTema(PRESET, {}).heroTitulo.espacamento).toBe(PRESET.heroTitulo.espacamento);
   });
 
   it("alinhamento do heroTitulo sobrescreve; valor fora do menu cai no preset", () => {

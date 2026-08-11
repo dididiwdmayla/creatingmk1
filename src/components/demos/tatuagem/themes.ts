@@ -38,7 +38,7 @@ const INTERACOES_ORIGINAIS = {
   fundoEfeito: "nenhum",
   // fonte "" = herda fontes.display do preset. Hero nasce centralizado,
   // fiel ao material bruto (wordmark gigante centralizada).
-  heroTitulo: { fonte: "", escala: 1, alinhamento: "centro" },
+  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "centro" },
   led: "desligado",
   ledEstilo: "barra",
 } as const;

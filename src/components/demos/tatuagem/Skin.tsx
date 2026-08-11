@@ -159,6 +159,9 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     // por padrão. "" em heroTitulo.fonte = a decorativa da skin.
     "--d-hero-font": theme.heroTitulo.fonte || fontes.decorativa,
     "--d-hero-escala": theme.heroTitulo.escala,
+    // SOMADO ao entre-letras da skin (ver .d-wordmark-text), não no lugar
+    // dele: 0 mantém a assinatura de 0.04em do material bruto.
+    "--d-hero-espacamento": `${theme.heroTitulo.espacamento}em`,
     "--d-sec-y": SECTION_PAD[theme.densidade],
     "--d-anim-duration": ANIM_DURATION[theme.animacao],
     "--d-anim-ease": "cubic-bezier(0.16, 1, 0.3, 1)",
@@ -670,7 +673,12 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
         .d-wordmark-text {
           display: inline-block;
           text-transform: uppercase;
-          letter-spacing: 0.04em;
+          /* 0.04em é a assinatura do material bruto; o controle do editor
+             SOMA a ela em vez de substituí-la, então o default da skin
+             sobrevive a quem nunca mexe no controle. A máscara do vídeo lê
+             o letter-spacing COMPUTADO desta caixa (ver MascaraDoTexto),
+             então ela acompanha sozinha. */
+          letter-spacing: calc(0.04em + var(--d-hero-espacamento, 0em));
           /* pre-line (não nowrap): respeita quebra de linha do título
              (textarea do editor) e ainda permite quebrar em telas
              estreitas — nunca força overflow horizontal num título longo. */

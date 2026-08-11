@@ -567,6 +567,37 @@ async function main() {
       }
       relatorio.push("");
 
+      // ── 5. Os dois controles NOVOS da aba Tema, trocados POR CÓDIGO,
+      //       pela mesma porta: as custom properties que a skin lê. Se
+      //       algum deles não disparasse a recontagem, a máscara ficaria
+      //       para trás igual ao alinhamento — o teto de escala subiu para
+      //       1,70, e é no topo dele que a divergência seria maior.
+      relatorio.push("## Escala e entre-letras trocados por código", "");
+      const controles = [
+        { id: "escala-1.70", prop: "--d-hero-escala", valor: "1.7" },
+        { id: "escala-0.70", prop: "--d-hero-escala", valor: "0.7" },
+        { id: "espacamento-0.30em", prop: "--d-hero-espacamento", valor: "0.3em" },
+        { id: "espacamento--0.05em", prop: "--d-hero-espacamento", valor: "-0.05em" },
+      ];
+      for (const controle of controles) {
+        await medir(page, url({ titulo: CASOS[1].titulo, video }));
+        await page.evaluate(({ prop, valor }) => {
+          const alvo = document.querySelector('[data-demo-slot="secoes.hero.titulo"]');
+          alvo.style.setProperty(prop, valor);
+        }, controle);
+        await page.waitForTimeout(400);
+        const inv = await page.evaluate(INVENTARIO);
+        const nome = `${tela.id}-${controle.id}`;
+        const foto = await fotoDoTitulo(page, nome);
+        relatarCaso(relatorio, `${controle.prop}: ${controle.valor}`, inv, foto);
+        const problemas = veredito(inv);
+        if (inv.midia !== "video") {
+          problemas.push(`nível de mídia esperado \`video\`, obtido \`${inv.midia}\``);
+        }
+        if (problemas.length > 0) reprovados.push(`${nome}: ${problemas.join("; ")}`);
+      }
+      relatorio.push("");
+
       await ctx.close();
     }
 

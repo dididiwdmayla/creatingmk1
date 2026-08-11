@@ -109,7 +109,7 @@ export const SKINS: SkinDefinition[] = [
     themePresets: TATUAGEM_THEME_PRESETS,
     demoDataExemplo: TATUAGEM_EXEMPLO,
     secoes: TATUAGEM_SECOES,
-    heroEscalaLimites: { min: 0.7, max: 1.3 },
+    heroEscalaLimites: { min: 0.7, max: 1.7 },
     thumbnail: "/demos/tatuagem/thumb.svg",
     // Fiel ao material bruto: vídeo rodando dentro das letras do wordmark.
     videoSlots: ["titulo"],

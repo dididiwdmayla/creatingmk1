@@ -33,7 +33,7 @@ const INTERACOES_ORIGINAIS = {
   hover: "lift",
   clique: "pressao",
   fundoEfeito: "nenhum",
-  heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
+  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
   led: "desligado",
   ledEstilo: "barra",
 } as const;
@@ -97,7 +97,7 @@ const GRAFITE: Theme = {
   fundoEfeito: "particulas",
   led: "marcante",
   ledEstilo: "barra",
-  heroTitulo: { fonte: "", escala: 1, alinhamento: "centro" },
+  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "centro" },
   paleta: {
     fundo: "#131313",
     fundoAlt: "#1C1C1C",

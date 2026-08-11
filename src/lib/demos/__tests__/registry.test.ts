@@ -101,6 +101,8 @@ describe("registro de skins", () => {
       // Todo Theme (default + presets) resolve heroTitulo/led — ver tema.ts.
       for (const theme of skin.themePresets) {
         expect(theme.heroTitulo.escala).toBeGreaterThan(0);
+        // Entre-letras: 0 = o espaçamento da própria skin, intocado.
+        expect(typeof theme.heroTitulo.espacamento).toBe("number");
         expect(["esquerda", "centro", "direita"]).toContain(theme.heroTitulo.alinhamento);
         expect(["desligado", "sutil", "marcante"]).toContain(theme.led);
         expect(getLedEstilo(theme.ledEstilo), `theme.ledEstilo desconhecido "${theme.ledEstilo}"`).toBeDefined();

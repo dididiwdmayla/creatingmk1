@@ -262,15 +262,23 @@ export interface ThemeFontes {
  * Estilo do título principal (hero), independente do resto da tipografia
  * — o editor dá controles próprios pra ele (aba Tema): fonte (da lista
  * curada, papel "display"), escala (multiplica o clamp de tamanho da
- * skin, dentro de SkinDefinition.heroEscalaLimites) e alinhamento do
- * bloco. `texto` continua em DemoData (dados.secoes.hero.titulo — ausente
- * = nome do negócio), já que é conteúdo, não estilo.
+ * skin, dentro de SkinDefinition.heroEscalaLimites), espaçamento entre
+ * letras e alinhamento do bloco. `texto` continua em DemoData
+ * (dados.secoes.hero.titulo — ausente = nome do negócio), já que é
+ * conteúdo, não estilo.
  */
 export interface HeroTituloTema {
   /** Valor CSS pronto (var(--font-demo-*) + fallback); ausente = fontes.display do tema. */
   fonte: string;
   /** Multiplica o tamanho-base do título hero da skin; 1 = tamanho default. */
   escala: number;
+  /**
+   * Entre-letras em `em`, SOMADO ao que a skin já usa (a tatuagem tem
+   * 0.04em de assinatura) — 0 = o espaçamento da skin, intocado. Em `em`
+   * e não em px porque assim acompanha a escala do título em vez de
+   * apertar as letras quando o título cresce.
+   */
+  espacamento: number;
   alinhamento: Alinhamento;
 }
 
