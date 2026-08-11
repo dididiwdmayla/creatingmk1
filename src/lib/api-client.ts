@@ -166,6 +166,41 @@ export interface HojeResponse {
 }
 
 /**
+ * GET /api/mundo: os países onde AGORA é faixa boa para o nicho escolhido,
+ * já na ordem da tela (idioma, depois índice desc). Ver "Onde prospectar
+ * agora" em ARCHITECTURE.md — rota derivada, sem nenhuma chamada paga.
+ */
+export interface MundoResponse {
+  familia: string;
+  familias: Array<{ id: string; rotulo: string }>;
+  /** Instante do cálculo no servidor (ISO). */
+  agora: string;
+  paises: Array<{
+    codigo: string;
+    nome: string;
+    idiomas: string[];
+    /** Hora local do país, pronta pra tela ("9h30"). */
+    horaLocal: string;
+    minutoLocal: number;
+    utcOffsetMinutos: number;
+    /** Faixa boa que cobre este minuto, em minuto do dia LOCAL do país. */
+    faixa: { inicioMin: number; fimMin: number };
+    indice: { indice: number; fonte: "regioes" | "config"; cidades: number };
+    /** Total de leads não contatados naquele país e nicho (a lista abaixo é recortada). */
+    totalLeads: number;
+    leads: Array<{ placeId: string; nome: string; endereco?: string; siteProprio?: boolean }>;
+  }>;
+  /** Só quando nenhum país está em faixa boa: o próximo a abrir. */
+  emBreve?: {
+    codigo: string;
+    nome: string;
+    rotuloDia: string;
+    inicioMin: number;
+    emMinutos: number;
+  };
+}
+
+/**
  * GET /api/frases: os conjuntos de frases de abordagem — UM por skin do
  * registro, vazios inclusive, já com nome/nicho da skin resolvidos no
  * servidor. Ver "Frases de prospecção por skin".
@@ -369,6 +404,10 @@ export const api = {
     }),
 
   hoje: () => request<HojeResponse>("/api/hoje"),
+  mundo: (familia?: string) =>
+    request<MundoResponse>(
+      familia ? `/api/mundo?familia=${encodeURIComponent(familia)}` : "/api/mundo",
+    ),
   metaProprio: () => request<MetaProprioResponse>("/api/metas/proprio"),
   salvarMetaFaixaMinimizada: (minimizada: boolean) =>
     request<{ minimizada: boolean }>("/api/metas/proprio", {

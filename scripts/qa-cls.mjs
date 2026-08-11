@@ -111,6 +111,8 @@ const SKINS = [
  */
 const ABAS = [
   { id: "hoje", url: "/hoje", rotulo: "Hoje" },
+  // Família fixada na URL: ver a semeadura de `janelasContato` em semear().
+  { id: "mundo", url: "/mundo?familia=imobiliaria", rotulo: "Mundo" },
   { id: "painel", url: "/", rotulo: "Painel" },
   {
     id: "leads",
@@ -181,6 +183,25 @@ function semear() {
       mensagemPadrao: "Oi {nome}, tudo bem? Montei uma prévia do site de vocês: {demo}",
       followUpDias: 4,
       maxBuscasRecorrentes: 3,
+    // A tela /mundo depende do RELÓGIO: só lista país cujo minuto local cai
+    // numa faixa `bom` da família escolhida. Com a tabela padrão, a mesma
+    // rodada sairia cheia às 5h e vazia às 2h — e captura cujo CONTEÚDO
+    // muda com a hora não prova nada. A aba abre em `/mundo?familia=
+    // imobiliaria` e esta família ganha aqui uma faixa larga (5h–23h nos 7
+    // dias), então há sempre país na lista, em qualquer horário de rodada.
+    // As outras famílias ficam com o padrão — em especial `barbearia`, que
+    // é a das FICHAS capturadas (a barra do dia delas continua mostrando a
+    // escada de níveis de verdade).
+    janelasContato: {
+      imobiliaria: {
+        dias: Object.fromEntries(
+          [0, 1, 2, 3, 4, 5, 6].map((dia) => [
+            dia,
+            [{ inicio: { hora: 5, minuto: 0 }, fim: { hora: 23, minuto: 0 }, nivel: "bom" }],
+          ]),
+        ),
+      },
+    },
       atualizadoEm: iso(2),
     },
     "buscas/busca-centro": {
@@ -352,6 +373,34 @@ function semear() {
       criadaEm: iso(1),
     },
   };
+
+  // Leads ESTRANGEIROS de imobiliária, não contatados: são eles que fazem a
+  // linha do país ABRIR com os leads já pagos na tela /mundo, em vez de
+  // mandar direto pra busca — é o estado com mais conteúdo, e portanto o
+  // que mais tem a deslocar depois do primeiro desenho.
+  const paisesMundo = [
+    ["mundo-pt", "Imobiliária Tejo", "Av. da Liberdade, 200, 1250-096 Lisboa, Portugal", "Lisboa, Portugal"],
+    ["mundo-es", "Inmobiliaria Sol", "Calle Mayor, 3, 28013 Madrid, Espanha", "Madrid, Espanha"],
+    ["mundo-es-2", "Casas del Centro", "Gran Via 8, 28013 Madrid, Espanha", "Madrid, Espanha"],
+    ["mundo-mx", "Bienes Raíces Roma", "Av. Álvaro Obregón 100, 06700 Ciudad de México, México", "Cidade do México, México"],
+  ];
+  for (const [placeId, nome, endereco, regiao] of paisesMundo) {
+    mapa[`leads/${placeId}`] = {
+      placeId,
+      nome,
+      endereco,
+      status: "novo",
+      busca: { nicho: "imobiliaria", regiao, em: iso(4) },
+      temSite: false,
+      siteProprio: false,
+      temTelefone: true,
+      telefoneIntl: "351000000000",
+      enriquecido: false,
+      criadoEm: iso(4),
+      atualizadoEm: iso(4),
+    };
+  }
+
   fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
 }
 

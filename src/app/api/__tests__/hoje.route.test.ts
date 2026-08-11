@@ -163,9 +163,13 @@ describe("GET /api/hoje", () => {
   it("followUpDias da config muda o corte dos follow-ups", async () => {
     const cookie = await cookieDeSessao(db, { id: "ana" });
     db.seed("config/app", { followUpDias: 30 });
+    // Relativo ao relógio, nunca uma data fixa: com data fixa o teste
+    // apenas ENVELHECE — passou a reprovar sozinho quando o dia de hoje
+    // ficou a mais de 30 dias dela, sem ninguém ter mexido no código.
+    const dozeDiasAtras = new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString();
     seedLead("f1", {
       status: "contactado",
-      contato: { primeiroContatoEm: "2026-07-10T00:00:00.000Z" },
+      contato: { primeiroContatoEm: dozeDiasAtras },
     });
 
     const data = await (await GET(hojeRequest(cookie))).json();
