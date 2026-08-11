@@ -45,7 +45,7 @@ const AQUARELA: Theme = {
   hover: "lift",
   clique: "pressao",
   fundoEfeito: "nenhum",
-  heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
+  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
   led: "desligado",
   ledEstilo: "barra",
 };
@@ -74,7 +74,7 @@ const BOREAL: Theme = {
   hover: "brilho",
   clique: "nenhum",
   fundoEfeito: "nenhum",
-  heroTitulo: { fonte: "", escala: 1, alinhamento: "centro" },
+  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "centro" },
   led: "desligado",
   ledEstilo: "barra",
 };
@@ -103,7 +103,7 @@ const MEIA_NOITE: Theme = {
   hover: "zoom",
   clique: "pulso",
   fundoEfeito: "particulas",
-  heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
+  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
   led: "sutil",
   ledEstilo: "barra",
 };
@@ -132,7 +132,7 @@ const TERRA: Theme = {
   hover: "lift",
   clique: "pressao",
   fundoEfeito: "nenhum",
-  heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
+  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
   led: "desligado",
   ledEstilo: "barra",
 };

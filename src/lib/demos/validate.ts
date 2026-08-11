@@ -351,7 +351,7 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
       problemas.push("tema.heroTitulo deve ser um objeto");
     } else {
       for (const chave of Object.keys(value.heroTitulo)) {
-        if (!["fonte", "escala", "alinhamento"].includes(chave)) {
+        if (!["fonte", "escala", "espacamento", "alinhamento"].includes(chave)) {
           problemas.push(`tema.heroTitulo.${chave}: chave desconhecida`);
         }
       }
@@ -373,6 +373,13 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
         (typeof value.heroTitulo.escala !== "number" || !Number.isFinite(value.heroTitulo.escala))
       ) {
         problemas.push("tema.heroTitulo.escala deve ser um número");
+      }
+      if (
+        value.heroTitulo.espacamento !== undefined &&
+        (typeof value.heroTitulo.espacamento !== "number" ||
+          !Number.isFinite(value.heroTitulo.espacamento))
+      ) {
+        problemas.push("tema.heroTitulo.espacamento deve ser um número");
       }
       if (
         value.heroTitulo.alinhamento !== undefined &&

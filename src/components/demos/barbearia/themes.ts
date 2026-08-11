@@ -35,7 +35,7 @@ const INTERACOES_ORIGINAIS = {
   // fonte "" = herda fontes.display do próprio preset (alguns presets, como
   // Creme, sobrescrevem display — o hero acompanha sem ficar preso a uma
   // fonte fixa aqui). Hero nasce à esquerda, fiel ao material bruto.
-  heroTitulo: { fonte: "", escala: 1, alinhamento: "esquerda" },
+  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
   led: "desligado",
   ledEstilo: "barra",
 } as const;

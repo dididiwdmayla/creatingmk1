@@ -42,10 +42,12 @@ type LinhaMedida = {
   base: number;
 };
 
-type Metrica = {
+export type Metrica = {
   linhas: LinhaMedida[];
   letterSpacing: CSSProperties["letterSpacing"];
   textTransform: CSSProperties["textTransform"];
+  /** Caixa do wordmark em px CSS — o tamanho do bitmap do vídeo. */
+  caixa: { largura: number; altura: number };
 };
 
 /**
@@ -179,50 +181,108 @@ function medir(caixa: HTMLElement): Metrica | null {
     // espaçamento/caixa do wordmark, a máscara acompanha sozinha.
     letterSpacing: estilo.letterSpacing,
     textTransform: estilo.textTransform,
+    caixa: { largura: base.width, altura: base.height },
   };
 }
 
+/** Duas medidas são a MESMA se nada que a máscara usa mudou. */
+const IGUAL = 0.05;
+const perto = (a: number, b: number) => Math.abs(a - b) < IGUAL;
+
+function mesmaMetrica(a: Metrica | null, b: Metrica | null): boolean {
+  if (a === null || b === null) return a === b;
+  return (
+    a.letterSpacing === b.letterSpacing &&
+    a.textTransform === b.textTransform &&
+    perto(a.caixa.largura, b.caixa.largura) &&
+    perto(a.caixa.altura, b.caixa.altura) &&
+    a.linhas.length === b.linhas.length &&
+    a.linhas.every(
+      (l, i) =>
+        l.texto === b.linhas[i].texto &&
+        perto(l.x, b.linhas[i].x) &&
+        perto(l.base, b.linhas[i].base),
+    )
+  );
+}
+
 /**
- * Medida viva da caixa de texto. Fica em quem RENDERIZA a caixa (e não
+ * Medida VIVA da caixa de texto. Fica em quem RENDERIZA a caixa (e não
  * dentro da máscara) porque a resposta decide as duas coisas ao mesmo
  * tempo: se a máscara pode ser desenhada e se a caixa desliga o
  * preenchimento próprio. Se a medida falhar, o preenchimento tem de
  * continuar — um título só com contorno seria pior que o defeito.
+ *
+ * "Viva" é o ponto. Medida UMA vez, a máscara fica onde estava: trocar o
+ * alinhamento MOVE a caixa sem REDIMENSIONÁ-LA (`.d-wordmark-text` é
+ * inline-block), o `ResizeObserver` não acorda e as duas camadas ficam
+ * deslocadas — mudar o TAMANHO da fonte "consertava" só porque aí a caixa
+ * muda de tamanho. A recontagem tem de acontecer em TUDO que move os
+ * glifos: alinhamento, texto, tamanho, fonte, entre-letras e largura do
+ * contêiner. São três gatilhos, porque nenhum sozinho pega os seis:
+ *
+ *   1. o efeito de layout SEM lista de dependências — roda a cada commit,
+ *      que é o caminho de toda mudança vinda do editor (texto, escala,
+ *      fonte, entre-letras, alinhamento por prop);
+ *   2. `ResizeObserver` na caixa E no contêiner — largura do contêiner e
+ *      rotação de tela não passam por render nenhum;
+ *   3. `MutationObserver` em `class`/`style` do wordmark e do bloco que o
+ *      envolve — o alinhamento é a troca que não redimensiona nada, e
+ *      pode chegar sem render (estilo mexido direto no DOM).
+ *
+ * O laço se fecha na comparação: só um valor DIFERENTE vira estado, então
+ * medir a cada commit não realimenta render.
  *
  * `ativo` desliga a medição (e os observadores) quando o nível de mídia
  * nem é vídeo: no caso comum não se mede nada.
  */
 export function useMedidaDoTexto(
   caixaRef: RefObject<HTMLSpanElement | null>,
-  texto: string,
   ativo: boolean,
 ): Metrica | null {
   const [metrica, setMetrica] = useState<Metrica | null>(null);
 
   const remedir = useCallback(() => {
     const caixa = caixaRef.current;
-    setMetrica(ativo && caixa ? medir(caixa) : null);
+    const nova = ativo && caixa ? medir(caixa) : null;
+    setMetrica((atual) => (mesmaMetrica(atual, nova) ? atual : nova));
   }, [caixaRef, ativo]);
 
   // Mede depois do layout e antes da pintura, então a máscara nasce já no
-  // lugar em vez de aparecer deslocada por um quadro.
+  // lugar em vez de aparecer deslocada por um quadro. Sem lista de
+  // dependências DE PROPÓSITO (ver acima): qualquer commit pode ter movido
+  // os glifos, e a comparação impede que isso vire laço.
   useEfeitoDeLayout(() => {
     remedir();
-  }, [remedir, texto]);
+  });
 
   useEffect(() => {
     const caixa = caixaRef.current;
-    if (!ativo || !caixa) return;
-    // Redimensionar a janela remonta as linhas; trocar a fonte (escolha do
-    // editor, ou a webfont chegando depois do primeiro desenho) muda as
-    // métricas sem necessariamente mudar o tamanho da caixa.
+    const wordmark = caixa?.parentElement ?? null;
+    if (!ativo || !caixa || !wordmark) return;
+    const bloco = wordmark.parentElement;
+
     const ro = new ResizeObserver(remedir);
     ro.observe(caixa);
+    // O contêiner: a caixa pode ficar do mesmo tamanho e as linhas
+    // mudarem de lugar (bloco mais estreito, rotação de tela).
+    if (bloco) ro.observe(bloco);
+
+    // Só atributos, e só destes dois nós: `subtree` pegaria o próprio
+    // canvas do vídeo sendo redimensionado e realimentaria a medição.
+    const mo = new MutationObserver(remedir);
+    const soAtributos = { attributes: true, attributeFilter: ["class", "style"] };
+    mo.observe(wordmark, soAtributos);
+    if (bloco) mo.observe(bloco, soAtributos);
+
+    // Trocar a fonte (escolha do editor, ou a webfont chegando depois do
+    // primeiro desenho) muda as métricas sem mudar o tamanho da caixa.
     const fontes = document.fonts;
     fontes?.addEventListener("loadingdone", remedir);
     fontes?.ready.then(remedir).catch(() => {});
     return () => {
       ro.disconnect();
+      mo.disconnect();
       fontes?.removeEventListener("loadingdone", remedir);
     };
   }, [ativo, caixaRef, remedir]);

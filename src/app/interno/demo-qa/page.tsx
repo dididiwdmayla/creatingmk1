@@ -13,7 +13,8 @@ import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { modoValido } from "@/lib/demos/cores/modos";
-import type { CoresModoValor, ImagensModo, LedPreset, TemaPatch } from "@/lib/demos/types";
+import { ALINHAMENTOS } from "@/lib/demos/types";
+import type { Alinhamento, CoresModoValor, ImagensModo, LedPreset, TemaPatch } from "@/lib/demos/types";
 import { demoCoreFontsClassName, resolveExtraFontClassNames } from "@/app/demo/fonts";
 
 /**
@@ -52,6 +53,9 @@ import { demoCoreFontsClassName, resolveExtraFontClassNames } from "@/app/demo/f
  *   barraCor=#aabbcc     cor do modo "personalizada"
  *   titulo=<texto>       texto do título hero (`secoes.hero.titulo`); "\n" quebra linha
  *   heroFonte=<id>       id da lista curada para `heroTitulo.fonte` (seletor do editor)
+ *   heroEscala=<num>     `heroTitulo.escala` (recortada por heroEscalaLimites)
+ *   heroEspacamento=<num> `heroTitulo.espacamento` (entre-letras em em, somado ao da skin)
+ *   heroAlinhamento=esquerda|centro|direita
  *   video=<url>          `videos.titulo` — vídeo-no-título sem precisar de upload/lead
  */
 
@@ -80,6 +84,33 @@ function barraDaQuery(query: { [key: string]: string | string[] | undefined }): 
   const modo = texto(query.barra);
   if (!barraModoValido(modo)) return {};
   return { barraCor: { modo, cor: texto(query.barraCor) } };
+}
+
+/** Bloco "Título principal (hero)" da aba Tema, montado da query. */
+function heroTituloDaQuery(query: {
+  [key: string]: string | string[] | undefined;
+}): Pick<TemaPatch, "heroTitulo"> {
+  const fonte = texto(query.heroFonte);
+  const escala = numero(query.heroEscala);
+  const espacamento = numero(query.heroEspacamento);
+  const bruto = texto(query.heroAlinhamento);
+  const alinhamento = (ALINHAMENTOS as readonly string[]).includes(bruto ?? "")
+    ? (bruto as Alinhamento)
+    : undefined;
+  const heroTitulo = {
+    ...(fonte && { fonte }),
+    ...(escala !== undefined && { escala }),
+    ...(espacamento !== undefined && { espacamento }),
+    ...(alinhamento && { alinhamento }),
+  };
+  return Object.keys(heroTitulo).length > 0 ? { heroTitulo } : {};
+}
+
+function numero(valor: string | string[] | undefined): number | undefined {
+  const bruto = texto(valor);
+  if (bruto === undefined) return undefined;
+  const n = Number(bruto);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 function texto(valor: string | string[] | undefined): string | undefined {
@@ -124,7 +155,10 @@ export default async function DemoQaPage({ searchParams }: Props) {
     // Fonte do título hero: mesmo caminho do editor (id da lista curada →
     // aplicarTema resolve pro valor CSS), pra o laço poder provar que o
     // seletor de fontes de título alcança o título de cada skin.
-    ...(texto(query.heroFonte) && { heroTitulo: { fonte: texto(query.heroFonte) } }),
+    // Fonte/escala/espaçamento/alinhamento do título: os quatro controles
+    // do bloco "Título principal (hero)". Vão juntos num heroTitulo só —
+    // declarar dois espalhados faria o segundo apagar o primeiro.
+    ...heroTituloDaQuery(query),
     ...barraDaQuery(query),
   };
   const theme = aplicarTema(
