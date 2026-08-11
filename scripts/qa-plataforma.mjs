@@ -358,6 +358,42 @@ function semear() {
       siteUrl: "https://barbaenavalha.com.br",
       contato: { primeiroContatoEm: iso(5), primeiroContatoPor: "membro-1" },
     }),
+    // Lead ESTRANGEIRO (Zurique, Suíça) — o único fixture com `horarios` de
+    // verdade (as demais tiram a barra da estimativa por país). É ele que
+    // prova a HORA DUPLA na ficha: fuso do lead (CEST, +120) × fuso de quem
+    // está logado divergem, então a linha abaixo da barra, o marcador de
+    // agora e o anel do WhatsApp mostram as duas horas lado a lado (ver
+    // "Barra do dia por família" no ARCHITECTURE.md). Faixas cobrindo o dia
+    // inteiro em todos os dias da semana — a captura só quer mostrar a hora
+    // dupla, não testar recorte de expediente (isso já é `--so=barra`... não,
+    // é o teste unitário de `barraDoDia.ts`).
+    {
+      placeId: "lead-suico",
+      nome: "Kaffeehaus Zürich",
+      endereco: "Bahnhofstrasse 1, 8001 Zürich, Suíça",
+      status: "novo",
+      busca: { nicho: "barbearia", regiao: "Zürich, Suíça", em: iso(3) },
+      temTelefone: true,
+      telefone: "+41 44 000 00 00",
+      telefoneIntl: "41440000000",
+      temSite: false,
+      siteProprio: false,
+      criadoEm: iso(3),
+      atualizadoEm: iso(1),
+      enriquecido: true,
+      horarios: {
+        faixas: Array.from({ length: 7 }, (_, dia) => ({
+          diaAbre: dia,
+          horaAbre: 0,
+          minAbre: 0,
+          diaFecha: dia,
+          horaFecha: 23,
+          minFecha: 59,
+        })),
+        utcOffsetMinutes: 120, // CEST (horário de verão europeu)
+        obtidoEm: iso(1),
+      },
+    },
   ];
   for (const l of leads) mapa[`leads/${l.placeId}`] = l;
 
@@ -821,13 +857,35 @@ async function medirListas(browser, secret) {
     await capturar(`buscas · ${rotulo}`, `buscas-${modo}`);
   }
 
+  // ── Ficha do lead ESTRANGEIRO: a hora dupla (ver ARCHITECTURE.md, "Barra
+  // do dia por família", item 13) — fuso do lead × fuso de quem está
+  // logado, na linha abaixo da barra, no marcador de agora e no anel do
+  // WhatsApp.
+  await page.goto(`${BASE}/leads/lead-suico`, { waitUntil: "domcontentloaded" });
+  await assentar(page);
+  await exigirLogado(page, "listas/ficha-estrangeiro");
+  await page.waitForSelector('[role="img"][aria-label^="Barra do dia"]');
+  await conferir("ficha lead estrangeiro", '[role="img"][aria-label^="Barra do dia"]');
+  const linhaHoraDupla = await page
+    .locator('[role="img"][aria-label^="Barra do dia"] ~ p')
+    .textContent();
+  if (!linhaHoraDupla || !/^\d.*em .+ · \d.* aqui/.test(linhaHoraDupla.trim())) {
+    problemas.push(
+      `ficha lead estrangeiro: linha da barra não mostrou a hora dupla ("${linhaHoraDupla?.trim()}")`,
+    );
+  } else {
+    console.log(`  [listas] hora dupla na ficha do lead estrangeiro: "${linhaHoraDupla.trim()}"`);
+  }
+  await capturar("ficha · lead estrangeiro (hora dupla)", "ficha-estrangeiro");
+
   gerados.push(
     await folhaDeContato(page, "Densidade de /leads e /buscas (celular)", "listas", [
       { rotulo: "leads · densidades", itens: itens.slice(0, 4) },
       { rotulo: "leads · persistência, dobras e rolagem", itens: itens.slice(4, 8) },
       { rotulo: "buscas · dobra", itens: itens.slice(8, 10) },
       { rotulo: "buscas · densidades", itens: itens.slice(10, 15) },
-      { rotulo: "buscas · agrupado", itens: itens.slice(15) },
+      { rotulo: "buscas · agrupado", itens: itens.slice(15, 17) },
+      { rotulo: "ficha · lead estrangeiro", itens: itens.slice(17) },
     ]),
   );
   await ctx.close();
