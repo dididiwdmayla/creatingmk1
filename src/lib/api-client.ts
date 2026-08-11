@@ -1,5 +1,6 @@
 import type { NivelIA } from "@/lib/ai/nivel";
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
+import type { ConteudoTraduzivel } from "@/lib/ai/traducaoDemo";
 import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
@@ -10,7 +11,7 @@ import type {
   RelatorioMigracao,
 } from "@/lib/frases/types";
 import type { UsageCounts, UsoUsuario } from "@/lib/costs";
-import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
+import type { DemoData, DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
 import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 import type { PenetracaoSite } from "@/lib/leads/penetracao";
@@ -541,6 +542,17 @@ export const api = {
     request<{ sugestao: SugestaoDemo }>(`/api/leads/${id}/demo/sugestao`, {
       method: "POST",
       body: JSON.stringify({ skinId, nivel, ...(idioma && { idioma }) }),
+    }),
+  /**
+   * 4ª ação do botão de IA do editor: traduz o texto ATUAL do editor (não
+   * gera nada novo) — `dados` é o DemoData efetivo em memória, não os
+   * slots padrão da skin. Chamada PAGA (SKU aiGeneration, mesma cota da
+   * sugestão), só atrás de confirmação com o custo na tela.
+   */
+  traduzirDemo: (id: string, skinId: string, idioma: string, dados: DemoData) =>
+    request<{ traducao: ConteudoTraduzivel; idioma: string }>(`/api/leads/${id}/demo/traduzir`, {
+      method: "POST",
+      body: JSON.stringify({ skinId, idioma, dados }),
     }),
   deleteDemoVideo: (id: string, slot: string, skinId?: string) =>
     request<{ lead: Lead }>(`/api/leads/${id}/demo/videos`, {
