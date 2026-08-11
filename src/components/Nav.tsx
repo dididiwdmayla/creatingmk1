@@ -100,7 +100,12 @@ export function Nav() {
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`relative flex flex-1 items-center justify-center text-sm font-medium transition-colors ${
+                // A oitava aba (Mundo) não cabia em `text-sm` num celular de
+                // 390px: 8 células de ~48px contra rótulos de ~48px deixavam
+                // "Buscas"/"Demos" encostados e "Config" pela metade fora da
+                // tela. `text-xs` até `sm` devolve a folga; do `sm` pra cima a
+                // nav tem os 512px do `max-w-lg` e o tamanho de sempre vale.
+                className={`relative flex flex-1 items-center justify-center text-[10px] font-medium transition-colors min-[360px]:text-xs sm:text-sm ${
                   active ? "text-accent" : "text-ink-muted hover:text-ink-secondary"
                 }`}
               >

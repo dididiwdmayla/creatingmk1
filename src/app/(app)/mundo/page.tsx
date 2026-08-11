@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { SkeletonRows } from "@/components/Skeleton";
 import { ApiError, api, type MundoResponse } from "@/lib/api-client";
@@ -57,7 +57,16 @@ function linkBusca(familia: string, pais: string): string {
 }
 
 export default function MundoPage() {
+  return (
+    <Suspense fallback={<SkeletonRows count={4} className="h-20" />}>
+      <MundoPageInner />
+    </Suspense>
+  );
+}
+
+function MundoPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [familia, setFamilia] = useState<string>("");
   const [dados, setDados] = useState<MundoResponse | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -80,9 +89,14 @@ export default function MundoPage() {
       });
   }, []);
 
+  // `?familia=` VENCE a escolha guardada: é o que torna a tela linkável
+  // ("me manda o Mundo de imobiliária") e o que dá um estado fixo pros
+  // laços de captura, que não têm como mexer no sessionStorage antes da
+  // primeira carga.
+  const familiaInicial = searchParams.get("familia");
   useEffect(() => {
-    carregar(sessionStorage.getItem(FAMILIA_KEY) ?? "");
-  }, [carregar]);
+    carregar(familiaInicial ?? sessionStorage.getItem(FAMILIA_KEY) ?? "");
+  }, [carregar, familiaInicial]);
 
   // Sem polling de propósito: a tela vale por um minuto e a aba fica aberta
   // a madrugada inteira — ficar relendo a coleção de leads em segundo plano
@@ -90,12 +104,12 @@ export default function MundoPage() {
   useEffect(() => {
     function aoVoltar() {
       if (document.visibilityState === "visible") {
-        carregar(sessionStorage.getItem(FAMILIA_KEY) ?? "");
+        carregar(familiaInicial ?? sessionStorage.getItem(FAMILIA_KEY) ?? "");
       }
     }
     document.addEventListener("visibilitychange", aoVoltar);
     return () => document.removeEventListener("visibilitychange", aoVoltar);
-  }, [carregar]);
+  }, [carregar, familiaInicial]);
 
   function trocarFamilia(nova: string) {
     setFamilia(nova);
