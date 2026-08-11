@@ -56,6 +56,7 @@ src/
       layout.tsx                    # ✅ header + bottom nav (Hoje/Painel/Leads/Buscas/Demos/Chat/Config) + Sair
       page.tsx                      # ✅ Dashboard: uso vs teto, custo projetado, métricas, "Metas do time" (admin, só quem tem meta), widget do cron, card "Demos criadas"
       hoje/page.tsx                 # ✅ fila do dia (home pós-login): novos por score, follow-ups, demos paradas, progresso da PRÓPRIA meta de prospecção (se configurada)
+      mundo/page.tsx                # ✅ "onde prospectar agora": países em faixa boa NESTE minuto para o nicho escolhido, hora local de cada um (ver seção própria); `?familia=` fixa o nicho (deep link + captura)
       leads/page.tsx                # ✅ lista de leads com filtros + nova busca (com auto-enriquecimento)
       leads/[id]/page.tsx           # ✅ wrapper server (extrai params.id, key={id})
       leads/[id]/LeadDetailClient.tsx # ✅ ficha: enriquecer, WhatsApp, transições de status
@@ -102,6 +103,7 @@ src/
       mensagens/route.ts            # ✅ GET resumo/conversa (escopado à sessão) / POST envia texto
       mensagens/nao-lidas/route.ts  # ✅ GET total de não-lidas (badge do menu, polling leve)
       hoje/route.ts                 # ✅ GET fila do dia (delta por usuário; carimba ultimaVisitaEm)
+      mundo/route.ts                # ✅ GET países em faixa boa agora para uma família — DERIVADA (config + leads + /regioes cacheado), nenhuma chamada paga
       cron/route.ts                 # ✅ GET gatilho do Vercel Cron (Bearer CRON_SECRET, fora da sessão)
       cron/status/route.ts          # ✅ GET última execução do cron + recorrentes ligadas (widget)
       usage/route.ts                # ✅ GET uso do mês + custo projetado
@@ -172,6 +174,9 @@ src/
       barraDoDia.ts                 # ✅ funções PURAS: faixas ∩ horário de funcionamento → trechos da barra, marcador de agora, próximo bom
       hoje.ts                       # ✅ montarFilaDoDia: seleção pura das 3 seções de /hoje
       penetracao.ts                 # ✅ calcularPenetracaoSite/argumentoPenetracao/argumentoForte (ver "Penetração de site")
+    prospeccao/                     # ✅ a tela "onde prospectar agora" (ver seção própria)
+      paises.ts                     #    países candidatos de /config: modelo, os 15 defaults (fuso/idioma DERIVADOS dos mapas que já existem), bandeira do ISO e validação
+      mundo.ts                      #    funções PURAS: faixa boa agora por país, próxima faixa, índice do país (média de /regioes), leads não contatados e a ordenação da tela
     frases/                         # ✅ frases de prospecção por SKIN (ver seção própria)
       types.ts                      #    FrasesProspeccao (3 slots + indice), chaveada pelo skinId do registro
       rotacao.ts                    #    funções PURAS: frases efetivas, frase da vez, slot da vez, próximo índice
@@ -507,6 +512,10 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
       }
     }
   },
+  "paisesProspeccao": [                         // ✅ países candidatos da tela /mundo (ver "Onde prospectar agora")
+    { "codigo": "PT", "nome": "Portugal", "utcOffsetMinutos": 0, "idiomas": ["pt-PT"], "indice": 1.6 },
+    { "codigo": "CH", "nome": "Suíça", "utcOffsetMinutos": 60, "idiomas": ["de-CH", "fr-CH", "it-CH"], "indice": 3.5 }
+  ],
   "atualizadoEm": "<timestamp>"
 }
 ```
@@ -515,6 +524,7 @@ Observações:
 - Os **filtros "tem site/telefone" são filtros de listagem**, não de busca. O filtro de site usa a classificação **`siteProprio`** (rede social/agregador conta como SEM site próprio — ver "Classificação de site próprio"); vale para leads enriquecidos E para leads da **busca qualificada**. Telefone vale após enriquecer ou pela qualificada. Leads sem informação aparecem como "desconhecido" e ficam fora de com/sem.
 - `caps` é o teto de segurança (hard stop). `precos.cotaGratis` é informativo (dashboard e projeção de custo). Por default o teto = cota grátis, ou seja, o app nunca gasta um centavo sem o usuário aumentar o teto conscientemente.
 - `janelasContato` é editado em /config, com merge **por família** (mesma ideia de `capturas.ancoras`). Só o que é opinião fica gravado: minuto aberto que nenhuma faixa cobre vale `razoavel`. Família gravada no formato ANTIGO (a janela ideal/alternativa que a barra do dia substituiu) é descartada na leitura em favor do padrão novo — ver "Barra do dia por família".
+- `paisesProspeccao` é editado em /config e **substituído por inteiro** no merge (como `precificacao.presets`, e ao contrário do merge por chave de `janelasContato`/`capturas.ancoras`): sem substituir não haveria como REMOVER um país — a entrada removida voltaria do default a cada save. País repetido é 400, porque a tela mostraria a linha e a contagem de leads em dobro.
 - `capturas.ancoras` é marcado em `/interno/capturas`, não em /config: o merge é **por skin** (marcar uma não apaga as outras), lista vazia significa "não capturar esta skin", e skin/seção fora do registro são rejeitadas com 400. Skin ausente do doc cai no padrão do código.
 - **Migração de SKU (jul/2026)**: `detailsPro` foi renomeado para `detailsEnterprise` (a tabela do Google classifica telefone/site/rating como tier Enterprise). Docs antigos com chaves `detailsPro` em `caps`/`precos` são lidos via alias e regravados com o nome novo; PUTs novos com o nome antigo são rejeitados (400).
 
@@ -829,6 +839,7 @@ Formato de erro padrão em todas as rotas:
 | `/api/frases/migrar` | POST | — (admin) | `200 { relatorio }` — executa; apaga só o legado aproveitado · `401` · `403` | — |
 | `/api/frases/migrar` | DELETE | — (admin) | `200 { apagadas }` — descarta as entradas antigas restantes · `401` · `403` | — |
 | `/api/hoje` | GET | — (exige sessão identificável) | `200 { novos[], followUps[], demosParadas[], novosDesde, followUpDias, mensagemPadrao, metaProspeccao: { dia, semana }, buscas[] }` · `401` | — |
+| `/api/mundo` | GET | query: `familia` (chave de `janelasContato`; ausente/desconhecida → a primeira) | `200 { familia, familias[], agora, paises: [{ codigo, nome, idiomas, horaLocal, faixa, indice: { indice, fonte, cidades }, totalLeads, leads[] }], emBreve? }` | — (**derivada**: nenhuma) |
 | `/api/cron` | GET | header `Authorization: Bearer ${CRON_SECRET}` (fora da sessão — exceção no proxy) | `200 { execucao }` · `401` · `503 config_error` (sem CRON_SECRET) | mesmo pipeline de `/api/search`, por busca recorrente |
 | `/api/cron/status` | GET | — | `200 { ultima, recorrentes }` | — |
 | `/api/leads` | GET | query: `status`, `temSite`, `temTelefone`, `buscaId`, `favorito` | `200 { leads[] }` · `400` | — |
@@ -1801,6 +1812,32 @@ Abordagem que varia pela SKIN da demo em vez de um texto único para todo mundo,
 
 13. **Hora dupla quando o lead está em outro fuso** (`horaParaExibicao`/`linhaEstadoContato` em `barraDoDia.ts`, prop `offsetUsuarioMinutos` em `<BarraDoDia>`): todo lugar que recomenda hora de contato — a linha abaixo da barra, o `title` do marcador de agora, o `title` do botão de WhatsApp (ficha e `/hoje`) e a linha da fila — passa a mostrar as DUAS horas, a local do lead e a equivalente no fuso de quem está logado, sempre rotuladas ("19h em Zurique · 15h aqui", cidade de `cidadeDoEndereco(lead.endereco)`; sem cidade reconhecível, "lá"). **Fusos que coincidem mostram uma hora só** — comparação é pelo `offsetMinutos` exato (agora um campo do próprio `BarraDoDia`), não por string, então nunca repete o mesmo número. O fuso de quem está logado vem do NAVEGADOR, agora (`offsetUsuarioMinutos` em `lib/fusoUsuario.ts`, `-Date.getTimezoneOffset()`) — sem tabela paralela, o runtime já resolve sozinho a virada de horário de verão de onde quer que o navegador esteja. `linhaEstadoContato`/`<BarraDoDia>` recebem esse offset como parâmetro OPCIONAL, default = o próprio offset do lead: quem chama sem ele (nenhum outro ponto do código chama) nunca vê a hora duplicada, e o cálculo continua puro e testável (nada aqui lê `Intl`/relógio). Sem `utcOffsetMinutes` nem fuso derivável do lead, `barraDoDia` continua devolvendo `undefined` como antes — nenhum comportamento novo nesse caso.
 
+## Onde prospectar agora (`src/lib/prospeccao` + `/api/mundo` + tela `/mundo`)
+
+A pergunta da madrugada brasileira: **em que lugar do mundo AGORA é hora boa de abordar**. A barra do dia responde isso para UM lead que já existe; esta tela responde antes de existir lead — escolhido um nicho, ela lista os países em que este minuto cai numa faixa boa daquela família, **em hora local de cada país**.
+
+1. **É uma tela DERIVADA, e isso é o projeto dela.** Fuso, faixas por família e índice de mercado já existem no app; montá-la não gera nada e não chama nada pago — nem Places, nem Geocoding, nem IA. `GET /api/mundo` lê `/config/app`, `/leads` e `/regioes` e devolve tudo pronto. O único caminho que gasta continua sendo o de sempre: o botão "Buscar" em `/leads`, com `reserveQuota` no servidor. Por isso **tocar num país nunca dispara busca** (item 5).
+
+2. **A lista de países vive em `/config`** (`paisesProspeccao`, `lib/prospeccao/paises.ts`), editável sem deploy como `janelasContato`. O critério de entrada é UM: **WhatsApp ser canal padrão de contato comercial** por lá — é por isso que **Estados Unidos e Canadá ficam de fora** mesmo com mercado caro, e não por falta de fuso ou de idioma. Cada país guarda só o que não dá pra derivar de um lead que ainda não existe: código ISO, nome em pt-BR, fuso, idioma(s) e o índice base. Os 15 defaults saem prontos, com **fuso e idioma DERIVADOS de `utcOffsetPais.ts` e `idioma.ts`** — nenhuma tabela paralela a manter; o que é opinião nova é só o índice base e a escolha dos países.
+
+3. **O nome do país em pt-BR é a chave de tudo.** É a mesma chave dos mapas de fuso/idioma e o mesmo texto que o Places devolve no fim de `Lead.endereco` (as duas APIs são sempre chamadas com `language=pt-BR`). É essa igualdade que deixa casar lead → país com `cidadeDoEndereco`, sem nenhum campo novo no doc do lead e sem migração.
+
+4. **"Faixa boa" é a MESMA tabela da barra do dia** (`janelasContato`), sem nada exclusivo desta tela. A diferença é o que se sabe: a barra tem um lead com horário de funcionamento e recorta as faixas por ele; aqui existe só o país, então "faixa boa agora" é exatamente a faixa `bom` da família na hora local dele. **`razoavel` e `ruim` não entram** — o minuto neutro não é motivo pra acordar ninguém —, e **país fora de faixa boa não aparece**: a tela é uma resposta, não um painel de 15 linhas para o operador filtrar com os olhos às 3h da manhã. Como a sexta rebaixa todo `bom` a `razoavel` (ver "Barra do dia"), sexta é naturalmente uma tela curta.
+
+5. **O toque num país tem duas saídas, e a primeira é a de graça**: havendo lead **não contatado** daquele país e nicho (status `novo`, sem `seloContato`, não descartado), a linha ABRE com eles, melhores por score primeiro — o que já foi pago vem antes de pagar de novo. Não havendo nenhum, o toque leva ao formulário de `/leads` **já preenchido** com nicho e país (`?nicho=&regiao=`), que continua esperando o clique de confirmação. Os dois params entram como valor INICIAL dos campos e são apagados da URL logo em seguida: descrevem uma chegada, não estado da lista, e ficariam grudados no `QUERY_KEY` de `/leads` (repreenchendo o formulário em toda visita futura).
+
+6. **A ordem é idioma e depois preço** — português, inglês, espanhol, depois os demais; dentro do mesmo idioma, índice de preço decrescente. Falar a língua sem esforço vale mais do que o mercado ser caro; empatados no idioma, ganha quem paga melhor. País multi-idioma (a Suíça) vale pelo MELHOR idioma dele. Empate nos dois desempata por nome, só para a ordem ser estável entre cargas.
+
+7. **O índice prefere a cidade real ao chute** (`indiceDoPais`): havendo região daquele país já cacheada em `/regioes`, vale a MÉDIA dessas cidades (com `indiceAjustado` vencendo `indice`, a mesma precedência da calculadora); sem nenhuma, vale o número base da config. A tela mostra qual das duas fontes está usando ("1,9 · base" vs "2,4 · 3 cid."), porque a diferença entre um chute editável e um índice gerado para uma cidade específica é grande demais pra ficar implícita. Nada aqui GERA índice: gerar é chamada paga.
+
+8. **Tela vazia continua respondendo.** Quando nenhum país está em faixa boa — o caso comum às 2h da manhã —, a tela diz qual país entra em faixa boa primeiro e em quanto tempo ("🇪🇸 Espanha abre hoje às 9h — em 3h43"). "E quando, então?" é a mesma pergunta, e uma folha em branco às 3h da manhã não a responde.
+
+9. **Sem polling.** A aba fica aberta a madrugada inteira; ficar relendo a coleção de leads em segundo plano seria custo por nada. A tela recarrega quando o foco volta pra ela (`visibilitychange`) e quando o nicho muda. O nicho escolhido é lembrado por ABA (`sessionStorage`), e `?familia=` na URL vence a lembrança — é o que torna a tela linkável e o que dá estado fixo aos laços de captura.
+
+10. **A barra do dia da ficha não mudou em nada.** Esta tela é um acréscimo: lê a mesma tabela, reusa `horaDoMinuto` (uma formatação de hora só no app inteiro) e não toca em `barraDoDia.ts`.
+
+11. **Verificação** (`qa-plataforma --so=abas` e o portão de CLS `qa-cls --so=app`, ambos com a aba nova): a tela depende do RELÓGIO — a mesma rodada sairia cheia às 5h e vazia às 2h —, então os laços abrem `/mundo?familia=imobiliaria` e o seed dá A ESSA família uma faixa larga; `barbearia`, que é a família das FICHAS capturadas, fica com o padrão e continua mostrando a escada de níveis de verdade na barra. Foi a primeira captura de celular que reprovou a **oitava aba da nav**: em 390px, `text-sm` deixava "Buscas"/"Demos" encostados e "Config" pela metade fora da tela — o rótulo caiu para `text-xs` até `sm` (e 10px abaixo de 360px), medido em 320/360/390/430px. Nada disso aparece em teste unitário.
+
 ## Mensagens entre usuários (`src/lib/mensagens` + `/mensagens`)
 
 Chat interno de texto simples entre os usuários do time (coleção `/mensagens` — ver modelo de dados). Decisões:
@@ -2114,8 +2151,9 @@ nova medição: **0.0000**.
 Client Components (`"use client"`) que buscam dados via `fetch` no próprio cliente (não Server Components lendo o Firestore direto) — decisão deliberada: cada ação do usuário (buscar, enriquecer, mudar status, salvar config) precisa do feedback de erro específico das rotas (429/502/400/404/409), então a mesma rota HTTP serve tanto a carga inicial quanto a mutação, com um único caminho de tratamento de erro (`src/lib/api-client.ts`, classe `ApiError`).
 
 - **`/login`**: form de usuário + senha → `POST /api/login` → redireciona para `/hoje` (a fila do dia é a home pós-login). Qualquer página protegida sem sessão redireciona para cá (proxy).
-- **`(app)/` (route group)**: layout com nav inferior fixa (Hoje/Painel/Leads/Buscas/Demos/Chat/Config) + botão Sair; a aba Chat carrega o badge de não-lidas (polling leve de `/api/mensagens/nao-lidas`); todas as páginas autenticadas vivem aqui.
+- **`(app)/` (route group)**: layout com nav inferior fixa (Hoje/Mundo/Painel/Leads/Buscas/Demos/Chat/Config) + botão Sair; com a oitava aba o rótulo passou a ser `text-xs` até `sm` (10px abaixo de 360px) — em `text-sm` os rótulos se encostavam e "Config" saía pela borda num celular de 390px (ver "Onde prospectar agora"); a aba Chat carrega o badge de não-lidas (polling leve de `/api/mensagens/nao-lidas`); todas as páginas autenticadas vivem aqui.
   - **`/hoje` (Fila do dia)**: contadores no topo + as 3 seções de `GET /api/hoje` (novos por score com badge da busca de origem, follow-ups com "Xd sem resposta", demos paradas), cada item com WhatsApp/Ficha/Demo diretos e, quando `lead.horarios` existe, "melhor momento pra contatar" ao lado do item — ver "Operação diária".
+  - **`/mundo` (Onde prospectar agora)**: seletor de nicho + uma linha por país em faixa boa NESTE minuto (bandeira, nome, índice de preço com a fonte, hora local e até quando a faixa vai, idiomas), ordenada por idioma e depois por índice desc. Tocar num país abre os leads não contatados dele naquele nicho ou, não havendo nenhum, leva à busca pré-preenchida em `/leads` — sem disparar busca. Tela derivada, nenhuma chamada paga; ver "Onde prospectar agora".
   - **`/` (Dashboard)**: hero com custo projetado em R$, um `UsageMeter` por SKU (accent → warning → critical conforme se aproxima do teto, nunca só cor — sempre acompanhado da palavra "OK"/"Perto do teto"/"No limite"), um KPI row de prospecção com `/api/metrics`, o widget "Buscas recorrentes" (última execução do cron via `/api/cron/status`: quando rodou, quanto achou, interrupção/erros e quantas recorrentes estão ligadas) e o card "Demos criadas" (total de `metrics.demosCriadas`, linka para `/demos`). **Membro vê os números escopados a ele** (a API já escopa); **admin ganha a seção "Por usuário"** (requests por SKU, buscas, demos, contatos de cada um).
   - **`/leads`**: form de nova busca (`POST /api/search`, trata `quota_exceeded`/`user_quota_exceeded`/`places_error`/`aviso` parcial com mensagem específica; campos nicho/sub-nicho/região/nome, quantidade 1–40, checkbox "Só sem site" e auto-enriquecimento dos primeiros N ≤ 5), o indicador `CotaIndicador` de cota individual de buscas (permanente, atualizado após cada busca, botão desabilitado como cortesia ao esgotar) + filtros (status/site/telefone/favoritos) + lista com **agrupamento colapsável por busca** (o mesmo `CabecalhoBusca` de `/buscas`: dot da cor + nome + badge "recorrente" + nicho·sub-nicho — região + data + autor + contagem; lead em várias buscas aparece em cada grupo; "Sem busca" agrupa o resto — sem procedência, porque não há busca de origem). O estado da dobra é do USUÁRIO, não da querystring (ver "Compactação de /leads e /buscas"), e a barra de filtros tem a alternância **Compacto/Completo**, que transforma cada card numa linha (nome · site/tel · score · status) até alguém tocar nele. Cada card (`LeadCard`) tem estrela de favorito e notas editáveis inline — sem abrir a ficha —, os dots de cor das buscas, destaque "sem site (lead quente)" e, quando `lead.horarios` existe, o estado atual ("Aberto agora · fecha 18h" / "Fechado · abre 9h", `estadoAtual` de `lib/leads/horarios.ts`). Aceita `?buscaId=` na URL (via `useSearchParams`, com Suspense) para mostrar só os leads de uma busca (aí a lista é plana), com chip de filtro e botão limpar.
   - **`/buscas`**: cada busca é um **grupo colapsável** (ver "Compactação de /leads e /buscas") — fechada, sobra só a faixa do `CabecalhoBusca` (dot de cor, nome, badge "recorrente", nicho·sub-nicho — região, data, autor, contagem de leads); aberta, revela os totais, a mensagem do grupo e o toggle "tornar recorrente"/"recorrente ✓" (`PATCH /api/buscas/[id]` — o 400 do teto de recorrentes aparece como erro na página). Tocar no dot cicla a cor pela paleta e persiste (mesmo PATCH). A navegação para `/leads?buscaId=…` deixou de ser "o card inteiro é um link" (o card agora dobra) e ganhou o atalho explícito "leads →" no cabeçalho. No topo, o seletor de **agrupamento** (sem agrupar · por mês · por nicho) — o modo fica na querystring e volta junto com a posição de rolagem quando o operador retorna dos leads do grupo.
