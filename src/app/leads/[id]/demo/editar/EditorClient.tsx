@@ -7,7 +7,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/Button";
 import { NIVEIS_IA, NIVEL_IA_PADRAO, nivelIaValido, type NivelIA } from "@/lib/ai/nivel";
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
+import type { ConteudoTraduzivel } from "@/lib/ai/traducaoDemo";
 import { ApiError, api } from "@/lib/api-client";
+import type { AppConfig } from "@/lib/config";
+import { projecaoTraducaoDemo } from "@/lib/demos/custoTraducaoDemo";
 import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
 import { getFonte } from "@/lib/demos/fontes";
 import { idiomaPadraoDoLead } from "@/lib/demos/idioma";
@@ -18,8 +21,10 @@ import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarSugestaoTexto, sugestaoTemTexto } from "@/lib/demos/sugestaoTexto";
 import { aplicarTema, migrarTemaPatch } from "@/lib/demos/tema";
+import { aplicarTraducaoDemo } from "@/lib/demos/traducaoTexto";
 import type { DemoData, ImagensModo, TemaPatch } from "@/lib/demos/types";
-import { IDIOMA_PADRAO } from "@/lib/idioma";
+import { formatBRL } from "@/lib/format";
+import { IDIOMA_PADRAO, idiomaLabelRegional } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
 import { prepararImagem } from "./comprimir";
 import {
@@ -139,6 +144,22 @@ export function DemoEditorClient({ id }: { id: string }) {
   // ?ia=1 (checkbox "começar com sugestões de IA" do passo de escolha).
   const [iaAuto, setIaAuto] = useState(false);
   const iaAutoDisparadaRef = useRef(false);
+
+  // 4ª ação do botão de IA: TRADUZIR o texto atual do editor (não gera
+  // nada novo) — radio próprio ao lado dos 3 níveis, escolhido na MESMA
+  // etapa (`escolhendoNivel`). `traduzirSelecionado` decide qual das duas
+  // chamadas o botão "Continuar" dispara e qual preview a etapa seguinte
+  // mostra; nunca os dois ao mesmo tempo.
+  const [traduzirSelecionado, setTraduzirSelecionado] = useState(false);
+  const [traduzindoIA, setTraduzindoIA] = useState(false);
+  const [traducaoResultado, setTraducaoResultado] = useState<ConteudoTraduzivel | null>(null);
+  const [traducaoErro, setTraducaoErro] = useState<string | null>(null);
+  // Custo/cota da tradução (SKU aiGeneration) — buscados ao abrir o modal,
+  // só pra mostrar o preço ANTES do clique (cortesia; o bloqueio real é do
+  // servidor). null = ainda não chegou ou falhou — o texto avisa em vez de
+  // inventar número.
+  const [usoIAGeracao, setUsoIAGeracao] = useState<{ usado: number; teto: number } | null>(null);
+  const [precosConfig, setPrecosConfig] = useState<AppConfig["precos"] | null>(null);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -456,12 +477,25 @@ export function DemoEditorClient({ id }: { id: string }) {
     }
   }
 
-  /** Botão "Gerar com IA": abre o escolhedor de nível ANTES de chamar o Gemini. */
+  /** Botão "Gerar com IA": abre o escolhedor de ação ANTES de chamar o Gemini. */
   function handleAbrirGerarIA() {
     setMostrarIA(true);
     setEscolhendoNivel(true);
     setIaErro(null);
     setSugestao(null);
+    setTraduzirSelecionado(false);
+    setTraducaoResultado(null);
+    setTraducaoErro(null);
+    // Custo/cota da tradução (SKU aiGeneration) — cortesia, mostrada antes
+    // do clique; falha aqui não impede escolher os outros 3 níveis.
+    api
+      .getUsage()
+      .then(({ usage, caps }) => setUsoIAGeracao({ usado: usage.aiGeneration, teto: caps.aiGeneration }))
+      .catch(() => setUsoIAGeracao(null));
+    api
+      .getConfig()
+      .then(({ config }) => setPrecosConfig(config.precos))
+      .catch(() => setPrecosConfig(null));
   }
 
   /** Confirma o nível escolhido (persiste como último nível) e gera. */
@@ -502,11 +536,43 @@ export function DemoEditorClient({ id }: { id: string }) {
     setAviso("Sugestões de IA aplicadas — salve para publicar.");
   }
 
+  /**
+   * Confirma "Traduzir": traduz o texto ATUAL do editor (`dados` em
+   * memória, não os slots da skin) para o idioma efetivo — o mesmo que a
+   * aba Tema já resolve (sobrescrita manual → default derivado do
+   * endereço, com a variante regional certa em países plurilíngues). 1
+   * chamada, sem retry — ver lib/ai/traducaoDemo.ts.
+   */
+  function handleConfirmarTraducao() {
+    if (!dados) return;
+    setEscolhendoNivel(false);
+    setTraducaoErro(null);
+    setTraduzindoIA(true);
+    api
+      .traduzirDemo(id, skin.id, idioma, dados)
+      .then(({ traducao }) => setTraducaoResultado(traducao))
+      .catch((error) =>
+        setTraducaoErro(error instanceof ApiError ? error.message : "Falha ao traduzir."),
+      )
+      .finally(() => setTraduzindoIA(false));
+  }
+
+  /** Aplica a tradução ao estado do editor — nada persiste sem "Salvar". */
+  function handleAplicarTraducao() {
+    if (!traducaoResultado) return;
+    atualizar((d) => aplicarTraducaoDemo(traducaoResultado, d));
+    setMostrarIA(false);
+    setTraducaoResultado(null);
+    setAviso("Tradução aplicada — salve para publicar.");
+  }
+
   function handleDescartarSugestao() {
     setMostrarIA(false);
     setEscolhendoNivel(false);
     setSugestao(null);
     setIaErro(null);
+    setTraducaoResultado(null);
+    setTraducaoErro(null);
   }
 
   function handleVoltar() {
@@ -549,6 +615,20 @@ export function DemoEditorClient({ id }: { id: string }) {
       </div>
     );
   }
+
+  // Custo/cota da tradução (SKU aiGeneration) — só some quando falta uso OU
+  // preço; cortesia pra mostrar o preço antes do clique (o bloqueio real é
+  // sempre do servidor).
+  const projecaoTraducao =
+    usoIAGeracao && precosConfig
+      ? projecaoTraducaoDemo(
+          usoIAGeracao.usado,
+          usoIAGeracao.teto,
+          { usdPer1000: precosConfig.usdPor1000.aiGeneration, freeQuota: precosConfig.cotaGratis.aiGeneration },
+          precosConfig.usdBrl,
+        )
+      : null;
+  const idiomaEhPortugues = idioma === IDIOMA_PADRAO;
 
   const abas: Array<{ id: Aba; rotulo: string }> = [
     { id: "conteudo", rotulo: "Conteúdo" },
@@ -785,7 +865,11 @@ export function DemoEditorClient({ id }: { id: string }) {
           <div className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-2xl">
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <h2 className="text-sm font-semibold text-foreground">
-                {escolhendoNivel ? "✨ Gerar com IA" : "✨ Sugestões de IA"}
+                {escolhendoNivel
+                  ? "✨ Gerar com IA"
+                  : traduzirSelecionado
+                    ? "✨ Tradução"
+                    : "✨ Sugestões de IA"}
               </h2>
               <button
                 type="button"
@@ -807,7 +891,7 @@ export function DemoEditorClient({ id }: { id: string }) {
                       <label
                         key={valor}
                         className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm text-foreground transition-colors ${
-                          nivelIA === valor
+                          !traduzirSelecionado && nivelIA === valor
                             ? "border-accent bg-surface-2"
                             : "border-line hover:border-accent/50"
                         }`}
@@ -815,8 +899,11 @@ export function DemoEditorClient({ id }: { id: string }) {
                         <input
                           type="radio"
                           name="nivel-ia"
-                          checked={nivelIA === valor}
-                          onChange={() => setNivelIA(valor)}
+                          checked={!traduzirSelecionado && nivelIA === valor}
+                          onChange={() => {
+                            setTraduzirSelecionado(false);
+                            setNivelIA(valor);
+                          }}
                           className="mt-0.5 accent-[var(--accent)]"
                         />
                         <span>
@@ -827,6 +914,57 @@ export function DemoEditorClient({ id }: { id: string }) {
                         </span>
                       </label>
                     ))}
+                    <label
+                      className={`flex items-start gap-2 rounded-lg border p-3 text-sm text-foreground transition-colors ${
+                        idiomaEhPortugues
+                          ? "cursor-not-allowed border-line/50 opacity-50"
+                          : "cursor-pointer"
+                      } ${
+                        traduzirSelecionado
+                          ? "border-accent bg-surface-2"
+                          : "border-line hover:border-accent/50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="nivel-ia"
+                        checked={traduzirSelecionado}
+                        disabled={idiomaEhPortugues}
+                        onChange={() => setTraduzirSelecionado(true)}
+                        className="mt-0.5 accent-[var(--accent)]"
+                      />
+                      <span>
+                        Traduzir
+                        <span className="block text-xs text-ink-muted">
+                          Não reescreve, não melhora, não muda o tom — traduz exatamente o texto
+                          que já está no editor.
+                        </span>
+                        {idiomaEhPortugues ? (
+                          <span className="mt-1 block text-xs text-ink-muted">
+                            O idioma da demo é português do Brasil — nada para traduzir.
+                          </span>
+                        ) : (
+                          <span className="mt-1 block text-xs text-foreground">
+                            Idioma de destino: <strong>{idiomaLabelRegional(idioma)}</strong>
+                          </span>
+                        )}
+                        {traduzirSelecionado && !idiomaEhPortugues && (
+                          <span className="mt-1 block text-[11px] text-ink-muted">
+                            {projecaoTraducao ? (
+                              <>
+                                1 chamada de IA. Custo: {formatBRL(projecaoTraducao.custoBRL)}.
+                                Gerações de IA este mês: {projecaoTraducao.usado}/
+                                {projecaoTraducao.teto}.
+                                {projecaoTraducao.podeEstourar &&
+                                  " Atenção: esta chamada passa do teto do mês e o servidor pode recusar."}
+                              </>
+                            ) : (
+                              "1 chamada de IA. Não deu pra carregar a cota do mês — o servidor ainda barra se o teto estourar."
+                            )}
+                          </span>
+                        )}
+                      </span>
+                    </label>
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
@@ -837,9 +975,128 @@ export function DemoEditorClient({ id }: { id: string }) {
                   >
                     Cancelar
                   </button>
-                  <Button onClick={handleConfirmarNivel} className="!px-3 !py-1.5 text-xs">
-                    Gerar sugestões
+                  <Button
+                    onClick={traduzirSelecionado ? handleConfirmarTraducao : handleConfirmarNivel}
+                    className="!px-3 !py-1.5 text-xs"
+                  >
+                    {traduzirSelecionado ? "Traduzir" : "Gerar sugestões"}
                   </Button>
+                </div>
+              </>
+            ) : traduzirSelecionado ? (
+              <>
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm">
+                  {traduzindoIA && (
+                    <p className="py-6 text-center text-ink-muted">
+                      Traduzindo para {idiomaLabelRegional(idioma)}…
+                    </p>
+                  )}
+                  {traducaoErro && !traduzindoIA && (
+                    <p className="rounded border border-critical/30 bg-critical/10 px-3 py-2 text-xs text-critical">
+                      {traducaoErro}
+                    </p>
+                  )}
+                  {traducaoResultado && !traduzindoIA && (
+                    <div className="flex flex-col gap-3">
+                      {traducaoResultado.slogan !== undefined && (
+                        <div className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            Slogan
+                          </p>
+                          <p className="mt-1.5 text-xs text-foreground">{traducaoResultado.slogan}</p>
+                        </div>
+                      )}
+                      {Object.entries(traducaoResultado.secoes).map(([idSecao, textos]) => (
+                        <div key={idSecao} className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            {skin.secoes.find((s) => s.id === idSecao)?.nome ?? idSecao}
+                          </p>
+                          <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                            {textos.rotulo !== undefined && <li>Rótulo: {textos.rotulo}</li>}
+                            {textos.titulo !== undefined && <li>Título: {textos.titulo}</li>}
+                            {textos.texto !== undefined && <li>Texto: {textos.texto}</li>}
+                            {textos.cta !== undefined && <li>CTA: {textos.cta}</li>}
+                            {textos.ctaSecundaria !== undefined && (
+                              <li>CTA secundária: {textos.ctaSecundaria}</li>
+                            )}
+                            {textos.itens && textos.itens.length > 0 && (
+                              <li>
+                                Itens:
+                                <ul className="pl-2 text-ink-muted">
+                                  {textos.itens.map((item, i) =>
+                                    Object.keys(item).length === 0 ? null : (
+                                      <li key={i}>
+                                        {[item.titulo, item.subtitulo, item.detalhe, item.texto]
+                                          .filter(Boolean)
+                                          .join(" — ")}
+                                      </li>
+                                    ),
+                                  )}
+                                </ul>
+                              </li>
+                            )}
+                          </ul>
+                        </div>
+                      ))}
+                      {traducaoResultado.servicos.some((s) => Object.keys(s).length > 0) && (
+                        <div className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            Serviços
+                          </p>
+                          <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                            {traducaoResultado.servicos.map((servico, i) =>
+                              Object.keys(servico).length === 0 ? null : (
+                                <li key={i}>
+                                  {servico.nome && <span className="font-medium">{servico.nome}</span>}
+                                  {servico.precoPrefixo && (
+                                    <span className="text-ink-muted"> — {servico.precoPrefixo}</span>
+                                  )}
+                                  {servico.descricao && (
+                                    <span className="text-ink-muted"> — {servico.descricao}</span>
+                                  )}
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                      {traducaoResultado.depoimentos.some((d) => Object.keys(d).length > 0) && (
+                        <div className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            Depoimentos
+                          </p>
+                          <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                            {traducaoResultado.depoimentos.map((dep, i) =>
+                              !dep.texto ? null : <li key={i}>{dep.texto}</li>,
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                      <p className="text-[11px] text-ink-muted">
+                        Aplicar só muda o rascunho do editor — nada é publicado sem Salvar.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+                  {traducaoErro && !traduzindoIA && (
+                    <Button onClick={handleConfirmarTraducao} className="!px-3 !py-1.5 text-xs">
+                      Tentar de novo
+                    </Button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDescartarSugestao}
+                    className="rounded border border-line px-3 py-1.5 text-xs text-ink-muted hover:text-foreground"
+                  >
+                    Descartar
+                  </button>
+                  {traducaoResultado && !traduzindoIA && (
+                    <Button onClick={handleAplicarTraducao} className="!px-3 !py-1.5 text-xs">
+                      Aplicar tradução
+                    </Button>
+                  )}
                 </div>
               </>
             ) : (
