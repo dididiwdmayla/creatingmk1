@@ -13,6 +13,17 @@ function docRef(db: AppDb, slug: string) {
   return db.collection(REGIOES_COLLECTION).doc(slug);
 }
 
+/**
+ * Todas as regiões já cacheadas. Leitura pura do cache — nunca gera nada,
+ * nunca chama IA: quem precisa da lista inteira é a tela `/mundo`, que é
+ * derivada e não pode custar uma chamada paga sequer. Coleção pequena por
+ * construção (um doc por região geocodificada na vida do app).
+ */
+export async function listRegioes(db: AppDb): Promise<RegiaoIndice[]> {
+  const snapshot = await db.collection(REGIOES_COLLECTION).get();
+  return snapshot.docs.map((doc) => ({ ...(doc.data() as unknown as RegiaoIndice), slug: doc.id }));
+}
+
 export async function getRegiaoIndice(db: AppDb, slug: string): Promise<RegiaoIndice | undefined> {
   const snap = await docRef(db, slug).get();
   const data = snap.exists ? snap.data() : undefined;

@@ -25,8 +25,8 @@ import type { Sku, UsoUsuario } from "@/lib/costs";
 import { frasesEfetivas, normalizarSlots, posicaoAtual } from "@/lib/frases/rotacao";
 import {
   FAMILIAS_JANELA_CONTATO,
-  FAMILIA_GENERICA,
   NIVEIS_CONTATO,
+  ROTULO_FAMILIA,
   type FaixaNivelContato,
   type FamiliaJanelaContato,
   type HoraMinuto,
@@ -1670,16 +1670,6 @@ function PresetsEditor({
   );
 }
 
-const NOME_FAMILIA: Record<string, string> = {
-  barbearia: "Barbearia",
-  lancheria: "Lancheria",
-  tatuagem: "Tatuagem",
-  imobiliaria: "Imobiliária",
-  petshop: "Petshop",
-  multimarcas: "Multimarcas",
-  [FAMILIA_GENERICA]: "Genérico (nicho não reconhecido)",
-};
-
 // Segunda primeiro (semana de trabalho), domingo por último — mesma ordem
 // de leitura de `resumirHorarios` (lib/leads/horarios.ts).
 const DIAS_SEMANA_ORDEM: Array<{ dia: number; abrev: string }> = [
@@ -1818,7 +1808,7 @@ function JanelaFamiliaEditor({
 
   return (
     <div className="rounded border border-line p-3">
-      <p className="text-sm font-medium text-foreground">{NOME_FAMILIA[familiaId] ?? familiaId}</p>
+      <p className="text-sm font-medium text-foreground">{ROTULO_FAMILIA[familiaId] ?? familiaId}</p>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
         {DIAS_SEMANA_ORDEM.map(({ dia, abrev }) => {

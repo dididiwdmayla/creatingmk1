@@ -73,6 +73,21 @@ export const FAMILIA_GENERICA = "generico";
 /** Ordem de exibição no /config: famílias conhecidas + genérico por último. */
 export const FAMILIAS_JANELA_CONTATO = [...FAMILIAS_NICHO_CONTATO, FAMILIA_GENERICA] as const;
 
+/**
+ * Rótulo de cada família na tela. Mora aqui junto das famílias (e não na
+ * página que desenha) porque agora são DUAS telas mostrando a mesma lista:
+ * a edição das faixas em /config e o seletor de nicho de /mundo.
+ */
+export const ROTULO_FAMILIA: Record<string, string> = {
+  barbearia: "Barbearia",
+  lancheria: "Lancheria",
+  tatuagem: "Tatuagem",
+  imobiliaria: "Imobiliária",
+  petshop: "Petshop",
+  multimarcas: "Multimarcas",
+  [FAMILIA_GENERICA]: "Genérico (nicho não reconhecido)",
+};
+
 export const DIAS_SEMANA = [0, 1, 2, 3, 4, 5, 6] as const;
 
 export function minutoDoDia({ hora, minuto }: HoraMinuto): number {
