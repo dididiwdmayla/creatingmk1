@@ -199,4 +199,68 @@ describe("linhaEstadoContato", () => {
     const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 8, 30))!;
     expect(linhaEstadoContato(barra)).toBe("Hora do lead 8h30 · fechado agora · próximo bom hoje 10h");
   });
+
+  it("fuso do usuário igual ao do lead: continua mostrando UMA hora só (comportamento antigo)", () => {
+    const l = barbearia([abertura(2, 9, 19), abertura(3, 9, 19)]);
+    const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 17, 0))!;
+    // -180 é o mesmo offset da barbearia (Brasília) — mesma string de antes.
+    expect(linhaEstadoContato(barra, -180)).toBe(
+      "Hora do lead 17h · agora: ruim · próximo bom amanhã 9h",
+    );
+  });
+
+  it("fuso do usuário diferente: mostra as DUAS horas, sem repetir o número", () => {
+    const l = barbearia([abertura(2, 9, 19), abertura(3, 9, 19)]);
+    const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 17, 0))!;
+    // Usuário 2h à frente do lead (Brasília -180 → -60).
+    expect(linhaEstadoContato(barra, -60, "Zurique")).toBe(
+      "17h em Zurique · 19h aqui · agora: ruim · próximo bom amanhã 9h em Zurique · 11h aqui",
+    );
+  });
+
+  it("sem cidade reconhecível, cai no genérico \"lá\"", () => {
+    const l = barbearia([abertura(2, 9, 19), abertura(3, 9, 19)]);
+    const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 17, 0))!;
+    expect(linhaEstadoContato(barra, -60)).toBe(
+      "17h lá · 19h aqui · agora: ruim · próximo bom amanhã 9h lá · 11h aqui",
+    );
+  });
+
+  /**
+   * Regressão: lead na SUÍÇA consultado por um usuário no horário de
+   * Brasília mostra as duas horas com a diferença correta — inclusive na
+   * virada de horário de verão europeu. `utcOffsetMinutes` já vem
+   * DST-correto do enriquecimento (Google resolve o horário de verão no
+   * momento da chamada); o que se testa aqui é que a ARITMÉTICA da hora
+   * dupla acompanha esse offset em vez de assumir um deslocamento fixo —
+   * por isso o inverno (+60, CET) e o verão (+120, CEST) dão diferenças
+   * DIFERENTES para o MESMO horário local do lead.
+   */
+  it("lead suíço × usuário em Brasília: diferença correta no inverno e no verão europeus", () => {
+    const suico = (offsetSuica: number): Lead =>
+      lead({
+        busca: { nicho: "barbearia", regiao: "Zurique", em: "" },
+        endereco: "Bahnhofstrasse 1, 8001 Zürich, Suíça",
+        horarios: {
+          faixas: [{ diaAbre: 2, horaAbre: 0, minAbre: 0, diaFecha: 2, horaFecha: 23, minFecha: 59 }],
+          utcOffsetMinutes: offsetSuica,
+          obtidoEm: "2026-01-01T00:00:00.000Z",
+        },
+      });
+    const offsetBrasilia = -180;
+
+    // Inverno europeu: Zurique em CET (+60). 19h local lá = 18h UTC.
+    const invernoUtc = new Date("2026-01-13T18:00:00.000Z");
+    const barraInverno = barraDoDia(DEFAULT_JANELAS_CONTATO, suico(60), invernoUtc)!;
+    expect(linhaEstadoContato(barraInverno, offsetBrasilia, "Zurique")).toContain(
+      "19h em Zurique · 15h aqui",
+    );
+
+    // Verão europeu: Zurique em CEST (+120, horário de verão). 19h local lá = 17h UTC.
+    const veraoUtc = new Date("2026-07-14T17:00:00.000Z");
+    const barraVerao = barraDoDia(DEFAULT_JANELAS_CONTATO, suico(120), veraoUtc)!;
+    expect(linhaEstadoContato(barraVerao, offsetBrasilia, "Zurique")).toContain(
+      "19h em Zurique · 14h aqui",
+    );
+  });
 });

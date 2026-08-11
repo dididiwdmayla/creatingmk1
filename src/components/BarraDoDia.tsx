@@ -1,5 +1,6 @@
 import {
   horaDoMinuto,
+  horaParaExibicao,
   linhaEstadoContato,
   ROTULO_NIVEL,
   type BarraDoDia as BarraDoDiaDados,
@@ -28,6 +29,12 @@ import type { FaixaNivelContato, NivelContato } from "@/lib/leads/janelaContato"
  *    horário de funcionamento chegando DEPOIS (botão "buscar horários") só
  *    troca o conteúdo dos trechos — nunca empurra o que está abaixo. Ver
  *    ARCHITECTURE.md, "Deslocamento de layout".
+ * 4. **Hora dupla quando os fusos divergem.** `offsetUsuarioMinutos` (padrão
+ *    = o do próprio lead, ou seja, sem hora dupla) é o fuso de quem está
+ *    logado — vindo diferente, tanto o `title` do marcador quanto a linha de
+ *    texto abaixo passam a mostrar as DUAS horas ("19h em Zurique · 15h
+ *    aqui"), nunca o mesmo número repetido (`horaParaExibicao`, em
+ *    `lib/leads/barraDoDia.ts`).
  */
 
 /** Altura do preenchimento por nível, dentro da trilha — o segundo canal, junto da cor. */
@@ -68,11 +75,28 @@ function Legenda() {
   );
 }
 
-export function BarraDoDia({ barra }: { barra: BarraDoDiaDados }) {
+export function BarraDoDia({
+  barra,
+  offsetUsuarioMinutos = barra.offsetMinutos,
+  nomeLead,
+}: {
+  barra: BarraDoDiaDados;
+  /** Fuso de quem está logado (ver `@/lib/fusoUsuario`) — padrão = o do próprio lead (sem hora dupla). */
+  offsetUsuarioMinutos?: number;
+  /** Cidade do lead, para rotular o lado dele na hora dupla ("19h em Zurique"). */
+  nomeLead?: string;
+}) {
   const abertura = barra.abertura;
   const marcadorPct =
     abertura && barra.minutoAgora >= abertura.inicio && barra.minutoAgora <= abertura.fim
       ? porcentagem(barra.minutoAgora, abertura.inicio, abertura.fim)
+      : undefined;
+  // O marcador de agora é o ponto onde a barra RESPONDE "que horas são" —
+  // por isso é ele (e não um trecho qualquer da trilha) que carrega a hora
+  // dupla no title, quando o fuso de quem está logado diverge do lead.
+  const marcadorTitulo =
+    marcadorPct !== undefined
+      ? `Agora: ${horaParaExibicao(barra.minutoAgora, barra.offsetMinutos, offsetUsuarioMinutos, nomeLead)}`
       : undefined;
 
   const descricao = abertura
@@ -96,6 +120,7 @@ export function BarraDoDia({ barra }: { barra: BarraDoDiaDados }) {
           <span
             className="absolute top-0 -translate-x-1/2 text-foreground"
             style={{ left: `${marcadorPct}%` }}
+            title={marcadorTitulo}
             aria-hidden
           >
             ▼
@@ -129,6 +154,7 @@ export function BarraDoDia({ barra }: { barra: BarraDoDiaDados }) {
           <span
             className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-foreground"
             style={{ left: `${marcadorPct}%` }}
+            title={marcadorTitulo}
             aria-hidden
           />
         )}
@@ -138,7 +164,9 @@ export function BarraDoDia({ barra }: { barra: BarraDoDiaDados }) {
 
       {/* Duas linhas reservadas: o texto muda de tamanho quando o horário de
           funcionamento chega, e não pode empurrar o que vem abaixo. */}
-      <p className="mt-1 min-h-8 text-xs text-ink-secondary">{linhaEstadoContato(barra)}</p>
+      <p className="mt-1 min-h-8 text-xs text-ink-secondary">
+        {linhaEstadoContato(barra, offsetUsuarioMinutos, nomeLead)}
+      </p>
     </div>
   );
 }

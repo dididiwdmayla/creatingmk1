@@ -16,6 +16,8 @@ import { comIndiceAtualizado, resolverMensagem } from "@/lib/frases/resolver";
 import { ultimaAberturaNaoInterna } from "@/lib/leads/hoje";
 import { melhorMomento } from "@/lib/leads/horarios";
 import { barraDoDia, linhaEstadoContato } from "@/lib/leads/barraDoDia";
+import { cidadeDoEndereco } from "@/lib/leads/cidade";
+import { offsetUsuarioMinutos } from "@/lib/fusoUsuario";
 import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { calculaScore } from "@/lib/leads/score";
@@ -393,7 +395,12 @@ function ItemHoje({
   // A mesma linha que fica abaixo da barra do dia na ficha — aqui sem a
   // barra (a fila é uma lista compacta), só o estado em palavras.
   const barra = barraDoDia(janelasContato, lead);
-  const linhaJanela = barra && linhaEstadoContato(barra);
+  // Mesmo par (fuso de quem está logado + cidade do lead) da ficha, para a
+  // mesma hora dupla aparecer também na fila — ver "Barra do dia" no
+  // ARCHITECTURE.md.
+  const fusoUsuario = offsetUsuarioMinutos();
+  const nomeLead = lead.endereco ? cidadeDoEndereco(lead.endereco).cidade : undefined;
+  const linhaJanela = barra && linhaEstadoContato(barra, fusoUsuario, nomeLead);
   // "Hora boa" passa a sair das FAIXAS da família quando elas se aplicam
   // (fuso conhecido); `melhorMomento` só diz "está aberto", que agora seria
   // contradito pela própria linha ao lado ("agora: ruim").
@@ -476,6 +483,7 @@ function ItemHoje({
               onClick={(event) => onWhatsAppClick(event, lead, waHref)}
               target="_blank"
               rel="noopener noreferrer"
+              title={linhaJanela ?? undefined}
               className={
                 horaBoa
                   ? "font-semibold text-good underline decoration-2 underline-offset-2"

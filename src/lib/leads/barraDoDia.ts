@@ -61,6 +61,8 @@ export interface ProximoBom {
 }
 
 export interface BarraDoDia {
+  /** Deslocamento UTC (minutos) do lead usado neste cálculo — mesmo valor de `utcOffsetDoLead`. */
+  offsetMinutos: number;
   /** 0=domingo…6=sábado, na hora local do lead. */
   diaSemana: number;
   /** Minuto do dia AGORA, hora local do lead — é onde vai o marcador. */
@@ -252,6 +254,7 @@ export function barraDoDia(
       : acharProximoBom(janelas, lead, diaSemana, minutoAgora);
 
   return {
+    offsetMinutos: offset,
     diaSemana,
     minutoAgora,
     abertura,
@@ -268,13 +271,61 @@ export function horaDoMinuto(minuto: number): string {
 }
 
 /**
+ * Um minuto do dia do LEAD convertido para o minuto do dia equivalente no
+ * fuso do USUÁRIO — mesmo instante real, duas leituras de relógio. Pura
+ * aritmética de deslocamento: funciona igual em qualquer época do ano,
+ * porque quem já resolveu o horário de verão é o `offsetMinutos` que cada
+ * lado carrega (o do lead vem do enriquecimento; o do usuário, do fuso do
+ * navegador NO INSTANTE `now` — ver `@/lib/fusoUsuario`).
+ */
+function minutoEquivalente(minutoLead: number, offsetLeadMinutos: number, offsetUsuarioMinutos: number): number {
+  return (((minutoLead - offsetLeadMinutos + offsetUsuarioMinutos) % MIN_DIA) + MIN_DIA) % MIN_DIA;
+}
+
+/**
+ * Um horário do lead pronto pra tela: só a hora dele quando o fuso do
+ * usuário logado coincide com o dele (nunca repete o mesmo número duas
+ * vezes), ou as DUAS horas — "19h em Zurique · 15h aqui" — deixando
+ * explícito qual é qual, quando os fusos divergem. `nomeLead` é a cidade do
+ * lead (ver `cidadeDoEndereco`); sem cidade reconhecível, cai no genérico
+ * "lá".
+ */
+export function horaParaExibicao(
+  minutoLead: number,
+  offsetLeadMinutos: number,
+  offsetUsuarioMinutos: number,
+  nomeLead?: string,
+): string {
+  const horaLead = horaDoMinuto(minutoLead);
+  if (offsetUsuarioMinutos === offsetLeadMinutos) return horaLead;
+  const horaUsuario = horaDoMinuto(minutoEquivalente(minutoLead, offsetLeadMinutos, offsetUsuarioMinutos));
+  const ladoLead = nomeLead ? `${horaLead} em ${nomeLead}` : `${horaLead} lá`;
+  return `${ladoLead} · ${horaUsuario} aqui`;
+}
+
+/**
  * A linha curta abaixo da barra (e o texto equivalente em /hoje): estado
  * AGORA e próximo momento bom, em hora local do lead. É o canal de
  * informação que não depende de cor nenhuma — a barra diz a mesma coisa em
  * cor e altura, esta linha diz em palavras.
+ *
+ * `offsetUsuarioMinutos` é o deslocamento UTC de quem está logado AGORA
+ * (padrão = o do próprio lead, ou seja, comportamento IDÊNTICO ao de antes
+ * desta hora dupla existir — quem chama sem o segundo argumento nunca vê a
+ * hora duplicada). Vindo diferente do lead, cada menção de hora nesta linha
+ * — a de agora e a do próximo momento bom — ganha o par "hora do lead · hora
+ * aqui" (ver `horaParaExibicao`); vindo igual, mostra só uma, sem repetir o
+ * mesmo número duas vezes.
  */
-export function linhaEstadoContato(barra: BarraDoDia): string {
-  const partes = [`Hora do lead ${horaDoMinuto(barra.minutoAgora)}`];
+export function linhaEstadoContato(
+  barra: BarraDoDia,
+  offsetUsuarioMinutos: number = barra.offsetMinutos,
+  nomeLead?: string,
+): string {
+  const horaAgora = horaParaExibicao(barra.minutoAgora, barra.offsetMinutos, offsetUsuarioMinutos, nomeLead);
+  const partes = [
+    offsetUsuarioMinutos === barra.offsetMinutos ? `Hora do lead ${horaAgora}` : horaAgora,
+  ];
   if (!barra.abertura) {
     partes.push("fechado hoje");
   } else if (!barra.aberto) {
@@ -285,7 +336,13 @@ export function linhaEstadoContato(barra: BarraDoDia): string {
     partes.push(`agora: ${ROTULO_NIVEL[barra.nivelAgora!]}`);
   }
   if (barra.proximoBom) {
-    partes.push(`próximo bom ${barra.proximoBom.rotuloDia} ${horaDoMinuto(barra.proximoBom.inicioMin)}`);
+    const horaProximo = horaParaExibicao(
+      barra.proximoBom.inicioMin,
+      barra.offsetMinutos,
+      offsetUsuarioMinutos,
+      nomeLead,
+    );
+    partes.push(`próximo bom ${barra.proximoBom.rotuloDia} ${horaProximo}`);
   }
   if (barra.estimado) partes.push("horário estimado");
   return partes.join(" · ");

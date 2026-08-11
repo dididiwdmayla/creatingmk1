@@ -32,6 +32,8 @@ import { idiomaLabelRegional } from "@/lib/idioma";
 import { estadoAtual, melhorMomento } from "@/lib/leads/horarios";
 import { BarraDoDia } from "@/components/BarraDoDia";
 import { barraDoDia, linhaEstadoContato } from "@/lib/leads/barraDoDia";
+import { cidadeDoEndereco } from "@/lib/leads/cidade";
+import { offsetUsuarioMinutos } from "@/lib/fusoUsuario";
 import { handleInstagram } from "@/lib/leads/instagram";
 import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
@@ -427,7 +429,12 @@ export function LeadDetailClient({ id }: { id: string }) {
   const estado = estadoAtual(lead.horarios);
   const momento = melhorMomento(lead.horarios);
   const barra = config ? barraDoDia(config.janelasContato, lead) : undefined;
-  const linhaJanela = barra && linhaEstadoContato(barra);
+  // Fuso de quem está logado (do NAVEGADOR, agora) e cidade do lead — o par
+  // que vira "19h em Zurique · 15h aqui" em todo lugar que recomenda hora de
+  // contato, sem repetir o número quando os dois fusos coincidem.
+  const fusoUsuario = offsetUsuarioMinutos();
+  const nomeLead = lead.endereco ? cidadeDoEndereco(lead.endereco).cidade : undefined;
+  const linhaJanela = barra && linhaEstadoContato(barra, fusoUsuario, nomeLead);
   // "Hora boa" agora vem das FAIXAS da família; `melhorMomento` só sabe
   // dizer "está aberto", que a própria barra contradiria ao lado.
   const horaBoa = barra ? barra.nivelAgora === "bom" : momento?.agora === true;
@@ -522,7 +529,7 @@ export function LeadDetailClient({ id }: { id: string }) {
         {(barra || !lead.horarios) && (
           <div className="mt-3 min-h-25">
             {barra ? (
-              <BarraDoDia barra={barra} />
+              <BarraDoDia barra={barra} offsetUsuarioMinutos={fusoUsuario} nomeLead={nomeLead} />
             ) : (
               <p className="text-xs text-ink-muted">
                 Fuso do lead desconhecido — a barra do dia só aparece com o horário de
@@ -700,6 +707,7 @@ export function LeadDetailClient({ id }: { id: string }) {
             onClick={(event) => clicar(event, lead, waLink)}
             target="_blank"
             rel="noopener noreferrer"
+            title={linhaJanela ?? undefined}
             className={`rounded px-3 py-2 text-center text-sm font-semibold text-good-ink transition ${
               horaBoa
                 ? "bg-good ring-2 ring-good ring-offset-2 ring-offset-background hover:bg-good/90"
