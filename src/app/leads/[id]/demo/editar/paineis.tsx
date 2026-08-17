@@ -44,7 +44,12 @@ import type {
  * os data-demo-slot da skin: clicar no preview foca o campo daqui.
  */
 
-export type Aba = "conteudo" | "imagens" | "tema" | "estrutura";
+/**
+ * Abas do painel do editor. `capturas` só existe na demo AVULSA: a de
+ * lead já tem a seção de capturas na ficha, que é de onde o operador
+ * trabalha; a avulsa não tem ficha, e o editor é o único lugar dela.
+ */
+export type Aba = "conteudo" | "imagens" | "tema" | "estrutura" | "capturas";
 
 type Atualizar = (fn: (atual: DemoData) => DemoData) => void;
 

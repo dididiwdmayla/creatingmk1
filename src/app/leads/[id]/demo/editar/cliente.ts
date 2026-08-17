@@ -9,6 +9,7 @@ import {
 } from "@/lib/demos/avulsas/identidade";
 import { idiomaPadraoDaAvulsa, moedaDaAvulsa } from "@/lib/demos/avulsas/idioma";
 import type { DemoAvulsa } from "@/lib/demos/avulsas/types";
+import type { LeadCapturas } from "@/lib/demos/capturas/estado";
 import { caminhoDemo, envioVigente } from "@/lib/demos/envio";
 import { idiomaPadraoDoLead } from "@/lib/demos/idioma";
 import { moedaDaDemo } from "@/lib/demos/moeda";
@@ -48,6 +49,8 @@ export interface RegistroDemo {
   moeda: string;
   /** País digitado — só a avulsa tem; `undefined` na demo de lead. */
   pais?: string;
+  /** Última geração de capturas — o estado inicial da aba "Capturas". */
+  capturas?: LeadCapturas;
 }
 
 export interface CorpoSalvar {
@@ -118,6 +121,7 @@ function doLead(lead: Lead): RegistroDemo & { lead: Lead } {
     demo: lead.demo,
     idiomaPadrao: idiomaPadraoDoLead(lead),
     moeda: moedaDaDemo(lead),
+    capturas: lead.capturas,
     lead,
   };
 }
@@ -130,6 +134,7 @@ function daAvulsa(avulsa: DemoAvulsa): RegistroDemo & { avulsa: DemoAvulsa } {
     idiomaPadrao: idiomaPadraoDaAvulsa(avulsa),
     moeda: moedaDaAvulsa(avulsa),
     pais: avulsa.pais,
+    capturas: avulsa.capturas,
     avulsa,
   };
 }

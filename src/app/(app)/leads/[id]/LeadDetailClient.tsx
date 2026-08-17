@@ -815,7 +815,13 @@ export function LeadDetailClient({ id }: { id: string }) {
         {demoErro && <p className="mt-2 text-sm text-critical">{demoErro}</p>}
       </section>
 
-      <CapturasSecao key={lead.placeId} lead={lead} />
+      <CapturasSecao
+        key={lead.placeId}
+        id={lead.placeId}
+        nome={lead.nome}
+        temDemo={Boolean(lead.demo?.skinId)}
+        capturasIniciais={lead.capturas}
+      />
 
       {visitasExternas.length > 0 && (
         <section className="rounded-lg border border-line bg-surface p-4">

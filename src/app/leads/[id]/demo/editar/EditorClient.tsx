@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { CapturasSecao } from "@/components/capturas/CapturasSecao";
 import { NIVEIS_IA, NIVEL_IA_PADRAO, nivelIaValido, type NivelIA } from "@/lib/ai/nivel";
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import type { ConteudoTraduzivel } from "@/lib/ai/traducaoDemo";
@@ -670,6 +671,7 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
     { id: "imagens", rotulo: "Imagens" },
     { id: "tema", rotulo: "Tema" },
     { id: "estrutura", rotulo: "Estrutura" },
+    ...(tipo === "avulsa" ? [{ id: "capturas" as Aba, rotulo: "Capturas" }] : []),
   ];
 
   return (
@@ -849,6 +851,18 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
             )}
             {aba === "estrutura" && (
               <PainelEstrutura dados={dados} skin={skin} atualizar={atualizar} />
+            )}
+            {aba === "capturas" && (
+              // Só a demo avulsa mostra esta aba: a de lead já tem a seção
+              // de capturas na ficha, que é de onde o operador trabalha.
+              // A avulsa não tem ficha — o editor é o único lugar dela.
+              <CapturasSecao
+                id={id}
+                nome={registro.nome}
+                temDemo={Boolean(registro.demo?.skinId)}
+                capturasIniciais={registro.capturas}
+                avulsa
+              />
             )}
           </div>
 

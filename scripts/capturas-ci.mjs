@@ -5,13 +5,17 @@
  * único que sabe enquadrar, e é chamado aqui como processo filho, sem
  * alteração de comportamento. O que este script faz é a parte que só
  * existe porque a geração virou botão na plataforma: mover o estado no doc
- * do lead e transformar o manifesto do motor em referência gravada.
+ * do alvo e transformar o manifesto do motor em referência gravada.
  *
- *   node scripts/capturas-ci.mjs --leads=a,b,c --execucao=<uuid> [--run-url=<url>]
+ * ALVO é a demo de um lead (id cru) ou uma demo avulsa (`avulsa:<id>`) —
+ * ver src/lib/demos/capturas/alvo.mjs. O nome do parâmetro continua
+ * `--leads` porque é o que o workflow e o `client_payload` já mandam.
+ *
+ *   node scripts/capturas-ci.mjs --leads=a,b,avulsa:c --execucao=<uuid> [--run-url=<url>]
  *   node scripts/capturas-ci.mjs --leads=... --execucao=... --falhar="<motivo>"
  *
  * O segundo modo é a rede de segurança do workflow: se o job quebrar ANTES
- * do motor (dependência, instalação do Chromium), o lead ficaria preso em
+ * do motor (dependência, instalação do Chromium), o alvo ficaria preso em
  * "rodando" até o limite de silêncio expirar. O passo `if: failure()`
  * marca a falha na hora, com motivo.
  *
@@ -27,6 +31,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { parseAlvo } from "../src/lib/demos/capturas/alvo.mjs";
 import { RAIZ } from "./qa-servidor.mjs";
 
 function opcao(nome) {
@@ -68,8 +73,13 @@ async function db() {
  * passam a existir dois runs — o antigo termina depois e enterraria o
  * resultado do novo, ou marcaria "falhou" por cima de um "pronto".
  */
-async function aplicar(firestore, leadId, patch) {
-  const ref = firestore.collection("leads").doc(leadId);
+async function aplicar(firestore, alvo, patch) {
+  const parsed = parseAlvo(alvo);
+  if (!parsed) return false;
+  // A coleção sai do próprio alvo: `avulsa:<id>` mora em /demosAvulsas, o
+  // resto em /leads (ver src/lib/demos/capturas/alvo.mjs). Os dois guardam
+  // o estado no MESMO campo `capturas`, com o mesmo contrato.
+  const ref = firestore.collection(parsed.colecao).doc(parsed.id);
   return firestore.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const atual = snap.exists ? snap.data()?.capturas : undefined;
