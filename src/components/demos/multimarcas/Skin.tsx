@@ -135,7 +135,10 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
     .filter((id) => id !== "hero" && id !== "numeros")
     .map((id) => ({ id, rotulo: s[id]?.rotulo ?? NAV_LABEL[id] ?? s[id]?.titulo ?? id }));
 
+  // `waHref` devolve undefined sem número — cada CTA de WhatsApp some
+  // junto, em vez de virar link morto (ver interactive/logic.ts).
   const linkWaMain = waHref(data.whatsapp, `Olá! Vim pelo site da ${data.nome} e quero mais informações.`);
+  const linkWaAvaliacao = waHref(data.whatsapp, "Olá! Quero uma avaliação do meu carro.");
 
   const secoes: Record<string, () => ReactNode> = {
     /* ── Estoque ─────────────────────────────────────────────── */
@@ -299,9 +302,9 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
               </p>
             )}
           </div>
-          {s.avaliacao?.cta && (
+          {s.avaliacao?.cta && linkWaAvaliacao && (
             <a
-              href={waHref(data.whatsapp, "Olá! Quero uma avaliação do meu carro.")}
+              href={linkWaAvaliacao}
               target="_blank"
               rel="noopener noreferrer"
               data-demo-slot="secoes.avaliacao.cta"
@@ -408,7 +411,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                   <span style={{ color: "var(--d-accent)" }}>→</span>
                 </a>
               )}
-              {s.contato?.cta && (
+              {s.contato?.cta && linkWaMain && (
                 <a
                   href={linkWaMain}
                   target="_blank"

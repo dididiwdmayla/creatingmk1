@@ -28,7 +28,8 @@ export function Hero({
   nome: string;
   hero: DemoSecao | undefined;
   alinhamento: Alinhamento;
-  waHref: string;
+  /** Link do wa.me — ausente quando não há WhatsApp; o CTA some junto. */
+  waHref?: string;
   idioma?: string;
 }) {
   const m = microcopiaDemo(idioma);
@@ -170,7 +171,7 @@ export function Hero({
               {hero.cta.toUpperCase()}
             </a>
           )}
-          {hero?.ctaSecundaria && (
+          {hero?.ctaSecundaria && waHref && (
             <a
               href={waHref}
               target="_blank"

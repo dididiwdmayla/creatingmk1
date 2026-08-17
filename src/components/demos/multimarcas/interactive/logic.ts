@@ -4,8 +4,15 @@
  */
 
 /** Link wa.me a partir de `data.whatsapp` (dígitos livres) — fiel ao `getter wa` do material bruto. */
-export function waHref(whatsapp: string | undefined, mensagem: string): string {
+export function waHref(whatsapp: string | undefined, mensagem: string): string | undefined {
   const digitos = (whatsapp ?? "").replace(/\D/g, "");
+  // Sem número não há link: `wa.me/` sem destino abre o WhatsApp em
+  // branco, e um CTA que não leva a lugar nenhum é pior que CTA nenhum.
+  // Quem chama esconde o botão (mesmo princípio de `orderWaHref` da
+  // lancheria). Vale sempre que `whatsapp` está vazio — o caso comum
+  // numa demo AVULSA sem WhatsApp digitado, e também num lead cujo
+  // telefone o Google não devolveu.
+  if (!digitos) return undefined;
   return `https://wa.me/${digitos}?text=${encodeURIComponent(mensagem)}`;
 }
 

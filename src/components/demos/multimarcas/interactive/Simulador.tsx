@@ -178,6 +178,7 @@ export function Simulador({
           Financiado: R$ {financiadoFmt} em {parcelas}× · taxa ref. {TAXA_JUROS_MENSAL.toFixed(2).replace(".", ",")}
           % a.m.
         </p>
+        {linkProposta && (
         <a
           href={linkProposta}
           target="_blank"
@@ -192,6 +193,7 @@ export function Simulador({
         >
           {(ctaLabel ?? "Solicitar proposta").toUpperCase()}
         </a>
+        )}
         <p className="font-[family-name:var(--d-corpo)] text-[11px] text-[var(--d-muted)]">
           Valores simulados, sujeitos a análise de crédito.
         </p>

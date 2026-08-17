@@ -91,7 +91,15 @@ describe("waHref", () => {
     );
   });
 
-  it("nunca quebra sem número (dígitos vazios)", () => {
-    expect(waHref(undefined, "Olá!")).toBe("https://wa.me/?text=Ol%C3%A1!");
+  // Antes desta correção, sem número saía `https://wa.me/?text=…` — um
+  // link que abre o WhatsApp em branco. O laço visual da demo AVULSA
+  // (`qa-visual.mjs --so=avulsa`) mostrou o resultado: a skin publicava
+  // "Chamar no WhatsApp" e um botão flutuante fixo levando a lugar
+  // nenhum. Sem número não há link, e quem chama esconde o CTA.
+  it("não devolve link sem número — o CTA some em vez de virar link morto", () => {
+    expect(waHref(undefined, "Olá!")).toBeUndefined();
+    expect(waHref("", "Olá!")).toBeUndefined();
+    expect(waHref("   ", "Olá!")).toBeUndefined();
+    expect(waHref("sem dígitos aqui", "Olá!")).toBeUndefined();
   });
 });

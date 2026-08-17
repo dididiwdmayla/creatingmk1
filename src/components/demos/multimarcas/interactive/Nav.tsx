@@ -31,6 +31,8 @@ export function Nav({
   idioma?: string;
 }) {
   const m = microcopiaDemo(idioma);
+  // Sem WhatsApp digitado o item do menu some, em vez de virar link morto.
+  const linkWa = waHref(whatsapp, "Olá! Vim pelo site e quero mais informações.");
   const [scrolled, setScrolled] = useState(false);
   const [aberto, setAberto] = useState(false);
 
@@ -141,8 +143,9 @@ export function Nav({
                   {l.rotulo.toUpperCase()}
                 </motion.a>
               ))}
+              {linkWa && (
               <motion.a
-                href={waHref(whatsapp, "Olá! Vim pelo site e quero mais informações.")}
+                href={linkWa}
                 target="_blank"
                 rel="noopener noreferrer"
                 initial={{ opacity: 0, x: 34, y: 22 }}
@@ -152,6 +155,7 @@ export function Nav({
               >
                 Falar no WhatsApp →
               </motion.a>
+              )}
             </div>
           </motion.div>
         )}

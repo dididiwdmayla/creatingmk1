@@ -701,6 +701,11 @@ export function ImobiliariaCurada({ data, theme, idioma, moeda }: SkinProps) {
                   </a>
                 ))}
               </div>
+              {/* O RÓTULO acompanha o conteúdo: sem telefone nem horário, a
+                  coluna inteira sai — um "Fale com a gente" sozinho, sem
+                  nada por baixo, é pior que a ausência da coluna (ver
+                  `identidadeEmBranco`: campo vazio some da página). */}
+              {(data.telefone || data.horarios) && (
               <div className="flex flex-col gap-[14px] text-left">
                 <p className="mb-1 text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--d-accent-2)" }}>
                   {m.faleComAGente}
@@ -716,6 +721,8 @@ export function ImobiliariaCurada({ data, theme, idioma, moeda }: SkinProps) {
                   </p>
                 )}
               </div>
+              )}
+              {(data.instagram || data.whatsapp) && (
               <div className="flex flex-col gap-[14px] text-left">
                 <p className="mb-1 text-[13px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--d-accent-2)" }}>
                   {m.redes}
@@ -743,6 +750,7 @@ export function ImobiliariaCurada({ data, theme, idioma, moeda }: SkinProps) {
                   </a>
                 )}
               </div>
+              )}
             </div>
             <div className="flex flex-wrap justify-between gap-5 pt-7 text-[13px] opacity-50">
               <p>© {new Date().getFullYear()} {data.nome}. {m.direitosReservados}</p>

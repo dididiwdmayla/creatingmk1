@@ -8,6 +8,7 @@ import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { fontesEscolhidas } from "@/lib/demos/fontes";
+import { montarDemoDataAvulsa, patchIdentidadeAvulsa } from "@/lib/demos/avulsas/identidade";
 import { montarDemoData } from "@/lib/demos/montar";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
@@ -51,6 +52,9 @@ import { demoCoreFontsClassName, resolveExtraFontClassNames } from "@/app/demo/f
  *   intro=0              desliga a splash de abertura (default nas capturas)
  *   barra=<modo>         modo da cor da barra (automatico/fundo/destaque/personalizada)
  *   barraCor=#aabbcc     cor do modo "personalizada"
+ *   avulsa=1             monta como DEMO AVULSA (identidade em branco — ver abaixo)
+ *   identidade=cheia     com avulsa=1, preenche os campos de identidade
+ *   nome=<texto>         com avulsa=1, o nome digitado (default "Negócio Avulso")
  *   titulo=<texto>       texto do título hero (`secoes.hero.titulo`); "\n" quebra linha
  *   heroFonte=<id>       id da lista curada para `heroTitulo.fonte` (seletor do editor)
  *   heroEscala=<num>     `heroTitulo.escala` (recortada por heroEscalaLimites)
@@ -60,6 +64,28 @@ import { demoCoreFontsClassName, resolveExtraFontClassNames } from "@/app/demo/f
  */
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Identidade digitada de mentira, para o lado "com dado" da comparação de
+ * `avulsa=1&identidade=cheia`. Não é dado de negócio nenhum — é o
+ * contraponto do lado em branco, que é o que interessa julgar.
+ */
+const IDENTIDADE_DE_EXEMPLO = {
+  endereco: "Rua Digitada, 100 — Centro",
+  cidade: "Maringá - PR",
+  telefone: "(44) 3222-1111",
+  whatsapp: "+55 44 99999-0000",
+  horarios: "Terça a sábado, 9h às 19h",
+  instagram: "@negocioavulso",
+};
+
+/**
+ * O nome é OBRIGATÓRIO na criação de uma avulsa de verdade — sem ele não
+ * há título hero nem rótulo na listagem. O harness segue a mesma regra:
+ * mesmo no lado "em branco" o nome está lá, senão a captura mostraria a
+ * marca do template e a comparação viraria outra coisa.
+ */
+const NOME_AVULSA_PADRAO = "Negócio Avulso";
 
 type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -192,10 +218,22 @@ export default async function DemoQaPage({ searchParams }: Props) {
   // a camada de mídia do título pode divergir da caixa de texto.
   const tituloHero = texto(query.titulo)?.replace(/\\n/g, "\n");
   const videoTitulo = texto(query.video);
-  const dados = montarDemoData(
-    skin.demoDataExemplo,
-    undefined,
-    {
+  // DEMO AVULSA (`avulsa=1`): a montagem passa pela camada de identidade
+  // em branco, exatamente como /demo/avulsa/[id]. É o que permite o laço
+  // visual (`qa-visual.mjs --so=avulsa`) julgar a coisa que só uma
+  // captura julga — se a página se sustenta com telefone, endereço,
+  // horário e Instagram AUSENTES, em vez de abrir buraco no rodapé ou
+  // deixar um rótulo órfão. `identidade=cheia` é o outro lado da
+  // comparação: a mesma skin com todos os campos preenchidos.
+  const comoAvulsa = texto(query.avulsa) === "1";
+  const identidadeCheia = texto(query.identidade) === "cheia";
+  const identidadeAvulsa = comoAvulsa
+    ? patchIdentidadeAvulsa({
+        nome: texto(query.nome) ?? NOME_AVULSA_PADRAO,
+        ...(identidadeCheia && IDENTIDADE_DE_EXEMPLO),
+      })
+    : undefined;
+  const patchDados = {
       imagensModo,
       ...(videoTitulo && { videos: { titulo: videoTitulo } }),
       ...((semAnim.length > 0 || tituloHero !== undefined) && {
@@ -209,9 +247,22 @@ export default async function DemoQaPage({ searchParams }: Props) {
           }),
         },
       }),
-    },
-    skin.id,
-  );
+      ...identidadeAvulsa,
+      // O título hero da query (se houver) vence a quebra automática do
+      // nome — é o parâmetro que existe pra exercitar nome curto × longo.
+      ...(tituloHero !== undefined && {
+        secoes: {
+          ...Object.fromEntries(semAnim.map((id) => [id, { animacao: false }])),
+          hero: {
+            ...(semAnim.includes("hero") && { animacao: false }),
+            titulo: tituloHero,
+          },
+        },
+      }),
+  };
+  const dados = comoAvulsa
+    ? montarDemoDataAvulsa(skin.demoDataExemplo, patchDados, skin.id)
+    : montarDemoData(skin.demoDataExemplo, undefined, patchDados, skin.id);
 
   // Mesma cadeia da rota pública (fontesEscolhidas): sem isso, uma fonte
   // curada que não é default de preset nenhum (carregada sob demanda — ver

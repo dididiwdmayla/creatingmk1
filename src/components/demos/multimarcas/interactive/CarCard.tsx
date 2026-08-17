@@ -37,6 +37,11 @@ export function CarCard({
   moeda?: string;
 }) {
   const [aberto, setAberto] = useState(false);
+  // Sem WhatsApp digitado, o CTA de interesse do card some (ver waHref).
+  const linkInteresse = waHref(
+    whatsapp,
+    `Olá! Tenho interesse no ${servico.nome} (${formatarPrecoServico(servico, idioma, moeda)}). Ainda está disponível?`,
+  );
 
   return (
     <article
@@ -131,12 +136,9 @@ export function CarCard({
                   {[servico.descricao, textoGarantia].filter(Boolean).join(" · ")}
                 </p>
               )}
-              {ctaInteresse && (
+              {ctaInteresse && linkInteresse && (
                 <a
-                  href={waHref(
-                    whatsapp,
-                    `Olá! Tenho interesse no ${servico.nome} (${formatarPrecoServico(servico, idioma, moeda)}). Ainda está disponível?`,
-                  )}
+                  href={linkInteresse}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
