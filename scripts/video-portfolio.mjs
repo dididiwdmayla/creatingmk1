@@ -22,10 +22,11 @@
  * Uso:
  *   node scripts/video-portfolio.mjs --skin=barbearia-editorial
  *   node scripts/video-portfolio.mjs --skin=petshop-focinho-feliz --duracao=6000
- *   node scripts/video-portfolio.mjs --skin=tatuagem-editorial --sem-build
+ *   node scripts/video-portfolio.mjs --lead=<placeId>
  *
  * Opções:
- *   --skin=<skinId>    skin do harness /interno/demo-qa (obrigatória por ora)
+ *   --skin=<skinId>    skin do harness /interno/demo-qa
+ *   --lead=<placeId>   demo REAL do lead (rota pública), em vez da de exemplo
  *   --duracao=<ms>     duração da descida (default: 3500)
  *   --saida=<dir>      pasta de saída (default: ./saida-video, no .gitignore)
  *   --sem-build        pula o `next build` (reaproveita o .next da rodada anterior)
@@ -112,6 +113,61 @@ const DURACAO_PADRAO_MS = 3500;
 const COLCHAO_CORTE_MS = 300;
 
 /**
+ * ────────────────────────────────────────────────────────────────────────
+ * NÃO CONTAMINAR O RASTREIO — o mesmo caminho de exclusão do motor de
+ * capturas, conferido no código e não suposto. São DUAS coisas, e nenhuma
+ * delas é header de segredo ou user-agent de pré-visualização (não existe
+ * nada disso neste repo):
+ *
+ *   1. CONTEXTO SEM COOKIE NENHUM na rota pública
+ *      (`capturas.mjs:663` e `:862` — o `addCookies` é condicionado a
+ *      `/interno/`). Sem `radar_session` e sem `radar_device`,
+ *      `classificarVisitaInterna` (lib/device.ts) dá `false`, e o selo
+ *      "Vendo como membro" não é renderizado (demo/[leadId]/page.tsx).
+ *
+ *   2. URL SEM `?t=` (`capturas.mjs:179`). `DemoPage` só chama
+ *      `registrarVisitaDemo` quando há token — sem token não nasce entrada
+ *      em `lead.demoVisitas` — e só monta `<VisitaTracker>` quando existe
+ *      `visitaId`, então o beacon do unload nem chega a ser instalado.
+ *
+ * As guardas abaixo transformam as duas em MEDIDA. Uma gravação que
+ * estampasse o selo ou registrasse visita é artefato contaminado, então
+ * elas REPROVAM a rodada em vez de avisar: não sai mp4.
+ * ────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * O parâmetro de token de envio da demo. Fonte da verdade:
+ * `TOKEN_QUERY_PARAM` em `src/lib/demos/envio.ts` — TypeScript, que este
+ * script não compila (mesma limitação que `capturas.mjs` documenta).
+ */
+const TOKEN_PARAM = "t";
+
+/** Texto do selo. Fonte: `src/app/demo/SeloVisitaInterna.tsx`. */
+const TEXTO_SELO = "Vendo como membro";
+
+/** Rota do beacon de visita. Fonte: `src/app/demo/VisitaTracker.tsx`. */
+const ROTA_BEACON = "/api/demo-visita";
+
+/**
+ * Espião de `navigator.sendBeacon`, instalado ANTES de qualquer script da
+ * página (`addInitScript`).
+ *
+ * Ele NÃO repassa a chamada adiante, de propósito. Um espião que só
+ * observasse deixaria a regressão escrever no Firestore e depois contaria
+ * o ocorrido; este BARRA e registra. Se um dia a rota pública passar a
+ * montar o rastreador sem token, a rodada reprova com o beacon na mão e
+ * nada foi gravado no lead.
+ */
+const ESPIAO_BEACON = () => {
+  window.__radarVideoBeacons = [];
+  navigator.sendBeacon = (url) => {
+    window.__radarVideoBeacons.push(String(url));
+    return true;
+  };
+};
+
+/**
  * `--nome=valor` e `--nome valor` — as duas formas. Os outros laços deste
  * repo só aceitam a primeira porque são chamados por workflow; este é
  * digitado à mão toda vez.
@@ -173,6 +229,60 @@ async function exigirFfmpeg() {
         "  Instale um ffmpeg completo (`sudo apt install ffmpeg` / `brew install ffmpeg`) e rode de novo.",
     );
   }
+}
+
+/**
+ * Elementos que carregam o texto do selo "Vendo como membro". Vazio é o
+ * único resultado aceitável numa gravação.
+ *
+ * A busca é por TEXTO porque o selo não expõe marcador nenhum no DOM (ver
+ * SeloVisitaInterna.tsx: markup e estilo inline, sem classe nem
+ * `data-*`) — e pôr um marcador lá seria mexer no produto por causa de um
+ * script de portfólio. Só folhas entram na conta: sem isso `<body>` e cada
+ * ancestral contariam de novo pelo mesmo texto.
+ *
+ * `script` fica de fora porque o payload RSC que o Next embute no HTML
+ * repete o markup inteiro do selo como texto — medido no controle negativo
+ * desta feature, que abriu a demo COM sessão de propósito: a detecção
+ * acertava, mas a mensagem de erro vinha com o bundle inteiro colado nela.
+ * O que importa é o selo PINTADO, e isso mora no DOM renderizado.
+ *
+ * Autossuficiente (vai pro `page.evaluate`).
+ */
+function selosNoDom(texto, win = window) {
+  const achados = [];
+  for (const node of Array.from(win.document.body.querySelectorAll("*"))) {
+    if (node.children.length > 0) continue;
+    const tag = node.tagName.toLowerCase();
+    if (tag === "script" || tag === "style" || tag === "noscript" || tag === "template") continue;
+    if ((node.textContent ?? "").includes(texto)) {
+      achados.push(`${tag}: ${node.textContent.trim().slice(0, 60)}`);
+    }
+  }
+  return achados;
+}
+
+/**
+ * FORÇA o caminho de descarga da página — o que transforma "o beacon não
+ * disparou" de esperança em medida.
+ *
+ * O `VisitaTracker` manda o beacon em `visibilitychange` (indo pra
+ * "hidden") e em `pagehide`. Os dois só acontecem de verdade quando a
+ * página fecha, e aí já não dá pra perguntar nada a ela. Aqui os dois são
+ * disparados À MÃO, com a página ainda viva: se o rastreador estivesse
+ * montado, ele mandaria o beacon NESTE ponto, e o espião registraria.
+ * Roda depois da última pausa, então não entra no que o vídeo mostra.
+ *
+ * Autossuficiente (vai pro `page.evaluate`).
+ */
+async function forcarDescarga(win = window) {
+  const doc = win.document;
+  Object.defineProperty(doc, "visibilityState", { configurable: true, get: () => "hidden" });
+  doc.dispatchEvent(new Event("visibilitychange"));
+  win.dispatchEvent(new Event("pagehide"));
+  delete doc.visibilityState;
+  await new Promise((r) => setTimeout(r, 150));
+  return win.__radarVideoBeacons ?? [];
 }
 
 /**
@@ -368,6 +478,19 @@ async function gravar({ browser, alvo, tela, duracao, saida, cookie }) {
   const dirBruto = path.join(saida, ".bruto");
   await fs.mkdir(dirBruto, { recursive: true });
 
+  // A rota /interno/* é harness protegido por sessão; tudo o mais é a demo
+  // PÚBLICA, e é ela que tem rastreio pra não contaminar.
+  const publica = !alvo.url.includes("/interno/");
+  if (publica) {
+    const token = new URL(alvo.url).searchParams.get(TOKEN_PARAM);
+    if (token) {
+      throw new Error(
+        `a URL da gravação carrega ?${TOKEN_PARAM}=… — token de envio é do LEAD, e abrir a demo com ` +
+          `ele registraria a gravação na timeline de visitas dele. Grave sem token.`,
+      );
+    }
+  }
+
   const ctx = await browser.newContext({
     viewport: { width: tela.largura, height: tela.altura },
     deviceScaleFactor: tela.dpr,
@@ -386,7 +509,29 @@ async function gravar({ browser, alvo, tela, duracao, saida, cookie }) {
   // A rota /interno/* exige sessão; a demo pública não leva cookie nenhum
   // — mesma regra do motor de capturas, pelos mesmos dois motivos (selo
   // "Vendo como membro" e rastreio de visita).
-  if (alvo.url.includes("/interno/")) await ctx.addCookies([cookie]);
+  if (!publica) await ctx.addCookies([cookie]);
+
+  // Segunda barreira, na rede: mesmo que o rastreador escapasse do espião
+  // (um caminho de fetch/XHR em vez de sendBeacon), a chamada morre aqui.
+  const beaconsNaRede = [];
+  await ctx.route(`**${ROTA_BEACON}*`, (rota) => {
+    beaconsNaRede.push(rota.request().url());
+    return rota.abort();
+  });
+  await ctx.addInitScript(ESPIAO_BEACON);
+
+  // Terceira: o contexto da demo pública tem que estar LIMPO. É a
+  // condição de que dependem tanto a ausência do selo quanto a
+  // classificação `interna: false` (ver lib/device.ts).
+  const cookiesDoContexto = await ctx.cookies();
+  if (publica && cookiesDoContexto.length > 0) {
+    await ctx.close();
+    throw new Error(
+      `o contexto da demo pública recebeu ${cookiesDoContexto.length} cookie(s) ` +
+        `(${cookiesDoContexto.map((c) => c.name).join(", ")}) — com sessão ou marcador de dispositivo ` +
+        `a demo estampa o selo "${TEXTO_SELO}" e a visita é classificada como interna.`,
+    );
+  }
 
   const page = await ctx.newPage();
   const nasceu = Date.now();
@@ -395,8 +540,21 @@ async function gravar({ browser, alvo, tela, duracao, saida, cookie }) {
   let preparo;
   let descida;
   let cortarSegundos = 0;
+  let beaconsNaPagina = [];
   try {
     await page.goto(alvo.url, { waitUntil: "networkidle" });
+
+    // O selo é checado AQUI, antes de qualquer trabalho de gravação: se
+    // ele está na tela, o vídeo inteiro já nasceu contaminado e não há o
+    // que aproveitar da rodada.
+    const selos = await page.evaluate(selosNoDom, TEXTO_SELO);
+    if (selos.length > 0) {
+      throw new Error(
+        `a página está exibindo o selo "${TEXTO_SELO}" (${selos.join(" · ")}) — ele entraria no vídeo. ` +
+          `Quer dizer que a visita foi classificada como interna: confira se algum cookie vazou pro contexto.`,
+      );
+    }
+
     preparo = await page.evaluate(prepararSemRolar, {});
     const texto = await page.evaluate(esperarTextoEstavel, {});
     preparo.textoEstavel = texto.estavel;
@@ -410,16 +568,39 @@ async function gravar({ browser, alvo, tela, duracao, saida, cookie }) {
     await page.waitForTimeout(PAUSA_TOPO_MS);
     descida = await page.evaluate(rolarDoTopoAoRodape, { duracao });
     await page.waitForTimeout(PAUSA_FIM_MS);
-  } finally {
-    // O vídeo só é escrito no disco quando a PÁGINA fecha, e só fica
-    // acessível depois que o contexto fecha — nesta ordem, sempre, mesmo
-    // quando a gravação falhou no meio: um .webm truncado ainda diz o que
-    // aconteceu, e é o que o `finally` preserva.
+
+    beaconsNaPagina = await page.evaluate(forcarDescarga);
+  } catch (erro) {
+    // Guarda reprovada (ou falha de gravação): o .webm que já estiver no
+    // disco vai embora junto. Deixar mídia de uma rodada reprovada por aí
+    // é como o arquivo contaminado acabaria virando post.
     const video = page.video();
-    await page.close();
-    await ctx.close();
-    await video?.saveAs(bruto);
+    await page.close().catch(() => undefined);
+    await ctx.close().catch(() => undefined);
     await video?.delete().catch(() => undefined);
+    await fs.rm(dirBruto, { recursive: true, force: true }).catch(() => undefined);
+    throw erro;
+  }
+
+  // O vídeo só é escrito no disco quando a PÁGINA fecha, e só fica
+  // acessível depois que o contexto fecha — nesta ordem, sempre.
+  const video = page.video();
+  await page.close();
+  await ctx.close();
+  await video?.saveAs(bruto);
+  await video?.delete().catch(() => undefined);
+
+  // Última guarda, e só agora dá pra fechá-la: o beacon do unload real
+  // acontece no `page.close()` acima. Os dois canais são conferidos — o
+  // espião de `sendBeacon` dentro da página e a rota barrada na rede.
+  const beacons = [...beaconsNaPagina, ...beaconsNaRede];
+  if (beacons.length > 0) {
+    await fs.rm(dirBruto, { recursive: true, force: true }).catch(() => undefined);
+    throw new Error(
+      `a gravação disparou ${beacons.length} beacon(s) de visita (${beacons.join(", ")}) — ` +
+        `nenhum chegou ao servidor porque as guardas barram, mas a gravação não pode nem tentar. ` +
+        `Confira se a URL ganhou um ?${TOKEN_PARAM}=.`,
+    );
   }
 
   const destino = path.join(saida, `${alvo.nome}-${tela.id}.mp4`);
@@ -430,7 +611,15 @@ async function gravar({ browser, alvo, tela, duracao, saida, cookie }) {
   await fs.rm(bruto, { force: true });
   await fs.rm(dirBruto, { recursive: true, force: true }).catch(() => undefined);
 
-  return { destino, preparo, descida, brutoSegundos, finalSegundos, cortarSegundos };
+  return {
+    destino,
+    preparo,
+    descida,
+    brutoSegundos,
+    finalSegundos,
+    cortarSegundos,
+    guardas: { publica, cookies: cookiesDoContexto.length, beacons: beacons.length, selos: 0 },
+  };
 }
 
 async function main() {
@@ -438,7 +627,11 @@ async function main() {
   await exigirFfmpeg();
 
   const skinId = opcao("skin");
-  if (!skinId) throw new Error("informe --skin=<skinId> (ex.: --skin=barbearia-editorial)");
+  const leadId = opcao("lead");
+  if (!skinId && !leadId) {
+    throw new Error("informe --skin=<skinId> (demo de exemplo) ou --lead=<placeId> (demo real do lead)");
+  }
+  if (skinId && leadId) throw new Error("--skin e --lead são alternativas; escolha uma");
 
   const duracao = Number(opcao("duracao") ?? DURACAO_PADRAO_MS);
   if (!Number.isFinite(duracao) || duracao <= 0) {
@@ -451,13 +644,21 @@ async function main() {
   const browser = await chromium.launch({ executablePath: CHROMIUM });
 
   try {
-    const alvo = {
-      nome: skinId,
-      // `intro=0` pelo mesmo motivo das capturas: a splash de abertura
-      // cobriria os primeiros segundos, e o que o vídeo tem pra mostrar é
-      // o site, não a cortina.
-      url: `${base}/interno/demo-qa?skin=${encodeURIComponent(skinId)}&intro=0`,
-    };
+    const alvo = leadId
+      ? {
+          nome: leadId,
+          // SEM `?t=`: token é do envio ao lead, e uma gravação de
+          // portfólio não pode entrar na timeline de visitas da demo dele
+          // (ver o bloco "NÃO CONTAMINAR O RASTREIO" no topo).
+          url: `${base}/demo/${encodeURIComponent(leadId)}`,
+        }
+      : {
+          nome: skinId,
+          // `intro=0` pelo mesmo motivo das capturas: a splash de abertura
+          // cobriria os primeiros segundos, e o que o vídeo tem pra mostrar
+          // é o site, não a cortina.
+          url: `${base}/interno/demo-qa?skin=${encodeURIComponent(skinId)}&intro=0`,
+        };
 
     console.log(`\n== ${alvo.nome} — ${CELULAR.largura}×${CELULAR.altura} → ${CELULAR.saida.largura}×${CELULAR.saida.altura}, descida de ${duracao}ms`);
     const r = await gravar({ browser, alvo, tela: CELULAR, duracao, saida, cookie });
@@ -475,6 +676,11 @@ async function main() {
     console.log(
       `  vídeo: bruto ${r.brutoSegundos.toFixed(2)}s − corte de cabeça ${r.cortarSegundos.toFixed(2)}s ` +
         `→ ${r.finalSegundos.toFixed(2)}s`,
+    );
+    console.log(
+      `  rastreio: ${r.guardas.publica ? "rota PÚBLICA" : "harness /interno"} · ` +
+        `${r.guardas.cookies} cookie(s) no contexto · ${r.guardas.selos} selo(s) "${TEXTO_SELO}" · ` +
+        `${r.guardas.beacons} beacon(s) de visita`,
     );
     console.log(`\n  ✔ ${r.destino}`);
   } finally {
