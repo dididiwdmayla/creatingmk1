@@ -2,7 +2,7 @@ import { IDIOMA_PADRAO } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
 import { idiomaEfetivoDemo } from "./idioma";
 import { montarDemoData } from "./montar";
-import type { DemoData, SkinDefinition } from "./types";
+import type { DemoData, DemoDataPatch, SkinDefinition } from "./types";
 
 /**
  * Selo de prontidão: o que numa demo salva ainda está em estado PADRÃO —
@@ -35,8 +35,16 @@ export function imagensPendentes(
   lead: Lead,
   skin: SkinDefinition,
 ): { pendentes: number; total: number } {
+  return imagensPendentesDoPatch(lead.demo?.dados, skin);
+}
+
+/** A mesma contagem, sobre o patch salvo — serve lead e demo avulsa. */
+export function imagensPendentesDoPatch(
+  dados: DemoDataPatch | undefined,
+  skin: SkinDefinition,
+): { pendentes: number; total: number } {
   const slots = slotsDaSkin(skin);
-  const enviados = new Set(Object.keys(lead.demo?.dados.imagens ?? {}));
+  const enviados = new Set(Object.keys(dados?.imagens ?? {}));
   const pendentes = slots.filter((slot) => !enviados.has(slot)).length;
   return { pendentes, total: slots.length };
 }
@@ -47,9 +55,11 @@ export function imagensPendentes(
  * diverge do idioma em que o template foi escrito — nenhum texto próprio
  * (slogan ou alguma seção com título/texto) foi editado/gerado ainda.
  */
-function textoAindaNoIdiomaDoTemplate(lead: Lead): boolean {
-  if (idiomaEfetivoDemo(lead) === IDIOMA_PADRAO) return false;
-  const dados = lead.demo?.dados;
+function textoAindaNoIdiomaDoTemplate(
+  dados: DemoDataPatch | undefined,
+  idioma: string,
+): boolean {
+  if (idioma === IDIOMA_PADRAO) return false;
   if (dados?.slogan) return false;
   return !Object.values(dados?.secoes ?? {}).some(
     (secao) => secao.titulo || secao.texto || secao.rotulo,
@@ -59,13 +69,25 @@ function textoAindaNoIdiomaDoTemplate(lead: Lead): boolean {
 /** Lista as pendências de prontidão de UMA demo já salva (`lead.demo` presente). */
 export function pendenciasProntidao(lead: Lead, skin: SkinDefinition): PendenciaProntidao[] {
   if (!lead.demo) return [];
-
-  const efetivo: DemoData = montarDemoData(
-    skin.demoDataExemplo,
-    lead,
+  return pendenciasDaDemo(
+    montarDemoData(skin.demoDataExemplo, lead, lead.demo.dados, skin.id),
     lead.demo.dados,
-    skin.id,
+    idiomaEfetivoDemo(lead),
+    skin,
   );
+}
+
+/**
+ * O núcleo, sobre o DemoData EFETIVO — sem saber de onde a demo veio. É o
+ * que permite a demo AVULSA usar exatamente o mesmo selo: o que importa é
+ * o que a página publicada de fato mostra, não a origem do dado.
+ */
+export function pendenciasDaDemo(
+  efetivo: DemoData,
+  dados: DemoDataPatch | undefined,
+  idioma: string,
+  skin: SkinDefinition,
+): PendenciaProntidao[] {
   const pendencias: PendenciaProntidao[] = [];
 
   if (!efetivo.instagram) {
@@ -78,7 +100,7 @@ export function pendenciasProntidao(lead: Lead, skin: SkinDefinition): Pendencia
     pendencias.push({ chave: "telefone", rotulo: "Sem telefone" });
   }
 
-  const { pendentes, total } = imagensPendentes(lead, skin);
+  const { pendentes, total } = imagensPendentesDoPatch(dados, skin);
   if (pendentes > 0) {
     pendencias.push({
       chave: "imagens",
@@ -86,12 +108,13 @@ export function pendenciasProntidao(lead: Lead, skin: SkinDefinition): Pendencia
     });
   }
 
-  if (textoAindaNoIdiomaDoTemplate(lead)) {
+  if (textoAindaNoIdiomaDoTemplate(dados, idioma)) {
     pendencias.push({
       chave: "idioma",
-      rotulo: "Textos ainda no idioma do template (lead é de outro idioma)",
+      rotulo: "Textos ainda no idioma do template (a demo é de outro idioma)",
     });
   }
 
   return pendencias;
 }
+
