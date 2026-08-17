@@ -4,6 +4,7 @@ import type { ConteudoTraduzivel } from "@/lib/ai/traducaoDemo";
 import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
+import type { DemoAvulsa } from "@/lib/demos/avulsas/types";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
 import type {
   ConjuntoSkin,
@@ -559,4 +560,85 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ slot, ...(skinId && { skinId }) }),
     }),
+
+  // ── Demos avulsas (sem lead associado) ────────────────────────────────
+  // Mesmos verbos da demo de lead, contra `/api/demos-avulsas/**`. O
+  // editor escolhe um dos dois conjuntos pelo tipo da demo que abriu (ver
+  // `clienteDaDemo` em app/leads/[id]/demo/editar/cliente.ts).
+  listDemosAvulsas: () => request<{ avulsas: DemoAvulsa[] }>("/api/demos-avulsas"),
+  getDemoAvulsa: (id: string) => request<{ avulsa: DemoAvulsa }>(`/api/demos-avulsas/${id}`),
+  criarDemoAvulsa: (corpo: {
+    nome: string;
+    pais?: string;
+    cidade?: string;
+    endereco?: string;
+    telefone?: string;
+    whatsapp?: string;
+    horarios?: string;
+    instagram?: string;
+    skinId: string;
+    themeId: string;
+    dados?: DemoDataPatch;
+    tema?: TemaPatch;
+  }) =>
+    request<{ avulsa: DemoAvulsa }>("/api/demos-avulsas", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  patchDemoAvulsa: (id: string, patch: { pais?: string }) =>
+    request<{ avulsa: DemoAvulsa }>(`/api/demos-avulsas/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  deleteDemoAvulsa: (id: string) =>
+    request<{ ok: true }>(`/api/demos-avulsas/${id}`, { method: "DELETE" }),
+  putDemoAvulsa: (
+    id: string,
+    demo: {
+      skinId: string;
+      themeId: string;
+      dados: DemoDataPatch;
+      tema?: TemaPatch;
+      idioma?: string;
+    },
+  ) =>
+    request<{ avulsa: DemoAvulsa }>(`/api/demos-avulsas/${id}/demo`, {
+      method: "PUT",
+      body: JSON.stringify(demo),
+    }),
+  uploadImagemAvulsa: (id: string, slot: string, arquivo: File, skinId?: string) => {
+    const form = new FormData();
+    form.set("slot", slot);
+    if (skinId) form.set("skinId", skinId);
+    form.set("arquivo", arquivo);
+    return request<{ slot: string; url: string }>(`/api/demos-avulsas/${id}/demo/imagens`, {
+      method: "POST",
+      body: form,
+    });
+  },
+  deleteImagemAvulsa: (id: string, slot: string) =>
+    request<{ avulsa: DemoAvulsa }>(`/api/demos-avulsas/${id}/demo/imagens`, {
+      method: "DELETE",
+      body: JSON.stringify({ slot }),
+    }),
+  uploadVideoAvulsa: (id: string, slot: string, arquivo: File, skinId?: string) => {
+    const form = new FormData();
+    form.set("slot", slot);
+    if (skinId) form.set("skinId", skinId);
+    form.set("arquivo", arquivo);
+    return request<{ slot: string; url: string }>(`/api/demos-avulsas/${id}/demo/videos`, {
+      method: "POST",
+      body: form,
+    });
+  },
+  deleteVideoAvulsa: (id: string, slot: string, skinId?: string) =>
+    request<{ avulsa: DemoAvulsa }>(`/api/demos-avulsas/${id}/demo/videos`, {
+      method: "DELETE",
+      body: JSON.stringify({ slot, ...(skinId && { skinId }) }),
+    }),
+  traduzirDemoAvulsa: (id: string, skinId: string, idioma: string, dados: DemoData) =>
+    request<{ traducao: ConteudoTraduzivel; idioma: string }>(
+      `/api/demos-avulsas/${id}/demo/traduzir`,
+      { method: "POST", body: JSON.stringify({ skinId, idioma, dados }) },
+    ),
 };

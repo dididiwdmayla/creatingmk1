@@ -16,14 +16,14 @@ Web app pessoal de prospecção de leads locais para web designer freelancer. Mu
 
 ```
 scripts/
-  qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato; `--so=fps` é o PORTÃO: efeito × os 5 modos de cor, celular com CPU 4×, rolando a página — piso de 45 fps por CÉLULA (modo que reprova é desabilitado, não o efeito) + a superfície repintada em Mpx/s ao lado (ver "Verificação da UI")
+  qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato; `--so=avulsa` compara identidade em branco × preenchida nas 8 skins (ver "Demos avulsas"); `--so=fps` é o PORTÃO: efeito × os 5 modos de cor, celular com CPU 4×, rolando a página — piso de 45 fps por CÉLULA (modo que reprova é desabilitado, não o efeito) + a superfície repintada em Mpx/s ao lado (ver "Verificação da UI")
   qa-editor.mjs                     # ✅ laço de captura do EDITOR (não da rota pública): digita num campo com o efeito ativo e reporta fps do preview + contagem de <style> antes/depois; exige o patch temporário de fake DB documentado no cabeçalho
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
   qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma"); `--so=listas` é o PORTÃO das duas listas longas (/leads e /buscas no celular, dirigindo os controles de verdade): nenhuma linha com altura zero, nada vazando da viewport e a compactação MEDIDA (ver "Compactação de /leads e /buscas")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
   qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia, prova que o seletor de fontes alcança o título, refaz tudo com ALINHAMENTO/ESCALA/ENTRE-LETRAS trocados POR CÓDIGO (sem remontar) e mede a FAIXA ACIMA do título depois do repique da rolagem contra a mesma faixa sem vídeo — desktop e celular (ver "Título hero: uma caixa de texto, a mídia como máscara" e "O rastro na borda superior")
   capturas-ci.mjs                   # ✅ orquestrador do workflow: move o estado no doc do lead e chama o motor como processo filho (não captura nada por conta própria)
-  capturas.mjs                      # ✅ MOTOR DE CAPTURA das demos (prints de prospecção): por âncora marcada × celular/desktop, enquadra a SEÇÃO inteira via `[data-d-secao]`, congela as animações (mesma técnica do qa-visual) e reprova se sobrou cromo fixo por cima do título; `--lead` captura a rota pública, `--skin`/`--skins` o harness (ver "Capturas por âncora de seção")
+  capturas.mjs                      # ✅ MOTOR DE CAPTURA das demos (prints de prospecção): por âncora marcada × celular/desktop, enquadra a SEÇÃO inteira via `[data-d-secao]`, congela as animações (mesma técnica do qa-visual) e reprova se sobrou cromo fixo por cima do título; `--lead` captura a rota pública, `--skin`/`--skins` o harness; alvo prefixado com `avulsa:` captura uma demo sem lead (ver "Capturas por âncora de seção" e "Demos avulsas")
 src/
   proxy.ts                          # ✅ proteção por sessão assinada (Next 16: proxy.ts, ex-middleware)
   app/
@@ -36,7 +36,9 @@ src/
         registry.ts                  #    resolveExtraFontClassNames: import() dinâmico só da fonte curada escolhida
         dynamic/*.ts                 #    um módulo por fonte curada "sob demanda" (não é default de nenhum preset)
         index.ts                     #    reexporta demoCoreFontsClassName + resolveExtraFontClassNames
-      [leadId]/page.tsx             # ✅ demo PÚBLICA do lead (única rota sem senha; só Firestore; 404 sem demo salva); generateViewport → theme-color = theme.paleta.fundo
+      comum.tsx                     # ✅ a parte COMUM das duas rotas públicas: resolverDemo + PaginaDemo + metadados + cor da barra + selo de visita
+      [leadId]/page.tsx             # ✅ demo PÚBLICA do lead (só Firestore; 404 sem demo salva); casca fina sobre comum.tsx
+      avulsa/[id]/page.tsx          # ✅ demo PÚBLICA AVULSA (sem lead) — gêmea da de cima, lendo /demosAvulsas (ver "Demos avulsas")
       VisitaTracker.tsx              # ✅ beacon de duração/scroll + marcador de dispositivo (ver "Visitas à demo")
       SeloVisitaInterna.tsx          # ✅ selo fixo "Vendo como membro" quando a visita é interna (decisão sempre no servidor)
     demo-preview/page.tsx           # ✅ preview do editor (iframe; estado via postMessage; protegida por senha)
@@ -855,6 +857,16 @@ Formato de erro padrão em todas as rotas:
 | `/api/leads/[id]/demo` | PUT | `{ skinId, themeId, dados?, tema? }` | `200 { lead }` · `400` · `404` | — |
 | `/api/leads/[id]/demo` | DELETE | — | `200 { lead }` (idempotente; apaga demo + imagens do Storage) · `404` | — |
 | `/api/buscas/[id]/demos` | DELETE | — (admin) | `200 { apagadas, busca }` (idempotente; apaga demo + imagens de TODO lead do grupo que tem uma) · `401` · `403` · `404` | — |
+| `/api/demos-avulsas` | GET | — (exige sessão) | `200 { avulsas[] }` (self-heal do token de envio na leitura) · `401` | — |
+| `/api/demos-avulsas` | POST | identidade (`nome` obrigatório, `pais?`, `cidade?`, `endereco?`, `telefone?`, `whatsapp?`, `horarios?`, `instagram?`) + config (`skinId`, `themeId`, `dados?`, `tema?`) | `201 { avulsa }` · `400` (nome ausente, chave desconhecida, skin/preset inválidos, conteúdo inválido) · `401` | — |
+| `/api/demos-avulsas/[id]` | GET | — (exige sessão) | `200 { avulsa }` · `401` · `404` | — |
+| `/api/demos-avulsas/[id]` | PATCH | `{ pais }` (vazio apaga) | `200 { avulsa }` · `400` · `401` · `404` | — |
+| `/api/demos-avulsas/[id]` | DELETE | — (exige sessão) | `200 { ok }` (apaga o doc INTEIRO + imagens no Storage) · `401` · `404` | — |
+| `/api/demos-avulsas/[id]/demo` | PUT | `{ skinId, themeId, dados?, tema?, idioma? }` (mesma validação do PUT do lead) | `200 { avulsa }` · `400` · `401` · `404` | — |
+| `/api/demos-avulsas/[id]/demo/imagens` | POST/DELETE | igual à rota de imagens do lead | `200 { slot, url }` / `200 { avulsa }` · `400` · `401` · `404` | — |
+| `/api/demos-avulsas/[id]/demo/videos` | POST/DELETE | igual à rota de vídeos do lead | `200 { slot, url }` / `200 { avulsa }` · `400` · `401` · `404` | — |
+| `/api/demos-avulsas/[id]/demo/traduzir` | POST | `{ skinId, idioma, dados }` | `200 { traducao, idioma }` · `400` · `401` · `404` · `429` · `502` · `503` | Gemini · **aiGeneration** (1 chamada) |
+| `/api/demos-avulsas/[id]/capturas/arquivo` | GET | `?tela=&ancora=&versao=` | `200` (PNG, `Content-Disposition`) · `400` · `401` · `404` | — |
 | `/api/leads/[id]/demo/imagens` | POST | multipart `slot` + `arquivo` (+`skinId?`) | `200 { slot, url }` · `400` (formato/tamanho/slot) · `404` | — |
 | `/api/leads/[id]/demo/imagens` | DELETE | `{ slot }` | `200 { lead }` (apaga arquivos do slot + override salvo) · `400` · `404` | — |
 | `/api/leads/[id]/demo/videos` | POST | multipart `slot` + `arquivo` (+`skinId?`) | `200 { slot, url }` · `400` (formato/tamanho/slot fora de `videoSlots`) · `404` | — |
@@ -1557,7 +1569,9 @@ Prints das demos para a prospecção por WhatsApp, gerados sem ninguém abrir o 
 - **Tela de marcação** (`/interno/capturas`): as 8 skins, as seções de cada uma como chips numerados na **ordem de escolha** (que é a ordem das capturas) e a **prévia do enquadramento**. A prévia carrega a skin no harness `/interno/demo-qa` dentro de um `<iframe>` de mesma origem e mede pelo MESMO seletor do motor — não tem como prometer um enquadramento diferente do que a captura entrega. Sem pixel e sem rolagem para o operador.
 - **`capturas/dom.mjs`**: a lógica que roda DENTRO da página, compartilhada pela prévia (que a chama no `contentWindow` do iframe) e pelo motor (que a passa para `page.evaluate`). É `.mjs` porque o script de laço não compila TypeScript, e cada função é **autossuficiente** (nada de escopo de módulo — `page.evaluate` avalia noutro realm) e recebe a **janela alvo** como último parâmetro, com default `window`.
 
-**Motor** (`node scripts/capturas.mjs --lead=<placeId>` ou `--skin=<id>`/`--skins`; `--subir` publica no Storage). Reaproveita `subirServidor`, o Chromium do ambiente e o congelamento de animação do `qa-visual.mjs` (WAAPI, `pause()` + `currentTime` na fase em que o efeito está aceso — a faísca vive menos de 1s e a varredura ocupa 14% do ciclo). Captura em celular (390, dpr 2) e desktop (1440, dpr 1), uma imagem por âncora. `--lead` bate na rota pública; `--skin` no harness, que é como o motor é verificável sem Firestore.
+**ALVO, não "lead"**: a fila serve as duas famílias de demo. Um id cru é a demo de um lead; `avulsa:<uuid>` é uma demo AVULSA (ver "Demos avulsas"). `src/lib/demos/capturas/alvo.mjs` é a única definição do formato, e dele saem a coleção do doc, a rota pública e a rota de leitura em todos os quatro processos da fila. O nome dos parâmetros (`placeIds`, `--leads`) ficou como estava porque é o que a UI e o `client_payload` já mandam — o conteúdo é que virou lista de alvos.
+
+**Motor** (`node scripts/capturas.mjs --lead=<placeId>`, `--lead=avulsa:<id>`, ou `--skin=<id>`/`--skins`; `--subir` publica no Storage). Reaproveita `subirServidor`, o Chromium do ambiente e o congelamento de animação do `qa-visual.mjs` (WAAPI, `pause()` + `currentTime` na fase em que o efeito está aceso — a faísca vive menos de 1s e a varredura ocupa 14% do ciclo). Captura em celular (390, dpr 2) e desktop (1440, dpr 1), uma imagem por âncora. `--lead` bate na rota pública; `--skin` no harness, que é como o motor é verificável sem Firestore.
 
 Duas defesas da imagem que vai pro lead: o contexto **não carrega cookie de sessão nem `radar_device`** (com eles a demo estampa o selo "Vendo como membro" na foto) e a URL **não leva `?t=`** (token é de envio; captura interna não pode entrar na timeline de visitas do lead).
 
@@ -1834,14 +1848,177 @@ Botão "🧩 Gerar demos em lote" em `/leads?buscaId=` (só existe na página de
 
 ## Página /demos (`src/app/(app)/demos/page.tsx`)
 
-Lista todas as demos ativas (leads com `demo` salva): reaproveita `GET /api/leads` (sem filtro) e filtra client-side quem tem `demo`, mesma escala de "centenas de leads" do resto do app. Agrupamento por busca (opcional, "Agrupar por busca") e filtro por autor combinam com dois controles adicionais:
+Lista todas as demos ativas — as de LEAD (leads com `demo` salva) e as AVULSAS (coleção própria, sem lead — ver "Demos avulsas"). Reaproveita `GET /api/leads` (sem filtro) + `GET /api/demos-avulsas` e unifica client-side em `ItemDemo`, mesma escala de "centenas" do resto do app. Agrupamento por busca (opcional, "Agrupar por busca") e filtro por autor combinam com estes controles:
+
+- **Filtro por origem** ("Todas / Só de lead / Só avulsas") + **selo "avulsa"** em cada linha avulsa, e um grupo próprio "Demos avulsas" quando o agrupamento está ligado (nunca o pseudo-grupo "Sem busca", que é o das demos de LEAD órfãs). Os três existem pelo mesmo motivo: uma avulsa não pertence a grupo de busca nenhum e não conta em métrica nenhuma do funil — confundi-la com uma demo de prospecção seria ler o funil errado.
+- **"+ Demo avulsa"**: abre o diálogo de criação (ver "Demos avulsas") e leva direto ao editor.
 
 - **Ordenação por `LeadDemo.criadoEm`**: select "Mais recentes primeiro" / "Mais antigas primeiro" (default recentes). Ordena a lista ANTES de agrupar/filtrar — com o agrupamento ligado, a ordem escolhida vale DENTRO de cada grupo; a ordem dos GRUPOS em si é a de `agruparPorBusca` (mais recente primeiro) e não muda com o seletor.
 - **"Apagar todas do grupo"** (botão no cabeçalho de cada grupo com pelo menos uma demo, `DELETE /api/buscas/[id]/demos`): apaga a demo (config + imagens no Storage) de todo lead do grupo que tem uma, numa passada.
   - **Admin apenas, recusado no SERVIDOR**: a rota chama `requireAdmin` antes de tocar em qualquer lead (401 sem sessão, 403 pra membro) — o botão só fica oculto na tela pra quem não é admin, mas mesmo que alguém force o request a trava real está na rota.
   - **Confirmação com contagem EXATA e frase obrigatória**: o clique abre `ConfirmModal` (ganhou um slot `filhos` + `confirmarDesabilitado` genéricos nesta feature) mostrando o nome do grupo e `grupo.itens.length` — já em mãos no estado local, sem round-trip extra pro servidor. O botão "Apagar todas" só habilita depois de digitar exatamente `"apagar todos"` num campo de texto controlado (`FRASE_CONFIRMACAO_LOTE`); qualquer outro texto mantém desabilitado, sem checagem "parecido o bastante".
   - **Mesma semântica do DELETE individual, lead a lead**: a rota resolve o grupo (`getBusca` + `listLeads(db, { buscaId })`, filtra quem tem `demo`) e chama `deleteDemo` + limpeza best-effort do Storage pra cada um — nenhum código novo de exclusão, só o loop. Como consequência direta, **NUNCA apaga o lead, não mexe em `status` nem em `contato`, e não remove `Lead.demoVisitas`** (o histórico de envio/visita — cada entrada já carrega `canal`/`envioEm` junto de `em`/`duracaoSegundos`/`geo`, e vive FORA de `demo`, então sobrevive à exclusão da config da demo). Confirmado por teste: `src/lib/leads/__tests__/deleteDemo.test.ts` (invariante no caso individual) e `src/app/api/__tests__/busca-demos.route.test.ts` (mesma coisa cruzando o grupo inteiro, mais 401/403/404/idempotência/isolamento entre grupos).
-  - Idempotente (grupo sem nenhuma demo → `200 { apagadas: 0 }`) e não existe pro pseudo-grupo "Sem busca" (sem `busca.id` real, o botão nem aparece — apagar em lote é uma ação de GRUPO DE BUSCA, mesmo espírito de "🧩 Gerar demos em lote" só existir em `/leads?buscaId=`).
+  - Idempotente (grupo sem nenhuma demo → `200 { apagadas: 0 }`) e não existe pro pseudo-grupo "Sem busca" nem pro grupo "Demos avulsas" (sem `busca.id` real, o botão nem aparece — apagar em lote é uma ação de GRUPO DE BUSCA, mesmo espírito de "🧩 Gerar demos em lote" só existir em `/leads?buscaId=`).
+
+## Demos avulsas — sem lead associado (`src/lib/demos/avulsas` + `/demo/avulsa/{id}`)
+
+Uma demo é uma prévia de site. Quase sempre ela existe **para** um lead da
+prospecção, mas nem sempre: às vezes o negócio chegou por indicação, por
+conversa de balcão, por uma feira — e não há (nem deve haver) um doc em
+`/leads` só pra pendurar uma demo nele. A demo avulsa é essa demo.
+
+**É o mesmo produto, sem a camada `dadosDoLead`.** Skin, tema, efeito,
+editor visual, rota pública, tokens de envio, capturas, prévia do link e
+rastreio de abertura são os MESMOS — literalmente o mesmo código, não uma
+variante paralela (ver "O que é compartilhado", abaixo).
+
+### Coleção própria, nunca um lead com bandeirinha
+
+`/demosAvulsas/{uuid}` — coleção separada, e isso é a decisão central da
+feature:
+
+```jsonc
+{
+  "id": "<uuid>",                    // id do doc E da rota pública
+  "pais": "Portugal",                // opcional: de onde saem IDIOMA e MOEDA
+  "demo": { /* LeadDemo — o MESMO contrato do campo `demo` do lead */ },
+  "demoVisitas": [ /* DemoVisita — mesmo formato, mesma regra de token */ ],
+  "capturas": { /* LeadCapturas — mesmo contrato */ },
+  "criadoEm": "<timestamp>", "criadoPor": "<userId>", "atualizadoEm": "<timestamp>"
+}
+```
+
+Uma avulsa **não entra em contagem nenhuma do funil**: não é lead, não
+conta em meta, não entra na penetração por nicho/cidade, não aparece em
+`/leads` nem na fila de `/hoje`. Numa coleção separada isso vale **por
+construção** — nenhuma query de lead a alcança, hoje ou depois de qualquer
+refatoração. Como flag dentro de `/leads`, valeria só enquanto todo mundo
+lembrasse do filtro, e bastaria um `listLeads` novo pra vazar. Provado
+dos dois lados: `src/lib/demos/avulsas/__tests__/fora-do-funil.test.ts`
+(as funções puras) e `src/app/api/__tests__/avulsas-fora-do-funil.route.test.ts`
+(as respostas que as telas de fato consomem, com sessão de ADMIN — a
+visão mais ampla do funil).
+
+### A camada de identidade ZERA, não preenche (`avulsas/identidade.ts`)
+
+Onde a demo de lead tem `dadosDoLead` (nome, endereço, telefone, whatsapp,
+horários, cidade, instagram vindos do Google), a avulsa tem
+`identidadeEmBranco()` — um patch que **apaga** esses slots do exemplo da
+skin. A montagem fica `exemplo ← identidade em branco ← o que foi
+digitado`.
+
+Zerar é necessário, não decorativo. Os `exemplo.ts` das oito skins já não
+trazem telefone/whatsapp/instagram/cidade/horários (viraram "ausente fica
+ausente" — ver `legado.ts`), mas **todos trazem `endereco`** ("Av.
+Principal, 100 — Centro"): sem a camada em branco, uma avulsa sem endereço
+publicaria o endereço do template como se fosse do negócio. Zerar a lista
+inteira também imuniza contra uma skin nova que volte a encher qualquer um
+desses slots no exemplo.
+
+**Campo de identidade deixado vazio some da página** — exatamente como
+acontece hoje com um lead sem o dado. Nada de cair em texto de template.
+
+`baseDemoDataAvulsa` é a BASE do diff mínimo do editor, e usa a MESMA
+montagem da leitura. Sem isso, ou o editor grava patch pra dizer o que a
+base já diz, ou perde o campo vazio e o texto do template volta no save
+seguinte (`__tests__/identidade.test.ts` cobre a ida e volta).
+
+### Idioma e moeda vêm do país DIGITADO
+
+`DemoAvulsa.pais` (texto livre, com `datalist` dos países mapeados) ocupa o
+lugar do país extraído do endereço que o Google devolveu. A derivação é a
+mesma de sempre (`idiomaDoPaisECidade`/`moedaDoPais`), inclusive a regra de
+país plurilíngue (Suíça/Bélgica/Canadá usam a CIDADE pra escolher a
+variante). O país é editável na aba Tema do editor e **persiste sozinho**,
+fora do PUT da demo: não é `LeadDemo`, e o PUT recusa chave desconhecida —
+como deve continuar recusando.
+
+### O que é compartilhado, e como
+
+| Peça | Como as duas famílias dividem |
+| --- | --- |
+| Montagem do conteúdo | `montarDemoData` — o parâmetro `lead` já era opcional |
+| Rota pública | `src/app/demo/comum.tsx`: `resolverDemo` + `PaginaDemo` + metadados + cor da barra + selo de visita interna. As duas páginas são cascas finas que só dizem de onde vem o dado |
+| Editor visual | `DemoEditorClient` recebe um `ClienteDemo` (`app/leads/[id]/demo/editar/cliente.ts`) e não menciona lead nem avulsa. Todo o que difere cabe nesse adaptador |
+| Validação do PUT | `validateLeadDemoInput`, a mesma do editor de lead |
+| Envio e visita | `lib/demos/envio.ts` (`garantirEnviosCanais`) e `lib/demos/visitas.ts` (`aplicarVisita`/`completarVisita`) — a regra é do campo `demo`, não de quem o hospeda |
+| Prontidão | `pendenciasDaDemo` sobre o `DemoData` EFETIVO; `SeloProntidao` recebe a lista pronta |
+| Capturas | alvo prefixado, ver abaixo |
+| Storage | mesmo prefixo `demos/{id}/` — id de avulsa é UUID e não colide com Place ID |
+
+**Rota pública**: `/demo/avulsa/{id}` (+ `/previa` para o cartão de
+conversa). O segmento estático `avulsa` tem precedência sobre o `[leadId]`
+irmão. O beacon de visita (`POST /api/demo-visita`) passa a aceitar
+`leadId` **OU** `avulsaId`; mandar os dois (ou nenhum) é 400 — adivinhar
+qual vale seria gravar no lugar errado em silêncio.
+
+**Sem sugestão de texto por IA, de propósito**: `gerarSugestaoDemo` monta o
+prompt a partir do LEAD (nicho da busca, endereço, avaliações, site) — sem
+lead não há contexto pra alimentar, e uma sugestão sobre o nada seria só o
+texto do template reescrito. O botão de IA da avulsa mostra só
+**Traduzir**, que depende apenas do conteúdo já na tela do editor, com o
+motivo escrito na própria tela.
+
+### Capturas: a família viaja no id (`capturas/alvo.mjs`)
+
+A fila de capturas atravessa quatro processos que não se falam — a rota do
+Radar, o `repository_dispatch` do GitHub, o orquestrador do workflow e o
+motor — e o payload entre eles é uma **lista de strings separada por
+vírgula** (o `client_payload` chega como expressão de template no YAML;
+qualquer coisa estruturada viraria `[object Object]` na linha de comando).
+
+Então a família viaja no próprio id, como prefixo: **`avulsa:<uuid>`**. Sem
+prefixo é lead — que é como todo alvo já gravado se parece, então não houve
+migração nem payload novo. `src/lib/demos/capturas/alvo.mjs` é a ÚNICA
+definição desse formato (`.mjs` pelo mesmo motivo de `dom.mjs`: os scripts
+do laço não compilam TypeScript) e dele saem a coleção do doc, a rota
+pública e a rota de leitura. A seção de capturas usa só a rota de LOTE
+(`POST /api/capturas`), que já recebe alvos — um caminho, em vez de duas
+rotas fazendo a mesma coisa. Na avulsa ela aparece como **aba própria do
+editor**, que é o único lugar onde a avulsa existe (não há ficha).
+
+### Criação e listagem
+
+**"+ Demo avulsa"** em `/demos` abre um diálogo com duas metades: os MESMOS
+quatro seletores do diálogo de geração em lote (`ConfigDemoCampos` —
+componente compartilhado; duas cópias divergiriam no primeiro efeito novo
+que entrasse no registro) e os campos de identidade digitados à mão. Só o
+nome é obrigatório. Criar leva direto ao editor.
+
+Em `/demos`, as duas famílias entram unificadas em `ItemDemo`: mesmo card,
+mesma prontidão, mesmo link — `origem` decide só o **selo "avulsa"**, os
+caminhos e o que o botão de excluir faz (na avulsa a demo É o registro, e
+apagar tira o doc inteiro; na de lead some só o campo `demo`). Um **filtro
+por origem** ("Todas / Só de lead / Só avulsas") e um grupo próprio "Demos
+avulsas" existem pelo mesmo motivo do selo: uma avulsa não pertence a grupo
+de busca nenhum e não conta em métrica nenhuma do funil, e confundi-la com
+uma demo de prospecção seria ler o funil errado.
+
+### Verificação visual (`qa-visual.mjs --so=avulsa`)
+
+Nenhum teste unitário julga o resultado de uma identidade em branco — eles
+provam que o campo está vazio, não que a PÁGINA continua de pé sem ele. O
+laço captura cada skin em duas colunas (em branco × preenchida), duas
+bandas (topo e rodapé, que é onde quase toda a identidade mora) e duas
+larguras. O harness `/interno/demo-qa` ganhou `avulsa=1` pra montar pelo
+mesmo caminho da rota pública.
+
+A primeira rodada achou dois defeitos reais — os dois valendo também pra
+lead sem telefone/Instagram, só que a avulsa os torna o caso comum:
+
+1. **`imobiliaria-curada` publicava rótulo órfão**: "FALE COM A GENTE" e
+   "REDES" saíam como cabeçalhos de coluna com nada por baixo. O rótulo
+   agora acompanha o conteúdo — sem itens, a coluna inteira sai.
+2. **`multimarcas-vortice` montava link morto**: `waHref` devolvia
+   `https://wa.me/?text=…` sem número, o que abre o WhatsApp em branco —
+   inclusive num botão flutuante FIXO na tela. Agora devolve `undefined`
+   sem dígitos e cada CTA some junto, mesmo princípio do `orderWaHref` da
+   lancheria (que já fazia certo). O teste que afirmava o link morto virou
+   o contrário.
+
+As outras seis skins já degradavam bem: barbearia/tatuagem caem numa
+âncora da própria página, lancheria/petshop mostram o toast "disponível na
+versão completa".
 
 ## Precificação regional por IA (`src/lib/regioes` + `src/lib/precificacao` + card "Precificação")
 
@@ -3065,5 +3242,6 @@ Ver `.env.example`. Na Vercel, cadastrar todas em Project Settings → Environme
 
 - **Proteção de acesso**: multiusuário simples sobre `/usuarios` (papéis admin/membro, PBKDF2) + cookie de sessão ASSINADO com `APP_PASSWORD` (ver seção acima). Sem Firebase Auth — a escala é um punhado de usuários de confiança e a autorização se resume a "admin vs membro".
 - **Paginação do Text Search**: só a 1ª página (até 20 resultados). `nextPageToken` nem é lido.
+- **Demo avulsa em coleção própria, não flag em `/leads`**: uma demo sem lead não é prospect e não pode entrar em contagem nenhuma do funil (metas, penetração, `/hoje`, `/leads`). Em `/demosAvulsas` isso vale por construção — nenhuma query de lead a alcança, hoje ou depois de qualquer refatoração; como flag, valeria só enquanto todo mundo lembrasse do filtro. O custo aceito é o adaptador `ClienteDemo` no editor e o alvo prefixado nas capturas (ver "Demos avulsas").
 - **Re-enriquecimento**: não existe. Lead enriquecido retorna do cache sempre; um novo Place Details para o mesmo lead nunca é disparado.
 - **Cotas por usuário vs. teto global**: o teto global (`/config/app.caps`) deixou de ser um limite absoluto de conta — desde as cotas individuais, ele é "vale pra todo mundo, menos admin". A trava absoluta de fatura passa a ser só a cota configurada no console do Google. Decisão deliberada (não um efeito colateral): ver "Cotas individuais por usuário".

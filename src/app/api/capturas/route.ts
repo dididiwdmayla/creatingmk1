@@ -8,7 +8,10 @@ import { handleRouteError, readJsonBody } from "@/lib/http";
 import { usuarioDaRequest } from "@/lib/usuarios";
 
 /**
- * GET /api/capturas?ids=a,b,c — estado da geração de cada lead pedido.
+ * GET /api/capturas?ids=a,b,c — estado da geração de cada ALVO pedido.
+ * Um alvo é uma demo de lead (id cru) ou uma demo avulsa (`avulsa:<id>` —
+ * ver lib/demos/capturas/alvo.mjs); as duas guardam o estado no mesmo
+ * campo `capturas`, e a resposta usa o alvo COMO VEIO como chave.
  *
  * É o alvo do acompanhamento da ficha e do lote: a execução leva minutos e
  * o operador não pode ficar recarregando a página. Devolve SÓ o campo
@@ -18,11 +21,14 @@ import { usuarioDaRequest } from "@/lib/usuarios";
  * botão que só falharia.
  *
  * POST /api/capturas { placeIds: [...] } — enfileira o LOTE (ação a partir
- * de um grupo de busca). Mesma restrição de sessão do disparo individual.
+ * de um grupo de busca, e o caminho de UM alvo só usado pela seção de
+ * capturas). Mesma restrição de sessão do disparo individual. O nome do
+ * campo continua `placeIds` porque é o que a UI já manda; o conteúdo é
+ * lista de ALVOS.
  *
- * Teto de 60 leads por chamada: o workflow roda um lead atrás do outro num
+ * Teto de 60 alvos por chamada: o workflow roda um atrás do outro num
  * runner só, e um lote maior que isso passa do `timeout-minutes` do job —
- * melhor recusar na hora do que deixar metade dos leads morrer no silêncio.
+ * melhor recusar na hora do que deixar metade morrer no silêncio.
  */
 
 const MAX_LOTE = 60;
@@ -64,11 +70,13 @@ export async function POST(req: Request) {
       : [];
 
     if (placeIds.length === 0) {
-      throw new ValidationError(["placeIds deve ser uma lista não vazia de ids de lead"]);
+      throw new ValidationError([
+        "placeIds deve ser uma lista não vazia de alvos (id de lead, ou avulsa:<id>)",
+      ]);
     }
     if (placeIds.length > MAX_LOTE) {
       throw new ValidationError([
-        `no máximo ${MAX_LOTE} leads por lote (recebeu ${placeIds.length}) — o workflow captura um lead de cada vez`,
+        `no máximo ${MAX_LOTE} alvos por lote (recebeu ${placeIds.length}) — o workflow captura um de cada vez`,
       ]);
     }
 

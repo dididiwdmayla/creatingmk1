@@ -88,11 +88,15 @@ export function GaleriaCapturas({
   imagens,
   nomeLead,
   leadId,
+  avulsa = false,
   previa,
 }: {
   imagens: CapturaImagem[];
   nomeLead: string;
+  /** Place ID do lead, ou UUID da demo avulsa (ver `avulsa`). */
   leadId: string;
+  /** A demo é avulsa? Muda só a rota de arquivo (ver acoes.ts). */
+  avulsa?: boolean;
   previa?: CapturaPrevia;
 }) {
   // Começa na composta: é a versão que se manda numa conversa. A crua
@@ -115,7 +119,7 @@ export function GaleriaCapturas({
       const busca = new URLSearchParams({ tela: imagem.tela, ancora: imagem.ancora, versao });
       return [
         {
-          url: `/api/leads/${encodeURIComponent(leadId)}/capturas/arquivo?${busca}`,
+          url: `${avulsa ? "/api/demos-avulsas" : "/api/leads"}/${encodeURIComponent(leadId)}/capturas/arquivo?${busca}`,
           nome: nomeDoArquivo(imagem, nomeLead, versao),
         },
       ];

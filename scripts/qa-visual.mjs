@@ -28,6 +28,7 @@
  *   node scripts/qa-visual.mjs --so=barra      # cor da barra do navegador (todas as skins)
  *   node scripts/qa-visual.mjs --so=fps        # quadros por segundo no celular (ver abaixo)
  *   node scripts/qa-visual.mjs --so=colapso    # PORTÃO: nenhuma foto com w/h zero (todas as skins)
+ *   node scripts/qa-visual.mjs --so=avulsa     # demo sem lead: identidade em branco × preenchida
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -985,6 +986,96 @@ async function verificarColapsoDeImagem(browser, secret) {
   console.log("[colapso] ok — nenhum elemento com foto colapsado.");
 }
 
+/* ── DEMO AVULSA (`--so=avulsa`) ───────────────────────────────────────
+ *
+ * A demo avulsa monta sem a camada `dadosDoLead`: a identidade que o
+ * operador NÃO digitou fica vazia e some da página (ver
+ * `identidadeEmBranco` em src/lib/demos/avulsas/identidade.ts). Nenhum
+ * teste unitário julga o resultado disso — eles provam que o campo está
+ * vazio, não que a PÁGINA continua de pé sem ele.
+ *
+ * O que só a captura mostra: rodapé com buraco onde estavam telefone e
+ * endereço, rótulo órfão ("Instagram" sem @ do lado), bloco de horários
+ * virando faixa vazia, CTA de WhatsApp apontando pra lugar nenhum. Por
+ * isso cada skin sai em DUAS colunas — em branco e preenchida — na mesma
+ * folha: o defeito aparece na comparação, não na foto isolada.
+ *
+ * Roda em desktop e em celular porque o rodapé é onde a maior parte da
+ * identidade vive, e é ele que se reempilha na largura estreita.
+ */
+const AVULSA_VARIANTES = [
+  { id: "em-branco", rotulo: "sem identidade digitada", query: "avulsa=1" },
+  { id: "preenchida", rotulo: "identidade preenchida", query: "avulsa=1&identidade=cheia" },
+];
+
+const AVULSA_TELAS = [
+  { id: "desktop", largura: 1100, altura: 700 },
+  { id: "celular", largura: 390, altura: 844 },
+];
+
+/**
+ * As duas BANDAS que importam. Página inteira não serve: com 10 mil px de
+ * altura, a folha de contato encolhe cada demo a uma tira ilegível — e o
+ * que se precisa ler aqui é texto pequeno (uma linha de telefone que
+ * sumiu, um rótulo que ficou órfão).
+ *
+ *   - `topo`: hero + primeira seção, onde o nome digitado aparece;
+ *   - `rodape`: onde mora quase toda a identidade (endereço, telefone,
+ *     horários, Instagram) e, portanto, onde a ausência delas aparece.
+ */
+const AVULSA_BANDAS = [
+  { id: "topo", aoAbrir: async () => {} },
+  {
+    id: "rodape",
+    aoAbrir: async (page) => {
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      // Uma segunda rolagem depois de um beat: a primeira dispara o
+      // lazy-load das seções do meio, que CRESCE a página — sem repetir, a
+      // captura sai num ponto que já não é o fim.
+      await page.waitForTimeout(600);
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await page.waitForTimeout(600);
+    },
+  },
+];
+
+async function capturarAvulsa(page) {
+  const gerados = [];
+  for (const tela of AVULSA_TELAS) {
+    await page.setViewportSize({ width: tela.largura, height: tela.altura });
+    for (const banda of AVULSA_BANDAS) {
+      const linhas = [];
+      for (const skin of BARRA_SKINS) {
+        const itens = [];
+        for (const variante of AVULSA_VARIANTES) {
+          const alvo = `${BASE}/interno/demo-qa?skin=${skin}&intro=0&${variante.query}`;
+          await page.goto(alvo, { waitUntil: "networkidle" });
+          await page.waitForTimeout(700);
+          await banda.aoAbrir(page);
+          const destino = path.join(
+            SAIDA,
+            `avulsa-${tela.id}-${banda.id}-${skin}-${variante.id}${marca}.png`,
+          );
+          await page.screenshot({ path: destino });
+          gerados.push(destino);
+          itens.push({ rotulo: variante.rotulo, png: destino });
+        }
+        linhas.push({ rotulo: skin, itens });
+      }
+      gerados.push(
+        await folhaDeContato(
+          page,
+          `Demo avulsa — ${banda.id} (${tela.id}): em branco × preenchida`,
+          `avulsa-${tela.id}-${banda.id}`,
+          linhas,
+        ),
+      );
+    }
+  }
+  await page.setViewportSize(VIEWPORT);
+  return gerados;
+}
+
 async function main() {
   await fs.mkdir(SAIDA, { recursive: true });
   const secret = crypto.randomBytes(16).toString("hex");
@@ -1179,6 +1270,11 @@ async function main() {
         }
       }
       gerados.push(await folhaDeContato(page, "Modos de cor: LED (moldura)", "cores-led", linhas));
+    }
+
+    /* ── DEMO AVULSA: a página sem identidade nenhuma ───────────── */
+    if (querido("avulsa")) {
+      gerados.push(...(await capturarAvulsa(page)));
     }
 
     /* ── Animação por seção: entrada com × sem ──────────────────── */

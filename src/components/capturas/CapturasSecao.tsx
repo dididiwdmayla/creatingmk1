@@ -4,47 +4,71 @@ import { useState } from "react";
 
 import { Button } from "@/components/Button";
 import { api } from "@/lib/api-client";
-import { estadoVisivel } from "@/lib/demos/capturas/estado";
-import type { Lead } from "@/lib/leads/types";
+import { formatAlvo } from "@/lib/demos/capturas/alvo.mjs";
+import { estadoVisivel, type LeadCapturas } from "@/lib/demos/capturas/estado";
 
 import { CapturaBadge } from "./CapturaBadge";
 import { GaleriaCapturas } from "./GaleriaCapturas";
 import { useEstadoCapturas } from "./useEstadoCapturas";
 
 /**
- * Seção "Capturas" da ficha do lead: dispara a geração, mostra em que pé
- * ela está e (quando pronta) as imagens.
+ * Seção "Capturas": dispara a geração, mostra em que pé ela está e (quando
+ * pronta) as imagens.
  *
- * O estado vem do doc do lead, perguntado de tempos em tempos pelo hook —
- * a execução roda num runner do GitHub e leva minutos, então nada aqui
- * depende de a aba ter ficado aberta desde o clique. Fechar e voltar
- * mostra o mesmo andamento.
+ * Serve as duas famílias de demo — a de um lead (na ficha) e a AVULSA (no
+ * editor dela). O que muda é só o ALVO: um id cru é lead, `avulsa:<id>` é
+ * demo avulsa (ver lib/demos/capturas/alvo.mjs). Estado, fila, motor e
+ * galeria são os mesmos.
+ *
+ * O estado vem do doc do próprio registro, perguntado de tempos em tempos
+ * pelo hook — a execução roda num runner do GitHub e leva minutos, então
+ * nada aqui depende de a aba ter ficado aberta desde o clique. Fechar e
+ * voltar mostra o mesmo andamento.
  */
-export function CapturasSecao({ lead }: { lead: Lead }) {
-  const { mapa, agora, disponivel, carregado, recarregar } = useEstadoCapturas([lead.placeId]);
+export function CapturasSecao({
+  id,
+  nome,
+  temDemo,
+  capturasIniciais,
+  avulsa = false,
+}: {
+  /** Place ID do lead, ou UUID da demo avulsa. */
+  id: string;
+  /** Nome do negócio — vai no nome dos arquivos baixados. */
+  nome: string;
+  /** Já existe demo salva? Sem ela não há seção pra enquadrar. */
+  temDemo: boolean;
+  /** O `capturas` que veio junto do registro, pra tela não piscar "sem capturas". */
+  capturasIniciais?: LeadCapturas;
+  avulsa?: boolean;
+}) {
+  const alvo = formatAlvo(id, avulsa);
+  const { mapa, agora, disponivel, carregado, recarregar } = useEstadoCapturas([alvo]);
   const [disparando, setDisparando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  // Enquanto a primeira resposta não chega, vale o que veio com o lead —
-  // assim a ficha não pisca "Sem capturas" num lead que já tem.
-  const capturas = carregado ? (mapa[lead.placeId] ?? undefined) : lead.capturas;
+  // Enquanto a primeira resposta não chega, vale o que veio com o registro
+  // — assim a tela não pisca "Sem capturas" em quem já tem.
+  const capturas = carregado ? (mapa[alvo] ?? undefined) : capturasIniciais;
   const visivel = estadoVisivel(capturas, agora);
-  const temDemo = Boolean(lead.demo?.skinId);
   const rodando = visivel.acompanhar;
 
   function gerar(forcar: boolean) {
     setDisparando(true);
     setErro(null);
     setAviso(null);
+    // A rota de LOTE serve as duas famílias porque recebe o alvo já
+    // prefixado — um caminho só, em vez de um `if` escolhendo entre duas
+    // rotas que fazem exatamente a mesma coisa.
     api
-      .gerarCapturas(lead.placeId, forcar)
+      .gerarCapturasLote([alvo], forcar)
       .then((r) => {
         if (r.enfileirados.length > 0) {
           // Confirmação explícita: o botão nunca volta ao normal calado.
           setAviso("Geração enfileirada — leva alguns minutos.");
         } else {
-          setAviso(`Nada a gerar: ${r.pulados[0]?.motivo ?? "lead sem demo"}.`);
+          setAviso(`Nada a gerar: ${r.pulados[0]?.motivo ?? "sem demo salva"}.`);
         }
         recarregar();
       })
@@ -95,8 +119,9 @@ export function CapturasSecao({ lead }: { lead: Lead }) {
           {visivel.estado === "pronto" && capturas?.imagens && (
             <GaleriaCapturas
               imagens={capturas.imagens}
-              nomeLead={lead.nome}
-              leadId={lead.placeId}
+              nomeLead={nome}
+              leadId={id}
+              avulsa={avulsa}
               previa={capturas.previa}
             />
           )}

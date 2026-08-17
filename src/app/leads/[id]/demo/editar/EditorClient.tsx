@@ -5,18 +5,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { CapturasSecao } from "@/components/capturas/CapturasSecao";
 import { NIVEIS_IA, NIVEL_IA_PADRAO, nivelIaValido, type NivelIA } from "@/lib/ai/nivel";
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import type { ConteudoTraduzivel } from "@/lib/ai/traducaoDemo";
 import { ApiError, api } from "@/lib/api-client";
 import type { AppConfig } from "@/lib/config";
 import { projecaoTraducaoDemo } from "@/lib/demos/custoTraducaoDemo";
-import { demoUrlComToken, envioVigente } from "@/lib/demos/envio";
+import { demoUrlComToken } from "@/lib/demos/envio";
 import { getFonte } from "@/lib/demos/fontes";
-import { idiomaPadraoDoLead } from "@/lib/demos/idioma";
 import { baseImagemSlot } from "@/lib/demos/imagens-modo";
-import { moedaDaDemo } from "@/lib/demos/moeda";
-import { montarDemoData } from "@/lib/demos/montar";
 import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarSugestaoTexto, sugestaoTemTexto } from "@/lib/demos/sugestaoTexto";
@@ -25,7 +23,8 @@ import { aplicarTraducaoDemo } from "@/lib/demos/traducaoTexto";
 import type { DemoData, ImagensModo, TemaPatch } from "@/lib/demos/types";
 import { formatBRL } from "@/lib/format";
 import { IDIOMA_PADRAO, idiomaLabelRegional } from "@/lib/idioma";
-import type { Lead } from "@/lib/leads/types";
+import { MOEDA_PADRAO } from "@/lib/moeda";
+import { clienteDaDemo, type ClienteDemo, type RegistroDemo, type TipoDemo } from "./cliente";
 import { prepararImagem } from "./comprimir";
 import {
   PainelConteudo,
@@ -38,10 +37,16 @@ import {
 /**
  * Editor visual de demos: preview ao vivo (iframe /demo-preview, estado
  * completo via postMessage) + painel de edição por abas. O painel edita o
- * DemoData EFETIVO; ao salvar, montarPatch reduz ao diff contra a base
- * (exemplo ← dados do lead) e o PUT normal da demo persiste. Clicar num
- * slot do preview foca o campo correspondente aqui (mapa slot→campo).
- * Em telas pequenas o painel vira um drawer inferior.
+ * DemoData EFETIVO; ao salvar, montarPatch reduz ao diff contra a base e o
+ * PUT normal da demo persiste. Clicar num slot do preview foca o campo
+ * correspondente aqui (mapa slot→campo). Em telas pequenas o painel vira
+ * um drawer inferior.
+ *
+ * O MESMO editor serve as duas famílias de demo — a de um lead e a avulsa
+ * (sem lead associado). Nada aqui sabe qual é: tudo o que difere (de onde
+ * o registro vem, pra onde o PUT vai, se existe a camada `dadosDoLead` na
+ * montagem, se a IA oferece sugestão de texto) entra por `ClienteDemo`,
+ * em ./cliente.ts.
  */
 
 const MSG_PREVIEW = "radar-demo-preview";
@@ -62,11 +67,11 @@ const NIVEL_INFO: Record<NivelIA, { rotulo: string; descricao: string }> = {
   },
 };
 
-/** Estado inicial do editor a partir do lead (ou ao trocar de skin). */
-function estadoInicial(lead: Lead, skinPedida?: string) {
-  const skin = getSkin(skinPedida ?? lead.demo?.skinId) ?? DEFAULT_SKIN;
-  const daSkin = lead.demo?.skinId === skin.id;
-  const themeSalvo = daSkin ? lead.demo?.themeId : undefined;
+/** Estado inicial do editor a partir do registro (ou ao trocar de skin). */
+function estadoInicial(cliente: ClienteDemo, registro: RegistroDemo, skinPedida?: string) {
+  const skin = getSkin(skinPedida ?? registro.demo?.skinId) ?? DEFAULT_SKIN;
+  const daSkin = registro.demo?.skinId === skin.id;
+  const themeSalvo = daSkin ? registro.demo?.themeId : undefined;
   return {
     skinId: skin.id,
     themeId: skin.themePresets.some((t) => t.id === themeSalvo)
@@ -75,9 +80,9 @@ function estadoInicial(lead: Lead, skinPedida?: string) {
     // migrarTemaPatch: uma demo salva com um efeito que saiu do registro
     // abre já apontando pro substituto (ver EFEITOS_MIGRADOS), então o
     // seletor mostra a escolha certa e o próximo Salvar grava o id novo.
-    tema: migrarTemaPatch((daSkin ? lead.demo?.tema : undefined) ?? {}),
-    dados: montarDemoData(skin.demoDataExemplo, lead, daSkin ? lead.demo?.dados : undefined, skin.id),
-    idioma: lead.demo?.idioma ?? idiomaPadraoDoLead(lead),
+    tema: migrarTemaPatch((daSkin ? registro.demo?.tema : undefined) ?? {}),
+    dados: cliente.montar(registro, skin, daSkin ? registro.demo?.dados : undefined),
+    idioma: registro.demo?.idioma ?? registro.idiomaPadrao,
   };
 }
 
@@ -89,10 +94,11 @@ function grupoDoSlot(slot: string): string {
   return "negocio";
 }
 
-export function DemoEditorClient({ id }: { id: string }) {
+export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: TipoDemo }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [lead, setLead] = useState<Lead | null>(null);
+  const cliente = clienteDaDemo(tipo);
+  const [registro, setRegistro] = useState<RegistroDemo | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,6 +124,10 @@ export function DemoEditorClient({ id }: { id: string }) {
   const [imgErro, setImgErro] = useState<string | null>(null);
   const [uploadVideoSlot, setUploadVideoSlot] = useState<string | null>(null);
   const [videoErro, setVideoErro] = useState<string | null>(null);
+  // País da avulsa (de onde saem idioma e moeda). Persiste sozinho, fora
+  // do PUT da demo: não é `LeadDemo`, é identidade do registro — e o PUT
+  // recusa chave desconhecida, como deve continuar recusando.
+  const [salvandoPais, setSalvandoPais] = useState(false);
 
   // IA na Forja: sem GEMINI_API_KEY o botão fica oculto (nada quebra).
   const [iaDisponivel, setIaDisponivel] = useState<boolean | null>(null);
@@ -165,28 +175,28 @@ export function DemoEditorClient({ id }: { id: string }) {
 
   useEffect(() => {
     let ignore = false;
-    api
-      .getLead(id)
-      .then(({ lead: leadData }) => {
+    cliente
+      .carregar(id)
+      .then((carregado) => {
         if (ignore) return;
-        setLead(leadData);
+        setRegistro(carregado);
         // ?skin= vem do passo de escolha (/leads/{id}/demo/escolher) — só
         // vale pra demo NOVA; uma já salva mantém o skin dela (a troca
         // continua disponível na aba Tema).
-        const skinDaUrl = !leadData.demo ? searchParams.get("skin") : null;
-        const inicial = estadoInicial(leadData, skinDaUrl ?? undefined);
+        const skinDaUrl = !carregado.demo ? searchParams.get("skin") : null;
+        const inicial = estadoInicial(cliente, carregado, skinDaUrl ?? undefined);
         setSkinId(inicial.skinId);
         setThemeId(inicial.themeId);
         setTema(inicial.tema);
         setDados(inicial.dados);
         setIdioma(inicial.idioma);
         // Só demo NOVA começa com sugestões de IA — nunca por cima de algo salvo.
-        if (!leadData.demo && searchParams.get("ia") === "1") setIaAuto(true);
+        if (!carregado.demo && searchParams.get("ia") === "1") setIaAuto(true);
       })
       .catch((error) => {
         if (ignore) return;
         if (error instanceof ApiError && error.code === "not_found") setNotFound(true);
-        else setErro(error instanceof ApiError ? error.message : "Falha ao carregar o lead.");
+        else setErro(error instanceof ApiError ? error.message : `Falha ao carregar ${cliente.rotulo === "lead" ? "o lead" : "a demo"}.`);
       })
       .finally(() => {
         if (!ignore) setLoading(false);
@@ -194,7 +204,7 @@ export function DemoEditorClient({ id }: { id: string }) {
     return () => {
       ignore = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams só é lido no load inicial do lead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams só é lido no load inicial; `cliente` é constante por tipo.
   }, [id]);
 
   useEffect(() => {
@@ -233,14 +243,16 @@ export function DemoEditorClient({ id }: { id: string }) {
     () => aplicarTema(getTheme(skin, themeId), tema, skin.heroEscalaLimites),
     [skin, themeId, tema],
   );
+  // BASE do diff mínimo — `exemplo ← dadosDoLead` na demo de lead,
+  // `exemplo ← identidade em branco` na avulsa (ver ./cliente.ts).
   const base = useMemo(
-    () => (lead ? montarDemoData(skin.demoDataExemplo, lead) : skin.demoDataExemplo),
-    [skin, lead],
+    () => (registro ? cliente.base(registro, skin) : skin.demoDataExemplo),
+    [cliente, skin, registro],
   );
-  // Moeda deriva do país do endereço do lead, como o idioma — mas sem
-  // sobrescrita manual: ao contrário do tom do texto, a moeda de um preço
-  // não é escolha do operador.
-  const moeda = useMemo(() => moedaDaDemo(lead ?? undefined), [lead]);
+  // Moeda deriva do país (do endereço do lead ou do que foi digitado na
+  // avulsa), como o idioma — mas sem sobrescrita manual: ao contrário do
+  // tom do texto, a moeda de um preço não é escolha do operador.
+  const moeda = registro?.moeda ?? MOEDA_PADRAO;
 
   /** Única porta de edição do conteúdo — marca o estado como sujo. */
   const atualizar = useCallback((fn: (atual: DemoData) => DemoData) => {
@@ -298,19 +310,20 @@ export function DemoEditorClient({ id }: { id: string }) {
   // resolverem, abrindo o MESMO preview aplicar/descartar do botão: a demo
   // "começa com sugestões", mas nada entra sem confirmação.
   useEffect(() => {
-    if (!iaAuto || iaDisponivel !== true || !lead || !nivelResolvido || iaAutoDisparadaRef.current)
+    const gerar = cliente.gerarSugestao;
+    if (!gerar || !iaAuto || iaDisponivel !== true || !registro || !nivelResolvido)
       return;
+    if (iaAutoDisparadaRef.current) return;
     iaAutoDisparadaRef.current = true;
     setMostrarIA(true);
     setGerandoIA(true);
-    api
-      .gerarSugestaoDemo(lead.placeId, skinId, nivelIA, idioma)
+    gerar(registro.id, skinId, nivelIA, idioma)
       .then(({ sugestao: nova }) => setSugestao(nova))
       .catch((error) =>
         setIaErro(error instanceof ApiError ? error.message : "Falha ao gerar sugestões."),
       )
       .finally(() => setGerandoIA(false));
-  }, [iaAuto, iaDisponivel, lead, skinId, nivelResolvido, nivelIA, idioma]);
+  }, [cliente, iaAuto, iaDisponivel, registro, skinId, nivelResolvido, nivelIA, idioma]);
 
   // Rede de segurança contra fechar a aba com edição não salva.
   useEffect(() => {
@@ -323,8 +336,8 @@ export function DemoEditorClient({ id }: { id: string }) {
   }, [sujo]);
 
   function handleSkinChange(novaSkinId: string) {
-    if (!lead) return;
-    const inicial = estadoInicial(lead, novaSkinId);
+    if (!registro) return;
+    const inicial = estadoInicial(cliente, registro, novaSkinId);
     setSkinId(inicial.skinId);
     setThemeId(inicial.themeId);
     setTema(inicial.tema);
@@ -334,10 +347,10 @@ export function DemoEditorClient({ id }: { id: string }) {
     setSalvarErro(null);
   }
 
-  const idiomaPadrao = lead ? idiomaPadraoDoLead(lead) : IDIOMA_PADRAO;
+  const idiomaPadrao = registro?.idiomaPadrao ?? IDIOMA_PADRAO;
 
   async function handleSalvar() {
-    if (!lead || !dados) return;
+    if (!registro || !dados) return;
     setSalvando(true);
     setSalvarErro(null);
     setAviso(null);
@@ -345,14 +358,14 @@ export function DemoEditorClient({ id }: { id: string }) {
       const temaLimpo = Object.fromEntries(
         Object.entries(tema).filter(([, v]) => v !== undefined && v !== ""),
       ) as TemaPatch;
-      const { lead: updated } = await api.putLeadDemo(id, {
+      const atualizado = await cliente.salvar(id, {
         skinId: skin.id,
         themeId,
         dados: montarPatch(base, dados, skin),
         ...(Object.keys(temaLimpo).length > 0 && { tema: temaLimpo }),
         ...(idioma !== idiomaPadrao && { idioma }),
       });
-      setLead(updated);
+      setRegistro(atualizado);
       setSujo(false);
       setAviso("Demo salva e publicada.");
     } catch (error) {
@@ -370,9 +383,9 @@ export function DemoEditorClient({ id }: { id: string }) {
     setExcluindo(true);
     setSalvarErro(null);
     try {
-      await api.deleteLeadDemo(id);
+      await cliente.excluir(id);
       setSujo(false);
-      router.push(`/leads/${id}`);
+      router.push(cliente.voltarPara(id));
     } catch (error) {
       setSalvarErro(error instanceof ApiError ? error.message : "Falha ao excluir a demo.");
       setExcluindo(false);
@@ -385,7 +398,7 @@ export function DemoEditorClient({ id }: { id: string }) {
     setUploadSlot(slot);
     try {
       const preparado = await prepararImagem(file);
-      const { url } = await api.uploadDemoImagem(id, slot, preparado, skin.id);
+      const { url } = await cliente.uploadImagem(id, slot, preparado, skin.id);
       atualizar((d) => ({ ...d, imagens: { ...d.imagens, [slot]: url } }));
     } catch (error) {
       setImgErro(
@@ -402,8 +415,7 @@ export function DemoEditorClient({ id }: { id: string }) {
     setImgErro(null);
     setUploadSlot(slot);
     try {
-      const { lead: updated } = await api.deleteDemoImagem(id, slot);
-      setLead(updated);
+      setRegistro(await cliente.removerImagem(id, slot));
       atualizar((d) => {
         const imagens = { ...d.imagens };
         const svgPadrao = skin.demoDataExemplo.imagens[slot];
@@ -446,7 +458,7 @@ export function DemoEditorClient({ id }: { id: string }) {
     setVideoErro(null);
     setUploadVideoSlot(slot);
     try {
-      const { url } = await api.uploadDemoVideo(id, slot, file, skin.id);
+      const { url } = await cliente.uploadVideo(id, slot, file, skin.id);
       atualizar((d) => ({ ...d, videos: { ...d.videos, [slot]: url } }));
     } catch (error) {
       setVideoErro(
@@ -463,8 +475,7 @@ export function DemoEditorClient({ id }: { id: string }) {
     setVideoErro(null);
     setUploadVideoSlot(slot);
     try {
-      const { lead: updated } = await api.deleteDemoVideo(id, slot, skin.id);
-      setLead(updated);
+      setRegistro(await cliente.removerVideo(id, slot, skin.id));
       atualizar((d) => {
         const videos = { ...d.videos };
         delete videos[slot];
@@ -477,13 +488,37 @@ export function DemoEditorClient({ id }: { id: string }) {
     }
   }
 
+  /**
+   * Salva o país da avulsa. O idioma default e a MOEDA derivam dele, então
+   * o registro recarregado já traz os dois recalculados — e o preview
+   * repinta com a moeda certa sem precisar salvar a demo.
+   */
+  async function handlePaisChange(novoPais: string) {
+    if (!cliente.salvarPais) return;
+    setSalvandoPais(true);
+    setSalvarErro(null);
+    try {
+      const atualizado = await cliente.salvarPais(id, novoPais);
+      setRegistro(atualizado);
+      // O seletor de idioma segue o novo default enquanto o usuário não
+      // tiver escolhido um manualmente (idioma salvo em LeadDemo.idioma).
+      if (!atualizado.demo?.idioma) setIdioma(atualizado.idiomaPadrao);
+    } catch (error) {
+      setSalvarErro(error instanceof ApiError ? error.message : "Falha ao salvar o país.");
+    } finally {
+      setSalvandoPais(false);
+    }
+  }
+
   /** Botão "Gerar com IA": abre o escolhedor de ação ANTES de chamar o Gemini. */
   function handleAbrirGerarIA() {
     setMostrarIA(true);
     setEscolhendoNivel(true);
     setIaErro(null);
     setSugestao(null);
-    setTraduzirSelecionado(false);
+    // Sem sugestão de texto nesta família (a avulsa não tem lead pra dar
+    // contexto ao prompt), a única ação é traduzir — já vem marcada.
+    setTraduzirSelecionado(!cliente.gerarSugestao);
     setTraducaoResultado(null);
     setTraducaoErro(null);
     // Custo/cota da tradução (SKU aiGeneration) — cortesia, mostrada antes
@@ -506,8 +541,8 @@ export function DemoEditorClient({ id }: { id: string }) {
     api.salvarIaNivel(nivelIA).catch(() => {
       /* preferência não salvou — não impede a geração desta vez. */
     });
-    api
-      .gerarSugestaoDemo(id, skin.id, nivelIA, idioma)
+    cliente
+      .gerarSugestao?.(id, skin.id, nivelIA, idioma)
       .then(({ sugestao: nova }) => setSugestao(nova))
       .catch((error) =>
         setIaErro(error instanceof ApiError ? error.message : "Falha ao gerar sugestões."),
@@ -548,8 +583,8 @@ export function DemoEditorClient({ id }: { id: string }) {
     setEscolhendoNivel(false);
     setTraducaoErro(null);
     setTraduzindoIA(true);
-    api
-      .traduzirDemo(id, skin.id, idioma, dados)
+    cliente
+      .traduzir(id, skin.id, idioma, dados)
       .then(({ traducao }) => setTraducaoResultado(traducao))
       .catch((error) =>
         setTraducaoErro(error instanceof ApiError ? error.message : "Falha ao traduzir."),
@@ -579,15 +614,15 @@ export function DemoEditorClient({ id }: { id: string }) {
     if (sujo && !window.confirm("Sair sem salvar? As edições não salvas serão perdidas.")) {
       return;
     }
-    router.push(`/leads/${id}`);
+    router.push(cliente.voltarPara(id));
   }
 
   async function handleCopiarLink() {
     try {
       // Canal "link", igual à ficha e a /demos — não queima o token que
       // possa estar numa mensagem de WhatsApp já montada (EnvioDemo.canal).
-      const tokenLink = lead ? envioVigente(lead.demo, "link")?.token : undefined;
-      const url = demoUrlComToken(window.location.origin, id, tokenLink);
+      const tokenLink = registro ? cliente.tokenLink(registro) : undefined;
+      const url = demoUrlComToken(window.location.origin, id, tokenLink, tipo === "avulsa");
       await navigator.clipboard.writeText(url);
       setAviso("Link copiado!");
     } catch {
@@ -603,14 +638,15 @@ export function DemoEditorClient({ id }: { id: string }) {
     );
   }
 
-  if (notFound || !lead || !dados) {
+  if (notFound || !registro || !dados) {
+    const oQue = tipo === "avulsa" ? "Demo avulsa" : "Lead";
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3">
         <p className="text-sm text-ink-muted">
-          {notFound ? "Lead não encontrado." : (erro ?? "Falha ao carregar o lead.")}
+          {notFound ? `${oQue} não encontrado${tipo === "avulsa" ? "a" : ""}.` : (erro ?? "Falha ao carregar.")}
         </p>
-        <Link href="/leads" className="text-sm text-accent">
-          Voltar para leads
+        <Link href={tipo === "avulsa" ? "/demos" : "/leads"} className="text-sm text-accent">
+          {tipo === "avulsa" ? "Voltar para demos" : "Voltar para leads"}
         </Link>
       </div>
     );
@@ -635,6 +671,7 @@ export function DemoEditorClient({ id }: { id: string }) {
     { id: "imagens", rotulo: "Imagens" },
     { id: "tema", rotulo: "Tema" },
     { id: "estrutura", rotulo: "Estrutura" },
+    ...(tipo === "avulsa" ? [{ id: "capturas" as Aba, rotulo: "Capturas" }] : []),
   ];
 
   return (
@@ -646,11 +683,13 @@ export function DemoEditorClient({ id }: { id: string }) {
           onClick={handleVoltar}
           className="text-xs text-ink-muted hover:text-foreground"
         >
-          ← Ficha
+          {cliente.voltarRotulo}
         </button>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{lead.nome}</p>
-          <p className="text-[11px] text-ink-muted">Editor de demo</p>
+          <p className="truncate text-sm font-semibold text-foreground">{registro.nome}</p>
+          <p className="text-[11px] text-ink-muted">
+            {tipo === "avulsa" ? "Editor de demo · avulsa" : "Editor de demo"}
+          </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <div className="hidden items-center rounded border border-line md:flex" role="group">
@@ -800,20 +839,36 @@ export function DemoEditorClient({ id }: { id: string }) {
                 }}
                 idioma={idioma}
                 idiomaPadrao={idiomaPadrao}
+                origemDoPadrao={tipo === "avulsa" ? "do país digitado" : "do endereço do lead"}
                 setIdioma={(valor) => {
                   setIdioma(valor);
                   setSujo(true);
                 }}
+                pais={cliente.salvarPais ? (registro.pais ?? "") : undefined}
+                onPaisChange={handlePaisChange}
+                paisSalvando={salvandoPais}
               />
             )}
             {aba === "estrutura" && (
               <PainelEstrutura dados={dados} skin={skin} atualizar={atualizar} />
             )}
+            {aba === "capturas" && (
+              // Só a demo avulsa mostra esta aba: a de lead já tem a seção
+              // de capturas na ficha, que é de onde o operador trabalha.
+              // A avulsa não tem ficha — o editor é o único lugar dela.
+              <CapturasSecao
+                id={id}
+                nome={registro.nome}
+                temDemo={Boolean(registro.demo?.skinId)}
+                capturasIniciais={registro.capturas}
+                avulsa
+              />
+            )}
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line px-3 py-2">
             <a
-              href={`/demo/${id}`}
+              href={cliente.caminhoPublico(id)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-accent hover:underline"
@@ -830,15 +885,17 @@ export function DemoEditorClient({ id }: { id: string }) {
             <span className="ml-auto" />
             {confirmaExcluir && (
               <span className="text-[11px] text-critical">
-                Apaga registro e imagens; /demo volta a 404.
+                {tipo === "avulsa"
+                  ? "Apaga a demo avulsa inteira e as imagens."
+                  : "Apaga registro e imagens; /demo volta a 404."}
               </span>
             )}
             <Button
               variant="danger"
               onClick={handleExcluir}
               loading={excluindo}
-              disabled={!lead.demo}
-              title={lead.demo ? undefined : "Nada salvo ainda"}
+              disabled={!registro.demo}
+              title={registro.demo ? undefined : "Nada salvo ainda"}
               className="!px-2 !py-1 text-xs"
             >
               {confirmaExcluir ? "Confirmar exclusão" : "Excluir demo"}
@@ -884,10 +941,12 @@ export function DemoEditorClient({ id }: { id: string }) {
               <>
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm">
                   <p className="mb-3 text-xs text-ink-muted">
-                    Quanto a IA pode mexer nesta geração?
+                    {cliente.gerarSugestao
+                      ? "Quanto a IA pode mexer nesta geração?"
+                      : "Uma demo avulsa não tem lead pra dar contexto ao prompt — a IA aqui só traduz o texto que já está no editor."}
                   </p>
                   <div className="flex flex-col gap-2">
-                    {NIVEIS_IA.map((valor) => (
+                    {(cliente.gerarSugestao ? NIVEIS_IA : []).map((valor) => (
                       <label
                         key={valor}
                         className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm text-foreground transition-colors ${
@@ -977,6 +1036,7 @@ export function DemoEditorClient({ id }: { id: string }) {
                   </button>
                   <Button
                     onClick={traduzirSelecionado ? handleConfirmarTraducao : handleConfirmarNivel}
+                    disabled={traduzirSelecionado && idiomaEhPortugues}
                     className="!px-3 !py-1.5 text-xs"
                   >
                     {traduzirSelecionado ? "Traduzir" : "Gerar sugestões"}
@@ -1104,7 +1164,7 @@ export function DemoEditorClient({ id }: { id: string }) {
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm">
                   {gerandoIA && (
                     <p className="py-6 text-center text-ink-muted">
-                      Gerando sugestões para {lead.nome}…
+                      Gerando sugestões para {registro.nome}…
                     </p>
                   )}
                   {iaErro && !gerandoIA && (

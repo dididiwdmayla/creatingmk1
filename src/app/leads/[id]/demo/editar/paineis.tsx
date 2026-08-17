@@ -16,7 +16,7 @@ import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import { SKINS } from "@/lib/demos/registry";
 import { ESPACAMENTO_HERO_LIMITES, TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
-import { IDIOMAS_SUPORTADOS, idiomaLabel } from "@/lib/idioma";
+import { IDIOMAS_SUPORTADOS, PAISES_COM_IDIOMA, idiomaLabel } from "@/lib/idioma";
 import type {
   Alinhamento,
   Animacao,
@@ -44,7 +44,12 @@ import type {
  * os data-demo-slot da skin: clicar no preview foca o campo daqui.
  */
 
-export type Aba = "conteudo" | "imagens" | "tema" | "estrutura";
+/**
+ * Abas do painel do editor. `capturas` só existe na demo AVULSA: a de
+ * lead já tem a seção de capturas na ficha, que é de onde o operador
+ * trabalha; a avulsa não tem ficha, e o editor é o único lugar dela.
+ */
+export type Aba = "conteudo" | "imagens" | "tema" | "estrutura" | "capturas";
 
 type Atualizar = (fn: (atual: DemoData) => DemoData) => void;
 
@@ -1285,7 +1290,11 @@ export function PainelTema({
   setTema,
   idioma,
   idiomaPadrao,
+  origemDoPadrao = "do endereço do lead",
   setIdioma,
+  pais,
+  onPaisChange,
+  paisSalvando = false,
 }: {
   skinId: string;
   onSkinChange: (skinId: string) => void;
@@ -1295,9 +1304,18 @@ export function PainelTema({
   tema: TemaPatch;
   setTema: (tema: TemaPatch) => void;
   idioma: string;
-  /** Idioma derivado do país do endereço do lead — mostrado como referência do default. */
+  /** Idioma derivado do país (do endereço do lead, ou do país digitado numa avulsa). */
   idiomaPadrao: string;
+  /** De onde o default veio, pra etiqueta do seletor não mentir numa avulsa. */
+  origemDoPadrao?: string;
   setIdioma: (idioma: string) => void;
+  /**
+   * País do negócio — só a demo AVULSA tem (na de lead ele sai do endereço
+   * que o Google devolveu). `undefined` esconde o campo por completo.
+   */
+  pais?: string;
+  onPaisChange?: (pais: string) => void;
+  paisSalvando?: boolean;
 }) {
   const preset = skin.themePresets.find((t) => t.id === themeId) ?? skin.themeDefault;
   const destaque = tema.destaque ?? preset.paleta.destaque;
@@ -1322,6 +1340,32 @@ export function PainelTema({
         </select>
       </label>
 
+      {pais !== undefined && onPaisChange && (
+        <label className={LABEL_CLS}>
+          País do negócio
+          <input
+            type="text"
+            defaultValue={pais}
+            list="paises-demo"
+            placeholder="Brasil"
+            disabled={paisSalvando}
+            onBlur={(e) => {
+              if (e.target.value.trim() !== pais.trim()) onPaisChange(e.target.value);
+            }}
+            className={INPUT_CLS}
+          />
+          <datalist id="paises-demo">
+            {PAISES_COM_IDIOMA.map((nome) => (
+              <option key={nome} value={nome} />
+            ))}
+          </datalist>
+          <span className="mt-1 block text-[11px] text-ink-muted">
+            De onde saem o idioma e a MOEDA dos preços. Salva sozinho, sem esperar o Salvar da
+            demo.
+          </span>
+        </label>
+      )}
+
       <label className={LABEL_CLS}>
         Idioma dos textos (gerados por IA)
         <select
@@ -1332,7 +1376,7 @@ export function PainelTema({
           {IDIOMAS_SUPORTADOS.map((id) => (
             <option key={id} value={id}>
               {idiomaLabel(id)}
-              {id === idiomaPadrao ? " (do endereço do lead)" : ""}
+              {id === idiomaPadrao ? ` (${origemDoPadrao})` : ""}
             </option>
           ))}
         </select>

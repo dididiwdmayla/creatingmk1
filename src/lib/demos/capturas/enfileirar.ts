@@ -1,41 +1,64 @@
 import { dispararCapturas } from "@/lib/github/dispatch";
 import type { AppDb } from "@/lib/firestore-like";
-import { LEADS_COLLECTION, type Lead } from "@/lib/leads/types";
 
+import { parseAlvo } from "./alvo.mjs";
 import { emAndamento, type LeadCapturas } from "./estado";
 
 /**
- * Enfileira a geração de capturas de um ou mais leads: marca o estado no
+ * Enfileira a geração de capturas de um ou mais ALVOS: marca o estado no
  * doc de cada um e dispara o workflow no GitHub Actions.
+ *
+ * Um alvo é uma demo de lead (id cru) ou uma demo avulsa (`avulsa:<id>`) —
+ * ver ./alvo.mjs. As duas guardam o estado no MESMO campo `capturas`, com
+ * o mesmo contrato, então tudo aqui é igual menos a coleção do doc.
  *
  * A ordem importa. Marcar ANTES de disparar é o que faz o pedido existir
  * mesmo que o operador feche a aba no mesmo segundo — e é o que dá ao
  * workflow o `execucaoId` que ele vai carregar de volta. Se o disparo
- * falhar, o estado é desfeito para `falhou` com o motivo: um lead
+ * falhar, o estado é desfeito para `falhou` com o motivo: um alvo
  * "enfileirado" para um workflow que nunca foi chamado é exatamente o
  * estado que mente.
  */
 
 export interface ResultadoEnfileiramento {
   execucaoId: string;
-  /** Leads que entraram na fila. */
+  /** Alvos que entraram na fila (no mesmo formato em que chegaram). */
   enfileirados: string[];
-  /** Leads ignorados por não terem demo salva (não há o que capturar). */
+  /** Alvos ignorados — sem demo salva, inexistentes, ou já gerando. */
   pulados: Array<{ placeId: string; motivo: string }>;
 }
 
-/** Lead sem demo não tem o que capturar — /demo/{id} responde 404. */
-function podeCapturar(lead: Lead | undefined): boolean {
-  return Boolean(lead?.demo?.skinId);
+/** O que o enfileiramento precisa saber de um doc, seja de qual coleção for. */
+interface DocComDemo {
+  demo?: { skinId?: string };
+  capturas?: LeadCapturas;
 }
 
-async function lerLead(db: AppDb, placeId: string): Promise<Lead | undefined> {
-  const snap = await db.collection(LEADS_COLLECTION).doc(placeId).get();
-  return snap.exists ? (snap.data() as unknown as Lead) : undefined;
+/** Registro sem demo não tem o que capturar — a rota pública responde 404. */
+function podeCapturar(doc: DocComDemo | undefined): boolean {
+  return Boolean(doc?.demo?.skinId);
+}
+
+async function lerAlvo(db: AppDb, alvo: string): Promise<DocComDemo | undefined> {
+  const parsed = parseAlvo(alvo);
+  if (!parsed) return undefined;
+  const snap = await db.collection(parsed.colecao).doc(parsed.id).get();
+  return snap.exists ? (snap.data() as unknown as DocComDemo) : undefined;
+}
+
+async function gravarEstado(
+  db: AppDb,
+  alvo: string,
+  capturas: LeadCapturas,
+  atualizadoEm: string,
+): Promise<void> {
+  const parsed = parseAlvo(alvo);
+  if (!parsed) return;
+  await db.collection(parsed.colecao).doc(parsed.id).set({ capturas, atualizadoEm }, { merge: true });
 }
 
 /**
- * Já existe uma geração em andamento para este lead? Usado para não
+ * Já existe uma geração em andamento para este alvo? Usado para não
  * empilhar runs por clique repetido — "refazer" durante um run em
  * andamento é uma decisão explícita do operador (`forcar`), não um efeito
  * colateral de dois cliques.
@@ -46,7 +69,7 @@ export function jaEstaGerando(capturas: LeadCapturas | undefined): boolean {
 
 export async function enfileirarCapturas(
   db: AppDb,
-  placeIds: string[],
+  alvos: string[],
   opcoes: {
     userId?: string;
     /** Ignora um andamento em curso (o botão "Refazer"). */
@@ -63,18 +86,22 @@ export async function enfileirarCapturas(
   const enfileirados: string[] = [];
   const pulados: ResultadoEnfileiramento["pulados"] = [];
 
-  for (const placeId of placeIds) {
-    const lead = await lerLead(db, placeId);
-    if (!lead) {
-      pulados.push({ placeId, motivo: "lead não encontrado" });
+  for (const alvo of alvos) {
+    if (!parseAlvo(alvo)) {
+      pulados.push({ placeId: alvo, motivo: "id inválido" });
       continue;
     }
-    if (!podeCapturar(lead)) {
-      pulados.push({ placeId, motivo: "sem demo salva" });
+    const doc = await lerAlvo(db, alvo);
+    if (!doc) {
+      pulados.push({ placeId: alvo, motivo: "não encontrado" });
       continue;
     }
-    if (!opcoes.forcar && jaEstaGerando(lead.capturas)) {
-      pulados.push({ placeId, motivo: "já está gerando" });
+    if (!podeCapturar(doc)) {
+      pulados.push({ placeId: alvo, motivo: "sem demo salva" });
+      continue;
+    }
+    if (!opcoes.forcar && jaEstaGerando(doc.capturas)) {
+      pulados.push({ placeId: alvo, motivo: "já está gerando" });
       continue;
     }
 
@@ -84,12 +111,12 @@ export async function enfileirarCapturas(
       pedidoEm,
       ...(opcoes.userId ? { pedidoPor: opcoes.userId } : {}),
       // As imagens da rodada anterior somem junto com o pedido novo: o
-      // workflow apaga o prefixo do lead no Storage antes de subir as
-      // novas, então manter as URLs velhas aqui deixaria a ficha exibindo
-      // imagem que já não existe.
+      // workflow apaga o prefixo no Storage antes de subir as novas, então
+      // manter as URLs velhas aqui deixaria a tela exibindo imagem que já
+      // não existe.
     };
-    await db.collection(LEADS_COLLECTION).doc(placeId).set({ capturas, atualizadoEm: pedidoEm }, { merge: true });
-    enfileirados.push(placeId);
+    await gravarEstado(db, alvo, capturas, pedidoEm);
+    enfileirados.push(alvo);
   }
 
   if (enfileirados.length === 0) {
@@ -99,20 +126,16 @@ export async function enfileirarCapturas(
   try {
     await dispararCapturas({ leads: enfileirados, execucao: execucaoId });
   } catch (erro) {
-    // Desfaz: sem isto os leads ficariam "enfileirado" esperando um
+    // Desfaz: sem isto os alvos ficariam "enfileirado" esperando um
     // workflow que ninguém chamou, até o limite de silêncio expirar.
     const motivo = erro instanceof Error ? erro.message : "falha ao disparar a geração";
-    for (const placeId of enfileirados) {
-      await db
-        .collection(LEADS_COLLECTION)
-        .doc(placeId)
-        .set(
-          {
-            capturas: { estado: "falhou", execucaoId, pedidoEm, erro: motivo, geradoEm: agora() },
-            atualizadoEm: agora(),
-          },
-          { merge: true },
-        );
+    for (const alvo of enfileirados) {
+      await gravarEstado(
+        db,
+        alvo,
+        { estado: "falhou", execucaoId, pedidoEm, erro: motivo, geradoEm: agora() },
+        agora(),
+      );
     }
     throw erro;
   }
@@ -121,19 +144,20 @@ export async function enfileirarCapturas(
 }
 
 /**
- * Estado das capturas de vários leads — a resposta do polling da ficha e
- * do lote. Devolve só o campo `capturas`, que é o que muda enquanto a
- * geração roda; carregar o lead inteiro a cada poucos segundos seria
- * pagar caro por um dado que não mudou.
+ * Estado das capturas de vários alvos — a resposta do polling da ficha, do
+ * lote e de /demos. Devolve só o campo `capturas`, que é o que muda
+ * enquanto a geração roda; carregar o doc inteiro a cada poucos segundos
+ * seria pagar caro por um dado que não mudou. A chave da resposta é o alvo
+ * COMO VEIO (com o prefixo, quando houver), pra quem pediu conseguir casar
+ * a resposta sem reconstruir o formato.
  */
 export async function estadoDasCapturas(
   db: AppDb,
-  placeIds: string[],
+  alvos: string[],
 ): Promise<Record<string, LeadCapturas | null>> {
   const saida: Record<string, LeadCapturas | null> = {};
-  for (const placeId of placeIds) {
-    const lead = await lerLead(db, placeId);
-    saida[placeId] = lead?.capturas ?? null;
+  for (const alvo of alvos) {
+    saida[alvo] = (await lerAlvo(db, alvo))?.capturas ?? null;
   }
   return saida;
 }

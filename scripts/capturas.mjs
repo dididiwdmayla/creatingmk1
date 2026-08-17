@@ -10,6 +10,7 @@
  *
  * Uso:
  *   node scripts/capturas.mjs --lead=<placeId>      # demo REAL do lead
+ *   node scripts/capturas.mjs --lead=avulsa:<id>    # demo AVULSA (sem lead)
  *   node scripts/capturas.mjs --leads=<id>,<id>     # lote (um build só)
  *   node scripts/capturas.mjs --skin=<skinId>       # harness, sem banco
  *   node scripts/capturas.mjs --skins               # todas as 8 skins
@@ -59,6 +60,11 @@ import {
   PREVIA_LARGURA,
 } from "../src/lib/demos/capturas/previa.mjs";
 import { ANCORAS_PADRAO } from "../src/lib/demos/capturas/padrao.mjs";
+import {
+  caminhoApiDoAlvo,
+  caminhoPublicoDoAlvo,
+  parseAlvo,
+} from "../src/lib/demos/capturas/alvo.mjs";
 import { CHROMIUM, RAIZ, subirServidor } from "./qa-servidor.mjs";
 
 /**
@@ -138,54 +144,62 @@ const telas = TELAS.filter((t) => !soTela || t.id === soTela);
 
 /**
  * Um alvo de captura: de onde vem a página e quais âncoras capturar.
- * `--lead` bate na rota pública (a demo real); `--skin`, no harness.
+ * `--lead`/`--leads` batem na rota pública (a demo real); `--skin`, no
+ * harness. Um alvo de DEMO AVULSA vem prefixado com `avulsa:` — ver
+ * src/lib/demos/capturas/alvo.mjs, a única definição desse formato.
  */
 async function resolverAlvos(base, cookie) {
   // `--leads=a,b,c` é o modo do workflow: um `next build` e um Chromium
-  // para o lote inteiro, em vez de um processo por lead (o build sozinho
-  // custa mais que todas as capturas de um lead juntas).
-  const leadIds = (opcao("leads") ?? opcao("lead") ?? "")
+  // para o lote inteiro, em vez de um processo por alvo (o build sozinho
+  // custa mais que todas as capturas de um alvo juntas).
+  const alvosPedidos = (opcao("leads") ?? opcao("lead") ?? "")
     .split(",")
     .map((v) => v.trim())
     .filter(Boolean);
   const skinId = opcao("skin");
 
-  if (leadIds.length > 0) {
-    // A marcação vigente vem de /config uma vez só, e a skin de cada lead
-    // da ficha dele — as duas coisas o app já sabe responder.
+  if (alvosPedidos.length > 0) {
+    // A marcação vigente vem de /config uma vez só, e a skin de cada alvo
+    // do doc dele — as duas coisas o app já sabe responder.
     const rc = await fetch(`${base}/api/config`, {
       headers: { cookie: `${cookie.name}=${cookie.value}` },
     });
     const { config } = await rc.json();
 
     const alvos = [];
-    for (const leadId of leadIds) {
-      const r = await fetch(`${base}/api/leads/${encodeURIComponent(leadId)}`, {
+    for (const pedido of alvosPedidos) {
+      const parsed = parseAlvo(pedido);
+      if (!parsed) throw new Error(`alvo inválido: "${pedido}"`);
+      const rota = caminhoApiDoAlvo(pedido);
+      const r = await fetch(`${base}${rota}`, {
         headers: { cookie: `${cookie.name}=${cookie.value}` },
       });
-      if (!r.ok) throw new Error(`lead ${leadId}: /api/leads respondeu ${r.status}`);
-      const { lead } = await r.json();
-      const skinId = lead?.demo?.skinId ?? lead?.demo?.skin;
-      if (!skinId) throw new Error(`lead ${leadId} não tem demo salva (nada a capturar)`);
+      if (!r.ok) throw new Error(`alvo ${pedido}: ${rota} respondeu ${r.status}`);
+      const corpo = await r.json();
+      // As duas famílias devolvem o MESMO campo `demo` — só a chave do
+      // envelope muda (`lead` × `avulsa`).
+      const registro = parsed.avulsa ? corpo.avulsa : corpo.lead;
+      const skinId = registro?.demo?.skinId ?? registro?.demo?.skin;
+      if (!skinId) throw new Error(`alvo ${pedido} não tem demo salva (nada a capturar)`);
+      const caminho = caminhoPublicoDoAlvo(pedido);
       alvos.push({
-        nome: leadId,
-        leadId,
+        nome: pedido,
+        leadId: pedido,
         skinId,
-        // O NOME DO NEGÓCIO, que a prévia do link escreve em tipo grande —
-        // é o nome do lead, o mesmo que aparece na ficha. Ler do doc em vez
-        // de tirar do print é o que faz o nome continuar legível quando o
-        // cartão de conversa encolhe a imagem.
-        nomeNegocio: lead?.nome,
+        // O NOME DO NEGÓCIO, que a prévia do link escreve em tipo grande.
+        // Na demo de lead é o nome do lead; na avulsa, o nome digitado
+        // (que mora em `demo.dados.nome`, a mesma fonte da listagem). Ler
+        // do doc em vez de tirar do print é o que faz o nome continuar
+        // legível quando o cartão de conversa encolhe a imagem.
+        nomeNegocio: parsed.avulsa ? registro?.demo?.dados?.nome : registro?.nome,
         // Sem `?t=`: token é para envio ao lead, e uma captura interna não
         // pode entrar na timeline de visitas da demo dele.
-        url: `${base}/demo/${encodeURIComponent(leadId)}`,
+        url: `${base}${caminho}`,
         // O que a moldura de navegador exibe: o endereço REAL da demo, não
         // o localhost onde ela foi capturada. Sem token, pelo mesmo motivo
         // — um `?t=` estampado na foto viraria link de envio circulando
         // fora da timeline a que pertence.
-        enderecoPublico: APP_PUBLIC_URL
-          ? `${APP_PUBLIC_URL}/demo/${encodeURIComponent(leadId)}`
-          : undefined,
+        enderecoPublico: APP_PUBLIC_URL ? `${APP_PUBLIC_URL}${caminho}` : undefined,
         ancoras: ancorasDe(config?.capturas?.ancoras, skinId),
       });
     }
@@ -205,7 +219,9 @@ async function resolverAlvos(base, cookie) {
   const marcacao = config?.capturas?.ancoras ?? ANCORAS_PADRAO;
   const ids = skinId ? [skinId] : Object.keys(marcacao);
   if (ids.length === 0) {
-    throw new Error("informe --lead=<id> ou --skin=<skinId>; --skins precisa do app respondendo /api/config");
+    throw new Error(
+      "informe --lead=<id> (ou --lead=avulsa:<id>) ou --skin=<skinId>; --skins precisa do app respondendo /api/config",
+    );
   }
   return ids.map((id) => ({
     nome: id,

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { EnvioCanal, EnvioDemo, LeadDemo } from "./types";
+import { ENVIO_CANAIS, type EnvioCanal, type EnvioDemo, type LeadDemo } from "./types";
 
 /** Nome do query param que carrega o token na URL pública da demo. */
 export const TOKEN_QUERY_PARAM = "t";
@@ -27,8 +27,49 @@ export function envioVigente(
   return demo?.envios?.find((envio) => canalDoEnvio(envio) === canal);
 }
 
+/**
+ * Garante um token vigente para CADA canal (link/whatsapp) — gera só os que
+ * faltarem, preserva os já existentes (self-heal incremental; idempotente).
+ * Entradas antigas sem `canal` contam como "whatsapp" (ver canalDoEnvio).
+ *
+ * Puro e compartilhado pelas duas famílias de demo (a do lead, em
+ * `lib/leads/repo.ts`, e a avulsa, em `lib/demos/avulsas/repo.ts`): o
+ * histórico de envio é do CAMPO `demo`, não de quem o hospeda.
+ */
+export function garantirEnviosCanais(envios: EnvioDemo[], geradoEm: string): EnvioDemo[] {
+  const faltando = ENVIO_CANAIS.filter(
+    (canal) => !envios.some((envio) => canalDoEnvio(envio) === canal),
+  );
+  if (faltando.length === 0) return envios;
+  const novos = faltando.map((canal) => ({ token: gerarEnvioToken(), geradoEm, canal }));
+  return [...novos, ...envios];
+}
+
+/** Falta o token vigente de algum canal? Dispara o self-heal na leitura. */
+export function enviosIncompletos(demo: Pick<LeadDemo, "envios"> | undefined): boolean {
+  if (!demo) return false;
+  const envios = demo.envios ?? [];
+  return ENVIO_CANAIS.some((canal) => !envios.some((envio) => canalDoEnvio(envio) === canal));
+}
+
+/**
+ * Caminho público de uma demo — `/demo/{placeId}` para a do lead,
+ * `/demo/avulsa/{id}` para a avulsa. Uma função só porque todo lugar que
+ * monta link (listagem, editor, motor de capturas, `{demo}` da mensagem)
+ * precisa acertar os dois casos, e um `if` espalhado por cinco arquivos é
+ * como um deles fica pra trás.
+ */
+export function caminhoDemo(id: string, avulsa = false): string {
+  return avulsa ? `/demo/avulsa/${encodeURIComponent(id)}` : `/demo/${encodeURIComponent(id)}`;
+}
+
 /** Monta a URL pública da demo, com `?t=` do token vigente quando houver. */
-export function demoUrlComToken(origin: string, leadId: string, token: string | undefined): string {
-  const base = `${origin}/demo/${leadId}`;
+export function demoUrlComToken(
+  origin: string,
+  id: string,
+  token: string | undefined,
+  avulsa = false,
+): string {
+  const base = `${origin}${caminhoDemo(id, avulsa)}`;
   return token ? `${base}?${TOKEN_QUERY_PARAM}=${token}` : base;
 }

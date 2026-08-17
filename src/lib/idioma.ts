@@ -61,6 +61,18 @@ export function idiomaDoPais(pais: string | undefined): string {
   return IDIOMA_POR_PAIS[pais.trim().toLowerCase()] ?? IDIOMA_PADRAO;
 }
 
+/**
+ * Países com idioma (e, pelo mesmo mapa de chaves, moeda) mapeados — em
+ * capitalização de exibição, para o `datalist` do campo de país da demo
+ * avulsa. É sugestão, não validação: o campo aceita qualquer texto e
+ * país fora da lista cai no default, exatamente como um endereço de lead
+ * de um país não mapeado. Brasil não está no mapa (é o próprio default),
+ * mas entra na lista porque é o caso mais comum de todos.
+ */
+export const PAISES_COM_IDIOMA: readonly string[] = ["Brasil", ...Object.keys(IDIOMA_POR_PAIS)]
+  .map((nome) => nome.replace(/(^|\s)\p{Ll}/gu, (letra) => letra.toUpperCase()))
+  .sort((a, b) => a.localeCompare(b, "pt-BR"));
+
 /** Minúsculas e sem diacríticos, pra casar "Genève"/"Genebra"/"geneve" com a mesma chave. */
 const DIACRITICOS_RE = new RegExp("[\\u0300-\\u036f]", "g");
 

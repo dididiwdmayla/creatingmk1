@@ -5,8 +5,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { NivelIA } from "@/lib/ai/nivel";
 import { Button } from "@/components/Button";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import {
+  ConfigDemoCampos,
+  SELECT_CONFIG_CLASS,
+  configDemoInicial,
+  type ConfigDemo,
+} from "@/components/demos/ConfigDemoCampos";
 import { ApiError, api } from "@/lib/api-client";
-import { EFEITOS } from "@/lib/demos/efeitos/registry";
 import {
   mensagemResultadoLote,
   patchCriacaoLote,
@@ -17,18 +22,11 @@ import {
 } from "@/lib/demos/lote";
 import { montarDemoData } from "@/lib/demos/montar";
 import { montarPatch } from "@/lib/demos/patch";
-import { SKINS, getSkin } from "@/lib/demos/registry";
+import { getSkin } from "@/lib/demos/registry";
 import { aplicarSugestaoTexto } from "@/lib/demos/sugestaoTexto";
-import { IMAGENS_MODOS, type ImagensModo } from "@/lib/demos/types";
 import type { Lead } from "@/lib/leads/types";
 
-const SELECT_CLASS =
-  "rounded border border-line bg-surface-2 px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent";
-
-const MODO_LABEL: Record<ImagensModo, string> = {
-  foto: "Foto (fotos de produção do template)",
-  grafico: "Gráfico (ilustração/SVG do template)",
-};
+const SELECT_CLASS = SELECT_CONFIG_CLASS;
 
 /** Níveis oferecidos na geração de texto em lote — "toque-leve" não tem texto nenhum, não faz sentido aqui. */
 const NIVEL_TEXTO_LABEL: Record<Exclude<NivelIA, "toque-leve">, string> = {
@@ -95,11 +93,9 @@ export function GerarDemosLoteDialog({
   const [selecionados, setSelecionados] = useState<Set<string>>(
     () => new Set(candidatos.map((lead) => lead.placeId)),
   );
-  const [skinId, setSkinId] = useState(SKINS[0]?.id ?? "");
+  const [config, setConfig] = useState<ConfigDemo>(configDemoInicial);
+  const { skinId, themeId } = config;
   const skin = getSkin(skinId);
-  const [themeId, setThemeId] = useState(skin?.themeDefault.id ?? "");
-  const [efeitoId, setEfeitoId] = useState("nenhum");
-  const [imagensModo, setImagensModo] = useState<ImagensModo>("foto");
 
   const [processando, setProcessando] = useState(false);
   const [progresso, setProgresso] = useState(0);
@@ -119,12 +115,6 @@ export function GerarDemosLoteDialog({
     [],
   );
 
-  function trocarSkin(novoSkinId: string) {
-    setSkinId(novoSkinId);
-    const novaSkin = getSkin(novoSkinId);
-    setThemeId(novaSkin?.themeDefault.id ?? "");
-  }
-
   function alternarSelecao(placeId: string) {
     setSelecionados((atual) => {
       const proximo = new Set(atual);
@@ -142,7 +132,7 @@ export function GerarDemosLoteDialog({
     setProcessando(true);
     setProgresso(0);
     const relatorioAtual = relatorioVazio();
-    const { dados, tema } = patchCriacaoLote({ skinId, themeId, efeitoId, imagensModo });
+    const { dados, tema } = patchCriacaoLote(config);
 
     for (const lead of alvos) {
       if (canceladoRef.current) {
@@ -338,56 +328,12 @@ export function GerarDemosLoteDialog({
               render do Firestore, gratuito, não consome cota.
             </p>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              <select
-                value={skinId}
-                onChange={(event) => trocarSkin(event.target.value)}
-                className={SELECT_CLASS}
-                disabled={processando}
-              >
-                {SKINS.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nome}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={themeId}
-                onChange={(event) => setThemeId(event.target.value)}
-                className={SELECT_CLASS}
-                disabled={processando}
-              >
-                {skin?.themePresets.map((preset) => (
-                  <option key={preset.id} value={preset.id}>
-                    {preset.nome}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={efeitoId}
-                onChange={(event) => setEfeitoId(event.target.value)}
-                className={SELECT_CLASS}
-                disabled={processando}
-              >
-                <option value="nenhum">Sem efeito de fundo</option>
-                {EFEITOS.map((efeito) => (
-                  <option key={efeito.id} value={efeito.id}>
-                    {efeito.nome}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={imagensModo}
-                onChange={(event) => setImagensModo(event.target.value as ImagensModo)}
-                className={SELECT_CLASS}
-                disabled={processando}
-              >
-                {IMAGENS_MODOS.map((modo) => (
-                  <option key={modo} value={modo}>
-                    {MODO_LABEL[modo]}
-                  </option>
-                ))}
-              </select>
+            <div className="mt-3">
+              <ConfigDemoCampos
+                config={config}
+                onChange={setConfig}
+                desabilitado={processando}
+              />
             </div>
 
             <div className="mt-3 flex items-center justify-between text-xs text-ink-muted">

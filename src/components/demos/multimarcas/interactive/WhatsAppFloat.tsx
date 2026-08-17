@@ -12,6 +12,7 @@ import { waHref } from "./logic";
 export function WhatsAppFloat({ whatsapp }: { whatsapp?: string }) {
   const [visivel, setVisivel] = useState(false);
   const ringRef = useRef<HTMLSpanElement>(null);
+  const href = waHref(whatsapp, "Olá! Vim pelo site e quero mais informações.");
 
   useEffect(() => {
     let raf = 0;
@@ -42,9 +43,13 @@ export function WhatsAppFloat({ whatsapp }: { whatsapp?: string }) {
     return () => clearInterval(id);
   }, [visivel]);
 
+  // Sem número, o flutuante não existe: um botão fixo de WhatsApp que
+  // abre o app em branco é o pior dos links mortos — está sempre na tela.
+  if (!href) return null;
+
   return (
     <a
-      href={waHref(whatsapp, "Olá! Vim pelo site e quero mais informações.")}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="WhatsApp"

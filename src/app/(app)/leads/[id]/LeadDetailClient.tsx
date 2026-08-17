@@ -9,7 +9,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { CotaIndicador, cotaEsgotada } from "@/components/CotaIndicador";
 import { PrecificacaoCard } from "@/components/PrecificacaoCard";
 import { SeloContato } from "@/components/SeloContato";
-import { SeloProntidao } from "@/components/SeloProntidao";
+import { SeloProntidaoLead } from "@/components/SeloProntidao";
 import { Skeleton, SkeletonRows } from "@/components/Skeleton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ApiError, api, type FrasesResponse } from "@/lib/api-client";
@@ -782,7 +782,7 @@ export function LeadDetailClient({ id }: { id: string }) {
               />
               <Row label="Atualizada em" value={formatDateTime(lead.demo.atualizadoEm)} />
             </dl>
-            <SeloProntidao lead={lead} skin={skinAtual} />
+            <SeloProntidaoLead lead={lead} skin={skinAtual} />
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href={`/leads/${lead.placeId}/demo/editar`}
@@ -815,7 +815,13 @@ export function LeadDetailClient({ id }: { id: string }) {
         {demoErro && <p className="mt-2 text-sm text-critical">{demoErro}</p>}
       </section>
 
-      <CapturasSecao key={lead.placeId} lead={lead} />
+      <CapturasSecao
+        key={lead.placeId}
+        id={lead.placeId}
+        nome={lead.nome}
+        temDemo={Boolean(lead.demo?.skinId)}
+        capturasIniciais={lead.capturas}
+      />
 
       {visitasExternas.length > 0 && (
         <section className="rounded-lg border border-line bg-surface p-4">
