@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { atualizarVisitaAvulsa } from "@/lib/demos/avulsas/repo";
 import { deviceIdValido } from "@/lib/device";
 import { ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
@@ -11,18 +12,24 @@ const DURACAO_MAX_SEGUNDOS = 24 * 60 * 60;
 /**
  * POST /api/demo-visita — rota PÚBLICA (ver proxy.ts), chamada via
  * navigator.sendBeacon no unload da demo pública (VisitaTracker) pra
- * completar a visita já registrada no carregamento (ver registrarVisitaDemo
- * em lib/leads/repo.ts) com duração e profundidade de scroll. Best-effort:
- * lead/visita inexistente responde 204 do mesmo jeito (o beacon não lê a
- * resposta).
+ * completar a visita já registrada no carregamento com duração e
+ * profundidade de scroll. Best-effort: registro inexistente responde 204
+ * do mesmo jeito (o beacon não lê a resposta).
+ *
+ * O corpo traz `leadId` OU `avulsaId` — as duas famílias de demo guardam a
+ * visita no próprio doc, e é o campo presente que diz em qual coleção
+ * procurar. Mandar os dois (ou nenhum) é 400: adivinhar qual vale seria
+ * gravar no lugar errado em silêncio.
  */
 export async function POST(req: Request) {
   try {
     const body = await readJsonBody(req);
-    const { leadId, visitaId, duracaoSegundos, scrollPercent, deviceId } = body;
+    const { leadId, avulsaId, visitaId, duracaoSegundos, scrollPercent, deviceId } = body;
 
     const problemas: string[] = [];
-    if (typeof leadId !== "string" || !leadId) problemas.push("leadId deve ser string");
+    const temLead = typeof leadId === "string" && leadId !== "";
+    const temAvulsa = typeof avulsaId === "string" && avulsaId !== "";
+    if (temLead === temAvulsa) problemas.push("informe leadId OU avulsaId");
     if (typeof visitaId !== "string" || !visitaId) problemas.push("visitaId deve ser string");
     if (
       duracaoSegundos !== undefined &&
@@ -41,11 +48,16 @@ export async function POST(req: Request) {
     }
     if (problemas.length > 0) throw new ValidationError(problemas);
 
-    await atualizarVisitaDemo(getDb(), leadId as string, visitaId as string, {
+    const dados = {
       duracaoSegundos: duracaoSegundos as number | undefined,
       scrollPercent: scrollPercent as number | undefined,
       marcadorDispositivo: deviceIdValido(typeof deviceId === "string" ? deviceId : undefined),
-    });
+    };
+    if (temAvulsa) {
+      await atualizarVisitaAvulsa(getDb(), avulsaId as string, visitaId as string, dados);
+    } else {
+      await atualizarVisitaDemo(getDb(), leadId as string, visitaId as string, dados);
+    }
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     return handleRouteError(error);

@@ -6,7 +6,7 @@ import { DEVICE_STORAGE_KEY, deviceIdValido } from "@/lib/device";
 
 /**
  * Mede duração e profundidade de scroll da visita registrada pelo Server
- * Component (ver [leadId]/page.tsx) e manda via sendBeacon no unload —
+ * Component (ver comum.tsx) e manda via sendBeacon no unload —
  * POST /api/demo-visita, rota pública (ver proxy.ts). Best-effort: sem
  * sendBeacon ou aba fechada à força, a visita fica sem duração/scroll (o
  * registro em si já existe, gravado no carregamento).
@@ -17,7 +17,16 @@ import { DEVICE_STORAGE_KEY, deviceIdValido } from "@/lib/device";
  * cookie bloqueado no navegador embutido de um app, mas localStorage
  * sobrevive).
  */
-export function VisitaTracker({ leadId, visitaId }: { leadId: string; visitaId: string }) {
+export function VisitaTracker({
+  id,
+  visitaId,
+  avulsa = false,
+}: {
+  /** Place ID do lead ou UUID da avulsa — o beacon distingue pelo `avulsa`. */
+  id: string;
+  visitaId: string;
+  avulsa?: boolean;
+}) {
   const inicioRef = useRef(0);
   const scrollMaxRef = useRef(0);
 
@@ -42,7 +51,7 @@ export function VisitaTracker({ leadId, visitaId }: { leadId: string; visitaId: 
         // localStorage indisponível — segue sem o marcador.
       }
       const payload = JSON.stringify({
-        leadId,
+        ...(avulsa ? { avulsaId: id } : { leadId: id }),
         visitaId,
         duracaoSegundos,
         scrollPercent: scrollMaxRef.current,
@@ -64,7 +73,7 @@ export function VisitaTracker({ leadId, visitaId }: { leadId: string; visitaId: 
       document.removeEventListener("visibilitychange", aoTrocarVisibilidade);
       window.removeEventListener("pagehide", enviarBeacon);
     };
-  }, [leadId, visitaId]);
+  }, [id, avulsa, visitaId]);
 
   return null;
 }
