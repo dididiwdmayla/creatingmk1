@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 import type { FiltroPresenca } from "@/lib/config";
-import { canalDoEnvio, envioVigente, gerarEnvioToken } from "@/lib/demos/envio";
-import { ENVIO_CANAIS, type DemoDataPatch, type EnvioDemo, type TemaPatch } from "@/lib/demos/types";
+import { enviosIncompletos, garantirEnviosCanais } from "@/lib/demos/envio";
+import { aplicarVisita, completarVisita } from "@/lib/demos/visitas";
+import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import { InvalidTransitionError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import type { DetalhesLugar, HorariosLugar, PlaceBasico } from "@/lib/places/client";
@@ -328,25 +329,9 @@ export async function updateLeadExtras(
   return updated;
 }
 
-/**
- * Garante um token vigente para CADA canal (link/whatsapp) — gera só os que
- * faltarem, preserva os já existentes (self-heal incremental; idempotente).
- * Entradas antigas sem `canal` contam como "whatsapp" (ver canalDoEnvio).
- */
-function garantirEnviosCanais(envios: EnvioDemo[], geradoEm: string): EnvioDemo[] {
-  const faltando = ENVIO_CANAIS.filter(
-    (canal) => !envios.some((envio) => canalDoEnvio(envio) === canal),
-  );
-  if (faltando.length === 0) return envios;
-  const novos = faltando.map((canal) => ({ token: gerarEnvioToken(), geradoEm, canal }));
-  return [...novos, ...envios];
-}
-
 /** True quando falta o token vigente de algum canal — dispara self-heal na leitura. */
 export function envioTokenIncompleto(lead: Lead): boolean {
-  if (!lead.demo) return false;
-  const envios = lead.demo.envios ?? [];
-  return ENVIO_CANAIS.some((canal) => !envios.some((envio) => canalDoEnvio(envio) === canal));
+  return enviosIncompletos(lead.demo);
 }
 
 /** Salva a configuração da demo do lead (Forja de Demos). */
@@ -437,32 +422,13 @@ export async function registrarVisitaDemo(
   const lead = await requireLead(db, placeId);
   if (!lead.demo || !opts.token) return { lead };
 
-  const em = now.toISOString();
-  const envios = lead.demo.envios ?? [];
-  const envioCorrespondente = envios.find((envio) => envio.token === opts.token);
-  const canalCorrespondente = envioCorrespondente ? canalDoEnvio(envioCorrespondente) : undefined;
-  const visita: DemoVisita = {
-    id: randomUUID(),
-    em,
-    interna: opts.interna,
-    ...(envioCorrespondente && { envioEm: envioCorrespondente.geradoEm }),
-    ...(canalCorrespondente && { canal: canalCorrespondente }),
-    ...(opts.geo && { geo: opts.geo }),
-  };
-
-  // Vigente é POR CANAL: um link copiado não queima o token do WhatsApp e
-  // vice-versa (ver EnvioDemo.canal em lib/demos/types.ts).
-  const vigenteDoCanal = canalCorrespondente
-    ? envioVigente({ envios }, canalCorrespondente)
-    : undefined;
-  const consome = !opts.interna && vigenteDoCanal !== undefined && vigenteDoCanal.token === opts.token;
-  const novosEnvios = consome
-    ? [{ token: gerarEnvioToken(), geradoEm: em, canal: canalCorrespondente! }, ...envios]
-    : envios;
-
+  // A regra (montar a entrada, decidir se o token vigente é consumido) é a
+  // mesma da demo avulsa e vive em lib/demos/visitas.ts — aqui fica só a
+  // leitura-escrita do doc do lead.
+  const { envios, visita } = aplicarVisita(lead.demo, opts, now.toISOString());
   const updated: Lead = {
     ...lead,
-    demo: { ...lead.demo, envios: novosEnvios },
+    demo: { ...lead.demo, envios },
     demoVisitas: [...(lead.demoVisitas ?? []), visita],
   };
   await docRef(db, placeId).set(toDoc(updated));
@@ -485,16 +451,10 @@ export async function atualizarVisitaDemo(
   dados: { duracaoSegundos?: number; scrollPercent?: number; marcadorDispositivo?: boolean },
 ): Promise<Lead | undefined> {
   const lead = await getLead(db, placeId);
-  const idx = lead?.demoVisitas?.findIndex((visita) => visita.id === visitaId) ?? -1;
-  if (!lead?.demoVisitas || idx === -1) return lead;
+  if (!lead?.demoVisitas) return lead;
 
-  const visitas = [...lead.demoVisitas];
-  visitas[idx] = {
-    ...visitas[idx],
-    ...(dados.duracaoSegundos !== undefined && { duracaoSegundos: dados.duracaoSegundos }),
-    ...(dados.scrollPercent !== undefined && { scrollPercent: dados.scrollPercent }),
-    ...(dados.marcadorDispositivo && { interna: true }),
-  };
+  const visitas = completarVisita(lead.demoVisitas, visitaId, dados);
+  if (visitas === lead.demoVisitas) return lead;
   const updated: Lead = { ...lead, demoVisitas: visitas };
   await docRef(db, placeId).set(toDoc(updated));
   return updated;
