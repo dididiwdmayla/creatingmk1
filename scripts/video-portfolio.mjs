@@ -23,13 +23,19 @@
  *   node scripts/video-portfolio.mjs --skin=barbearia-editorial
  *   node scripts/video-portfolio.mjs --skin=petshop-focinho-feliz --duracao=6000
  *   node scripts/video-portfolio.mjs --lead=<placeId>
+ *   node scripts/video-portfolio.mjs --todas              # uma demo de cada skin
+ *   node scripts/video-portfolio.mjs --todas --desktop    # e também em 1920×1080
  *
  * Opções:
  *   --skin=<skinId>    skin do harness /interno/demo-qa
  *   --lead=<placeId>   demo REAL do lead (rota pública), em vez da de exemplo
+ *   --todas            uma demo de cada skin do registro, em série
+ *   --desktop          grava TAMBÉM em 1920×1080 (<alvo>-desktop.mp4)
  *   --duracao=<ms>     duração da descida (default: 3500)
  *   --saida=<dir>      pasta de saída (default: ./saida-video, no .gitignore)
  *   --sem-build        pula o `next build` (reaproveita o .next da rodada anterior)
+ *
+ * Saída: `<alvo>-mobile.mp4` e, com --desktop, `<alvo>-desktop.mp4`.
  *
  * Exige `ffmpeg` COMPLETO no PATH (ver `exigirFfmpeg`). O empacotado pelo
  * Playwright não serve.
@@ -65,6 +71,7 @@ import { promisify } from "node:util";
 import { chromium } from "playwright-core";
 
 import { esperarTextoEstavel } from "../src/lib/demos/capturas/dom.mjs";
+import { ANCORAS_PADRAO } from "../src/lib/demos/capturas/padrao.mjs";
 import { CHROMIUM, RAIZ, subirServidor } from "./qa-servidor.mjs";
 
 const exec = promisify(execFile);
@@ -93,6 +100,24 @@ const CELULAR = {
   altura: 960,
   dpr: 2,
   saida: { largura: 1080, altura: 1920 },
+};
+
+/**
+ * A TELA DE DESKTOP. Aqui não há nada a resolver: 1920×1080 em dpr 1 é
+ * pixel CSS ao pixel de saída, então o vídeo já nasce na resolução final e
+ * a conversão nem chega a escalar (ver `converterParaMp4`). Sem escala não
+ * há perda nenhuma — é o material mais nítido que este script produz.
+ *
+ * dpr 1 e não 2 de propósito: como o dpr não acrescenta pixel ao vídeo
+ * (descoberta 2 no cabeçalho), o 2 aqui só faria a página pedir o asset
+ * grande de cada foto pra jogar fora na hora de gravar.
+ */
+const DESKTOP = {
+  id: "desktop",
+  largura: 1920,
+  altura: 1080,
+  dpr: 1,
+  saida: { largura: 1920, altura: 1080 },
 };
 
 /** Respiro no topo antes de a descida começar. */
@@ -429,10 +454,13 @@ async function rolarDoTopoAoRodape({ duracao = 3500 } = {}, win = window) {
 async function converterParaMp4({ bruto, destino, tela, cortarSegundos }) {
   const args = ["-y", "-hide_banner", "-loglevel", "error", "-i", bruto];
   if (cortarSegundos > 0) args.push("-ss", cortarSegundos.toFixed(3));
+  args.push("-an"); // sem áudio: não há o que gravar, e faixa muda só engorda o arquivo
+  // No desktop o quadro já sai no tamanho final — escalar 1:1 seria uma
+  // reamostragem que só tem custo, então o filtro nem entra.
+  if (tela.largura !== tela.saida.largura || tela.altura !== tela.saida.altura) {
+    args.push("-vf", `scale=${tela.saida.largura}:${tela.saida.altura}:flags=lanczos`);
+  }
   args.push(
-    "-an", // sem áudio: não há o que gravar, e faixa muda só engorda o arquivo
-    "-vf",
-    `scale=${tela.saida.largura}:${tela.saida.altura}:flags=lanczos`,
     "-c:v",
     "libx264",
     "-profile:v",
@@ -622,16 +650,61 @@ async function gravar({ browser, alvo, tela, duracao, saida, cookie }) {
   };
 }
 
+/**
+ * Os alvos da rodada. `--todas` lista as skins pelas chaves de
+ * `ANCORAS_PADRAO`.
+ *
+ * Sair da marcação de capturas em vez do registro é o mesmo precedente que
+ * `capturas.mjs` já abriu, pelo mesmo motivo: o registro
+ * (`lib/demos/registry.ts`) é TypeScript, e este script não compila TS.
+ * `padrao.mjs` cobre as 8 skins e mora num `.mjs` justamente pra ser
+ * legível de fora. O acoplamento é real e está anotado em ARCHITECTURE.md:
+ * skin nova sem entrada lá não aparece no `--todas`.
+ *
+ * De propósito NÃO consulta `/api/config`, ao contrário do motor de
+ * capturas: lá "lista vazia" é marcação legítima ("não capturar esta
+ * skin"), e uma skin que ninguém quer fotografar continua valendo como
+ * material de portfólio.
+ */
+function resolverAlvos(base, { skinId, leadId, todas }) {
+  if (leadId) {
+    return [
+      {
+        nome: leadId,
+        // SEM `?t=`: token é do envio ao lead, e uma gravação de portfólio
+        // não pode entrar na timeline de visitas da demo dele (ver o bloco
+        // "NÃO CONTAMINAR O RASTREIO" no topo).
+        url: `${base}/demo/${encodeURIComponent(leadId)}`,
+      },
+    ];
+  }
+
+  const ids = todas ? Object.keys(ANCORAS_PADRAO) : [skinId];
+  return ids.map((id) => ({
+    nome: id,
+    // `intro=0` pelo mesmo motivo das capturas: a splash de abertura
+    // cobriria os primeiros segundos, e o que o vídeo tem pra mostrar é o
+    // site, não a cortina.
+    url: `${base}/interno/demo-qa?skin=${encodeURIComponent(id)}&intro=0`,
+  }));
+}
+
 async function main() {
   exigirLocal();
   await exigirFfmpeg();
 
   const skinId = opcao("skin");
   const leadId = opcao("lead");
-  if (!skinId && !leadId) {
-    throw new Error("informe --skin=<skinId> (demo de exemplo) ou --lead=<placeId> (demo real do lead)");
+  const todas = temFlag("todas");
+  const escolhidos = [skinId && "--skin", leadId && "--lead", todas && "--todas"].filter(Boolean);
+  if (escolhidos.length === 0) {
+    throw new Error(
+      "informe --skin=<skinId> (demo de exemplo), --lead=<placeId> (demo real do lead) ou --todas",
+    );
   }
-  if (skinId && leadId) throw new Error("--skin e --lead são alternativas; escolha uma");
+  if (escolhidos.length > 1) {
+    throw new Error(`${escolhidos.join(", ")} são alternativas; escolha uma`);
+  }
 
   const duracao = Number(opcao("duracao") ?? DURACAO_PADRAO_MS);
   if (!Number.isFinite(duracao) || duracao <= 0) {
@@ -643,49 +716,72 @@ async function main() {
   const { base, cookie, encerrar } = await subirServidor({ build: !temFlag("sem-build") });
   const browser = await chromium.launch({ executablePath: CHROMIUM });
 
+  const gerados = [];
+  const reprovados = [];
+
   try {
-    const alvo = leadId
-      ? {
-          nome: leadId,
-          // SEM `?t=`: token é do envio ao lead, e uma gravação de
-          // portfólio não pode entrar na timeline de visitas da demo dele
-          // (ver o bloco "NÃO CONTAMINAR O RASTREIO" no topo).
-          url: `${base}/demo/${encodeURIComponent(leadId)}`,
+    const alvos = resolverAlvos(base, { skinId, leadId, todas });
+    // `--desktop` ACRESCENTA a tela grande; o celular é sempre gravado —
+    // é o formato pra que o material existe.
+    const telas = temFlag("desktop") ? [CELULAR, DESKTOP] : [CELULAR];
+
+    // EM SÉRIE, uma gravação por vez, nunca em paralelo — ao contrário do
+    // motor de capturas, que roda as duas telas juntas. Ali o produto é um
+    // PNG e disputar CPU só atrasa; aqui o produto é uma sequência de
+    // quadros, e um segundo Chromium rolando uma página com efeito de
+    // fundo rouba exatamente os quadros que este vídeo existe pra mostrar.
+    // Velocidade não é o critério: fps estável é.
+    for (const alvo of alvos) {
+      for (const tela of telas) {
+        console.log(
+          `\n== ${alvo.nome} · ${tela.id} — ${tela.largura}×${tela.altura} → ` +
+            `${tela.saida.largura}×${tela.saida.altura}, descida de ${duracao}ms`,
+        );
+        try {
+          const r = await gravar({ browser, alvo, tela, duracao, saida, cookie });
+          gerados.push(r.destino);
+
+          console.log(
+            `  preparo: ${r.preparo.imagensProntas}/${r.preparo.imagens} imagens · ` +
+              `${r.preparo.trilhos} trilho(s) horizontais · documento ${r.preparo.altura}px · ` +
+              `rolagem ${r.preparo.rolagem} (tem que ser 0) · texto estável: ${r.preparo.textoEstavel}`,
+          );
+          console.log(
+            `  descida: ${r.descida.quadros} quadros em ${r.descida.gastoMs}ms ` +
+              `(${(r.descida.quadros / (r.descida.gastoMs / 1000)).toFixed(1)} q/s) · ` +
+              `parou em ${r.descida.final}/${r.descida.fundo}px`,
+          );
+          console.log(
+            `  vídeo: bruto ${r.brutoSegundos.toFixed(2)}s − corte de cabeça ` +
+              `${r.cortarSegundos.toFixed(2)}s → ${r.finalSegundos.toFixed(2)}s`,
+          );
+          console.log(
+            `  rastreio: ${r.guardas.publica ? "rota PÚBLICA" : "harness /interno"} · ` +
+              `${r.guardas.cookies} cookie(s) no contexto · ${r.guardas.selos} selo(s) ` +
+              `"${TEXTO_SELO}" · ${r.guardas.beacons} beacon(s) de visita`,
+          );
+          console.log(`  ✔ ${r.destino}`);
+        } catch (erro) {
+          // Um alvo que reprova não derruba o lote: num `--todas` de 8
+          // skins, perder as 7 boas por causa da 8ª é pagar o build de
+          // novo por nada. O resumo no fim é que decide o código de saída.
+          const motivo = erro instanceof Error ? erro.message : String(erro);
+          reprovados.push(`${alvo.nome}/${tela.id}: ${motivo}`);
+          console.log(`  ✗ ${motivo}`);
         }
-      : {
-          nome: skinId,
-          // `intro=0` pelo mesmo motivo das capturas: a splash de abertura
-          // cobriria os primeiros segundos, e o que o vídeo tem pra mostrar
-          // é o site, não a cortina.
-          url: `${base}/interno/demo-qa?skin=${encodeURIComponent(skinId)}&intro=0`,
-        };
-
-    console.log(`\n== ${alvo.nome} — ${CELULAR.largura}×${CELULAR.altura} → ${CELULAR.saida.largura}×${CELULAR.saida.altura}, descida de ${duracao}ms`);
-    const r = await gravar({ browser, alvo, tela: CELULAR, duracao, saida, cookie });
-
-    console.log(
-      `  preparo: ${r.preparo.imagensProntas}/${r.preparo.imagens} imagens · ` +
-        `${r.preparo.trilhos} trilho(s) horizontais · documento ${r.preparo.altura}px · ` +
-        `rolagem ${r.preparo.rolagem} (tem que ser 0) · texto estável: ${r.preparo.textoEstavel}`,
-    );
-    console.log(
-      `  descida: ${r.descida.quadros} quadros em ${r.descida.gastoMs}ms ` +
-        `(${(r.descida.quadros / (r.descida.gastoMs / 1000)).toFixed(1)} q/s) · ` +
-        `parou em ${r.descida.final}/${r.descida.fundo}px`,
-    );
-    console.log(
-      `  vídeo: bruto ${r.brutoSegundos.toFixed(2)}s − corte de cabeça ${r.cortarSegundos.toFixed(2)}s ` +
-        `→ ${r.finalSegundos.toFixed(2)}s`,
-    );
-    console.log(
-      `  rastreio: ${r.guardas.publica ? "rota PÚBLICA" : "harness /interno"} · ` +
-        `${r.guardas.cookies} cookie(s) no contexto · ${r.guardas.selos} selo(s) "${TEXTO_SELO}" · ` +
-        `${r.guardas.beacons} beacon(s) de visita`,
-    );
-    console.log(`\n  ✔ ${r.destino}`);
+      }
+    }
   } finally {
     await browser.close();
     encerrar();
+  }
+
+  console.log(`\n${gerados.length} vídeo(s) em ${saida}:`);
+  for (const arquivo of gerados) console.log(`  ${arquivo}`);
+  if (reprovados.length > 0) {
+    console.log(`\n${reprovados.length} reprovado(s):`);
+    for (const motivo of reprovados) console.log(`  ✗ ${motivo}`);
+    process.exitCode = 1;
   }
 }
 
