@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import type { FiltroPresenca } from "@/lib/config";
 import { enviosIncompletos, garantirEnviosCanais } from "@/lib/demos/envio";
 import { aplicarVisita, completarVisita } from "@/lib/demos/visitas";
@@ -13,7 +11,6 @@ import {
   LEADS_COLLECTION,
   LEAD_STATUSES,
   VALID_TRANSITIONS,
-  type DemoVisita,
   type Lead,
   type LeadStatus,
   type RegistroEnvioContato,
