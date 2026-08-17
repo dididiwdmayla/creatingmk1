@@ -23,19 +23,37 @@
  *   node scripts/video-portfolio.mjs --skin=barbearia-editorial
  *   node scripts/video-portfolio.mjs --skin=petshop-focinho-feliz --duracao=6000
  *   node scripts/video-portfolio.mjs --lead=<placeId>
+ *   node scripts/video-portfolio.mjs --skin=tatuagem-editorial --tema=fumaca --efeito=faiscas
  *   node scripts/video-portfolio.mjs --todas              # uma demo de cada skin
  *   node scripts/video-portfolio.mjs --todas --desktop    # e também em 1920×1080
  *
- * Opções:
+ * Alvo (escolha UM):
  *   --skin=<skinId>    skin do harness /interno/demo-qa
  *   --lead=<placeId>   demo REAL do lead (rota pública), em vez da de exemplo
  *   --todas            uma demo de cada skin do registro, em série
+ *
+ * Variações (só com --skin/--todas — a demo de um lead traz o tema e o
+ * efeito que o editor salvou, e sobrescrevê-los mostraria no vídeo um site
+ * que o lead nunca viu):
+ *   --tema=<presetId>  preset de tema da skin (`preset=` do harness)
+ *   --efeito=<id>      efeito de fundo, ou `nenhum` (`efeito=` do harness)
+ *
+ * Resto:
  *   --desktop          grava TAMBÉM em 1920×1080 (<alvo>-desktop.mp4)
  *   --duracao=<ms>     duração da descida (default: 3500)
  *   --saida=<dir>      pasta de saída (default: ./saida-video, no .gitignore)
  *   --sem-build        pula o `next build` (reaproveita o .next da rodada anterior)
  *
- * Saída: `<alvo>-mobile.mp4` e, com --desktop, `<alvo>-desktop.mp4`.
+ * Saída: `<alvo>-mobile.mp4` e, com --desktop, `<alvo>-desktop.mp4`. Com
+ * --tema/--efeito a variação entra no nome (`<alvo>-<tema>-<efeito>-…`), pra
+ * três presets da mesma skin não sobrescreverem um ao outro.
+ *
+ * `--efeito` é CONFERIDO na página (a camada se anuncia em
+ * `data-d-efeito-camada`), então um id que não existe reprova a gravação.
+ * `--tema` NÃO tem como ser conferido: o preset não deixa marca no DOM e
+ * `getTheme` cai no `themeDefault` da skin quando o id não bate — um erro
+ * de digitação aqui grava a skin no tema default, calado. Os ids válidos
+ * estão em `themePresets`, em `src/components/demos/<nicho>/themes.ts`.
  *
  * Exige `ffmpeg` COMPLETO no PATH (ver `exigirFfmpeg`). O empacotado pelo
  * Playwright não serve.
@@ -175,6 +193,12 @@ const TEXTO_SELO = "Vendo como membro";
 const ROTA_BEACON = "/api/demo-visita";
 
 /**
+ * O atributo com que a camada decorativa se anuncia, carregando o id do
+ * efeito. Fonte: `src/lib/demos/efeitos/EfeitoCamada.tsx`.
+ */
+const ATRIBUTO_CAMADA = "data-d-efeito-camada";
+
+/**
  * Espião de `navigator.sendBeacon`, instalado ANTES de qualquer script da
  * página (`addInitScript`).
  *
@@ -285,6 +309,23 @@ function selosNoDom(texto, win = window) {
     }
   }
   return achados;
+}
+
+/**
+ * O id do efeito que a camada decorativa está de fato mostrando, ou `null`
+ * quando não há camada nenhuma.
+ *
+ * É o que torna `--efeito` conferível: `resolverEfeitoFundo` devolve
+ * `undefined` para id que não existe no registro, e a demo simplesmente
+ * renderiza sem camada — a gravação sairia sem o efeito pedido e sem nada
+ * dizendo o porquê. Aqui o pedido é confrontado com o que a página
+ * entregou.
+ *
+ * Autossuficiente (vai pro `page.evaluate`).
+ */
+function efeitoNaPagina(atributo, win = window) {
+  const camada = win.document.querySelector(`[${atributo}]`);
+  return camada ? camada.getAttribute(atributo) : null;
 }
 
 /**
@@ -583,6 +624,20 @@ async function gravar({ browser, alvo, tela, duracao, saida, cookie }) {
       );
     }
 
+    // `--efeito` conferido contra o que a página realmente montou. Um id
+    // fora do registro não é erro em lugar nenhum da cadeia: a demo só
+    // renderiza sem camada, e o vídeo sairia sem o efeito pedido.
+    if (alvo.efeitoEsperado) {
+      const naPagina = await page.evaluate(efeitoNaPagina, ATRIBUTO_CAMADA);
+      if (naPagina !== alvo.efeitoEsperado) {
+        throw new Error(
+          `--efeito=${alvo.efeitoEsperado} não foi aplicado: a página está com ` +
+            `${naPagina ? `"${naPagina}"` : "nenhuma camada de efeito"}. ` +
+            `Confira o id no registro de efeitos (src/lib/demos/efeitos).`,
+        );
+      }
+    }
+
     preparo = await page.evaluate(prepararSemRolar, {});
     const texto = await page.evaluate(esperarTextoEstavel, {});
     preparo.textoEstavel = texto.estavel;
@@ -666,7 +721,7 @@ async function gravar({ browser, alvo, tela, duracao, saida, cookie }) {
  * skin"), e uma skin que ninguém quer fotografar continua valendo como
  * material de portfólio.
  */
-function resolverAlvos(base, { skinId, leadId, todas }) {
+function resolverAlvos(base, { skinId, leadId, todas, tema, efeito }) {
   if (leadId) {
     return [
       {
@@ -680,13 +735,27 @@ function resolverAlvos(base, { skinId, leadId, todas }) {
   }
 
   const ids = todas ? Object.keys(ANCORAS_PADRAO) : [skinId];
-  return ids.map((id) => ({
-    nome: id,
+  return ids.map((id) => {
+    const query = new URLSearchParams({ skin: id, intro: "0" });
     // `intro=0` pelo mesmo motivo das capturas: a splash de abertura
     // cobriria os primeiros segundos, e o que o vídeo tem pra mostrar é o
     // site, não a cortina.
-    url: `${base}/interno/demo-qa?skin=${encodeURIComponent(id)}&intro=0`,
-  }));
+    if (tema) query.set("preset", tema);
+    if (efeito) query.set("efeito", efeito);
+
+    // A variação entra no NOME do arquivo. Sem isso, gravar a mesma skin em
+    // três presets deixaria um mp4 só no disco — cada rodada sobrescrevendo
+    // a anterior no mesmo caminho, calada.
+    const variacao = [tema, efeito].filter(Boolean).join("-");
+
+    return {
+      nome: variacao ? `${id}-${variacao}` : id,
+      url: `${base}/interno/demo-qa?${query}`,
+      // "nenhum" fica de fora: pedir efeito nenhum e não achar camada é o
+      // resultado certo, não uma reprovação.
+      efeitoEsperado: efeito && efeito !== "nenhum" ? efeito : undefined,
+    };
+  });
 }
 
 async function main() {
@@ -706,6 +775,20 @@ async function main() {
     throw new Error(`${escolhidos.join(", ")} são alternativas; escolha uma`);
   }
 
+  const tema = opcao("tema");
+  const efeito = opcao("efeito");
+  // Recusa em vez de ignorar: a demo de um lead traz o tema e o efeito que
+  // o editor salvou, e o harness é o único alvo que aceita essas duas
+  // coisas por query. Aceitar calado gravaria um vídeo que não é o que foi
+  // pedido — e o material de portfólio mostraria um site que o lead nunca
+  // viu.
+  if (leadId && (tema || efeito)) {
+    throw new Error(
+      "--tema e --efeito só valem com --skin/--todas: a demo de um lead usa o tema e o efeito " +
+        "salvos no editor. Pra experimentar variação, grave a skin (--skin=<skinId>).",
+    );
+  }
+
   const duracao = Number(opcao("duracao") ?? DURACAO_PADRAO_MS);
   if (!Number.isFinite(duracao) || duracao <= 0) {
     throw new Error(`--duracao inválida: ${opcao("duracao")}`);
@@ -720,7 +803,7 @@ async function main() {
   const reprovados = [];
 
   try {
-    const alvos = resolverAlvos(base, { skinId, leadId, todas });
+    const alvos = resolverAlvos(base, { skinId, leadId, todas, tema, efeito });
     // `--desktop` ACRESCENTA a tela grande; o celular é sempre gravado —
     // é o formato pra que o material existe.
     const telas = temFlag("desktop") ? [CELULAR, DESKTOP] : [CELULAR];
