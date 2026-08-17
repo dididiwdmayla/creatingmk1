@@ -58,3 +58,8 @@ next-env.d.ts
 
 # saída do orquestrador de capturas no CI (efêmera, vai pro Storage)
 /capturas-ci/
+
+# vídeos de portfólio (scripts/video-portfolio.mjs) — material de divulgação
+# gerado à mão pra TikTok/Reels/Kwai, se regenera rodando o script; arquivo de
+# mídia pesado nunca entra no histórico
+/saida-video/
