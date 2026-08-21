@@ -52,6 +52,20 @@ describe("BarraDoDia", () => {
     expect(html).toContain("Hora do lead 10h · agora: bom");
   });
 
+  it("régua ganha marcas de hora entre os extremos, e a de transição sai destacada (não só por cor)", () => {
+    const html = desenhar(barbearia([abertura(2, 9, 19)]), terca(10));
+
+    // Marcas regulares (2 em 2h) e de transição (11h30, 16h30), sem repetir
+    // os extremos já rotulados (9h/19h).
+    expect(html).toContain(">10h<");
+    expect(html).toContain(">14h<");
+    expect(html).toContain(">18h<");
+    expect(html).toContain(">11h30<");
+    expect(html).toContain(">16h30<");
+    // A de transição carrega uma classe própria (peso da fonte), não só cor.
+    expect(html).toMatch(/font-medium text-ink-secondary"[^>]*>11h30</);
+  });
+
   it("marcador da hora atual em hora LOCAL do lead, posicionado dentro do expediente", () => {
     const html = desenhar(barbearia([abertura(2, 9, 19)]), terca(14));
     // 14h em 9h-19h = metade exata da barra.

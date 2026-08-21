@@ -415,6 +415,39 @@ function semear() {
         obtidoEm: iso(1),
       },
     },
+    // Lead NACIONAL, expediente CURTO (9h-19h, mesma âncora de
+    // barraDoDia.test.ts) — ao lado do suíço (24h) prova a régua nos dois
+    // extremos de duração: marca regular de 2 em 2h (10h, 14h, 18h) MAIS a
+    // hora exata de cada troca de faixa da barbearia (11h30 bom→razoável,
+    // 16h30 razoável→ruim), sem repetir os extremos já rotulados (9h/19h)
+    // — ver ARCHITECTURE.md, "Barra do dia por família", item 14.
+    {
+      placeId: "lead-nacional",
+      nome: "Barbearia Cidade Baixa",
+      endereco: "Av. Brasil, 100 — Porto Alegre, RS",
+      status: "novo",
+      busca: { nicho: "barbearia", regiao: "Porto Alegre RS", em: iso(3) },
+      temTelefone: true,
+      telefone: "(51) 98888-0000",
+      telefoneIntl: "5551988880000",
+      temSite: false,
+      siteProprio: false,
+      criadoEm: iso(3),
+      atualizadoEm: iso(1),
+      enriquecido: true,
+      horarios: {
+        faixas: Array.from({ length: 7 }, (_, dia) => ({
+          diaAbre: dia,
+          horaAbre: 9,
+          minAbre: 0,
+          diaFecha: dia,
+          horaFecha: 19,
+          minFecha: 0,
+        })),
+        utcOffsetMinutes: -180, // Brasília
+        obtidoEm: iso(1),
+      },
+    },
   ];
   for (const l of leads) mapa[`leads/${l.placeId}`] = l;
 
@@ -927,6 +960,16 @@ async function medirListas(browser, secret) {
   }
   await capturar("ficha · lead estrangeiro (hora dupla)", "ficha-estrangeiro");
 
+  // ── Ficha do lead NACIONAL: expediente CURTO (9h-19h) — a régua ganha
+  // marca regular de 2 em 2h mais a hora exata de cada troca de faixa (ver
+  // fixture acima e ARCHITECTURE.md, "Barra do dia por família", item 14).
+  await page.goto(`${BASE}/leads/lead-nacional`, { waitUntil: "domcontentloaded" });
+  await assentar(page);
+  await exigirLogado(page, "listas/ficha-nacional");
+  await page.waitForSelector('[role="img"][aria-label^="Barra do dia"]');
+  await conferir("ficha lead nacional", '[role="img"][aria-label^="Barra do dia"]');
+  await capturar("ficha · lead nacional (expediente curto, régua com marcas)", "ficha-nacional");
+
   gerados.push(
     await folhaDeContato(page, "Densidade de /leads e /buscas (celular)", "listas", [
       { rotulo: "leads · densidades", itens: itens.slice(0, 4) },
@@ -934,7 +977,8 @@ async function medirListas(browser, secret) {
       { rotulo: "buscas · dobra", itens: itens.slice(8, 10) },
       { rotulo: "buscas · densidades", itens: itens.slice(10, 15) },
       { rotulo: "buscas · agrupado", itens: itens.slice(15, 17) },
-      { rotulo: "ficha · lead estrangeiro", itens: itens.slice(17) },
+      { rotulo: "ficha · lead estrangeiro", itens: itens.slice(17, 18) },
+      { rotulo: "ficha · lead nacional", itens: itens.slice(18) },
     ]),
   );
   await ctx.close();

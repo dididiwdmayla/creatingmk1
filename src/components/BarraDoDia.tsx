@@ -2,6 +2,7 @@ import {
   horaDoMinuto,
   horaParaExibicao,
   linhaEstadoContato,
+  marcasDaBarra,
   ROTULO_NIVEL,
   type BarraDoDia as BarraDoDiaDados,
 } from "@/lib/leads/barraDoDia";
@@ -12,7 +13,7 @@ import type { FaixaNivelContato, NivelContato } from "@/lib/leads/janelaContato"
  * níveis da família (ver `lib/leads/barraDoDia.ts`), com o marcador da hora
  * ATUAL em hora local do LEAD.
  *
- * Três decisões que não são estéticas:
+ * Cinco decisões que não são estéticas:
  *
  * 1. **Cor nunca é o único canal** (regra de legibilidade do projeto): cada
  *    nível tem também uma ALTURA própria (bom preenche a barra inteira,
@@ -35,6 +36,13 @@ import type { FaixaNivelContato, NivelContato } from "@/lib/leads/janelaContato"
  *    texto abaixo passam a mostrar as DUAS horas ("19h em Zurique · 15h
  *    aqui"), nunca o mesmo número repetido (`horaParaExibicao`, em
  *    `lib/leads/barraDoDia.ts`).
+ * 5. **A régua ganha marcas de hora entre os extremos** (`marcasDaBarra`,
+ *    mesmo arquivo): de 2 em 2h (3 em 3h se o expediente passar de 12h,
+ *    pra não apertar numa régua de ~390px), MAIS a hora exata de cada troca
+ *    de faixa (nível mudando, ou entrando/saindo de um buraco) — sempre em
+ *    hora local do LEAD, nunca a dupla (essa continua só no `title` do
+ *    marcador de agora e na linha de texto abaixo). Perto demais pra caber,
+ *    a marca de TRANSIÇÃO vence a regular.
  */
 
 /** Altura do preenchimento por nível, dentro da trilha — o segundo canal, junto da cor. */
@@ -107,6 +115,8 @@ export function BarraDoDia({
         .join("; ")}.`
     : "Estabelecimento fechado hoje — nenhuma faixa a mostrar.";
 
+  const marcas = marcasDaBarra(barra);
+
   return (
     <div>
       <div className="relative h-3.5 text-[10px] leading-none text-ink-muted">
@@ -114,6 +124,16 @@ export function BarraDoDia({
           <>
             <span className="absolute left-0 top-0">{horaDoMinuto(abertura.inicio)}</span>
             <span className="absolute right-0 top-0">{horaDoMinuto(abertura.fim)}</span>
+            {marcas.map((marca) => (
+              <span
+                key={marca.minuto}
+                className={`absolute top-0 -translate-x-1/2 ${marca.transicao ? "font-medium text-ink-secondary" : ""}`}
+                style={{ left: `${porcentagem(marca.minuto, abertura.inicio, abertura.fim)}%` }}
+                aria-hidden
+              >
+                {marca.rotulo}
+              </span>
+            ))}
           </>
         )}
         {marcadorPct !== undefined && (

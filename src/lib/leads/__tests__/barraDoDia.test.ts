@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { barraDoDia, linhaEstadoContato } from "../barraDoDia";
+import { barraDoDia, linhaEstadoContato, marcasDaBarra } from "../barraDoDia";
 import { DEFAULT_JANELAS_CONTATO, type JanelasContatoConfig } from "../janelaContato";
 import type { Lead } from "../types";
 
@@ -262,5 +262,53 @@ describe("linhaEstadoContato", () => {
     expect(linhaEstadoContato(barraVerao, offsetBrasilia, "Zurique")).toContain(
       "19h em Zurique · 14h aqui",
     );
+  });
+});
+
+describe("marcasDaBarra", () => {
+  it("fechado hoje: régua sem marca nenhuma", () => {
+    const l = barbearia([abertura(1, 9, 19)]); // só segunda
+    const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 10, 0))!;
+    expect(marcasDaBarra(barra)).toEqual([]);
+  });
+
+  it("expediente curto (10h): marcas de 2 em 2h alinhadas ao relógio, e a transição vence quando fica perto demais", () => {
+    const l = barbearia([abertura(2, 9, 19)]); // terça, 9h-19h — 11h30 bom→razoável, 16h30 razoável→ruim
+    const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 10, 0))!;
+    const marcas = marcasDaBarra(barra);
+
+    // 12h (30min de 11h30) e 16h (30min de 16h30) caem perto demais das
+    // transições e são descartadas; 10h, 14h e 18h sobram por estarem longe
+    // o bastante das duas transições e dos extremos do expediente.
+    expect(marcas).toEqual([
+      { minuto: 10 * 60, rotulo: "10h", transicao: false },
+      { minuto: 11 * 60 + 30, rotulo: "11h30", transicao: true },
+      { minuto: 14 * 60, rotulo: "14h", transicao: false },
+      { minuto: 16 * 60 + 30, rotulo: "16h30", transicao: true },
+      { minuto: 18 * 60, rotulo: "18h", transicao: false },
+    ]);
+  });
+
+  it("expediente longo (>12h): marcas passam a ser de 3 em 3h, não de 2 em 2h", () => {
+    const l = barbearia([abertura(2, 6, 23)]); // terça, 6h-23h — 17h de expediente
+    const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 7, 0))!;
+    const marcas = marcasDaBarra(barra);
+
+    // Toda marca REGULAR cai numa hora múltipla de 3 (9h, 15h, 18h…) — nunca
+    // numa hora múltipla de 2 que não seja também múltipla de 3 (12h, 16h).
+    const regulares = marcas.filter((m) => !m.transicao);
+    expect(regulares.length).toBeGreaterThan(0);
+    for (const m of regulares) {
+      expect(m.minuto % (3 * 60)).toBe(0);
+    }
+    expect(marcas.some((m) => m.transicao)).toBe(true);
+  });
+
+  it("marca de transição nunca coincide com os extremos já rotulados pelo expediente", () => {
+    const l = barbearia([abertura(2, 9, 19)]);
+    const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, instanteLocal(TERCA, 10, 0))!;
+    const marcas = marcasDaBarra(barra);
+    expect(marcas.some((m) => m.minuto === barra.abertura!.inicio)).toBe(false);
+    expect(marcas.some((m) => m.minuto === barra.abertura!.fim)).toBe(false);
   });
 });
