@@ -270,6 +270,73 @@ export function horaDoMinuto(minuto: number): string {
   return formatHora(Math.floor(minuto / 60) % 24, minuto % 60);
 }
 
+/** Largura de referência da régua — o celular do QA (`VIEWPORT_CELULAR`), não a barra em si. */
+const LARGURA_REGUA_PX = 390;
+/** Abaixo disso os rótulos ("16h30") colidem — mesma folga usada pro marcador de agora. */
+const PX_MIN_ENTRE_MARCAS = 30;
+/** Acima de 12h de expediente, marca de 2 em 2h já não caberia sem apertar: passa a ser de 3 em 3h. */
+const LIMITE_MARCA_2H_MIN = 12 * 60;
+
+export interface MarcaBarra {
+  /** Minuto do dia local do lead (0..1440), sempre estritamente dentro do expediente. */
+  minuto: number;
+  /** Já formatado (`horaDoMinuto`) — a régua nunca duplica a hora do usuário (ver `linhaEstadoContato`). */
+  rotulo: string;
+  /** true = fronteira real de um segmento (nível mudou, ou entrou/saiu de um buraco); false = marca regular de hora cheia. */
+  transicao: boolean;
+}
+
+/**
+ * Marcas de hora da RÉGUA, além dos dois extremos do expediente (abertura e
+ * fechamento, já rotulados por quem desenha). Duas fontes, e a ordem de
+ * prioridade entre elas importa:
+ *
+ * 1. **Transição** — toda fronteira de `segmentos` que não coincide com um
+ *    extremo do expediente: nível mudando (bom→razoável→ruim) ou a barra
+ *    entrando/saindo de um buraco (fechado no meio do expediente, ex.:
+ *    almoço). É informação que a régua não tem de outro jeito.
+ * 2. **Regular** — hora cheia alinhada ao RELÓGIO (10h, 12h, 14h…, não ao
+ *    início do expediente), de 2 em 2h; expediente com mais de 12h passa a
+ *    ser de 3 em 3h, senão mais de ~5-6 marcas apertariam sem sobrepor numa
+ *    régua de ~390px (celular).
+ *
+ * Quando as duas caem perto demais pra caber (menos de `PX_MIN_ENTRE_MARCAS`
+ * de distância) — a de TRANSIÇÃO vence, e a regular correspondente é
+ * descartada: ela só aproxima "que horas são", a transição afirma um fato.
+ */
+export function marcasDaBarra(barra: Pick<BarraDoDia, "abertura" | "segmentos">): MarcaBarra[] {
+  const { abertura, segmentos } = barra;
+  if (!abertura) return [];
+  const duracao = abertura.fim - abertura.inicio;
+  if (duracao <= 0) return [];
+
+  const transicoes = new Set<number>();
+  for (const segmento of segmentos) {
+    if (segmento.inicioMin > abertura.inicio && segmento.inicioMin < abertura.fim) {
+      transicoes.add(segmento.inicioMin);
+    }
+    if (segmento.fimMin > abertura.inicio && segmento.fimMin < abertura.fim) {
+      transicoes.add(segmento.fimMin);
+    }
+  }
+  const pontosTransicao = [...transicoes];
+
+  const distanciaMinima = (PX_MIN_ENTRE_MARCAS / LARGURA_REGUA_PX) * duracao;
+  const intervaloMin = (duracao > LIMITE_MARCA_2H_MIN ? 3 : 2) * 60;
+  const regulares: number[] = [];
+  for (let minuto = 0; minuto < MIN_DIA; minuto += intervaloMin) {
+    if (minuto - abertura.inicio < distanciaMinima || abertura.fim - minuto < distanciaMinima) continue;
+    const pertoDeTransicao = pontosTransicao.some((t) => Math.abs(t - minuto) < distanciaMinima);
+    if (!pertoDeTransicao) regulares.push(minuto);
+  }
+
+  const marcas: MarcaBarra[] = [
+    ...pontosTransicao.map((minuto) => ({ minuto, rotulo: horaDoMinuto(minuto), transicao: true })),
+    ...regulares.map((minuto) => ({ minuto, rotulo: horaDoMinuto(minuto), transicao: false })),
+  ];
+  return marcas.sort((a, b) => a.minuto - b.minuto);
+}
+
 /**
  * Um minuto do dia do LEAD convertido para o minuto do dia equivalente no
  * fuso do USUÁRIO — mesmo instante real, duas leituras de relógio. Pura
