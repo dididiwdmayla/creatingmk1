@@ -1985,6 +1985,24 @@ componente compartilhado; duas cópias divergiriam no primeiro efeito novo
 que entrasse no registro) e os campos de identidade digitados à mão. Só o
 nome é obrigatório. Criar leva direto ao editor.
 
+O diálogo também aceita um link curto `maps.app.goo.gl`. Nada acontece ao
+colar: o usuário vê primeiro **1 chamada** e o custo incremental real e
+aciona explicitamente “Buscar detalhes”. O servidor expande os redirects
+HTTP (gratuitos, sem SKU), extrai nome/coordenadas da URL final e faz uma
+única `places:searchText`, `pageSize: 1`, com o SKU
+`textSearchEnterprise`. O mask Enterprise traz nome, endereço/componentes,
+telefone, site e `regularOpeningHours` na mesma resposta; portanto são
+**1× textSearchEnterprise, 0× geocoding, 0× detailsEnterprise e 0×
+detailsProHours**. `reserveQuota` ocorre antes do request pago e usa a cota
+individual de enriquecimentos. Fotos não entram no mask.
+
+O resultado apenas preenche o formulário local — inclusive Instagram quando
+`websiteUri` aponta para o Instagram — e continua editável; a demo só é
+gravada pelo botão normal de criação. O `placeId` é consultado diretamente em
+`/leads/{placeId}` para exibir um aviso com link para a ficha, sem impedir a
+criação. Link inválido, zero resultados, erro do Google ou cota esgotada
+deixam todos os campos manuais e o botão de criação funcionando.
+
 Em `/demos`, as duas famílias entram unificadas em `ItemDemo`: mesmo card,
 mesma prontidão, mesmo link — `origem` decide só o **selo "avulsa"**, os
 caminhos e o que o botão de excluir faz (na avulsa a demo É o registro, e

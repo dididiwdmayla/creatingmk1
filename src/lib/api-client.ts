@@ -5,6 +5,7 @@ import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
 import type { DemoAvulsa } from "@/lib/demos/avulsas/types";
+import type { ImportacaoMaps } from "@/lib/demos/avulsas/googleMaps";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
 import type {
   ConjuntoSkin,
@@ -566,6 +567,20 @@ export const api = {
   // editor escolhe um dos dois conjuntos pelo tipo da demo que abriu (ver
   // `clienteDaDemo` em app/leads/[id]/demo/editar/cliente.ts).
   listDemosAvulsas: () => request<{ avulsas: DemoAvulsa[] }>("/api/demos-avulsas"),
+  cotacaoImportacaoMaps: () =>
+    request<{
+      chamadas: number;
+      sku: "textSearchEnterprise";
+      custo: { usd: number; brl: number };
+    }>("/api/demos-avulsas/importar-maps"),
+  importarDemoAvulsaMaps: (link: string) =>
+    request<{
+      identidade: ImportacaoMaps;
+      leadExistente: { id: string } | null;
+    }>("/api/demos-avulsas/importar-maps", {
+      method: "POST",
+      body: JSON.stringify({ link }),
+    }),
   getDemoAvulsa: (id: string) => request<{ avulsa: DemoAvulsa }>(`/api/demos-avulsas/${id}`),
   criarDemoAvulsa: (corpo: {
     nome: string;
