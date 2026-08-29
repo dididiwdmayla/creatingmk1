@@ -78,7 +78,7 @@ export const FIELD_MASKS: Record<
   // chamada já é cobrada no tier Enterprise pelo websiteUri, então os
   // telefones vêm de graça no mesmo request).
   textSearchEnterprise:
-    "places.id,places.displayName,places.formattedAddress,places.location,places.websiteUri,places.nationalPhoneNumber,places.internationalPhoneNumber,nextPageToken",
+    "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.location,places.websiteUri,places.nationalPhoneNumber,places.internationalPhoneNumber,places.regularOpeningHours,nextPageToken",
   // displayName em Place Details é tier Pro — fora do mask para o SKU
   // continuar Essentials de verdade.
   detailsEssentials: "id,formattedAddress,location",

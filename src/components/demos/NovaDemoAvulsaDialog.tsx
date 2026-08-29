@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import {
@@ -75,10 +75,60 @@ export function NovaDemoAvulsaDialog({
   const [nome, setNome] = useState("");
   const [pais, setPais] = useState("");
   const [identidade, setIdentidade] = useState<Identidade>(IDENTIDADE_VAZIA);
+  const [linkMaps, setLinkMaps] = useState("");
+  const [cotacao, setCotacao] = useState<{
+    chamadas: number;
+    sku: string;
+    custo: { usd: number; brl: number };
+  } | null>(null);
+  const [buscandoMaps, setBuscandoMaps] = useState(false);
+  const [erroMaps, setErroMaps] = useState<string | null>(null);
+  const [leadExistente, setLeadExistente] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const nomeValido = nome.trim().length > 0;
+
+  useEffect(() => {
+    let ativo = true;
+    api
+      .cotacaoImportacaoMaps()
+      .then((valor) => ativo && setCotacao(valor))
+      .catch(() => ativo && setCotacao(null));
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  async function buscarNoMaps() {
+    if (!linkMaps.trim() || buscandoMaps || criando) return;
+    setBuscandoMaps(true);
+    setErroMaps(null);
+    setLeadExistente(null);
+    try {
+      const resultado = await api.importarDemoAvulsaMaps(linkMaps.trim());
+      const dados = resultado.identidade;
+      setNome(dados.nome);
+      setPais(dados.pais ?? "");
+      setIdentidade({
+        cidade: dados.cidade ?? "",
+        endereco: dados.endereco ?? "",
+        telefone: dados.telefone ?? "",
+        whatsapp: dados.whatsapp ?? "",
+        horarios: dados.horarios ?? "",
+        instagram: dados.instagram ?? "",
+      });
+      setLeadExistente(resultado.leadExistente?.id ?? null);
+    } catch (error) {
+      setErroMaps(
+        error instanceof ApiError
+          ? `${error.message} Você ainda pode preencher tudo manualmente.`
+          : "Não foi possível buscar esse estabelecimento. Você ainda pode preencher tudo manualmente.",
+      );
+    } finally {
+      setBuscandoMaps(false);
+    }
+  }
 
   async function criar() {
     if (!nomeValido || criando) return;
@@ -144,6 +194,63 @@ export function NovaDemoAvulsaDialog({
         <div className="mt-3">
           <ConfigDemoCampos config={config} onChange={setConfig} desabilitado={criando} />
         </div>
+
+        <section className="mt-4 rounded-md border border-line bg-surface-2 p-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Preencher pelo Google Maps
+          </h3>
+          <p className="mt-1 text-xs text-ink-muted">
+            Cole o link e revise o custo. Nada é buscado só por colar e nenhuma demo é gravada
+            nesta etapa.
+          </p>
+          <label className="mt-2 block text-xs text-ink-secondary">
+            Link do estabelecimento
+            <input
+              type="url"
+              value={linkMaps}
+              onChange={(event) => setLinkMaps(event.target.value)}
+              placeholder="https://maps.app.goo.gl/…"
+              disabled={criando || buscandoMaps}
+              className={`mt-1 ${INPUT_CLASS}`}
+            />
+          </label>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] text-ink-muted">
+              {cotacao ? (
+                <>
+                  <strong className="text-foreground">{cotacao.chamadas} chamada</strong> · SKU{" "}
+                  <code>{cotacao.sku}</code> · custo agora: R${" "}
+                  {cotacao.custo.brl.toLocaleString("pt-BR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 4,
+                  })}
+                </>
+              ) : (
+                "Custo indisponível — a busca fica desabilitada; o preenchimento manual continua livre."
+              )}
+            </p>
+            <Button
+              variant="secondary"
+              onClick={buscarNoMaps}
+              loading={buscandoMaps}
+              disabled={!cotacao || !linkMaps.trim() || criando}
+            >
+              Buscar detalhes
+            </Button>
+          </div>
+          <p className="mt-1 text-[11px] text-ink-muted">
+            Usa sua cota individual de enriquecimentos. Não busca fotos.
+          </p>
+          {erroMaps && <p className="mt-2 text-xs text-critical">{erroMaps}</p>}
+          {leadExistente && (
+            <p className="mt-2 rounded border border-warning/40 bg-warning/10 p-2 text-xs text-foreground">
+              Este estabelecimento já existe como lead. Você pode criar a avulsa mesmo assim. {" "}
+              <a className="font-semibold text-accent underline" href={`/leads/${leadExistente}`}>
+                Abrir ficha
+              </a>
+            </p>
+          )}
+        </section>
 
         <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Identidade do negócio
