@@ -389,7 +389,7 @@ describe("nível de intervenção (toque-leve/equilibrado/completo)", () => {
 });
 
 describe("schemaSugestao — completude dinâmica por skin (todas as skins do registro)", () => {
-  it.each(SKINS.map((skin) => [skin.id, skin] as const))(
+  it.each(SKINS.filter(skin => !skin.themeDefault.lancheria).map((skin) => [skin.id, skin] as const))(
     "%s: todo slot de CONTEÚDO da skin ativa está no schema montado (nível completo)",
     (_id, skin) => {
       const schema = schemaSugestao(skin, "completo") as {
@@ -462,7 +462,7 @@ describe("schemaSugestao — completude dinâmica por skin (todas as skins do re
 });
 
 describe("schemaSugestao — nenhum campo de IDENTIDADE do lead entra no schema", () => {
-  it.each(SKINS.map((skin) => [skin.id, skin] as const))(
+  it.each(SKINS.filter(skin => !skin.themeDefault.lancheria).map((skin) => [skin.id, skin] as const))(
     "%s: nome/endereço/cidade/telefone/whatsapp/horários/instagram nunca são propriedade do schema (nenhum nível)",
     (_id, skin) => {
       for (const nivel of ["toque-leve", "equilibrado", "completo"] as const) {
@@ -475,7 +475,7 @@ describe("schemaSugestao — nenhum campo de IDENTIDADE do lead entra no schema"
     },
   );
 
-  it.each(SKINS.map((skin) => [skin.id, skin] as const))(
+  it.each(SKINS.filter(skin => !skin.themeDefault.lancheria).map((skin) => [skin.id, skin] as const))(
     "%s: o título do hero (seção fixa) nunca é slot da IA, em nenhum nível",
     (_id, skin) => {
       for (const nivel of ["equilibrado", "completo"] as const) {
@@ -792,7 +792,7 @@ describe("teste de cobertura — TODO campo de texto de conteúdo do exemplo rea
     (alvo as Record<string, unknown>)[caminho[caminho.length - 1] as never] = valor as never;
   }
 
-  it.each(SKINS.map((skin) => [skin.id, skin] as const))(
+  it.each(SKINS.filter(skin => !skin.themeDefault.lancheria).map((skin) => [skin.id, skin] as const))(
     "%s: todo campo de texto de conteúdo do exemplo real tem destino no schema e passa validação sem problemas",
     (_id, skin) => {
       const exemplo = skin.demoDataExemplo;

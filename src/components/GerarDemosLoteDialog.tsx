@@ -168,7 +168,7 @@ export function GerarDemosLoteDialog({
     // configurada, ou nenhuma demo criada com sucesso) — quando há, o
     // diálogo fica aberto com a confirmação visível + a seção de IA
     // logo abaixo, e "Fechar" continua explícito nos dois lugares.
-    const podeGerarIA = iaDisponivel && relatorioAtual.sucessos.length > 0;
+    const podeGerarIA = iaDisponivel && !skin?.themeDefault.lancheria && relatorioAtual.sucessos.length > 0;
     if (!podeGerarIA) {
       onFechar();
     }
@@ -426,7 +426,7 @@ export function GerarDemosLoteDialog({
             )}
 
             {/* Ação DISTINTA — próprio botão/confirmação, nunca junto da criação. */}
-            {iaDisponivel && criadosComSucesso.length > 0 && (
+            {iaDisponivel && !skin?.themeDefault.lancheria && criadosComSucesso.length > 0 && (
               <div className="mt-4 flex flex-col gap-2 border-t border-line pt-3">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   Gerar textos com IA (opcional, consome cota)

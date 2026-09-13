@@ -114,6 +114,16 @@ export function aplicarTema(
   limitesHero: { min: number; max: number } = ESCALA_LIMITES_PADRAO,
 ): Theme {
   if (!patch) return preset;
+  if (preset.lancheria) {
+    const quente = patch.quente && HEX_RE.test(patch.quente) ? patch.quente : preset.paleta.quente!;
+    const frio = patch.frio && HEX_RE.test(patch.frio) ? patch.frio : preset.paleta.frio!;
+    return { ...preset, paleta: { ...preset.paleta, quente, frio, destaque: quente,
+      destaqueInk: inkPara(quente), acentoSecundario: frio, textoSuave: frio },
+      // A identidade estrutural e as fontes pertencem à skin. Overrides genéricos
+      // antigos não viram alterações silenciosas de mecânica ou da tipografia.
+      intro: preset.lancheria.intro && (patch.intro ?? true),
+    };
+  }
 
   const fonteDisplay = getFonte(patch.fonteDisplay);
   const fonteCorpo = getFonte(patch.fonteCorpo);

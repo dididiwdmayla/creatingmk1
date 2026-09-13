@@ -1,0 +1,884 @@
+:root:where(:has([data-lancheria-app])) {
+  /* As seis cores são declaradas em /temas e aplicadas pelo layout no servidor. */
+
+  /* Não é um token de cor — é a altura da barra do pedido: 46px de botão mais 11px de
+     folga em cima e embaixo, mais o fio. Fica aqui porque CSS e componente precisam do
+     mesmo número, e duas cópias divergem. */
+  --barra-altura: 70px;
+}
+
+
+:where(html:has([data-lancheria-app])) * { box-sizing: border-box; }
+html:where(:has([data-lancheria-app])),:where(html:has([data-lancheria-app]))  body { margin: 0; padding: 0; background: var(--borra); }
+:where(html:has([data-lancheria-app])) body { color: var(--osso); font-family: var(--fonte-corpo), system-ui, sans-serif; }
+
+@media (prefers-reduced-motion: reduce) {
+  :where(html:has([data-lancheria-app])) *,:where(html:has([data-lancheria-app]))  *::before,:where(html:has([data-lancheria-app]))  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Mesma sequência da ignição, aplicada diretamente à opacidade de dois grupos. */
+@keyframes lt-ignicao {
+  0%, 4.9% { opacity: 0; }
+  5%, 10.9% { opacity: .40; }
+  11%, 36% { opacity: 0; }
+  41% { opacity: .90; }
+  48% { opacity: .44; }
+  60% { opacity: .97; }
+  71% { opacity: .78; }
+  100% { opacity: 1; }
+}
+@keyframes lt-ignicao-letras {
+  0%, 36% { opacity: 0; }
+  41% { opacity: .30; }
+  48% { opacity: .16; }
+  60% { opacity: .86; }
+  71% { opacity: .70; }
+  100% { opacity: 1; }
+}
+@keyframes lt-tremor {
+  0%, 100% { opacity: 1; }
+  17% { opacity: 0.983; }
+  23% { opacity: 0.999; }
+  41% { opacity: 0.987; }
+  55% { opacity: 1; }
+  68% { opacity: 0.980; }
+  79% { opacity: 0.996; }
+}
+
+/* Raio-x. A pilha explodida respira; a varredura e o ar são a chapa passando por baixo
+   do redondo. Números do export. */
+@keyframes rx-osc {
+  0%, 100% { transform: translateY(-3px); }
+  50% { transform: translateY(3px); }
+}
+@keyframes rx-varredura {
+  0%   { transform: translateY(10%); opacity: 0; }
+  14%  { opacity: 0.9; }
+  82%  { opacity: 0.62; }
+  100% { transform: translateY(-205%); opacity: 0; }
+}
+@keyframes rx-ar {
+  0%, 100% { opacity: 0; transform: scaleY(1); }
+  45% { opacity: 0.5; transform: scaleY(1.06); }
+}
+
+/* As camadas são fotografia de fundo, não <img>: o navegador não deve oferecer arrastar. */
+:where(html:has([data-lancheria-app])) #rx-pilha [data-foto-camada] { -webkit-user-drag: none; }
+
+/* A barra do pedido flutua sobre o conteúdo. Nada pode parar embaixo dela: o documento
+   reserva a folga no fim, e quem rola até o trilho ou o painel para acima da barra. */
+:where(html:has([data-lancheria-app])) body { padding-bottom: calc(var(--barra-altura) + 8px); }
+:where(html:has([data-lancheria-app])) #rx-trilho,:where(html:has([data-lancheria-app]))  #rx-painel { scroll-margin-bottom: calc(var(--barra-altura) + 8px); }
+
+html:where(:has([data-lancheria-app]))[data-lt-aceso='1'] #lt-halo,
+html:where(:has([data-lancheria-app]))[data-lt-aceso='1'] #lt-letras-acesas { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  :where(html:has([data-lancheria-app])) #lt-halo,:where(html:has([data-lancheria-app]))  #lt-letras-acesas { opacity: 1 !important; animation: none !important; }
+  :where(html:has([data-lancheria-app])) #lt-tremor,:where(html:has([data-lancheria-app]))  #lt-tubo-a,:where(html:has([data-lancheria-app]))  #lt-tubo-b,:where(html:has([data-lancheria-app]))  #lt-texto { animation: none !important; }
+}
+
+/* ---------------------------------------------------------------------------
+   Raio-x — o layout, mobile-first.
+
+   Aqui mora ONDE as peças ficam; nos componentes mora COMO elas parecem. A
+   divisão não é estética: a posição é a única coisa que muda com a largura da
+   tela, e style inline não tem media query. Cor e tipografia continuam inline
+   porque não dependem do corte.
+
+   Abaixo de 900px (o corte do AGENTS.md): a pilha ocupa a largura inteira nos
+   dois terços de cima, e medidor, trilho e botão empilham no terço de baixo —
+   a zona de polegar. Acima de 900px o medidor volta para a coluna da direita.
+   --------------------------------------------------------------------------- */
+
+:where(html:has([data-lancheria-app])) #rx-takeover {
+  display: grid;
+  height: 100%;
+  min-height: 320px;
+  background: var(--borra);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
+  grid-template-areas: 'cabeca' 'painel' 'observacao' 'medidor' 'trilho' 'selar';
+}
+
+:where(html:has([data-lancheria-app])) #rx-cabeca { grid-area: cabeca; padding: 9px clamp(12px, 4vw, 20px); }
+
+:where(html:has([data-lancheria-app])) #rx-painel {
+  grid-area: painel;
+  position: relative;
+  /* Contexto de empilhamento próprio: sem ele as tiras de toque (z 26) e as chamadas
+     (z 28) sobem para a raiz e passam por cima do medidor e da composição, que são
+     irmãos do painel na grade. O z-index das camadas é assunto interno do painel. */
+  z-index: 0;
+  /* Sem rolagem: a pilha se redimensiona para caber (k sai da altura da área).
+     "Se algo não cabe no celular, a solução é cortar, não rolar." */
+  overflow: hidden;
+  min-height: 180px;
+}
+:where(html:has([data-lancheria-app])) #rx-desenho { position: absolute; inset: 0; touch-action: none; }
+
+:where(html:has([data-lancheria-app])) #rx-medidor {
+  grid-area: medidor;
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 6px;
+  padding: 8px clamp(12px, 4vw, 20px);
+  border-top: 1px solid var(--traco);
+  background: color-mix(in srgb, var(--borra) 92%, transparent);
+}
+/* A faixa: preço à esquerda, contagem à direita, barra ocupando a largura toda
+   embaixo dos dois. Deitada ela é régua; em pé seria termômetro. */
+:where(html:has([data-lancheria-app])) #rx-medidor-linha {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+}
+:where(html:has([data-lancheria-app])) #rx-ver-composicao { min-height: 44px; }
+/* Recado e aviso flutuam sobre a borda de baixo do desenho. Reservar linha para
+   eles na faixa custaria altura da pilha em toda tela, inclusive nas telas em que
+   não há recado nem risco — e são 22px que a pilha não tem para dar. */
+:where(html:has([data-lancheria-app])) #rx-flutua {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  display: grid;
+}
+:where(html:has([data-lancheria-app])) #rx-flutua > * {
+  padding: 7px clamp(12px, 4vw, 20px);
+  background: color-mix(in srgb, var(--fumo) 94%, transparent);
+  border-top: 1px solid var(--traco);
+}
+:where(html:has([data-lancheria-app])) #rx-recado:empty { display: none; }
+/* No celular a linha de montagem só aparece quando é aviso de verdade. A garantia
+   ("até 10 camadas a pilha para em pé") é informação de ambiente e fica no desktop. */
+:where(html:has([data-lancheria-app])) #rx-aviso:not([data-aviso]) { display: none; }
+/* A instrução de gesto não cabe na faixa. No celular ela vive dentro da lista de
+   composição, que é onde a pessoa vai procurar o que dá para fazer. */
+:where(html:has([data-lancheria-app])) #rx-ajuda { display: none; }
+
+:where(html:has([data-lancheria-app])) #rx-trilho {
+  grid-area: trilho;
+  display: flex;
+  gap: 8px;
+  padding: 8px clamp(12px, 4vw, 20px);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border-top: 1px solid var(--traco);
+  background: color-mix(in srgb, var(--fumo) 85%, transparent);
+  touch-action: pan-x;
+  scrollbar-width: none;
+}
+:where(html:has([data-lancheria-app])) #rx-trilho::-webkit-scrollbar { display: none; }
+/* 56px de ficha: acima do mínimo de 44 e ainda cabem seis na largura de um 390. */
+:where(html:has([data-lancheria-app])) #rx-trilho > button { position: relative; flex: 0 0 auto; width: 56px; min-height: 56px; padding: 0; }
+/* Quadrada e do tamanho do conteúdo da ficha: 56px de fora, menos o fio de 1px de
+   cada lado. Largura fixa aqui estouraria a caixa e criaria rolagem horizontal. */
+:where(html:has([data-lancheria-app])) #rx-trilho [data-ficha-foto] { display: block; width: 100%; aspect-ratio: 1; }
+:where(html:has([data-lancheria-app])) #rx-trilho [data-ficha-texto] { display: none; }
+:where(html:has([data-lancheria-app])) #rx-trilho [data-ficha-conta] {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 1px 4px;
+  background: color-mix(in srgb, var(--borra) 86%, transparent);
+  border-radius: 2px;
+}
+
+/* A folha do trilho (modo editor, aberta por cima do painel): sobra altura ali, então a
+   ficha vira grade e ganha o nome inteiro e o preço — igual ao desktop, mas por causa do
+   espaço da folha, não da largura da tela. A tira recolhida do modo montador (a regra
+   acima, sem `[data-folha]`) continua igual. Especificidade de atributo já vence a regra
+   de cima sem precisar de `!important`. */
+:where(html:has([data-lancheria-app])) #rx-trilho[data-folha] {
+  display: grid;
+  /* A área nomeada só existe no takeover. Aqui ela criava trilhas implícitas. */
+  grid-area: auto;
+  grid-column: 1;
+  grid-row: 2;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: max-content;
+  align-content: start;
+  min-width: 0;
+  min-height: 0;
+  gap: 10px;
+  padding: 14px clamp(12px, 4vw, 20px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+}
+:where(html:has([data-lancheria-app])) #rx-trilho[data-folha] > button { width: 100%; height: auto; min-width: 0; min-height: 124px; padding: 12px; touch-action: pan-y; }
+:where(html:has([data-lancheria-app])) #rx-trilho[data-folha] [data-ficha-foto] { width: 100%; height: 54px; aspect-ratio: auto; }
+:where(html:has([data-lancheria-app])) #rx-trilho[data-folha] [data-ficha-nome] { display: none; }
+:where(html:has([data-lancheria-app])) #rx-trilho[data-folha] [data-ficha-texto] { display: grid; gap: 2px; width: 100%; }
+
+/* O botão que fica no lugar do trilho no modo editor: a pilha já chega pronta, e
+   acrescentar ingrediente é a ação secundária — largura cheia, mas enxuto (44px, o piso de
+   toque), bem mais raso que a tira de fichas que ele substitui. */
+:where(html:has([data-lancheria-app])) #rx-abrir-trilho {
+  grid-area: trilho;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px clamp(12px, 4vw, 20px);
+  background: var(--fumo);
+  border: 0;
+  border-top: 1px solid var(--traco);
+  color: var(--osso);
+  font-family: var(--fonte-corpo), sans-serif;
+  font-size: 0.875rem;
+  font-variation-settings: "'wght' 600";
+  cursor: pointer;
+}
+:where(html:has([data-lancheria-app])) #rx-abrir-trilho:disabled { opacity: 0.45; cursor: default; }
+
+/* A folha do trilho: sobe por cima da base inteira, como um bottom sheet — "tocar fora"
+   fecha porque a cortina, e só ela, escuta o clique (o conteúdo da folha para propagação
+   por estar dentro, não por handler próprio). */
+:where(html:has([data-lancheria-app])) #rx-trilho-cortina {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: flex;
+  align-items: flex-end;
+  background: color-mix(in srgb, var(--borra) 60%, transparent);
+}
+:where(html:has([data-lancheria-app])) #rx-trilho-folha {
+  width: 100%;
+  height: min(72dvh, 680px);
+  max-height: 72dvh;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--borra);
+  border-top: 1px solid var(--traco);
+  border-radius: 10px 10px 0 0;
+}
+:where(html:has([data-lancheria-app])) #rx-trilho-folha-cabeca {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 6px 6px clamp(12px, 4vw, 20px);
+  border-bottom: 1px solid var(--traco);
+}
+
+/* A ação principal é largura cheia na base. Não disputa espaço com ninguém. */
+:where(html:has([data-lancheria-app])) #rx-selar {
+  grid-area: selar;
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 20px;
+}
+
+/* A lista de composição: o texto inteiro, fora do desenho. É ela que garante
+   alvo de 44px para toda camada — inclusive as finas, cuja faixa na pilha é
+   menor que isso. */
+:where(html:has([data-lancheria-app])) #rx-composicao {
+  grid-area: painel;
+  z-index: 6;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--borra);
+  border-top: 1px solid var(--traco);
+}
+
+@media (min-width: 900px) {
+  :where(html:has([data-lancheria-app])) #rx-takeover {
+    grid-template-columns: minmax(0, 1fr) 288px;
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'cabeca cabeca'
+      'painel medidor'
+      'painel observacao'
+      'painel selar'
+      'trilho trilho';
+  }
+  :where(html:has([data-lancheria-app])) #rx-cabeca { padding: clamp(14px, 2vw, 22px) clamp(16px, 3vw, 32px); }
+  :where(html:has([data-lancheria-app])) #rx-medidor {
+    gap: 18px;
+    padding: clamp(16px, 2.2vw, 28px);
+    align-content: start;
+    overflow-y: auto;
+    border-top: 0;
+    border-left: 1px solid var(--traco);
+  }
+  :where(html:has([data-lancheria-app])) #rx-medidor-linha { display: grid; gap: 14px; justify-items: start; min-height: 0; }
+  :where(html:has([data-lancheria-app])) #rx-flutua { position: static; gap: 16px; }
+  :where(html:has([data-lancheria-app])) #rx-flutua > * { padding: 0; background: none; border-top: 0; }
+  :where(html:has([data-lancheria-app])) #rx-recado { min-height: 2.6em; }
+  :where(html:has([data-lancheria-app])) #rx-recado:empty { display: block; }
+  :where(html:has([data-lancheria-app])) #rx-aviso:not([data-aviso]) { display: block; }
+  :where(html:has([data-lancheria-app])) #rx-ajuda { display: block; }
+  :where(html:has([data-lancheria-app])) #rx-trilho { gap: 10px; padding: 14px clamp(12px, 2vw, 20px); }
+  :where(html:has([data-lancheria-app])) #rx-trilho > button { width: 128px; padding: 9px; }
+  :where(html:has([data-lancheria-app])) #rx-trilho [data-ficha-foto] { width: 100%; height: 36px; aspect-ratio: auto; }
+  :where(html:has([data-lancheria-app])) #rx-trilho [data-ficha-nome] { display: none; }
+  :where(html:has([data-lancheria-app])) #rx-trilho [data-ficha-texto] { display: grid; gap: 2px; width: 100%; }
+  :where(html:has([data-lancheria-app])) #rx-selar { border-left: 1px solid var(--traco); }
+}
+
+/* O balcão: a grade vem antes do passeio pelas camadas. */
+:where(html:has([data-lancheria-app])) body { font-size: 1rem; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+:where(html:has([data-lancheria-app])) button,:where(html:has([data-lancheria-app]))  a,:where(html:has([data-lancheria-app]))  textarea { -webkit-tap-highlight-color: transparent; }
+:where(html:has([data-lancheria-app])) button,:where(html:has([data-lancheria-app]))  textarea { font: inherit; }
+:where(html:has([data-lancheria-app])) button,:where(html:has([data-lancheria-app]))  a { touch-action: manipulation; }
+:where(html:has([data-lancheria-app])) button { cursor: pointer; }
+:where(html:has([data-lancheria-app])) a { color: var(--osso); text-underline-offset: .25em; }
+:where(html:has([data-lancheria-app])) button:disabled { cursor: default; opacity: .4; }
+:where(html:has([data-lancheria-app])) button:focus-visible,:where(html:has([data-lancheria-app]))  a:focus-visible,:where(html:has([data-lancheria-app]))  input:focus-visible,:where(html:has([data-lancheria-app]))  select:focus-visible,:where(html:has([data-lancheria-app]))  textarea:focus-visible,:where(html:has([data-lancheria-app]))  summary:focus-visible { outline: 2px solid var(--osso); outline-offset: 3px; }
+:where(html:has([data-lancheria-app])) ::selection { color: var(--osso); background: var(--traco); }
+:where(html:has([data-lancheria-app])) h1,:where(html:has([data-lancheria-app]))  h2,:where(html:has([data-lancheria-app]))  h3,:where(html:has([data-lancheria-app]))  p { margin: 0; }
+:where(html:has([data-lancheria-app])) h1,:where(html:has([data-lancheria-app]))  h2,:where(html:has([data-lancheria-app]))  h3 { font-family: var(--fonte-display), Georgia, serif; font-variation-settings: 'opsz' 72, 'wght' 780, 'SOFT' 12, 'WONK' 1; line-height: 1.05; }
+:where(html:has([data-lancheria-app])) h2 { font-size: clamp(2rem, 3.5vw, 3.2rem); }
+:where(html:has([data-lancheria-app])) h3 { font-size: 1.5rem; }
+:where(html:has([data-lancheria-app])) img { max-width: 100%; }
+:where(html:has([data-lancheria-app])) [data-preco] { font-family: var(--fonte-medida); font-weight: 500; font-size: 1.3rem; line-height: 1.3; color: var(--latao); white-space: nowrap; font-variant-numeric: var(--numerais); }
+:where(html:has([data-lancheria-app])) [data-carimbo] { font-family: var(--fonte-medida); font-size: .75rem; color: var(--osso); }
+:where(html:has([data-lancheria-app])) .moldura { width: min(100%, 1280px); margin-inline: auto; padding-inline: 16px; }
+:where(html:has([data-lancheria-app])) .nota { color: var(--osso); opacity: .68; font-size: .875rem; }
+:where(html:has([data-lancheria-app])) .botao-quente,:where(html:has([data-lancheria-app]))  .botao-texto,:where(html:has([data-lancheria-app]))  .setas-trilho button { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 10px 14px; border-radius: 2px; border: 1px solid var(--traco); text-decoration: none; line-height: 1.25; }
+:where(html:has([data-lancheria-app])) .botao-quente { background: var(--latao); color: var(--borra); border-color: var(--latao); font-weight: 650; }
+:where(html:has([data-lancheria-app])) .botao-texto { color: var(--osso); background: none; border-color: transparent; }
+:where(html:has([data-lancheria-app])) .botao-quente:hover { background: color-mix(in srgb, var(--latao) 88%, var(--osso)); }
+:where(html:has([data-lancheria-app])) .botao-texto:hover { background: color-mix(in srgb, var(--osso) 6%, transparent); }
+:where(html:has([data-lancheria-app])) .cabecalho-casa { height: 52px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+:where(html:has([data-lancheria-app])) .marca-texto { font-family: var(--fonte-display), serif; font-size: 1.5rem; font-weight: 800; color: var(--letreiro); }
+:where(html:has([data-lancheria-app])) .hero-faixa { height: min(24dvh, 240px); min-height: min(168px, 35dvh); max-height: 35dvh; position: relative; isolation: isolate; overflow: hidden; }
+:where(html:has([data-lancheria-app])) .hero-faixa > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 58% 58%; z-index: -2; }
+:where(html:has([data-lancheria-app])) .hero-faixa::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, var(--borra), color-mix(in srgb, var(--borra) 75%, transparent) 35%, color-mix(in srgb, var(--borra) 5%, transparent)); z-index: -1; }
+:where(html:has([data-lancheria-app])) .hero-texto { height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+:where(html:has([data-lancheria-app])) .hero-texto h1 { font-size: clamp(2.75rem, 5vw, 4.5rem); max-width: 12ch; line-height: .98; }
+:where(html:has([data-lancheria-app])) .hero-texto p { font-size: .875rem; }
+:where(html:has([data-lancheria-app])) .horario-compacto { padding-block: 11px; font-size: .875rem; border-bottom: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .horario-compacto p::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 9px; background: var(--osso); border-radius: 50%; }
+:where(html:has([data-lancheria-app])) [data-ultimos] { color: var(--latao); }
+:where(html:has([data-lancheria-app])) .cabecalho-secao { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+:where(html:has([data-lancheria-app])) .cabecalho-secao p { margin-top: 9px; font-size: .9375rem; opacity: .72; }
+:where(html:has([data-lancheria-app])) .cardapio { padding-top: 19px; padding-bottom: 40px; scroll-margin-top: 14px; }
+:where(html:has([data-lancheria-app])) .cardapio .cabecalho-secao { margin-bottom: 16px; }
+:where(html:has([data-lancheria-app])) .filtros-forma { display: grid; grid-template-columns: 1fr 1fr 1.15fr; border-bottom: 1px solid var(--traco); gap: 4px; }
+:where(html:has([data-lancheria-app])) .filtros-forma button { min-height: 44px; min-width: 44px; padding: 10px 2px; font-size: .9375rem; color: var(--osso); border: 0; border-bottom: 2px solid transparent; background: none; }
+:where(html:has([data-lancheria-app])) .filtros-forma button[aria-pressed='true'] { color: var(--letreiro); border-bottom-color: var(--letreiro); background: color-mix(in srgb, var(--letreiro) 6%, transparent); }
+:where(html:has([data-lancheria-app])) .filtro-resumo { display: flex; justify-content: space-between; align-items: center; min-height: 52px; }
+:where(html:has([data-lancheria-app])) .filtro-resumo button { padding-inline: 0; gap: 12px; font-size: .875rem; }
+:where(html:has([data-lancheria-app])) .filtro-ingredientes { padding: 12px; margin-bottom: 16px; background: var(--fumo); border: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .filtro-ingredientes p { font-size: .875rem; margin-bottom: 12px; }
+:where(html:has([data-lancheria-app])) .ingredientes-grade { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+:where(html:has([data-lancheria-app])) .ingredientes-grade button { min-width: 44px; min-height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid var(--traco); color: var(--osso); background: var(--borra); font-size: .875rem; padding: 4px; }
+:where(html:has([data-lancheria-app])) .ingredientes-grade img { object-fit: contain; }
+:where(html:has([data-lancheria-app])) .ingredientes-grade button[aria-pressed='true'] { border-color: var(--letreiro); box-shadow: inset 0 0 0 1px var(--letreiro); }
+:where(html:has([data-lancheria-app])) .cardapio-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+:where(html:has([data-lancheria-app])) .lanche-card { min-width: 0; display: flex; flex-direction: column; padding: 12px; background: var(--fumo); border: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .lanche-icone { display: block; width: 100%; height: 94px; object-fit: contain; margin-bottom: 8px; }
+:where(html:has([data-lancheria-app])) .lanche-card h3 { min-height: 2.15em; font-size: 1.5rem; line-height: 1.08; }
+:where(html:has([data-lancheria-app])) .ingredientes-linha { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .875rem; opacity: .68; margin: 8px 0 12px; max-width: 100%; }
+:where(html:has([data-lancheria-app])) .lanche-card > [data-preco] { margin-top: auto; margin-bottom: 13px; }
+:where(html:has([data-lancheria-app])) .lanche-card > .botao-quente { width: 100%; }
+:where(html:has([data-lancheria-app])) .modificar-card { margin-top: 6px; padding-inline: 0; font-size: .875rem; }
+:where(html:has([data-lancheria-app])) .monte-grade { margin-top: 16px; }
+:where(html:has([data-lancheria-app])) .monte-grade p { font-size: .875rem; margin: 10px 0 20px; }
+:where(html:has([data-lancheria-app])) .monte-grade button { margin-top: auto; }
+:where(html:has([data-lancheria-app])) .vazio { padding-block: 28px; }
+:where(html:has([data-lancheria-app])) .vazio p { margin-bottom: 12px; }
+/* No carrinho vazio quem recebe é a tabuleta pintada, não uma frase sozinha. */
+:where(html:has([data-lancheria-app])) .carrinho-vazio { display: grid; justify-items: start; gap: 14px; }
+:where(html:has([data-lancheria-app])) .carrinho-vazio p { margin-bottom: 0; }
+:where(html:has([data-lancheria-app])) .secao-trilho { padding-block: 32px; border-top: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .setas-trilho { display: flex; flex: 0 0 auto; gap: 5px; }
+:where(html:has([data-lancheria-app])) .setas-trilho button { width: 44px; padding: 0; font-size: 1.25rem; color: var(--osso); background: transparent; }
+:where(html:has([data-lancheria-app])) .trilho-lanches { display: flex; position: relative; gap: 16px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 0 calc(50% - min(37vw, 190px)); }
+:where(html:has([data-lancheria-app])) .trilho-lanche { flex: 0 0 min(74vw, 380px); width: min(74vw, 380px); min-width: 0; scroll-snap-align: center; background: var(--fumo); border: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .trilho-palco { width: 100%; height: 236px; position: relative; overflow: hidden; background: repeating-linear-gradient(0deg, transparent 0 39px, color-mix(in srgb, var(--traco) 50%, transparent) 39px 40px); }
+:where(html:has([data-lancheria-app])) .trilho-palco > img { width: 100%; height: 100%; object-fit: contain; }
+:where(html:has([data-lancheria-app])) .trilho-pilha { position: absolute; inset: 0; pointer-events: none; }
+:where(html:has([data-lancheria-app])) .trilho-ficha { padding: 18px; border-top: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .trilho-ficha h3 { min-height: 2.1em; }
+:where(html:has([data-lancheria-app])) .trilho-acao { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+:where(html:has([data-lancheria-app])) .trilho-posicao { text-align: center; margin-top: 12px; }
+:where(html:has([data-lancheria-app])) .extras-trilho { position: relative; display: flex; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 0 max(16px, calc((100vw - 1216px) / 2)); }
+:where(html:has([data-lancheria-app])) .extra-card { flex: 0 0 min(82vw, 340px); min-width: 0; min-height: 252px; padding: 22px; display: flex; flex-direction: column; gap: 16px; background: var(--fumo); border: 1px solid var(--traco); position: relative; isolation: isolate; overflow: hidden; scroll-snap-align: start; }
+:where(html:has([data-lancheria-app])) .extra-macro { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover; opacity: .1; pointer-events: none; }
+:where(html:has([data-lancheria-app])) .extra-card [data-carimbo] { opacity: .58; }
+:where(html:has([data-lancheria-app])) .extra-card h3 { font-size: clamp(2.2rem, 3vw, 3rem); line-height: 1.05; max-width: 11ch; margin-block: auto; }
+:where(html:has([data-lancheria-app])) .extra-base { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: auto; }
+:where(html:has([data-lancheria-app])) .a-chapa { position: relative; isolation: isolate; margin-top: 24px; min-height: 580px; display: flex; align-items: end; }
+:where(html:has([data-lancheria-app])) .a-chapa > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; object-position: 65% center; }
+:where(html:has([data-lancheria-app])) .a-chapa::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, var(--borra) 2%, color-mix(in srgb, var(--borra) 86%, transparent) 53%, color-mix(in srgb, var(--borra) 4%, transparent)); z-index: -1; }
+:where(html:has([data-lancheria-app])) .chapa-texto { padding-block: 44px; }
+:where(html:has([data-lancheria-app])) .chapa-texto h2 { font-size: clamp(2.5rem, 5vw, 4.5rem); margin-bottom: 26px; }
+:where(html:has([data-lancheria-app])) .chapa-texto p { max-width: 48ch; margin-bottom: 16px; line-height: 1.65; }
+:where(html:has([data-lancheria-app])) .chapa-texto [data-carimbo] { display: inline-block; padding: 8px 10px; border: 1px solid var(--traco); margin-top: 12px; }
+:where(html:has([data-lancheria-app])) .horarios-secao { padding-block: 32px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 14px; border-bottom: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .horario h2 { margin-bottom: 16px; }
+:where(html:has([data-lancheria-app])) .horario p { margin-bottom: 8px; }
+:where(html:has([data-lancheria-app])) .rodape { padding-top: 32px; padding-bottom: 24px; display: grid; gap: 28px; }
+:where(html:has([data-lancheria-app])) .rodape-dados p:first-child { font-weight: 650; margin-bottom: 14px; }
+:where(html:has([data-lancheria-app])) .rodape address { font-style: normal; font-size: .9375rem; opacity: .75; }
+:where(html:has([data-lancheria-app])) .rodape a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; }
+:where(html:has([data-lancheria-app])) .pagamentos { font-size: .8125rem; line-height: 1.5; opacity: .7; }
+:where(html:has([data-lancheria-app])) .letreiro-pequeno { width: 258px; transform: rotate(-.4deg); }
+:where(html:has([data-lancheria-app])) #lt-rod-tremor { animation: lt-tremor 4.3s -1.3s linear infinite; }
+:where(html:has([data-lancheria-app])) .rodape-fim { border-top: 1px solid var(--traco); padding-top: 20px; }
+:where(html:has([data-lancheria-app])) .barra-conteudo { flex-wrap: nowrap !important; gap: 8px !important; max-width: 1280px; margin-inline: auto; }
+:where(html:has([data-lancheria-app])) .barra-conteudo > div { gap: 10px !important; }
+:where(html:has([data-lancheria-app])) .barra-conteudo [data-preco] { font-size: 1.25rem !important; }
+:where(html:has([data-lancheria-app])) .barra-modificar { display: flex; align-items: center; justify-content: space-between; gap: 8px; max-width: 1280px; margin-inline: auto; padding-inline: 16px; border-bottom: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .barra-modificar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .875rem; opacity: .75; }
+:where(html:has([data-lancheria-app])) .barra-modificar button { flex: 0 0 auto; font-size: .875rem; padding-inline: 4px; }
+:where(html:has([data-lancheria-app])) .tem-modificar { padding-bottom: 44px; }
+:where(html:has([data-lancheria-app])) .modal-cortina { position: fixed; inset: 0; z-index: 32; background: color-mix(in srgb, var(--borra) 76%, transparent); display: flex; align-items: flex-end; }
+:where(html:has([data-lancheria-app])) .modal-corpo { width: 100%; min-width: 0; }
+:where(html:has([data-lancheria-app])) .carrinho-modal { padding-bottom: var(--barra-altura); }
+:where(html:has([data-lancheria-app])) .carrinho-folha { max-height: min(85dvh, calc(100dvh - var(--barra-altura) - 12px)); display: flex; flex-direction: column; background: var(--borra); border: 1px solid var(--traco); border-radius: 12px 12px 0 0; }
+:where(html:has([data-lancheria-app])) .carrinho-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .carrinho-cabeca h2 { font-size: 2rem; }
+:where(html:has([data-lancheria-app])) .carrinho-miolo { padding: 0 16px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+:where(html:has([data-lancheria-app])) .pedido-linhas { list-style: none; padding: 0; margin: 0; }
+:where(html:has([data-lancheria-app])) .pedido-linha { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding-block: 18px; border-bottom: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .pedido-linha > img { width: 64px; height: 64px; object-fit: contain; }
+:where(html:has([data-lancheria-app])) .pedido-descricao { min-width: 0; }
+:where(html:has([data-lancheria-app])) .pedido-descricao h3 { font-size: 1.5rem; margin-bottom: 8px; }
+:where(html:has([data-lancheria-app])) .pedido-descricao p { font-size: .8125rem; line-height: 1.4; opacity: .68; }
+:where(html:has([data-lancheria-app])) .extra-inicial { font-family: var(--fonte-display), serif; font-size: 2.5rem; text-align: center; border: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .quantidade { display: flex; align-items: center; gap: 4px; grid-column: 2; grid-row: 2; }
+:where(html:has([data-lancheria-app])) .quantidade button { min-height: 44px; min-width: 44px; border: 1px solid var(--traco); background: var(--fumo); color: var(--osso); font-size: 1.25rem; }
+:where(html:has([data-lancheria-app])) .quantidade span { min-width: 32px; text-align: center; font-variant-numeric: var(--numerais); }
+:where(html:has([data-lancheria-app])) .linha-preco { grid-column: 2; font-size: 1.25rem; }
+:where(html:has([data-lancheria-app])) .linha-acoes { display: flex; grid-column: 2; gap: 8px; }
+:where(html:has([data-lancheria-app])) .linha-acoes button { padding-inline: 4px; font-size: .875rem; }
+:where(html:has([data-lancheria-app])) .gancho { margin-block: 18px; padding: 16px; background: var(--fumo); border-left: 2px solid var(--latao); }
+:where(html:has([data-lancheria-app])) .gancho h3 { font-size: 1.65rem; margin-bottom: 10px; }
+:where(html:has([data-lancheria-app])) .gancho p { font-size: .875rem; margin-bottom: 12px; }
+:where(html:has([data-lancheria-app])) .gancho p [data-preco] { display: inline-block; font-size: 1.25rem; margin-left: 6px; }
+:where(html:has([data-lancheria-app])) .gancho > div { display: flex; gap: 8px; }
+:where(html:has([data-lancheria-app])) .carrinho-base { border-top: 1px solid var(--traco); padding: 16px; background: var(--fumo); }
+:where(html:has([data-lancheria-app])) .carrinho-total { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+:where(html:has([data-lancheria-app])) .carrinho-base > .botao-quente { width: 100%; margin-top: 14px; }
+:where(html:has([data-lancheria-app])) .carrinho-miolo > p { margin-block: 16px; }
+:where(html:has([data-lancheria-app])) #resumo-pedido { width: 100%; resize: vertical; min-height: 180px; color: var(--osso); background: var(--fumo); border: 1px solid var(--traco); padding: 12px; font-family: var(--fonte-corpo), sans-serif; font-size: .9375rem; line-height: 1.6; }
+:where(html:has([data-lancheria-app])) .resumo-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+:where(html:has([data-lancheria-app])) .aviso-contato { border-left: 2px solid var(--latao); padding-left: 12px; }
+:where(html:has([data-lancheria-app])) .rx-modal { z-index: 40; background: var(--borra); }
+:where(html:has([data-lancheria-app])) .rx-modal > .modal-corpo { height: 100dvh; }
+:where(html:has([data-lancheria-app])) #rx-cabeca { flex-wrap: nowrap !important; align-items: center !important; gap: 10px !important; }
+:where(html:has([data-lancheria-app])) #rx-cabeca h2 { min-width: 0; }
+:where(html:has([data-lancheria-app])) #rx-fechar { flex: 0 0 auto; }
+:where(html:has([data-lancheria-app])) #intro-pular { position: absolute; bottom: 32px; }
+html:where(:has([data-lancheria-app]))[data-lt-aceso='1'] #intro { display: none !important; }
+:where(html:has([data-lancheria-app])) .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (min-width: 900px) {
+  :where(html:has([data-lancheria-app])) .moldura { padding-inline: 32px; }
+  :where(html:has([data-lancheria-app])) .hero-faixa { height: min(30dvh, 270px); }
+  :where(html:has([data-lancheria-app])) .hero-faixa > img { object-position: 70% 58%; }
+  :where(html:has([data-lancheria-app])) .hero-texto p { font-size: 1rem; }
+  :where(html:has([data-lancheria-app])) .cardapio { padding-top: 24px; padding-bottom: 60px; }
+  :where(html:has([data-lancheria-app])) .filtros-forma { max-width: 520px; }
+  :where(html:has([data-lancheria-app])) .filtro-resumo { max-width: 520px; }
+  :where(html:has([data-lancheria-app])) .ingredientes-grade { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  :where(html:has([data-lancheria-app])) .cardapio-grade { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  :where(html:has([data-lancheria-app])) .lanche-icone { height: 135px; }
+  :where(html:has([data-lancheria-app])) .lanche-card { padding: 20px; }
+  :where(html:has([data-lancheria-app])) .lanche-card h3 { font-size: 1.75rem; }
+  :where(html:has([data-lancheria-app])) .monte-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 720px; }
+  :where(html:has([data-lancheria-app])) .secao-trilho { padding-block: 44px; }
+  :where(html:has([data-lancheria-app])) .trilho-palco { height: 280px; }
+  :where(html:has([data-lancheria-app])) .trilho-ficha h3 { min-height: 0; }
+  :where(html:has([data-lancheria-app])) .extra-card { min-height: 280px; }
+  :where(html:has([data-lancheria-app])) .a-chapa { min-height: 560px; align-items: center; }
+  :where(html:has([data-lancheria-app])) .a-chapa::after { background: linear-gradient(90deg, var(--borra), color-mix(in srgb, var(--borra) 85%, transparent) 40%, color-mix(in srgb, var(--borra) 5%, transparent)); }
+  :where(html:has([data-lancheria-app])) .rodape { grid-template-columns: 1fr auto; align-items: center; }
+  :where(html:has([data-lancheria-app])) .rodape-fim { grid-column: 1 / -1; }
+  :where(html:has([data-lancheria-app])) .letreiro-pequeno { width: 340px; }
+  :where(html:has([data-lancheria-app])) .barra-modificar { padding-inline: 32px; }
+  :where(html:has([data-lancheria-app])) .carrinho-modal > .modal-corpo { max-width: 720px; margin-left: auto; margin-right: 32px; }
+  :where(html:has([data-lancheria-app])) .pedido-linha { grid-template-columns: 72px minmax(0, 1fr) auto; }
+  :where(html:has([data-lancheria-app])) .quantidade { grid-column: 3; grid-row: 1; }
+  :where(html:has([data-lancheria-app])) .linha-preco { grid-column: 3; grid-row: 2; justify-self: end; }
+  :where(html:has([data-lancheria-app])) .linha-acoes { grid-row: 2; }
+}
+@media (prefers-reduced-motion: reduce) { :where(html:has([data-lancheria-app])) #lt-rod-tremor { animation: none; } }
+/* A ordem também muda por toque: não depende de arrastar nem de ter teclado. */
+:where(html:has([data-lancheria-app])) #rx-composicao .composicao-linha { display: grid !important; grid-template-columns: minmax(0, 1fr) auto 44px; gap: 4px 10px !important; padding-block: 6px !important; }
+:where(html:has([data-lancheria-app])) .composicao-linha > span:first-child { grid-column: 1; grid-row: 1; }
+:where(html:has([data-lancheria-app])) .composicao-linha > [data-preco] { grid-column: 2; grid-row: 1; }
+:where(html:has([data-lancheria-app])) .composicao-linha > button,:where(html:has([data-lancheria-app]))  .composicao-linha > span:last-child:not([data-preco]) { grid-column: 3; grid-row: 1 / span 2; }
+:where(html:has([data-lancheria-app])) .composicao-mover { grid-column: 1 / 3; display: flex; justify-content: end; gap: 8px; }
+:where(html:has([data-lancheria-app])) .composicao-mover button { border-color: var(--traco); padding: 0; width: 44px; }
+
+/* Campos em Archivo; só preços e medição usam Plex. */
+:where(html:has([data-lancheria-app])) input,:where(html:has([data-lancheria-app]))  select,:where(html:has([data-lancheria-app]))  textarea { font: inherit; color: var(--osso); background: var(--fumo); border: 1px solid var(--traco); border-radius: 2px; min-width: 0; max-width: 100%; }
+:where(html:has([data-lancheria-app])) input,:where(html:has([data-lancheria-app]))  select { min-height: 44px; padding: 10px 12px; font-size: 1rem; }
+:where(html:has([data-lancheria-app])) textarea { padding: 12px; font-size: 1rem; line-height: 1.4; }
+:where(html:has([data-lancheria-app])) #rx-observacao { grid-area: observacao; display: flex; align-items: center; gap: 10px; padding: 6px clamp(12px, 4vw, 20px); border-top: 1px solid var(--traco); font-size: .8125rem; }
+:where(html:has([data-lancheria-app])) #rx-observacao input { flex: 1; width: 100%; }
+:where(html:has([data-lancheria-app])) .camada-fixa { margin-left: 8px; font-family: var(--fonte-corpo), sans-serif; font-size: .6875rem; opacity: .55; }
+:where(html:has([data-lancheria-app])) #rx-trilho[data-folha] [data-ficha-texto] { min-width: 0; line-height: 1.3; overflow-wrap: anywhere; }
+@media (min-width: 900px) {
+  :where(html:has([data-lancheria-app])) #rx-observacao { flex-direction: column; align-items: stretch; padding: 12px 20px; border-left: 1px solid var(--traco); }
+  :where(html:has([data-lancheria-app])) #rx-trilho-folha { max-width: 720px; margin-inline: auto; }
+}
+
+/* O fundo sobe com o letreiro, descobrindo a sala; a sala sobe um passo menor. */
+:where(html:has([data-lancheria-app])) #intro { position: fixed; inset: 0 0 var(--barra-altura); z-index: 40; display: grid; place-items: center; width: 100%; background: var(--borra); padding: clamp(20px, 5vw, 64px); }
+:where(html:has([data-lancheria-app])) #intro[hidden] { display: none; }
+:where(html:has([data-lancheria-app])) .intro-letreiro { width: 100%; max-width: min(620px, 62vh); }
+@keyframes lt-cruzar { from { transform: translateY(0); } to { transform: translateY(-100%); } }
+@keyframes lt-entrar { from { transform: translateY(80px); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  :where(html:has([data-lancheria-app])) #intro { display: none !important; }
+  :where(html:has([data-lancheria-app])) #conteudo { animation: none !important; transform: none !important; }
+}
+
+:where(html:has([data-lancheria-app])) .confirmacao { display: grid; gap: 14px; padding-block: 12px; }
+:where(html:has([data-lancheria-app])) .campo { display: grid; gap: 6px; min-width: 0; font-size: .875rem; }
+:where(html:has([data-lancheria-app])) .campo small { opacity: .55; margin-left: 5px; }
+:where(html:has([data-lancheria-app])) .campo input,:where(html:has([data-lancheria-app]))  .campo select,:where(html:has([data-lancheria-app]))  .campo textarea { width: 100%; }
+:where(html:has([data-lancheria-app])) .campo-erro { color: var(--latao); font-size: .8125rem; }
+:where(html:has([data-lancheria-app])) .campo [aria-invalid='true'] { border-color: var(--latao); }
+:where(html:has([data-lancheria-app])) .recebimento { border: 0; padding: 0; margin: 0; min-width: 0; }
+:where(html:has([data-lancheria-app])) .recebimento legend { font-size: .875rem; margin-bottom: 6px; }
+:where(html:has([data-lancheria-app])) .recebimento > div { display: flex; gap: 8px; }
+:where(html:has([data-lancheria-app])) .recebimento label { position: relative; display: grid; place-items: center; flex: 1; min-height: 44px; border: 1px solid var(--traco); cursor: pointer; }
+:where(html:has([data-lancheria-app])) .recebimento input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+:where(html:has([data-lancheria-app])) .recebimento label[data-escolhido] { border-color: var(--letreiro); color: var(--letreiro); }
+:where(html:has([data-lancheria-app])) .recebimento label:focus-within { outline: 2px solid var(--osso); outline-offset: 2px; }
+:where(html:has([data-lancheria-app])) .conferir-itens summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; font-size: .875rem; }
+:where(html:has([data-lancheria-app])) .conferir-itens summary::after { content: '+'; margin-left: auto; }
+:where(html:has([data-lancheria-app])) .conferir-itens[open] summary::after { content: '−'; }
+:where(html:has([data-lancheria-app])) .conferir-itens pre { white-space: pre-wrap; overflow-wrap: anywhere; font: .875rem/1.6 var(--fonte-corpo), sans-serif; padding: 12px; border: 1px solid var(--traco); }
+:where(html:has([data-lancheria-app])) .confirmacao-recado { font-size: .8125rem; line-height: 1.5; opacity: .65; }
+:where(html:has([data-lancheria-app])) .resumo-acoes > .botao-quente { width: 100%; }
+:where(html:has([data-lancheria-app])) .pedido-descricao .item-observacao { opacity: 1; margin-top: 6px; overflow-wrap: anywhere; }
+@media (min-width: 900px) {
+  :where(html:has([data-lancheria-app])) .confirmacao { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :where(html:has([data-lancheria-app])) .confirmacao .conferir-itens,:where(html:has([data-lancheria-app]))  .confirmacao .campo:has(textarea),:where(html:has([data-lancheria-app]))  .confirmacao-recado { grid-column: 1 / -1; }
+}
+
+html:where(:has([data-lancheria-app]))[data-lt-aceso='1'] #lt-svg { --lt-acende: 1; --lt-letras: 1; }
+
+/* Transições: somente transform/opacity; lib/transicoes.ts fornece o relógio. */
+:root:where(:has([data-lancheria-app])) {
+  --tr-ms: 200ms;
+  --tr-entra: cubic-bezier(.17, .84, .36, 1);
+  --tr-sai: cubic-bezier(.5, 0, .86, .3);
+  --tr-dx: 0px;
+  --tr-dy: 24px;
+}
+@keyframes tr-cresce-do-cartao {
+  from { transform: translate(var(--tr-dx), var(--tr-dy)) scale(.96); }
+  to { transform: translate(0, 0) scale(1); }
+}
+@keyframes tr-encolhe-no-cartao {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(var(--tr-dx), var(--tr-dy)) scale(.96); }
+}
+@keyframes tr-sobe-da-base { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes tr-desce-pra-base { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@keyframes tr-vem-da-direita { from { transform: translateX(100%); opacity: .4; } to { transform: translateX(0); opacity: 1; } }
+@keyframes tr-vai-pra-direita { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: .4; } }
+@keyframes tr-escurece { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tr-clareia { from { opacity: 1; } to { opacity: 0; } }
+@keyframes tr-reencaixa {
+  from { transform: translateY(9px) scale(.985); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+/* No celular o filtro troca de uma vez, sem animação por item. */
+@media (min-width: 900px) {
+  :where(html:has([data-lancheria-app])) .cardapio-grade[data-troca] > * {
+    animation: tr-reencaixa calc((200 - 20 * (var(--tr-itens, 1) - 1)) * 1ms) var(--tr-entra) calc(var(--tr-i, 0) * 20ms) both;
+  }
+}
+/* Uma captura nomeada: takeover inteiro. Nem root, barra, cortina ou filhos. */
+html:where(:has([data-lancheria-app]))[data-vt] { view-transition-name: none; }
+html:where(:has([data-lancheria-app]))[data-vt][data-transicao^='rx-'] .rx-modal { view-transition-name: tr-raiox; }
+/* Desliga também a animação geométrica automática (width/height) do UA. */
+html:where(:has([data-lancheria-app]))[data-vt]::view-transition-group(*),
+html:where(:has([data-lancheria-app]))[data-vt]::view-transition-old(*),
+html:where(:has([data-lancheria-app]))[data-vt]::view-transition-new(*) { animation: none; mix-blend-mode: normal; }
+html:where(:has([data-lancheria-app]))[data-vt]::view-transition-image-pair(*) { isolation: isolate; }
+html:where(:has([data-lancheria-app]))[data-transicao='rx-entra']::view-transition-new(tr-raiox) { animation: tr-cresce-do-cartao var(--tr-ms) var(--tr-entra) both; }
+html:where(:has([data-lancheria-app]))[data-transicao='rx-sai']::view-transition-old(tr-raiox) { animation: tr-encolhe-no-cartao var(--tr-ms) var(--tr-sai) both; }
+html:where(:has([data-lancheria-app])):not([data-vt])[data-transicao='rx-entra'] .rx-modal { animation: tr-cresce-do-cartao var(--tr-ms) var(--tr-entra) both; }
+html:where(:has([data-lancheria-app])):not([data-vt])[data-transicao='rx-sai'] .rx-modal { animation: tr-encolhe-no-cartao var(--tr-ms) var(--tr-sai) both; }
+html:where(:has([data-lancheria-app]))[data-transicao='carrinho-entra'] .carrinho-folha { animation: tr-sobe-da-base var(--tr-ms) var(--tr-entra) both; }
+html:where(:has([data-lancheria-app]))[data-transicao='carrinho-sai'] .carrinho-folha { animation: tr-desce-pra-base var(--tr-ms) var(--tr-sai) both; }
+html:where(:has([data-lancheria-app]))[data-transicao='carrinho-entra'] .carrinho-modal { animation: tr-escurece var(--tr-ms) linear both; }
+html:where(:has([data-lancheria-app]))[data-transicao='carrinho-sai'] .carrinho-modal { animation: tr-clareia var(--tr-ms) linear both; }
+html:where(:has([data-lancheria-app]))[data-transicao='folha-entra'] #rx-trilho-folha { animation: tr-sobe-da-base var(--tr-ms) var(--tr-entra) both; }
+html:where(:has([data-lancheria-app]))[data-transicao='folha-sai'] #rx-trilho-folha { animation: tr-desce-pra-base var(--tr-ms) var(--tr-sai) both; }
+html:where(:has([data-lancheria-app]))[data-transicao='folha-entra'] #rx-trilho-cortina { animation: tr-escurece var(--tr-ms) linear both; }
+html:where(:has([data-lancheria-app]))[data-transicao='folha-sai'] #rx-trilho-cortina { animation: tr-clareia var(--tr-ms) linear both; }
+html:where(:has([data-lancheria-app]))[data-transicao='confirma-entra'] [data-passo-pedido] { animation: tr-vem-da-direita var(--tr-ms) var(--tr-entra) both; }
+html:where(:has([data-lancheria-app]))[data-transicao='confirma-sai'] [data-passo-pedido] { animation: tr-vai-pra-direita var(--tr-ms) var(--tr-sai) both; }
+:where(html:has([data-lancheria-app])) .carrinho-miolo { overflow-x: clip; }
+/* A remoção de data-transicao retira a promoção de camada. */
+html:where(:has([data-lancheria-app]))[data-transicao^='rx-'] .rx-modal,
+html:where(:has([data-lancheria-app]))[data-transicao^='carrinho-'] .carrinho-folha,
+html:where(:has([data-lancheria-app]))[data-transicao^='folha-'] #rx-trilho-folha,
+html:where(:has([data-lancheria-app]))[data-transicao^='confirma-'] [data-passo-pedido] { will-change: transform; }
+html:where(:has([data-lancheria-app]))[data-movimento-pausado] :is(#lt-tremor, #lt-tubo-a, #lt-tubo-b, #lt-texto, #lt-rod-tremor),
+html:where(:has([data-lancheria-app]))[data-transicao] #rx-pilha [data-inst] > .camada-visual { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  :where(html:has([data-lancheria-app]))::view-transition-group(*),:where(html:has([data-lancheria-app])) ::view-transition-old(*),:where(html:has([data-lancheria-app])) ::view-transition-new(*) { animation: none !important; }
+  :where(html:has([data-lancheria-app])) .cardapio-grade[data-troca] > * { animation: none !important; }
+}
+
+/* Peça absoluta: não altera a altura da faixa. O viewport do SVG recorta corpo e boca
+   acima da borda; os braços também ficam dentro da caixa protegida contra o título. */
+:where(html:has([data-lancheria-app])) .hero-espreita { position: absolute; top: 0; right: 12px; width: 84px; height: auto; aspect-ratio: 3 / 2; overflow: hidden; pointer-events: none; visibility: hidden; }
+:where(html:has([data-lancheria-app])) .hero-espreita[data-cabe='true'][data-em-tela='true'] { visibility: visible; }
+
+/* Identidades sobre um único balcão. Só seis cores; quente = comida, frio = sistema. */
+:where(html:has([data-lancheria-app])) .botao-quente,:where(html:has([data-lancheria-app]))  .botao-texto,:where(html:has([data-lancheria-app]))  input,:where(html:has([data-lancheria-app]))  select,:where(html:has([data-lancheria-app]))  textarea,:where(html:has([data-lancheria-app]))  .lanche-card,:where(html:has([data-lancheria-app])) 
+.extra-card,:where(html:has([data-lancheria-app]))  .trilho-lanche,:where(html:has([data-lancheria-app]))  .filtro-ingredientes { border-radius: var(--raio); }
+:where(html:has([data-lancheria-app])) #rx-selar { border-radius: var(--raio) !important; }
+:is(html:has([data-lancheria-app][data-layout])):not(:is(html:has([data-lancheria-app][data-layout='editorial']))) .carrinho-folha,:is(html:has([data-lancheria-app]
+[data-layout])):not(:is(html:has([data-lancheria-app][data-layout='editorial']))) #rx-trilho-folha { border-radius: var(--raio) var(--raio) 0 0; }
+:is(html:has([data-lancheria-app][data-layout])):not(:is(html:has([data-lancheria-app][data-layout='editorial']))) h1,:is(html:has([data-lancheria-app]
+[data-layout])):not(:is(html:has([data-lancheria-app][data-layout='editorial']))) h2,:is(html:has([data-lancheria-app]
+[data-layout])):not(:is(html:has([data-lancheria-app][data-layout='editorial']))) h3 { font-variation-settings: normal; }
+:where(html:has([data-lancheria-app])) [data-medida] { color: var(--letreiro); }
+:where(html:has([data-lancheria-app])) .hero-texto { justify-content: flex-end; padding-bottom: 18px; gap: 8px; }
+:where(html:has([data-lancheria-app])) .letreiro-pequeno { width: min(100%, 330px); }
+
+/* Aviso por sessão, ligado só a uma mudança válida da ordem. */
+:where(html:has([data-lancheria-app])) #rx-flutua > .aviso-ordem-regiao { padding: 0; background: none; border: 0; }
+:where(html:has([data-lancheria-app])) .aviso-ordem-regiao:empty { display: none; }
+:where(html:has([data-lancheria-app])) [data-aviso-ordem] { display: block; width: 100%; min-height: 44px; padding: 12px 16px;
+  text-align: left; font: .875rem/1.45 var(--fonte-corpo), sans-serif;
+  color: var(--osso); background: var(--fumo); border: 1px solid var(--traco);
+  border-left: 3px solid var(--latao); border-radius: var(--raio); }
+:where(html:has([data-lancheria-app])) #rx-medidor:has([data-aviso-ordem]) { z-index: 7; }
+
+/* MEIA-NOITE — o mesmo cartão editorial, com menos altura. */
+:is(html:has([data-lancheria-app][data-layout='editorial'])) .hero-faixa { height: min(168px, 30dvh); min-height: 0; max-height: 30dvh; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) .hero-texto { padding-bottom: 10px; gap: 4px; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) .hero-texto h1 { font-size: clamp(2.25rem, 5vw, 4.5rem); }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) .horario-compacto { padding-block: 7px; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) .cardapio { padding-top: 6px; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) .cardapio .cabecalho-secao { margin-bottom: 6px; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) .filtro-resumo { min-height: 44px; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) .cardapio-grade:not(.monte-grade) { gap: 8px; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] { display: grid; grid-template-columns: minmax(0,1fr) 44px; padding: 6px 8px; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] .lanche-icone { grid-column: 1 / -1; justify-self: center;
+  width: min(100%, 112px); height: 56px; object-fit: cover; margin-bottom: 3px; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] h3 { grid-column: 1 / -1; font-size: 1.125rem; min-height: 2.16em; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] .ingredientes-linha { grid-column: 1 / -1; margin: 2px 0; font-size: .75rem; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] > [data-preco] { grid-column: 1; align-self: center;
+  font-size: clamp(.9375rem, 4.6vw, 1.125rem); margin: 0; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] > [data-add] { grid-column: 2; width: 44px; height: 44px; padding: 0; }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] .adicionar-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+:is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] .modificar-card { grid-column: 1 / -1; }
+
+/* DINER — fórmica, faixa cromada, placa física; tipografia slab sem falso negrito. */
+:is(html:has([data-lancheria-app][data-layout='painel'])) h1,:is(html:has([data-lancheria-app] [data-layout='painel'])) h2,:is(html:has([data-lancheria-app] [data-layout='painel'])) h3,:is(html:has([data-lancheria-app]
+[data-layout='painel'])) .marca-texto { font-weight: 400; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .cabecalho-casa { height: 44px; border-bottom: 4px double var(--traco); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .marca-texto { color: var(--osso); font-size: 1.3rem; line-height: 1.2; }
+:where(html:has([data-lancheria-app])) .marca-registro { display: block; font: .6875rem/1.5 var(--fonte-corpo), sans-serif; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .cabecalho-casa > .nota { max-width: 16ch; text-align: right; font-size: .625rem; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .hero-faixa { height: 96px; min-height: 0; max-height: 30dvh; background: var(--borra); border-bottom: 4px double var(--traco); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .hero-faixa::after { display: none; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .hero-texto { position: relative; padding-bottom: 6px; z-index: 1; pointer-events: none; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .hero-texto h1 { font-size: 1.125rem; line-height: 1.2; max-width: none; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .hero-texto p { display: none; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .hero-faixa > img { display: none; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .hero-espreita { z-index: 2; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .horario-compacto { font-size: .8125rem; padding-block: 3px; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .cabecalho-secao h2 { font-size: 1.85rem; }
+/* O fio duplo pertence ao painel. Cada foto é uma janela quadrada. */
+:is(html:has([data-lancheria-app][data-layout='painel'])) .cardapio { padding: 6px 12px 36px; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .cardapio .cabecalho-secao { margin-bottom: 6px; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .cabecalho-secao h2 { font-size: 1.5rem; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .filtro-resumo { min-height: 44px; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .cardapio-grade:not(.monte-grade) { grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 6px; padding: 4px; border: 4px double var(--traco); background: var(--fumo); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) [data-item-cardapio] { padding: 0; border: 0; border-radius: 0; background: none; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) [data-item-cardapio] h3 { font-size: .875rem; line-height: 1.25;
+  min-height: 2.5em; margin: 5px 2px 3px; overflow-wrap: anywhere; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .diner-recheio { margin: 0; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .diner-recheio summary { display: block; position: relative; cursor: pointer;
+  min-width: 44px; min-height: 44px; list-style: none; background: var(--borra); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .diner-recheio summary::-webkit-details-marker { display: none; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .diner-recheio summary > span { position: absolute; bottom: 3px; right: 3px;
+  padding: 2px 4px; font: .625rem/1.2 var(--fonte-corpo), sans-serif; color: var(--letreiro); background: var(--fumo); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .diner-recheio .lanche-icone { width: 100%; height: auto; aspect-ratio: 1;
+  margin: 0; object-fit: cover; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .diner-recheio p { font-size: .8125rem; line-height: 1.4; padding: 8px 2px; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) [data-item-cardapio] > [data-preco] { font-family: var(--fonte-display), serif;
+  font-weight: 400; font-size: 1rem; margin: auto 2px 5px; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) [data-item-cardapio] > [data-add] { padding: 6px 2px; font-size: .8125rem; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .filtros-forma { grid-template-columns: .7fr 1fr 1fr 1.1fr; gap: 4px; border: 0; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .filtros-forma button { border: 1px solid var(--traco); border-radius: var(--raio); font-size: .75rem; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .filtros-forma button[aria-pressed='true'] { border-color: var(--letreiro); background: var(--letreiro); color: var(--fumo); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) #rx-takeover { background: var(--fumo); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) #rx-cabeca { border-bottom: 4px double var(--traco); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) #rx-cabeca h2 { font-size: 1.4rem !important; font-weight: 400 !important; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) #rx-painel { background: var(--borra); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) #rx-painel > img { opacity: .035 !important; }
+:is(html:has([data-lancheria-app][data-layout='painel'])) #rx-medidor { border-top: 4px double var(--traco); background: var(--fumo); }
+:is(html:has([data-lancheria-app][data-layout='painel'])) .rodape-assinatura { display: flex; align-items: center; gap: 20px; }
+:where(html:has([data-lancheria-app])) .placa-porta { position: absolute; left: 18px; top: -8px; width: 132px; height: 68px; z-index: 3;
+  color: var(--letreiro); perspective: 700px; }
+:where(html:has([data-lancheria-app])) .placa-fio { position: absolute; width: 72px; height: 34px; left: 30px; top: -9px;
+  border: 1px solid var(--traco); transform: rotate(22deg) skew(-44deg); }
+:where(html:has([data-lancheria-app])) .placa-balanco { position: absolute; inset: 26px 0 0; transform-origin: 50% -24px;
+  animation: placa-assentar 900ms ease-out both; }
+:where(html:has([data-lancheria-app])) .placa-giro { width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+  transform: rotateY(var(--placa-angulo)); transition: transform 600ms cubic-bezier(.2,.7,.3,1);
+  animation: placa-chegar 900ms cubic-bezier(.22,.7,.28,1) backwards; }
+:where(html:has([data-lancheria-app])) .placa-porta[data-aberto='true'] { --placa-angulo: 0deg; }
+:where(html:has([data-lancheria-app])) .placa-porta[data-aberto='false'] { --placa-angulo: 180deg; }
+:where(html:has([data-lancheria-app])) .placa-face { position: absolute; inset: 0; display: grid; place-items: center; backface-visibility: hidden;
+  border: 4px double var(--traco); border-radius: var(--raio); background: var(--fumo);
+  font: 1.125rem/1 var(--fonte-display), serif; letter-spacing: .025em; }
+:where(html:has([data-lancheria-app])) .placa-fechado { transform: rotateY(180deg); }
+@keyframes placa-chegar { from { transform: rotateY(calc(var(--placa-angulo) + 360deg)); } to { transform: rotateY(var(--placa-angulo)); } }
+@keyframes placa-assentar { 0% { transform: rotate(-7deg); } 45% { transform: rotate(3deg); } 75% { transform: rotate(-1deg); } 100% { transform: rotate(0); } }
+
+/* PRÁTICO — pedido em primeiro plano. Uma linha usa a mesma foto em 88px. */
+:is(html:has([data-lancheria-app][data-layout='lista'])) .cabecalho-casa { height: 52px; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .marca-texto { font-size: 1.2rem; color: var(--osso); font-weight: 800; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .cabecalho-casa .nota { font-size: .75rem; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .horario-compacto { padding-block: 5px; font-size: .75rem; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .cardapio { padding-top: 14px; padding-bottom: 24px; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .cabecalho-secao { margin-bottom: 10px; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) h2 { font-size: 1.4rem; letter-spacing: -.035em; font-weight: 800; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .cabecalho-secao > .nota { font-size: .75rem; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .filtro-resumo { min-height: 44px; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .filtros-forma button { font-size: .8125rem; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .cardapio-grade:not(.monte-grade) { display: flex; flex-direction: column; gap: 0; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .cardapio-grade:not(.monte-grade) .lanche-card { display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) 44px; grid-template-rows: auto auto auto;
+  gap: 3px 10px; padding: 12px 0; background: var(--borra); border: 0;
+  border-bottom: 1px solid var(--traco); border-radius: 0; align-content: center; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .cardapio-grade:not(.monte-grade) .lanche-icone { grid-column: 1; grid-row: 1 / 4;
+  width: 88px; height: 88px; margin: 0; background: var(--fumo); border-radius: var(--raio); object-fit: contain; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .cardapio-grade:not(.monte-grade) h3 { grid-column: 2; grid-row: 1;
+  min-height: 0; font-size: .9375rem; font-weight: 750; line-height: 1.2; align-self: end; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .ingredientes-linha { grid-column: 2; grid-row: 2; margin: 0;
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  font-size: .75rem; line-height: 1.3; align-self: center; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .lanche-card > [data-preco] { grid-column: 2; grid-row: 3; margin: 0;
+  font-size: 1.1rem; font-weight: 800; letter-spacing: -.04em; align-self: start; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .lanche-card > [data-add] { grid-column: 3; grid-row: 1 / 4;
+  width: 44px; height: 44px; min-height: 44px; padding: 0; align-self: center; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .adicionar-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+:where(html:has([data-lancheria-app])) .adicionar-mais { font-size: 1.5rem; line-height: 1; font-weight: 400; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .modificar-card { grid-column: 2 / 4; grid-row: 4; justify-self: start;
+  margin: 0; padding-block: 0; min-height: 44px; font-size: .75rem; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .monte-grade h3 { font-size: 1rem; min-height: 0; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .monte-grade button { font-size: .8125rem; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .lanche-card,:is(html:has([data-lancheria-app] [data-layout='lista'])) .cardapio-grade { animation: none !important; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .secao-trilho { padding-block: 22px; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .extra-card { min-height: 180px; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .extra-card h3 { font-size: 1.4rem; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) #rx-cabeca h2 { font-size: 1.15rem !important; font-weight: 750; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) #rx-painel > img { opacity: .025 !important; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) [data-preco] { font-weight: 800 !important; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .a-chapa { min-height: 360px; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .chapa-texto h2 { font-size: 2rem; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .rodape-assinatura { display: none; }
+
+/* CANTINA — folha de menu, moldura de madeira e toldo. Nenhuma fonte de máquina. */
+:is(html:has([data-lancheria-app][data-layout='folha'])) { font-variant-numeric: oldstyle-nums proportional-nums; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .cabecalho-casa { height: 48px; justify-content: center; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .marca-texto { color: var(--osso); font-size: 1.65rem; font-weight: 650; letter-spacing: -.04em; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .cabecalho-casa > .nota { display: none; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .hero-faixa { height: 86px; min-height: 0; max-height: 30dvh; margin: 0 14px;
+  background: var(--fumo); border: 1px solid var(--traco); border-bottom: 5px double var(--traco); }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .hero-faixa::after { display: none; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .hero-texto { padding: 28px 10px 10px; position: relative; text-align: center; z-index: 1; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .hero-texto h1 { font-size: clamp(1.375rem, 4.5vw, 4.8rem); line-height: 1.1; max-width: none; font-weight: 650; letter-spacing: -.05em; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .hero-texto p { font-size: .625rem; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .hero-faixa > img { display: none; }
+:where(html:has([data-lancheria-app])) .toldo { position: absolute; inset: 0 0 auto; height: 20px; z-index: 3; overflow: hidden; }
+:where(html:has([data-lancheria-app])) .toldo-tecido { height: 100%; transform-origin: center top;
+  background: repeating-linear-gradient(90deg, var(--latao) 0 28px, var(--fumo) 28px 56px);
+  border-bottom: 3px solid var(--latao); animation: toldo-desenrolar 650ms cubic-bezier(.2,.7,.3,1) both; }
+@keyframes toldo-desenrolar { from { transform: scaleY(.02); } to { transform: scaleY(1); } }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .horario-compacto { text-align: center; font-size: .75rem; padding-block: 7px; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .cardapio { padding: 10px 16px 36px; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .cardapio .cabecalho-secao { align-items: baseline; border-bottom: 3px double var(--traco);
+  padding-bottom: 6px; margin-bottom: 4px; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .cabecalho-secao h2 { font-size: 1.75rem; font-weight: 600; letter-spacing: -.04em; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .cabecalho-secao > .nota { font-size: .75rem; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .filtro-resumo { min-height: 44px; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .filtros-forma { gap: 0; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .filtros-forma button { font-size: .8125rem; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .cardapio-grade:not(.monte-grade) { grid-template-columns: 1fr; gap: 0;
+  border-top: 1px solid var(--traco); background: var(--fumo); padding-inline: 10px; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) [data-item-cardapio] { display: grid;
+  grid-template-columns: 64px minmax(0,1fr) 44px; gap: 4px 8px; padding: 10px 0;
+  border: 0; border-bottom: 1px solid var(--traco); border-radius: 0; background: none; }
+/* Nome longo quebra em linhas; preço e espaço mínimo do pontilhado ficam inteiros. */
+:is(html:has([data-lancheria-app][data-layout='folha'])) .menu-nome-preco { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .menu-nome-preco h3 { flex: 0 1 auto; min-width: 0; min-height: 0;
+  font-size: 1.0625rem; font-weight: 600; line-height: 1.25; letter-spacing: -.025em; overflow-wrap: anywhere; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .menu-pontilhado { flex: 1 0 12px; min-width: 12px; border-bottom: 1px dotted var(--traco); }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .menu-nome-preco [data-preco] { flex: none; font-size: 1.0625rem; line-height: 1.25; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) [data-item-cardapio] .lanche-icone { grid-column: 1; grid-row: 2;
+  width: 64px; height: 64px; margin: 0; object-fit: cover; align-self: center; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) [data-item-cardapio] .ingredientes-linha { grid-column: 2; grid-row: 2;
+  white-space: normal; overflow: visible; text-overflow: clip; margin: 0; font-size: .8125rem; line-height: 1.35; opacity: .85; align-self: center; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) [data-item-cardapio] > [data-add] { grid-column: 3; grid-row: 2;
+  width: 44px; height: 44px; padding: 0; align-self: center; background: transparent; color: var(--latao); border-color: var(--latao); }
+:is(html:has([data-lancheria-app][data-layout='folha'])) [data-item-cardapio] .adicionar-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+:is(html:has([data-lancheria-app][data-layout='folha'])) [data-item-cardapio] .modificar-card { grid-column: 2 / -1; min-height: 44px; margin: 0; justify-self: start; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) #rx-cabeca { border-bottom: 3px double var(--traco); }
+:is(html:has([data-lancheria-app][data-layout='folha'])) #rx-cabeca h2 { font-size: 1.5rem !important; font-weight: 600; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) #rx-painel { box-shadow: inset 8px 0 var(--fumo), inset -8px 0 var(--fumo); }
+:is(html:has([data-lancheria-app][data-layout='folha'])) #rx-painel > img { opacity: .025 !important; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) #rx-medidor { background: var(--fumo); border-top: 3px double var(--traco); }
+:is(html:has([data-lancheria-app][data-layout='folha'])) [data-medida],:is(html:has([data-lancheria-app] [data-layout='folha'])) [data-preco],:is(html:has([data-lancheria-app] [data-layout='folha'])) [data-carimbo] {
+  font-variant-numeric: oldstyle-nums proportional-nums !important; font-feature-settings: 'onum' 1, 'pnum' 1; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .rodape-assinatura { display: grid; gap: 10px; border-top: 3px double var(--traco); padding-top: 22px; }
+:is(html:has([data-lancheria-app][data-layout='folha'])) .rodape-assinatura > span:last-child { font-size: .875rem; }
+
+@media (min-width: 900px) {
+  :where(html:has([data-lancheria-app])) .hero-texto { justify-content: center; padding-bottom: 0; }
+  :is(html:has([data-lancheria-app][data-layout='editorial'])) .hero-faixa { height: min(270px, 30dvh); }
+  :is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] { padding: 14px; }
+  :is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] .lanche-icone { width: 180px; height: 90px; }
+  :is(html:has([data-lancheria-app][data-layout='editorial'])) [data-item-cardapio] h3 { font-size: 1.5rem; }
+  :is(html:has([data-lancheria-app][data-layout='painel'])) .hero-faixa,:is(html:has([data-lancheria-app] [data-layout='folha'])) .hero-faixa { max-width: 1216px; margin-inline: auto; }
+  :is(html:has([data-lancheria-app][data-layout='painel'])) .hero-faixa { height: 180px; }
+  :is(html:has([data-lancheria-app][data-layout='painel'])) .hero-texto { padding-left: 224px; padding-bottom: 20px; }
+  :is(html:has([data-lancheria-app][data-layout='painel'])) .placa-porta { top: 56px; left: 30px; }
+  :is(html:has([data-lancheria-app][data-layout='painel'])) .hero-texto h1 { max-width: 12ch; font-size: 3.5rem; }
+  :is(html:has([data-lancheria-app][data-layout='painel'])) .hero-faixa > img { display: block; inset: auto 10% 0 auto; width: 320px; height: 180px; object-fit: cover; }
+  :is(html:has([data-lancheria-app][data-layout='painel'])) .cardapio-grade:not(.monte-grade) { grid-template-columns: repeat(5, minmax(0,1fr)); gap: 16px 10px; padding: 8px; }
+  :is(html:has([data-lancheria-app][data-layout='painel'])) [data-item-cardapio] h3 { font-size: 1.125rem; }
+  :is(html:has([data-lancheria-app][data-layout='painel'])) [data-item-cardapio] > [data-preco] { font-size: 1.25rem; }
+  :is(html:has([data-lancheria-app][data-layout='lista'])) .moldura { max-width: 920px; }
+  :is(html:has([data-lancheria-app][data-layout='lista'])) .cardapio-grade:not(.monte-grade) .lanche-card { grid-template-columns: 88px minmax(0, 1fr) 108px; column-gap: 18px; }
+  :is(html:has([data-lancheria-app][data-layout='lista'])) .lanche-card > [data-add] { width: 108px; }
+  :is(html:has([data-lancheria-app][data-layout='lista'])) .adicionar-label { position: static; width: auto; height: auto; clip-path: none; font-size: .875rem; }
+  :is(html:has([data-lancheria-app][data-layout='lista'])) .adicionar-mais { display: none; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) .hero-faixa { height: 150px; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) .hero-texto { padding: 40px 32px 26px; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) .hero-texto h1 { font-size: 2.75rem; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) .hero-texto p { font-size: .875rem; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) .toldo { height: 32px; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) .cardapio { max-width: 1120px; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) .cardapio-grade:not(.monte-grade) { grid-template-columns: repeat(2, minmax(0,1fr)); column-gap: 28px; padding-inline: 20px; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) [data-item-cardapio] { padding-block: 16px; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) .menu-nome-preco h3,:is(html:has([data-lancheria-app] [data-layout='folha'])) .menu-nome-preco [data-preco] { font-size: 1.3rem; }
+  :is(html:has([data-lancheria-app][data-layout='folha'])) [data-item-cardapio] .ingredientes-linha { font-size: .875rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(html:has([data-lancheria-app])) .placa-balanco,:where(html:has([data-lancheria-app]))  .placa-giro,:where(html:has([data-lancheria-app]))  .toldo-tecido { animation: none !important; transition: none !important; }
+}
+
+:where(html:has([data-lancheria-app])) #barra-abrir { border-radius: var(--raio) !important; }
+
+:where(html:has([data-lancheria-app])) .composicao-rotulo summary { min-width:44px; min-height:44px; display:flex; align-items:center; cursor:pointer; color:var(--letreiro); }
+:where(html:has([data-lancheria-app])) .composicao-rotulo p { font-size:.8125rem; margin-block:8px; }

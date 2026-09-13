@@ -31,5 +31,5 @@
     "**/*.mts",
     "**/*.mjs"
   ],
-  "exclude": ["node_modules", "skins-raw"]
+  "exclude": ["node_modules", "skins-raw", "vendor/lancheria-rx/fonte-calibrada"]
 }

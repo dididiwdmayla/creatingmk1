@@ -118,7 +118,7 @@ describe("microcópia de chrome: nenhum literal pt-BR vaza fora do sistema de lo
     expect(chavesFr.length).toBeGreaterThan(0);
   });
 
-  for (const skin of SKINS) {
+  for (const skin of SKINS.filter(s => !s.localeFixo)) {
     it(`${skin.id}: HTML em de-CH não contém nenhum literal de chrome em pt-BR (fora de conteúdo legítimo)`, () => {
       const { html, data } = renderComIdioma(skin, "de-CH");
       checarSemVazamento(skin.id, html, data, chavesDe, "de-CH");

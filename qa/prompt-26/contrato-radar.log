@@ -1,0 +1,14 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> creatingmk1@0.1.0 test
+> vitest run src/lib/demos/__tests__/lancheria.test.ts
+
+
+ RUN  v4.1.9 /workspace/scratch/497dccc23e04/creatingmk1
+
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  10:28:26
+   Duration  1.44s (transform 963ms, setup 0ms, import 1.26s, tests 50ms, environment 0ms)
+

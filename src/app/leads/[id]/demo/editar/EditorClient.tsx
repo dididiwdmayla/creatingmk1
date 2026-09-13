@@ -82,7 +82,7 @@ function estadoInicial(cliente: ClienteDemo, registro: RegistroDemo, skinPedida?
     // seletor mostra a escolha certa e o próximo Salvar grava o id novo.
     tema: migrarTemaPatch((daSkin ? registro.demo?.tema : undefined) ?? {}),
     dados: cliente.montar(registro, skin, daSkin ? registro.demo?.dados : undefined),
-    idioma: registro.demo?.idioma ?? registro.idiomaPadrao,
+    idioma: skin.localeFixo?.idioma ?? registro.demo?.idioma ?? registro.idiomaPadrao,
   };
 }
 
@@ -311,7 +311,7 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
   // "começa com sugestões", mas nada entra sem confirmação.
   useEffect(() => {
     const gerar = cliente.gerarSugestao;
-    if (!gerar || !iaAuto || iaDisponivel !== true || !registro || !nivelResolvido)
+    if (!gerar || !iaAuto || iaDisponivel !== true || !registro || !nivelResolvido || getSkin(skinId)?.themeDefault.lancheria)
       return;
     if (iaAutoDisparadaRef.current) return;
     iaAutoDisparadaRef.current = true;
@@ -341,6 +341,7 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
     setSkinId(inicial.skinId);
     setThemeId(inicial.themeId);
     setTema(inicial.tema);
+    setIdioma(inicial.idioma);
     setDados(inicial.dados);
     setSujo(true);
     setAviso(null);
@@ -714,7 +715,7 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
           {sujo && !aviso && (
             <span className="hidden text-xs text-warning sm:inline">Alterações não salvas</span>
           )}
-          {iaDisponivel && (
+          {iaDisponivel && !skin.themeDefault.lancheria && (
             <button
               type="button"
               onClick={handleAbrirGerarIA}
@@ -806,7 +807,8 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
                 moeda={moeda}
               />
             )}
-            {aba === "imagens" && (
+            {aba === "imagens" && skin.themeDefault.lancheria && <p className="text-sm">Estas skins usam o acervo calibrado. A foto de cada lanche é escolhida em Conteúdo. Fotos próprias precisam de preparação antes da inclusão.</p>}
+            {aba === "imagens" && !skin.themeDefault.lancheria && (
               <PainelImagens
                 dados={dados}
                 skin={skin}
@@ -849,7 +851,8 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
                 paisSalvando={salvandoPais}
               />
             )}
-            {aba === "estrutura" && (
+            {aba === "estrutura" && skin.themeDefault.lancheria && <p className="text-sm">A estrutura pertence à skin escolhida. Edite lanches, ingredientes e textos em Conteúdo.</p>}
+            {aba === "estrutura" && !skin.themeDefault.lancheria && (
               <PainelEstrutura dados={dados} skin={skin} atualizar={atualizar} />
             )}
             {aba === "capturas" && (

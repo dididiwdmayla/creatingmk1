@@ -255,12 +255,12 @@ describe("precificacao (calculadora regional)", () => {
 });
 
 describe("capturas.ancoras (marcação de âncoras de captura)", () => {
-  it("default: as 8 skins já vêm marcadas, hero na frente", async () => {
+  it("default: as 12 skins já vêm marcadas, mantendo o hero das existentes", async () => {
     const db = new FakeFirestore();
 
     const config = await loadConfig(db);
 
-    expect(Object.keys(config.capturas.ancoras)).toHaveLength(8);
+    expect(Object.keys(config.capturas.ancoras)).toHaveLength(12);
     expect(config.capturas.ancoras["barbearia-editorial"]).toEqual([
       "hero",
       "servicos",

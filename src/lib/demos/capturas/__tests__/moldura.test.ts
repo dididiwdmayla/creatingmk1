@@ -513,8 +513,8 @@ describe("corDaComposicao — afastamento garantido do fundo do site", () => {
     skin.themePresets.map((tema) => ({ nome: `${skin.id}/${tema.id}`, paleta: tema.paleta })),
   );
 
-  it("cobre as 8 skins do registro (senão este bloco não prova nada)", () => {
-    expect(SKINS).toHaveLength(8);
+  it("cobre as 12 skins do registro (senão este bloco não prova nada)", () => {
+    expect(SKINS).toHaveLength(12);
     expect(paletas.length).toBeGreaterThanOrEqual(8);
   });
 

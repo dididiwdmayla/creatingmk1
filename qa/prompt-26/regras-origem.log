@@ -1,0 +1,64 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> node scripts/qa-regras.mjs
+
+ok  horário de São Paulo 03:29: aberto=true, últimos=false
+ok  horário de São Paulo 03:30: aberto=true, últimos=true
+ok  horário de São Paulo 04:00: aberto=true, últimos=true
+ok  horário de São Paulo 04:01: aberto=false, últimos=false
+ok  horário de São Paulo 17:59: aberto=false, últimos=false
+ok  horário de São Paulo 18:00: aberto=true, últimos=false
+ok  horário de São Paulo 23:59: aberto=true, últimos=false
+ok  horário de São Paulo 00:00: aberto=true, últimos=false
+ok  um mesmo instante não depende do fuso do dispositivo
+ok  prensado-completo: preço, chave e composição coerentes entre grade e raio-x
+ok  prensado-frango: preço, chave e composição coerentes entre grade e raio-x
+ok  prensado-calabresa: preço, chave e composição coerentes entre grade e raio-x
+ok  prensado-meia-noite: preço, chave e composição coerentes entre grade e raio-x
+ok  x-salada: preço, chave e composição coerentes entre grade e raio-x
+ok  x-tudo: preço, chave e composição coerentes entre grade e raio-x
+ok  sem lanche não há gancho
+ok  bebida tem prioridade
+ok  duas unidades da mesma linha contam para batata
+ok  bebida dispensada não volta
+ok  no máximo dois ganchos distintos na sessão
+ok  o segundo gancho visto continua até resolução
+ok  dispensar os dois não abre um terceiro
+ok  bacon não aparece quando não cabe no teto de 16 camadas
+ok  bacon respeita molho no pão de cima e conserva a ordem existente
+ok  resumo de WhatsApp inclui alterações, composição do montador e quantidades
+ok  extras sem foto, sem composição e sem salto de lanche
+ok  prensado-completo: geometria respeita folga, escala e espalhamento
+ok  prensado-frango: geometria respeita folga, escala e espalhamento
+ok  prensado-calabresa: geometria respeita folga, escala e espalhamento
+ok  prensado-meia-noite: geometria respeita folga, escala e espalhamento
+ok  x-salada: geometria respeita folga, escala e espalhamento
+ok  x-tudo: geometria respeita folga, escala e espalhamento
+ok  piso de escala continua rígido mesmo na vizinhança do epsilon
+ok  todos os assets exigidos existem sem reprocessamento
+ok  código novo não introduz medida em gramas ou centímetros
+ok  os quatro temas declaram exatamente seis cores e o CSS não duplica paletas
+ok  Prático carrega só Inter e Cantina não registra fonte monoespaçada
+ok  prensado-completo: remover originais não desconta; acrescentar cobra por ocorrência
+ok  prensado-frango: remover originais não desconta; acrescentar cobra por ocorrência
+ok  prensado-calabresa: remover originais não desconta; acrescentar cobra por ocorrência
+ok  prensado-meia-noite: remover originais não desconta; acrescentar cobra por ocorrência
+ok  x-salada: remover originais não desconta; acrescentar cobra por ocorrência
+ok  x-tudo: remover originais não desconta; acrescentar cobra por ocorrência
+ok  montador desconta a camada retirada e mantém o modo depois de salvar
+ok  identidade e piso do fixo sobrevivem a duas edições
+ok  repetições são diferenças de multiconjunto, não de posição ou conjunto
+ok  observações distintas e modos de preço distintos não fundem linhas
+ok  prensado-completo: essenciais marcadas não renderizam controle de remover
+ok  prensado-frango: essenciais marcadas não renderizam controle de remover
+ok  prensado-calabresa: essenciais marcadas não renderizam controle de remover
+ok  prensado-meia-noite: essenciais marcadas não renderizam controle de remover
+ok  x-salada: essenciais marcadas não renderizam controle de remover
+ok  x-tudo: essenciais marcadas não renderizam controle de remover
+ok  validação aponta cada falta e exige endereço apenas na entrega
+ok  WhatsApp tem o número real e texto codificado, com entrega, troco e notas
+ok  entrada: orçamento do script pré-paint <= 1,4s, ignição <= 800ms e subida <= 500ms
+ok  segunda visita e movimento reduzido não têm timer de entrada
+
+57 testes de regras passaram. Geometria de tela e capturas dependem de npm run qa.

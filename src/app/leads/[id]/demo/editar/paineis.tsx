@@ -12,6 +12,7 @@ import { ordemEfetiva, secaoAnimada } from "@/lib/demos/estrutura";
 import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
 import { baseImagemSlot } from "@/lib/demos/imagens-modo";
 import { LED_ESTILOS } from "@/lib/demos/led/registry";
+import { PainelLancheria, TemaLancheria } from "./PainelLancheria";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import { SKINS } from "@/lib/demos/registry";
@@ -197,6 +198,7 @@ export function PainelConteudo({
   idioma?: string;
   moeda?: string;
 }) {
+  if (dados.lancheria) return <PainelLancheria dados={dados} atualizar={atualizar} />;
   const setSecaoCampo = (id: string, campo: string, valor: string) =>
     atualizar((d) => ({
       ...d,
@@ -1317,6 +1319,7 @@ export function PainelTema({
   onPaisChange?: (pais: string) => void;
   paisSalvando?: boolean;
 }) {
+  if (skin.themeDefault.lancheria) return <TemaLancheria skin={skin} onSkinChange={onSkinChange} tema={tema} setTema={setTema} />;
   const preset = skin.themePresets.find((t) => t.id === themeId) ?? skin.themeDefault;
   const destaque = tema.destaque ?? preset.paleta.destaque;
 

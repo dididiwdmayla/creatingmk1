@@ -1,3 +1,4 @@
+import type { Tema as TemaLancheria, DadosLancheria, Casa } from "@radar/lancheria-rx/contrato";
 import type { ComponentType } from "react";
 
 /**
@@ -144,7 +145,13 @@ export const IMAGENS_MODOS: readonly ImagensModo[] = ["foto", "grafico"];
  * telefone…) são os que a ficha do lead pré-preenche; `secoes` e `imagens`
  * usam chaves definidas por cada skin.
  */
+export type DemoLancheria = Omit<DadosLancheria, "casa"> & {
+  funcionamento: Pick<Casa, "abre" | "fecha" | "fuso" | "pagamento"> & { confirmado: boolean };
+};
+
 export interface DemoData {
+  /** Catálogo comercial. Não contém medidas, sombras ou parâmetros do motor. */
+  lancheria?: DemoLancheria;
   nome: string;
   slogan?: string;
   endereco?: string;
@@ -222,6 +229,9 @@ export type CliqueEstilo = "nenhum" | "pressao" | "pulso";
 export const CLIQUE_ESTILOS: readonly CliqueEstilo[] = ["nenhum", "pressao", "pulso"];
 
 export interface ThemePaleta {
+  /** Papéis semânticos independentes. Obrigatórios nas skins de lancheria com raio-x. */
+  quente?: string;
+  frio?: string;
   fundo: string;
   fundoAlt: string;
   fundoElevado: string;
@@ -370,6 +380,8 @@ export interface CoresModoValor {
 
 /** Tokens visuais de um tema de skin. */
 export interface Theme {
+  /** Knobs da identidade, injetados pela definição da skin. Nunca por URL pública. */
+  lancheria?: TemaLancheria;
   id: string;
   nome: string;
   paleta: ThemePaleta;
@@ -507,6 +519,9 @@ export interface SkinSecaoDef {
  * (ver aplicarTema em ./tema.ts).
  */
 export interface TemaPatch {
+  /** Comida (preço/CTA) e sistema (medição/estado), sem accent genérico. */
+  quente?: string;
+  frio?: string;
   /** Id da fonte curada para títulos (fontes.display). */
   fonteDisplay?: string;
   /** Id da fonte curada para o corpo (fontes.corpo). */
@@ -562,6 +577,8 @@ export interface TemaPatch {
 
 /** Entrada do registro de skins (ver ./registry.tsx). */
 export interface SkinDefinition {
+  /** Escopo regional explícito de uma skin ainda sem localização. */
+  localeFixo?: { idioma: string; moeda: string };
   id: string;
   /** Nicho a que a skin se destina (ex.: "barbearia"). */
   nicho: string;

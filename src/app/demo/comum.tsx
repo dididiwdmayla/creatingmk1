@@ -66,6 +66,7 @@ export type DemoResolvida = NonNullable<Awaited<ReturnType<typeof resolverDemo>>
 export async function resolverDemo(fonte: FonteDemo) {
   const skin = getSkin(fonte.demo.skinId);
   if (!skin) return undefined;
+  if (skin.localeFixo) fonte={...fonte,...skin.localeFixo};
 
   const theme = aplicarTema(
     getTheme(skin, fonte.demo.themeId),
@@ -82,7 +83,7 @@ export async function resolverDemo(fonte: FonteDemo) {
 
   // Só busca (import dinâmico) as fontes curadas que o editor de fato
   // escolheu — o resto da lista nunca chega a ser fetched pelo cliente.
-  const extraFontClassName = await resolveExtraFontClassNames(fontesEscolhidas(fonte.demo.tema));
+  const extraFontClassName = skin.themeDefault.lancheria ? "" : await resolveExtraFontClassNames(fontesEscolhidas(fonte.demo.tema));
 
   // Efeito de fundo (registro de efeitos) + intensidade — undefined cobre
   // tanto "nenhum" quanto um id que não existe mais no registro. Nunca deve
@@ -261,7 +262,7 @@ export function PaginaDemo({
   const { skin, theme, data, extraFontClassName, efeitoFundo, camada, fonte } = resolvida;
   const Skin = skin.componente;
   return (
-    <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
+    <div className={`${theme.lancheria ? "" : demoCoreFontsClassName} ${extraFontClassName}`}>
       {/*
         O layout raiz fixa <html lang="pt-BR"> (compartilhado por todo o
         app — Radar é uma ferramenta interna em pt-BR). A demo pública é a
