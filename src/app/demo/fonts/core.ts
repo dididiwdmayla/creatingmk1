@@ -20,7 +20,7 @@ import {
 
 /**
  * Fontes SEMPRE presentes nos presets das skins de barbearia e tatuagem
- * (themes.ts de cada uma) — carregadas estaticamente (preload default)
+ * (themes.ts de cada uma) — declaradas estaticamente (sem preload; download só quando usadas)
  * porque toda demo renderiza pelo menos uma delas, não importa o preset
  * escolhido. As demais fontes da lista curada (src/lib/demos/fontes.ts)
  * só existem para override opcional do editor e são carregadas sob
@@ -30,28 +30,33 @@ import {
 const bebas = Bebas_Neue({
   variable: "--font-demo-bebas",
   subsets: ["latin"],
+  preload: false,
   weight: "400",
 });
 
 const inter = Inter({
   variable: "--font-demo-inter",
   subsets: ["latin"],
+  preload: false,
 });
 
 const mono = JetBrains_Mono({
   variable: "--font-demo-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 const crimson = Crimson_Pro({
   variable: "--font-demo-crimson",
   subsets: ["latin"],
+  preload: false,
   weight: "400",
 });
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-demo-cormorant",
   subsets: ["latin"],
+  preload: false,
   weight: ["400", "600", "700"],
   style: ["normal", "italic"],
 });
@@ -61,6 +66,7 @@ const cormorant = Cormorant_Garamond({
 const playfair = Playfair_Display({
   variable: "--font-demo-playfair",
   subsets: ["latin"],
+  preload: false,
   weight: "900",
   style: "italic",
 });
@@ -68,6 +74,7 @@ const playfair = Playfair_Display({
 const limelight = Limelight({
   variable: "--font-demo-limelight",
   subsets: ["latin"],
+  preload: false,
   weight: "400",
 });
 
@@ -76,6 +83,7 @@ const limelight = Limelight({
 const pirata = Pirata_One({
   variable: "--font-demo-pirata",
   subsets: ["latin"],
+  preload: false,
   weight: "400",
 });
 
@@ -85,6 +93,7 @@ const pirata = Pirata_One({
 const fugaz = Fugaz_One({
   variable: "--font-demo-fugaz",
   subsets: ["latin"],
+  preload: false,
   weight: "400",
 });
 
@@ -99,6 +108,7 @@ const fugaz = Fugaz_One({
 const fraunces = Fraunces({
   variable: "--font-demo-fraunces",
   subsets: ["latin"],
+  preload: false,
   weight: ["300", "400", "500", "600"],
   style: ["normal", "italic"],
 });
@@ -111,6 +121,7 @@ const fraunces = Fraunces({
 const playfairBlack = Playfair_Display({
   variable: "--font-demo-playfair-black",
   subsets: ["latin"],
+  preload: false,
   weight: ["400", "900"],
 });
 
@@ -122,6 +133,7 @@ const playfairBlack = Playfair_Display({
 const dmSerif = DM_Serif_Display({
   variable: "--font-demo-dm-serif",
   subsets: ["latin"],
+  preload: false,
   weight: "400",
   style: ["normal", "italic"],
 });
@@ -134,6 +146,7 @@ const dmSerif = DM_Serif_Display({
 const archivo = Archivo({
   variable: "--font-demo-archivo",
   subsets: ["latin"],
+  preload: false,
   weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
 });
@@ -145,6 +158,7 @@ const archivo = Archivo({
 const hankenGrotesk = Hanken_Grotesk({
   variable: "--font-demo-hanken",
   subsets: ["latin"],
+  preload: false,
   weight: ["400", "500", "600", "700"],
 });
 
@@ -154,6 +168,7 @@ const hankenGrotesk = Hanken_Grotesk({
 const bodoni = Bodoni_Moda({
   variable: "--font-demo-bodoni",
   subsets: ["latin"],
+  preload: false,
   weight: ["700", "800"],
 });
 
@@ -166,6 +181,7 @@ const bodoni = Bodoni_Moda({
 const oswald = Oswald({
   variable: "--font-demo-oswald",
   subsets: ["latin"],
+  preload: false,
   weight: ["400", "500", "600"],
 });
 
@@ -178,6 +194,7 @@ const oswald = Oswald({
 const instrumentSerif = Instrument_Serif({
   variable: "--font-demo-instrument-serif",
   subsets: ["latin"],
+  preload: false,
   weight: "400",
   style: ["normal", "italic"],
 });
@@ -185,6 +202,7 @@ const instrumentSerif = Instrument_Serif({
 const instrumentSans = Instrument_Sans({
   variable: "--font-demo-instrument-sans",
   subsets: ["latin"],
+  preload: false,
   weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
 });

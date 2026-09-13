@@ -8,17 +8,20 @@ import "./globals.css";
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
   subsets: ["latin"],
+  preload: false,
   weight: ["500", "700"],
 });
 
 const inter = Inter({
   variable: "--font-body",
   subsets: ["latin"],
+  preload: false,
 });
 
 const jetBrainsMono = JetBrains_Mono({
   variable: "--font-mono-data",
   subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {

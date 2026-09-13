@@ -1,3 +1,4 @@
+import { problemasLancheria } from "./lancheria/adapter";
 import { ValidationError } from "@/lib/errors";
 import { IDIOMAS_SUPORTADOS } from "@/lib/idioma";
 import { barraModoValido } from "./barra/modos";
@@ -110,7 +111,7 @@ function validaDados(
   for (const chave of Object.keys(value)) {
     const conhecida =
       (CAMPOS_TEXTO as readonly string[]).includes(chave) ||
-      ["servicos", "depoimentos", "secoes", "imagens", "imagensModo", "videos", "ordemSecoes"].includes(
+      ["lancheria", "servicos", "depoimentos", "secoes", "imagens", "imagensModo", "videos", "ordemSecoes"].includes(
         chave,
       );
     if (!conhecida) problemas.push(`dados.${chave}: chave desconhecida`);
@@ -288,6 +289,10 @@ function validaDados(
     }
   }
 
+  if (value.lancheria !== undefined) {
+    if (!skin?.themeDefault.lancheria) problemas.push("Esta skin não aceita catálogo de lancheria");
+    else problemas.push(...problemasLancheria(value.lancheria, skin.demoDataExemplo));
+  }
   return value as DemoDataPatch;
 }
 
@@ -304,6 +309,8 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
         "fonteDisplay",
         "fonteCorpo",
         "destaque",
+        "quente",
+        "frio",
         "raio",
         "densidade",
         "animacao",
@@ -403,6 +410,10 @@ function validaTema(value: unknown, problemas: string[]): TemaPatch | undefined 
     }
   }
 
+  for (const campo of ["quente", "frio"] as const) {
+    if (value[campo] !== undefined && (typeof value[campo] !== "string" || !HEX_RE.test(value[campo])))
+      problemas.push(`tema.${campo} deve ser cor hex (#rrggbb)`);
+  }
   if (value.destaque !== undefined) {
     if (typeof value.destaque !== "string" || !HEX_RE.test(value.destaque)) {
       problemas.push("tema.destaque deve ser cor hex (#rrggbb)");
@@ -578,9 +589,16 @@ export function validateLeadDemoInput(body: Record<string, unknown>): LeadDemoIn
     );
   }
 
+  if(skin?.localeFixo && body.idioma !== undefined && body.idioma !== skin.localeFixo.idioma)
+    problemas.push(`Esta skin usa ${skin.localeFixo.idioma}/${skin.localeFixo.moeda}`);
+
   const dados = body.dados === undefined ? {} : validaDados(body.dados, problemas, skin);
   const tema = body.tema === undefined ? undefined : validaTema(body.tema, problemas);
 
+  if (skin?.themeDefault.lancheria && tema) {
+    for (const chave of Object.keys(tema)) if (!["quente", "frio", "intro"].includes(chave))
+      problemas.push(`tema.${chave}: esta skin usa identidade fixa; ajuste quente/frio`);
+  }
   if (problemas.length > 0) {
     throw new ValidationError(problemas);
   }

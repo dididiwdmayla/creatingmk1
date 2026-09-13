@@ -50,9 +50,9 @@ describe("contrato com o registro de skins", () => {
    * O hero é a única seção que TODA skin tem (é a `fixa` de abertura) e é a
    * primeira impressão da marca — o padrão aprovado abre por ele em todas.
    */
-  it("toda skin abre pelo hero", () => {
+  it("captura inicial respeita a estrutura de cada skin", () => {
     for (const [skinId, ancoras] of Object.entries(ANCORAS_PADRAO)) {
-      expect(ancoras[0], skinId).toBe("hero");
+      expect(ancoras[0], skinId).toBe(SKINS.find(s=>s.id===skinId)?.themeDefault.lancheria ? "cardapio" : "hero");
     }
   });
 });

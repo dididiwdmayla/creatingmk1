@@ -103,6 +103,8 @@ export function montarPatch(
     if (valor !== baseValor) patch[campo] = valor;
   }
 
+  if (!igualJson(atual.lancheria, base.lancheria)) patch.lancheria = atual.lancheria;
+
   if (!igualJson(atual.servicos, base.servicos)) patch.servicos = atual.servicos;
   if (!igualJson(atual.depoimentos, base.depoimentos)) patch.depoimentos = atual.depoimentos;
 

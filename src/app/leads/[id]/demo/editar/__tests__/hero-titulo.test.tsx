@@ -48,15 +48,20 @@ describe("PainelConteudo — campo do título hero", () => {
   it.each(SKINS.map((s, i) => [s.id, i] as const))(
     "%s monta o campo campo-secoes.hero.titulo (o slot que o preview foca)",
     (_id, i) => {
-      const { html } = markup(i);
-      expect(html).toContain('id="campo-secoes.hero.titulo"');
+      const { html, skin } = markup(i);
+      expect(html).toContain(skin.themeDefault.lancheria?'id="campo-lancheria.textos.heroTitulo"':'id="campo-secoes.hero.titulo"');
     },
   );
 
   it.each(SKINS.map((s, i) => [s.id, i] as const))(
     "%s mostra no campo o título efetivo do lead, não o nome cru",
     (_id, i) => {
-      const { dados, html } = markup(i);
+      const { dados, html, skin } = markup(i);
+      if(skin.themeDefault.lancheria){
+        const campo=html.slice(html.indexOf('id="campo-lancheria.textos.heroTitulo"'));
+        expect(campo.slice(0,240)).toContain(dados.lancheria!.textos.heroTitulo);
+        return;
+      }
       // O que a skin renderiza é exatamente o que o campo edita.
       expect(dados.secoes.hero?.titulo).toBe(quebrarTitulo(LEAD.nome));
       const campo = html.slice(html.indexOf('id="campo-secoes.hero.titulo"'), -1);

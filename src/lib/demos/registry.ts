@@ -1,3 +1,4 @@
+import { LANCHERIA_RX_SKINS } from "@/components/demos/lancheria-rx/skins";
 import { BARBEARIA_EXEMPLO } from "@/components/demos/barbearia/exemplo";
 import { BARBEARIA_SECOES } from "@/components/demos/barbearia/secoes";
 import { BarbeariaEditorial } from "@/components/demos/barbearia/Skin";
@@ -204,6 +205,7 @@ export const SKINS: SkinDefinition[] = [
     // Editorial itálica + sans arredondada — o par tipográfico do material bruto.
     fontesRecomendadas: ["instrument-serif", "poppins", "cormorant", "montserrat", "josefin", "dm-sans"],
   },
+  ...LANCHERIA_RX_SKINS,
 ];
 
 export const DEFAULT_SKIN: SkinDefinition = SKINS[0];

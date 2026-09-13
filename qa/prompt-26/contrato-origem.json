@@ -1,0 +1,269 @@
+{
+  "base": "8510f857b0f1ed0bb773445cda54f2f764e6b9e7",
+  "motor": 11,
+  "assets": 54,
+  "arquivos": {
+    "components/raio-x/prensa.ts": {
+      "bytes": 11688,
+      "sha256": "7d090189baebfe282d8574963e9a07156514e0686c884ce65efbf6d944cc73df"
+    },
+    "components/raio-x/sombra.ts": {
+      "bytes": 3283,
+      "sha256": "c34833916202ae5c8f2b656860e5a569a5270778e2413bc98bc4a94993193d9f"
+    },
+    "components/raio-x/salto.ts": {
+      "bytes": 5048,
+      "sha256": "4ed2d768efc68316954486a0723276c9b5a85561134ab149c09d5882adfce526"
+    },
+    "components/raio-x/rotulos.ts": {
+      "bytes": 2883,
+      "sha256": "e0c85a5a48ffa01365b4c6c0e71be0c5e8feb6c5befac1c26c37247afe4e2d7b"
+    },
+    "components/raio-x/Camada.tsx": {
+      "bytes": 13318,
+      "sha256": "cc952fde2d233cb6ac220195e4b2f1692241f66e2519627e4d282c77b465addb"
+    },
+    "components/raio-x/Medidor.tsx": {
+      "bytes": 6332,
+      "sha256": "d8b83dd18f0a8781c96a8cdf14434eb43b6e1ff4a043621e1b436d3445022124"
+    },
+    "data/baselines.json": {
+      "bytes": 36113,
+      "sha256": "90fdfbcf4fa7df1c361da607634b7f2149846e088be09152a53557d99d8916f3"
+    },
+    "data/camadas.ts": {
+      "bytes": 5474,
+      "sha256": "ac9b61d31b779f27418464439ef52fac62f73bf8dc6d52736349a768361ff54c"
+    },
+    "data/casa.ts": {
+      "bytes": 595,
+      "sha256": "f40edef0efeda6028f91b715fe0a6201375f01dd8c4d036d2773a1590275a1a2"
+    },
+    "lib/motion.ts": {
+      "bytes": 1542,
+      "sha256": "edb328a0a9e619220bc8f317b9f4b36d39768da4ef3b06ca7175fb895d94c11e"
+    },
+    "lib/avisoOrdem.ts": {
+      "bytes": 674,
+      "sha256": "3522ca4f9add361fa2fefa178e189a8b1347b00b5c608094d41b658cf323de68"
+    },
+    "public/camadas/alface.webp": {
+      "bytes": 74768,
+      "sha256": "96ffdabd48b57941cdb2a8bf4ab215de4b65e8f24781f5a1b516fad0d5ea7bdd"
+    },
+    "public/camadas/bacon.webp": {
+      "bytes": 71182,
+      "sha256": "8e1ba57cbd55b9cba71645ab2f685cb202e36b65b09fe8804bdedf29a9fd4ea2"
+    },
+    "public/camadas/batata-palha.webp": {
+      "bytes": 62402,
+      "sha256": "96b042def1831704898dec364a1ba1cb318f1f954b1604aa648e8dd88e9db015"
+    },
+    "public/camadas/calabresa.webp": {
+      "bytes": 65130,
+      "sha256": "705a9caab0edca2570d20c0f6af01ba970288342495c661515c23ffdf1f5d509"
+    },
+    "public/camadas/carne.webp": {
+      "bytes": 71594,
+      "sha256": "de70692b1f93aefa1920a0e1a9b5c0cf4e958f1871681e58493c4ed68cc216e0"
+    },
+    "public/camadas/cebola.webp": {
+      "bytes": 52848,
+      "sha256": "34cbaf7a5ee76632daeb9058b7d91102062cc605abf3fbfccb3df67821028e5d"
+    },
+    "public/camadas/frango-desfiado.webp": {
+      "bytes": 60892,
+      "sha256": "68abb153ec3e7490c83b967a639b36ac74abdb081a2d715a757333845eb86400"
+    },
+    "public/camadas/milho.webp": {
+      "bytes": 34678,
+      "sha256": "b212ea0462872aace673626999000c3a8b9ebd786f693cc10804bb23bea3fc6b"
+    },
+    "public/camadas/molho.webp": {
+      "bytes": 18706,
+      "sha256": "a2374dc012cbaf87f29cf74d44dd03842fd1aa205b3d22bec8c618ff0ffdae06"
+    },
+    "public/camadas/ovo.webp": {
+      "bytes": 34384,
+      "sha256": "5d3f5aa15898c891b9020e23e860385d825cc9dd4443cd4f08154b5bb23e0f64"
+    },
+    "public/camadas/pao-base.webp": {
+      "bytes": 46502,
+      "sha256": "2effec66c67a2a84817c61c94397eb7da4133b4a026a75697c2889837f0fb7f9"
+    },
+    "public/camadas/pao-prensado-base.webp": {
+      "bytes": 52684,
+      "sha256": "a479e33353ea4e23eadc993eecb7ee52883c16599d3a6b2e57f9df650cce4da3"
+    },
+    "public/camadas/pao-prensado-topo.webp": {
+      "bytes": 58212,
+      "sha256": "5f575a3b313b280f36bd9a937766c3b521e60ac64d9fd3b2af5a3c6c592f4a22"
+    },
+    "public/camadas/pao-topo.webp": {
+      "bytes": 65964,
+      "sha256": "5ec8a938247481d3827524aa64c042d2daf25ed388060a49bcf249cebf470b7a"
+    },
+    "public/camadas/presunto.webp": {
+      "bytes": 33368,
+      "sha256": "405e86b71dc62b26d395bc1f0b6e885b33d74f1ec25372991ead706ae0ca00e3"
+    },
+    "public/camadas/queijo-ralado.webp": {
+      "bytes": 39834,
+      "sha256": "903e384e3b5171549566304eef5f0ad40fef49d33b120857dfa2c95204b0c59c"
+    },
+    "public/camadas/queijo.webp": {
+      "bytes": 25756,
+      "sha256": "a8c8274a45ea9c287906436bd8307cd4f3334f6fa6bf33f644ecdd129c8db5a2"
+    },
+    "public/camadas/salsicha.webp": {
+      "bytes": 41976,
+      "sha256": "333ee79e4d8e2deed07c05b7053340036e964d368dd71d3b78200cea35c8f757"
+    },
+    "public/camadas/tomate.webp": {
+      "bytes": 31848,
+      "sha256": "e558e47f182b57c04a1fc9e2b86e0f46a7d08c71d2a460f2cdcf42035c9f5121"
+    },
+    "public/fixos/cachorro-quente.webp": {
+      "bytes": 113074,
+      "sha256": "0acada750743b7e61610887206b6204b4dd4a812c2aa8fb5e8aacd1a439b90ff"
+    },
+    "public/fixos/prensado-calabresa.webp": {
+      "bytes": 161618,
+      "sha256": "94019228e0b83bf6524bf6b8ba5a72b79b61d900400959cf8d479c804f8d148a"
+    },
+    "public/fixos/prensado-completo.webp": {
+      "bytes": 144468,
+      "sha256": "947a9689fcb882a476814a881e194bddb91de8e509976f97f6458085f23ca2db"
+    },
+    "public/fixos/prensado-frango.webp": {
+      "bytes": 133540,
+      "sha256": "5caf3f0f026e4730248d29366aea2f1811cc3f55f18429f26b3fa79d27105e5b"
+    },
+    "public/fixos/prensado-meia-noite.webp": {
+      "bytes": 152722,
+      "sha256": "bc3209ebdd74fd8ab90ba41cf82df10ebf987bd107e4e8b535958b707394efe8"
+    },
+    "public/fixos/x-bacon.webp": {
+      "bytes": 160880,
+      "sha256": "e59c88b1b0b01389545ada2cb3e54ad301a0f5d65da92d33c3bac5c81125919f"
+    },
+    "public/fixos/x-calabresa.webp": {
+      "bytes": 182968,
+      "sha256": "7faf37fdb62824ba22750d25b6ca72b2fbcc09fe7ad808fc817acaf0e3de575b"
+    },
+    "public/fixos/x-frango.webp": {
+      "bytes": 177224,
+      "sha256": "cab88085769b4b696e1af7f3ef2b248a5d8adb193fa2c6b6888e0bc7b5752724"
+    },
+    "public/fixos/x-salada.webp": {
+      "bytes": 152988,
+      "sha256": "7f488347dc1f2febd2b880ef70edff5c1de512a92900435990f53efec151ca94"
+    },
+    "public/fixos/x-tudo.webp": {
+      "bytes": 174400,
+      "sha256": "0d6b3355da912c51abd38c54f81e49c99bff186332a43f9a3a3a10f45f7881d7"
+    },
+    "public/chapa/chapa-selagem.webp": {
+      "bytes": 264362,
+      "sha256": "46ec44d502a882483d897e4495759a8a385bc6cd0767401dd6cc3db2d347f249"
+    },
+    "public/chapa/chapa-vazia.webp": {
+      "bytes": 202342,
+      "sha256": "b9c68e218942d6e4dce8dc9b19703c36927dd84157e213dab8f6a01456e74c3b"
+    },
+    "public/macro/macro-chapa.webp": {
+      "bytes": 486536,
+      "sha256": "ee6fd56cf732e8fe830e1c79e36e5539bace3df9a7f2539585c70097b07fee51"
+    },
+    "public/macro/macro-corte.webp": {
+      "bytes": 239260,
+      "sha256": "4a556e4b5e644c1c7655c4dffa645fe72ab6817cd9263a31e6278b21ff86638a"
+    },
+    "public/macro/macro-pao.webp": {
+      "bytes": 139494,
+      "sha256": "1d71df96611c9f9eab127aa2c4bb56aa9e2cba08e8c218edb6a25b1217a0a806"
+    },
+    "public/macro/macro-queijo.webp": {
+      "bytes": 73128,
+      "sha256": "c6f791241c5f2691ffd48ae9246373fe40e88b201ba4fb4a0dd1afd63b91b243"
+    },
+    "public/fichas/alface.webp": {
+      "bytes": 20866,
+      "sha256": "8fdec921854ca0a020ec4ab2397fb17708109ec2c0fbf1ab905fba3fec2e8009"
+    },
+    "public/fichas/bacon.webp": {
+      "bytes": 19614,
+      "sha256": "08360f2f6c0e8ff5da2fe57a41a77616b215e2809fdf2a611fdf9f5309e56008"
+    },
+    "public/fichas/batata-palha.webp": {
+      "bytes": 19862,
+      "sha256": "3717bbe77f6cfd6996b67becf9d9963ca7e7453ce0aad70dc336a77ce5c04700"
+    },
+    "public/fichas/calabresa.webp": {
+      "bytes": 19290,
+      "sha256": "ebeb094ff632034524ebd62f1be3c003ee3eab97ed97be3ebece0a0e6de213ab"
+    },
+    "public/fichas/carne.webp": {
+      "bytes": 20344,
+      "sha256": "a245e811008c9726aff0e4e40dbb13f3eefb13dcc99dbb1043332527bc93aefc"
+    },
+    "public/fichas/cebola.webp": {
+      "bytes": 17828,
+      "sha256": "488246296f871637f313c6b62056b2bd897e783fd7229ff778e72f2296ed1655"
+    },
+    "public/fichas/frango-desfiado.webp": {
+      "bytes": 16722,
+      "sha256": "ddd2e6c5b705f312fa1b87102c2d2d2a38ee29737bb08335bceaf1c3573d7d1f"
+    },
+    "public/fichas/milho.webp": {
+      "bytes": 12530,
+      "sha256": "a0f0465339992138e183e779227d336991ff661888c7441d064a138006c2d8ad"
+    },
+    "public/fichas/molho.webp": {
+      "bytes": 9036,
+      "sha256": "2d095d63666d5d8f7a1e1846ec07f663a61cf0dbe11f292d52743d67e94dbdb5"
+    },
+    "public/fichas/ovo.webp": {
+      "bytes": 10302,
+      "sha256": "6cc78be93a83662627cd4876c850e19792d2e87849a42c845dd6f14d6183701e"
+    },
+    "public/fichas/pao-base.webp": {
+      "bytes": 11926,
+      "sha256": "4b7139f9260adb2ab57569433d954c6e5d5ee2a952f3381689a8c1629608e25a"
+    },
+    "public/fichas/pao-prensado-base.webp": {
+      "bytes": 13344,
+      "sha256": "34c4210b9ef6df1271a9f10c9f9d47cd19ac41e2f26fa97974229746bd38439f"
+    },
+    "public/fichas/pao-prensado-topo.webp": {
+      "bytes": 14364,
+      "sha256": "44fb9249950cdf286bc598e0f44cd82d155f0733620017ac3a9061042ef05697"
+    },
+    "public/fichas/pao-topo.webp": {
+      "bytes": 15384,
+      "sha256": "466f83a5c7786556b4a567fe79be2c9c130dd18eeae97362cc6c5e2342460dd2"
+    },
+    "public/fichas/presunto.webp": {
+      "bytes": 12172,
+      "sha256": "ba14ef8a125b290795488e570453b8d91d6a064c97749449467f581091256a48"
+    },
+    "public/fichas/queijo-ralado.webp": {
+      "bytes": 13006,
+      "sha256": "296f597363b8123214071fc4204906ca9e5b97f14d6b244983ce1afa80106306"
+    },
+    "public/fichas/queijo.webp": {
+      "bytes": 11636,
+      "sha256": "2d359f793c527c33657bf8d6a6b49fb269a206cd6d970c048b32cf1125ff4d64"
+    },
+    "public/fichas/salsicha.webp": {
+      "bytes": 10258,
+      "sha256": "3231d992866b822892035ce5991956eb9b017dfeb75a8c9be29ebb318fb28112"
+    },
+    "public/fichas/tomate.webp": {
+      "bytes": 10040,
+      "sha256": "ff064f394614acfdd639f5a690ad4b8d6194481cac3b6a1a40f5c92c18a3a92f"
+    }
+  },
+  "slugEmComponente": false,
+  "dadosDaCasaEmComponente": false
+}

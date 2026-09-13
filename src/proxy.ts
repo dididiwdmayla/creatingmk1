@@ -90,6 +90,6 @@ export const config = {
   // navegador pra decidir se oferece "instalar" ANTES do login (extensão
   // .webmanifest não cai no padrão de arquivos abaixo).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2|ico|css|js|map|txt|xml)$).*)",
   ],
 };

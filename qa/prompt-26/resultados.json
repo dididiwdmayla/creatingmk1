@@ -1,0 +1,1469 @@
+{
+  "checks": [
+    {
+      "ok": true,
+      "txt": "meia-noite: identidade já vem no HTML do servidor"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite: skin escolhida no servidor sem ?tema="
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite: 4 itens completos na entrada"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite/390: largura e alvos []"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite: papéis quente/frio"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite: raio-x sem overflow, 44px, semântica"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite: mesmas dez camadas"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite: aviso na primeira reordenação"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite: aviso não repete"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite/320: sem overflow e alvos 44px"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite: query não altera identidade publicada"
+    },
+    {
+      "ok": true,
+      "txt": "meia-noite: nenhum erro de página "
+    },
+    {
+      "ok": true,
+      "txt": "diner: identidade já vem no HTML do servidor"
+    },
+    {
+      "ok": true,
+      "txt": "diner: skin escolhida no servidor sem ?tema="
+    },
+    {
+      "ok": true,
+      "txt": "diner: 6 itens completos na entrada"
+    },
+    {
+      "ok": true,
+      "txt": "diner/390: largura e alvos []"
+    },
+    {
+      "ok": true,
+      "txt": "diner: papéis quente/frio"
+    },
+    {
+      "ok": true,
+      "txt": "Diner: foto abre composição"
+    },
+    {
+      "ok": true,
+      "txt": "diner: raio-x sem overflow, 44px, semântica"
+    },
+    {
+      "ok": true,
+      "txt": "diner: mesmas dez camadas"
+    },
+    {
+      "ok": true,
+      "txt": "diner: aviso na primeira reordenação"
+    },
+    {
+      "ok": true,
+      "txt": "diner: aviso não repete"
+    },
+    {
+      "ok": true,
+      "txt": "diner/320: sem overflow e alvos 44px"
+    },
+    {
+      "ok": true,
+      "txt": "diner: query não altera identidade publicada"
+    },
+    {
+      "ok": true,
+      "txt": "diner: nenhum erro de página "
+    },
+    {
+      "ok": true,
+      "txt": "pratico: identidade já vem no HTML do servidor"
+    },
+    {
+      "ok": true,
+      "txt": "pratico: skin escolhida no servidor sem ?tema="
+    },
+    {
+      "ok": true,
+      "txt": "pratico: 4 itens completos na entrada"
+    },
+    {
+      "ok": true,
+      "txt": "pratico/390: largura e alvos []"
+    },
+    {
+      "ok": true,
+      "txt": "pratico: papéis quente/frio"
+    },
+    {
+      "ok": true,
+      "txt": "pratico: raio-x sem overflow, 44px, semântica"
+    },
+    {
+      "ok": true,
+      "txt": "pratico: mesmas dez camadas"
+    },
+    {
+      "ok": true,
+      "txt": "Prático baixa somente Inter: Inter"
+    },
+    {
+      "ok": true,
+      "txt": "pratico: aviso na primeira reordenação"
+    },
+    {
+      "ok": true,
+      "txt": "pratico: aviso não repete"
+    },
+    {
+      "ok": true,
+      "txt": "pratico/320: sem overflow e alvos 44px"
+    },
+    {
+      "ok": true,
+      "txt": "pratico: query não altera identidade publicada"
+    },
+    {
+      "ok": true,
+      "txt": "pratico: nenhum erro de página "
+    },
+    {
+      "ok": true,
+      "txt": "cantina: identidade já vem no HTML do servidor"
+    },
+    {
+      "ok": true,
+      "txt": "cantina: skin escolhida no servidor sem ?tema="
+    },
+    {
+      "ok": true,
+      "txt": "cantina: 4 itens completos na entrada"
+    },
+    {
+      "ok": true,
+      "txt": "cantina/390: largura e alvos []"
+    },
+    {
+      "ok": true,
+      "txt": "cantina: papéis quente/frio"
+    },
+    {
+      "ok": true,
+      "txt": "Cantina: algarismos antiquários também no raio-x"
+    },
+    {
+      "ok": true,
+      "txt": "cantina: raio-x sem overflow, 44px, semântica"
+    },
+    {
+      "ok": true,
+      "txt": "cantina: mesmas dez camadas"
+    },
+    {
+      "ok": true,
+      "txt": "Cantina sem monoespaçada: Lora, Playfair Display, Playfair Display"
+    },
+    {
+      "ok": true,
+      "txt": "cantina: aviso na primeira reordenação"
+    },
+    {
+      "ok": true,
+      "txt": "cantina: aviso não repete"
+    },
+    {
+      "ok": true,
+      "txt": "cantina/320: sem overflow e alvos 44px"
+    },
+    {
+      "ok": true,
+      "txt": "cantina: query não altera identidade publicada"
+    },
+    {
+      "ok": true,
+      "txt": "cantina: nenhum erro de página "
+    },
+    {
+      "ok": true,
+      "txt": "Diner/cliente: seis nomes longos inteiros, sem reticências"
+    },
+    {
+      "ok": true,
+      "txt": "Cliente: preço próprio no cardápio"
+    },
+    {
+      "ok": true,
+      "txt": "Cliente: nome e contato do Radar"
+    },
+    {
+      "ok": true,
+      "txt": "Diner/cliente em 320: nomes inteiros, sem overflow"
+    },
+    {
+      "ok": true,
+      "txt": "Cliente: preço próprio também no raio-x após transição real"
+    },
+    {
+      "ok": true,
+      "txt": "Aviso some sozinho, com movimento normal"
+    },
+    {
+      "ok": true,
+      "txt": "Recarregar mantém aviso consumido na mesma sessão"
+    }
+  ],
+  "dados": {
+    "meia-noite": {
+      "overflow": false,
+      "alvos": [],
+      "limite": 769,
+      "cards": [
+        {
+          "top": 391.09375,
+          "bottom": 568.96875,
+          "w": 175,
+          "h": 177.875
+        },
+        {
+          "top": 391.09375,
+          "bottom": 568.96875,
+          "w": 175,
+          "h": 177.875
+        },
+        {
+          "top": 576.96875,
+          "bottom": 754.84375,
+          "w": 175,
+          "h": 177.875
+        },
+        {
+          "top": 576.96875,
+          "bottom": 754.84375,
+          "w": 175,
+          "h": 177.875
+        }
+      ],
+      "completos": 4,
+      "nomes": [
+        {
+          "nome": "Prensado Completo",
+          "linhas": 1.9997427983539093,
+          "font": "18px",
+          "w": 157,
+          "h": 38.875,
+          "inteiro": false
+        },
+        {
+          "nome": "Prensado de Frango",
+          "linhas": 1.9997427983539093,
+          "font": "18px",
+          "w": 157,
+          "h": 38.875,
+          "inteiro": false
+        },
+        {
+          "nome": "Prensado de Calabresa",
+          "linhas": 1.9997427983539093,
+          "font": "18px",
+          "w": 157,
+          "h": 38.875,
+          "inteiro": false
+        },
+        {
+          "nome": "Prensado Meia-Noite",
+          "linhas": 1.9997427983539093,
+          "font": "18px",
+          "w": 157,
+          "h": 38.875,
+          "inteiro": false
+        }
+      ],
+      "precos": true,
+      "medidas": true,
+      "fontes": [
+        "Archivo",
+        "Fraunces",
+        "Fraunces",
+        "IBM Plex Mono"
+      ],
+      "arquivosFonte": [
+        "/_next/static/media/03bda585a99c6450-s.32sris142tqlb.woff2",
+        "/fontes/archivo-latin-standard-normal.woff2",
+        "/fontes/fraunces-latin-full-normal.woff2",
+        "/fontes/ibm-plex-mono-latin-500-normal.woff2"
+      ],
+      "rx": {
+        "overflow": false,
+        "alvos": [],
+        "limite": 844,
+        "cards": [
+          {
+            "top": 149.09375,
+            "bottom": 376.96875,
+            "w": 175,
+            "h": 227.875
+          },
+          {
+            "top": 149.09375,
+            "bottom": 376.96875,
+            "w": 175,
+            "h": 227.875
+          },
+          {
+            "top": 384.96875,
+            "bottom": 562.84375,
+            "w": 175,
+            "h": 177.875
+          },
+          {
+            "top": 384.96875,
+            "bottom": 562.84375,
+            "w": 175,
+            "h": 177.875
+          }
+        ],
+        "completos": 4,
+        "nomes": [
+          {
+            "nome": "Prensado Completo",
+            "linhas": 1.9997427983539093,
+            "font": "18px",
+            "w": 157,
+            "h": 38.875,
+            "inteiro": false
+          },
+          {
+            "nome": "Prensado de Frango",
+            "linhas": 2.642746913580247,
+            "font": "18px",
+            "w": 157,
+            "h": 51.375,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Calabresa",
+            "linhas": 1.9997427983539093,
+            "font": "18px",
+            "w": 157,
+            "h": 38.875,
+            "inteiro": false
+          },
+          {
+            "nome": "Prensado Meia-Noite",
+            "linhas": 1.9997427983539093,
+            "font": "18px",
+            "w": 157,
+            "h": 38.875,
+            "inteiro": false
+          }
+        ],
+        "precos": true,
+        "medidas": true,
+        "fontes": [
+          "Archivo",
+          "Fraunces",
+          "Fraunces",
+          "IBM Plex Mono"
+        ],
+        "arquivosFonte": [
+          "/_next/static/media/03bda585a99c6450-s.32sris142tqlb.woff2",
+          "/fontes/archivo-latin-standard-normal.woff2",
+          "/fontes/fraunces-latin-full-normal.woff2",
+          "/fontes/ibm-plex-mono-latin-500-normal.woff2"
+        ]
+      },
+      "estreito": {
+        "overflow": false,
+        "alvos": [],
+        "limite": 641,
+        "cards": [
+          {
+            "top": 391.09375,
+            "bottom": 568.96875,
+            "w": 140,
+            "h": 177.875
+          },
+          {
+            "top": 391.09375,
+            "bottom": 568.96875,
+            "w": 140,
+            "h": 177.875
+          },
+          {
+            "top": 576.96875,
+            "bottom": 754.84375,
+            "w": 140,
+            "h": 177.875
+          },
+          {
+            "top": 576.96875,
+            "bottom": 754.84375,
+            "w": 140,
+            "h": 177.875
+          }
+        ],
+        "completos": 2,
+        "nomes": [
+          {
+            "nome": "Prensado Completo",
+            "linhas": 1.9997427983539093,
+            "font": "18px",
+            "w": 122,
+            "h": 38.875,
+            "inteiro": false
+          },
+          {
+            "nome": "Prensado de Frango",
+            "linhas": 1.9997427983539093,
+            "font": "18px",
+            "w": 122,
+            "h": 38.875,
+            "inteiro": false
+          },
+          {
+            "nome": "Prensado de Calabresa",
+            "linhas": 1.9997427983539093,
+            "font": "18px",
+            "w": 122,
+            "h": 38.875,
+            "inteiro": false
+          },
+          {
+            "nome": "Prensado Meia-Noite",
+            "linhas": 1.9997427983539093,
+            "font": "18px",
+            "w": 122,
+            "h": 38.875,
+            "inteiro": false
+          }
+        ],
+        "precos": true,
+        "medidas": true,
+        "fontes": [
+          "Archivo",
+          "Fraunces",
+          "Fraunces",
+          "IBM Plex Mono"
+        ],
+        "arquivosFonte": [
+          "/_next/static/media/03bda585a99c6450-s.32sris142tqlb.woff2",
+          "/fontes/fraunces-latin-full-normal.woff2",
+          "/fontes/archivo-latin-standard-normal.woff2",
+          "/fontes/ibm-plex-mono-latin-500-normal.woff2"
+        ]
+      }
+    },
+    "diner": {
+      "overflow": false,
+      "alvos": [],
+      "limite": 769,
+      "cards": [
+        {
+          "top": 299.6875,
+          "bottom": 525.15625,
+          "w": 112.65625,
+          "h": 225.46875
+        },
+        {
+          "top": 299.6875,
+          "bottom": 525.15625,
+          "w": 112.671875,
+          "h": 225.46875
+        },
+        {
+          "top": 299.6875,
+          "bottom": 525.15625,
+          "w": 112.65625,
+          "h": 225.46875
+        },
+        {
+          "top": 535.15625,
+          "bottom": 760.625,
+          "w": 112.65625,
+          "h": 225.46875
+        },
+        {
+          "top": 535.15625,
+          "bottom": 760.625,
+          "w": 112.671875,
+          "h": 225.46875
+        },
+        {
+          "top": 535.15625,
+          "bottom": 760.625,
+          "w": 112.65625,
+          "h": 225.46875
+        }
+      ],
+      "completos": 6,
+      "nomes": [
+        {
+          "nome": "Prensado Completo",
+          "linhas": 2,
+          "font": "14px",
+          "w": 108.65625,
+          "h": 35,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado de Frango",
+          "linhas": 2,
+          "font": "14px",
+          "w": 108.671875,
+          "h": 35,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado de Calabresa",
+          "linhas": 2,
+          "font": "14px",
+          "w": 108.65625,
+          "h": 35,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado Meia-Noite",
+          "linhas": 2,
+          "font": "14px",
+          "w": 108.65625,
+          "h": 35,
+          "inteiro": true
+        },
+        {
+          "nome": "X-Salada",
+          "linhas": 2,
+          "font": "14px",
+          "w": 108.671875,
+          "h": 35,
+          "inteiro": true
+        },
+        {
+          "nome": "X-Tudo",
+          "linhas": 2,
+          "font": "14px",
+          "w": 108.65625,
+          "h": 35,
+          "inteiro": true
+        }
+      ],
+      "precos": true,
+      "medidas": true,
+      "fontes": [
+        "Alfa Slab One",
+        "Space Mono",
+        "Work Sans"
+      ],
+      "arquivosFonte": [
+        "/fontes/work-sans-latin-wght-normal.woff2",
+        "/fontes/alfa-slab-one-latin-400-normal.woff2",
+        "/fontes/space-mono-latin-400-normal.woff2"
+      ],
+      "rx": {
+        "overflow": false,
+        "alvos": [],
+        "limite": 844,
+        "cards": [
+          {
+            "top": 146.6875,
+            "bottom": 435.140625,
+            "w": 112.65625,
+            "h": 288.453125
+          },
+          {
+            "top": 146.6875,
+            "bottom": 435.140625,
+            "w": 112.671875,
+            "h": 288.453125
+          },
+          {
+            "top": 146.6875,
+            "bottom": 435.140625,
+            "w": 112.65625,
+            "h": 288.453125
+          },
+          {
+            "top": 445.140625,
+            "bottom": 670.609375,
+            "w": 112.65625,
+            "h": 225.46875
+          },
+          {
+            "top": 445.140625,
+            "bottom": 670.609375,
+            "w": 112.671875,
+            "h": 225.46875
+          },
+          {
+            "top": 445.140625,
+            "bottom": 670.609375,
+            "w": 112.65625,
+            "h": 225.46875
+          }
+        ],
+        "completos": 6,
+        "nomes": [
+          {
+            "nome": "Prensado Completo",
+            "linhas": 2,
+            "font": "14px",
+            "w": 108.65625,
+            "h": 35,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Frango",
+            "linhas": 2,
+            "font": "14px",
+            "w": 108.671875,
+            "h": 35,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Calabresa",
+            "linhas": 2,
+            "font": "14px",
+            "w": 108.65625,
+            "h": 35,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado Meia-Noite",
+            "linhas": 2,
+            "font": "14px",
+            "w": 108.65625,
+            "h": 35,
+            "inteiro": true
+          },
+          {
+            "nome": "X-Salada",
+            "linhas": 2,
+            "font": "14px",
+            "w": 108.671875,
+            "h": 35,
+            "inteiro": true
+          },
+          {
+            "nome": "X-Tudo",
+            "linhas": 2,
+            "font": "14px",
+            "w": 108.65625,
+            "h": 35,
+            "inteiro": true
+          }
+        ],
+        "precos": true,
+        "medidas": true,
+        "fontes": [
+          "Alfa Slab One",
+          "Space Mono",
+          "Work Sans"
+        ],
+        "arquivosFonte": [
+          "/fontes/work-sans-latin-wght-normal.woff2",
+          "/fontes/alfa-slab-one-latin-400-normal.woff2",
+          "/fontes/space-mono-latin-400-normal.woff2"
+        ]
+      },
+      "estreito": {
+        "overflow": false,
+        "alvos": [],
+        "limite": 641,
+        "cards": [
+          {
+            "top": 299.6875,
+            "bottom": 519.328125,
+            "w": 89.328125,
+            "h": 219.640625
+          },
+          {
+            "top": 299.6875,
+            "bottom": 519.328125,
+            "w": 89.328125,
+            "h": 219.640625
+          },
+          {
+            "top": 299.6875,
+            "bottom": 519.328125,
+            "w": 89.34375,
+            "h": 219.640625
+          },
+          {
+            "top": 529.328125,
+            "bottom": 731.46875,
+            "w": 89.328125,
+            "h": 202.140625
+          },
+          {
+            "top": 529.328125,
+            "bottom": 731.46875,
+            "w": 89.328125,
+            "h": 202.140625
+          },
+          {
+            "top": 529.328125,
+            "bottom": 731.46875,
+            "w": 89.34375,
+            "h": 202.140625
+          }
+        ],
+        "completos": 3,
+        "nomes": [
+          {
+            "nome": "Prensado Completo",
+            "linhas": 2,
+            "font": "14px",
+            "w": 85.328125,
+            "h": 35,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Frango",
+            "linhas": 2,
+            "font": "14px",
+            "w": 85.328125,
+            "h": 35,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Calabresa",
+            "linhas": 3,
+            "font": "14px",
+            "w": 85.34375,
+            "h": 52.5,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado Meia-Noite",
+            "linhas": 2,
+            "font": "14px",
+            "w": 85.328125,
+            "h": 35,
+            "inteiro": true
+          },
+          {
+            "nome": "X-Salada",
+            "linhas": 2,
+            "font": "14px",
+            "w": 85.328125,
+            "h": 35,
+            "inteiro": true
+          },
+          {
+            "nome": "X-Tudo",
+            "linhas": 2,
+            "font": "14px",
+            "w": 85.34375,
+            "h": 35,
+            "inteiro": true
+          }
+        ],
+        "precos": true,
+        "medidas": true,
+        "fontes": [
+          "Alfa Slab One",
+          "Space Mono",
+          "Work Sans"
+        ],
+        "arquivosFonte": [
+          "/fontes/alfa-slab-one-latin-400-normal.woff2",
+          "/fontes/work-sans-latin-wght-normal.woff2",
+          "/fontes/space-mono-latin-400-normal.woff2"
+        ]
+      }
+    },
+    "pratico": {
+      "overflow": false,
+      "alvos": [],
+      "limite": 769,
+      "cards": [
+        {
+          "top": 217.515625,
+          "bottom": 330.515625,
+          "w": 358,
+          "h": 113
+        },
+        {
+          "top": 330.515625,
+          "bottom": 443.515625,
+          "w": 358,
+          "h": 113
+        },
+        {
+          "top": 443.515625,
+          "bottom": 556.515625,
+          "w": 358,
+          "h": 113
+        },
+        {
+          "top": 556.515625,
+          "bottom": 669.515625,
+          "w": 358,
+          "h": 113
+        }
+      ],
+      "completos": 4,
+      "nomes": [
+        {
+          "nome": "Prensado Completo",
+          "linhas": 1,
+          "font": "15px",
+          "w": 206,
+          "h": 18,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado de Frango",
+          "linhas": 1,
+          "font": "15px",
+          "w": 206,
+          "h": 18,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado de Calabresa",
+          "linhas": 1,
+          "font": "15px",
+          "w": 206,
+          "h": 18,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado Meia-Noite",
+          "linhas": 1,
+          "font": "15px",
+          "w": 206,
+          "h": 18,
+          "inteiro": true
+        }
+      ],
+      "precos": true,
+      "medidas": true,
+      "fontes": [
+        "Inter"
+      ],
+      "arquivosFonte": [
+        "/fontes/inter-latin-wght-normal.woff2"
+      ],
+      "rx": {
+        "overflow": false,
+        "alvos": [],
+        "limite": 844,
+        "cards": [
+          {
+            "top": 150.515625,
+            "bottom": 310.515625,
+            "w": 358,
+            "h": 160
+          },
+          {
+            "top": 310.515625,
+            "bottom": 423.515625,
+            "w": 358,
+            "h": 113
+          },
+          {
+            "top": 423.515625,
+            "bottom": 536.515625,
+            "w": 358,
+            "h": 113
+          },
+          {
+            "top": 536.515625,
+            "bottom": 649.515625,
+            "w": 358,
+            "h": 113
+          }
+        ],
+        "completos": 4,
+        "nomes": [
+          {
+            "nome": "Prensado Completo",
+            "linhas": 1,
+            "font": "15px",
+            "w": 206,
+            "h": 18,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Frango",
+            "linhas": 1,
+            "font": "15px",
+            "w": 206,
+            "h": 18,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Calabresa",
+            "linhas": 1,
+            "font": "15px",
+            "w": 206,
+            "h": 18,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado Meia-Noite",
+            "linhas": 1,
+            "font": "15px",
+            "w": 206,
+            "h": 18,
+            "inteiro": true
+          }
+        ],
+        "precos": true,
+        "medidas": true,
+        "fontes": [
+          "Inter"
+        ],
+        "arquivosFonte": [
+          "/fontes/inter-latin-wght-normal.woff2"
+        ]
+      },
+      "estreito": {
+        "overflow": false,
+        "alvos": [],
+        "limite": 641,
+        "cards": [
+          {
+            "top": 217.515625,
+            "bottom": 338.5625,
+            "w": 288,
+            "h": 121.046875
+          },
+          {
+            "top": 338.5625,
+            "bottom": 459.609375,
+            "w": 288,
+            "h": 121.046875
+          },
+          {
+            "top": 459.609375,
+            "bottom": 580.65625,
+            "w": 288,
+            "h": 121.046875
+          },
+          {
+            "top": 580.65625,
+            "bottom": 701.703125,
+            "w": 288,
+            "h": 121.046875
+          }
+        ],
+        "completos": 3,
+        "nomes": [
+          {
+            "nome": "Prensado Completo",
+            "linhas": 2,
+            "font": "15px",
+            "w": 136,
+            "h": 36,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Frango",
+            "linhas": 2,
+            "font": "15px",
+            "w": 136,
+            "h": 36,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Calabresa",
+            "linhas": 2,
+            "font": "15px",
+            "w": 136,
+            "h": 36,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado Meia-Noite",
+            "linhas": 2,
+            "font": "15px",
+            "w": 136,
+            "h": 36,
+            "inteiro": true
+          }
+        ],
+        "precos": true,
+        "medidas": true,
+        "fontes": [
+          "Inter"
+        ],
+        "arquivosFonte": [
+          "/fontes/inter-latin-wght-normal.woff2"
+        ]
+      }
+    },
+    "cantina": {
+      "overflow": false,
+      "alvos": [],
+      "limite": 769,
+      "cards": [
+        {
+          "top": 311,
+          "bottom": 422.25,
+          "w": 338,
+          "h": 111.25
+        },
+        {
+          "top": 422.25,
+          "bottom": 533.5,
+          "w": 338,
+          "h": 111.25
+        },
+        {
+          "top": 533.5,
+          "bottom": 644.75,
+          "w": 338,
+          "h": 111.25
+        },
+        {
+          "top": 644.75,
+          "bottom": 756,
+          "w": 338,
+          "h": 111.25
+        }
+      ],
+      "completos": 4,
+      "nomes": [
+        {
+          "nome": "Prensado Completo",
+          "linhas": 1,
+          "font": "17px",
+          "w": 149.78125,
+          "h": 21.25,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado de Frango",
+          "linhas": 1,
+          "font": "17px",
+          "w": 153.359375,
+          "h": 21.25,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado de Calabresa",
+          "linhas": 1,
+          "font": "17px",
+          "w": 173.078125,
+          "h": 21.25,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado Meia-Noite",
+          "linhas": 1,
+          "font": "17px",
+          "w": 160.9375,
+          "h": 21.25,
+          "inteiro": true
+        }
+      ],
+      "precos": true,
+      "medidas": true,
+      "fontes": [
+        "Lora",
+        "Playfair Display",
+        "Playfair Display"
+      ],
+      "arquivosFonte": [
+        "/_next/static/media/2a65768255d6b625-s.3u4lli0-axodc.woff2",
+        "/fontes/lora-latin-wght-normal.woff2",
+        "/fontes/playfair-display-latin-wght-normal.woff2"
+      ],
+      "rx": {
+        "overflow": false,
+        "alvos": [],
+        "limite": 844,
+        "cards": [
+          {
+            "top": 158,
+            "bottom": 317.25,
+            "w": 338,
+            "h": 159.25
+          },
+          {
+            "top": 317.25,
+            "bottom": 428.5,
+            "w": 338,
+            "h": 111.25
+          },
+          {
+            "top": 428.5,
+            "bottom": 539.75,
+            "w": 338,
+            "h": 111.25
+          },
+          {
+            "top": 539.75,
+            "bottom": 651,
+            "w": 338,
+            "h": 111.25
+          }
+        ],
+        "completos": 4,
+        "nomes": [
+          {
+            "nome": "Prensado Completo",
+            "linhas": 1,
+            "font": "17px",
+            "w": 149.78125,
+            "h": 21.25,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Frango",
+            "linhas": 1,
+            "font": "17px",
+            "w": 153.359375,
+            "h": 21.25,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Calabresa",
+            "linhas": 1,
+            "font": "17px",
+            "w": 173.078125,
+            "h": 21.25,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado Meia-Noite",
+            "linhas": 1,
+            "font": "17px",
+            "w": 160.9375,
+            "h": 21.25,
+            "inteiro": true
+          }
+        ],
+        "precos": true,
+        "medidas": true,
+        "fontes": [
+          "Lora",
+          "Playfair Display",
+          "Playfair Display"
+        ],
+        "arquivosFonte": [
+          "/_next/static/media/2a65768255d6b625-s.3u4lli0-axodc.woff2",
+          "/fontes/lora-latin-wght-normal.woff2",
+          "/fontes/playfair-display-latin-wght-normal.woff2"
+        ]
+      },
+      "estreito": {
+        "overflow": false,
+        "alvos": [],
+        "limite": 641,
+        "cards": [
+          {
+            "top": 311,
+            "bottom": 428.4375,
+            "w": 268,
+            "h": 117.4375
+          },
+          {
+            "top": 428.4375,
+            "bottom": 539.6875,
+            "w": 268,
+            "h": 111.25
+          },
+          {
+            "top": 539.6875,
+            "bottom": 650.9375,
+            "w": 268,
+            "h": 111.25
+          },
+          {
+            "top": 650.9375,
+            "bottom": 762.1875,
+            "w": 268,
+            "h": 111.25
+          }
+        ],
+        "completos": 2,
+        "nomes": [
+          {
+            "nome": "Prensado Completo",
+            "linhas": 1,
+            "font": "17px",
+            "w": 149.78125,
+            "h": 21.25,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Frango",
+            "linhas": 1,
+            "font": "17px",
+            "w": 153.359375,
+            "h": 21.25,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado de Calabresa",
+            "linhas": 1,
+            "font": "17px",
+            "w": 173.078125,
+            "h": 21.25,
+            "inteiro": true
+          },
+          {
+            "nome": "Prensado Meia-Noite",
+            "linhas": 1,
+            "font": "17px",
+            "w": 160.9375,
+            "h": 21.25,
+            "inteiro": true
+          }
+        ],
+        "precos": true,
+        "medidas": true,
+        "fontes": [
+          "Lora",
+          "Playfair Display",
+          "Playfair Display"
+        ],
+        "arquivosFonte": [
+          "/_next/static/media/2a65768255d6b625-s.3u4lli0-axodc.woff2",
+          "/fontes/playfair-display-latin-wght-normal.woff2",
+          "/fontes/lora-latin-wght-normal.woff2"
+        ]
+      }
+    },
+    "cliente": {
+      "overflow": false,
+      "alvos": [],
+      "limite": 769,
+      "cards": [
+        {
+          "top": 299.6875,
+          "bottom": 595.140625,
+          "w": 112.65625,
+          "h": 295.453125
+        },
+        {
+          "top": 299.6875,
+          "bottom": 595.140625,
+          "w": 112.671875,
+          "h": 295.453125
+        },
+        {
+          "top": 299.6875,
+          "bottom": 595.140625,
+          "w": 112.65625,
+          "h": 295.453125
+        },
+        {
+          "top": 605.140625,
+          "bottom": 883.109375,
+          "w": 112.65625,
+          "h": 277.96875
+        },
+        {
+          "top": 605.140625,
+          "bottom": 883.109375,
+          "w": 112.671875,
+          "h": 277.96875
+        },
+        {
+          "top": 605.140625,
+          "bottom": 883.109375,
+          "w": 112.65625,
+          "h": 277.96875
+        }
+      ],
+      "completos": 3,
+      "nomes": [
+        {
+          "nome": "Prensado da Praça com frango, calabresa e queijo especial da madrugada",
+          "linhas": 6,
+          "font": "14px",
+          "w": 108.65625,
+          "h": 105,
+          "inteiro": true
+        },
+        {
+          "nome": "Especial do balcão com bacon crocante e queijo",
+          "linhas": 5,
+          "font": "14px",
+          "w": 108.671875,
+          "h": 87.5,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado de calabresa com cebola e molho da casa",
+          "linhas": 4,
+          "font": "14px",
+          "w": 108.65625,
+          "h": 70,
+          "inteiro": true
+        },
+        {
+          "nome": "Duplo da Praça com queijo e salada especial",
+          "linhas": 5,
+          "font": "14px",
+          "w": 108.65625,
+          "h": 87.5,
+          "inteiro": true
+        },
+        {
+          "nome": "Redondo de frango com queijo cremoso e milho",
+          "linhas": 5,
+          "font": "14px",
+          "w": 108.671875,
+          "h": 87.5,
+          "inteiro": true
+        },
+        {
+          "nome": "Redondo completo do bairro com bacon e ovo",
+          "linhas": 4,
+          "font": "14px",
+          "w": 108.65625,
+          "h": 70,
+          "inteiro": true
+        }
+      ],
+      "precos": true,
+      "medidas": true,
+      "fontes": [
+        "Alfa Slab One",
+        "Space Mono",
+        "Work Sans"
+      ],
+      "arquivosFonte": [
+        "/fontes/work-sans-latin-wght-normal.woff2",
+        "/fontes/alfa-slab-one-latin-400-normal.woff2",
+        "/fontes/space-mono-latin-400-normal.woff2"
+      ]
+    },
+    "cliente320": {
+      "overflow": false,
+      "alvos": [],
+      "limite": 641,
+      "cards": [
+        {
+          "top": 299.6875,
+          "bottom": 624.3125,
+          "w": 89.328125,
+          "h": 324.625
+        },
+        {
+          "top": 299.6875,
+          "bottom": 624.3125,
+          "w": 89.328125,
+          "h": 324.625
+        },
+        {
+          "top": 299.6875,
+          "bottom": 624.3125,
+          "w": 89.34375,
+          "h": 324.625
+        },
+        {
+          "top": 634.3125,
+          "bottom": 888.953125,
+          "w": 89.328125,
+          "h": 254.640625
+        },
+        {
+          "top": 634.3125,
+          "bottom": 888.953125,
+          "w": 89.328125,
+          "h": 254.640625
+        },
+        {
+          "top": 634.3125,
+          "bottom": 888.953125,
+          "w": 89.34375,
+          "h": 254.640625
+        }
+      ],
+      "completos": 3,
+      "nomes": [
+        {
+          "nome": "Prensado da Praça com frango, calabresa e queijo especial da madrugada",
+          "linhas": 9,
+          "font": "14px",
+          "w": 85.328125,
+          "h": 157.5,
+          "inteiro": true
+        },
+        {
+          "nome": "Especial do balcão com bacon crocante e queijo",
+          "linhas": 5,
+          "font": "14px",
+          "w": 85.328125,
+          "h": 87.5,
+          "inteiro": true
+        },
+        {
+          "nome": "Prensado de calabresa com cebola e molho da casa",
+          "linhas": 6,
+          "font": "14px",
+          "w": 85.34375,
+          "h": 105,
+          "inteiro": true
+        },
+        {
+          "nome": "Duplo da Praça com queijo e salada especial",
+          "linhas": 5,
+          "font": "14px",
+          "w": 85.328125,
+          "h": 87.5,
+          "inteiro": true
+        },
+        {
+          "nome": "Redondo de frango com queijo cremoso e milho",
+          "linhas": 5,
+          "font": "14px",
+          "w": 85.328125,
+          "h": 87.5,
+          "inteiro": true
+        },
+        {
+          "nome": "Redondo completo do bairro com bacon e ovo",
+          "linhas": 5,
+          "font": "14px",
+          "w": 85.34375,
+          "h": 87.5,
+          "inteiro": true
+        }
+      ],
+      "precos": true,
+      "medidas": true,
+      "fontes": [
+        "Alfa Slab One",
+        "Space Mono",
+        "Work Sans"
+      ],
+      "arquivosFonte": [
+        "/fontes/work-sans-latin-wght-normal.woff2",
+        "/fontes/alfa-slab-one-latin-400-normal.woff2",
+        "/fontes/space-mono-latin-400-normal.woff2"
+      ]
+    }
+  },
+  "erros": []
+}

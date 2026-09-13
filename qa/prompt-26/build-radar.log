@@ -1,0 +1,114 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> creatingmk1@0.1.0 build
+> next build
+
+▲ Next.js 16.2.10 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 27.0s
+  Running TypeScript ...
+  Finished TypeScript in 10.8s ...
+  Collecting page data using 8 workers ...
+  Generating static pages using 8 workers (0/56) ...
+  Generating static pages using 8 workers (14/56) 
+  Generating static pages using 8 workers (28/56) 
+  Generating static pages using 8 workers (42/56) 
+✓ Generating static pages using 8 workers (56/56) in 249ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /api/buscas
+├ ƒ /api/buscas/[id]
+├ ƒ /api/buscas/[id]/analise
+├ ƒ /api/buscas/[id]/demos
+├ ƒ /api/capturas
+├ ƒ /api/config
+├ ƒ /api/cotas
+├ ƒ /api/cron
+├ ƒ /api/cron/status
+├ ƒ /api/demo-visita
+├ ƒ /api/demos-avulsas
+├ ƒ /api/demos-avulsas/[id]
+├ ƒ /api/demos-avulsas/[id]/capturas/arquivo
+├ ƒ /api/demos-avulsas/[id]/demo
+├ ƒ /api/demos-avulsas/[id]/demo/imagens
+├ ƒ /api/demos-avulsas/[id]/demo/traduzir
+├ ƒ /api/demos-avulsas/[id]/demo/videos
+├ ƒ /api/demos-avulsas/importar-maps
+├ ƒ /api/frases
+├ ƒ /api/frases/avancar
+├ ƒ /api/frases/migrar
+├ ƒ /api/frases/traduzir
+├ ƒ /api/geocode
+├ ƒ /api/hoje
+├ ƒ /api/ia
+├ ƒ /api/ia/nivel
+├ ƒ /api/leads
+├ ƒ /api/leads/[id]
+├ ƒ /api/leads/[id]/capturas
+├ ƒ /api/leads/[id]/capturas/arquivo
+├ ƒ /api/leads/[id]/contato
+├ ƒ /api/leads/[id]/demo
+├ ƒ /api/leads/[id]/demo/imagens
+├ ƒ /api/leads/[id]/demo/sugestao
+├ ƒ /api/leads/[id]/demo/traduzir
+├ ƒ /api/leads/[id]/demo/videos
+├ ƒ /api/leads/[id]/enrich
+├ ƒ /api/leads/[id]/horarios
+├ ƒ /api/login
+├ ƒ /api/logout
+├ ƒ /api/me
+├ ƒ /api/mensagens
+├ ƒ /api/mensagens/nao-lidas
+├ ƒ /api/metas/proprio
+├ ƒ /api/metrics
+├ ƒ /api/mundo
+├ ƒ /api/precificacao/slider
+├ ƒ /api/preferencias/listas
+├ ƒ /api/regioes
+├ ƒ /api/regioes/ajustar
+├ ƒ /api/regioes/regenerar
+├ ƒ /api/search
+├ ƒ /api/search/termo-local
+├ ƒ /api/tema
+├ ƒ /api/usage
+├ ƒ /api/usuarios
+├ ƒ /api/usuarios/[id]
+├ ƒ /api/usuarios/[id]/zerar-dia
+├ ƒ /api/usuarios/cotas
+├ ƒ /api/usuarios/metas
+├ ƒ /api/usuarios/nomes
+├ ○ /apple-icon.png
+├ ƒ /buscas
+├ ƒ /config
+├ ƒ /demo-preview
+├ ƒ /demo/[leadId]
+├ ƒ /demo/[leadId]/previa
+├ ƒ /demo/avulsa/[id]
+├ ƒ /demo/avulsa/[id]/previa
+├ ƒ /demos
+├ ƒ /demos-avulsas/[id]/editar
+├ ƒ /hoje
+├ ○ /icon
+├ ƒ /interno/capturas
+├ ƒ /interno/demo-qa
+├ ƒ /interno/efeitos
+├ ƒ /interno/lancheria/[skinId]/[[...cenario]]
+├ ƒ /leads
+├ ƒ /leads/[id]
+├ ƒ /leads/[id]/demo/editar
+├ ƒ /leads/[id]/demo/escolher
+├ ƒ /login
+├ ○ /manifest.webmanifest
+├ ƒ /mensagens
+└ ƒ /mundo
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

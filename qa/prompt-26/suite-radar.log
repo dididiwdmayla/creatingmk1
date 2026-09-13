@@ -1,0 +1,60 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> creatingmk1@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.9 /workspace/scratch/497dccc23e04/creatingmk1
+
+ ❯ src/app/api/__tests__/demos-avulsas-importar-maps.route.test.ts (4 tests | 2 failed) 45ms
+     × expande o link grátis, reserva antes do Places e devolve identidade revisável 12ms
+     × cota individual estourada impede o request pago, mas não o modo manual 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/app/api/__tests__/demos-avulsas-importar-maps.route.test.ts > /api/demos-avulsas/importar-maps > expande o link grátis, reserva antes do Places e devolve identidade revisável
+AssertionError: expected undefined to match object { enriquecimentos: 1 }
+
+- Expected:
+{
+  "enriquecimentos": 1,
+}
+
++ Received:
+undefined
+
+ ❯ src/app/api/__tests__/demos-avulsas-importar-maps.route.test.ts:102:63
+    100|       textSearchEnterprise: 1,
+    101|     });
+    102|     expect(db.getDoc("usage_users/membro-1/dias/2026-08-29")).toMatchO…
+       |                                                               ^
+    103|       enriquecimentos: 1,
+    104|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/app/api/__tests__/demos-avulsas-importar-maps.route.test.ts > /api/demos-avulsas/importar-maps > cota individual estourada impede o request pago, mas não o modo manual
+AssertionError: expected 200 to be 429 // Object.is equality
+
+- Expected
++ Received
+
+- 429
++ 200
+
+ ❯ src/app/api/__tests__/demos-avulsas-importar-maps.route.test.ts:110:24
+    108|     db.seed("usage_users/membro-1/dias/2026-08-29", { enriquecimentos:…
+    109|     const res = await importar();
+    110|     expect(res.status).toBe(429);
+       |                        ^
+    111|     expect((await res.json()).error.code).toBe("user_quota_exceeded");
+    112|     expect(fetchMock).toHaveBeenCalledTimes(1); // apenas o redirect H…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 170 passed (171)
+      Tests  2 failed | 1987 passed (1989)
+   Start at  10:16:30
+   Duration  13.61s (transform 14.50s, setup 0ms, import 45.72s, tests 10.13s, environment 3.93s)
+

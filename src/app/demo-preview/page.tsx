@@ -99,6 +99,7 @@ export default function DemoPreviewPage() {
     // vencer os links/CTAs da skin (no preview eles não devem navegar).
     function onClick(event: MouseEvent) {
       const alvo = (event.target as HTMLElement | null)?.closest?.("[data-demo-slot]");
+      if (!alvo && (event.target as HTMLElement | null)?.closest?.("[data-lancheria-app]")) return;
       event.preventDefault();
       if (!(alvo instanceof HTMLElement)) return;
       event.stopPropagation();

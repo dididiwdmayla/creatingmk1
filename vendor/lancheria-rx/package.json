@@ -1,0 +1,21 @@
+{
+  "name": "@radar/lancheria-rx",
+  "version": "0.26.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./client": {
+      "types": "./dist/client.d.mts",
+      "import": "./dist/client.js"
+    },
+    "./contrato": {
+      "types": "./dist/contrato.d.mts",
+      "import": "./dist/contrato.js"
+    }
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

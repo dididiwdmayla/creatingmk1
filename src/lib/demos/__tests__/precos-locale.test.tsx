@@ -59,7 +59,14 @@ const SKINS_COM_PRECO_ANIMADO = new Set(["multimarcas-vortice"]);
 
 describe("preços: precoValor formatado pelo locale/moeda da demo, nunca hardcoded — TODA skin do registro", () => {
   for (const skin of SKINS) {
-    if (!SKINS_COM_PRECO_ANIMADO.has(skin.id)) {
+    if (skin.localeFixo) {
+      it(`${skin.id}: catálogo comercial em centavos no locale fixo declarado`,()=>{
+        expect(skin.localeFixo).toEqual({idioma:'pt-BR',moeda:'BRL'});
+        const {html,data}=renderComLocale(skin,'pt-BR','BRL');
+        expect(data.lancheria!.lanches.length).toBeGreaterThan(0);
+        for(const lanche of data.lancheria!.lanches.filter(l=>skin.themeDefault.lancheria!.filtroInicial==='todos'||l.forma===data.lancheria!.lanches[0].forma))expect(html).toContain(`R$ ${(lanche.precoCent/100).toFixed(2).replace('.',',')}`);
+      });
+    } else if (!SKINS_COM_PRECO_ANIMADO.has(skin.id)) {
       for (const { idioma, moeda } of LOCALES) {
         it(`${skin.id}: cada serviço com precoValor aparece formatado em ${idioma}/${moeda}`, () => {
           const { html, data } = renderComLocale(skin, idioma, moeda);

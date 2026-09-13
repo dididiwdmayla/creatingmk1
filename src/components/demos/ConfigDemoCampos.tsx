@@ -47,7 +47,8 @@ export function configDemoInicial(): ConfigDemo {
  * que o declara, e o PUT recusa preset de outra skin (400).
  */
 export function trocarSkin(config: ConfigDemo, skinId: string): ConfigDemo {
-  return { ...config, skinId, themeId: getSkin(skinId)?.themeDefault.id ?? "" };
+  const skin=getSkin(skinId);
+  return { ...config, skinId, themeId: skin?.themeDefault.id ?? "", ...(skin?.themeDefault.lancheria && {efeitoId:"nenhum",imagensModo:"foto"}) };
 }
 
 export function ConfigDemoCampos({
@@ -75,7 +76,7 @@ export function ConfigDemoCampos({
           </option>
         ))}
       </select>
-      <select
+      {!skin?.themeDefault.lancheria && <><select
         value={config.themeId}
         onChange={(event) => onChange({ ...config, themeId: event.target.value })}
         aria-label="Preset de tema"
@@ -116,7 +117,7 @@ export function ConfigDemoCampos({
             {MODO_LABEL[modo]}
           </option>
         ))}
-      </select>
+      </select></>}
     </div>
   );
 }

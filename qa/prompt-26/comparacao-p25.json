@@ -1,0 +1,26 @@
+{
+  "meia-noite": {
+    "itensP25": 4,
+    "itensRadar": 4,
+    "geometriaIdentica": true,
+    "diferencas": []
+  },
+  "diner": {
+    "itensP25": 6,
+    "itensRadar": 6,
+    "geometriaIdentica": true,
+    "diferencas": []
+  },
+  "pratico": {
+    "itensP25": 4,
+    "itensRadar": 4,
+    "geometriaIdentica": true,
+    "diferencas": []
+  },
+  "cantina": {
+    "itensP25": 4,
+    "itensRadar": 4,
+    "geometriaIdentica": true,
+    "diferencas": []
+  }
+}
