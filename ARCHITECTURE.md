@@ -78,6 +78,7 @@ src/
       cotas/route.ts                # ✅ GET uso × limite do PRÓPRIO usuário (indicador em /leads e na ficha)
       metas/proprio/route.ts        # ✅ GET/PUT progresso (dia/semana) + minimizada da faixa fixa do PRÓPRIO usuário (self-service, leve)
       config/route.ts               # ✅ GET config (qualquer sessão) / PUT (admin)
+      config/fila/route.ts          # ✅ GET/PUT /config/fila (doc PRÓPRIO, não /config/app) — ver "Fila de envio"
       search/route.ts               # ✅ POST busca (geocode + Text Search paginado/qualificado) + registra em /buscas — exige sessão (cota individual)
       geocode/route.ts              # ✅ GET região resolvida ("Buscando em: X"), cache em /geocache
       regioes/route.ts              # ✅ GET índice de mercado da região (geocodifica + gera via IA se ainda não tiver)
@@ -127,7 +128,7 @@ src/
       metas.ts                      # ✅ getProgressoMetaUsuario: progresso dia/semana da meta de prospecção (lê o contador `buscas` de usage_users via getUsoUsuario)
     api-client.ts                   # ✅ fetch tipado do cliente (ApiError, um método por rota)
     format.ts                       # ✅ formatBRL/USD/percent/int/dateTime (pt-BR)
-    wa.ts                           # ✅ aplicarMarcadores/linkWhatsApp/buildWhatsAppLink ({nome}/{demo}/{penetracao})
+    wa.ts                           # ✅ aplicarMarcadores/linkWhatsApp/buildWhatsAppLink/digitosTelefone ({nome}/{demo}/{penetracao})
     site-proprio.ts                 # ✅ classifica websiteUri: rede social/agregador ≠ site próprio
     sku-labels.ts                   # ✅ rótulos pt-BR dos SKUs (dashboard e config)
     geo/
@@ -152,6 +153,13 @@ src/
       index.ts
       __tests__/
     config/                         # ✅ config efetiva: defaults + /config/app, validação de PUT
+    fila/                           # ✅ fundação da fila de envio (celular MacroDroid) — ver "Fila de envio"
+      auth.ts                       #    autenticarDispositivo: Bearer RADAR_DEVICE_KEY, comparação em tempo constante
+      config.ts                     #    /config/fila (doc PRÓPRIO, não /config/app) — ativo/tetos/janela, defaults se ausente
+      contadores.ts                 #    /filaContadores/{dia operacional} — total do dia, última hora deslizante, segundos desde o último evento
+      envios.ts                     #    /filaEnvios/{leadId} — reservarLead/confirmarClaim/liberarClaim (claim expira em 5min)
+      mensagem.ts                   #    montarMensagemParaLead: resolverMensagem+aplicarMarcadores num route handler
+      __tests__/
     firebase/
       admin.ts                      # ✅ init lazy do firebase-admin (env vars)
       storage.ts                    # ✅ adaptador do Firebase Storage p/ DemoStorage (bucket via env)
@@ -2213,9 +2221,78 @@ O Radar como rotina, não só ferramenta: o cron reabastece a base de madrugada 
 - Descartados ficam fora de todas as seções (a fila é "o que trabalhar"; descartar é tirar do caminho). Cada item tem ação direta: **WhatsApp** (link `wa.me` com a mensagem do grupo ou a global, `{demo}` → link público quando houver demo), **abrir ficha** e **abrir demo** — além de "melhor momento pra contatar" (`melhorMomento` de `lib/leads/horarios.ts`) quando o lead tem horário de funcionamento salvo.
 - A seleção é pura (`montarFilaDoDia`) e testada isolada; a rota só orquestra (config + leads + buscas + carimbo de visita).
 
+## Fila de envio ao WhatsApp — fundação (celular Android + MacroDroid)
+
+Um celular Android com MacroDroid é um EXECUTOR BURRO: pergunta "qual o próximo lead", envia a mensagem no WhatsApp e reporta o resultado. Todo o estado (fila, cota, pausa, claim, decisão de horário) vive no Radar — o celular nunca decide nada sozinho. Este bloco é só a FUNDAÇÃO (autenticação, config, contadores, a coleção de reservas e a montagem da mensagem); as rotas HTTP que o celular de fato chama (`/api/fila/*`) vêm num bloco seguinte.
+
+### Autenticação do dispositivo (`src/lib/fila/auth.ts` + exceção em `src/proxy.ts`)
+
+`/api/fila/*` fica fora da sessão de usuário (mesmo molde de `/api/cron`, mas por PREFIXO — a fila tem várias rotas abaixo dele, não uma só), com segredo PRÓPRIO: `RADAR_DEVICE_KEY`, nunca `CRON_SECRET` — raios de explosão diferentes (o cron dispara buscas pagas; o celular dispara mensagens de WhatsApp para negócios reais). `autenticarDispositivo(req)` confere `Authorization: Bearer ${RADAR_DEVICE_KEY}` em TEMPO CONSTANTE (`crypto.timingSafeEqual`, sem vazar o tamanho da chave por timing) e devolve `401 { erro: "nao_autorizado" }` — formato PRÓPRIO desta fila, não o `{ error: { code, message } }` do resto do app (o executor no celular só precisa checar uma chave). Sem `RADAR_DEVICE_KEY` configurada, fail-closed: `503 config_error`. `RADAR_DEVICE_USER_ID` é o userId (de `/usuarios`) sob o qual as ações do celular são atribuídas — mantém coerente o registro de autor (quem contatou, quem fechou) mesmo quando quem dispara a mensagem é o executor automático, não uma sessão de usuário logado.
+
+### `/config/fila` — documento único (`src/lib/fila/config.ts`)
+
+```jsonc
+{
+  "ativo": true,                     // botão de pausa: false = o celular não recebe mais leads
+  "metaDiaria": 15,
+  "tetoPorHora": 4,
+  "exigirJanelaBoa": true,           // só libera lead cuja janela de contato atual é "boa"
+  "nichosPermitidos": [],            // vazio = todos
+  "intervaloMinimoSegundos": 180,
+  "inicioDiaOperacionalHora": 0      // hora (America/Sao_Paulo) em que o dia operacional começa; 0 = meia-noite
+}
+```
+
+Doc PRÓPRIO, fora de `/config/app`: a fila é lida com muito mais frequência (o celular bate a cada ciclo) e por um chamador totalmente diferente (dispositivo, não sessão de usuário) — misturar no doc de app acoplaria dois ritmos de escrita/leitura sem necessidade. `loadFilaConfig` aplica os defaults acima quando o doc não existe — a AUSÊNCIA do documento nunca pode virar erro nem liberar envio irrestrito. Editável em `/config` (painel "Fila de envio", `GET`/`PUT /api/config/fila` — `GET` aberto a qualquer sessão, `PUT` restrito ao admin, mesma divisão de `/api/config`) reaproveitando o padrão de edição inline de "Metas por integrante" (cada campo salva no próprio blur/clique, sem botão "salvar" geral) — o botão de pausa mostra o estado ATUAL sem precisar clicar ("Ativa ✓" / "Pausada ⏸").
+
+### `/filaContadores/{dia operacional}` — um doc por DIA OPERACIONAL (`src/lib/fila/contadores.ts`)
+
+```jsonc
+{
+  "enviados": 7,
+  "envios": ["<ISO>", "<ISO>"],       // um por envio confirmado do dia — só as últimas 24h são mantidas
+  "ultimoEventoEm": "<ISO>"           // ou null
+}
+```
+
+A chave do doc (`YYYY-MM-DD`) é o dia OPERACIONAL, não o calendário UTC nem a meia-noite fixa de São Paulo: `diaOperacionalKey(now, inicioHora)` calcula em `America/Sao_Paulo` e desloca para o dia ANTERIOR quando o instante ainda está antes de `inicioDiaOperacionalHora` — um plantão que atravessa a meia-noite não vê a cota resetar no meio. `inicioHora` 0 é meia-noite normal (mesma chave do calendário). `lerContadorFila(db, now, inicioDiaOperacionalHora)` é uma leitura PURA que devolve, para o instante dado: total do dia (`enviados`), quantos na ÚLTIMA HORA deslizante (filtra `envios` pela janela de 1h a partir de `now` — por isso o array, não só o contador) e segundos desde o último evento (`null` se nunca houve um). Doc ausente é o dia sem nenhum envio ainda — nunca erro. Esta fundação só tem a LEITURA; o incremento (grava `enviados`/`envios`/`ultimoEventoEm`, podando o array para 24h) fica para as rotas que consomem a fila.
+
+### `/filaEnvios/{leadId}` — um doc por LEAD (`src/lib/fila/envios.ts`)
+
+```jsonc
+{
+  "leadId": "ChIJ...",
+  "estado": "reservado",             // "reservado" | "enviado" | "invalido" | "falhou"
+  "claimId": "<token curto>",        // novo a cada reserva
+  "reservadoEm": "<ISO>",
+  "expiraEm": "<ISO>",               // reservadoEm + 5min
+  "dispositivo": "celular-1",
+  "tentativas": 0,
+  "ultimoErro": null,
+  "enviadoEm": null
+}
+```
+
+Coleção PRÓPRIA, fora do doc do lead em `/leads` de propósito: `leads/repo.ts` é leitura-modificação-escrita simples por design (sem transação), e reservar/confirmar claim precisa de transação de verdade (duas reservas concorrentes do mesmo lead não podem as duas "ganhar").
+
+Três helpers, cada um com `runTransaction` só nesta coleção:
+
+- **`reservarLead(db, leadId, dispositivo, now)`** → `claimId` novo, ou `null` quando o lead está com reserva viva de outro ciclo OU num estado TERMINAL (`enviado`/`invalido`/`falhou` — esta função não decide política de reenvio; isso fica para as rotas que vêm depois). **Regra central**: um doc `"reservado"` com `expiraEm` no passado é tratado como LIVRE e é re-reservado (claimId NOVO; `tentativas`/`ultimoErro` do lead sobrevivem à re-reserva) — é isso que devolve o lead à fila sozinho quando o celular trava ou a execução morre no meio, sem precisar de nenhum job de limpeza.
+- **`confirmarClaim(db, leadId, claimId, resultado, detalhe?, now)`** — grava o resultado: `"enviado"` carimba `enviadoEm` e limpa `ultimoErro`; `"falhou"` incrementa `tentativas` e grava `detalhe` em `ultimoErro`; `"invalido"` grava `ultimoErro` SEM incrementar `tentativas` (é lead descartado — número errado etc. —, não uma tentativa que pode ter sucesso depois).
+- **`liberarClaim(db, leadId, claimId)`** — o dispositivo desiste ANTES de expirar (sem confirmar envio/falha): devolve o lead à fila na hora, reaproveitando a mesma regra de "reservado expirado = livre" (marca `expiraEm` bem no passado) em vez de inventar um terceiro estado de disponibilidade.
+
+**Correção explícita, nos dois últimos**: `claimId` que não bate com o ATUAL do doc é REJEITADO (`ClaimInvalidoError`), nunca ignorado em silêncio. Cenário real que isso impede: o celular trava, a claim expira, o lead é re-reservado (claimId novo) e só então o celular volta e tenta confirmar/liberar a claim VELHA — sem essa checagem isso vira envio duplicado ou contador errado.
+
+### `montarMensagemParaLead` no servidor (`src/lib/fila/mensagem.ts`)
+
+Mesma precedência e os mesmos marcadores que já rodam na ficha (`LeadDetailClient.tsx`) e na fila do dia (`hoje/page.tsx`) — skin → grupo → global, `{nome}`/`{demo}`/`{penetracao}`, NENHUMA regra nova — só que a partir de um route handler em vez de um componente client: busca frases/buscas/config direto do Firestore (as rotas da fila não têm `window.location` nem sessão de navegador para montar o link da demo) e reusa `resolverMensagem`/`aplicarMarcadores` tal como já existiam em `src/lib`.
+
+- `{demo}` usa `APP_PUBLIC_URL` (mesma env já documentada, hoje só lida pelo motor de capturas) como origem pública; sem ela configurada, o marcador fica sem substituir — mesmo espírito de "nunca inventar domínio" da moldura de captura.
+- **Normalização de telefone, movida para o servidor**: `digitosTelefone` (extraído de `linkWhatsApp` em `src/lib/wa.ts`, reaproveitado — não duplicado) limpa o `telefoneIntl` CRU do Google (espaços, parênteses, traço) para dígitos puros com DDI. `detalhes.telefoneIntl` (enriquecido) tem precedência sobre o da busca, mesma regra do cliente. Lead sem telefone nenhum devolve `telefone: undefined`, sem erro.
+
 ## Proteção por sessão multiusuário (src/proxy.ts + lib/auth.ts + lib/usuarios)
 
-Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login`, `POST /api/login`, a demo pública `/demo/{leadId}` e o gatilho do cron `GET /api/cron` (match exato; protegido por `CRON_SECRET` na própria rota — ver "Operação diária"). Como a demo, a exceção do cron fica DEPOIS do check de `APP_PASSWORD` (fail-closed vale para ele igual). Fluxo:
+Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login`, `POST /api/login`, a demo pública `/demo/{leadId}`, o gatilho do cron `GET /api/cron` (match exato; protegido por `CRON_SECRET` na própria rota — ver "Operação diária") e as rotas da fila de envio `/api/fila/*` (match por PREFIXO; protegidas por `RADAR_DEVICE_KEY` — ver "Fila de envio ao WhatsApp"). Como a demo, essas exceções ficam DEPOIS do check de `APP_PASSWORD` (fail-closed vale para elas igual). Fluxo:
 
 1. `POST /api/login` com `{ nome, senha }` identifica o usuário em `/usuarios` (PBKDF2) e grava o cookie `radar_session` (httpOnly, sameSite=lax, 30 dias, secure em produção). Antes de conferir, a rota roda o **seed se a coleção estiver vazia** (migração da senha única — ver `/usuarios` acima). `nome` ausente cai em "admin" (compat com o fluxo antigo via curl).
 2. O cookie é um **token assinado sem estado no banco**: `userId.papel.versao` + HMAC-SHA256 com `APP_PASSWORD` como segredo. Trocar `APP_PASSWORD` invalida todas as sessões; redefinir a senha/desativar/trocar o papel de um usuário incrementa a `versao` (campo `sessao` do doc) e derruba só as sessões dele.
