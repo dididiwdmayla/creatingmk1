@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ThemePaleta } from "@/lib/demos/types";
+import type { CorModo, ThemePaleta } from "@/lib/demos/types";
 
 import { FUMACA_COLORIDA } from "../aura/cores";
 import { resolverCamadaEfeito } from "../camada";
@@ -130,5 +130,54 @@ describe("modo de cor reprovado por efeito", () => {
       auraCores: undefined,
     });
     expect(r.coresAnimacao?.nome).toBe("d-cores-efeito");
+  });
+});
+
+/**
+ * VEREDITO POR CÉLULA — variante × modo de cor.
+ *
+ * O portão de fps mede cada combinação, e o registro manda desabilitar a
+ * CÉLULA, nunca a variante inteira. Uma variante de fundo claro e uma de
+ * fundo escuro repintam superfícies diferentes: o mesmo efeito, no mesmo
+ * modo, pode passar numa e reprovar na outra.
+ */
+describe("modos reprovados pela variante", () => {
+  const paleta = PALETA;
+  // `transicao` e `fixa` exigem cores explícitas (sem elas o modo cai em
+  // "tema" por dado insuficiente, que não é o que este bloco mede).
+  const CORES: Partial<Record<CorModo, string[]>> = {
+    fixa: ["#00c2ff"],
+    transicao: ["#ff2e88", "#22d3a5", "#ffd23f"],
+  };
+  const camada = (modo: CorModo, modosReprovados?: readonly string[]) =>
+    resolverCamadaEfeito({
+      paleta,
+      efeitoId: "grao",
+      efeitoCores: { modo, cores: CORES[modo] },
+      auraCores: undefined,
+      modosReprovados,
+    });
+
+  it("modo reprovado NA VARIANTE cai em tema, sem rejeitar o dado", () => {
+    expect(camada("arco-iris").coresCss).not.toBe("");
+    expect(camada("arco-iris", ["arco-iris"]).coresCss).toBe("");
+  });
+
+  it("desabilita a CÉLULA, não a variante: os outros modos seguem valendo", () => {
+    const reprovados = ["arco-iris"];
+    expect(camada("arco-iris", reprovados).coresCss).toBe("");
+    for (const modo of ["transicao", "iridescente"] as const) {
+      expect(camada(modo, reprovados).coresCss, modo).not.toBe("");
+    }
+  });
+
+  it("soma com os modos que o EFEITO já reprova, sem substituí-los", () => {
+    // filotaxia reprova transicao/arco-iris em qualquer variante.
+    const comEfeito = (modo: CorModo, v?: readonly string[]) =>
+      resolverCamadaEfeito({ paleta, efeitoId: "filotaxia", efeitoCores: { modo },
+        auraCores: undefined, modosReprovados: v });
+    expect(comEfeito("transicao").coresCss).toBe("");
+    expect(comEfeito("iridescente").coresCss).not.toBe("");
+    expect(comEfeito("iridescente", ["iridescente"]).coresCss).toBe("");
   });
 });

@@ -38,19 +38,31 @@ export function resolverCamadaEfeito({
   efeitoId,
   efeitoCores,
   auraCores,
+  modosReprovados,
 }: {
   paleta: ThemePaleta;
   /** Id do efeito ativo (undefined = nenhum) — só a aura lê `auraCores`. */
   efeitoId: string | undefined;
   efeitoCores: CoresModoValor | undefined;
   auraCores: AuraCoresValor | undefined;
+  /**
+   * Modos reprovados pela VARIANTE ativa (`SkinVariante.modosDeCorReprovados`),
+   * somados aos do efeito. O portão de fps mede célula a célula e uma
+   * célula é variante × modo: um fundo escuro e um claro repintam
+   * superfícies diferentes, então o mesmo efeito no mesmo modo pode passar
+   * numa variante e reprovar noutra. Ausente = nenhum.
+   */
+  modosReprovados?: readonly string[];
 }): CamadaEfeitoResolvida {
-  // Modo REPROVADO no portão de qualidade para ESTE efeito (ver
-  // `modoDeCorPermitido`): tratado como se o pedido não existisse, o que
-  // cai em "tema". Nada é rejeitado — a demo publicada com esse par
-  // continua válida, só deixa de animar a cor.
-  const pedido =
-    efeitoCores && !modoDeCorPermitido(efeitoId, efeitoCores.modo) ? undefined : efeitoCores;
+  // Modo REPROVADO no portão de qualidade para ESTA célula — do efeito
+  // (ver `modoDeCorPermitido`) ou da variante: tratado como se o pedido
+  // não existisse, o que cai em "tema". Nada é rejeitado — a demo
+  // publicada com esse par continua válida, só deixa de animar a cor. E
+  // reprova a CÉLULA: os outros modos daquela variante seguem valendo, e
+  // a variante nunca é desabilitada inteira.
+  const permitido = (modo: string) =>
+    modoDeCorPermitido(efeitoId, modo) && !(modosReprovados ?? []).includes(modo);
+  const pedido = efeitoCores && !permitido(efeitoCores.modo) ? undefined : efeitoCores;
   const modo = resolverModoCores(
     pedido,
     [paleta.destaque, paleta.acentoSecundario, paleta.acentoTerciario],

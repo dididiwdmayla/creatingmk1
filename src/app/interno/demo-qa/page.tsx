@@ -12,7 +12,7 @@ import { montarDemoDataAvulsa, patchIdentidadeAvulsa } from "@/lib/demos/avulsas
 import { montarDemoData } from "@/lib/demos/montar";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
-import { exemploDaSkin } from "@/lib/demos/variantes";
+import { exemploDaSkin, varianteEfetiva } from "@/lib/demos/variantes";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { modoValido } from "@/lib/demos/cores/modos";
 import { ALINHAMENTOS } from "@/lib/demos/types";
@@ -204,6 +204,7 @@ export default async function DemoQaPage({ searchParams }: Props) {
     efeitoId: efeitoFundo?.efeito.id,
     efeitoCores: theme.efeitoCores,
     auraCores: undefined,
+    modosReprovados: varianteEfetiva(skin, texto(query.preset))?.modosDeCorReprovados,
   });
 
   // Seções com animação desligada (item "Animação por seção"): mesmo

@@ -16,7 +16,7 @@ import { fontesEscolhidas } from "@/lib/demos/fontes";
 import { montarDemoData } from "@/lib/demos/montar";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
-import { exemploDaSkin } from "@/lib/demos/variantes";
+import { exemploDaSkin, varianteEfetiva } from "@/lib/demos/variantes";
 import type { LeadDemo } from "@/lib/demos/types";
 import type { AppDb } from "@/lib/firestore-like";
 import type { Lead } from "@/lib/leads/types";
@@ -110,6 +110,8 @@ export async function resolverDemo(fonte: FonteDemo) {
     efeitoId: efeitoFundo?.efeito.id,
     efeitoCores: theme.efeitoCores,
     auraCores: fonte.demo.tema?.auraCores,
+    // Veredito do portão de fps POR CÉLULA (variante × modo de cor).
+    modosReprovados: varianteEfetiva(skin, fonte.demo.themeId)?.modosDeCorReprovados,
   });
 
   return { skin, theme, data, extraFontClassName, efeitoFundo, camada, fonte };

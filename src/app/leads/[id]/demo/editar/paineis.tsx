@@ -1326,6 +1326,9 @@ export function PainelTema({
   // porque `aplicarTema` os ignora de propósito. Tudo o que é camada de
   // cima — cores de papel, efeito de fundo, LED, cor da barra — continua.
   const calibrado = temaCalibrado(skin);
+  // Veredito do portão de fps POR CÉLULA: o efeito reprova um modo em toda
+  // parte, a variante reprova só nela. A união é o que o editor desabilita.
+  const varianteAtiva = skin.variantes?.find((v) => v.id === themeId) ?? skin.variantes?.[0];
   const destaque = tema.destaque ?? preset.paleta.destaque;
 
   // Efeito de fundo efetivo (patch ou preset) — governa se o slider de
@@ -1694,8 +1697,15 @@ export function PainelTema({
           valor={tema.efeitoCores}
           paletaTema={preset.paleta}
           onChange={(efeitoCores) => setTema({ ...tema, efeitoCores })}
-          reprovados={efeitoFundoAtivo.modosDeCorReprovados}
-          motivoReprovados={efeitoFundoAtivo.motivoModosReprovados}
+          reprovados={[
+            ...(efeitoFundoAtivo.modosDeCorReprovados ?? []),
+            ...(varianteAtiva?.modosDeCorReprovados ?? []),
+          ] as readonly CorModo[]}
+          motivoReprovados={
+            [efeitoFundoAtivo.motivoModosReprovados, varianteAtiva?.motivoModosReprovados]
+              .filter(Boolean)
+              .join(" · ") || undefined
+          }
         />
       )}
 
