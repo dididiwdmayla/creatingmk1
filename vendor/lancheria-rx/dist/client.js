@@ -14,6 +14,7 @@ var meia_noite_default = {
   raio: 2,
   densidade: "media",
   assinatura: "letreiro",
+  heroFoto: true,
   mascote: true,
   filtroInicial: "primeira-forma",
   abrirComposicao: "nenhuma",
@@ -3538,7 +3539,7 @@ function Hero() {
     tema.hero !== "nenhum" && /* @__PURE__ */ jsxs14("section", { className: "hero-faixa", "aria-labelledby": "titulo-casa", children: [
       tema.assinatura === "toldo" && /* @__PURE__ */ jsx16(Toldo, {}),
       tema.assinatura === "placa-de-porta" && /* @__PURE__ */ jsx16(PlacaDePorta, {}),
-      textos.heroFoto && /* @__PURE__ */ jsx16("img", { src: textos.heroFoto, alt: textos.heroAlt, width: 2400, height: 1600, fetchPriority: "high" }),
+      tema.heroFoto && textos.heroFoto && /* @__PURE__ */ jsx16("img", { "data-demo-slot": "imagens.hero", src: textos.heroFoto, alt: textos.heroAlt, width: 2400, height: 1600, fetchPriority: "high" }),
       tema.mascote && /* @__PURE__ */ jsx16(HeroMascote, {}),
       /* @__PURE__ */ jsxs14("div", { className: "hero-texto moldura", children: [
         /* @__PURE__ */ jsx16("h1", { id: "titulo-casa", children: textos.heroTitulo.split("\n").map((s, i) => /* @__PURE__ */ jsxs14("span", { children: [
@@ -3557,7 +3558,7 @@ function HistoriaERodape() {
   const [linha1, linha2] = linhasMarca(CASA2.marca);
   return /* @__PURE__ */ jsxs14(Fragment5, { children: [
     /* @__PURE__ */ jsxs14("section", { id: "a-chapa", "data-d-secao": "historia", className: "a-chapa", "aria-labelledby": "titulo-chapa", children: [
-      textos.historiaFoto && /* @__PURE__ */ jsx16("img", { src: textos.historiaFoto, alt: textos.historiaAlt, width: 2400, height: 1600, loading: "lazy" }),
+      textos.historiaFoto && /* @__PURE__ */ jsx16("img", { "data-demo-slot": "imagens.historia", src: textos.historiaFoto, alt: textos.historiaAlt, width: 2400, height: 1600, loading: "lazy" }),
       /* @__PURE__ */ jsx16("div", { className: "chapa-texto moldura", children: /* @__PURE__ */ jsxs14("div", { children: [
         /* @__PURE__ */ jsx16("h2", { id: "titulo-chapa", style: { whiteSpace: "pre-line" }, children: textos.historiaTitulo }),
         textos.historia.map((s, i) => /* @__PURE__ */ jsx16("p", { children: s }, i)),

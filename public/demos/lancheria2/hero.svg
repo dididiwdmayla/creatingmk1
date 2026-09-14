@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1600" role="img" aria-label="Placeholder: prensado fechando na chapa">
+  <defs>
+    <linearGradient id="chapa" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A2320"/>
+      <stop offset="1" stop-color="#151110"/>
+    </linearGradient>
+    <radialGradient id="brasa" cx="42%" cy="58%" r="55%">
+      <stop offset="0" stop-color="#A9762F" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#A9762F" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="2400" height="1600" fill="url(#chapa)"/>
+  <rect width="2400" height="1600" fill="url(#brasa)"/>
+  <g fill="none" stroke="#3A2E27" stroke-width="3" opacity=".55">
+    <path d="M0 1180h2400M0 1290h2400M0 1400h2400"/>
+  </g>
+  <g transform="translate(1200 860)">
+    <ellipse cx="0" cy="210" rx="430" ry="52" fill="#0D0A09" opacity=".55"/>
+    <rect x="-380" y="70" width="760" height="120" rx="26" fill="#C98A3A"/>
+    <rect x="-360" y="0" width="720" height="86" rx="22" fill="#8E5A2B"/>
+    <rect x="-372" y="-84" width="744" height="100" rx="40" fill="#D9A05B"/>
+  </g>
+  <text x="1200" y="1520" text-anchor="middle" font-family="system-ui, sans-serif" font-size="52" fill="#6E5B4C">Foto de abertura</text>
+</svg>

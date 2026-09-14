@@ -41,6 +41,7 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
 
+import { ANCORAS_PADRAO } from "../src/lib/demos/capturas/padrao.mjs";
 import { lerPng } from "./png.mjs";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -658,17 +659,19 @@ const BARRA_PASSO = 40;
 const BARRA_SALTO_MAXIMO = 0.3;
 /** Quantos platôs por skin recebem captura (o resto é a mesma cor de novo). */
 const BARRA_PLATOS_AMOSTRADOS = 8;
-/** Todas as skins do registro — a barra é da rota, não de uma skin. */
-const BARRA_SKINS = [
-  "barbearia-editorial",
-  "barbearia2-sul",
-  "tatuagem-editorial",
-  "tatuagem-pigmento-vivo",
-  "lancheria-chapa-burger",
-  "imobiliaria-curada",
-  "multimarcas-vortice",
-  "petshop-focinho-feliz",
-];
+/**
+ * Todas as skins do registro — a barra é da rota, não de uma skin, e o
+ * portão de colapso precisa ver TODAS.
+ *
+ * Sai de `ANCORAS_PADRAO` em vez de ser uma lista escrita à mão. A lista à
+ * mão tinha oito nomes e o registro tinha doze: as quatro lancherias do
+ * raio-x nunca foram visitadas por `--so=colapso`, `--so=barra` nem
+ * `--so=avulsa`, e nada acusava — um portão que não visita a skin passa
+ * sempre. `ANCORAS_PADRAO` mora num .mjs (o laço não compila TypeScript) e
+ * já tem teste de contrato contra o registro (ver capturas/__tests__),
+ * então derivar daqui é provadamente completo.
+ */
+const BARRA_SKINS = Object.keys(ANCORAS_PADRAO);
 
 const corParaRgb = (cor) => {
   const hex = cor.trim().match(/^#([0-9a-f]{6})$/i);
@@ -961,6 +964,14 @@ async function verificarColapsoDeImagem(browser, secret) {
     const nomes = await page
       .locator("[data-demo-slot^='imagens.']")
       .evaluateAll((els) => els.map((el) => el.getAttribute("data-demo-slot")));
+
+    // Por skin, e não só o total: skin sem NENHUM slot é o caso em que o
+    // portão "passa" sem medir nada, e isso tem que aparecer na saída em
+    // vez de sumir dentro de um número agregado.
+    console.log(`[colapso] ${skin}: ${nomes.length} slot(s)`);
+    if (nomes.length === 0) {
+      problemas.push(`${skin}: nenhum slot de imagem — o portão não mediu nada nesta skin`);
+    }
 
     for (const nome of nomes) {
       totalSlots++;

@@ -5,7 +5,14 @@ import type { DemoData, Theme, DemoLancheria } from '../types';
 export function dadosDaLancheria(data: DemoData): DadosLancheria {
   if (!data.lancheria) throw new Error('Catálogo da lancheria ausente');
   const { funcionamento, ...catalogo } = data.lancheria;
-  return { ...catalogo, casa: {
+  // As duas fotos da página são SLOTS do Radar (`DemoData.imagens`), não
+  // campos do catálogo: é o que dá a elas upload por lead, placeholder
+  // gráfico e o modo foto/gráfico, como em qualquer outra skin. O texto
+  // alternativo continua no catálogo — é conteúdo, editável em Conteúdo.
+  const textos = { ...catalogo.textos,
+    heroFoto: data.imagens.hero ?? catalogo.textos.heroFoto,
+    historiaFoto: data.imagens.historia ?? catalogo.textos.historiaFoto };
+  return { ...catalogo, textos, casa: {
     nome: data.nome, marca: data.nome.replace(/^Lancheria\s+/iu, ''),
     cidade: data.cidade ?? '', endereco: data.endereco ?? '', telefone: data.telefone ?? '',
     horarioTexto: funcionamento.confirmado ? undefined : data.horarios, instagram: data.instagram,

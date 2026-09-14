@@ -138,7 +138,15 @@ function exemploDaVariante(tema: Tema, textos: Partial<TextosCasa> | undefined):
     // Todas as seções do contrato, nas quatro variantes — é o que o painel
     // Estrutura enumera e o que a trava compara entre variantes.
     secoes: Object.fromEntries(LANCHERIA2_SECOES.map((s) => [s.id, {}])),
-    imagens: {},
+    // Os dois slots de foto da página, IGUAIS nas quatro variantes (mesmo
+    // contrato de slots — ver a trava). A variante decide se USA o hero
+    // (`Tema.heroFoto`: Meia-Noite e Diner sim, Prático e Cantina abrem só
+    // com tipografia); o slot existe do mesmo jeito, e um upload do lead
+    // aparece assim que a variante o mostra.
+    imagens: {
+      hero: "/demos/lancheria2/hero.svg",
+      historia: "/demos/lancheria2/historia.svg",
+    },
   };
 }
 

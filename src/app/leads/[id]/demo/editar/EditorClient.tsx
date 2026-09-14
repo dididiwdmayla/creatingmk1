@@ -812,8 +812,14 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
                 moeda={moeda}
               />
             )}
-            {aba === "imagens" && skin.themeDefault.lancheria && <p className="text-sm">Estas skins usam o acervo calibrado. A foto de cada lanche é escolhida em Conteúdo. Fotos próprias precisam de preparação antes da inclusão.</p>}
-            {aba === "imagens" && !skin.themeDefault.lancheria && (
+            {aba === "imagens" && skin.themeDefault.lancheria && (
+              <p className="mb-4 text-xs text-ink-muted">
+                A foto de cada LANCHE vem do acervo calibrado e é escolhida em Conteúdo —
+                o raio-x depende da calibração dela. As fotos da página são slots normais,
+                abaixo.
+              </p>
+            )}
+            {aba === "imagens" && (
               <PainelImagens
                 dados={dados}
                 skin={skin}
