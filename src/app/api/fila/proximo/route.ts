@@ -33,6 +33,17 @@ import { handleRouteError } from "@/lib/http";
  * claim trava o lead primeiro, para que nenhum trabalho seja feito sobre um
  * lead que outro ciclo já levou. Reserva que falha por concorrência não vira
  * erro — cai no próximo candidato.
+ *
+ * **Resposta ACHATADA, de propósito** (nunca voltar a aninhar): quem consome
+ * este JSON é uma macro do MacroDroid, que converte o corpo em dicionário e
+ * lê cada campo por marcador de texto — e ela NÃO resolve chave aninhada tipo
+ * `tarefa.id`; devolve o marcador literal em vez do valor. Um envelope
+ * `{ tarefa: {...} }` fazia toda variável derivada virar lixo, a URL do print
+ * virar string inválida, e o lead ser reportado como falha sem nada ter sido
+ * enviado. Por isso: um objeto de UM nível só, com TODAS as chaves SEMPRE
+ * presentes (chave ausente é o mesmo bug — o marcador some, a macro carrega
+ * lixo sem perceber) e todo valor como string vazia (nunca `undefined`/`null`)
+ * quando não há tarefa.
  */
 
 /** Cabeçalho com que o aparelho se identifica; ausente = o único que existe hoje. */
@@ -51,8 +62,52 @@ export interface TarefaFila {
   expiraEm: string;
 }
 
+/**
+ * Resposta achatada de `/proximo`: um nível só, chaves fixas, sempre todas
+ * presentes — é o formato que o MacroDroid consegue ler (ver comentário do
+ * arquivo). `temTarefa` é o único booleano; todo o resto é string, e vazio
+ * (nunca omitido) quando o campo não se aplica.
+ */
+interface RespostaFila {
+  temTarefa: boolean;
+  id: string;
+  leadId: string;
+  nome: string;
+  numero: string;
+  texto: string;
+  printUrl: string;
+  expiraEm: string;
+  motivo: MotivoSemTarefa | "";
+}
+
+function respostaComTarefa(tarefa: TarefaFila): NextResponse {
+  const corpo: RespostaFila = {
+    temTarefa: true,
+    id: tarefa.id,
+    leadId: tarefa.leadId,
+    nome: tarefa.nome,
+    numero: tarefa.numero,
+    texto: tarefa.texto,
+    printUrl: tarefa.printUrl,
+    expiraEm: tarefa.expiraEm,
+    motivo: "",
+  };
+  return NextResponse.json(corpo);
+}
+
 function semTarefa(motivo: MotivoSemTarefa): NextResponse {
-  return NextResponse.json({ tarefa: null, motivo });
+  const corpo: RespostaFila = {
+    temTarefa: false,
+    id: "",
+    leadId: "",
+    nome: "",
+    numero: "",
+    texto: "",
+    printUrl: "",
+    expiraEm: "",
+    motivo,
+  };
+  return NextResponse.json(corpo);
 }
 
 /**
@@ -132,7 +187,7 @@ export async function GET(req: Request) {
 
     for (const candidato of elegiveis) {
       const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now);
-      if (tarefa) return NextResponse.json({ tarefa });
+      if (tarefa) return respostaComTarefa(tarefa);
     }
 
     // Distinção deliberada: "fora_de_janela" é todo mundo dormindo — volte

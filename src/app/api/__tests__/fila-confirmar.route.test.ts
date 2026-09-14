@@ -106,7 +106,7 @@ describe("POST /api/fila/confirmar — 'enviado'", () => {
       frases: ["primeira", "segunda"],
       indice: 0,
     });
-    const { tarefa } = await pegarTarefa();
+    const tarefa = await pegarTarefa();
     const res = await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "enviado" });
     return { tarefa, res };
   }
@@ -156,7 +156,7 @@ describe("POST /api/fila/confirmar — 'enviado'", () => {
 
   it("nunca rebaixa status: lead que já respondeu continua 'respondeu'", async () => {
     semear(lead("ChIJa"));
-    const { tarefa } = await pegarTarefa();
+    const tarefa = await pegarTarefa();
     // Alguém do time avançou o lead à mão enquanto a mensagem saía.
     db.seed("leads/ChIJa", { ...db.getDoc("leads/ChIJa"), status: "respondeu" });
 
@@ -171,7 +171,7 @@ describe("POST /api/fila/confirmar — 'enviado'", () => {
   it("mensagem sem rotação (grupo/global) não ganha doc de frases por causa do envio", async () => {
     // Skin sem conjunto salvo: a mensagem cai na global, que não tem rotação.
     semear(lead("ChIJa"));
-    const { tarefa } = await pegarTarefa();
+    const tarefa = await pegarTarefa();
 
     await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "enviado" });
 
@@ -187,7 +187,7 @@ describe("POST /api/fila/confirmar — 'enviado'", () => {
       ultimoEventoEm: "2026-03-10T09:00:00.000Z",
     });
     db.seed("config/fila", { intervaloMinimoSegundos: 0, metaDiaria: 99, tetoPorHora: 99 });
-    const { tarefa } = await pegarTarefa();
+    const tarefa = await pegarTarefa();
 
     await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "enviado" });
 
@@ -202,7 +202,7 @@ describe("POST /api/fila/confirmar — 'enviado'", () => {
 describe("POST /api/fila/confirmar — 'invalido'", () => {
   it("marca o lead para nunca mais voltar à fila", async () => {
     semear(lead("ChIJa"));
-    const { tarefa } = await pegarTarefa();
+    const tarefa = await pegarTarefa();
 
     const res = await confirmar({
       id: tarefa.id,
@@ -224,19 +224,19 @@ describe("POST /api/fila/confirmar — 'invalido'", () => {
 
   it("e o lead não é entregue de novo", async () => {
     semear(lead("ChIJa"));
-    const { tarefa } = await pegarTarefa();
+    const tarefa = await pegarTarefa();
     await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "invalido" });
 
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 20 * 60 * 1000)); // pool vencido
 
-    expect(await pegarTarefa()).toEqual({ tarefa: null, motivo: "sem_leads_elegiveis" });
+    expect((await pegarTarefa()).motivo).toBe("sem_leads_elegiveis");
   });
 });
 
 describe("POST /api/fila/confirmar — 'falhou'", () => {
   it("libera a claim e conta a tentativa", async () => {
     semear(lead("ChIJa"));
-    const { tarefa } = await pegarTarefa();
+    const tarefa = await pegarTarefa();
 
     const res = await confirmar({
       id: tarefa.id,
@@ -250,7 +250,7 @@ describe("POST /api/fila/confirmar — 'falhou'", () => {
 
     // Volta à fila na próxima varredura.
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 20 * 60 * 1000));
-    expect((await pegarTarefa()).tarefa?.leadId).toBe("ChIJa");
+    expect((await pegarTarefa()).leadId).toBe("ChIJa");
   });
 
   it("a partir de 3 tentativas o lead PARA, sem ser excluído nem invalidado", async () => {
@@ -260,7 +260,7 @@ describe("POST /api/fila/confirmar — 'falhou'", () => {
     let corpo;
     for (let i = 1; i <= TENTATIVAS_MAX; i++) {
       vi.setSystemTime(new Date(TERCA_10H.getTime() + i * 20 * 60 * 1000));
-      const { tarefa } = await pegarTarefa();
+      const tarefa = await pegarTarefa();
       expect(tarefa?.leadId).toBe("ChIJa");
       corpo = await (await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "falhou" })).json();
     }
@@ -269,7 +269,7 @@ describe("POST /api/fila/confirmar — 'falhou'", () => {
 
     // Parado: não sai mais, mas continua inteiro na base e na coleção da fila.
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 99 * 60 * 1000));
-    expect(await pegarTarefa()).toEqual({ tarefa: null, motivo: "sem_leads_elegiveis" });
+    expect((await pegarTarefa()).motivo).toBe("sem_leads_elegiveis");
     expect(db.getDoc("leads/ChIJa")).toBeDefined();
     expect((db.getDoc("leads/ChIJa") as unknown as Lead).telefoneInvalido).toBeUndefined();
     expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({
@@ -282,10 +282,10 @@ describe("POST /api/fila/confirmar — 'falhou'", () => {
 describe("POST /api/fila/confirmar — claim que não bate", () => {
   it("claimId velho devolve 409 e NÃO mexe no contador", async () => {
     semear(lead("ChIJa"));
-    const { tarefa } = await pegarTarefa();
+    const tarefa = await pegarTarefa();
     // A claim expira e o lead é re-reservado antes de o celular travado voltar.
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 20 * 60 * 1000));
-    const nova = (await pegarTarefa()).tarefa;
+    const nova = await pegarTarefa();
     expect(nova.id).not.toBe(tarefa.id);
 
     const res = await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "enviado" });
