@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 
 import type { AppDb } from "@/lib/firestore-like";
 
+import type { FilaEnvioDoc, FilaEnvioResultado } from "./estado";
+
 /**
  * `/filaEnvios/{leadId}` — um doc por LEAD (mesmo id do doc em `/leads`,
  * o placeId), mas numa coleção PRÓPRIA, de propósito: `leads/repo.ts` é
@@ -19,37 +21,8 @@ const RESERVA_DURACAO_MS = 5 * 60 * 1000;
 /** Sempre "no passado" pra qualquer `now` real — usado por `liberarClaim`. */
 const EPOCH_ISO = new Date(0).toISOString();
 
-export type FilaEnvioEstado = "reservado" | "enviado" | "invalido" | "falhou";
-/** O que `confirmarClaim` aceita — "reservado" é só o estado de trânsito. */
-export type FilaEnvioResultado = Exclude<FilaEnvioEstado, "reservado">;
-
-export interface FilaEnvioDoc {
-  leadId: string;
-  estado: FilaEnvioEstado;
-  claimId: string;
-  reservadoEm: string;
-  expiraEm: string;
-  dispositivo: string;
-  tentativas: number;
-  ultimoErro: string | null;
-  enviadoEm: string | null;
-  /**
-   * Skin cuja frase de fato saiu nesta reserva (`MensagemResolvida.rotacao`),
-   * ou `null` quando a mensagem veio do grupo/global — que não têm rotação.
-   * Fica gravado na CLAIM, e não é re-resolvido na confirmação, porque entre
-   * entregar a tarefa e o celular confirmar o envio a config pode mudar: o
-   * contador que gira tem que ser o da frase que o lead recebeu, não o da
-   * frase que estaria valendo agora.
-   */
-  rotacaoSkinId?: string | null;
-}
-
-/**
- * Política de reenvio de lead que já falhou — ver `reservarLead`. A partir
- * de `TENTATIVAS_MAX` o lead PARA, para inspeção manual: não é excluído nem
- * marcado como inválido, só deixa de ser elegível (e a ficha mostra por quê).
- */
-export const TENTATIVAS_MAX = 3;
+export type { FilaEnvioDoc, FilaEnvioEstado, FilaEnvioResultado } from "./estado";
+export { TENTATIVAS_MAX, filaParado } from "./estado";
 
 /** Resultado de uma reserva bem-sucedida. */
 export interface FilaReserva {
@@ -239,4 +212,17 @@ export async function anotarRotacao(
     }
     tx.set(ref, toDoc({ ...atual, rotacaoSkinId }));
   });
+}
+
+/**
+ * O doc da fila para um lead, ou `undefined` se ele nunca passou por ela.
+ * Leitura pura, para a ficha mostrar tentativas e último erro de um lead
+ * parado — um lead que some da fila sem explicação é um estado que mente.
+ */
+export async function lerEnvioDoLead(
+  db: AppDb,
+  leadId: string,
+): Promise<FilaEnvioDoc | undefined> {
+  const snap = await docRef(db, leadId).get();
+  return snap.exists ? asDoc(snap.data()) : undefined;
 }

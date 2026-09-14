@@ -2381,6 +2381,20 @@ Duas regras específicas do envio pela fila:
 - **`filaEnvios.rotacaoSkinId`**, gravado por `anotarRotacao` logo depois da reserva: é a skin cuja frase DE FATO saiu. Fica na claim, e não é re-resolvido na confirmação, porque entre entregar a tarefa e o celular confirmar o envio a rotação compartilhada pode ter girado por um envio manual de alguém do time — o contador que gira tem que ser o da frase que o lead recebeu.
 - **A política de reenvio entrou como argumento explícito** (`reservarLead(..., { tentativasMax })`), que é exatamente onde a fundação a tinha deixado ("esta função não decide política de reenvio; isso fica para as rotas que vêm depois"). O default 0 mantém `falhou` terminal; `/proximo` passa `TENTATIVAS_MAX` (3), e com isso um lead que falhou volta à fila até esgotar as tentativas. `enviado` e `invalido` são terminais em qualquer política.
 
+### `Lead.telefoneInvalido` — o número que não tem WhatsApp
+
+Booleano novo no lead, ausente = false. Escrito por dois caminhos que não se falam: a **fila**, ao receber `invalido` do celular, e a **ficha**, à mão. Tira o lead da fila de envio para sempre — mas **não** o descarta: ele continua na base com demo e capturas, porque o número pode ser corrigido depois.
+
+**Reversível de propósito.** A ficha traz o alternador "Número sem WhatsApp" / "Número tem WhatsApp" ao lado de "Descartar lead": um número certo marcado por engano ficaria fora da fila para sempre sem uma forma de desmarcar. Entra em `updateLeadExtras` junto de `notas`/`favorito`/`descartado`, pelo mesmo `PATCH /api/leads/{id}` e com a mesma proteção (quem barra anônimo nos extras é o PROXY, não a rota — ver "Proteção por sessão multiusuário").
+
+### O lead PARADO na fila, visível na ficha
+
+Um lead que esgota as tentativas some da fila sozinho. Se isso não aparecesse em lugar nenhum, seria um estado que mente — o lead estaria vivo, elegível a olho nu, e nunca mais sairia. Então `GET /api/leads/{id}` passa a devolver `filaEnvio` (o doc de `/filaEnvios/{leadId}`, ausente se o lead nunca passou pela fila) e a ficha mostra a tarja com as tentativas e o último erro.
+
+`src/lib/fila/estado.ts` existe por causa disso: os TIPOS e a política (`TENTATIVAS_MAX`, `filaParado`) moram num módulo sem nada de servidor, porque a ficha é um componente client e `envios.ts` — o dono das transações — importa `node:crypto` para cunhar o claimId. Arrastá-lo para o navegador por causa de uma constante quebraria o bundle; `envios.ts` reexporta o que era dele para ninguém precisar saber da divisão.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=listas` ganhou o fixture `lead-fila-parada` (número inválido + 3 tentativas) e um passo que cobra as duas tarjas, o texto do último erro e o alternador no estado que DESFAZ a marcação.
+
 ## Proteção por sessão multiusuário (src/proxy.ts + lib/auth.ts + lib/usuarios)
 
 Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login`, `POST /api/login`, a demo pública `/demo/{leadId}`, o gatilho do cron `GET /api/cron` (match exato; protegido por `CRON_SECRET` na própria rota — ver "Operação diária") e as rotas da fila de envio `/api/fila/*` (match por PREFIXO; protegidas por `RADAR_DEVICE_KEY` — ver "Fila de envio ao WhatsApp"). Como a demo, essas exceções ficam DEPOIS do check de `APP_PASSWORD` (fail-closed vale para elas igual). Fluxo:

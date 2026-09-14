@@ -336,11 +336,22 @@ export async function ajustarVendidoPor(
   return updated;
 }
 
-/** Notas/favorito/descartado editáveis direto no card, sem transição de status. */
+/**
+ * Notas/favorito/descartado/telefoneInvalido editáveis sem transição de
+ * status. `telefoneInvalido` entra aqui, e não num caminho próprio, porque é
+ * a mesma natureza dos outros: marca do operador sobre o lead, reversível
+ * pela mesma tela que a criou — a fila também o escreve (ao confirmar
+ * `invalido`), mas quem marca errado precisa poder desmarcar.
+ */
 export async function updateLeadExtras(
   db: AppDb,
   placeId: string,
-  extras: { notas?: string; favorito?: boolean; descartado?: boolean },
+  extras: {
+    notas?: string;
+    favorito?: boolean;
+    descartado?: boolean;
+    telefoneInvalido?: boolean;
+  },
   now: Date = new Date(),
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
@@ -349,6 +360,7 @@ export async function updateLeadExtras(
     ...(extras.notas !== undefined && { notas: extras.notas }),
     ...(extras.favorito !== undefined && { favorito: extras.favorito }),
     ...(extras.descartado !== undefined && { descartado: extras.descartado }),
+    ...(extras.telefoneInvalido !== undefined && { telefoneInvalido: extras.telefoneInvalido }),
     atualizadoEm: now.toISOString(),
   };
   await docRef(db, placeId).set(toDoc(updated));

@@ -8,6 +8,7 @@ import type { DemoAvulsa } from "@/lib/demos/avulsas/types";
 import type { ImportacaoMaps } from "@/lib/demos/avulsas/googleMaps";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
 import type { FilaConfig } from "@/lib/fila/config";
+import type { FilaEnvioDoc } from "@/lib/fila/estado";
 import type {
   ConjuntoSkin,
   FrasesProspeccao,
@@ -467,7 +468,8 @@ export const api = {
     return request<{ leads: Lead[] }>(`/api/leads${qs ? `?${qs}` : ""}`);
   },
 
-  getLead: (id: string) => request<{ lead: Lead }>(`/api/leads/${id}`),
+  getLead: (id: string) =>
+    request<{ lead: Lead; filaEnvio?: FilaEnvioDoc }>(`/api/leads/${id}`),
   patchLead: (
     id: string,
     patch: {
@@ -475,6 +477,8 @@ export const api = {
       notas?: string;
       favorito?: boolean;
       descartado?: boolean;
+      /** Número sem WhatsApp: tira o lead da fila de envio, reversível. */
+      telefoneInvalido?: boolean;
       /** Admin ajusta o vendedor do fechamento (default: quem fechou). */
       vendidoPor?: string;
     },
