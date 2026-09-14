@@ -19,21 +19,23 @@ export function IntroExperience({
   cidade,
   accent,
   ativa = true,
+  pularTexto,
   children,
 }: {
   nome: string;
   cidade?: string;
   accent: string;
   ativa?: boolean;
+  pularTexto: string;
   children: React.ReactNode;
 }) {
-  const [introFinished, setIntroFinished] = useState(false);
+  const [introFinished, setIntroFinished] = useState(true);
 
   useEffect(() => {
     const hasSeenIntro = sessionStorage.getItem("d-has-seen-intro");
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!ativa || hasSeenIntro || reducedMotion) {
-      const t = setTimeout(() => setIntroFinished(true), 0);
+    if (ativa && !hasSeenIntro && !reducedMotion) {
+      const t = setTimeout(() => setIntroFinished(false), 0);
       return () => clearTimeout(t);
     }
   }, [ativa]);
@@ -47,7 +49,7 @@ export function IntroExperience({
     <>
       <CustomCursor accent={accent} />
       {ativa && !introFinished && (
-        <IntroAnimation nome={nome} cidade={cidade} accent={accent} onComplete={handleIntroComplete} />
+        <IntroAnimation pularTexto={pularTexto} nome={nome} cidade={cidade} accent={accent} onComplete={handleIntroComplete} />
       )}
       <div className="relative z-0">{children}</div>
     </>

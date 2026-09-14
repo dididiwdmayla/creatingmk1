@@ -11,15 +11,16 @@
     "qa:lancheria": "node scripts/qa-lancheria.mjs"
   },
   "dependencies": {
+    "@radar/lancheria-rx": "file:vendor/lancheria-rx",
     "firebase-admin": "^14.1.0",
     "motion": "^12.42.2",
     "next": "16.2.10",
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "@radar/lancheria-rx": "file:vendor/lancheria-rx"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

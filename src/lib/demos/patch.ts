@@ -131,6 +131,13 @@ export function montarPatch(
   }
   if (Object.keys(imagens).length > 0) patch.imagens = imagens;
 
+  const imagensAlt: Record<string, string> = {};
+  for (const slot of Object.keys(skin.demoDataExemplo.imagensAlt ?? {})) {
+    const valor = atual.imagensAlt?.[slot] ?? "";
+    if (valor !== (base.imagensAlt?.[slot] ?? "")) imagensAlt[slot] = valor;
+  }
+  if (Object.keys(imagensAlt).length) patch.imagensAlt = imagensAlt;
+
   // "foto" é o default — só entra no patch quando o usuário escolheu "grafico".
   if (modoAtual !== "foto") patch.imagensModo = modoAtual;
 
@@ -140,7 +147,7 @@ export function montarPatch(
   }
   if (Object.keys(videos).length > 0) patch.videos = videos;
 
-  const ordemDefault = skin.secoes.filter((s) => !s.fixa).map((s) => s.id);
+  const ordemDefault = base.ordemSecoes ?? skin.secoes.filter((s) => !s.fixa).map((s) => s.id);
   if (atual.ordemSecoes && !igualJson(atual.ordemSecoes, ordemDefault)) {
     patch.ordemSecoes = atual.ordemSecoes;
   }

@@ -12,11 +12,13 @@ import { SparkParticles } from "./SparkParticles";
  */
 export function IntroAnimation({
   nome,
+  pularTexto,
   cidade,
   accent,
   onComplete,
 }: {
   nome: string;
+  pularTexto: string;
   cidade?: string;
   accent: string;
   onComplete: () => void;
@@ -66,7 +68,7 @@ export function IntroAnimation({
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6 }}
             />
-            <motion.h1
+            <motion.div
               variants={letterContainerVariants}
               initial="hidden"
               animate="visible"
@@ -83,7 +85,7 @@ export function IntroAnimation({
                   {char}
                 </motion.span>
               ))}
-            </motion.h1>
+            </motion.div>
           </div>
         </motion.div>
 
@@ -109,7 +111,7 @@ export function IntroAnimation({
           transition={{ duration: 0.7, delay: 2.1, ease: "easeInOut" }}
         >
           <div className="relative -mt-[2.4rem] whitespace-nowrap md:-mt-[3.6rem]">
-            <motion.h1
+            <motion.div
               variants={letterContainerVariants}
               initial="hidden"
               animate="visible"
@@ -126,7 +128,7 @@ export function IntroAnimation({
                   {char}
                 </motion.span>
               ))}
-            </motion.h1>
+            </motion.div>
           </div>
 
           {cidade && (
@@ -167,7 +169,7 @@ export function IntroAnimation({
             onComplete();
           }}
         >
-          pular →
+          {pularTexto} →
         </motion.button>
       </div>
     </motion.div>

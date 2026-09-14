@@ -9,7 +9,6 @@ import type { DemoData } from "@/lib/demos/types";
 export const BARBEARIA_EXEMPLO: DemoData = {
   nome: "BARBEARIA NORTE",
   slogan: "Ofício, tesoura e navalha.",
-  endereco: "Av. Principal, 100 — Centro",
   servicos: [
     {
       nome: "CORTE CLÁSSICO",
@@ -109,10 +108,12 @@ export const BARBEARIA_EXEMPLO: DemoData = {
     servicos: {
       rotulo: "SERVIÇOS",
       titulo: "O QUE FAZEMOS, COM AS MÃOS.",
+      cta: "AGENDAR ESSE SERVIÇO",
     },
     equipe: {
       rotulo: "EQUIPE",
       titulo: "TRÊS HOMENS DE OFÍCIO.",
+      cta: "VER PERFIL",
       itens: [
         {
           titulo: "Alan",
@@ -172,8 +173,18 @@ export const BARBEARIA_EXEMPLO: DemoData = {
       rotulo: "CONTATO",
       titulo: "ONDE A MÁGICA ACONTECE.",
       cta: "TRAÇAR ROTA",
+      ctaSecundaria: "FALE CONOSCO",
       texto: "TODOS OS DIREITOS RESERVADOS.",
     },
+  },
+  imagensAlt: {
+    hero: "Ambiente da barbearia",
+    "agendamento-rapido": "Atendimento na cadeira de barbeiro",
+    servicos: "Ferramentas do ofício",
+    "equipe-1": "Retrato do primeiro profissional",
+    "equipe-2": "Retrato do segundo profissional",
+    "equipe-3": "Retrato do terceiro profissional",
+    mapa: "Mapa de localização",
   },
   imagens: {
     hero: "/demos/barbearia/hero.svg",

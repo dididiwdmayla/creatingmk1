@@ -73,9 +73,7 @@ function estadoInicial(cliente: ClienteDemo, registro: RegistroDemo, skinPedida?
   const skin = getSkin(skinPedida ?? registro.demo?.skinId) ?? DEFAULT_SKIN;
   const daSkin = registro.demo?.skinId === skin.id;
   const themeSalvo = daSkin ? registro.demo?.themeId : undefined;
-  const themeId = skin.themePresets.some((t) => t.id === themeSalvo)
-    ? (themeSalvo as string)
-    : skin.themeDefault.id;
+  const themeId = getTheme(skin, themeSalvo).id;
   return {
     skinId: skin.id,
     themeId,
@@ -834,6 +832,7 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
                 erro={imgErro}
                 onUpload={handleUpload}
                 onRemover={handleRemoverImagem}
+                onAltChange={(slot, texto) => setDados((d) => d ? ({ ...d, imagensAlt: { ...d.imagensAlt, [slot]: texto } }) : d)}
                 imagensModo={dados.imagensModo ?? "foto"}
                 onImagensModoChange={handleImagensModoChange}
                 uploadVideoSlot={uploadVideoSlot}

@@ -1,3 +1,4 @@
+import { BARBEARIA_COMPOSICAO_CSS } from "./composicao";
 import Image from "next/image";
 import { type CSSProperties, type ReactNode } from "react";
 
@@ -164,7 +165,6 @@ function Placeholder({
       unoptimized
       data-demo-slot={slot}
       className="object-cover"
-      style={{ filter: "contrast(0.95) saturate(0.9)" }}
       sizes={sizes}
       priority={priority}
     />
@@ -173,8 +173,11 @@ function Placeholder({
 
 export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
+  const composicao = theme.barbearia;
   const m = microcopiaDemo(idioma);
   const vars = {
+    "--be-sombra": `${composicao?.sombra ?? 24}%`,
+    "--be-saturacao": composicao?.saturacao ?? .8,
     "--d-bg": paleta.fundo,
     "--d-bg-alt": paleta.fundoAlt,
     "--d-bg-elev": paleta.fundoElevado,
@@ -252,9 +255,9 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
   const secoes: Record<string, () => ReactNode> = {
     /* ── Hero (fixa) ─────────────────────────────────────────── */
     hero: () => (
-      <section id="topo" className="relative flex min-h-screen items-center overflow-hidden pt-24">
-        <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-12 px-6 md:grid-cols-[55%_45%]">
-          <div className="mt-12 flex flex-col items-start gap-8 md:mt-0">
+      <section id="topo" className="be-hero relative flex min-h-screen items-center overflow-hidden pt-24">
+        <div className="be-hero-grid relative z-10 mx-auto grid w-full max-w-7xl items-center gap-12 px-6 md:grid-cols-[55%_45%]">
+          <div className="be-hero-copy mt-12 flex flex-col items-start gap-8 md:mt-0">
             <div>
               {data.slogan && (
                 <h2
@@ -267,9 +270,9 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
               <h1
                 data-demo-slot="secoes.hero.titulo"
                 className={`w-full whitespace-pre-line font-[family-name:var(--d-hero-font)] uppercase leading-[0.9] tracking-tight text-[var(--d-text)] drop-shadow-2xl ${HERO_ALINHAMENTO_SELF[theme.heroTitulo.alinhamento]}`}
-                style={{ fontSize: "calc(clamp(3rem, 8vw, 6.5rem) * var(--d-hero-escala))" }}
+                style={{ fontSize: "calc(var(--be-title-size) * var(--d-hero-escala))" }}
               >
-                <TypewriterText text={s.hero?.titulo ?? data.nome} delay={1800} speed={80} />
+                {theme.animacao === "nenhuma" || !secaoAnimada(data, "hero") ? (s.hero?.titulo ?? data.nome) : <TypewriterText text={s.hero?.titulo ?? data.nome} delay={1800} speed={80} />}
               </h1>
             </div>
 
@@ -288,7 +291,7 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
                   href={agendar}
                   data-demo-slot="secoes.hero.cta"
                   data-cursor="open-scissors"
-                  data-cursor-text="AGENDAR →"
+                  data-cursor-text={s.hero?.cta}
                   className="w-full rounded-[var(--d-radius)] bg-[var(--d-accent)] px-8 py-4 text-center font-[family-name:var(--d-display)] text-xs font-bold uppercase tracking-[0.2em] text-[var(--d-accent-ink)] transition-opacity hover:opacity-85 sm:w-auto"
                 >
                   {s.hero.cta}
@@ -305,7 +308,7 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
               )}
             </div>
 
-            <div className="mt-8 flex gap-4 text-[var(--d-accent)] opacity-80" aria-hidden>
+            <div className="be-hero-stars mt-8 flex gap-4 text-[var(--d-accent)] opacity-80" aria-hidden>
               <span>★</span>
               <span>★</span>
               <span>★</span>
@@ -313,12 +316,11 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
           </div>
 
           <div
-            className="relative h-[60vh] w-full overflow-hidden rounded-[var(--d-radius)] md:h-[80vh]"
-            style={{ boxShadow: "0 16px 48px rgba(0,0,0,0.5)" }}
+            data-be-foto className="be-hero-photo relative h-[60vh] w-full overflow-hidden rounded-[var(--d-radius)] md:h-[80vh]"
           >
             <Placeholder
               src={data.imagens.hero}
-              alt={`Ambiente de ${data.nome}`}
+              alt={data.imagensAlt?.hero ?? ""}
               sizes="(max-width: 768px) 100vw, 45vw"
               priority
               slot="imagens.hero"
@@ -332,8 +334,8 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
     /* ── Agendamento rápido (QuickBooking) ──────────────────── */
     agendamentoRapido: () =>
       s.agendamentoRapido && (
-        <section className="relative border-b border-[var(--d-border)] bg-[var(--d-bg-elev)] py-[60px] md:py-[80px]">
-          <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 md:grid-cols-[60%_40%]">
+        <section className="be-quick relative border-b border-[var(--d-border)] bg-[var(--d-bg-elev)] py-[60px] md:py-[80px]">
+          <div className="be-quick-grid mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 md:grid-cols-[60%_40%]">
             <div className="flex flex-col items-start gap-5">
               <Etiqueta
                 texto={s.agendamentoRapido.rotulo}
@@ -383,7 +385,7 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
                     href={agendar}
                     data-demo-slot="secoes.agendamentoRapido.cta"
                     data-cursor="open-scissors"
-                    data-cursor-text="AGENDAR →"
+                    data-cursor-text={s.hero?.cta}
                     className="d-cta inline-flex w-full items-center justify-center gap-3 sm:w-auto"
                   >
                     <WhatsAppIcon />
@@ -394,12 +396,11 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
             </div>
 
             <div
-              className="relative aspect-square w-full overflow-hidden border border-[var(--d-accent)]/25 md:aspect-[4/3]"
-              style={{ boxShadow: "0 16px 48px rgba(0,0,0,0.6)" }}
+              data-be-foto className="be-quick-photo relative aspect-square w-full overflow-hidden border border-[var(--d-accent)]/25 md:aspect-[4/3]"
             >
               <Placeholder
                 src={data.imagens["agendamento-rapido"] ?? data.imagens.hero}
-                alt="Cliente sendo atendido na cadeira"
+                alt={data.imagensAlt?.["agendamento-rapido"] ?? ""}
                 sizes="(max-width: 768px) 100vw, 40vw"
                 slot="imagens.agendamento-rapido"
               />
@@ -428,7 +429,7 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
                 animado={typewriter("filosofia")}
               />
             </div>
-            <div className="grid gap-12 md:grid-cols-3">
+            <div className="be-pillars grid gap-12 md:grid-cols-3">
               {(s.filosofia.itens ?? []).map((pilar, i) => (
                 <div
                   key={pilar.titulo}
@@ -469,9 +470,9 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
         id="servicos"
         className="relative border-b border-[var(--d-border)] bg-[var(--d-bg)] py-[var(--d-sec-y)]"
       >
-        <div className="mx-auto grid max-w-7xl gap-12 px-6 md:grid-cols-12">
+        <div className="be-services-grid mx-auto grid max-w-7xl gap-12 px-6 md:grid-cols-12">
           <div className="md:col-span-4">
-            <div className="sticky top-32 flex flex-col gap-6">
+            <div className="be-services-heading sticky top-32 flex flex-col gap-6">
               <div>
                 <Etiqueta
                   numero={numeros.get("servicos")}
@@ -487,12 +488,11 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
                 </div>
               </div>
               <div
-                className="relative aspect-[4/3] w-full overflow-hidden rounded-[var(--d-radius)] border border-[var(--d-border)] md:aspect-[3/4]"
-                style={{ boxShadow: "0 16px 48px rgba(0,0,0,0.5)" }}
+                data-be-foto className="be-services-photo relative aspect-[4/3] w-full overflow-hidden rounded-[var(--d-radius)] border border-[var(--d-border)] md:aspect-[3/4]"
               >
                 <Placeholder
                   src={data.imagens.servicos}
-                  alt="Ferramentas do ofício"
+                  alt={data.imagensAlt?.servicos ?? ""}
                   sizes="(max-width: 768px) 100vw, 25vw"
                   slot="imagens.servicos"
                 />
@@ -501,13 +501,13 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
           </div>
 
           <div className="md:col-span-8">
-            <div className="flex flex-col border-t border-[var(--d-border)]">
+            <div className="be-service-list flex flex-col border-t border-[var(--d-border)]">
               {data.servicos.map((servico, i) => (
                 <div
                   key={servico.nome}
                   data-cursor="comb"
-                  data-cursor-text="AGENDAR ESSE →"
-                  className="group flex flex-col border-b border-[var(--d-border)] py-8 transition-[color,border-color] duration-[var(--d-anim-duration)] hover:border-[var(--d-accent)]/60"
+                  data-cursor-text={s.servicos?.cta}
+                  className="be-service-row group flex flex-col border-b border-[var(--d-border)] py-8 transition-[color,border-color] duration-[var(--d-anim-duration)] hover:border-[var(--d-accent)]/60"
                 >
                   <div className="mb-3 flex items-baseline justify-between gap-4">
                     <h3
@@ -568,12 +568,14 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+            <div className="be-team-grid grid grid-cols-1 gap-8 md:grid-cols-3">
               {(s.equipe.itens ?? []).map((membro, i) => (
                 <div key={membro.titulo} data-demo-slot={`secoes.equipe.itens.${i}.titulo`}>
                   <TeamCard
                     imageSrc={data.imagens[`equipe-${i + 1}`] ?? data.imagens.hero}
-                    alt={membro.titulo}
+                    alt={data.imagensAlt?.[`equipe-${i + 1}`] ?? ""}
+                    indice={i}
+                    cursorTexto={s.equipe.cta}
                     nome={membro.titulo}
                     subtitulo={membro.subtitulo}
                     detalhe={membro.detalhe}
@@ -589,11 +591,11 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
     /* ── Ritual (citação) ───────────────────────────────────── */
     ritual: () =>
       s.ritual?.texto && (
-        <section className="border-y border-[var(--d-border)] bg-[var(--d-bg)] py-[var(--d-sec-y)] text-center">
+        <section className="be-ritual border-y border-[var(--d-border)] bg-[var(--d-bg)] py-[var(--d-sec-y)] text-center">
           <div className="mx-auto flex max-w-4xl flex-col items-center px-6">
             <Etiqueta
               numero={numeros.get("ritual")}
-              texto={s.ritual.rotulo ?? "RITUAL"}
+              texto={s.ritual.rotulo}
               slot="secoes.ritual.rotulo"
               caixa
               className="mb-12"
@@ -727,7 +729,7 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
                   href={agendar}
                   data-demo-slot="secoes.agendamento.cta"
                   data-cursor="open-scissors"
-                  data-cursor-text="AGENDAR →"
+                  data-cursor-text={s.hero?.cta}
                   className="d-cta inline-flex items-center justify-center gap-3"
                 >
                   <span>{s.agendamento.cta}</span>
@@ -744,14 +746,14 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
       <section
         id="contato"
         data-cursor="shaving-machine"
-        data-cursor-text="FALE CONOSCO →"
+        data-cursor-text={s.contato?.ctaSecundaria}
         className="bg-[var(--d-bg-elev)] py-[var(--d-sec-y)]"
       >
         <div className="mx-auto grid max-w-7xl items-center gap-16 px-6 md:grid-cols-2 md:gap-24">
           <div className="flex flex-col items-start">
             <Etiqueta
               numero={numeros.get("contato")}
-              texto={s.contato?.rotulo ?? "CONTATO"}
+              texto={s.contato?.rotulo}
               slot="secoes.contato.rotulo"
               caixa
               className="mb-8"
@@ -839,7 +841,7 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
             <div className="relative h-full w-full opacity-80 transition-opacity group-hover:opacity-100">
               <Placeholder
                 src={data.imagens.mapa}
-                alt={data.endereco ? `Mapa de ${data.endereco}` : "Mapa"}
+                alt={data.imagensAlt?.mapa ?? ""}
                 sizes="(max-width: 768px) 100vw, 50vw"
                 slot="imagens.mapa"
               />
@@ -852,7 +854,7 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
                   rel="noopener noreferrer"
                   data-demo-slot="secoes.contato.cta"
                   data-cursor="open-scissors"
-                  data-cursor-text="TRAÇAR ROTA"
+                  data-cursor-text={s.contato?.cta}
                   className="block w-full rounded-[var(--d-radius)] border border-[var(--d-accent)]/30 bg-[var(--d-bg-alt)]/90 px-6 py-4 text-center font-[family-name:var(--d-mono)] text-[11px] font-medium tracking-widest text-[var(--d-text)] backdrop-blur-sm transition-colors hover:bg-[var(--d-accent)] hover:text-[var(--d-accent-ink)]"
                 >
                   {s.contato.cta} →
@@ -868,11 +870,18 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
   return (
     <div
       style={vars}
+      data-be-abertura={composicao?.abertura}
+      data-be-textura={composicao?.textura}
+      data-be-servicos={composicao?.servicos}
+      data-be-equipe={composicao?.equipe}
+      data-be-filosofia={composicao?.filosofia}
+      data-be-moldura={composicao?.moldura}
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
+      className="be min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
+      <style>{BARBEARIA_COMPOSICAO_CSS}</style>
       {/* Keyframes do poste de barbeiro — escopo próprio da skin. */}
       <style>{`
         @keyframes d-pole { 0% { background-position: 0 0; } 100% { background-position: 40px 0; } }
@@ -977,11 +986,13 @@ export function BarbeariaEditorial({ data, theme, idioma, moeda }: SkinProps) {
         cidade={data.cidade}
         accent={paleta.destaque}
         ativa={theme.intro !== false}
+        pularTexto={m.pular}
       >
       {/* ── Header ─────────────────────────────────────────────── */}
       <ScrollHeader
         nome={data.nome}
         ctaHref="#agendar"
+        ctaTexto={s.hero?.cta}
         links={[
           s.servicos?.rotulo && { href: "#servicos", label: s.servicos.rotulo },
           s.equipe?.rotulo && { href: "#equipe", label: s.equipe.rotulo },

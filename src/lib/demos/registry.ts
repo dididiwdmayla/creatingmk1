@@ -1,11 +1,8 @@
+import { idThemeAtual } from "./variantes";
+import { BARBEARIA_VARIANTES } from "@/components/demos/barbearia/variantes";
 import { LANCHERIA_2 } from "@/components/demos/lancheria2";
-import { BARBEARIA_EXEMPLO } from "@/components/demos/barbearia/exemplo";
 import { BARBEARIA_SECOES } from "@/components/demos/barbearia/secoes";
 import { BarbeariaEditorial } from "@/components/demos/barbearia/Skin";
-import {
-  BARBEARIA_THEME_DEFAULT,
-  BARBEARIA_THEME_PRESETS,
-} from "@/components/demos/barbearia/themes";
 import { BARBEARIA2_EXEMPLO } from "@/components/demos/barbearia2/exemplo";
 import { BARBEARIA2_SECOES } from "@/components/demos/barbearia2/secoes";
 import { BarbeariaSul } from "@/components/demos/barbearia2/Skin";
@@ -69,11 +66,13 @@ export const SKINS: SkinDefinition[] = [
     id: "barbearia-editorial",
     nicho: "barbearia",
     nome: "Barbearia Editorial",
-    descricao: "Editorial escuro premium: seções numeradas, serviços com preço, equipe e ritual.",
+    descricao: "Quatro composições editoriais: Norte, Meia-noite, Creme e Vinho. Ofício, serviços com preço, equipe e ritual.",
     componente: BarbeariaEditorial,
-    themeDefault: BARBEARIA_THEME_DEFAULT,
-    themePresets: BARBEARIA_THEME_PRESETS,
-    demoDataExemplo: BARBEARIA_EXEMPLO,
+    variantes: BARBEARIA_VARIANTES,
+    themeAliases: { oliva: "vinho" },
+    themeDefault: BARBEARIA_VARIANTES[0].theme,
+    themePresets: BARBEARIA_VARIANTES.map(v => v.theme),
+    demoDataExemplo: BARBEARIA_VARIANTES[0].exemplo,
     secoes: BARBEARIA_SECOES,
     heroEscalaLimites: { min: 0.8, max: 1.2 },
     thumbnail: "/demos/barbearia/thumb.svg",
@@ -238,5 +237,6 @@ export function getSkin(id: string | undefined): SkinDefinition | undefined {
 
 /** Tema do preset pedido; desconhecido/ausente cai no default da skin. */
 export function getTheme(skin: SkinDefinition, themeId: string | undefined): Theme {
+  themeId = idThemeAtual(skin, themeId);
   return skin.themePresets.find((theme) => theme.id === themeId) ?? skin.themeDefault;
 }

@@ -1136,7 +1136,7 @@ async function main() {
   await exigirPortaLivre(BASE);
   if (!temFlag("sem-build")) await executar("npx", ["next", "build"], env);
 
-  const servidor = spawn("npx", ["next", "start", "-p", String(PORTA)], {
+  const servidor = spawn("npx", ["next", "start", "-H", "127.0.0.1", "-p", String(PORTA)], {
     cwd: RAIZ,
     env,
     stdio: ["ignore", "inherit", "inherit"],

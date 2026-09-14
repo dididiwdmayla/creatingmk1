@@ -179,6 +179,8 @@ export interface DemoData {
    * em qualquer modo.
    */
   imagens: Record<string, string>;
+  /** Texto alternativo por slot, opt-in da skin; vazio marca imagem decorativa. */
+  imagensAlt?: Record<string, string>;
   /**
    * Base do placeholder de cada slot de `imagens` sem upload do lead:
    * "foto" usa a foto de produção em `foto/<slot>.webp` quando existe para
@@ -378,10 +380,23 @@ export interface CoresModoValor {
   cores?: string[];
 }
 
+/** Composição editorial nativa: knobs do desenho, nunca conteúdo do lead. */
+export interface BarbeariaComposicao {
+  abertura: "oficio" | "urbana" | "almanaque" | "salao";
+  textura: "fibra" | "registro" | "papel" | "fosco";
+  servicos: "lateral" | "tabela";
+  equipe: "cartoes" | "perfis";
+  filosofia: "colunas" | "linhas";
+  moldura: "simples" | "dupla";
+  sombra: number;
+  saturacao: number;
+}
+
 /** Tokens visuais de um tema de skin. */
 export interface Theme {
   /** Knobs da identidade, injetados pela definição da skin. Nunca por URL pública. */
   lancheria?: TemaLancheria;
+  barbearia?: BarbeariaComposicao;
   id: string;
   nome: string;
   paleta: ThemePaleta;
@@ -667,6 +682,8 @@ export interface SkinDefinition {
    * quem precisa do arranjo e do exemplo por variante usa ./variantes.ts.
    */
   variantes?: readonly SkinVariante[];
+  /** IDs históricos resolvem para o preset/variante canônico, sem migrar o banco. */
+  themeAliases?: Readonly<Record<string, string>>;
   demoDataExemplo: DemoData;
   /** Seções da skin, na ordem default de render (contrato do editor). */
   secoes: SkinSecaoDef[];

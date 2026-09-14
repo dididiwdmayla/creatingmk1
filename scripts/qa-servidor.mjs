@@ -81,7 +81,7 @@ export async function subirServidor({ porta = Number(process.env.QA_PORTA ?? 312
   await exigirPortaLivre(base, porta);
   if (build) await executar("npx", ["next", "build"], env);
 
-  const servidor = spawn("npx", ["next", "start", "-p", String(porta)], {
+  const servidor = spawn("npx", ["next", "start", "-H", "127.0.0.1", "-p", String(porta)], {
     cwd: RAIZ,
     env,
     stdio: ["ignore", "inherit", "inherit"],
