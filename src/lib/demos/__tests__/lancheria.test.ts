@@ -107,6 +107,36 @@ describe('lancheria: fronteira do Radar e motor fixo',()=>{
     const html=renderToStaticMarkup(createElement(Lancheria,{tema,dados:d}));
     expect(html).toContain('data-filtro-forma="todos"');expect(html.match(/class="composicao-rotulo"/g)).toHaveLength(6);
   });
+  it('a camada decorativa da Forja vale sobre a variante; o que é calibrado é recusado',()=>{
+    const patch={fundoEfeito:'grao',fundoEfeitoIntensidade:2 as const,led:'marcante' as const,
+      ledEstilo:'moldura',efeitoCores:{modo:'arco-iris' as const},ledCores:{modo:'fixa' as const,cores:['#00c2ff']},
+      barraCor:{modo:'destaque' as const}};
+    // Passa pela validação do PUT…
+    expect(()=>validateLeadDemoInput(input({},patch))).not.toThrow();
+    // …e chega no Theme resolvido, em QUALQUER variante.
+    for(const v of variantes) {
+      const t=aplicarTema(getTheme(skin,v.id),patch,skin.heroEscalaLimites);
+      expect(t.fundoEfeito).toBe('grao');
+      expect(t.led).toBe('marcante');
+      expect(t.ledEstilo).toBe('moldura');
+      expect(t.efeitoCores).toEqual({modo:'arco-iris',cores:undefined});
+      expect(t.barraCor).toEqual({modo:'destaque',cor:undefined});
+      // …sem mexer no que é da skin.
+      expect(t.fontes).toEqual(v.theme.fontes);
+      expect(t.raio).toBe(v.theme.raio);
+      expect(t.densidade).toBe(v.theme.densidade);
+    }
+    // O LED sai no HTML do servidor, como nas outras oito skins.
+    const theme=aplicarTema(getTheme(skin,skin.themeDefault.id),patch,skin.heroEscalaLimites);
+    const html=renderToStaticMarkup(createElement(skin.componente,{
+      data:montarDemoData(exemploDaSkin(skin,skin.themeDefault.id),undefined,undefined,skin.id),theme}));
+    expect(html).toContain('data-d-led-estilo="moldura"');
+  });
+  it('o que a variante traz calibrado o PUT recusa',()=>{
+    for(const chave of ['destaque','fonteDisplay','fonteCorpo','raio','densidade','animacao','hover','clique'])
+      expect(()=>validateLeadDemoInput(input({},{[chave]:chave==='raio'?'12px':'x'})),chave).toThrow();
+    expect(()=>validateLeadDemoInput(input({},{heroTitulo:{escala:2}}))).toThrow();
+  });
   it('cores têm overrides independentes e a identidade não segue accent genérico',()=>{
     const t=temaDaLancheria(aplicarTema(skin.themeDefault,{quente:'#cc4411',frio:'#224466',destaque:'#ff00ff'}));
     expect(t.cores.quente).toBe('#cc4411');expect(t.cores.frio).toBe('#224466');

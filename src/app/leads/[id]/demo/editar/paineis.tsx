@@ -12,10 +12,11 @@ import { ordemEfetiva, secaoAnimada } from "@/lib/demos/estrutura";
 import { fontesPorPapel, type FontePapel } from "@/lib/demos/fontes";
 import { baseImagemSlot } from "@/lib/demos/imagens-modo";
 import { LED_ESTILOS } from "@/lib/demos/led/registry";
-import { PainelLancheria, TemaLancheria } from "./PainelLancheria";
+import { PainelLancheria } from "./PainelLancheria";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import { SKINS } from "@/lib/demos/registry";
+import { temaCalibrado } from "@/lib/demos/variantes";
 import { ESPACAMENTO_HERO_LIMITES, TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
 import { IDIOMAS_SUPORTADOS, PAISES_COM_IDIOMA, idiomaLabel } from "@/lib/idioma";
 import type {
@@ -1319,8 +1320,12 @@ export function PainelTema({
   onPaisChange?: (pais: string) => void;
   paisSalvando?: boolean;
 }) {
-  if (skin.themeDefault.lancheria) return <TemaLancheria skin={skin} onSkinChange={onSkinChange} tema={tema} setTema={setTema} />;
   const preset = skin.themePresets.find((t) => t.id === themeId) ?? skin.themeDefault;
+  // Skin cuja tipografia, raio, densidade e animação vêm CALIBRADAS do
+  // pacote dela (ver temaCalibrado): o editor não oferece esses controles,
+  // porque `aplicarTema` os ignora de propósito. Tudo o que é camada de
+  // cima — cores de papel, efeito de fundo, LED, cor da barra — continua.
+  const calibrado = temaCalibrado(skin);
   const destaque = tema.destaque ?? preset.paleta.destaque;
 
   // Efeito de fundo efetivo (patch ou preset) — governa se o slider de
@@ -1343,7 +1348,7 @@ export function PainelTema({
         </select>
       </label>
 
-      {pais !== undefined && onPaisChange && (
+      {pais !== undefined && onPaisChange && !skin.localeFixo && (
         <label className={LABEL_CLS}>
           País do negócio
           <input
@@ -1369,6 +1374,14 @@ export function PainelTema({
         </label>
       )}
 
+      {skin.localeFixo && (
+        <p className="rounded border border-line px-3 py-2 text-[11px] text-ink-muted">
+          Esta skin é publicada em {skin.localeFixo.idioma} / {skin.localeFixo.moeda}. Idioma e
+          moeda não são escolha aqui.
+        </p>
+      )}
+
+      {!skin.localeFixo && (
       <label className={LABEL_CLS}>
         Idioma dos textos (gerados por IA)
         <select
@@ -1384,16 +1397,25 @@ export function PainelTema({
           ))}
         </select>
       </label>
+      )}
 
       <div>
-        <span className="text-xs text-ink-muted">Preset de tema</span>
+        {/* A VARIANTE ocupa o lugar do preset (ver SkinVariante): mesma
+            fileira, mas ela carrega composição e conteúdo de exemplo além
+            da paleta, então o rótulo diz o que a escolha realmente faz. */}
+        <span className="text-xs text-ink-muted">
+          {skin.variantes ? "Variante" : "Preset de tema"}
+        </span>
         <div className="mt-1.5 flex flex-wrap gap-2">
-          {skin.themePresets.map((p) => (
+          {skin.themePresets.map((p) => {
+            const variante = skin.variantes?.find((v) => v.id === p.id);
+            return (
             <button
               key={p.id}
               type="button"
               onClick={() => setThemeId(p.id)}
               aria-pressed={themeId === p.id}
+              title={variante?.descricao}
               className={`flex items-center gap-2 rounded border px-2.5 py-1.5 text-xs transition-colors ${
                 themeId === p.id
                   ? "border-accent text-foreground"
@@ -1406,11 +1428,59 @@ export function PainelTema({
                 <span className="h-3 w-3" style={{ background: p.paleta.texto }} />
               </span>
               {p.nome}
+              {variante && (
+                <span className="text-[10px] uppercase tracking-wide text-ink-muted">
+                  {variante.fundo}
+                </span>
+              )}
             </button>
-          ))}
+            );
+          })}
         </div>
+        {skin.variantes && (
+          <p className="mt-1.5 text-[11px] text-ink-muted">
+            A variante troca paleta, textura e o arranjo inicial das seções. A aba Estrutura
+            reordena por cima dela.
+          </p>
+        )}
       </div>
 
+      {calibrado && (
+        // Esta skin não tem "acento genérico": tem DOIS papéis de cor
+        // independentes — comida (preço, botão de pedir) e sistema
+        // (medição, estados do raio-x). Um seletor de "cor primária" só
+        // conseguiria mexer nos dois de uma vez, que é o que `aplicarTema`
+        // recusa de propósito.
+        <div className="flex flex-col gap-3">
+          {(["quente", "frio"] as const).map((papel) => (
+            <label key={papel} className={LABEL_CLS}>
+              {papel === "quente" ? "Comida — preço e pedido" : "Sistema — medição e estados"}
+              <span className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={tema[papel] ?? preset.paleta[papel] ?? "#000000"}
+                  onChange={(e) => setTema({ ...tema, [papel]: e.target.value })}
+                  className="h-9 w-12 cursor-pointer rounded border border-line bg-surface-2 p-1"
+                />
+                <code className="font-mono text-xs text-ink-secondary">
+                  {tema[papel] ?? preset.paleta[papel]}
+                </code>
+                {tema[papel] && (
+                  <button
+                    type="button"
+                    onClick={() => setTema({ ...tema, [papel]: undefined })}
+                    className="text-[11px] text-ink-muted hover:text-foreground"
+                  >
+                    usar a da variante
+                  </button>
+                )}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {!calibrado && (
       <div className="flex items-end gap-3">
         <label className={LABEL_CLS}>
           Cor primária
@@ -1440,7 +1510,10 @@ export function PainelTema({
           </button>
         )}
       </div>
+      )}
 
+      {!calibrado && (
+      <>
       <label className={LABEL_CLS}>
         Fonte dos títulos
         <SeletorFonte
@@ -1539,7 +1612,10 @@ export function PainelTema({
           ))}
         </div>
       </div>
+      </>
+      )}
 
+      {(!calibrado || preset.lancheria?.intro) && (
       <Escolha
         titulo="Intro de abertura (splash do template)"
         padraoRotulo={preset.intro ? "ligada" : "desligada"}
@@ -1552,22 +1628,27 @@ export function PainelTema({
           setTema({ ...tema, intro: v === undefined ? undefined : v === "ligada" })
         }
       />
+      )}
 
-      <Escolha
-        titulo="Hover de cards e botões"
-        padraoRotulo={HOVERS.find((h) => h.id === preset.hover)?.rotulo ?? preset.hover}
-        opcoes={HOVERS}
-        valor={tema.hover}
-        onChange={(hover) => setTema({ ...tema, hover })}
-      />
+      {!calibrado && (
+        <Escolha
+          titulo="Hover de cards e botões"
+          padraoRotulo={HOVERS.find((h) => h.id === preset.hover)?.rotulo ?? preset.hover}
+          opcoes={HOVERS}
+          valor={tema.hover}
+          onChange={(hover) => setTema({ ...tema, hover })}
+        />
+      )}
 
-      <Escolha
-        titulo="Animação de clique"
-        padraoRotulo={CLIQUES.find((c) => c.id === preset.clique)?.rotulo ?? preset.clique}
-        opcoes={CLIQUES}
-        valor={tema.clique}
-        onChange={(clique) => setTema({ ...tema, clique })}
-      />
+      {!calibrado && (
+        <Escolha
+          titulo="Animação de clique"
+          padraoRotulo={CLIQUES.find((c) => c.id === preset.clique)?.rotulo ?? preset.clique}
+          opcoes={CLIQUES}
+          valor={tema.clique}
+          onChange={(clique) => setTema({ ...tema, clique })}
+        />
+      )}
 
       <Escolha
         titulo="Efeito de fundo (sutil, leve em mobile)"
@@ -1664,6 +1745,7 @@ export function PainelTema({
         onChange={(barraCor) => setTema({ ...tema, barraCor })}
       />
 
+      {!calibrado && (
       <div className="flex flex-col gap-3 rounded border border-line p-3">
         <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Título principal (hero)
@@ -1735,6 +1817,7 @@ export function PainelTema({
           }
         />
       </div>
+      )}
     </div>
   );
 }

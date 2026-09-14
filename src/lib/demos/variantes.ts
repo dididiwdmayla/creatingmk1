@@ -94,3 +94,20 @@ export function criarVariante(
     },
   };
 }
+
+/**
+ * A tipografia, o raio, a densidade e a animação desta skin vêm CALIBRADOS
+ * do pacote dela, em vez de saírem dos tokens da Forja?
+ *
+ * É o mesmo fato que `aplicarTema` já usa para IGNORAR esses campos do
+ * `TemaPatch` (ver o ramo `preset.lancheria` em ./tema.ts) e que o PUT usa
+ * para recusá-los. Existe como função para o editor não precisar repetir a
+ * condição, e para haver UM lugar a generalizar quando a segunda skin
+ * empacotada chegar.
+ *
+ * O que continua editável numa skin calibrada é tudo que é camada de cima:
+ * os papéis de cor, o efeito de fundo, o LED e a cor da barra.
+ */
+export function temaCalibrado(skin: SkinDefinition): boolean {
+  return skin.themeDefault.lancheria !== undefined;
+}

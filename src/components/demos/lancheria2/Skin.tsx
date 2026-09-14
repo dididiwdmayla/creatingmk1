@@ -4,6 +4,8 @@ import { secoesVisiveis } from "@/lib/demos/estrutura";
 import { dadosDaLancheria, temaDaLancheria } from "@/lib/demos/lancheria/adapter";
 import type { SkinProps } from "@/lib/demos/types";
 
+import { LedEdges } from "./interactive/LedEdges";
+
 import { LANCHERIA2_SECOES } from "./secoes";
 
 /**
@@ -54,6 +56,15 @@ export function Lancheria2({ data, theme }: SkinProps) {
   return (
     <>
       <style>{estrutura}</style>
+      {/* Sibling da skin, como nas outras oito — o LED é da Forja, não do
+          pacote, e vale sobre qualquer variante. O efeito de fundo já entra
+          como sibling na própria rota (ver app/demo/comum.tsx). */}
+      <LedEdges
+        preset={theme.led}
+        estilo={theme.ledEstilo}
+        cores={theme.ledCores}
+        corBase={theme.paleta.destaque}
+      />
       <Lancheria tema={temaDaLancheria(theme)} dados={dadosDaLancheria(data)} />
     </>
   );
