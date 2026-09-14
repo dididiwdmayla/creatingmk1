@@ -178,14 +178,14 @@ export async function GET(req: Request) {
     if (ritmo) return semTarefa(ritmo);
 
     const [app, pool] = await Promise.all([loadConfig(db), lerPool(db, now)]);
-    const { elegiveis, foraDeJanela } = ordenarCandidatos(
+    const { escolhido, diagnostico } = ordenarCandidatos(
       pool.candidatos,
       config,
       app.janelasContato,
       now,
     );
 
-    for (const candidato of elegiveis) {
+    for (const candidato of escolhido) {
       const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now);
       if (tarefa) return respostaComTarefa(tarefa);
     }
@@ -195,8 +195,10 @@ export async function GET(req: Request) {
     // (ou os que existiam estarem todos reservados) — nenhuma espera resolve,
     // alguém precisa gerar demo e capturas. Colapsar os dois apagaria a
     // única informação que diz qual providência tomar.
+    const foraDeJanela =
+      diagnostico.janela.razoavel + diagnostico.janela.ruim + diagnostico.janela.semNivel;
     return semTarefa(
-      elegiveis.length === 0 && foraDeJanela > 0 ? "fora_de_janela" : "sem_leads_elegiveis",
+      escolhido.length === 0 && foraDeJanela > 0 ? "fora_de_janela" : "sem_leads_elegiveis",
     );
   } catch (error) {
     return handleRouteError(error);

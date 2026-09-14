@@ -454,4 +454,19 @@ describe("GET /api/fila/proximo — o contrato achatado", () => {
     expect(texto).toContain('"leadId":""');
     expect(texto).toContain('"printUrl":""');
   });
+
+  it("o formato não mudou: exatamente as CHAVES_RESPOSTA, nenhuma a mais — o diagnóstico interno da seleção não vaza aqui", async () => {
+    semear(lead("ChIJa"));
+
+    const comTarefa = await (await proximo()).json();
+    expect(Object.keys(comTarefa).sort()).toEqual([...CHAVES_RESPOSTA].sort());
+
+    // Sem tarefa nenhuma também: `ordenarCandidatos` agora devolve
+    // `{ escolhido, diagnostico }` internamente, mas nada disso pode
+    // aparecer no corpo achatado que o MacroDroid lê.
+    const semTarefa = await (await proximo()).json();
+    expect(Object.keys(semTarefa).sort()).toEqual([...CHAVES_RESPOSTA].sort());
+    expect(semTarefa).not.toHaveProperty("diagnostico");
+    expect(semTarefa).not.toHaveProperty("escolhido");
+  });
 });

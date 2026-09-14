@@ -36,6 +36,30 @@ export interface CandidatoOrdenado {
 }
 
 /**
+ * Quantos candidatos do pool pararam na janela, quebrado por nível — é o
+ * que separa "a config não pegou" (razoavel parado com `exigirJanelaBoa`
+ * true) de "está todo mundo fechado agora" (`semNivel`).
+ */
+export interface DiagnosticoJanela {
+  razoavel: number;
+  ruim: number;
+  semNivel: number;
+}
+
+/**
+ * O diagnóstico das etapas FRESCAS da seleção (nicho e janela) — calculado
+ * sobre o pool, na mesma passada que escolhe os elegíveis. As contagens
+ * estruturais (etapa anterior, "quantos leads nem chegaram a ser
+ * candidatos") ficam em `PoolCandidatos.estrutural` (`lib/fila/candidatos.ts`),
+ * congeladas no rebuild — ver `/api/fila/diagnostico`, que junta as duas.
+ */
+export interface DiagnosticoSelecao {
+  /** Passariam na janela, mas o nicho deles não está em `nichosPermitidos`. */
+  nichoBarrado: number;
+  janela: DiagnosticoJanela;
+}
+
+/**
  * Portões que não dependem de lead nenhum — pausa e ritmo. Ficam ANTES da
  * leitura do pool de propósito: são 2 leituras de doc, e barram a enorme
  * maioria das chamadas da noite sem encostar em `/leads`.
@@ -108,25 +132,33 @@ export function niveisAceitos(config: FilaConfig): NivelContato[] {
  * Desempate por id para a ordem ser determinística, e não depender da ordem
  * em que o Firestore devolveu os docs.
  *
- * `foraDeJanela` conta quantos passariam em tudo e só esbarraram na hora. É
- * o que separa "estão todos dormindo, volte mais tarde" de "não existe lead
- * pronto para mandar" — dois problemas com donos diferentes.
+ * UMA PASSAGEM SÓ sobre o pool: escolhe e diagnostica ao mesmo tempo — nunca
+ * duas varreduras, uma para decidir e outra para contar. `diagnostico`
+ * conta quem passaria em tudo e esbarrou no nicho, e quem passaria no nicho
+ * e esbarrou na hora (quebrado por nível: é o que separa "está todo mundo
+ * fechado agora" de "a config não pegou" — ver `DiagnosticoJanela`).
  */
 export function ordenarCandidatos(
   pool: CandidatoFila[],
   config: FilaConfig,
   janelas: JanelasContatoConfig,
   now: Date,
-): { elegiveis: CandidatoOrdenado[]; foraDeJanela: number } {
+): { escolhido: CandidatoOrdenado[]; diagnostico: DiagnosticoSelecao } {
   const aceitos = niveisAceitos(config);
   const elegiveis: Array<CandidatoOrdenado & { criadoEm: string }> = [];
-  let foraDeJanela = 0;
+  let nichoBarrado = 0;
+  const janela: DiagnosticoJanela = { razoavel: 0, ruim: 0, semNivel: 0 };
 
   for (const candidato of pool) {
-    if (!nichoPermitido(candidato.nicho, config.nichosPermitidos)) continue;
+    if (!nichoPermitido(candidato.nicho, config.nichosPermitidos)) {
+      nichoBarrado += 1;
+      continue;
+    }
     const nivel = nivelAgora(candidato, janelas, now);
     if (nivel === undefined || !aceitos.includes(nivel)) {
-      foraDeJanela += 1;
+      if (nivel === undefined) janela.semNivel += 1;
+      else if (nivel === "razoavel") janela.razoavel += 1;
+      else janela.ruim += 1;
       continue;
     }
     elegiveis.push({ id: candidato.id, nivel, criadoEm: candidato.criadoEm });
@@ -138,5 +170,8 @@ export function ordenarCandidatos(
       a.criadoEm.localeCompare(b.criadoEm) ||
       a.id.localeCompare(b.id),
   );
-  return { elegiveis: elegiveis.map(({ id, nivel }) => ({ id, nivel })), foraDeJanela };
+  return {
+    escolhido: elegiveis.map(({ id, nivel }) => ({ id, nivel })),
+    diagnostico: { nichoBarrado, janela },
+  };
 }
