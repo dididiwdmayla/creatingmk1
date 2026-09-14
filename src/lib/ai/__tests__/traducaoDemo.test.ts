@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SKIN } from "@/lib/demos/registry";
+import { DEFAULT_SKIN, getSkin } from "@/lib/demos/registry";
 import type { DemoData } from "@/lib/demos/types";
 import {
   conteudoTraduzivelVazio,
@@ -241,5 +241,34 @@ describe("validarTraducaoDemo", () => {
     expect(problemas).toEqual([]);
     expect(traducao?.servicos[1]).toEqual({});
     expect(traducao?.secoes.filosofia.itens?.[1]).toEqual({});
+  });
+});
+
+describe("lancheria-2 (skin de tema calibrado, locale FIXO em pt-BR)", () => {
+  const SKIN = getSkin("lancheria-2")!;
+
+  it("localeFixo trava o idioma em pt-BR — a ação Traduzir nunca é alcançável nesta skin", () => {
+    // O seletor de idioma do editor nem aparece pra uma skin com
+    // `localeFixo` (ver paineis.tsx) e o próprio conteúdo do catálogo
+    // raio-x (`lancheria.textos`/`lanches`/`extras`) não é modelado como
+    // `secoes`/`servicos`/`depoimentos` — então não é preciso nenhum ramo
+    // lancheria-específico aqui: o mecanismo genérico (idioma sempre
+    // "pt-BR" pra esta skin + a rota já recusa traduzir PARA pt-BR, "nada
+    // pra traduzir") já cobre o caso, igual descrito no item 3 da tarefa.
+    expect(SKIN.localeFixo).toEqual({ idioma: "pt-BR", moeda: "BRL" });
+  });
+
+  it("extrairConteudoTraduzivel nunca encontra nada pra traduzir no catálogo raio-x (conteúdo mora em dados.lancheria, não em secoes/servicos)", () => {
+    const exemplo = SKIN.demoDataExemplo;
+    const conteudo = extrairConteudoTraduzivel(
+      {
+        slogan: exemplo.slogan,
+        secoes: exemplo.secoes,
+        servicos: exemplo.servicos,
+        depoimentos: exemplo.depoimentos,
+      },
+      SKIN,
+    );
+    expect(conteudoTraduzivelVazio(conteudo)).toBe(true);
   });
 });

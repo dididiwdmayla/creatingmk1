@@ -32,7 +32,6 @@ export async function POST(req: Request, { params }: Params) {
     if (!skin) {
       throw new ValidationError(["skinId deve ser uma skin do registro"]);
     }
-    if (skin.themeDefault.lancheria) throw new ValidationError(["Edite o catálogo da lancheria no painel Conteúdo; a sugestão genérica não cobre receitas calibradas."]);
     if (body.nivel !== undefined && !nivelIaValido(body.nivel)) {
       throw new ValidationError([`nivel deve ser um de: ${NIVEIS_IA.join(", ")}`]);
     }
