@@ -154,6 +154,69 @@ describe("POST /api/fila/confirmar — 'enviado'", () => {
     expect((db.getDoc("leads/ChIJa") as unknown as Lead).registrosEnvio).toHaveLength(1);
   });
 
+  // O TEXTO SAIU, O PRINT NÃO. A macro reporta "enviado" mesmo assim, de
+  // propósito: reportar falha devolveria o lead à fila e a pessoa receberia
+  // a mesma mensagem duas vezes. Estes três testes cobrem o único rastro
+  // que sobra desse lead contactado sem a peça que vende.
+  it("o detalhe de um envio com anexo falho fica em detalheEnvio", async () => {
+    semear(lead("ChIJa"));
+    const tarefa = await pegarTarefa();
+
+    const res = await confirmar({
+      id: tarefa.id,
+      leadId: "ChIJa",
+      resultado: "enviado",
+      detalhe: "print não anexou",
+    });
+
+    expect(res.status).toBe(200);
+    expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({
+      estado: "enviado",
+      detalheEnvio: "print não anexou",
+      ultimoErro: null, // continua sendo campo de FALHA, e isto foi sucesso
+    });
+    // E o envio contou normalmente: a mensagem saiu.
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 1 });
+    expect((db.getDoc("leads/ChIJa") as unknown as Lead).status).toBe("contactado");
+  });
+
+  it("o detalhe é cortado em 300 caracteres — é diagnóstico, não log", async () => {
+    semear(lead("ChIJa"));
+    const tarefa = await pegarTarefa();
+
+    await confirmar({
+      id: tarefa.id,
+      leadId: "ChIJa",
+      resultado: "enviado",
+      detalhe: "x".repeat(500),
+    });
+
+    expect(db.getDoc("filaEnvios/ChIJa")?.detalheEnvio).toBe("x".repeat(300));
+  });
+
+  it("repetir o confirmar não reescreve o detalhe já gravado", async () => {
+    semear(lead("ChIJa"));
+    const tarefa = await pegarTarefa();
+    await confirmar({
+      id: tarefa.id,
+      leadId: "ChIJa",
+      resultado: "enviado",
+      detalhe: "print não anexou",
+    });
+
+    // A rede caiu depois do envio e o celular reenvia — com outro detalhe,
+    // que é o pior caso: o caminho idempotente devolve 200 sem mudar NADA.
+    const repetida = await confirmar({
+      id: tarefa.id,
+      leadId: "ChIJa",
+      resultado: "enviado",
+      detalhe: "tudo certo desta vez",
+    });
+
+    expect(await repetida.json()).toMatchObject({ ok: true, repetida: true });
+    expect(db.getDoc("filaEnvios/ChIJa")?.detalheEnvio).toBe("print não anexou");
+  });
+
   it("nunca rebaixa status: lead que já respondeu continua 'respondeu'", async () => {
     semear(lead("ChIJa"));
     const tarefa = await pegarTarefa();

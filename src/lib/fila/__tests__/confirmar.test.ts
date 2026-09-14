@@ -109,3 +109,96 @@ describe("confirmarEnvio — a transação", () => {
     expect(base.getDoc("filaContadores/2026-03-11")).toBeUndefined();
   });
 });
+
+/**
+ * O TEXTO SAIU, O PRINT NÃO FOI ANEXADO. A macro reporta "enviado" de
+ * propósito nesse caso — reportar "falhou" devolveria o lead à fila e a
+ * pessoa receberia a mesma mensagem duas vezes, que é o padrão que mais
+ * gera denúncia no WhatsApp. O preço é um lead contactado sem a peça que
+ * vende; o que estes testes protegem é o único rastro que torna esse lead
+ * ENCONTRÁVEL depois, em vez de exigir abrir um por um.
+ */
+describe("confirmarEnvio — o detalhe de um envio que DEU CERTO", () => {
+  const OPCOES = { userId: "radar-device", inicioDiaOperacionalHora: 0, now: AGORA };
+
+  async function reservado() {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJa", {
+      placeId: "ChIJa",
+      nome: "Lead",
+      status: "novo",
+      enriquecido: false,
+      criadoEm: "2026-03-01T00:00:00.000Z",
+      atualizadoEm: "2026-03-01T00:00:00.000Z",
+    });
+    const reserva = await reservarLead(db, "ChIJa", "android", AGORA);
+    return { db, claimId: reserva!.claimId };
+  }
+
+  it("grava em detalheEnvio — e ultimoErro continua null", async () => {
+    const { db, claimId } = await reservado();
+
+    await confirmarEnvio(db, "ChIJa", claimId, "enviado", {
+      ...OPCOES,
+      detalhe: "print não anexou",
+    });
+
+    expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({
+      estado: "enviado",
+      enviadoEm: AGORA.toISOString(),
+      detalheEnvio: "print não anexou",
+      // `ultimoErro` é semanticamente FALHA: é o que a ficha mostra na tarja
+      // do lead parado. Sujá-lo com o detalhe de um envio bem-sucedido
+      // confundiria as duas coisas justamente no diagnóstico.
+      ultimoErro: null,
+    });
+  });
+
+  it("envio sem detalhe nenhum grava string vazia, nunca null", async () => {
+    const { db, claimId } = await reservado();
+
+    await confirmarEnvio(db, "ChIJa", claimId, "enviado", OPCOES);
+
+    expect(db.getDoc("filaEnvios/ChIJa")?.detalheEnvio).toBe("");
+  });
+
+  it("'falhou' continua indo para ultimoErro, e não inventa pendência", async () => {
+    const { db, claimId } = await reservado();
+
+    await confirmarEnvio(db, "ChIJa", claimId, "falhou", {
+      ...OPCOES,
+      detalhe: "whatsapp travou",
+    });
+
+    expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({
+      estado: "falhou",
+      ultimoErro: "whatsapp travou",
+      // A lista de pendência do painel lista por detalheEnvio: um lead que
+      // FALHOU não é pendência de print — ele volta à fila sozinho.
+      detalheEnvio: "",
+    });
+  });
+
+  it("confirmar repetido não reescreve o detalhe já gravado", async () => {
+    const { db, claimId } = await reservado();
+    await confirmarEnvio(db, "ChIJa", claimId, "enviado", {
+      ...OPCOES,
+      detalhe: "print não anexou",
+    });
+
+    // A rede caiu depois do envio e o celular reenvia o confirmar — com um
+    // detalhe diferente, que é o pior caso: o caminho idempotente devolve
+    // 200 sem alterar NADA, e "nada" inclui o detalhe.
+    const repetida = await confirmarEnvio(db, "ChIJa", claimId, "enviado", {
+      ...OPCOES,
+      detalhe: "tudo certo desta vez",
+      now: new Date(AGORA.getTime() + 60_000),
+    });
+
+    expect(repetida).toMatchObject({ estado: "enviado", repetida: true });
+    expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({
+      detalheEnvio: "print não anexou",
+      enviadoEm: AGORA.toISOString(),
+    });
+  });
+});

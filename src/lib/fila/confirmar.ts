@@ -54,7 +54,10 @@ function envioRef(db: AppDb, leadId: string) {
  * - **enviado**: claim carimbada, lead `novo → contactado` (nunca rebaixa:
  *   lead que já avançou mantém o status), selo + registro de envio com o
  *   usuário do dispositivo, rotação COMPARTILHADA girada e contador do dia
- *   operacional incrementado.
+ *   operacional incrementado. O `detalhe` que vier junto é gravado em
+ *   `detalheEnvio` — é o caso do texto que saiu SEM o print anexado, que o
+ *   celular reporta como "enviado" de propósito (reportar falha devolveria
+ *   o lead à fila e mandaria a mesma mensagem duas vezes).
  * - **invalido**: claim encerrada e o lead marcado com `telefoneInvalido` —
  *   número sem WhatsApp não volta à fila nunca mais (mas o lead continua na
  *   base, porque o número pode ser corrigido depois).
@@ -120,6 +123,13 @@ export async function confirmarEnvio(
       ...envio,
       estado: resultado,
       ultimoErro: resultado === "enviado" ? null : detalhe,
+      // O detalhe de um envio que DEU CERTO tem campo próprio (ver
+      // `detalheEnvio` em estado.ts): sobrescrever `ultimoErro` com ele
+      // confundiria falha e sucesso justamente no diagnóstico. Vai DENTRO
+      // desta transação, junto do resto do caminho "enviado" — gravá-lo
+      // depois abriria a janela em que o lead conta como enviado e a
+      // pendência do print não existe em lugar nenhum.
+      detalheEnvio: resultado === "enviado" ? detalhe ?? "" : envio.detalheEnvio ?? "",
       tentativas,
       enviadoEm: resultado === "enviado" ? now.toISOString() : envio.enviadoEm,
     });
