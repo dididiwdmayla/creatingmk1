@@ -8,7 +8,7 @@ import type { DemoAvulsa } from "@/lib/demos/avulsas/types";
 import type { ImportacaoMaps } from "@/lib/demos/avulsas/googleMaps";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
 import type { FilaConfig } from "@/lib/fila/config";
-import type { FilaEnvioDoc } from "@/lib/fila/estado";
+import type { FilaEnvioDoc, PendenciaEnvio } from "@/lib/fila/estado";
 import type {
   ConjuntoSkin,
   FrasesProspeccao,
@@ -330,6 +330,22 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(patch),
     }),
+
+  /**
+   * Leads que receberam o texto mas não o print (ver `detalheEnvio`) —
+   * lista de pendência MANUAL do painel "Fila de envio". `resolvidas`
+   * traz também as já fechadas, para desfazer um alternador marcado por
+   * engano.
+   */
+  getFilaPendencias: (resolvidas = false) =>
+    request<{ pendencias: PendenciaEnvio[] }>(
+      `/api/config/fila/pendencias${resolvidas ? "?resolvidos=1" : ""}`,
+    ),
+  patchFilaPendencia: (leadId: string, resolvido: boolean) =>
+    request<{ pendencia: PendenciaEnvio }>(
+      `/api/config/fila/pendencias/${encodeURIComponent(leadId)}`,
+      { method: "PATCH", body: JSON.stringify({ resolvido }) },
+    ),
 
   listFrases: () => request<FrasesResponse>("/api/frases"),
   /** Textos de UMA skin do registro (admin). */

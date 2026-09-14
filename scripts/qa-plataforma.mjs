@@ -45,6 +45,7 @@
  *   node scripts/qa-plataforma.mjs --so=fps
  *   node scripts/qa-plataforma.mjs --so=listas    # PORTÃO das listas longas: /leads e /buscas no celular
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
+ *   node scripts/qa-plataforma.mjs --so=pendencias # lista de print pendente em /config, cheia e VAZIA
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
  *   node scripts/qa-plataforma.mjs --sem-build    # reusa o .next já buildado
  */
@@ -509,6 +510,41 @@ function semear() {
     enviadoEm: null,
   };
 
+  // PENDÊNCIA DE PRINT (painel "Fila de envio" em /config): o texto saiu e o
+  // anexo falhou, então a macro reportou "enviado" com `detalhe` — ver
+  // ARCHITECTURE.md, "`detalheEnvio` — o texto saiu, o print não". Pendura
+  // os docs de fila em leads que JÁ existem na semeadura, para não mexer no
+  // tamanho de /leads (que o --so=listas mede). Três estados de propósito:
+  // recente, detalhe LONGO (o pior caso de layout — o campo é cortado em
+  // 300 no servidor) e um já resolvido, que só aparece em "ver resolvidas".
+  const pendencias = [
+    ["lead-2", "print não anexou: galeria vazia", iso(0), false],
+    [
+      "lead-6",
+      "o whatsapp abriu a conversa e o texto saiu, mas a galeria não carregou a imagem a " +
+        "tempo e o anexo foi cancelado pelo sistema; a macro seguiu para o próximo lead sem " +
+        "repetir o passo do print, para não correr o risco de mandar a mensagem duas vezes",
+      iso(2),
+      false,
+    ],
+    ["lead-4", "print saiu cortado, refiz à mão", iso(5), true],
+  ];
+  for (const [leadId, detalhe, enviadoEm, resolvido] of pendencias) {
+    mapa[`filaEnvios/${leadId}`] = {
+      leadId,
+      estado: "enviado",
+      claimId: `claim-qa-${leadId}`,
+      reservadoEm: enviadoEm,
+      expiraEm: enviadoEm,
+      dispositivo: "android",
+      tentativas: 0,
+      ultimoErro: null,
+      enviadoEm,
+      detalheEnvio: detalhe,
+      ...(resolvido && { detalheEnvioResolvido: true }),
+    };
+  }
+
   // Leads ESTRANGEIROS de imobiliária, não contatados: são eles que fazem a
   // linha do país abrir com "o que já está pago" na tela /mundo, em vez de
   // mandar direto pra busca. Dois países diferentes, de propósito — a tela
@@ -572,6 +608,32 @@ function definirTemaNoDoc(userId, tema) {
   const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
   mapa[`usuarios/${userId}`] = { ...mapa[`usuarios/${userId}`], tema };
   fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+/**
+ * Tira (e devolve) as pendências de print do banco falso, para capturar o
+ * ESTADO VAZIO da lista sem derrubar o servidor — o banco é um ARQUIVO,
+ * mesmo motivo de `definirTemaNoDoc` poder trocar o tema no meio da rodada.
+ */
+let pendenciasGuardadas = null;
+function esvaziarPendencias() {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  pendenciasGuardadas = {};
+  for (const chave of Object.keys(mapa)) {
+    if (chave.startsWith("filaEnvios/") && mapa[chave].detalheEnvio) {
+      pendenciasGuardadas[chave] = mapa[chave];
+      delete mapa[chave];
+    }
+  }
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+function restaurarPendencias() {
+  if (!pendenciasGuardadas) return;
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  Object.assign(mapa, pendenciasGuardadas);
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+  pendenciasGuardadas = null;
 }
 
 function lerTemaDoDoc(userId) {
@@ -1073,6 +1135,190 @@ async function medirListas(browser, secret) {
   console.log(
     "[listas] ok — nenhum slot com caixa zerada, nada vazando, grade e escada de densidade medidas.",
   );
+  return gerados;
+}
+
+/* ── Item: print pendente em /config (`--so=pendencias`) ─────────────── */
+
+/**
+ * A lista de pendência de print, no painel "Fila de envio" — os leads que
+ * receberam o TEXTO mas não a peça que vende (ver ARCHITECTURE.md,
+ * "`detalheEnvio` — o texto saiu, o print não").
+ *
+ * Existe como passo próprio por causa do ESTADO VAZIO. Cheia, a lista já
+ * aparece nas capturas de /config de todo tema; vazia, ela não apareceria
+ * em lugar nenhum — e é justamente aí que um bloco subordinado costuma
+ * deixar caixa quebrada ou espaço morto no painel. Como o banco falso é um
+ * ARQUIVO, dá para esvaziar a lista entre uma captura e outra sem derrubar
+ * o servidor: é o mesmo truque de `definirTemaNoDoc`.
+ *
+ * As cobranças, nos dois estados: nada vaza da viewport do celular (o
+ * detalhe é texto livre de até 300 caracteres), nenhum slot com caixa
+ * zerada, e o painel continua um só — a lista é subordinada a ele, não uma
+ * seção competindo.
+ */
+async function medirPendencias(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  const caixaDoPainel = (page) =>
+    page.evaluate(() => {
+      const titulo = [...document.querySelectorAll("h2")].find(
+        (h) => h.textContent?.trim() === "Fila de envio",
+      );
+      const secao = titulo?.closest("section");
+      if (!secao) return null;
+      const r = secao.getBoundingClientRect();
+      return { altura: Math.round(r.height), direita: Math.round(r.right) };
+    });
+
+  /** Toda folha com conteúdo dentro do painel: nenhuma pode colapsar. */
+  const conferirPainel = async (page, onde, largura) => {
+    const caixa = await caixaDoPainel(page);
+    if (!caixa) {
+      problemas.push(`${onde}: painel "Fila de envio" não foi encontrado`);
+      return;
+    }
+    if (caixa.direita > largura + 1) {
+      problemas.push(`${onde}: painel vaza da viewport (direita=${caixa.direita}, tela=${largura})`);
+    }
+    const zeradas = await page.evaluate(() => {
+      const titulo = [...document.querySelectorAll("h2")].find(
+        (h) => h.textContent?.trim() === "Fila de envio",
+      );
+      const secao = titulo?.closest("section");
+      if (!secao) return [];
+      return [...secao.querySelectorAll("*")]
+        .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return {
+            altura: Math.round(r.height),
+            largura: Math.round(r.width),
+            texto: (el.textContent ?? "").trim().slice(0, 30),
+          };
+        })
+        .filter((s) => s.altura <= 0 || s.largura <= 0);
+    });
+    for (const s of zeradas) {
+      problemas.push(`${onde}: slot com caixa zerada ("${s.texto}") ${s.largura}×${s.altura}`);
+    }
+    return caixa;
+  };
+
+  // O tema CLARO entra na leva porque é onde os tokens apagados deste bloco
+  // (ink-muted, surface-2, a borda do alternador) têm menos contraste de
+  // sobra — no escuro eles perdoam. As capturas de aba não cobrem isto: o
+  // painel fica muito abaixo da dobra de /config.
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    const abrirPainel = async (onde) => {
+      await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `pendencias/${onde}`);
+      await page.getByRole("heading", { name: "Fila de envio" }).scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+    };
+
+    const capturarPainel = async (rotulo, arquivo) => {
+      const alvo = page.locator("section", { has: page.getByRole("heading", { name: "Fila de envio" }) });
+      const png = path.join(SAIDA, `pendencias-${arquivo}-${sufixo}${marca}.png`);
+      // A nav é `fixed` no rodapé: numa captura de ELEMENTO mais alto que a
+      // viewport ela fica pintada por cima da última faixa do painel — e é
+      // justamente ali que mora a linha de detalhe longo que se quer olhar.
+      // Some com ela só durante o disparo; quem julga o cromo no lugar é o
+      // `exigirCromoNoLugar` das capturas de aba.
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await alvo.first().screenshot({ path: png });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    // ── CHEIA: duas abertas (uma com detalhe longo), a resolvida escondida.
+    await abrirPainel(`cheia/${sufixo}`);
+    const cheia = await conferirPainel(page, `cheia/${sufixo}`, viewport.width);
+    for (const [alvo, oque] of [
+      [/Print pendente/, "título do bloco"],
+      [/print não anexou: galeria vazia/, "detalhe da pendência recente"],
+      [/a galeria não carregou a imagem a tempo/, "detalhe longo"],
+    ]) {
+      if ((await page.getByText(alvo).count()) === 0) {
+        problemas.push(`cheia/${sufixo}: ${oque} não apareceu`);
+      }
+    }
+    // A resolvida NÃO entra na visão padrão — é o que faz a lista esvaziar.
+    if ((await page.getByText(/print saiu cortado/).count()) > 0) {
+      problemas.push(`cheia/${sufixo}: pendência resolvida apareceu na lista padrão`);
+    }
+    const alternadores = await page.getByRole("button", { name: "resolvido" }).count();
+    if (alternadores !== 2) {
+      problemas.push(`cheia/${sufixo}: esperava 2 alternadores "resolvido", achei ${alternadores}`);
+    }
+    await capturarPainel("lista cheia (2 abertas, detalhe longo)", "cheia");
+
+    // ── RESOLVIDAS: o alternador marcado, para desfazer o clique errado.
+    await page.getByRole("button", { name: "ver resolvidas" }).click();
+    await page.waitForTimeout(600);
+    if ((await page.getByText(/print saiu cortado/).count()) === 0) {
+      problemas.push(`resolvidas/${sufixo}: a pendência já fechada não apareceu`);
+    }
+    await conferirPainel(page, `resolvidas/${sufixo}`, viewport.width);
+    await capturarPainel("ver resolvidas (alternador marcado)", "resolvidas");
+
+    // ── VAZIA: nenhum lead pendente. O painel não pode ficar com bloco
+    // quebrado nem espaço morto — some a lista, fica a linha de estado.
+    esvaziarPendencias();
+    await abrirPainel(`vazia/${sufixo}`);
+    const vazia = await conferirPainel(page, `vazia/${sufixo}`, viewport.width);
+    if ((await page.getByText("Nenhuma pendência.").count()) === 0) {
+      problemas.push(`vazia/${sufixo}: o estado vazio não disse nada`);
+    }
+    if ((await page.getByRole("listitem").count()) > 0) {
+      problemas.push(`vazia/${sufixo}: sobrou linha de lista com a lista vazia`);
+    }
+    // Espaço morto: o painel vazio tem que ser MENOR que o cheio, e a
+    // diferença tem que ser a lista inteira, não uma caixa vazia no lugar.
+    if (cheia && vazia) {
+      const encolheu = cheia.altura - vazia.altura;
+      console.log(
+        `  [pendencias] ${sufixo}: painel ${cheia.altura}px cheio → ${vazia.altura}px vazio (−${encolheu}px)`,
+      );
+      if (encolheu <= 0) {
+        problemas.push(
+          `vazia/${sufixo}: painel não encolheu sem pendências (${cheia.altura} → ${vazia.altura})`,
+        );
+      }
+    }
+    await capturarPainel("lista vazia (sem pendência)", "vazia");
+
+    restaurarPendencias();
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, 'Print pendente — painel "Fila de envio" (/config)', "pendencias", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[pendencias] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[pendencias] ok — lista cheia, resolvidas e VAZIA, sem vazamento nem caixa zerada.");
   return gerados;
 }
 
@@ -1960,6 +2206,7 @@ async function main() {
       gerados.push(...(await capturarTemasEAbas(browser, secret, VIEWPORT_CELULAR, "celular")));
     }
     if (querido("listas")) gerados.push(...(await medirListas(browser, secret)));
+    if (querido("pendencias")) gerados.push(...(await medirPendencias(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));

@@ -2270,7 +2270,8 @@ A chave do doc (`YYYY-MM-DD`) é o dia OPERACIONAL, não o calendário UTC nem a
   "tentativas": 0,
   "ultimoErro": null,
   "enviadoEm": null,
-  "detalheEnvio": ""                 // texto que veio junto de um envio BEM-SUCEDIDO; ausente = ""
+  "detalheEnvio": "",                // texto que veio junto de um envio BEM-SUCEDIDO; ausente = ""
+  "detalheEnvioResolvido": false     // o operador já anexou o print à mão; ausente = false
 }
 ```
 
@@ -2401,6 +2402,21 @@ A consequência aceita é que passam a existir **leads contactados com o texto m
 - **Dentro da MESMA transação** do resto do caminho `"enviado"` (claim + lead + rotação + contador). Gravá-lo depois abriria a janela em que o lead já conta como enviado e a pendência do print não existe em lugar nenhum.
 - **Não vai em `registrosEnvio[]`.** Aquele array tem a forma herdada do clique manual do WhatsApp (`{ em, horaLocalLead, diaSemanaLocalLead }`) e não tem conceito de detalhe; mexer nele afetaria o fluxo que o time usa todo dia.
 - **O caminho idempotente não o reescreve.** Confirmar repetido da mesma claim já enviada continua devolvendo 200 sem alterar nada — e "nada" inclui o detalhe, mesmo que o celular reenvie com um texto diferente (há teste com esse pior caso).
+
+### A lista de pendência no painel "Fila de envio" (/config)
+
+`detalheEnvio` guarda o rastro; esta lista é quem o mostra. Bloco **subordinado** ao painel que já existia (mesma seção, separado por um filete, título em `<h3>` — não uma seção nova competindo com ele), listando os leads com detalhe não vazio e ainda não resolvidos: leadId, nome, data do envio e o texto do detalhe.
+
+É lista de trabalho **MANUAL**: o operador abre a conversa e anexa o print à mão. **Sem ação em massa e sem botão de reenvio** — reenviar produziria justamente a mensagem duplicada que reportar "enviado" existe para evitar.
+
+- **`detalheEnvioResolvido` (booleano, ausente = false)**, gravado pelo alternador de cada linha. Sem ele a lista nunca esvazia e em uma semana vira ruído que ninguém olha — e lista que ninguém olha não avisa nada. **Reversível**, pelo mesmo motivo de `telefoneInvalido` na ficha: um alternador clicado por engano não pode sumir com a pendência para sempre. Daí o "ver resolvidas" ao lado do título; a visão padrão são as abertas.
+- **Fica sob `/api/config/`, não sob `/api/fila/`.** Aquele prefixo INTEIRO passa sem sessão de usuário (é o celular com Bearer `RADAR_DEVICE_KEY` — ver `src/proxy.ts`), e pendurar ali uma tela de admin a tiraria da sessão junto. `GET /api/config/fila/pendencias` é aberto a qualquer sessão e `PATCH /api/config/fila/pendencias/{leadId}` é restrito ao admin — a mesma divisão de `/api/config/fila`.
+- **`PendenciaEnvio` mora em `estado.ts`**, não no módulo que a monta: quem desenha a lista é componente client e `pendencias.ts` lê o Firestore. Mesma divisão (e mesmo motivo) de `FilaEnvioDoc`; `pendencias.ts` reexporta o tipo para ninguém precisar saber dela.
+- **404 para lead sem pendência, sem criar doc.** `set` com `merge` CRIA o documento ausente — um leadId errado não pode plantar lixo em `filaEnvios`. A escrita é merge de um campo só, e sem transação de propósito: o doc já está em estado terminal (`enviado` nunca volta a ser reservado), então não há claim concorrente com que competir.
+
+**O custo de leitura, explícito:** o `AppDb` não tem query, então listar é VARREDURA de `filaEnvios`. Está tudo bem AQUI, e só aqui — /config é página de admin aberta esporadicamente por uma pessoa, não `/api/fila/proximo`, que o celular bate 1440× por dia e por isso ganhou o pool de `candidatos.ts`. **Nada de pool nem cache para esta lista.** O que a varredura não faz é ler `/leads` inteira atrás dos nomes: filtra primeiro e só então lê, **por id**, os poucos docs de lead que sobraram — há teste que espiona as chamadas e reprova uma varredura de `/leads`.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=pendencias` captura o painel nos três estados (cheia com um detalhe longo de ~250 caracteres, "ver resolvidas" com o alternador marcado, e VAZIA) × celular e desktop × temas escuro e claro. O tema claro entra porque é onde os tokens apagados deste bloco têm menos contraste de sobra, e as capturas de aba não o cobrem: o painel fica muito abaixo da dobra de /config. O estado vazio é o motivo de o passo existir — é ali que um bloco subordinado costuma deixar caixa quebrada ou espaço morto, e o passo cobra que o painel ENCOLHA sem pendências (−244px no celular) em vez de trocar a lista por um vão.
 
 **Duas garantias de que o executor no celular depende:**
 

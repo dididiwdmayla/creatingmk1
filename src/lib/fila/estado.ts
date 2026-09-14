@@ -39,6 +39,13 @@ export interface FilaEnvioDoc {
    */
   detalheEnvio?: string;
   /**
+   * O operador já anexou o print à mão e fechou a pendência. Ausente =
+   * false. Existe para a lista do painel ESVAZIAR: sem isso ela só cresce,
+   * e em uma semana vira ruído que ninguém olha — uma lista que ninguém
+   * olha não avisa nada. Fica na claim, junto do detalhe que ela resolve.
+   */
+  detalheEnvioResolvido?: boolean;
+  /**
    * Skin cuja frase de fato saiu nesta reserva (`MensagemResolvida.rotacao`),
    * ou `null` quando a mensagem veio do grupo/global — que não têm rotação.
    * Fica gravado na CLAIM, e não é re-resolvido na confirmação, porque entre
@@ -63,4 +70,23 @@ export const TENTATIVAS_MAX = 3;
  */
 export function filaParado(envio: FilaEnvioDoc | undefined | null): boolean {
   return envio?.estado === "falhou" && envio.tentativas >= TENTATIVAS_MAX;
+}
+
+/**
+ * Uma linha da lista de pendência de print do painel "Fila de envio"
+ * (/config): o lead recebeu o TEXTO mas não a peça que vende. Mora aqui,
+ * e não em `pendencias.ts`, pelo mesmo motivo de `FilaEnvioDoc`: quem
+ * desenha a lista é componente client, e o módulo que a MONTA lê o
+ * Firestore. `pendencias.ts` reexporta, para ninguém precisar saber da
+ * divisão.
+ */
+export interface PendenciaEnvio {
+  leadId: string;
+  /** Nome do lead, ou "" se o lead não existe mais (a pendência sobrevive). */
+  nome: string;
+  /** Quando a mensagem saiu (ISO), ou "" — é a data que a lista mostra. */
+  enviadoEm: string;
+  /** O texto que o celular reportou junto do envio. */
+  detalhe: string;
+  resolvido: boolean;
 }
