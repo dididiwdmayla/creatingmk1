@@ -51,7 +51,7 @@ try {
         await page.locator('.be header').evaluate(el => { el.style.display='none'; });
         await hero.screenshot({path:path.join(saida,`${prefix}-hero.png`)});
         if(js) await page.screenshot({path:path.join(saida,`${prefix}-pagina.png`),fullPage:true});
-        relatorio.push({id,width,js,nome,secoes,...medida});
+        relatorio.push({id,viewportWidth:width,js,nome,secoes,...medida});
       }
     }
     assert.deepEqual(errors,[]);

@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+
+const motionQuery = "(prefers-reduced-motion: reduce)";
+const subscribeMotion = (notify: () => void) => {
+  const query = window.matchMedia(motionQuery);
+  query.addEventListener("change", notify);
+  return () => query.removeEventListener("change", notify);
+};
+const readMotion = () => window.matchMedia(motionQuery).matches;
+const serverMotion = () => false;
 
 /**
  * Máquina de escrever fiel ao material bruto: jitter humano entre
@@ -30,10 +39,7 @@ export function TypewriterText({
   const [isStarted, setIsStarted] = useState(!triggerOnInView);
   const containerRef = useRef<HTMLSpanElement>(null);
 
-  const [reducedMotion, setReducedMotion] = useState(false);
-  useEffect(() => {
-    setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  }, []);
+  const reducedMotion = useSyncExternalStore(subscribeMotion, readMotion, serverMotion);
 
   useEffect(() => {
     if (reducedMotion) return;
@@ -55,8 +61,6 @@ export function TypewriterText({
   useEffect(() => {
     if (!isStarted || reducedMotion) return;
 
-    setDisplayText("");
-    setIsDone(false);
     let currentIndex = 0;
     let currentString = "";
     const activeTimeouts: ReturnType<typeof setTimeout>[] = [];
@@ -78,14 +82,18 @@ export function TypewriterText({
       activeTimeouts.push(setTimeout(typeNextChar, nextDelay));
     };
 
-    activeTimeouts.push(setTimeout(typeNextChar, delay));
+    activeTimeouts.push(setTimeout(() => {
+      setDisplayText("");
+      setIsDone(false);
+      activeTimeouts.push(setTimeout(typeNextChar, delay));
+    }, 0));
     return () => activeTimeouts.forEach(clearTimeout);
   }, [text, delay, speed, isStarted, reducedMotion]);
 
   if (reducedMotion) return <span>{text}</span>;
 
   return (
-    <span ref={containerRef} className="relative inline-block">
+    <span ref={containerRef} className="relative inline">
       {Array.from(text).map((char, i) => <span key={i} style={{ opacity: i < displayText.length ? 1 : 0 }}>{char}</span>)}
       {showCursor && !isDone && (
         <span

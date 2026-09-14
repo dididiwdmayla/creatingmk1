@@ -26,6 +26,9 @@ describe.each(alvos)("barbearia SSR: %s", (id) => {
     expect(base.endereco).toBeUndefined();
     expect(doc.querySelector('[data-demo-slot="endereco"]')).toBeNull();
     expect(doc.body.textContent).not.toContain('Av. Principal');
+    for (const campo of ['telefone', 'whatsapp', 'horarios', 'instagram', 'cidade']) {
+      expect(doc.querySelector(`[data-demo-slot="${campo}"]`), campo).toBeNull();
+    }
     for (const slot of Object.keys(skin.demoDataExemplo.imagens)) {
       expect(doc.querySelector(`[data-demo-slot="imagens.${slot}"]`), slot).not.toBeNull();
     }
@@ -40,6 +43,22 @@ describe.each(alvos)("barbearia SSR: %s", (id) => {
     expect(doc.querySelector('[data-demo-slot="imagens.hero"]')!.getAttribute('alt')).toBe('Foto enviada');
     expect(doc.querySelector('[data-demo-slot="imagens.servicos"]')!.getAttribute('alt')).toBe('');
   });
+});
+
+it.each([false, true])("mesmo contrato de slots no HTML servido nas quatro variantes (identidade preenchida: %s)", (preenchida) => {
+  const contratos = alvos.map(id => {
+    const data = montarDemoData(exemploDaSkin(skin, id), lead, preenchida ? {
+      endereco: 'Rua do Cliente, 42', cidade: 'Cidade do Cliente', telefone: '44999990000',
+      whatsapp: '5544999990000', horarios: 'Seg–Sex: 9h–18h', instagram: '@cliente',
+    } : undefined, skin.id);
+    const doc = new JSDOM(renderToStaticMarkup(createElement(skin.componente, {
+      data, theme: getTheme(skin, id),
+    }))).window.document;
+    // O multiconjunto captura também um slot duplicado/perdido em um arranjo.
+    return [...doc.querySelectorAll('[data-demo-slot]')]
+      .map(el => el.getAttribute('data-demo-slot')).sort();
+  });
+  for (const contrato of contratos) expect(contrato).toEqual(contratos[0]);
 });
 
 it("valida alts por slot declarado, incluindo vazio decorativo", () => {
