@@ -8,9 +8,22 @@ let db: FakeFirestore;
 let cookie: string;
 const fetchMock = vi.fn();
 
+/**
+ * A cota individual é um doc POR DIA (`usage_users/{id}/dias/{YYYY-MM-DD}`,
+ * fechado em America/Sao_Paulo — ver `costs/periodoUsuario.ts`), e este
+ * arquivo endereça esse doc pela chave literal. Sem congelar o relógio a
+ * chave só bate no dia em que o teste foi escrito: a suíte passava na
+ * escrita e quebrava sozinha no dia seguinte, sem ninguém mexer em código.
+ * 12h UTC = 9h em São Paulo, mesmo dia do calendário nos dois fusos.
+ */
+const DIA_DA_COTA = "2026-08-29";
+const AGORA = new Date(`${DIA_DA_COTA}T12:00:00Z`);
+
 vi.mock("@/lib/firebase/admin", () => ({ getDb: () => db }));
 
 beforeEach(async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(AGORA);
   db = new FakeFirestore();
   vi.stubEnv("APP_PASSWORD", "segredo123");
   vi.stubEnv("GOOGLE_PLACES_API_KEY", "chave-teste");
@@ -53,6 +66,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
@@ -99,13 +113,13 @@ describe("/api/demos-avulsas/importar-maps", () => {
     expect(db.getDoc(`usage/${new Date().toISOString().slice(0, 7)}`)).toMatchObject({
       textSearchEnterprise: 1,
     });
-    expect(db.getDoc("usage_users/membro-1/dias/2026-08-29")).toMatchObject({
+    expect(db.getDoc(`usage_users/membro-1/dias/${DIA_DA_COTA}`)).toMatchObject({
       enriquecimentos: 1,
     });
   });
 
   it("cota individual estourada impede o request pago, mas não o modo manual", async () => {
-    db.seed("usage_users/membro-1/dias/2026-08-29", { enriquecimentos: 2 });
+    db.seed(`usage_users/membro-1/dias/${DIA_DA_COTA}`, { enriquecimentos: 2 });
     const res = await importar();
     expect(res.status).toBe(429);
     expect((await res.json()).error.code).toBe("user_quota_exceeded");
