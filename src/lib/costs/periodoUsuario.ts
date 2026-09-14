@@ -39,7 +39,7 @@ function keyFromAnchor(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function addDays(dateKey: string, days: number): string {
+export function addDays(dateKey: string, days: number): string {
   const date = anchor(dateKey);
   date.setUTCDate(date.getUTCDate() + days);
   return keyFromAnchor(date);

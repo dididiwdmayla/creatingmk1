@@ -32,6 +32,7 @@ import {
   type HoraMinuto,
   type NivelContato,
 } from "@/lib/leads/janelaContato";
+import type { FilaConfig } from "@/lib/fila/config";
 import {
   FRASES_SLOTS,
   type FrasesProspeccao,
@@ -125,6 +126,7 @@ export default function ConfigPage() {
       <UsuariosSection />
       <CotasUsuariosSection />
       <MetasUsuariosSection />
+      <FilaEnvioSection />
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Busca</h2>
@@ -1056,6 +1058,253 @@ function MetasUsuariosSection() {
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </section>
+  );
+}
+
+/** Mensagem de erro com o `code` da API — mesmo padrão de mensagemErroMetas. */
+function mensagemErroFila(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? `${fallback} (${error.code}): ${error.message}` : fallback;
+}
+
+const FILA_CAMPOS_NUMERO: Array<{
+  campo: keyof Pick<
+    FilaConfig,
+    "metaDiaria" | "tetoPorHora" | "intervaloMinimoSegundos" | "inicioDiaOperacionalHora"
+  >;
+  label: string;
+  max?: number;
+  sufixo?: string;
+}> = [
+  { campo: "metaDiaria", label: "Meta diária" },
+  { campo: "tetoPorHora", label: "Teto por hora" },
+  { campo: "intervaloMinimoSegundos", label: "Intervalo mínimo", sufixo: "s" },
+  { campo: "inicioDiaOperacionalHora", label: "Início do dia operacional", max: 23, sufixo: "h" },
+];
+
+/**
+ * Painel "Fila de envio" (admin): estado e tetos que o celular (MacroDroid)
+ * consulta antes de puxar o próximo lead — ver "Fila de envio" no
+ * ARCHITECTURE.md. Mesmo padrão de MetasUsuariosSection acima (seção
+ * autocontida: busca e salva sozinha, cada campo no seu próprio blur/clique
+ * — sem botão "salvar" geral). `ativo` é o botão de pausa: o rótulo mostra
+ * o estado atual sem precisar clicar, e o clique já aplica (sem confirmação
+ * — pausar/retomar a fila é reversível na hora).
+ */
+function FilaEnvioSection() {
+  const [config, setConfig] = useState<FilaConfig | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .getFilaConfig()
+      .then(({ fila }) => {
+        if (!ignore) setConfig(fila);
+      })
+      .catch((error) => {
+        if (ignore) return;
+        setErro(
+          error instanceof ApiError && error.status === 403
+            ? "Fila de envio é restrita ao admin."
+            : mensagemErroFila(error, "Falha ao carregar a fila"),
+        );
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function salvar(patch: Partial<FilaConfig>, chave: string) {
+    setOcupado(chave);
+    setErro(null);
+    try {
+      const { fila } = await api.putFilaConfig(patch);
+      setConfig(fila);
+    } catch (error) {
+      setErro(mensagemErroFila(error, "Falha ao salvar"));
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  if (erro && config === null) {
+    return (
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Fila de envio
+        </h2>
+        <p className="mt-2 text-sm text-ink-muted">{erro}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Fila de envio
+        </h2>
+        {config && (
+          <button
+            type="button"
+            onClick={() => salvar({ ativo: !config.ativo }, "ativo")}
+            disabled={ocupado === "ativo"}
+            title={
+              config.ativo
+                ? "Pausar a fila — o celular para de receber leads novos"
+                : "Retomar a fila"
+            }
+            className={`rounded px-2 py-1 text-xs font-semibold disabled:opacity-50 ${
+              config.ativo ? "bg-good/15 text-good" : "bg-critical/15 text-critical"
+            }`}
+          >
+            {config.ativo ? "Ativa ✓" : "Pausada ⏸"}
+          </button>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-ink-muted">
+        Estado e tetos que o celular consulta antes de puxar o próximo lead. Com a fila pausada,
+        nenhum envio sai.
+      </p>
+
+      {config === null && !erro && (
+        <SkeletonRows count={1} className="mt-3 h-32 rounded border border-line" />
+      )}
+
+      {config && (
+        <div className="mt-3 flex flex-col gap-2">
+          {FILA_CAMPOS_NUMERO.map(({ campo, label, max, sufixo }) => (
+            <div key={campo} className="flex items-center gap-2 text-xs text-ink-secondary">
+              <span className="w-48 shrink-0">{label}</span>
+              <FilaNumeroInput
+                valor={config[campo]}
+                max={max}
+                disabled={ocupado === campo}
+                onSalvar={(valor) => salvar({ [campo]: valor }, campo)}
+              />
+              {sufixo && <span className="text-ink-muted">{sufixo}</span>}
+            </div>
+          ))}
+
+          <div className="flex items-center gap-2 text-xs text-ink-secondary">
+            <span className="w-48 shrink-0">Exigir janela boa</span>
+            <button
+              type="button"
+              onClick={() => salvar({ exigirJanelaBoa: !config.exigirJanelaBoa }, "exigirJanelaBoa")}
+              disabled={ocupado === "exigirJanelaBoa"}
+              aria-pressed={config.exigirJanelaBoa}
+              className={`rounded border px-2 py-1 text-xs disabled:opacity-50 ${
+                config.exigirJanelaBoa
+                  ? "border-accent bg-accent/15 text-accent"
+                  : "border-line bg-surface-2 text-ink-muted"
+              }`}
+            >
+              {config.exigirJanelaBoa ? "sim" : "não"}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-ink-secondary">
+            <span className="w-48 shrink-0">Nichos permitidos</span>
+            <FilaNichosInput
+              valor={config.nichosPermitidos}
+              disabled={ocupado === "nichosPermitidos"}
+              onSalvar={(valor) => salvar({ nichosPermitidos: valor }, "nichosPermitidos")}
+            />
+          </div>
+          <p className="text-xs text-ink-muted">Vazio = todos os nichos.</p>
+        </div>
+      )}
+
+      {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
+    </section>
+  );
+}
+
+/** Inteiro ≥ 0 (e ≤ `max`, quando informado). Salva no blur, como LimiteInput. */
+function FilaNumeroInput({
+  valor,
+  max,
+  disabled,
+  onSalvar,
+}: {
+  valor: number;
+  max?: number;
+  disabled: boolean;
+  onSalvar: (valor: number) => void;
+}) {
+  const [texto, setTexto] = useState(String(valor));
+  const [ultimoValor, setUltimoValor] = useState(valor);
+  if (valor !== ultimoValor) {
+    setUltimoValor(valor);
+    setTexto(String(valor));
+  }
+
+  function commit() {
+    const n = Number(texto.trim());
+    if (
+      !Number.isFinite(n) ||
+      !Number.isInteger(n) ||
+      n < 0 ||
+      (max !== undefined && n > max)
+    ) {
+      setTexto(String(valor)); // inválido: reverte
+      return;
+    }
+    if (n !== valor) onSalvar(n);
+  }
+
+  return (
+    <input
+      type="number"
+      min={0}
+      max={max}
+      step={1}
+      inputMode="numeric"
+      value={texto}
+      disabled={disabled}
+      onChange={(event) => setTexto(event.target.value)}
+      onBlur={commit}
+      className="w-20 rounded border border-line bg-surface-2 px-2 py-1 text-center font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+    />
+  );
+}
+
+/** Lista livre separada por vírgula. Vazio = nenhum nicho digitado = todos liberados. */
+function FilaNichosInput({
+  valor,
+  disabled,
+  onSalvar,
+}: {
+  valor: string[];
+  disabled: boolean;
+  onSalvar: (valor: string[]) => void;
+}) {
+  const [texto, setTexto] = useState(valor.join(", "));
+  const [ultimoValor, setUltimoValor] = useState(valor);
+  if (valor !== ultimoValor) {
+    setUltimoValor(valor);
+    setTexto(valor.join(", "));
+  }
+
+  function commit() {
+    const lista = texto
+      .split(",")
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0);
+    if (JSON.stringify(lista) !== JSON.stringify(valor)) onSalvar(lista);
+    else setTexto(lista.join(", ")); // normaliza espaçamento sem round-trip
+  }
+
+  return (
+    <input
+      value={texto}
+      placeholder="todos"
+      disabled={disabled}
+      onChange={(event) => setTexto(event.target.value)}
+      onBlur={commit}
+      className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+    />
   );
 }
 
