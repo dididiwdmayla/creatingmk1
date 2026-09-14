@@ -24,6 +24,12 @@ export interface MensagemParaLeadResultado {
   texto: string;
   /** Dígitos puros (DDI + número), ou `undefined` sem telefone nenhum. */
   telefone: string | undefined;
+  /**
+   * Skin cujo conjunto de frases forneceu o texto — o contador que a
+   * confirmação do envio faz girar. `null` quando venceu a mensagem do grupo
+   * ou a global, que não têm rotação.
+   */
+  rotacaoSkinId: string | null;
 }
 
 /**
@@ -74,5 +80,5 @@ export async function montarMensagemParaLead(
   const telefoneCru = lead.detalhes?.telefoneIntl ?? lead.telefoneIntl;
   const telefone = telefoneCru ? digitosTelefone(telefoneCru) : undefined;
 
-  return { texto, telefone };
+  return { texto, telefone, rotacaoSkinId: resolvida.rotacao?.skinId ?? null };
 }

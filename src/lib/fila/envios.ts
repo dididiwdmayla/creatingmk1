@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 
 import type { AppDb } from "@/lib/firestore-like";
 
+import type { FilaEnvioDoc, FilaEnvioResultado } from "./estado";
+
 /**
  * `/filaEnvios/{leadId}` — um doc por LEAD (mesmo id do doc em `/leads`,
  * o placeId), mas numa coleção PRÓPRIA, de propósito: `leads/repo.ts` é
@@ -19,20 +21,14 @@ const RESERVA_DURACAO_MS = 5 * 60 * 1000;
 /** Sempre "no passado" pra qualquer `now` real — usado por `liberarClaim`. */
 const EPOCH_ISO = new Date(0).toISOString();
 
-export type FilaEnvioEstado = "reservado" | "enviado" | "invalido" | "falhou";
-/** O que `confirmarClaim` aceita — "reservado" é só o estado de trânsito. */
-export type FilaEnvioResultado = Exclude<FilaEnvioEstado, "reservado">;
+export type { FilaEnvioDoc, FilaEnvioEstado, FilaEnvioResultado } from "./estado";
+export { TENTATIVAS_MAX, filaParado } from "./estado";
 
-export interface FilaEnvioDoc {
-  leadId: string;
-  estado: FilaEnvioEstado;
+/** Resultado de uma reserva bem-sucedida. */
+export interface FilaReserva {
   claimId: string;
-  reservadoEm: string;
+  /** Instante em que a claim morre sozinha — vai na resposta ao celular. */
   expiraEm: string;
-  dispositivo: string;
-  tentativas: number;
-  ultimoErro: string | null;
-  enviadoEm: string | null;
 }
 
 /**
@@ -72,44 +68,73 @@ function reservaExpirada(doc: FilaEnvioDoc, now: Date): boolean {
 }
 
 /**
+ * Este doc libera o lead para uma reserva nova?
+ *
+ * `tentativasMax` é a POLÍTICA DE REENVIO, explícita no chamador porque a
+ * fundação não a define (ver o cabeçalho de `reservarLead`): 0 — o default —
+ * mantém `falhou` terminal, e é o que vale para quem só quer reservar um lead
+ * virgem; a rota `/api/fila/proximo` passa `TENTATIVAS_MAX` e com isso um
+ * lead que falhou volta à fila até esgotar as tentativas.
+ *
+ * `enviado` e `invalido` são terminais em qualquer política: um já foi, o
+ * outro é número que não existe.
+ */
+export function leadDisponivel(
+  doc: FilaEnvioDoc | undefined,
+  now: Date,
+  tentativasMax = 0,
+): boolean {
+  if (!doc) return true;
+  if (doc.estado === "reservado") return reservaExpirada(doc, now);
+  if (doc.estado === "falhou") return doc.tentativas < tentativasMax;
+  return false;
+}
+
+/**
  * Reserva um lead para `dispositivo`. Sucede quando o lead nunca foi
  * reservado OU a reserva anterior já expirou (regra central: reserva
  * "reservado" com `expiraEm` no passado é livre — é o que devolve o lead à
  * fila sozinho quando o celular trava ou a execução morre no meio).
- * Devolve o `claimId` novo, ou `null` quando o lead está com reserva viva
- * de outro ciclo OU num estado TERMINAL (`enviado`/`invalido`/`falhou` —
- * esta função não decide política de reenvio; isso é das rotas que vêm
- * depois).
+ * Devolve `{ claimId, expiraEm }` novos, ou `null` quando o lead está com
+ * reserva viva de outro ciclo ou num estado que a política em vigor trata
+ * como terminal — ver `leadDisponivel`.
+ *
+ * O `expiraEm` volta daqui em vez de ser recalculado por quem chama porque a
+ * resposta ao celular carrega esse instante: recomputá-lo do lado de fora
+ * criaria duas fontes para a mesma data.
  */
 export async function reservarLead(
   db: AppDb,
   leadId: string,
   dispositivo: string,
   now: Date = new Date(),
-): Promise<string | null> {
+  opcoes: { tentativasMax?: number } = {},
+): Promise<FilaReserva | null> {
   return db.runTransaction(async (tx) => {
     const ref = docRef(db, leadId);
     const atual = asDoc((await tx.get(ref)).data());
 
-    if (atual && !reservaExpirada(atual, now)) {
+    if (!leadDisponivel(atual, now, opcoes.tentativasMax ?? 0)) {
       return null;
     }
 
     const claimId = gerarClaimId();
+    const expiraEm = new Date(now.getTime() + RESERVA_DURACAO_MS).toISOString();
     const doc: FilaEnvioDoc = {
       leadId,
       estado: "reservado",
       claimId,
       reservadoEm: now.toISOString(),
-      expiraEm: new Date(now.getTime() + RESERVA_DURACAO_MS).toISOString(),
+      expiraEm,
       dispositivo,
       // Sobrevive à re-reserva: é o histórico de tentativas DO LEAD, não da claim.
       tentativas: atual?.tentativas ?? 0,
       ultimoErro: atual?.ultimoErro ?? null,
       enviadoEm: null,
+      rotacaoSkinId: null,
     };
     tx.set(ref, toDoc(doc));
-    return claimId;
+    return { claimId, expiraEm };
   });
 }
 
@@ -164,4 +189,40 @@ export async function liberarClaim(db: AppDb, leadId: string, claimId: string): 
 
     tx.set(ref, { ...atual, expiraEm: EPOCH_ISO });
   });
+}
+
+/**
+ * Carimba na claim a skin cuja frase de fato saiu (ver `rotacaoSkinId`).
+ * Acontece DEPOIS da reserva porque a ordem é deliberada: a claim trava o
+ * lead primeiro, e só então a mensagem é montada — assim nenhum trabalho é
+ * feito sobre um lead que outro ciclo já levou. Mesma checagem de `claimId`
+ * das outras escritas, pelo mesmo motivo.
+ */
+export async function anotarRotacao(
+  db: AppDb,
+  leadId: string,
+  claimId: string,
+  rotacaoSkinId: string | null,
+): Promise<void> {
+  await db.runTransaction(async (tx) => {
+    const ref = docRef(db, leadId);
+    const atual = asDoc((await tx.get(ref)).data());
+    if (!atual || atual.claimId !== claimId) {
+      throw new ClaimInvalidoError(leadId);
+    }
+    tx.set(ref, toDoc({ ...atual, rotacaoSkinId }));
+  });
+}
+
+/**
+ * O doc da fila para um lead, ou `undefined` se ele nunca passou por ela.
+ * Leitura pura, para a ficha mostrar tentativas e último erro de um lead
+ * parado — um lead que some da fila sem explicação é um estado que mente.
+ */
+export async function lerEnvioDoLead(
+  db: AppDb,
+  leadId: string,
+): Promise<FilaEnvioDoc | undefined> {
+  const snap = await docRef(db, leadId).get();
+  return snap.exists ? asDoc(snap.data()) : undefined;
 }

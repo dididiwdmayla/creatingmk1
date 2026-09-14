@@ -39,6 +39,7 @@ import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
 import { useWhatsAppContato } from "@/lib/useWhatsAppContato";
 import { aplicarMarcadores, linkWhatsApp } from "@/lib/wa";
+import { filaParado as leadParadoNaFila, type FilaEnvioDoc } from "@/lib/fila/estado";
 
 /**
  * Texto da confirmação da tradução: quantas chamadas e quanto custa, ANTES
@@ -101,6 +102,8 @@ export function LeadDetailClient({ id }: { id: string }) {
   const [salvandoVendedor, setSalvandoVendedor] = useState(false);
   const [vendedorErro, setVendedorErro] = useState<string | null>(null);
   const [descartando, setDescartando] = useState(false);
+  const [marcandoTelefone, setMarcandoTelefone] = useState(false);
+  const [filaEnvio, setFilaEnvio] = useState<FilaEnvioDoc | null>(null);
   const [demoErro, setDemoErro] = useState<string | null>(null);
   const [demoAviso, setDemoAviso] = useState<string | null>(null);
   const [argumentoAviso, setArgumentoAviso] = useState<string | null>(null);
@@ -141,9 +144,10 @@ export function LeadDetailClient({ id }: { id: string }) {
       // normalmente — nunca vira página de erro por causa disto.
       api.listFrases().catch(() => null),
     ])
-      .then(([{ lead: leadData }, { config: configData }, { buscas: buscasData }, frasesData]) => {
+      .then(([{ lead: leadData, filaEnvio: filaData }, { config: configData }, { buscas: buscasData }, frasesData]) => {
         if (ignore) return;
         setLead(leadData);
+        setFilaEnvio(filaData ?? null);
         setConfig(configData);
         setBuscas(buscasData);
         setFrases(frasesData);
@@ -364,6 +368,27 @@ export function LeadDetailClient({ id }: { id: string }) {
     }
   }
 
+  /**
+   * "Número sem WhatsApp" — reversível de propósito: a fila marca isto
+   * sozinha ao receber `invalido` do celular, e um número certo marcado por
+   * engano ficaria fora da fila para sempre sem uma forma de desmarcar.
+   */
+  async function handleTelefoneInvalido() {
+    if (!lead) return;
+    setMarcandoTelefone(true);
+    setErro(null);
+    try {
+      const { lead: updated } = await api.patchLead(id, {
+        telefoneInvalido: !lead.telefoneInvalido,
+      });
+      setLead(updated);
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : "Falha ao marcar o telefone.");
+    } finally {
+      setMarcandoTelefone(false);
+    }
+  }
+
   async function handleDescarte() {
     if (!lead) return;
     setDescartando(true);
@@ -405,6 +430,11 @@ export function LeadDetailClient({ id }: { id: string }) {
   if (!lead) {
     return <p className="text-sm text-critical">Falha ao carregar o lead.</p>;
   }
+
+  // Lead que a fila de envio PAROU: tentativas esgotadas (ver
+  // lib/fila/confirmar.ts). Some da fila sozinho, então a ficha é o único
+  // lugar onde isso pode aparecer — estado que some sem explicação mente.
+  const filaParado = leadParadoNaFila(filaEnvio);
 
   const detalhes = lead.detalhes;
   // Telefone da busca qualificada já sustenta o botão — sem enriquecer.
@@ -487,6 +517,18 @@ export function LeadDetailClient({ id }: { id: string }) {
         {lead.descartado && (
           <p className="mt-2 inline-block rounded border border-critical/40 bg-critical/10 px-2 py-1 text-xs text-critical">
             Lead descartado — continua na base e pode ser restaurado.
+          </p>
+        )}
+        {lead.telefoneInvalido && (
+          <p className="mt-2 inline-block rounded border border-critical/40 bg-critical/10 px-2 py-1 text-xs text-critical">
+            Número sem WhatsApp — fora da fila de envio. Pode ser desmarcado abaixo.
+          </p>
+        )}
+        {filaParado && (
+          <p className="mt-2 inline-block rounded border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning">
+            Parado na fila de envio após {filaEnvio?.tentativas} tentativas
+            {filaEnvio?.ultimoErro ? ` — último erro: ${filaEnvio.ultimoErro}` : ""}. Continua na
+            base; precisa de conferência manual.
           </p>
         )}
       </div>
@@ -929,13 +971,23 @@ export function LeadDetailClient({ id }: { id: string }) {
         )}
       </section>
 
-      <Button
-        variant={lead.descartado ? "secondary" : "ghost"}
-        onClick={handleDescarte}
-        loading={descartando}
-      >
-        {lead.descartado ? "Restaurar lead" : "Descartar lead"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={lead.descartado ? "secondary" : "ghost"}
+          onClick={handleDescarte}
+          loading={descartando}
+        >
+          {lead.descartado ? "Restaurar lead" : "Descartar lead"}
+        </Button>
+        <Button
+          variant={lead.telefoneInvalido ? "secondary" : "ghost"}
+          onClick={handleTelefoneInvalido}
+          loading={marcandoTelefone}
+          aria-pressed={lead.telefoneInvalido === true}
+        >
+          {lead.telefoneInvalido ? "Número tem WhatsApp" : "Número sem WhatsApp"}
+        </Button>
+      </div>
 
       {erro && <p className="text-sm text-critical">{erro}</p>}
     </div>

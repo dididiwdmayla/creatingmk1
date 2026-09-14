@@ -56,8 +56,9 @@ function asLead(data: Record<string, unknown>): Lead {
 }
 
 // O Firestore real rejeita undefined como valor; o round-trip JSON descarta
-// essas chaves (todos os campos de Lead são JSON-safe).
-function toDoc(lead: Lead): Record<string, unknown> {
+// essas chaves (todos os campos de Lead são JSON-safe). Exportado porque a
+// transação da fila grava o doc do lead sem passar por este repositório.
+export function toDoc(lead: Lead): Record<string, unknown> {
   return JSON.parse(JSON.stringify(lead)) as Record<string, unknown>;
 }
 
@@ -230,14 +231,22 @@ const STATUS_POR_STAMPS: Partial<Record<LeadStatus, keyof NonNullable<Lead["cont
   fechado: "fechadoPor",
 };
 
-export async function changeStatus(
-  db: AppDb,
-  placeId: string,
+/**
+ * A TRANSIÇÃO DE STATUS, pura: o lead que entra, o lead que sai. Transição
+ * inválida é erro, nunca silêncio — e nunca rebaixa status.
+ *
+ * Separada da escrita porque a fila de envio precisa desta MESMA regra
+ * dentro de uma transação (confirmar um envio move o lead de "novo" para
+ * "contactado" junto com mais três docs, tudo ou nada — ver
+ * `lib/fila/confirmar.ts`), e `changeStatus` é leitura-modificação-escrita
+ * sem transação por design. Duas cópias da regra é que não podia haver.
+ */
+export function aplicarTransicao(
+  lead: Lead,
   para: LeadStatus,
-  now: Date = new Date(),
+  now: Date,
   userId?: string,
-): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
+): Lead {
   if (!VALID_TRANSITIONS[lead.status].includes(para)) {
     throw new InvalidTransitionError(lead.status, para);
   }
@@ -253,7 +262,18 @@ export async function changeStatus(
     }
   }
 
-  const updated: Lead = { ...lead, status: para, contato, atualizadoEm: em };
+  return { ...lead, status: para, contato, atualizadoEm: em };
+}
+
+export async function changeStatus(
+  db: AppDb,
+  placeId: string,
+  para: LeadStatus,
+  now: Date = new Date(),
+  userId?: string,
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  const updated = aplicarTransicao(lead, para, now, userId);
   await docRef(db, placeId).set(toDoc(updated));
   return updated;
 }
@@ -267,6 +287,22 @@ export async function changeStatus(
  * enquanto, para comparar taxa de resposta por janela no futuro (ver
  * `Lead.registrosEnvio`).
  */
+/**
+ * O SELO E O REGISTRO, puros — mesma separação e mesmo motivo de
+ * `aplicarTransicao`: a fila de envio carimba isto dentro da transação que
+ * confirma o disparo, com o userId do dispositivo.
+ */
+export function aplicarSeloContato(lead: Lead, userId: string, now: Date): Lead {
+  const em = now.toISOString();
+  const registro: RegistroEnvioContato = { em, ...horarioLocalNoDisparo(lead, now) };
+  return {
+    ...lead,
+    ...(lead.seloContato ? {} : { seloContato: { userId, em } }),
+    registrosEnvio: [...(lead.registrosEnvio ?? []), registro],
+    atualizadoEm: em,
+  };
+}
+
 export async function registrarSeloContato(
   db: AppDb,
   placeId: string,
@@ -274,14 +310,7 @@ export async function registrarSeloContato(
   now: Date = new Date(),
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
-  const em = now.toISOString();
-  const registro: RegistroEnvioContato = { em, ...horarioLocalNoDisparo(lead, now) };
-  const updated: Lead = {
-    ...lead,
-    ...(lead.seloContato ? {} : { seloContato: { userId, em } }),
-    registrosEnvio: [...(lead.registrosEnvio ?? []), registro],
-    atualizadoEm: em,
-  };
+  const updated = aplicarSeloContato(lead, userId, now);
   await docRef(db, placeId).set(toDoc(updated));
   return updated;
 }
@@ -307,11 +336,22 @@ export async function ajustarVendidoPor(
   return updated;
 }
 
-/** Notas/favorito/descartado editáveis direto no card, sem transição de status. */
+/**
+ * Notas/favorito/descartado/telefoneInvalido editáveis sem transição de
+ * status. `telefoneInvalido` entra aqui, e não num caminho próprio, porque é
+ * a mesma natureza dos outros: marca do operador sobre o lead, reversível
+ * pela mesma tela que a criou — a fila também o escreve (ao confirmar
+ * `invalido`), mas quem marca errado precisa poder desmarcar.
+ */
 export async function updateLeadExtras(
   db: AppDb,
   placeId: string,
-  extras: { notas?: string; favorito?: boolean; descartado?: boolean },
+  extras: {
+    notas?: string;
+    favorito?: boolean;
+    descartado?: boolean;
+    telefoneInvalido?: boolean;
+  },
   now: Date = new Date(),
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
@@ -320,6 +360,7 @@ export async function updateLeadExtras(
     ...(extras.notas !== undefined && { notas: extras.notas }),
     ...(extras.favorito !== undefined && { favorito: extras.favorito }),
     ...(extras.descartado !== undefined && { descartado: extras.descartado }),
+    ...(extras.telefoneInvalido !== undefined && { telefoneInvalido: extras.telefoneInvalido }),
     atualizadoEm: now.toISOString(),
   };
   await docRef(db, placeId).set(toDoc(updated));

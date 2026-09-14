@@ -140,6 +140,39 @@ export async function salvarTraducao(
  * Conjunto inexistente ou sem frase preenchida devolve 0 e não grava nada:
  * quem não participa da rotação não ganha doc por causa de um clique.
  */
+/**
+ * As duas metades de `avancarRotacao`, expostas para quem precisa girar a
+ * rotação DENTRO de uma transação (a confirmação de envio da fila, que move
+ * quatro docs de uma vez). É a MESMA rotação compartilhada do clique manual
+ * — o dispositivo não tem contador próprio.
+ */
+export function refConjunto(db: AppDb, skinId: string) {
+  return docRef(db, skinId);
+}
+
+/** O doc cru vira conjunto — a leitura que `getConjunto` faz, sem o `get()`. */
+export function conjuntoDoDoc(
+  skinId: string,
+  data: Record<string, unknown> | undefined,
+): FrasesProspeccao | undefined {
+  return data ? asConjunto(skinId, data) : undefined;
+}
+
+/**
+ * O patch do avanço, ou `undefined` quando não há o que girar (conjunto
+ * inexistente, ou sem frase preenchida — quem não participa da rotação não
+ * ganha doc por causa de um envio). Escreve só `indice`, nunca os textos.
+ */
+export function patchAvancoRotacao(
+  conjunto: FrasesProspeccao | undefined,
+  now: Date,
+): { indice: number; patch: Record<string, unknown> } | undefined {
+  if (!conjunto) return undefined;
+  const proximo = proximoIndice(conjunto);
+  if (proximo === conjunto.indice) return undefined;
+  return { indice: proximo, patch: { indice: proximo, atualizadoEm: now.toISOString() } };
+}
+
 export async function avancarRotacao(
   db: AppDb,
   skinId: string,
@@ -147,11 +180,8 @@ export async function avancarRotacao(
 ): Promise<number> {
   const conjunto = await getConjunto(db, skinId);
   if (!conjunto) return 0;
-  const proximo = proximoIndice(conjunto);
-  if (proximo === conjunto.indice) return conjunto.indice;
-  await docRef(db, skinId).set(
-    { indice: proximo, atualizadoEm: now.toISOString() },
-    { merge: true },
-  );
-  return proximo;
+  const avanco = patchAvancoRotacao(conjunto, now);
+  if (!avanco) return conjunto.indice;
+  await docRef(db, skinId).set(avanco.patch, { merge: true });
+  return avanco.indice;
 }

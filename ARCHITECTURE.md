@@ -2290,6 +2290,111 @@ Mesma precedência e os mesmos marcadores que já rodam na ficha (`LeadDetailCli
 - `{demo}` usa `APP_PUBLIC_URL` (mesma env já documentada, hoje só lida pelo motor de capturas) como origem pública; sem ela configurada, o marcador fica sem substituir — mesmo espírito de "nunca inventar domínio" da moldura de captura.
 - **Normalização de telefone, movida para o servidor**: `digitosTelefone` (extraído de `linkWhatsApp` em `src/lib/wa.ts`, reaproveitado — não duplicado) limpa o `telefoneIntl` CRU do Google (espaços, parênteses, traço) para dígitos puros com DDI. `detalhes.telefoneIntl` (enriquecido) tem precedência sobre o da busca, mesma regra do cliente. Lead sem telefone nenhum devolve `telefone: undefined`, sem erro.
 
+## Fila de envio ao WhatsApp — as rotas que o celular chama (`/api/fila/*`)
+
+A fundação acima guarda o estado; estas são as duas rotas que o MacroDroid de fato bate. O contrato inteiro cabe em duas frases: **`GET /proximo` devolve no máximo UMA tarefa, ou o MOTIVO de não ter nenhuma**; **`POST /confirmar` fecha aquela tarefa**. O celular não decide nada — nem horário, nem cota, nem qual lead.
+
+### O pool de candidatos (`src/lib/fila/candidatos.ts`) — por que existe
+
+`/proximo` é chamada **de minuto em minuto, a noite toda**, para entregar no máximo `metaDiaria` mensagens. E os critérios de elegibilidade **não são consultáveis**: a janela de contato é CALCULADA (faixas da família × horário de funcionamento × fuso do lead — ver `barraDoDia`), "tem demo" é presença de campo, e `telefoneInvalido` AUSENTE não casa com `== false` em query nenhuma. Somando a isso que o `AppDb` deste repo **não tem query** (`firestore-like.ts`: só `collection().get()`, a coleção inteira, porque o app é single-user com centenas de docs), a rota ingênua varreria `/leads` 1440× por dia — ~216 mil leituras por noite, crescendo linear com a base, para mandar 15 mensagens.
+
+Então a varredura acontece **uma vez a cada `POOL_TTL_MS` (10 min)** e o resultado fica num doc só, `/filaCandidatos/pool`:
+
+```jsonc
+{
+  "geradoEm": "<ISO>",
+  "candidatos": [{ "id": "ChIJ...", "nicho": "barbearia masculina", "offset": -180, "faixas": [], "criadoEm": "<ISO>" }],
+  "lidos": 312,        // quantos leads a varredura leu — o custo, explícito
+  "truncado": false    // a base passou de POOL_MAX e o pool saiu cortado
+}
+```
+
+Cada entrada guarda o fuso e o nicho **já resolvidos** (não o endereço cru): resolver é a parte cara e só precisa acontecer uma vez por varredura. Uma chamada que não entrega nada custa **4 leituras** em vez de centenas — e não cresce em nada quando a base cresce.
+
+**Este doc é CACHE, nunca fonte de verdade.** Nada é entregue com base nele: escolhido o candidato, a rota reserva a claim e **relê o doc do lead** para reconferir tudo contra dado fresco. Pool velho pode OFERECER um lead que não serve mais; nunca ENTREGAR — e a claim aberta na tentativa é devolvida com `liberarClaim` em vez de ficar pendurada. É isso que deixa a janela de 10 minutos ser barata sem ser mentirosa.
+
+`candidatoEstavel` decide o que entra: só os critérios que **não dependem da hora nem da config** (status novo, telefone, demo, `capturas.estado === "pronto"` COM imagem de celular, fuso derivável, não descartado, não `telefoneInvalido`, sem estado permanente na fila). A janela e `nichosPermitidos` ficam de fora de propósito — a primeira muda a cada minuto, a segunda quando o admin mexe em /config, e congelar qualquer uma faria o pool mentir até a próxima varredura. **Claim viva também não barra aqui**: dura 5 min contra os 10 do pool, então quem decide isso é a transação de `reservarLead`, na hora.
+
+**`descartado` entra na peneira e não estava no pedido**: um lead que o operador descartou à mão não pode voltar por uma porta automática. O descarte é suave e reversível, mas é uma decisão humana explícita de não falar com aquele negócio.
+
+**Por que não `where(...).limit(N)`** (mesmo que o `AppDb` ganhasse query): `limit` sem `orderBy` ordena por `__name__`, então devolveria as MESMAS N docs em toda chamada. Se essas N estivessem todas fora de janela, a rota diria "sem leads elegíveis" para sempre enquanto o lead N+1 estava pronto — exatamente o silêncio que faz sair 4 mensagens em vez de 15. Consertar exigiria cursor rotativo persistido (`orderBy(documentId)` + `startAfter`), quatro métodos novos na interface e no fake, e risco de índice faltando derrubar a rota às duas da manhã. **Anotado e não implementado:** guardar, quando ninguém está em janela, o próximo instante bom (`barraDoDia` já calcula `proximoBom`) elimina até as reconstruções da madrugada — otimização de segunda ordem sobre um custo que já caiu de ~300 leituras por chamada para 4.
+
+`POOL_MAX` (2000) é o teto do doc (Firestore trava em 1 MiB). Ao estourar ficam os de `criadoEm` mais ANTIGO — quem esperou mais vai primeiro, a mesma ordem justa da seleção — e o corte fica registrado em `truncado` em vez de acontecer calado.
+
+### `GET /api/fila/proximo` — uma tarefa, ou o motivo
+
+A ordem dos portões é a ordem do **custo**: pausa e ritmo custam 2 leituras de doc e barram a esmagadora maioria das chamadas da noite; só quem passa delas paga a leitura do pool.
+
+1. `config/fila.ativo === false` → `pausado`
+2. contador do dia ≥ `metaDiaria` → `meta_atingida`
+3. envios na última hora corrida ≥ `tetoPorHora` → `teto_hora`
+4. último evento há menos de `intervaloMinimoSegundos` → `intervalo`
+5. nenhum candidato em janela agora → `fora_de_janela`
+6. nenhum candidato, ponto → `sem_leads_elegiveis`
+
+**O motivo é o produto principal desta rota, não um detalhe da resposta** — é ele que responde, de manhã, por que saíram 4 mensagens e não 15. Por isso `fora_de_janela` e `sem_leads_elegiveis` são separados e nunca colapsam: o primeiro é "estão todos dormindo, volte mais tarde e vai sair"; o segundo é "não existe lead pronto (ou os que existiam estão todos reservados)" — nenhuma espera resolve, alguém precisa gerar demo e capturas. Providências diferentes, donos diferentes.
+
+Elegibilidade, além dos critérios estáveis do pool: `nichosPermitidos` quando não vazio (confronto por SUBSTRING sobre o nicho normalizado, mesmo espírito de `familiaDoLead` — "barbearia" na lista pega quem veio de "barbearia masculina"; lead sem nicho fica de fora quando há lista, porque não dá para provar que é permitido) e a **janela de contato AGORA** via `barraDoDia`: precisa estar ABERTO e no nível `bom`, ou também `razoavel` quando `exigirJanelaBoa === false`. **Lead sem fuso derivável nunca é entregue** — mandar mensagem às três da manhã é pior do que não mandar.
+
+**Ordem de atendimento:** janela `bom` antes de `razoavel` (a hora melhor primeiro), e dentro do mesmo nível o mais ANTIGO na base primeiro — quem esperou mais é atendido antes. Desempate por `placeId`, para a ordem não depender de em que ordem o Firestore devolveu os docs.
+
+**A reserva acontece DENTRO da chamada e ANTES de montar a mensagem**: a claim trava o lead primeiro, para que nenhum trabalho (três leituras de coleção em `montarMensagemParaLead`) seja feito sobre um lead que outro ciclo já levou. Reserva que falha por concorrência **não vira erro** — cai no próximo candidato.
+
+```jsonc
+{ "tarefa": { "id": "<claimId>", "leadId": "ChIJ...", "nome": "Ink House",
+  "numero": "5544991543803", "texto": "<mensagem montada e resolvida>",
+  "printUrl": "<url pública da captura>", "expiraEm": "<ISO>" } }
+{ "tarefa": null, "motivo": "fora_de_janela" }
+```
+
+**`printUrl` (`src/lib/fila/print.ts`)** é escolhido por regra fixa, não pelo operador — o celular é executor burro. Duas decisões: a **seção principal no celular** (a âncora de MENOR `ordem`, que em todos os padrões é o hero — a primeira impressão da marca é o que abre uma conversa), e **com moldura, caindo para a crua** (a composta "se lê como um site num aparelho" numa conversa; numa mensagem com UMA imagem é a peça que vende, mas a composição pode ter falhado). Sem nenhuma imagem de celular o lead **não é elegível**: `estado === "pronto"` não garante que a tela de celular saiu, e tarefa sem print é mensagem sem a peça que vende. As URLs do Storage são públicas e estáveis (`public: true`, `scripts/capturas.mjs`), então o celular baixa direto, sem passar pelo proxy de `servir.ts`.
+
+O dispositivo se identifica pelo header `X-Radar-Device` (ausente = `"android"`, o único que existe hoje) e vai para `filaEnvios.dispositivo`.
+
+### `POST /api/fila/confirmar` — o celular reporta o que aconteceu
+
+Corpo `{ id, leadId, resultado, detalhe }`, onde `id` é o claimId da tarefa e `resultado` é `enviado | invalido | falhou`.
+
+**"enviado" move QUATRO docs em coleções diferentes, ou nenhum** (`src/lib/fila/confirmar.ts`, uma `runTransaction` só): a claim (`estado`/`enviadoEm`), o lead (`novo → contactado` + selo + `registrosEnvio` com a hora e o dia local DO LEAD), a rotação de frases e o contador do dia operacional (`enviados++`, push do ISO em `envios`, poda para 24h). Uma confirmação pela metade seria contador que não bate com lead que não bate com o que o negócio recebeu no WhatsApp.
+
+Isso obrigou a **extrair o miolo PURO** de três funções que já rodavam em produção pelo clique manual do WhatsApp: `aplicarTransicao` e `aplicarSeloContato` (de `leads/repo.ts`) e `patchAvancoRotacao`/`conjuntoDoDoc`/`refConjunto` (de `frases/repo.ts`). As versões com I/O são leitura-modificação-escrita **sem** transação por design, e não podem ser chamadas de dentro de uma — mas duas cópias da mesma regra é que não podia haver. `changeStatus`, `registrarSeloContato` e `avancarRotacao` passaram a ser cascas finas sobre os mesmos puros: nenhum comportamento mudou, e os dez arquivos de teste que cobrem o caminho manual continuam **byte a byte idênticos** e passando.
+
+Duas regras específicas do envio pela fila:
+
+- **Nunca rebaixa status.** Só move quem ainda está em `"novo"`; lead que o time já avançou à mão (respondeu, fechado) mantém o status — o que importa registrar aqui é o disparo, e isso é o selo.
+- **A rotação é a COMPARTILHADA**, o mesmo doc que o clique manual gira (o dispositivo não tem contador próprio), e gira a skin gravada em `filaEnvios.rotacaoSkinId` — a frase que o lead de fato recebeu, não a que estaria valendo agora. Escrita com `merge`, como sempre: girar o contador nunca pisa nos textos que o admin possa estar salvando no mesmo segundo. Entra na transação porque, dentro da fila, o confirmar é atômico inteiro — o que APERTA a regra otimista de `frases/repo.ts`, não a contradiz.
+
+**"invalido"**: a claim é encerrada e o lead ganha `telefoneInvalido = true` — número sem WhatsApp não volta à fila nunca mais, mas o lead continua na base com demo e capturas, porque o número pode ser corrigido depois. O contador NÃO anda: não saiu mensagem.
+
+**"falhou"**: `tentativas + 1` e a claim devolvida à fila. A partir de `TENTATIVAS_MAX` (3) o lead **para**: não é excluído nem marcado como inválido, só deixa de ser elegível — e a ficha mostra por quê, para a inspeção manual acontecer.
+
+**Duas garantias de que o executor no celular depende:**
+
+- **409 `{ erro: "claim_invalida" }` para claim que não bate, sem alterar NADA.** Cenário real: o celular trava, a claim expira, o lead é re-reservado, e só então o aparelho volta e tenta confirmar a claim velha — sem isto viraria envio duplicado ou contador errado.
+- **Confirmação repetida da MESMA claim já confirmada devolve sucesso (`repetida: true`) sem duplicar nada** — nem contador, nem rotação, nem registro de envio. A rede pode cair DEPOIS de a mensagem ter saído, e aí o celular reenvia o confirmar.
+
+**Todas as leituras antes de todas as escritas**, dentro da transação: o Firestore real recusa `get` depois de `set`, e o fake dos testes deixaria passar calado — um confirmar que violasse isso passaria na suíte inteira e quebraria só em produção, na primeira mensagem da noite. Há teste que vigia a ordem, e ele foi verificado quebrando a ordem de propósito.
+
+### Duas mudanças na fundação que estas rotas exigiram
+
+- **`reservarLead` devolve `{ claimId, expiraEm }`** em vez de só o `claimId`: a resposta ao celular carrega esse instante, e recomputá-lo do lado de fora criaria duas fontes para a mesma data.
+- **`filaEnvios.rotacaoSkinId`**, gravado por `anotarRotacao` logo depois da reserva: é a skin cuja frase DE FATO saiu. Fica na claim, e não é re-resolvido na confirmação, porque entre entregar a tarefa e o celular confirmar o envio a rotação compartilhada pode ter girado por um envio manual de alguém do time — o contador que gira tem que ser o da frase que o lead recebeu.
+- **A política de reenvio entrou como argumento explícito** (`reservarLead(..., { tentativasMax })`), que é exatamente onde a fundação a tinha deixado ("esta função não decide política de reenvio; isso fica para as rotas que vêm depois"). O default 0 mantém `falhou` terminal; `/proximo` passa `TENTATIVAS_MAX` (3), e com isso um lead que falhou volta à fila até esgotar as tentativas. `enviado` e `invalido` são terminais em qualquer política.
+
+### `Lead.telefoneInvalido` — o número que não tem WhatsApp
+
+Booleano novo no lead, ausente = false. Escrito por dois caminhos que não se falam: a **fila**, ao receber `invalido` do celular, e a **ficha**, à mão. Tira o lead da fila de envio para sempre — mas **não** o descarta: ele continua na base com demo e capturas, porque o número pode ser corrigido depois.
+
+**Reversível de propósito.** A ficha traz o alternador "Número sem WhatsApp" / "Número tem WhatsApp" ao lado de "Descartar lead": um número certo marcado por engano ficaria fora da fila para sempre sem uma forma de desmarcar. Entra em `updateLeadExtras` junto de `notas`/`favorito`/`descartado`, pelo mesmo `PATCH /api/leads/{id}` e com a mesma proteção (quem barra anônimo nos extras é o PROXY, não a rota — ver "Proteção por sessão multiusuário").
+
+### O lead PARADO na fila, visível na ficha
+
+Um lead que esgota as tentativas some da fila sozinho. Se isso não aparecesse em lugar nenhum, seria um estado que mente — o lead estaria vivo, elegível a olho nu, e nunca mais sairia. Então `GET /api/leads/{id}` passa a devolver `filaEnvio` (o doc de `/filaEnvios/{leadId}`, ausente se o lead nunca passou pela fila) e a ficha mostra a tarja com as tentativas e o último erro.
+
+`src/lib/fila/estado.ts` existe por causa disso: os TIPOS e a política (`TENTATIVAS_MAX`, `filaParado`) moram num módulo sem nada de servidor, porque a ficha é um componente client e `envios.ts` — o dono das transações — importa `node:crypto` para cunhar o claimId. Arrastá-lo para o navegador por causa de uma constante quebraria o bundle; `envios.ts` reexporta o que era dele para ninguém precisar saber da divisão.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=listas` ganhou o fixture `lead-fila-parada` (número inválido + 3 tentativas) e um passo que cobra as duas tarjas, o texto do último erro e o alternador no estado que DESFAZ a marcação.
+
 ## Proteção por sessão multiusuário (src/proxy.ts + lib/auth.ts + lib/usuarios)
 
 Todo o app (páginas e API) exige sessão, exceto assets estáticos, a página `/login`, `POST /api/login`, a demo pública `/demo/{leadId}`, o gatilho do cron `GET /api/cron` (match exato; protegido por `CRON_SECRET` na própria rota — ver "Operação diária") e as rotas da fila de envio `/api/fila/*` (match por PREFIXO; protegidas por `RADAR_DEVICE_KEY` — ver "Fila de envio ao WhatsApp"). Como a demo, essas exceções ficam DEPOIS do check de `APP_PASSWORD` (fail-closed vale para elas igual). Fluxo:

@@ -61,6 +61,14 @@ export interface Lead {
   telefone?: string;
   /** Base do link wa.me — o botão WhatsApp funciona sem enriquecer. */
   telefoneIntl?: string;
+  /**
+   * O número não tem WhatsApp — descoberto ao tentar enviar (a fila confirma
+   * `invalido`) ou marcado à mão na ficha. Tira o lead da fila de envio para
+   * sempre, sem descartá-lo: o lead continua na base, com demo e capturas,
+   * porque o número pode ser corrigido depois. Ausente = false; reversível
+   * pela ficha, que é onde se conserta um erro de marcação.
+   */
+  telefoneInvalido?: boolean;
   /** Anotação curta editável direto no card da lista. */
   notas?: string;
   favorito?: boolean;

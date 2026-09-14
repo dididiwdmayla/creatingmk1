@@ -460,8 +460,54 @@ function semear() {
         obtidoEm: iso(1),
       },
     },
+    // Lead que a FILA DE ENVIO parou: número marcado como sem WhatsApp E
+    // tentativas esgotadas. Existe para as duas tarjas da ficha que nascem
+    // com a fila do celular (ver "Fila de envio ao WhatsApp — as rotas")
+    // terem onde aparecer: um lead que some da fila sem explicação é um
+    // estado que mente, e isso não se julga por teste unitário.
+    {
+      placeId: "lead-fila-parada",
+      nome: "Tabacaria do Mercado",
+      endereco: "Av. Brasil, 300 — Porto Alegre, RS",
+      status: "novo",
+      busca: { nicho: "barbearia", regiao: "Porto Alegre RS", em: iso(3) },
+      temTelefone: true,
+      telefone: "(51) 97777-0000",
+      telefoneIntl: "5551977770000",
+      temSite: false,
+      siteProprio: false,
+      telefoneInvalido: true,
+      criadoEm: iso(3),
+      atualizadoEm: iso(1),
+      enriquecido: true,
+      horarios: {
+        faixas: Array.from({ length: 7 }, (_, dia) => ({
+          diaAbre: dia,
+          horaAbre: 9,
+          minAbre: 0,
+          diaFecha: dia,
+          horaFecha: 19,
+          minFecha: 0,
+        })),
+        utcOffsetMinutes: -180,
+        obtidoEm: iso(1),
+      },
+    },
   ];
   for (const l of leads) mapa[`leads/${l.placeId}`] = l;
+
+  // A claim correspondente, com as tentativas esgotadas (TENTATIVAS_MAX = 3).
+  mapa["filaEnvios/lead-fila-parada"] = {
+    leadId: "lead-fila-parada",
+    estado: "falhou",
+    claimId: "claim-qa",
+    reservadoEm: iso(1),
+    expiraEm: iso(1),
+    dispositivo: "android",
+    tentativas: 3,
+    ultimoErro: "WhatsApp não abriu a conversa",
+    enviadoEm: null,
+  };
 
   // Leads ESTRANGEIROS de imobiliária, não contatados: são eles que fazem a
   // linha do país abrir com "o que já está pago" na tela /mundo, em vez de
@@ -982,6 +1028,30 @@ async function medirListas(browser, secret) {
   await conferir("ficha lead nacional", '[role="img"][aria-label^="Barra do dia"]');
   await capturar("ficha · lead nacional (expediente curto, régua com marcas)", "ficha-nacional");
 
+  // ── Ficha do lead PARADO NA FILA: as duas tarjas que a fila de envio do
+  // celular acrescentou (número sem WhatsApp, e parado por tentativas
+  // esgotadas) mais o alternador que desfaz a marcação. Sem isto, um lead
+  // que sai da fila sozinho não teria onde dizer por quê.
+  await page.goto(`${BASE}/leads/lead-fila-parada`, { waitUntil: "domcontentloaded" });
+  await assentar(page);
+  await exigirLogado(page, "listas/ficha-fila-parada");
+  for (const [alvo, oque] of [
+    [/Número sem WhatsApp — fora da fila/, "tarja de número sem WhatsApp"],
+    [/Parado na fila de envio após 3 tentativas/, "tarja de lead parado"],
+    [/WhatsApp não abriu a conversa/, "último erro da fila"],
+  ]) {
+    if ((await page.getByText(alvo).count()) === 0) {
+      problemas.push(`ficha lead parado: ${oque} não apareceu`);
+    }
+  }
+  // O alternador tem que estar no estado MARCADO — é ele que desfaz.
+  const desmarcar = page.getByRole("button", { name: "Número tem WhatsApp" });
+  if ((await desmarcar.count()) === 0) {
+    problemas.push("ficha lead parado: alternador não ofereceu desmarcar o telefone");
+  }
+  await conferir("ficha lead parado", "section");
+  await capturar("ficha · lead parado na fila (tarjas + desmarcar)", "ficha-fila-parada");
+
   gerados.push(
     await folhaDeContato(page, "Densidade de /leads e /buscas (celular)", "listas", [
       { rotulo: "leads · densidades", itens: itens.slice(0, 4) },
@@ -990,7 +1060,8 @@ async function medirListas(browser, secret) {
       { rotulo: "buscas · densidades", itens: itens.slice(10, 15) },
       { rotulo: "buscas · agrupado", itens: itens.slice(15, 17) },
       { rotulo: "ficha · lead estrangeiro", itens: itens.slice(17, 18) },
-      { rotulo: "ficha · lead nacional", itens: itens.slice(18) },
+      { rotulo: "ficha · lead nacional", itens: itens.slice(18, 19) },
+      { rotulo: "ficha · lead parado na fila", itens: itens.slice(19) },
     ]),
   );
   await ctx.close();

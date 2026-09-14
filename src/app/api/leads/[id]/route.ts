@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { lerEnvioDoLead } from "@/lib/fila/envios";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, readJsonBody } from "@/lib/http";
 import {
@@ -33,7 +34,11 @@ export async function GET(_req: Request, { params }: Params) {
     if (envioTokenIncompleto(lead)) {
       lead = await garantirEnvioToken(db, id);
     }
-    return NextResponse.json({ lead });
+    // Estado do lead na fila de envio do celular — é o que deixa visível na
+    // ficha o lead PARADO por tentativas esgotadas, que de outro modo só
+    // sumiria da fila sem ninguém saber por quê (ver lib/fila/confirmar.ts).
+    const filaEnvio = await lerEnvioDoLead(db, id);
+    return NextResponse.json({ lead, ...(filaEnvio && { filaEnvio }) });
   } catch (error) {
     return handleRouteError(error);
   }
@@ -51,15 +56,18 @@ export async function PATCH(req: Request, { params }: Params) {
     const body = await readJsonBody(req);
     const problemas: string[] = [];
 
-    const { status, notas, favorito, descartado, vendidoPor } = body;
+    const { status, notas, favorito, descartado, telefoneInvalido, vendidoPor } = body;
     if (
       status === undefined &&
       notas === undefined &&
       favorito === undefined &&
       descartado === undefined &&
+      telefoneInvalido === undefined &&
       vendidoPor === undefined
     ) {
-      problemas.push("informe ao menos um de: status, notas, favorito, descartado, vendidoPor");
+      problemas.push(
+        "informe ao menos um de: status, notas, favorito, descartado, telefoneInvalido, vendidoPor",
+      );
     }
     if (
       status !== undefined &&
@@ -78,6 +86,9 @@ export async function PATCH(req: Request, { params }: Params) {
     if (descartado !== undefined && typeof descartado !== "boolean") {
       problemas.push("descartado deve ser booleano");
     }
+    if (telefoneInvalido !== undefined && typeof telefoneInvalido !== "boolean") {
+      problemas.push("telefoneInvalido deve ser booleano");
+    }
     if (vendidoPor !== undefined && (typeof vendidoPor !== "string" || !vendidoPor.trim())) {
       problemas.push("vendidoPor deve ser string não vazia");
     }
@@ -93,11 +104,17 @@ export async function PATCH(req: Request, { params }: Params) {
       const usuario = await usuarioDaRequest(db, req);
       lead = await changeStatus(db, id, status as LeadStatus, undefined, usuario?.id);
     }
-    if (notas !== undefined || favorito !== undefined || descartado !== undefined) {
+    if (
+      notas !== undefined ||
+      favorito !== undefined ||
+      descartado !== undefined ||
+      telefoneInvalido !== undefined
+    ) {
       lead = await updateLeadExtras(db, id, {
         notas: notas as string | undefined,
         favorito: favorito as boolean | undefined,
         descartado: descartado as boolean | undefined,
+        telefoneInvalido: telefoneInvalido as boolean | undefined,
       });
     }
     if (vendidoPor !== undefined) {
