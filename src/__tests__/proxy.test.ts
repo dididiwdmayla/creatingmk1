@@ -106,6 +106,19 @@ describe("proxy (proteção por sessão multiusuário)", () => {
     }
   });
 
+  it("/api/fila/* é liberada sem sessão (autenticação própria por RADAR_DEVICE_KEY)", async () => {
+    for (const path of ["/api/fila/proximo", "/api/fila/confirmar"]) {
+      const res = await proxy(request(path));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-middleware-next")).toBe("1");
+    }
+  });
+
+  it("/api/fila (sem barra) continua protegida — só o prefixo /api/fila/ é liberado", async () => {
+    const res = await proxy(request("/api/fila"));
+    expect(res.status).toBe(401);
+  });
+
   it("APP_PASSWORD ausente → 503 também na demo pública (fail-closed)", async () => {
     vi.stubEnv("APP_PASSWORD", "");
 

@@ -3279,6 +3279,8 @@ FIREBASE_STORAGE_BUCKET=  # bucket das imagens de demo (ex.: <projeto>.appspot.c
 APP_PASSWORD=             # segredo de assinatura das sessões + senha INICIAL do admin; sem ela tudo responde 503
 GEMINI_API_KEY=           # OPCIONAL: sugestões de IA da Forja; ausente = IA oculta/desabilitada com aviso, nada quebra
 CRON_SECRET=              # segredo do cron diário (/api/cron); o Vercel Cron envia "Bearer ${CRON_SECRET}"; sem ela a rota responde 503
+RADAR_DEVICE_KEY=         # segredo do celular da fila de envio (/api/fila/*); NUNCA o mesmo do CRON_SECRET (raio de explosão diferente); sem ela a rota responde 503
+RADAR_DEVICE_USER_ID=     # userId sob o qual as ações do celular são atribuídas (registro de autor)
 ```
 
 Ver `.env.example`. Na Vercel, cadastrar todas em Project Settings → Environment Variables (a do Gemini só se quiser IA).

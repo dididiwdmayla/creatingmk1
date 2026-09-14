@@ -58,6 +58,17 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Fila de envio (MacroDroid no celular): /api/fila/* chama com Bearer
+  // RADAR_DEVICE_KEY, sem cookie — cada rota valida o segredo ela mesma
+  // (ver lib/fila/auth.ts). Segredo PRÓPRIO, nunca o CRON_SECRET (raios de
+  // explosão diferentes: o cron dispara buscas pagas, o celular dispara
+  // mensagens para negócios reais). Prefixo (não match exato como o cron)
+  // porque a fila tem várias rotas abaixo de /api/fila. Também depois do
+  // check de APP_PASSWORD (fail-closed vale igual).
+  if (pathname.startsWith("/api/fila/")) {
+    return NextResponse.next();
+  }
+
   const sessao = await lerSessaoToken(request.cookies.get(SESSION_COOKIE)?.value, secret);
   if (sessao) {
     if (pathname === "/config" && sessao.papel !== "admin") {
