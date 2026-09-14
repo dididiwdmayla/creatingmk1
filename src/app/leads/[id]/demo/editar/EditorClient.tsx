@@ -17,7 +17,7 @@ import { getFonte } from "@/lib/demos/fontes";
 import { baseImagemSlot } from "@/lib/demos/imagens-modo";
 import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
-import { exemploDaSkin } from "@/lib/demos/variantes";
+import { exemploDaSkin, temaCalibrado } from "@/lib/demos/variantes";
 import { aplicarSugestaoTexto, sugestaoTemTexto } from "@/lib/demos/sugestaoTexto";
 import { aplicarTema, migrarTemaPatch } from "@/lib/demos/tema";
 import { aplicarTraducaoDemo } from "@/lib/demos/traducaoTexto";
@@ -561,12 +561,19 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
     if (!sugestao) return;
     const aplicada = sugestao;
     setThemeId(aplicada.themeId);
-    setTema((atual) => ({
-      ...atual,
-      destaque: aplicada.destaque,
-      fonteDisplay: aplicada.fonteDisplay,
-      animacao: aplicada.animacao,
-    }));
+    // Skins de tema CALIBRADO leem exclusivamente quente/frio — destaque/
+    // fonteDisplay/animacao não têm efeito nelas (ver aplicarTema, ramo
+    // preset.lancheria, em lib/demos/tema.ts).
+    setTema((atual) =>
+      temaCalibrado(skin)
+        ? { ...atual, quente: aplicada.quente, frio: aplicada.frio }
+        : {
+            ...atual,
+            destaque: aplicada.destaque,
+            fonteDisplay: aplicada.fonteDisplay,
+            animacao: aplicada.animacao,
+          },
+    );
 
     if (sugestaoTemTexto(aplicada)) {
       atualizar((d) => aplicarSugestaoTexto(aplicada, d));
@@ -720,7 +727,7 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
           {sujo && !aviso && (
             <span className="hidden text-xs text-warning sm:inline">Alterações não salvas</span>
           )}
-          {iaDisponivel && !skin.themeDefault.lancheria && (
+          {iaDisponivel && (
             <button
               type="button"
               onClick={handleAbrirGerarIA}
@@ -1193,25 +1200,110 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
                         </p>
                         <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
                           <li>
-                            Preset:{" "}
+                            {temaCalibrado(skin) ? "Variante" : "Preset"}:{" "}
                             {skin.themePresets.find((p) => p.id === sugestao.themeId)?.nome ??
                               sugestao.themeId}
                           </li>
-                          <li className="flex items-center gap-1.5">
-                            Cor primária:
-                            <span
-                              className="inline-block h-3.5 w-3.5 rounded-full border border-line"
-                              style={{ backgroundColor: sugestao.destaque }}
-                            />
-                            <code className="font-mono">{sugestao.destaque}</code>
-                          </li>
-                          <li>
-                            Fonte dos títulos:{" "}
-                            {getFonte(sugestao.fonteDisplay)?.nome ?? sugestao.fonteDisplay}
-                          </li>
-                          <li>Animação: {sugestao.animacao}</li>
+                          {temaCalibrado(skin) ? (
+                            <>
+                              <li className="flex items-center gap-1.5">
+                                Comida (quente):
+                                <span
+                                  className="inline-block h-3.5 w-3.5 rounded-full border border-line"
+                                  style={{ backgroundColor: sugestao.quente }}
+                                />
+                                <code className="font-mono">{sugestao.quente}</code>
+                              </li>
+                              <li className="flex items-center gap-1.5">
+                                Sistema (frio):
+                                <span
+                                  className="inline-block h-3.5 w-3.5 rounded-full border border-line"
+                                  style={{ backgroundColor: sugestao.frio }}
+                                />
+                                <code className="font-mono">{sugestao.frio}</code>
+                              </li>
+                            </>
+                          ) : (
+                            <>
+                              <li className="flex items-center gap-1.5">
+                                Cor primária:
+                                <span
+                                  className="inline-block h-3.5 w-3.5 rounded-full border border-line"
+                                  style={{ backgroundColor: sugestao.destaque }}
+                                />
+                                <code className="font-mono">{sugestao.destaque}</code>
+                              </li>
+                              <li>
+                                Fonte dos títulos:{" "}
+                                {getFonte(sugestao.fonteDisplay)?.nome ?? sugestao.fonteDisplay}
+                              </li>
+                              <li>Animação: {sugestao.animacao}</li>
+                            </>
+                          )}
                         </ul>
                       </div>
+                      {sugestao.lancheriaTextos && (
+                        <div className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            Textos
+                          </p>
+                          {sugestao.lancheriaTextos.heroTitulo !== undefined && (
+                            <p className="mt-1.5 text-xs text-foreground">
+                              <span className="text-ink-muted">Título de abertura:</span>{" "}
+                              {sugestao.lancheriaTextos.heroTitulo}
+                            </p>
+                          )}
+                          {sugestao.lancheriaTextos.heroDescricao !== undefined && (
+                            <p className="mt-1 text-xs text-foreground">
+                              <span className="text-ink-muted">Descrição de abertura:</span>{" "}
+                              {sugestao.lancheriaTextos.heroDescricao}
+                            </p>
+                          )}
+                          {sugestao.lancheriaTextos.historiaTitulo !== undefined && (
+                            <p className="mt-1 text-xs text-foreground">
+                              <span className="text-ink-muted">Título da história:</span>{" "}
+                              {sugestao.lancheriaTextos.historiaTitulo}
+                            </p>
+                          )}
+                          {sugestao.lancheriaTextos.historia !== undefined && (
+                            <ul className="mt-1 flex flex-col gap-0.5 pl-2 text-xs text-ink-muted">
+                              {sugestao.lancheriaTextos.historia.map((paragrafo, i) => (
+                                <li key={i}>{paragrafo}</li>
+                              ))}
+                            </ul>
+                          )}
+                          {sugestao.lancheriaTextos.carimbo !== undefined && (
+                            <p className="mt-1 text-xs text-foreground">
+                              <span className="text-ink-muted">Carimbo:</span>{" "}
+                              {sugestao.lancheriaTextos.carimbo}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {sugestao.lanches && sugestao.lanches.length > 0 && (
+                        <div className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            Lanches
+                          </p>
+                          <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                            {sugestao.lanches.map((lanche, i) => (
+                              <li key={i}>{lanche.nome}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {sugestao.extras && sugestao.extras.length > 0 && (
+                        <div className="rounded border border-line bg-surface-2 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                            Bebidas e acompanhamentos
+                          </p>
+                          <ul className="mt-1.5 flex flex-col gap-1 text-xs text-foreground">
+                            {sugestao.extras.map((extra, i) => (
+                              <li key={i}>{extra.nome}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       {(sugestao.slogan !== undefined ||
                         sugestao.descricao !== undefined ||
                         sugestao.heroRotulo !== undefined ||

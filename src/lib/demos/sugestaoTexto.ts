@@ -24,7 +24,10 @@ export function sugestaoTemTexto(sugestao: SugestaoDemo): boolean {
     sugestao.titulosSecoes !== undefined ||
     sugestao.textosSecoes !== undefined ||
     sugestao.servicos !== undefined ||
-    sugestao.depoimentos !== undefined
+    sugestao.depoimentos !== undefined ||
+    sugestao.lancheriaTextos !== undefined ||
+    sugestao.lanches !== undefined ||
+    sugestao.extras !== undefined
   );
 }
 
@@ -91,11 +94,37 @@ export function aplicarSugestaoTexto(sugestao: SugestaoDemo, dados: DemoData): D
       })
     : dados.depoimentos;
 
+  // Catálogo raio-x (skins de tema calibrado): modelo de conteúdo PRÓPRIO,
+  // fora de secoes/servicos/depoimentos — ver SugestaoDemo.lancheriaTextos.
+  const lancheria =
+    dados.lancheria &&
+    (sugestao.lancheriaTextos || sugestao.lanches || sugestao.extras)
+      ? {
+          ...dados.lancheria,
+          ...(sugestao.lancheriaTextos && {
+            textos: { ...dados.lancheria.textos, ...sugestao.lancheriaTextos },
+          }),
+          ...(sugestao.lanches && {
+            lanches: dados.lancheria.lanches.map((lanche, i) => {
+              const novo = sugestao.lanches?.[i];
+              return novo ? { ...lanche, nome: novo.nome } : lanche;
+            }),
+          }),
+          ...(sugestao.extras && {
+            extras: dados.lancheria.extras.map((extra, i) => {
+              const novo = sugestao.extras?.[i];
+              return novo ? { ...extra, nome: novo.nome } : extra;
+            }),
+          }),
+        }
+      : dados.lancheria;
+
   return {
     ...dados,
     ...(sugestao.slogan !== undefined && { slogan: sugestao.slogan }),
     secoes,
     servicos,
     depoimentos,
+    ...(lancheria !== undefined && { lancheria }),
   };
 }

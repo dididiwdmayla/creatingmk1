@@ -2,7 +2,14 @@ import { reserveQuota, type UsageCounts } from "@/lib/costs";
 import { fontesPorPapel } from "@/lib/demos/fontes";
 import { idiomaEfetivoDemo } from "@/lib/demos/idioma";
 import { HEX_RE } from "@/lib/demos/tema";
-import { ANIMACOES, type Animacao, type DemoItem, type SkinDefinition } from "@/lib/demos/types";
+import { temaCalibrado } from "@/lib/demos/variantes";
+import {
+  ANIMACOES,
+  type Animacao,
+  type DemoItem,
+  type DemoLancheria,
+  type SkinDefinition,
+} from "@/lib/demos/types";
 import type { UsageDb } from "@/lib/firestore-like";
 import { IDIOMA_PADRAO, idiomaLabel } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
@@ -68,14 +75,31 @@ export interface SugestaoDepoimento {
 }
 
 export interface SugestaoDemo {
-  /** Preset de tema da skin (paleta/base dentro dos tokens do Theme). */
+  /** Preset de tema da skin (paleta/base dentro dos tokens do Theme) — numa skin com `variantes`, o id da variante. */
   themeId: string;
-  /** Cor primária #rrggbb por cima do preset (TemaPatch.destaque). */
-  destaque: string;
-  /** Id da lista curada de fontes, papel "display" (TemaPatch.fonteDisplay). */
-  fonteDisplay: string;
-  /** Nível de animação do tema. */
-  animacao: Animacao;
+  /**
+   * Cor primária #rrggbb por cima do preset (TemaPatch.destaque). Ausente
+   * nas skins de tema CALIBRADO (`temaCalibrado` — ver `quente`/`frio`
+   * abaixo): `aplicarTema` ignora `destaque` inteiramente pra elas.
+   */
+  destaque?: string;
+  /**
+   * Id da lista curada de fontes, papel "display" (TemaPatch.fonteDisplay).
+   * Ausente nas skins de tema calibrado — a tipografia vem da folha de
+   * fontes da variante, não da lista curada (mesmo motivo de `destaque`).
+   */
+  fonteDisplay?: string;
+  /** Nível de animação do tema. Ausente nas skins de tema calibrado (idem). */
+  animacao?: Animacao;
+  /**
+   * Papel "comida" (preço/CTA) do par quente/frio — só nas skins de tema
+   * CALIBRADO (`temaCalibrado(skin)`), que leem EXCLUSIVAMENTE esses dois
+   * papéis em vez de um `destaque` único (ver `aplicarTema`, ramo
+   * `preset.lancheria`, em lib/demos/tema.ts).
+   */
+  quente?: string;
+  /** Papel "sistema" (medição/estados) do par quente/frio — idem `quente`. */
+  frio?: string;
   /** Frase de efeito curta (DemoData.slogan), pt-BR — ausente em "toque-leve". */
   slogan?: string;
   /** Descrição curta do negócio (texto do hero) — ausente em "toque-leve". */
@@ -123,6 +147,54 @@ export interface SugestaoDemo {
    * barbearia2 — ver `schemaListaDepoimentos`).
    */
   depoimentos?: SugestaoDepoimento[];
+  /**
+   * Nível "equilibrado"/"completo": textos do catálogo raio-x — só nas
+   * skins de tema CALIBRADO (ver `quente`/`frio`). O modelo de conteúdo
+   * delas é `DemoLancheria` (catálogo comercial calibrado), não
+   * `secoes`/`servicos`/`depoimentos` — `titulosSecoes`/`textosSecoes`
+   * nunca aparecem junto de `lancheriaTextos` na mesma sugestão.
+   */
+  lancheriaTextos?: SugestaoLancheriaTextos;
+  /**
+   * Nível "completo": nome de CADA lanche do cardápio calibrado
+   * (`skin.demoDataExemplo.lancheria.lanches`, mesma ordem/quantidade —
+   * preço nunca entra, é dado do lead). Só nas skins de tema calibrado.
+   */
+  lanches?: SugestaoNomeItem[];
+  /**
+   * Nível "completo": nome de CADA bebida/acompanhamento do catálogo
+   * calibrado (`skin.demoDataExemplo.lancheria.extras`, mesma
+   * ordem/quantidade). Só nas skins de tema calibrado.
+   */
+  extras?: SugestaoNomeItem[];
+}
+
+/**
+ * Textos do catálogo raio-x (`DemoLancheria.textos`, ver `TextosCasa` no
+ * pacote calibrado) — só os slots de CONTEÚDO: `heroFoto`/`historiaFoto`
+ * ficam de fora (são caminho de asset do acervo, sempre substituídos pelo
+ * slot de imagem padrão da Forja — ver `dadosDaLancheria`), nunca texto
+ * livre. `registro`/`rodape` também ficam fora quando a skin não entra: a
+ * skin ativa é sempre montada a partir da PRIMEIRA variante do registro
+ * (mesmo critério de `heroRotulo`/`heroCta` para as skins nativas — ver
+ * `chavesParaNivel`), e nela os dois vêm vazios no acervo calibrado.
+ */
+export interface SugestaoLancheriaTextos {
+  heroTitulo?: string;
+  heroDescricao?: string;
+  /** Texto alternativo da foto de abertura — descreve a cena, é conteúdo (ver adapter.ts). */
+  heroAlt?: string;
+  historiaTitulo?: string;
+  /** Parágrafos da história da casa, tamanho FIXO (== exemplo da skin). */
+  historia?: string[];
+  /** Texto alternativo da foto da seção "A chapa" — idem `heroAlt`. */
+  historiaAlt?: string;
+  carimbo?: string;
+}
+
+/** Nome de UM item do catálogo raio-x (`lanches`/`extras`) — preço nunca entra. */
+export interface SugestaoNomeItem {
+  nome: string;
 }
 
 /** Chaves de topo aceitas na resposta do Gemini, de acordo com o nível e a SKIN ATIVA (não a união de todas). */
@@ -277,18 +349,172 @@ function schemaListaDepoimentos(skin: SkinDefinition): Record<string, unknown> |
 }
 
 /**
+ * Catálogo de exemplo (`DemoLancheria`) da skin de tema calibrado ativa —
+ * SEMPRE o da primeira variante do registro (mesmo critério de
+ * `skin.demoDataExemplo` pras demais skins). Lança se chamada fora de uma
+ * skin calibrada — só os ramos `temaCalibrado(skin)` chamam isto.
+ */
+function lancheriaExemplo(skin: SkinDefinition): DemoLancheria {
+  const exemplo = skin.demoDataExemplo.lancheria;
+  if (!exemplo) throw new Error(`Skin "${skin.id}" não tem catálogo de lancheria de exemplo`);
+  return exemplo;
+}
+
+/**
+ * Chaves de `lancheriaTextos` que o nível libera — mesmo critério condicional
+ * de `heroRotulo`/`heroCta` nas skins nativas: só entra o que a skin ATIVA
+ * (primeira variante) tem preenchido no exemplo. É por isso que
+ * `registro`/`rodape` nunca aparecem aqui: vêm vazios nela (só outras
+ * variantes os usam — ver o comentário de `SugestaoLancheriaTextos`).
+ */
+function chavesLancheriaTextosParaNivel(
+  exemplo: DemoLancheria,
+  nivel: NivelIA,
+): (keyof SugestaoLancheriaTextos)[] {
+  if (nivel === "toque-leve") return [];
+  const t = exemplo.textos;
+  const chaves: (keyof SugestaoLancheriaTextos)[] = [];
+  if (t.heroTitulo) chaves.push("heroTitulo");
+  if (t.heroDescricao) chaves.push("heroDescricao");
+  if (t.historiaTitulo) chaves.push("historiaTitulo");
+  if (t.carimbo) chaves.push("carimbo");
+  if (nivel === "completo") {
+    if (t.historia.length > 0) chaves.push("historia");
+    if (t.heroAlt) chaves.push("heroAlt");
+    if (t.historiaAlt) chaves.push("historiaAlt");
+  }
+  return chaves;
+}
+
+/**
+ * Chaves de topo pra uma skin de tema CALIBRADO: `quente`/`frio` no lugar
+ * de `destaque`, sem `fonteDisplay`/`animacao` (`aplicarTema` ignora os
+ * dois pra elas — ver o ramo `preset.lancheria` em lib/demos/tema.ts), e
+ * `lancheriaTextos`/`lanches`/`extras` no lugar de
+ * `titulosSecoes`/`textosSecoes`/`servicos`/`depoimentos`.
+ */
+function chavesParaNivelLancheria(skin: SkinDefinition, nivel: NivelIA): string[] {
+  const chaves: string[] = ["themeId", "quente", "frio"];
+  if (nivel === "toque-leve") return chaves;
+  const exemplo = lancheriaExemplo(skin);
+  chaves.push("idioma");
+  if (chavesLancheriaTextosParaNivel(exemplo, nivel).length > 0) chaves.push("lancheriaTextos");
+  if (nivel === "completo") {
+    if (exemplo.lanches.length > 0) chaves.push("lanches");
+    if (exemplo.extras.length > 0) chaves.push("extras");
+  }
+  return chaves;
+}
+
+/** Schema de `lancheriaTextos` — só as chaves que o nível libera (ver `chavesLancheriaTextosParaNivel`). */
+function schemaLancheriaTextos(exemplo: DemoLancheria, nivel: NivelIA): Record<string, unknown> {
+  const chaves = chavesLancheriaTextosParaNivel(exemplo, nivel);
+  const properties: Record<string, unknown> = {};
+  if (chaves.includes("heroTitulo")) properties.heroTitulo = { type: "string", maxLength: TITULO_MAX };
+  if (chaves.includes("heroDescricao")) {
+    properties.heroDescricao = { type: "string", maxLength: DESCRICAO_MAX };
+  }
+  if (chaves.includes("historiaTitulo")) {
+    properties.historiaTitulo = { type: "string", maxLength: TITULO_MAX };
+  }
+  if (chaves.includes("carimbo")) properties.carimbo = { type: "string", maxLength: ROTULO_MAX };
+  if (chaves.includes("historia")) {
+    properties.historia = {
+      type: "array",
+      minItems: exemplo.textos.historia.length,
+      maxItems: exemplo.textos.historia.length,
+      items: { type: "string", maxLength: DESCRICAO_MAX },
+    };
+  }
+  if (chaves.includes("heroAlt")) properties.heroAlt = { type: "string", maxLength: DESCRICAO_MAX };
+  if (chaves.includes("historiaAlt")) {
+    properties.historiaAlt = { type: "string", maxLength: DESCRICAO_MAX };
+  }
+  return { type: "object", additionalProperties: false, required: chaves, properties };
+}
+
+/** Schema de `lanches`/`extras`: array de comprimento FIXO, só `nome` (preço nunca entra). */
+function schemaListaDeNomes(itens: readonly { nome: string }[]): Record<string, unknown> {
+  return {
+    type: "array",
+    minItems: itens.length,
+    maxItems: itens.length,
+    items: {
+      type: "object",
+      additionalProperties: false,
+      required: ["nome"],
+      properties: { nome: { type: "string", maxLength: TITULO_MAX } },
+    },
+  };
+}
+
+/**
+ * Schema pra uma skin de tema CALIBRADO (ver `schemaSugestao`). O modelo de
+ * conteúdo é `DemoLancheria`, não `secoes`/`servicos`/`depoimentos` — este
+ * ramo espelha ESSE contrato em vez do genérico abaixo.
+ */
+function schemaSugestaoLancheria(
+  skin: SkinDefinition,
+  nivel: NivelIA,
+  idioma: string,
+): Record<string, unknown> {
+  const exemplo = lancheriaExemplo(skin);
+  const properties: Record<string, unknown> = {
+    themeId: { type: "string", enum: skin.themePresets.map((preset) => preset.id) },
+    quente: {
+      type: "string",
+      pattern: "^#[0-9a-fA-F]{6}$",
+      description: "Cor 'comida' (preço, CTAs de pedido) em hex #rrggbb.",
+    },
+    frio: {
+      type: "string",
+      pattern: "^#[0-9a-fA-F]{6}$",
+      description: "Cor 'sistema' (medição, estados) em hex #rrggbb — independente de 'quente'.",
+    },
+  };
+
+  if (nivel !== "toque-leve") {
+    properties.idioma = {
+      type: "string",
+      enum: [idioma],
+      description: "Idioma-alvo dos textos — repita este valor.",
+    };
+    const chavesTextos = chavesLancheriaTextosParaNivel(exemplo, nivel);
+    if (chavesTextos.length > 0) properties.lancheriaTextos = schemaLancheriaTextos(exemplo, nivel);
+  }
+
+  if (nivel === "completo") {
+    if (exemplo.lanches.length > 0) properties.lanches = schemaListaDeNomes(exemplo.lanches);
+    if (exemplo.extras.length > 0) properties.extras = schemaListaDeNomes(exemplo.extras);
+  }
+
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: chavesParaNivelLancheria(skin, nivel),
+    properties,
+  };
+}
+
+/**
  * JSON Schema (padrão) enviado ao Gemini em responseJsonSchema — guia o
  * modelo pro formato certo; a validação estrita local continua mandando.
  * Os campos oferecidos dependem do NÍVEL escolhido pelo usuário: o Gemini
  * só recebe/devolve o que aquele nível permite (ver ./nivel.ts). `idioma`,
  * quando presente, é fixado num único valor permitido (enum de 1 item):
  * reforça no schema o idioma-alvo já instruído no prompt.
+ *
+ * Skins de tema CALIBRADO (`temaCalibrado(skin)` — catálogo `DemoLancheria`
+ * em vez de `secoes`/`servicos`/`depoimentos`, cores em papéis quente/frio
+ * em vez de `destaque` único) vão pro ramo próprio, `schemaSugestaoLancheria`.
  */
 export function schemaSugestao(
   skin: SkinDefinition,
   nivel: NivelIA = NIVEL_IA_PADRAO,
   idioma: string = IDIOMA_PADRAO,
 ): Record<string, unknown> {
+  if (temaCalibrado(skin)) return schemaSugestaoLancheria(skin, nivel, idioma);
+
   const properties: Record<string, unknown> = {
     themeId: { type: "string", enum: skin.themePresets.map((preset) => preset.id) },
     destaque: {
@@ -355,12 +581,108 @@ export function schemaSugestao(
   };
 }
 
+/** Prompt pra uma skin de tema CALIBRADO — ver `montarPromptSugestao`. */
+function montarPromptSugestaoLancheria(
+  skin: SkinDefinition,
+  lead: Lead,
+  nivel: NivelIA,
+  idioma: string,
+): string {
+  const exemplo = lancheriaExemplo(skin);
+  const nicho = lead.busca?.nicho?.trim() || skin.nicho;
+  const rating = lead.detalhes?.rating;
+  const avaliacoes = lead.detalhes?.totalAvaliacoes;
+
+  const linhasLead = [
+    `- Nome do negócio: ${lead.nome}`,
+    `- Nicho: ${nicho}`,
+    ...(lead.busca?.subNicho ? [`- Especialidade: ${lead.busca.subNicho}`] : []),
+    ...(lead.endereco ? [`- Endereço: ${lead.endereco}`] : []),
+    ...(typeof rating === "number"
+      ? [`- Avaliação no Google: ${rating}${avaliacoes ? ` (${avaliacoes} avaliações)` : ""}`]
+      : []),
+  ];
+
+  const chavesTextos = chavesLancheriaTextosParaNivel(exemplo, nivel);
+  const t = exemplo.textos;
+
+  const linhasTextos: string[] =
+    nivel === "toque-leve"
+      ? []
+      : [
+          "",
+          "Textos (curtos, diretos, sem emojis, sem inventar dados que não estão acima):",
+          ...(chavesTextos.includes("heroTitulo")
+            ? [`- lancheriaTextos.heroTitulo: frase de efeito de abertura, até ${TITULO_MAX} caracteres (ex.: "${t.heroTitulo}").`]
+            : []),
+          ...(chavesTextos.includes("heroDescricao")
+            ? [`- lancheriaTextos.heroDescricao: linha de apoio da abertura, até ${DESCRICAO_MAX} caracteres (ex.: "${t.heroDescricao}").`]
+            : []),
+          ...(chavesTextos.includes("historiaTitulo")
+            ? [`- lancheriaTextos.historiaTitulo: título da seção que conta a história da casa, até ${TITULO_MAX} caracteres.`]
+            : []),
+          ...(chavesTextos.includes("carimbo")
+            ? [`- lancheriaTextos.carimbo: selo curto tipo carimbo, palavras separadas por "/", até ${ROTULO_MAX} caracteres (ex.: "${t.carimbo}").`]
+            : []),
+          ...(chavesTextos.includes("historia")
+            ? [`- lancheriaTextos.historia: reescreva os ${t.historia.length} parágrafos da história da casa, na MESMA ordem (não invente nem remova parágrafo), até ${DESCRICAO_MAX} caracteres cada.`]
+            : []),
+          ...(chavesTextos.includes("heroAlt")
+            ? [`- lancheriaTextos.heroAlt: texto alternativo da foto de abertura — descreva a cena da foto, não repita o slogan, até ${DESCRICAO_MAX} caracteres.`]
+            : []),
+          ...(chavesTextos.includes("historiaAlt")
+            ? [`- lancheriaTextos.historiaAlt: texto alternativo da foto da seção de história, até ${DESCRICAO_MAX} caracteres.`]
+            : []),
+          ...(nivel === "completo" && exemplo.lanches.length > 0
+            ? [
+                `- lanches: reescreva o nome (≤${TITULO_MAX} caracteres) de CADA um dos ${exemplo.lanches.length} lanches abaixo, na MESMA ordem (não invente nem remova item; preço não entra, é dado do lead): ${exemplo.lanches
+                  .map((l, i) => `${i + 1}. "${l.nome}"`)
+                  .join("; ")}.`,
+              ]
+            : []),
+          ...(nivel === "completo" && exemplo.extras.length > 0
+            ? [
+                `- extras: reescreva o nome (≤${TITULO_MAX} caracteres) de CADA um dos ${exemplo.extras.length} itens abaixo (bebidas/acompanhamentos), na MESMA ordem (não invente nem remova item; preço não entra): ${exemplo.extras
+                  .map((e, i) => `${i + 1}. "${e.nome}"`)
+                  .join("; ")}.`,
+              ]
+            : []),
+        ];
+
+  return [
+    "Você é o diretor de arte de demos de sites para negócios locais brasileiros (o cliente da agência é brasileiro; o negócio abaixo pode estar em outro país).",
+    nivel === "toque-leve"
+      ? "Sugira só um ponto de partida de TEMA (variante visual e cores) para a demo do negócio abaixo — nenhum texto. Responda APENAS o JSON pedido."
+      : "Sugira tema e textos curtos para a demo do negócio abaixo. Responda APENAS o JSON pedido, com tom adequado a uma lancheria/hamburgueria (nada genérico de agência).",
+    ...(nivel !== "toque-leve"
+      ? [
+          `IMPORTANTE: escreva os TEXTOS em ${idiomaLabel(idioma)} — é o idioma do país/região do negócio, não necessariamente o seu. Preencha o campo "idioma" do JSON com exatamente "${idioma}".`,
+        ]
+      : []),
+    "",
+    "Negócio (dados públicos já coletados):",
+    ...linhasLead,
+    "",
+    `Template escolhido: "${skin.nome}"${skin.descricao ? ` — ${skin.descricao}` : ""}`,
+    "",
+    "Escolhas permitidas (use exatamente estes valores):",
+    `- themeId (a variante visual do template): ${skin.themePresets
+      .map((preset) => `"${preset.id}" (${preset.nome})`)
+      .join(", ")}`,
+    '- quente: cor hex "#rrggbb" da comida — preço e CTAs de pedido.',
+    '- frio: cor hex "#rrggbb" do sistema — medição e estados (independente de "quente").',
+    ...linhasTextos,
+  ].join("\n");
+}
+
 /**
  * Prompt com o que a rota sabe do lead: nicho, nome, rating/dados públicos
  * já salvos (nunca busca nada novo no Google) e a skin escolhida. `idioma`
  * (BCP-47, default pt-BR) vem da região geocodificada da busca que trouxe o
  * lead — ver "Idioma da IA na demo": os TEXTOS saem no idioma do lead, mas
  * a instrução em si continua em português (idioma do operador do app).
+ *
+ * Skins de tema calibrado vão pro ramo próprio, `montarPromptSugestaoLancheria`.
  */
 export function montarPromptSugestao(
   skin: SkinDefinition,
@@ -368,6 +690,8 @@ export function montarPromptSugestao(
   nivel: NivelIA = NIVEL_IA_PADRAO,
   idioma: string = IDIOMA_PADRAO,
 ): string {
+  if (temaCalibrado(skin)) return montarPromptSugestaoLancheria(skin, lead, nivel, idioma);
+
   const nicho = lead.busca?.nicho?.trim() || skin.nicho;
   const rating = lead.detalhes?.rating;
   const avaliacoes = lead.detalhes?.totalAvaliacoes;
@@ -522,12 +846,139 @@ function validarItens(
   });
 }
 
+/** Valida uma lista de `{nome}` (`lanches`/`extras`) contra a quantidade FIXA de exemplo. */
+function validarListaDeNomes(
+  bruto: unknown,
+  quantidade: number,
+  path: string,
+  problemas: string[],
+): SugestaoNomeItem[] {
+  if (!Array.isArray(bruto) || bruto.length !== quantidade) {
+    problemas.push(`${path} deve ser uma lista com ${quantidade} item(ns)`);
+    return [];
+  }
+  return bruto.map((item, i) => {
+    if (!isRecord(item)) {
+      problemas.push(`${path}[${i}] deve ser um objeto`);
+      return { nome: "" };
+    }
+    for (const chave of Object.keys(item)) {
+      if (chave !== "nome") problemas.push(`${path}[${i}].${chave}: chave desconhecida`);
+    }
+    const nome = textoCurto(item.nome, TITULO_MAX);
+    if (!nome) problemas.push(`${path}[${i}].nome deve ser string não vazia`);
+    return { nome: nome ?? "" };
+  });
+}
+
+/** Validação estrita pra uma skin de tema CALIBRADO — ver `validarSugestao`. */
+function validarSugestaoLancheria(
+  bruto: unknown,
+  skin: SkinDefinition,
+  nivel: NivelIA,
+  idioma: string,
+): { sugestao: SugestaoDemo; problemas: [] } | { sugestao?: undefined; problemas: string[] } {
+  const problemas: string[] = [];
+  if (!isRecord(bruto)) {
+    return { problemas: ["resposta deve ser um objeto JSON"] };
+  }
+
+  const exemplo = lancheriaExemplo(skin);
+  const chavesPermitidas = chavesParaNivelLancheria(skin, nivel);
+  for (const chave of Object.keys(bruto)) {
+    if (!chavesPermitidas.includes(chave)) problemas.push(`chave desconhecida: ${chave}`);
+  }
+
+  const themeId = bruto.themeId;
+  if (typeof themeId !== "string" || !skin.themePresets.some((preset) => preset.id === themeId)) {
+    problemas.push(`themeId deve ser um preset da skin: ${skin.themePresets.map((p) => p.id).join(", ")}`);
+  }
+
+  const quente = bruto.quente;
+  if (typeof quente !== "string" || !HEX_RE.test(quente)) {
+    problemas.push("quente deve ser cor hex no formato #rrggbb");
+  }
+  const frio = bruto.frio;
+  if (typeof frio !== "string" || !HEX_RE.test(frio)) {
+    problemas.push("frio deve ser cor hex no formato #rrggbb");
+  }
+
+  let lancheriaTextos: SugestaoLancheriaTextos | undefined;
+  let lanches: SugestaoNomeItem[] | undefined;
+  let extras: SugestaoNomeItem[] | undefined;
+
+  if (nivel !== "toque-leve") {
+    if (bruto.idioma !== idioma) problemas.push(`idioma deve ser exatamente "${idioma}"`);
+
+    const chavesTextos = chavesLancheriaTextosParaNivel(exemplo, nivel);
+    if (chavesTextos.length > 0) {
+      if (!isRecord(bruto.lancheriaTextos)) {
+        problemas.push("lancheriaTextos deve ser um objeto");
+      } else {
+        const brutoTextos = bruto.lancheriaTextos;
+        for (const chave of Object.keys(brutoTextos)) {
+          if (!chavesTextos.includes(chave as keyof SugestaoLancheriaTextos)) {
+            problemas.push(`lancheriaTextos.${chave}: chave desconhecida`);
+          }
+        }
+        const textos: SugestaoLancheriaTextos = {};
+        for (const campo of ["heroTitulo", "heroDescricao", "historiaTitulo", "carimbo", "heroAlt", "historiaAlt"] as const) {
+          if (!chavesTextos.includes(campo)) continue;
+          const max =
+            campo === "carimbo" ? ROTULO_MAX : campo === "heroTitulo" || campo === "historiaTitulo" ? TITULO_MAX : DESCRICAO_MAX;
+          const valor = textoCurto(brutoTextos[campo], max);
+          if (!valor) problemas.push(`lancheriaTextos.${campo} deve ser string não vazia`);
+          else textos[campo] = valor;
+        }
+        if (chavesTextos.includes("historia")) {
+          const quantidade = exemplo.textos.historia.length;
+          const brutoHistoria = brutoTextos.historia;
+          if (!Array.isArray(brutoHistoria) || brutoHistoria.length !== quantidade) {
+            problemas.push(`lancheriaTextos.historia deve ser uma lista com ${quantidade} item(ns)`);
+          } else {
+            textos.historia = brutoHistoria.map((paragrafo, i) => {
+              const limpo = textoCurto(paragrafo, DESCRICAO_MAX);
+              if (!limpo) problemas.push(`lancheriaTextos.historia[${i}] deve ser string não vazia`);
+              return limpo ?? "";
+            });
+          }
+        }
+        lancheriaTextos = textos;
+      }
+    }
+
+    if (nivel === "completo") {
+      if (exemplo.lanches.length > 0) {
+        lanches = validarListaDeNomes(bruto.lanches, exemplo.lanches.length, "lanches", problemas);
+      }
+      if (exemplo.extras.length > 0) {
+        extras = validarListaDeNomes(bruto.extras, exemplo.extras.length, "extras", problemas);
+      }
+    }
+  }
+
+  if (problemas.length > 0) return { problemas };
+  return {
+    sugestao: {
+      themeId: themeId as string,
+      quente: (quente as string).toLowerCase(),
+      frio: (frio as string).toLowerCase(),
+      ...(lancheriaTextos !== undefined && { lancheriaTextos }),
+      ...(lanches !== undefined && { lanches }),
+      ...(extras !== undefined && { extras }),
+    },
+    problemas: [],
+  };
+}
+
 /**
  * Validação estrita da resposta do Gemini contra o contrato da skin.
  * Qualquer desvio de forma (chave desconhecida, enum fora da lista, hex
  * inválido, seção que a skin não tem) vira lista de problemas — o chamador
  * tenta 1 retry com os problemas no prompt. Comprimento de texto não é
  * problema: é recortado (clamp) na leitura.
+ *
+ * Skins de tema calibrado vão pro ramo próprio, `validarSugestaoLancheria`.
  */
 export function validarSugestao(
   bruto: unknown,
@@ -535,6 +986,8 @@ export function validarSugestao(
   nivel: NivelIA = NIVEL_IA_PADRAO,
   idioma: string = IDIOMA_PADRAO,
 ): { sugestao: SugestaoDemo; problemas: [] } | { sugestao?: undefined; problemas: string[] } {
+  if (temaCalibrado(skin)) return validarSugestaoLancheria(bruto, skin, nivel, idioma);
+
   const problemas: string[] = [];
   if (!isRecord(bruto)) {
     return { problemas: ["resposta deve ser um objeto JSON"] };
