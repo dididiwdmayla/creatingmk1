@@ -2381,7 +2381,11 @@ Então a varredura acontece **uma vez a cada `POOL_TTL_MS` (10 min)** e o result
   "geradoEm": "<ISO>",
   "candidatos": [{ "id": "ChIJ...", "nicho": "barbearia masculina", "offset": -180, "faixas": [], "criadoEm": "<ISO>" }],
   "lidos": 312,        // quantos leads a varredura leu — o custo, explícito
-  "truncado": false    // a base passou de POOL_MAX e o pool saiu cortado
+  "truncado": false,   // a base passou de POOL_MAX e o pool saiu cortado
+  "estrutural": {      // diagnóstico da mesma passada — ver "Diagnóstico da fila" abaixo
+    "status": 180, "descartado": 4, "telefoneInvalido": 9, "semTelefone": 21,
+    "semDemo": 60, "capturaNaoPronta": 30, "semFuso": 2
+  }
 }
 ```
 
@@ -2448,6 +2452,27 @@ string vazia e `motivo` é um dos seis valores (`pausado`, `meta_atingida`,
 **`printUrl` (`src/lib/fila/print.ts`)** é escolhido por regra fixa, não pelo operador — o celular é executor burro. Duas decisões: a **seção principal no celular** (a âncora de MENOR `ordem`, que em todos os padrões é o hero — a primeira impressão da marca é o que abre uma conversa), e **com moldura, caindo para a crua** (a composta "se lê como um site num aparelho" numa conversa; numa mensagem com UMA imagem é a peça que vende, mas a composição pode ter falhado). Sem nenhuma imagem de celular o lead **não é elegível**: `estado === "pronto"` não garante que a tela de celular saiu, e tarefa sem print é mensagem sem a peça que vende. As URLs do Storage são públicas e estáveis (`public: true`, `scripts/capturas.mjs`), então o celular baixa direto, sem passar pelo proxy de `servir.ts`.
 
 O dispositivo se identifica pelo header `X-Radar-Device` (ausente = `"android"`, o único que existe hoje) e vai para `filaEnvios.dispositivo`.
+
+### Diagnóstico da fila — `ordenarCandidatos` devolve `{ escolhido, diagnostico }` e `GET /api/fila/diagnostico`
+
+`fora_de_janela` era caixa preta: o operador desmarca `exigirJanelaBoa` no painel e `/proximo` continua devolvendo `fora_de_janela` — comportamento CORRETO (`niveisAceitos` amplia de `["bom"]` para `["bom", "razoavel"]`, e pode simplesmente não haver ninguém em `razoavel` agora), mas sem contagem por etapa não dá para distinguir isso de "a flag não pegou". A correção não mexe em nenhuma decisão — só faz o pipeline contar, na ordem real em que avalia:
+
+1. **Ritmo** — `pausado`, `meta_atingida`, `teto_hora`, `intervalo` (`motivoDeRitmo`, antes de ler o pool). Não é contagem por lead, é um portão único: ou está ativo, ou não está.
+2. **Estrutural** — os mesmos critérios de `candidatoEstavel`, mas cada um com o próprio contador (`motivoEstrutural`, em `lib/fila/candidatos.ts`): `status` (diferente de "novo"), `descartado`, `telefoneInvalido`, `semTelefone`, `semDemo`, `capturaNaoPronta` (cobre tanto `capturas.estado !== "pronto"` quanto print ausente — as duas dizem a mesma coisa pro operador), `semFuso`. Um lead que falha em vários ao mesmo tempo conta só uma vez, pelo PRIMEIRO da ordem acima — a mesma ordem de `candidatoEstavel`. Apurado **na mesma passada** de `construirPool` (uma segunda varredura só para contar duplicaria a leitura cara que o pool existe pra evitar) e gravado em `PoolCandidatos.estrutural`, junto do `geradoEm` que já existia.
+3. **Nicho** — `nichoBarrado`: passaria em tudo, mas o nicho não está em `nichosPermitidos`. Calculado fresco, na seleção.
+4. **Janela** — quem não está em `niveisAceitos` agora, quebrado por nível: `razoavel`, `ruim`, `semNivel` (fechado na hora do lead). Também fresco.
+
+**Tentativas esgotadas (`filaParado`) fica FORA do diagnóstico estrutural, de propósito**: por construção, um envio "enviado" já reprova antes em `status` (a confirmação move `novo → contactado` na mesma transação) e "inválido" já reprova antes em `telefoneInvalido` (mesma transação) — só "tentativas esgotadas" sobra, e esse caso já tem vitrine própria na ficha do lead. Duplicá-lo no pool confundiria duas fontes da mesma informação.
+
+**Onde os números ficam**: as contagens estruturais só são apuráveis na varredura completa de `/leads` — a que `construirPool` já faz — então vão dentro do próprio doc `/filaCandidatos/pool`. Isso tem um preço explícito: são um retrato do último rebuild, e podem ter até `POOL_TTL_MS` (10 min) de idade — ou mais, se `/proximo` não estiver sendo chamado. É por isso que `pool.geradoEm` viaja junto do `pool.estrutural` na resposta: quem olha o painel precisa poder dizer "isto é de X minutos atrás" na tela. Nicho e janela, ao contrário, são calculados NA HORA sobre esse mesmo pool — são sempre frescos.
+
+`ordenarCandidatos` (`lib/fila/selecao.ts`) passou a devolver `{ escolhido, diagnostico }` numa PASSAGEM SÓ — o mesmo laço que decide quem é elegível já conta nicho e janela; nunca uma varredura para escolher e outra para contar. `escolhido` é a lista ordenada de candidatos (o que `/proximo` chamava de `elegiveis`); `diagnostico` é `{ nichoBarrado, janela: { razoavel, ruim, semNivel } }`, estrutura de dados pura, testável sem rota.
+
+`GET /api/fila/diagnostico` junta as quatro etapas numa leitura: `motivoDeRitmo` de novo (portão 1), `lerPoolBruto` — o pool tal como está, **sem checar TTL e sem reconstruir** (o painel não pode custar uma varredura de `/leads` só para mostrar números) — para o `estrutural` e o `geradoEm` (portão 2), e `ordenarCandidatos` sobre esse pool para `nichoBarrado`, `janela` e `elegiveis` (portões 3 e 4). Pool nunca construído (ninguém bateu em `/proximo` ainda) devolve `pool.geradoEm: null` e `estrutural` zerado, nunca erro.
+
+Autenticação de **sessão de admin**, mesmo mecanismo de `PUT /api/config/fila` (`requireAdmin`) — **nunca a `RADAR_DEVICE_KEY`**: aquele segredo é do aparelho e não abre nada além das rotas de execução da fila. A rota vive sob `/api/fila/*`, o mesmo prefixo que `src/proxy.ts` isenta da sessão comum (porque o celular usa o device key, não cookie) — por isso ela faz sua própria checagem completa de sessão+papel, igual `/api/config/fila` PUT já faz.
+
+**`/api/fila/proximo` não muda de formato.** O contrato achatado do MacroDroid continua exatamente como estava — mesmas chaves, todas sempre presentes, todo valor string exceto `temTarefa`; `escolhido`/`diagnostico` são detalhe interno de `ordenarCandidatos`, nunca aparecem no corpo da resposta (há teste comparando `Object.keys` do corpo contra a lista fixa de chaves, de propósito).
 
 ### `POST /api/fila/confirmar` — o celular reporta o que aconteceu
 

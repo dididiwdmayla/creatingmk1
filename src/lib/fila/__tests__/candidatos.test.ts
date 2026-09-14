@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MOTIVOS_ESTRUTURAIS,
   POOL_MAX,
   POOL_TTL_MS,
   candidatoEstavel,
   construirPool,
+  estruturalVazio,
   lerPool,
+  lerPoolBruto,
+  motivoEstrutural,
 } from "../candidatos";
 import type { FilaEnvioDoc } from "../envios";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
@@ -116,6 +120,63 @@ describe("candidatoEstavel", () => {
   });
 });
 
+describe("motivoEstrutural — o diagnóstico por trás de candidatoEstavel", () => {
+  it("lead pronto: undefined (nenhum motivo)", () => {
+    expect(motivoEstrutural(lead("ChIJa"))).toBeUndefined();
+  });
+
+  const casos: Array<[string, Partial<Lead>, (typeof MOTIVOS_ESTRUTURAIS)[number]]> = [
+    ["status diferente de novo", { status: "contactado" }, "status"],
+    ["descartado à mão", { descartado: true }, "descartado"],
+    ["número marcado como sem WhatsApp", { telefoneInvalido: true }, "telefoneInvalido"],
+    ["sem telefone nenhum", { telefoneIntl: undefined }, "semTelefone"],
+    ["sem demo", { demo: undefined }, "semDemo"],
+    [
+      "capturas ainda rodando",
+      { capturas: { estado: "rodando", execucaoId: "e", pedidoEm: "x" } as Lead["capturas"] },
+      "capturaNaoPronta",
+    ],
+    [
+      "capturas prontas mas sem imagem de celular (mesmo balde: a peça não existe)",
+      {
+        capturas: {
+          estado: "pronto",
+          execucaoId: "e",
+          pedidoEm: "x",
+          imagens: [{ ancora: "hero", tela: "desktop", ordem: 1, url: "u", largura: 1, altura: 1 }],
+        } as Lead["capturas"],
+      },
+      "capturaNaoPronta",
+    ],
+    ["sem fuso derivável", { horarios: undefined, endereco: undefined }, "semFuso"],
+  ];
+  for (const [nome, override, esperado] of casos) {
+    it(`${nome} → "${esperado}"`, () => {
+      expect(motivoEstrutural(lead("ChIJa", override))).toBe(esperado);
+    });
+  }
+
+  it("quando vários filtros falham ao mesmo tempo, conta pelo PRIMEIRO da ordem de avaliação", () => {
+    // descartado E telefoneInvalido juntos: "descartado" é checado antes.
+    expect(
+      motivoEstrutural(lead("ChIJa", { descartado: true, telefoneInvalido: true })),
+    ).toBe("descartado");
+  });
+
+  it("o telefone do enriquecimento vale quando o da busca falta — não conta como semTelefone", () => {
+    const l = lead("ChIJa", {
+      telefoneIntl: undefined,
+      detalhes: { telefoneIntl: "+55 44 90000-0000", enriquecidoEm: "x" } as Lead["detalhes"],
+    });
+    expect(motivoEstrutural(l)).toBeUndefined();
+  });
+
+  it("tentativas esgotadas não é um motivo ESTRUTURAL — motivoEstrutural nem olha o envio", () => {
+    // O lead em si está limpo; só a fila (envio) o exclui — ver candidatoEstavel.
+    expect(motivoEstrutural(lead("ChIJa"))).toBeUndefined();
+  });
+});
+
 describe("construirPool", () => {
   it("reduz o lead ao mínimo, com nicho e fuso já resolvidos", async () => {
     const db = new FakeFirestore();
@@ -152,6 +213,59 @@ describe("construirPool", () => {
     db.seed("leads/ChIJa", lead("ChIJa", { busca: undefined }) as unknown as Record<string, unknown>);
 
     expect((await construirPool(db, AGORA)).candidatos[0].nicho).toBe("");
+  });
+
+  it("conta o diagnóstico estrutural na MESMA passada — cada lead barrado cai no balde certo", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ok", lead("ok") as unknown as Record<string, unknown>);
+    db.seed("leads/status", lead("status", { status: "contactado" }) as unknown as Record<string, unknown>);
+    db.seed("leads/descartado", lead("descartado", { descartado: true }) as unknown as Record<string, unknown>);
+    db.seed(
+      "leads/invalido",
+      lead("invalido", { telefoneInvalido: true }) as unknown as Record<string, unknown>,
+    );
+    db.seed(
+      "leads/semtel",
+      lead("semtel", { telefoneIntl: undefined }) as unknown as Record<string, unknown>,
+    );
+    db.seed("leads/semdemo", lead("semdemo", { demo: undefined }) as unknown as Record<string, unknown>);
+    db.seed(
+      "leads/semcaptura",
+      lead("semcaptura", {
+        capturas: { estado: "rodando", execucaoId: "e", pedidoEm: "x" } as Lead["capturas"],
+      }) as unknown as Record<string, unknown>,
+    );
+    db.seed(
+      "leads/semfuso",
+      lead("semfuso", { horarios: undefined, endereco: undefined }) as unknown as Record<string, unknown>,
+    );
+
+    const pool = await construirPool(db, AGORA);
+
+    expect(pool.candidatos.map((c) => c.id)).toEqual(["ok"]);
+    expect(pool.estrutural).toEqual({
+      status: 1,
+      descartado: 1,
+      telefoneInvalido: 1,
+      semTelefone: 1,
+      semDemo: 1,
+      capturaNaoPronta: 1,
+      semFuso: 1,
+    });
+  });
+
+  it("lead barrado só por tentativas esgotadas some do pool sem incrementar contador estrutural nenhum", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJa", lead("ChIJa") as unknown as Record<string, unknown>);
+    db.seed(
+      "filaEnvios/ChIJa",
+      envio({ estado: "falhou", tentativas: 3 }) as unknown as Record<string, unknown>,
+    );
+
+    const pool = await construirPool(db, AGORA);
+
+    expect(pool.candidatos).toEqual([]);
+    expect(pool.estrutural).toEqual(estruturalVazio());
   });
 });
 
@@ -230,5 +344,58 @@ describe("lerPool — o pool é o que evita varrer /leads a cada chamada", () =>
     const cortado = pool.candidatos.at(-1)!;
     expect(cortado.criadoEm <= "2026-01-27T00:00:00.000Z").toBe(true);
     expect(pool.candidatos[0].criadoEm).toBe("2026-01-01T00:00:00.000Z");
+  });
+});
+
+describe("lerPoolBruto — leitura para o diagnóstico, sem TTL e sem reconstruir", () => {
+  it("pool nunca construído: undefined, e nenhuma varredura de /leads acontece", async () => {
+    const base = new FakeFirestore();
+    base.seed("leads/ChIJa", lead("ChIJa") as unknown as Record<string, unknown>);
+    const { db, varreduras } = comContador(base);
+
+    const pool = await lerPoolBruto(db);
+
+    expect(pool).toBeUndefined();
+    expect(varreduras.leads ?? 0).toBe(0);
+  });
+
+  it("devolve o pool mesmo BEM além do TTL, sem reconstruir", async () => {
+    const base = new FakeFirestore();
+    base.seed("leads/ChIJnovo", lead("ChIJnovo") as unknown as Record<string, unknown>);
+    base.seed("filaCandidatos/pool", {
+      geradoEm: new Date(AGORA.getTime() - 10 * POOL_TTL_MS).toISOString(),
+      candidatos: [{ id: "ChIJvelho", nicho: "barbearia", offset: 0, faixas: [], criadoEm: "2020-01-01T00:00:00.000Z" }],
+      lidos: 5,
+      truncado: false,
+      estrutural: estruturalVazio(),
+    });
+    const { db, varreduras } = comContador(base);
+
+    const pool = await lerPoolBruto(db);
+
+    expect(pool?.candidatos.map((c) => c.id)).toEqual(["ChIJvelho"]);
+    expect(varreduras.leads ?? 0).toBe(0);
+  });
+
+  it("doc anterior à migração (sem 'estrutural') normaliza para zero, não quebra", async () => {
+    const db = new FakeFirestore();
+    db.seed("filaCandidatos/pool", {
+      geradoEm: AGORA.toISOString(),
+      candidatos: [],
+      lidos: 3,
+      truncado: false,
+      // sem campo `estrutural` — doc escrito antes desta mudança existir.
+    });
+
+    const pool = await lerPoolBruto(db);
+
+    expect(pool?.estrutural).toEqual(estruturalVazio());
+  });
+
+  it("doc corrompido/ausente é undefined, não erro", async () => {
+    const db = new FakeFirestore();
+    db.seed("filaCandidatos/pool", { lixo: true });
+
+    await expect(lerPoolBruto(db)).resolves.toBeUndefined();
   });
 });
