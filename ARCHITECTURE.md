@@ -2351,6 +2351,30 @@ Elegibilidade, além dos critérios estáveis do pool: `nichosPermitidos` quando
 
 O dispositivo se identifica pelo header `X-Radar-Device` (ausente = `"android"`, o único que existe hoje) e vai para `filaEnvios.dispositivo`.
 
+### `POST /api/fila/confirmar` — o celular reporta o que aconteceu
+
+Corpo `{ id, leadId, resultado, detalhe }`, onde `id` é o claimId da tarefa e `resultado` é `enviado | invalido | falhou`.
+
+**"enviado" move QUATRO docs em coleções diferentes, ou nenhum** (`src/lib/fila/confirmar.ts`, uma `runTransaction` só): a claim (`estado`/`enviadoEm`), o lead (`novo → contactado` + selo + `registrosEnvio` com a hora e o dia local DO LEAD), a rotação de frases e o contador do dia operacional (`enviados++`, push do ISO em `envios`, poda para 24h). Uma confirmação pela metade seria contador que não bate com lead que não bate com o que o negócio recebeu no WhatsApp.
+
+Isso obrigou a **extrair o miolo PURO** de três funções que já rodavam em produção pelo clique manual do WhatsApp: `aplicarTransicao` e `aplicarSeloContato` (de `leads/repo.ts`) e `patchAvancoRotacao`/`conjuntoDoDoc`/`refConjunto` (de `frases/repo.ts`). As versões com I/O são leitura-modificação-escrita **sem** transação por design, e não podem ser chamadas de dentro de uma — mas duas cópias da mesma regra é que não podia haver. `changeStatus`, `registrarSeloContato` e `avancarRotacao` passaram a ser cascas finas sobre os mesmos puros: nenhum comportamento mudou, e os dez arquivos de teste que cobrem o caminho manual continuam **byte a byte idênticos** e passando.
+
+Duas regras específicas do envio pela fila:
+
+- **Nunca rebaixa status.** Só move quem ainda está em `"novo"`; lead que o time já avançou à mão (respondeu, fechado) mantém o status — o que importa registrar aqui é o disparo, e isso é o selo.
+- **A rotação é a COMPARTILHADA**, o mesmo doc que o clique manual gira (o dispositivo não tem contador próprio), e gira a skin gravada em `filaEnvios.rotacaoSkinId` — a frase que o lead de fato recebeu, não a que estaria valendo agora. Escrita com `merge`, como sempre: girar o contador nunca pisa nos textos que o admin possa estar salvando no mesmo segundo. Entra na transação porque, dentro da fila, o confirmar é atômico inteiro — o que APERTA a regra otimista de `frases/repo.ts`, não a contradiz.
+
+**"invalido"**: a claim é encerrada e o lead ganha `telefoneInvalido = true` — número sem WhatsApp não volta à fila nunca mais, mas o lead continua na base com demo e capturas, porque o número pode ser corrigido depois. O contador NÃO anda: não saiu mensagem.
+
+**"falhou"**: `tentativas + 1` e a claim devolvida à fila. A partir de `TENTATIVAS_MAX` (3) o lead **para**: não é excluído nem marcado como inválido, só deixa de ser elegível — e a ficha mostra por quê, para a inspeção manual acontecer.
+
+**Duas garantias de que o executor no celular depende:**
+
+- **409 `{ erro: "claim_invalida" }` para claim que não bate, sem alterar NADA.** Cenário real: o celular trava, a claim expira, o lead é re-reservado, e só então o aparelho volta e tenta confirmar a claim velha — sem isto viraria envio duplicado ou contador errado.
+- **Confirmação repetida da MESMA claim já confirmada devolve sucesso (`repetida: true`) sem duplicar nada** — nem contador, nem rotação, nem registro de envio. A rede pode cair DEPOIS de a mensagem ter saído, e aí o celular reenvia o confirmar.
+
+**Todas as leituras antes de todas as escritas**, dentro da transação: o Firestore real recusa `get` depois de `set`, e o fake dos testes deixaria passar calado — um confirmar que violasse isso passaria na suíte inteira e quebraria só em produção, na primeira mensagem da noite. Há teste que vigia a ordem, e ele foi verificado quebrando a ordem de propósito.
+
 ### Duas mudanças na fundação que estas rotas exigiram
 
 - **`reservarLead` devolve `{ claimId, expiraEm }`** em vez de só o `claimId`: a resposta ao celular carrega esse instante, e recomputá-lo do lado de fora criaria duas fontes para a mesma data.

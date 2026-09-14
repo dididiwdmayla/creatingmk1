@@ -91,3 +91,27 @@ export async function lerContadorFila(
 
   return { totalDoDia: doc.enviados, ultimaHora, segundosDesdeUltimoEvento };
 }
+
+/**
+ * O doc do contador DEPOIS de mais um envio confirmado, puro — o incremento
+ * acontece dentro da transação que confirma o envio (ver
+ * `lib/fila/confirmar.ts`), então a regra tem que ser aplicável a um doc já
+ * lido, sem tocar o banco.
+ *
+ * `envios` é podado para as últimas 24h na mesma passada: o array existe só
+ * para a janela deslizante de 1h, e sem a poda ele cresceria para sempre num
+ * doc que é reescrito a cada envio.
+ */
+export function contadorComEnvio(
+  data: Record<string, unknown> | undefined,
+  now: Date,
+): FilaContadorDoc {
+  const atual = readContadorDoc(data);
+  const limite24h = now.getTime() - 24 * UMA_HORA_MS;
+  const em = now.toISOString();
+  const envios = atual.envios.filter((iso) => {
+    const t = new Date(iso).getTime();
+    return Number.isFinite(t) && t > limite24h;
+  });
+  return { enviados: atual.enviados + 1, envios: [...envios, em], ultimoEventoEm: em };
+}
