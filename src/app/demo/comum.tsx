@@ -16,7 +16,7 @@ import { fontesEscolhidas } from "@/lib/demos/fontes";
 import { montarDemoData } from "@/lib/demos/montar";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
-import { exemploDaSkin, varianteEfetiva } from "@/lib/demos/variantes";
+import { exemploDaSkin, temaCalibrado, varianteEfetiva } from "@/lib/demos/variantes";
 import type { LeadDemo } from "@/lib/demos/types";
 import type { AppDb } from "@/lib/firestore-like";
 import type { Lead } from "@/lib/leads/types";
@@ -87,7 +87,11 @@ export async function resolverDemo(fonte: FonteDemo) {
 
   // Só busca (import dinâmico) as fontes curadas que o editor de fato
   // escolheu — o resto da lista nunca chega a ser fetched pelo cliente.
-  const extraFontClassName = skin.themeDefault.lancheria ? "" : await resolveExtraFontClassNames(fontesEscolhidas(fonte.demo.tema));
+  // Skin de tema calibrado traz a própria folha de fontes (Tema.folhaFontes):
+  // buscar as fontes curadas da Forja só baixaria família que ela não usa.
+  const extraFontClassName = temaCalibrado(skin)
+    ? ""
+    : await resolveExtraFontClassNames(fontesEscolhidas(fonte.demo.tema));
 
   // Efeito de fundo (registro de efeitos) + intensidade — undefined cobre
   // tanto "nenhum" quanto um id que não existe mais no registro. Nunca deve
