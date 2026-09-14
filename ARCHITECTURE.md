@@ -2340,12 +2340,34 @@ Elegibilidade, além dos critérios estáveis do pool: `nichosPermitidos` quando
 
 **A reserva acontece DENTRO da chamada e ANTES de montar a mensagem**: a claim trava o lead primeiro, para que nenhum trabalho (três leituras de coleção em `montarMensagemParaLead`) seja feito sobre um lead que outro ciclo já levou. Reserva que falha por concorrência **não vira erro** — cai no próximo candidato.
 
+**Resposta ACHATADA, de propósito** — um objeto de UM nível só, sem `tarefa`
+aninhado, com TODAS as chaves sempre presentes nos dois casos:
+
 ```jsonc
-{ "tarefa": { "id": "<claimId>", "leadId": "ChIJ...", "nome": "Ink House",
+// Com tarefa (200):
+{ "temTarefa": true, "id": "<claimId>", "leadId": "ChIJ...", "nome": "Ink House",
   "numero": "5544991543803", "texto": "<mensagem montada e resolvida>",
-  "printUrl": "<url pública da captura>", "expiraEm": "<ISO>" } }
-{ "tarefa": null, "motivo": "fora_de_janela" }
+  "printUrl": "<url pública da captura>", "expiraEm": "<ISO>", "motivo": "" }
+
+// Sem tarefa (200):
+{ "temTarefa": false, "id": "", "leadId": "", "nome": "", "numero": "",
+  "texto": "", "printUrl": "", "expiraEm": "", "motivo": "fora_de_janela" }
 ```
+
+Quem consome este JSON é uma macro do MacroDroid: ela converte o corpo em
+dicionário e lê cada campo por marcador de texto, e **não resolve chave
+aninhada** — uma referência a `tarefa.id` devolvia o marcador literal em vez
+do valor. Com o envelope antigo (`{ "tarefa": {...} }`), toda variável
+derivada virava lixo, a URL do print virava string inválida, e o lead era
+reportado como falha sem nada ter sido enviado. Daí as três regras que valem
+para sempre, não só estilo: (1) nenhum objeto ou array aninhado; (2) toda
+chave presente nos dois casos — chave ausente é o mesmo bug da chave
+aninhada, o marcador some e a macro carrega lixo sem perceber; chave ausente
+é pior que chave vazia; (3) todo valor é string, exceto `temTarefa`
+(booleano) — nunca `null`, nunca `undefined`, nunca campo omitido. Com
+tarefa, `motivo` é string vazia; sem tarefa, todos os outros campos são
+string vazia e `motivo` é um dos seis valores (`pausado`, `meta_atingida`,
+`teto_hora`, `intervalo`, `fora_de_janela`, `sem_leads_elegiveis`).
 
 **`printUrl` (`src/lib/fila/print.ts`)** é escolhido por regra fixa, não pelo operador — o celular é executor burro. Duas decisões: a **seção principal no celular** (a âncora de MENOR `ordem`, que em todos os padrões é o hero — a primeira impressão da marca é o que abre uma conversa), e **com moldura, caindo para a crua** (a composta "se lê como um site num aparelho" numa conversa; numa mensagem com UMA imagem é a peça que vende, mas a composição pode ter falhado). Sem nenhuma imagem de celular o lead **não é elegível**: `estado === "pronto"` não garante que a tela de celular saiu, e tarefa sem print é mensagem sem a peça que vende. As URLs do Storage são públicas e estáveis (`public: true`, `scripts/capturas.mjs`), então o celular baixa direto, sem passar pelo proxy de `servir.ts`.
 

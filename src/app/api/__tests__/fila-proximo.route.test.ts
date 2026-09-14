@@ -10,7 +10,25 @@ import { GET } from "../fila/proximo/route";
  * protegem, acima de tudo, é o MOTIVO: cada "sem tarefa" tem que dizer a
  * verdade sobre por que não saiu mensagem, porque é essa frase que explica,
  * de manhã, por que saíram 4 e não 15.
+ *
+ * A resposta é ACHATADA (um nível só, todas as chaves sempre presentes) de
+ * propósito: quem lê é uma macro do MacroDroid que não resolve chave
+ * aninhada (`tarefa.id` devolvia o marcador literal). Por isso os testes
+ * abaixo também vigiam a FORMA do corpo — todas as chaves, nenhum aninhado,
+ * nenhum `null` — e não só o conteúdo.
  */
+
+const CHAVES_RESPOSTA = [
+  "temTarefa",
+  "id",
+  "leadId",
+  "nome",
+  "numero",
+  "texto",
+  "printUrl",
+  "expiraEm",
+  "motivo",
+] as const;
 
 const CHAVE = "chave-do-celular";
 
@@ -66,6 +84,21 @@ function esquecerPool() {
   db.deleteDoc(`${FILA_CANDIDATOS_COLLECTION}/${FILA_CANDIDATOS_DOC}`);
 }
 
+/** O corpo achatado esperado quando não há tarefa: toda chave, tudo vazio. */
+function semTarefaEsperado(motivo: string) {
+  return {
+    temTarefa: false,
+    id: "",
+    leadId: "",
+    nome: "",
+    numero: "",
+    texto: "",
+    printUrl: "",
+    expiraEm: "",
+    motivo,
+  };
+}
+
 beforeEach(() => {
   db = new FakeFirestore();
   vi.stubEnv("RADAR_DEVICE_KEY", CHAVE);
@@ -98,30 +131,32 @@ describe("GET /api/fila/proximo — a tarefa", () => {
   it("entrega UM lead com tudo que o celular precisa para enviar", async () => {
     semear(lead("ChIJa"));
 
-    const { tarefa } = await (await proximo()).json();
+    const corpo = await (await proximo()).json();
 
-    expect(tarefa).toMatchObject({
+    expect(corpo).toMatchObject({
+      temTarefa: true,
       leadId: "ChIJa",
       nome: "Lead ChIJa",
       numero: "5544991543803",
       printUrl: "https://storage/hero-cel.png",
       expiraEm: new Date(TERCA_10H.getTime() + 5 * 60 * 1000).toISOString(),
+      motivo: "",
     });
-    expect(tarefa.texto).toContain("Lead ChIJa");
-    expect(tarefa.id).toEqual(expect.any(String));
+    expect(corpo.texto).toContain("Lead ChIJa");
+    expect(corpo.id).toEqual(expect.any(String));
   });
 
   it("reserva a claim na MESMA chamada, com o dispositivo do header", async () => {
     semear(lead("ChIJa"));
 
-    const { tarefa } = await (await proximo({
+    const corpo = await (await proximo({
       authorization: `Bearer ${CHAVE}`,
       "x-radar-device": "celular-bancada",
     })).json();
 
     expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({
       estado: "reservado",
-      claimId: tarefa.id,
+      claimId: corpo.id,
       dispositivo: "celular-bancada",
     });
   });
@@ -136,8 +171,8 @@ describe("GET /api/fila/proximo — a tarefa", () => {
   it("duas chamadas seguidas nunca devolvem o mesmo lead", async () => {
     semear(lead("ChIJa"), lead("ChIJb"));
 
-    const primeira = (await (await proximo()).json()).tarefa;
-    const segunda = (await (await proximo()).json()).tarefa;
+    const primeira = await (await proximo()).json();
+    const segunda = await (await proximo()).json();
 
     expect(primeira.leadId).not.toBe(segunda.leadId);
     expect([primeira.leadId, segunda.leadId].sort()).toEqual(["ChIJa", "ChIJb"]);
@@ -145,11 +180,11 @@ describe("GET /api/fila/proximo — a tarefa", () => {
 
   it("claim expirada volta a ser entregue", async () => {
     semear(lead("ChIJa"));
-    const primeira = (await (await proximo()).json()).tarefa;
+    const primeira = await (await proximo()).json();
 
     // O celular travou: a claim morre sozinha 5 minutos depois.
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 6 * 60 * 1000));
-    const segunda = (await (await proximo()).json()).tarefa;
+    const segunda = await (await proximo()).json();
 
     expect(segunda.leadId).toBe("ChIJa");
     expect(segunda.id).not.toBe(primeira.id);
@@ -178,11 +213,11 @@ describe("GET /api/fila/proximo — a tarefa", () => {
       } as Partial<Lead>),
     );
 
-    const { tarefa } = await (await proximo()).json();
+    const corpo = await (await proximo()).json();
 
     // Seção principal = menor ordem; e a versão que "se lê como um site num
     // aparelho" numa conversa.
-    expect(tarefa.printUrl).toBe("https://storage/hero-moldura.png");
+    expect(corpo.printUrl).toBe("https://storage/hero-moldura.png");
   });
 });
 
@@ -191,7 +226,7 @@ describe("GET /api/fila/proximo — os seis motivos", () => {
     semear(lead("ChIJa"));
     db.seed("config/fila", { ativo: false });
 
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "pausado" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("pausado"));
   });
 
   it("meta_atingida: o contador do dia bateu a metaDiaria", async () => {
@@ -199,7 +234,7 @@ describe("GET /api/fila/proximo — os seis motivos", () => {
     db.seed("config/fila", { metaDiaria: 2 });
     db.seed("filaContadores/2026-03-10", { enviados: 2, envios: [], ultimoEventoEm: null });
 
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "meta_atingida" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("meta_atingida"));
   });
 
   it("teto_hora: envios demais na última hora corrida", async () => {
@@ -211,7 +246,7 @@ describe("GET /api/fila/proximo — os seis motivos", () => {
       ultimoEventoEm: null,
     });
 
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "teto_hora" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("teto_hora"));
   });
 
   it("intervalo: o último envio foi agora há pouco", async () => {
@@ -223,24 +258,24 @@ describe("GET /api/fila/proximo — os seis motivos", () => {
       ultimoEventoEm: "2026-03-10T09:58:00.000Z", // 2 min atrás
     });
 
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "intervalo" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("intervalo"));
   });
 
   it("fora_de_janela: há lead pronto, mas é madrugada onde ele está", async () => {
     semear(lead("ChIJa"));
     vi.setSystemTime(TERCA_3H);
 
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "fora_de_janela" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("fora_de_janela"));
   });
 
   it("sem_leads_elegiveis: não existe lead pronto para mandar", async () => {
     semear(lead("ChIJa", { status: "contactado" }));
 
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "sem_leads_elegiveis" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
   });
 
   it("base vazia também é sem_leads_elegiveis, não fora_de_janela", async () => {
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "sem_leads_elegiveis" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
   });
 });
 
@@ -250,22 +285,22 @@ describe("GET /api/fila/proximo — a janela", () => {
     db.seed("config/fila", { exigirJanelaBoa: false });
     vi.setSystemTime(TERCA_12H);
 
-    const { tarefa } = await (await proximo()).json();
+    const corpo = await (await proximo()).json();
 
-    expect(tarefa?.leadId).toBe("ChIJa");
+    expect(corpo.leadId).toBe("ChIJa");
   });
 
   it("com exigirJanelaBoa true, a mesma hora razoável NÃO sai", async () => {
     semear(lead("ChIJa"));
     vi.setSystemTime(TERCA_12H);
 
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "fora_de_janela" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("fora_de_janela"));
   });
 
   it("lead sem fuso derivável nunca é entregue (não se manda às 3 da manhã)", async () => {
     semear(lead("ChIJa", { horarios: undefined, endereco: undefined }));
 
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "sem_leads_elegiveis" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
   });
 });
 
@@ -284,10 +319,7 @@ describe("GET /api/fila/proximo — os filtros de elegibilidade", () => {
     it(nome, async () => {
       semear(lead("ChIJa", override));
 
-      expect(await (await proximo()).json()).toEqual({
-        tarefa: null,
-        motivo: "sem_leads_elegiveis",
-      });
+      expect(await (await proximo()).json()).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
       expect(db.getDoc("filaEnvios/ChIJa")).toBeUndefined();
     });
   }
@@ -296,13 +328,13 @@ describe("GET /api/fila/proximo — os filtros de elegibilidade", () => {
     semear(lead("ChIJa", { busca: { nicho: "barbearia masculina", regiao: "r", em: "2026-03-01T00:00:00.000Z" } }));
     db.seed("config/fila", { nichosPermitidos: ["tatuagem"] });
 
-    expect(await (await proximo()).json()).toEqual({ tarefa: null, motivo: "sem_leads_elegiveis" });
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
 
     // O mesmo lead passa quando o nicho dele entra na lista (por substring).
     db.seed("config/fila", { nichosPermitidos: ["barbearia"] });
     esquecerPool();
 
-    expect((await (await proximo()).json()).tarefa?.leadId).toBe("ChIJa");
+    expect((await (await proximo()).json()).leadId).toBe("ChIJa");
   });
 });
 
@@ -317,7 +349,7 @@ describe("GET /api/fila/proximo — o pool é cache, nunca fonte de verdade", ()
 
     const corpo = await (await proximo()).json();
 
-    expect(corpo.tarefa).toBeNull();
+    expect(corpo.temTarefa).toBe(false);
     expect(corpo.motivo).toBe("sem_leads_elegiveis");
     // E a claim que a tentativa abriu foi devolvida, não deixada pendurada.
     expect(db.getDoc("filaEnvios/ChIJb")?.expiraEm).toBe(new Date(0).toISOString());
@@ -338,9 +370,9 @@ describe("GET /api/fila/proximo — o pool é cache, nunca fonte de verdade", ()
       enviadoEm: null,
     });
 
-    const { tarefa } = await (await proximo()).json();
+    const corpo = await (await proximo()).json();
 
-    expect(tarefa.leadId).toBe("ChIJb");
+    expect(corpo.leadId).toBe("ChIJb");
     expect(db.getDoc("filaEnvios/ChIJa")?.claimId).toBe("de-outro"); // intacta
   });
 });
@@ -352,7 +384,7 @@ describe("GET /api/fila/proximo — a ordem de atendimento", () => {
       lead("ChIJvelho", { criadoEm: "2026-01-01T00:00:00.000Z" }),
     );
 
-    expect((await (await proximo()).json()).tarefa.leadId).toBe("ChIJvelho");
+    expect((await (await proximo()).json()).leadId).toBe("ChIJvelho");
   });
 
   it("janela boa vence janela razoável, mesmo o razoável sendo mais antigo", async () => {
@@ -368,6 +400,58 @@ describe("GET /api/fila/proximo — a ordem de atendimento", () => {
     );
     vi.setSystemTime(TERCA_12H);
 
-    expect((await (await proximo()).json()).tarefa.leadId).toBe("ChIJbom");
+    expect((await (await proximo()).json()).leadId).toBe("ChIJbom");
+  });
+});
+
+describe("GET /api/fila/proximo — o contrato achatado", () => {
+  it("com tarefa, todas as chaves estão presentes e nenhuma é objeto, array ou null", async () => {
+    semear(lead("ChIJa"));
+
+    const corpo = await (await proximo()).json();
+
+    for (const chave of CHAVES_RESPOSTA) {
+      expect(corpo).toHaveProperty(chave);
+      expect(corpo[chave]).not.toBeNull();
+      expect(typeof corpo[chave]).not.toBe("object");
+    }
+    expect(typeof corpo.temTarefa).toBe("boolean");
+    for (const chave of CHAVES_RESPOSTA) {
+      if (chave === "temTarefa") continue;
+      expect(typeof corpo[chave]).toBe("string");
+    }
+    expect(corpo.motivo).toBe("");
+  });
+
+  it("sem tarefa, todas as chaves estão presentes e nenhuma é objeto, array ou null", async () => {
+    // Base vazia: nenhum candidato, motivo "sem_leads_elegiveis".
+    const corpo = await (await proximo()).json();
+
+    for (const chave of CHAVES_RESPOSTA) {
+      expect(corpo).toHaveProperty(chave);
+      expect(corpo[chave]).not.toBeNull();
+      expect(typeof corpo[chave]).not.toBe("object");
+    }
+    expect(typeof corpo.temTarefa).toBe("boolean");
+    for (const chave of CHAVES_RESPOSTA) {
+      if (chave === "temTarefa") continue;
+      expect(typeof corpo[chave]).toBe("string");
+    }
+    expect(corpo.temTarefa).toBe(false);
+    expect(corpo.motivo).not.toBe("");
+  });
+
+  it("o JSON serializado não omite nenhuma chave de valor vazio", async () => {
+    const res = await proximo();
+    const texto = await res.text();
+    const corpo = JSON.parse(texto);
+
+    for (const chave of CHAVES_RESPOSTA) {
+      expect(Object.prototype.hasOwnProperty.call(corpo, chave)).toBe(true);
+    }
+    // As aspas vazias precisam sobreviver à serialização, não sumir do texto.
+    expect(texto).toContain('"id":""');
+    expect(texto).toContain('"leadId":""');
+    expect(texto).toContain('"printUrl":""');
   });
 });
