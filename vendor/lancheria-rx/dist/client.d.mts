@@ -93,6 +93,8 @@ type TextosCasa = {
     heroAlt: string;
     historiaTitulo: string;
     historia: string[];
+    historiaFoto: string;
+    historiaAlt: string;
     carimbo: string;
     rodape: string;
 };

@@ -137,6 +137,8 @@ var TEXTOS_CASA = {
     heroAlt: "Prensado fechando na chapa",
     historiaTitulo: "Antes do prato,\num carrinho.",
     historia: ["O prensado nasceu em Maring\xE1, dentro de um carrinho de lanches. Algu\xE9m instalou uma prensa na chapa e passou a fechar o p\xE3o sobre o recheio.", "Os concorrentes copiaram. Virou prato t\xEDpico da cidade e saiu do estado."],
+    historiaFoto: "/chapa/chapa-vazia.webp",
+    historiaAlt: "Chapa de ferro vazia, pronta para o pr\xF3ximo lanche",
     carimbo: "MARING\xC1 / P\xC3O / CHAPA / PRENSA",
     rodape: ""
   },
@@ -149,6 +151,8 @@ var TEXTOS_CASA = {
     heroAlt: "Prensado Meia-Noite",
     historiaTitulo: "Antes do prato,\num carrinho.",
     historia: ["O prensado nasceu em Maring\xE1, dentro de um carrinho de lanches. Algu\xE9m instalou uma prensa na chapa e passou a fechar o p\xE3o sobre o recheio.", "Os concorrentes copiaram. Virou prato t\xEDpico da cidade e saiu do estado."],
+    historiaFoto: "/chapa/chapa-vazia.webp",
+    historiaAlt: "Chapa de ferro vazia, pronta para o pr\xF3ximo lanche",
     carimbo: "MARING\xC1 / P\xC3O / CHAPA / PRENSA",
     rodape: ""
   },
@@ -161,6 +165,8 @@ var TEXTOS_CASA = {
     heroAlt: "",
     historiaTitulo: "Antes do prato,\num carrinho.",
     historia: ["O prensado nasceu em Maring\xE1, dentro de um carrinho de lanches. Algu\xE9m instalou uma prensa na chapa e passou a fechar o p\xE3o sobre o recheio.", "Os concorrentes copiaram. Virou prato t\xEDpico da cidade e saiu do estado."],
+    historiaFoto: "/chapa/chapa-vazia.webp",
+    historiaAlt: "Chapa de ferro vazia, pronta para o pr\xF3ximo lanche",
     carimbo: "MARING\xC1 / P\xC3O / CHAPA / PRENSA",
     rodape: "Da chapa para a mesa."
   },
@@ -173,6 +179,8 @@ var TEXTOS_CASA = {
     heroAlt: "",
     historiaTitulo: "Antes do prato,\num carrinho.",
     historia: ["O prensado nasceu em Maring\xE1, dentro de um carrinho de lanches. Algu\xE9m instalou uma prensa na chapa e passou a fechar o p\xE3o sobre o recheio.", "Os concorrentes copiaram. Virou prato t\xEDpico da cidade e saiu do estado."],
+    historiaFoto: "/chapa/chapa-vazia.webp",
+    historiaAlt: "Chapa de ferro vazia, pronta para o pr\xF3ximo lanche",
     carimbo: "MARING\xC1 / P\xC3O / CHAPA / PRENSA",
     rodape: ""
   }
@@ -3162,7 +3170,7 @@ function TrilhoLanches({ onAdicionar }) {
     rail.scrollTo({ left: alvo2.offsetLeft + alvo2.offsetWidth / 2 - rail.clientWidth / 2, behavior: prefersReducedMotion() ? "instant" : "smooth" });
   };
   if (!LANCHES.length) return null;
-  return /* @__PURE__ */ jsxs10("section", { id: "sugestoes", className: "secao-trilho", "aria-labelledby": "titulo-sugestoes", children: [
+  return /* @__PURE__ */ jsxs10("section", { id: "sugestoes", "data-d-secao": "sugestoes", className: "secao-trilho", "aria-labelledby": "titulo-sugestoes", children: [
     /* @__PURE__ */ jsxs10("div", { className: "cabecalho-secao moldura", children: [
       /* @__PURE__ */ jsxs10("div", { children: [
         /* @__PURE__ */ jsx12("h2", { id: "titulo-sugestoes", children: "Na prensa" }),
@@ -3222,7 +3230,7 @@ function Extras({ grupo, onAdicionar }) {
     const alvo2 = cards[Math.max(0, Math.min(cards.length - 1, pos + d))];
     rail.scrollTo({ left: alvo2.offsetLeft - cards[0].offsetLeft, behavior: prefersReducedMotion() ? "instant" : "smooth" });
   };
-  return /* @__PURE__ */ jsxs11("section", { id, className: `extras secao-trilho ${id}`, children: [
+  return /* @__PURE__ */ jsxs11("section", { id, "data-d-secao": id, className: `extras secao-trilho ${id}`, children: [
     /* @__PURE__ */ jsxs11("div", { className: "cabecalho-secao moldura", children: [
       /* @__PURE__ */ jsxs11("div", { children: [
         /* @__PURE__ */ jsx13("h2", { children: bebida ? "Pra beber" : "Pra dividir" }),
@@ -3527,7 +3535,7 @@ function Hero() {
         CASA2.cidade ? ` em ${CASA2.cidade.split(",")[0]}` : ""
       ] })
     ] }),
-    tema.hero !== "nenhum" && /* @__PURE__ */ jsxs14("section", { className: "hero-faixa", "aria-labelledby": "titulo-casa", children: [
+    tema.hero !== "nenhum" && /* @__PURE__ */ jsxs14("section", { "data-d-secao": "hero", className: "hero-faixa", "aria-labelledby": "titulo-casa", children: [
       tema.assinatura === "toldo" && /* @__PURE__ */ jsx16(Toldo, {}),
       tema.assinatura === "placa-de-porta" && /* @__PURE__ */ jsx16(PlacaDePorta, {}),
       textos.heroFoto && /* @__PURE__ */ jsx16("img", { src: textos.heroFoto, alt: textos.heroAlt, width: 2400, height: 1600, fetchPriority: "high" }),
@@ -3549,14 +3557,14 @@ function HistoriaERodape() {
   const [linha1, linha2] = linhasMarca(CASA2.marca);
   return /* @__PURE__ */ jsxs14(Fragment5, { children: [
     /* @__PURE__ */ jsxs14("section", { id: "a-chapa", "data-d-secao": "historia", className: "a-chapa", "aria-labelledby": "titulo-chapa", children: [
-      /* @__PURE__ */ jsx16("img", { src: "/chapa/chapa-vazia.webp", alt: "Chapa de ferro vazia, pronta para o pr\xF3ximo lanche", width: 2400, height: 1600, loading: "lazy" }),
+      textos.historiaFoto && /* @__PURE__ */ jsx16("img", { src: textos.historiaFoto, alt: textos.historiaAlt, width: 2400, height: 1600, loading: "lazy" }),
       /* @__PURE__ */ jsx16("div", { className: "chapa-texto moldura", children: /* @__PURE__ */ jsxs14("div", { children: [
         /* @__PURE__ */ jsx16("h2", { id: "titulo-chapa", style: { whiteSpace: "pre-line" }, children: textos.historiaTitulo }),
         textos.historia.map((s, i) => /* @__PURE__ */ jsx16("p", { children: s }, i)),
         /* @__PURE__ */ jsx16("span", { "data-carimbo": true, children: textos.carimbo })
       ] }) })
     ] }),
-    /* @__PURE__ */ jsxs14("section", { id: "horarios", className: "horarios-secao moldura", children: [
+    /* @__PURE__ */ jsxs14("section", { id: "horarios", "data-d-secao": "horarios", className: "horarios-secao moldura", children: [
       /* @__PURE__ */ jsx16(Horario, {}),
       /* @__PURE__ */ jsx16("a", { className: "botao-texto", href: "#cardapio", children: "Voltar ao card\xE1pio" })
     ] }),
