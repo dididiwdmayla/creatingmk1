@@ -21,6 +21,24 @@ export interface FilaEnvioDoc {
   ultimoErro: string | null;
   enviadoEm: string | null;
   /**
+   * Texto que o celular mandou junto com um envio BEM-SUCEDIDO — hoje, o
+   * print que não foi anexado depois de o texto já ter saído. Ausente = "".
+   *
+   * Campo PRÓPRIO, e não `ultimoErro`, de propósito: `ultimoErro` é
+   * semanticamente FALHA (é o que a ficha mostra na tarja do lead parado, e
+   * o que o diagnóstico lê para saber por que um lead não saiu). Escrever
+   * nele o detalhe de um envio que DEU CERTO faria as duas coisas se
+   * confundirem justamente quando alguém está investigando.
+   *
+   * Existe porque a macro reporta "enviado" quando o texto sai e o anexo
+   * falha — reportar "falhou" devolveria o lead à fila e a pessoa receberia
+   * a mesma mensagem duas vezes, que é o padrão que mais gera denúncia no
+   * WhatsApp. O preço dessa escolha é um lead contactado sem a peça que
+   * vende; este campo é o que torna esses leads ENCONTRÁVEIS (painel
+   * "Fila de envio" em /config) em vez de exigir abrir um por um.
+   */
+  detalheEnvio?: string;
+  /**
    * Skin cuja frase de fato saiu nesta reserva (`MensagemResolvida.rotacao`),
    * ou `null` quando a mensagem veio do grupo/global — que não têm rotação.
    * Fica gravado na CLAIM, e não é re-resolvido na confirmação, porque entre

@@ -2269,7 +2269,8 @@ A chave do doc (`YYYY-MM-DD`) é o dia OPERACIONAL, não o calendário UTC nem a
   "dispositivo": "celular-1",
   "tentativas": 0,
   "ultimoErro": null,
-  "enviadoEm": null
+  "enviadoEm": null,
+  "detalheEnvio": ""                 // texto que veio junto de um envio BEM-SUCEDIDO; ausente = ""
 }
 ```
 
@@ -2278,7 +2279,7 @@ Coleção PRÓPRIA, fora do doc do lead em `/leads` de propósito: `leads/repo.t
 Três helpers, cada um com `runTransaction` só nesta coleção:
 
 - **`reservarLead(db, leadId, dispositivo, now)`** → `claimId` novo, ou `null` quando o lead está com reserva viva de outro ciclo OU num estado TERMINAL (`enviado`/`invalido`/`falhou` — esta função não decide política de reenvio; isso fica para as rotas que vêm depois). **Regra central**: um doc `"reservado"` com `expiraEm` no passado é tratado como LIVRE e é re-reservado (claimId NOVO; `tentativas`/`ultimoErro` do lead sobrevivem à re-reserva) — é isso que devolve o lead à fila sozinho quando o celular trava ou a execução morre no meio, sem precisar de nenhum job de limpeza.
-- **`confirmarClaim(db, leadId, claimId, resultado, detalhe?, now)`** — grava o resultado: `"enviado"` carimba `enviadoEm` e limpa `ultimoErro`; `"falhou"` incrementa `tentativas` e grava `detalhe` em `ultimoErro`; `"invalido"` grava `ultimoErro` SEM incrementar `tentativas` (é lead descartado — número errado etc. —, não uma tentativa que pode ter sucesso depois).
+- **`confirmarClaim(db, leadId, claimId, resultado, detalhe?, now)`** — grava o resultado: `"enviado"` carimba `enviadoEm` e limpa `ultimoErro`; `"falhou"` incrementa `tentativas` e grava `detalhe` em `ultimoErro`; `"invalido"` grava `ultimoErro` SEM incrementar `tentativas` (é lead descartado — número errado etc. —, não uma tentativa que pode ter sucesso depois). Este helper é a fundação; quem a rota `/confirmar` de fato chama é `confirmarEnvio` (`lib/fila/confirmar.ts`), que faz isto e mais três docs numa transação só.
 - **`liberarClaim(db, leadId, claimId)`** — o dispositivo desiste ANTES de expirar (sem confirmar envio/falha): devolve o lead à fila na hora, reaproveitando a mesma regra de "reservado expirado = livre" (marca `expiraEm` bem no passado) em vez de inventar um terceiro estado de disponibilidade.
 
 **Correção explícita, nos dois últimos**: `claimId` que não bate com o ATUAL do doc é REJEITADO (`ClaimInvalidoError`), nunca ignorado em silêncio. Cenário real que isso impede: o celular trava, a claim expira, o lead é re-reservado (claimId novo) e só então o celular volta e tenta confirmar/liberar a claim VELHA — sem essa checagem isso vira envio duplicado ou contador errado.
@@ -2389,6 +2390,17 @@ Duas regras específicas do envio pela fila:
 **"invalido"**: a claim é encerrada e o lead ganha `telefoneInvalido = true` — número sem WhatsApp não volta à fila nunca mais, mas o lead continua na base com demo e capturas, porque o número pode ser corrigido depois. O contador NÃO anda: não saiu mensagem.
 
 **"falhou"**: `tentativas + 1` e a claim devolvida à fila. A partir de `TENTATIVAS_MAX` (3) o lead **para**: não é excluído nem marcado como inválido, só deixa de ser elegível — e a ficha mostra por quê, para a inspeção manual acontecer.
+
+### `detalheEnvio` — o texto saiu, o print não
+
+A macro manda DUAS coisas por lead: o texto da prospecção e o print da demo. Quando o texto sai e o **anexo falha**, ela reporta `"enviado"` — não `"falhou"` — com o `detalhe` preenchido. O motivo é evitar duplicata: reportar falha depois de o texto ter saído devolveria o lead à fila e a pessoa receberia a mesma mensagem duas vezes, que é o padrão que mais gera denúncia no WhatsApp.
+
+A consequência aceita é que passam a existir **leads contactados com o texto mas sem a peça que vende**. `detalheEnvio` (string, ausente = `""`) é o que torna esses leads ENCONTRÁVEIS — sem ele, achá-los exigiria abrir um por um.
+
+- **Campo próprio, nunca `ultimoErro`.** `ultimoErro` é semanticamente FALHA: é o que a ficha mostra na tarja do lead parado e o que alguém lê para saber por que um lead não saiu. Escrever nele o detalhe de um envio que DEU CERTO faria falha e sucesso se confundirem justamente durante um diagnóstico. No caminho `"enviado"`, `ultimoErro` continua indo para `null`.
+- **Dentro da MESMA transação** do resto do caminho `"enviado"` (claim + lead + rotação + contador). Gravá-lo depois abriria a janela em que o lead já conta como enviado e a pendência do print não existe em lugar nenhum.
+- **Não vai em `registrosEnvio[]`.** Aquele array tem a forma herdada do clique manual do WhatsApp (`{ em, horaLocalLead, diaSemanaLocalLead }`) e não tem conceito de detalhe; mexer nele afetaria o fluxo que o time usa todo dia.
+- **O caminho idempotente não o reescreve.** Confirmar repetido da mesma claim já enviada continua devolvendo 200 sem alterar nada — e "nada" inclui o detalhe, mesmo que o celular reenvie com um texto diferente (há teste com esse pior caso).
 
 **Duas garantias de que o executor no celular depende:**
 
