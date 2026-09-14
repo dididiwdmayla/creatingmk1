@@ -6,6 +6,7 @@ import { DEFAULTS_HISTORICOS } from "../legado";
 import { montarDemoData } from "../montar";
 import { CAMPOS_IDENTIDADE_DEMO } from "../patch";
 import { getTheme, SKINS } from "../registry";
+import { exemploDaSkin } from "../variantes";
 import { aplicarTema } from "../tema";
 
 /**
@@ -90,23 +91,39 @@ const BLOCKLIST_DEFAULTS_ANTIGOS: readonly string[] = [
   ),
 ];
 
+/**
+ * Toda combinação SKIN × VARIANTE do registro. Skin sem variantes conta uma
+ * vez, como sempre. Sem isto, uma skin de quatro variantes seria coberta
+ * só na primeira — e o contrato de identidade ("campo sem dado do lead
+ * some da página") vale em todas: cada variante tem sua própria camada de
+ * exemplo, e é justamente de lá que um default antigo vazaria.
+ */
+const ALVOS = SKINS.flatMap((skin) =>
+  (skin.variantes?.map((v) => v.id) ?? [undefined]).map((varianteId) => ({
+    skin,
+    varianteId,
+    rotulo: varianteId ? `${skin.id} / ${varianteId}` : skin.id,
+  })),
+);
+
 function renderSkin(
   skin: (typeof SKINS)[number],
   lead: Lead | undefined,
   patch?: Parameters<typeof montarDemoData>[2],
+  varianteId?: string,
 ) {
-  const data = montarDemoData(skin.demoDataExemplo, lead, patch, skin.id);
-  const theme = aplicarTema(getTheme(skin, undefined), undefined, skin.heroEscalaLimites);
+  const data = montarDemoData(exemploDaSkin(skin, varianteId), lead, patch, skin.id);
+  const theme = aplicarTema(getTheme(skin, varianteId), undefined, skin.heroEscalaLimites);
   const Skin = skin.componente;
   const html = renderToStaticMarkup(<Skin data={data} theme={theme} />);
   return { data, html };
 }
 
 describe("contrato: dados do lead aparecem no render de TODA skin registrada", () => {
-  for (const skin of SKINS) {
-    it(`${skin.id}: nome/endereço/telefone/whatsapp da demo recém-criada`, () => {
+  for (const { skin, varianteId, rotulo } of ALVOS) {
+    it(`${rotulo}: nome/endereço/telefone/whatsapp da demo recém-criada`, () => {
       const lead = leadFake();
-      const { data, html } = renderSkin(skin, lead);
+      const { data, html } = renderSkin(skin, lead, undefined, varianteId);
 
       // A montagem já garante isso na camada de dados — o teste é sobre a
       // SKIN não perder o que a montagem entregou.
@@ -125,9 +142,9 @@ describe("contrato: dados do lead aparecem no render de TODA skin registrada", (
 });
 
 describe("contrato: exemplo.ts NUNCA define campo de identidade como string não-vazia", () => {
-  for (const skin of SKINS) {
-    it(`${skin.id}: telefone/whatsapp/instagram/cidade/horarios/hero.titulo ausentes no exemplo`, () => {
-      const exemplo = skin.demoDataExemplo;
+  for (const { skin, varianteId, rotulo } of ALVOS) {
+    it(`${rotulo}: telefone/whatsapp/instagram/cidade/horarios/hero.titulo ausentes no exemplo`, () => {
+      const exemplo = exemploDaSkin(skin, varianteId);
       for (const campo of CAMPOS_IDENTIDADE_DEMO) {
         const valor = exemplo[campo as keyof typeof exemplo];
         expect(valor, `exemplo.${campo} deveria estar ausente`).toBeFalsy();
@@ -141,10 +158,10 @@ describe("contrato: exemplo.ts NUNCA define campo de identidade como string não
 });
 
 describe("contrato: lead completo faz identidade (horários/cidade/instagram) e nome aparecerem no HTML", () => {
-  for (const skin of SKINS) {
-    it(`${skin.id}: horarios/cidade/instagram/nome da demo com lead totalmente enriquecido`, () => {
+  for (const { skin, varianteId, rotulo } of ALVOS) {
+    it(`${rotulo}: horarios/cidade/instagram/nome da demo com lead totalmente enriquecido`, () => {
       const lead = leadCompleto();
-      const { data, html } = renderSkin(skin, lead);
+      const { data, html } = renderSkin(skin, lead, undefined, varianteId);
 
       expect(data.horarios).toBeTruthy();
       expect(data.cidade).toBeTruthy();
@@ -159,10 +176,10 @@ describe("contrato: lead completo faz identidade (horários/cidade/instagram) e 
 });
 
 describe("contrato: lead vazio nunca vaza um default antigo de identidade", () => {
-  for (const skin of SKINS) {
-    it(`${skin.id}: nenhum literal da blocklist aparece no HTML com lead sem identidade`, () => {
+  for (const { skin, varianteId, rotulo } of ALVOS) {
+    it(`${rotulo}: nenhum literal da blocklist aparece no HTML com lead sem identidade`, () => {
       const lead = leadVazio();
-      const { data, html } = renderSkin(skin, lead);
+      const { data, html } = renderSkin(skin, lead, undefined, varianteId);
 
       // Sem lead nem edição, os campos de identidade ficam mesmo ausentes.
       for (const campo of CAMPOS_IDENTIDADE_DEMO) {
