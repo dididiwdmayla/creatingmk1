@@ -5,7 +5,6 @@ import { dadosDaLancheria, temaDaLancheria } from "@/lib/demos/lancheria/adapter
 import type { SkinProps } from "@/lib/demos/types";
 
 import { LedEdges } from "./interactive/LedEdges";
-
 import { LANCHERIA2_SECOES } from "./secoes";
 
 /**
