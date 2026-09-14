@@ -21,6 +21,7 @@ import {
   type RelatorioLote,
 } from "@/lib/demos/lote";
 import { montarDemoData } from "@/lib/demos/montar";
+import { exemploDaSkin } from "@/lib/demos/variantes";
 import { montarPatch } from "@/lib/demos/patch";
 import { getSkin } from "@/lib/demos/registry";
 import { aplicarSugestaoTexto } from "@/lib/demos/sugestaoTexto";
@@ -243,13 +244,17 @@ export function GerarDemosLoteDialog({
       }
       try {
         const { sugestao } = await api.gerarSugestaoDemo(lead.placeId, skin.id, iaNivel);
-        const base = montarDemoData(skin.demoDataExemplo, lead, undefined, skin.id);
-        const efetivo = montarDemoData(skin.demoDataExemplo, lead, lead.demo?.dados, skin.id);
+        // Mesma variante que o PUT abaixo vai gravar em themeId — base do
+        // diff e montagem efetiva têm que sair da MESMA camada de exemplo.
+        const themeId = lead.demo?.themeId ?? skin.themeDefault.id;
+        const exemplo = exemploDaSkin(skin, themeId);
+        const base = montarDemoData(exemplo, lead, undefined, skin.id);
+        const efetivo = montarDemoData(exemplo, lead, lead.demo?.dados, skin.id);
         const comTexto = aplicarSugestaoTexto(sugestao, efetivo);
         const patch = montarPatch(base, comTexto, skin);
         const { lead: atualizado } = await api.putLeadDemo(lead.placeId, {
           skinId: skin.id,
-          themeId: lead.demo?.themeId ?? skin.themeDefault.id,
+          themeId,
           dados: patch,
           ...(lead.demo?.tema && { tema: lead.demo.tema }),
           ...(lead.demo?.idioma && { idioma: lead.demo.idioma }),

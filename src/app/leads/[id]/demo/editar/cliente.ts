@@ -14,6 +14,7 @@ import { caminhoDemo, envioVigente } from "@/lib/demos/envio";
 import { idiomaPadraoDoLead } from "@/lib/demos/idioma";
 import { moedaDaDemo } from "@/lib/demos/moeda";
 import { montarDemoData } from "@/lib/demos/montar";
+import { exemploDaSkin } from "@/lib/demos/variantes";
 import type {
   DemoData,
   DemoDataPatch,
@@ -86,9 +87,14 @@ export interface ClienteDemo {
    * vira patch. Na demo de lead é `exemplo ← dadosDoLead`; na avulsa é
    * `exemplo ← identidade em branco`.
    */
-  base(registro: RegistroDemo, skin: SkinDefinition): DemoData;
+  base(registro: RegistroDemo, skin: SkinDefinition, themeId?: string): DemoData;
   /** Montagem EFETIVA (a mesma da rota pública) sobre um patch salvo. */
-  montar(registro: RegistroDemo, skin: SkinDefinition, patch?: DemoDataPatch): DemoData;
+  montar(
+    registro: RegistroDemo,
+    skin: SkinDefinition,
+    patch?: DemoDataPatch,
+    themeId?: string,
+  ): DemoData;
 
   /**
    * Sugestão de texto/tema por IA. Ausente na avulsa: `gerarSugestaoDemo`
@@ -162,12 +168,13 @@ const CLIENTE_LEAD: ClienteDemo = {
   uploadVideo: (id, slot, arquivo, skinId) => api.uploadDemoVideo(id, slot, arquivo, skinId),
   removerVideo: async (id, slot, skinId) => doLead((await api.deleteDemoVideo(id, slot, skinId)).lead),
 
-  base: (registro, skin) => {
+  base: (registro, skin, themeId) => {
+    const exemplo = exemploDaSkin(skin, themeId);
     const lead = leadDe(registro);
-    return lead ? montarDemoData(skin.demoDataExemplo, lead) : skin.demoDataExemplo;
+    return lead ? montarDemoData(exemplo, lead) : exemplo;
   },
-  montar: (registro, skin, patch) =>
-    montarDemoData(skin.demoDataExemplo, leadDe(registro), patch, skin.id),
+  montar: (registro, skin, patch, themeId) =>
+    montarDemoData(exemploDaSkin(skin, themeId), leadDe(registro), patch, skin.id),
 
   gerarSugestao: (id, skinId, nivel, idioma) => api.gerarSugestaoDemo(id, skinId, nivel, idioma),
   traduzir: (id, skinId, idioma, dados) => api.traduzirDemo(id, skinId, idioma, dados),
@@ -194,8 +201,9 @@ const CLIENTE_AVULSA: ClienteDemo = {
   removerVideo: async (id, slot, skinId) =>
     daAvulsa((await api.deleteVideoAvulsa(id, slot, skinId)).avulsa),
 
-  base: (_registro, skin) => baseDemoDataAvulsa(skin.demoDataExemplo, skin.id),
-  montar: (_registro, skin, patch) => montarDemoDataAvulsa(skin.demoDataExemplo, patch, skin.id),
+  base: (_registro, skin, themeId) => baseDemoDataAvulsa(exemploDaSkin(skin, themeId), skin.id),
+  montar: (_registro, skin, patch, themeId) =>
+    montarDemoDataAvulsa(exemploDaSkin(skin, themeId), patch, skin.id),
 
   traduzir: (id, skinId, idioma, dados) => api.traduzirDemoAvulsa(id, skinId, idioma, dados),
 

@@ -17,6 +17,7 @@ import { getFonte } from "@/lib/demos/fontes";
 import { baseImagemSlot } from "@/lib/demos/imagens-modo";
 import { montarPatch } from "@/lib/demos/patch";
 import { DEFAULT_SKIN, getSkin, getTheme } from "@/lib/demos/registry";
+import { exemploDaSkin } from "@/lib/demos/variantes";
 import { aplicarSugestaoTexto, sugestaoTemTexto } from "@/lib/demos/sugestaoTexto";
 import { aplicarTema, migrarTemaPatch } from "@/lib/demos/tema";
 import { aplicarTraducaoDemo } from "@/lib/demos/traducaoTexto";
@@ -72,16 +73,17 @@ function estadoInicial(cliente: ClienteDemo, registro: RegistroDemo, skinPedida?
   const skin = getSkin(skinPedida ?? registro.demo?.skinId) ?? DEFAULT_SKIN;
   const daSkin = registro.demo?.skinId === skin.id;
   const themeSalvo = daSkin ? registro.demo?.themeId : undefined;
+  const themeId = skin.themePresets.some((t) => t.id === themeSalvo)
+    ? (themeSalvo as string)
+    : skin.themeDefault.id;
   return {
     skinId: skin.id,
-    themeId: skin.themePresets.some((t) => t.id === themeSalvo)
-      ? (themeSalvo as string)
-      : skin.themeDefault.id,
+    themeId,
     // migrarTemaPatch: uma demo salva com um efeito que saiu do registro
     // abre já apontando pro substituto (ver EFEITOS_MIGRADOS), então o
     // seletor mostra a escolha certa e o próximo Salvar grava o id novo.
     tema: migrarTemaPatch((daSkin ? registro.demo?.tema : undefined) ?? {}),
-    dados: cliente.montar(registro, skin, daSkin ? registro.demo?.dados : undefined),
+    dados: cliente.montar(registro, skin, daSkin ? registro.demo?.dados : undefined, themeId),
     idioma: skin.localeFixo?.idioma ?? registro.demo?.idioma ?? registro.idiomaPadrao,
   };
 }
@@ -246,8 +248,11 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
   // BASE do diff mínimo — `exemplo ← dadosDoLead` na demo de lead,
   // `exemplo ← identidade em branco` na avulsa (ver ./cliente.ts).
   const base = useMemo(
-    () => (registro ? cliente.base(registro, skin) : skin.demoDataExemplo),
-    [cliente, skin, registro],
+    // A variante escolhida É a camada de exemplo (ver lib/demos/variantes.ts),
+    // então trocar de variante troca a base do diff — sem isso o conteúdo da
+    // variante nova entraria no patch como se fosse edição do operador.
+    () => (registro ? cliente.base(registro, skin, themeId) : exemploDaSkin(skin, themeId)),
+    [cliente, skin, registro, themeId],
   );
   // Moeda deriva do país (do endereço do lead ou do que foi digitado na
   // avulsa), como o idioma — mas sem sobrescrita manual: ao contrário do

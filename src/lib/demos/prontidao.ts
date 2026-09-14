@@ -2,6 +2,7 @@ import { IDIOMA_PADRAO } from "@/lib/idioma";
 import type { Lead } from "@/lib/leads/types";
 import { idiomaEfetivoDemo } from "./idioma";
 import { montarDemoData } from "./montar";
+import { exemploDaSkin } from "./variantes";
 import type { DemoData, DemoDataPatch, SkinDefinition } from "./types";
 
 /**
@@ -70,7 +71,7 @@ function textoAindaNoIdiomaDoTemplate(
 export function pendenciasProntidao(lead: Lead, skin: SkinDefinition): PendenciaProntidao[] {
   if (!lead.demo) return [];
   return pendenciasDaDemo(
-    montarDemoData(skin.demoDataExemplo, lead, lead.demo.dados, skin.id),
+    montarDemoData(exemploDaSkin(skin, lead.demo.themeId), lead, lead.demo.dados, skin.id),
     lead.demo.dados,
     idiomaEfetivoDemo(lead),
     skin,

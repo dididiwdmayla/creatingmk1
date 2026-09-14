@@ -24,6 +24,7 @@ import {
 } from "@/lib/demos/prontidao";
 import { getSkin } from "@/lib/demos/registry";
 import type { LeadDemo, SkinDefinition } from "@/lib/demos/types";
+import { exemploDaSkin } from "@/lib/demos/variantes";
 import { formatDateTime, formatTempoRelativo } from "@/lib/format";
 import { ultimaAberturaNaoInterna } from "@/lib/leads/hoje";
 import type { Lead } from "@/lib/leads/types";
@@ -107,7 +108,7 @@ function itemDeAvulsa(avulsa: DemoAvulsa): ItemDemo {
       .at(-1),
     pendencias: skin
       ? pendenciasDaDemo(
-          montarDemoDataAvulsa(skin.demoDataExemplo, avulsa.demo.dados, skin.id),
+          montarDemoDataAvulsa(exemploDaSkin(skin, avulsa.demo.themeId), avulsa.demo.dados, skin.id),
           avulsa.demo.dados,
           idiomaEfetivoAvulsa(avulsa),
           skin,
