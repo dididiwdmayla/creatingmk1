@@ -27,6 +27,8 @@
  *   node scripts/qa-visual.mjs --so=transicao  # a fronteira: antes/durante/depois
  *   node scripts/qa-visual.mjs --so=barra      # cor da barra do navegador (todas as skins)
  *   node scripts/qa-visual.mjs --so=fps        # quadros por segundo no celular (ver abaixo)
+ *   node scripts/qa-visual.mjs --so=variante --skin=lancheria-2  # variante × modo de cor
+ *   node scripts/qa-visual.mjs --so=fps --skin=lancheria-2       # portão por célula (variante × modo)
  *   node scripts/qa-visual.mjs --so=colapso    # PORTÃO: nenhuma foto com w/h zero (todas as skins)
  *   node scripts/qa-visual.mjs --so=avulsa     # demo sem lead: identidade em branco × preenchida
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
@@ -42,6 +44,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 import { ANCORAS_PADRAO } from "../src/lib/demos/capturas/padrao.mjs";
+import { VARIANTES_POR_SKIN } from "../src/lib/demos/capturas/variantes.mjs";
 import { lerPng } from "./png.mjs";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -139,7 +142,11 @@ const FPS_CORES_DO_MODO = {
   transicao: ["#ff2e88", "#22d3a5", "#ffd23f"],
 };
 
-const SKIN = "barbearia-editorial";
+/**
+ * Skin da matriz de efeitos/LED. `--skin=<id>` aponta o laço pra outra —
+ * era uma constante, e o portão de fps só sabia medir a barbearia.
+ */
+const SKIN_PADRAO = "barbearia-editorial";
 /** Presets da skin acima: um escuro, um claro (ver components/demos/barbearia/themes.ts). */
 const TEMAS = [
   { id: "norte", rotulo: "escuro" },
@@ -169,13 +176,19 @@ const opcao = (nome) => args.find((a) => a.startsWith(`--${nome}=`))?.split("=")
 const temFlag = (nome) => args.includes(`--${nome}`);
 const marca = opcao("marca") ? `-${opcao("marca")}` : "";
 const filtro = opcao("so")?.split(",").map((s) => s.trim()).filter(Boolean);
+const SKIN = opcao("skin") ?? SKIN_PADRAO;
+/** Variantes da skin escolhida (vazio quando ela não tem o eixo). */
+const VARIANTES = VARIANTES_POR_SKIN[SKIN] ?? [];
+/** Preset/variante default da matriz: o primeiro da skin, ou o escuro da barbearia. */
+const PRESET_PADRAO = VARIANTES[0] ?? TEMAS[0].id;
 
 function querido(id) {
   if (!filtro) return true;
   return (
     filtro.includes(id) ||
     (filtro.includes("led") && id.startsWith("led-")) ||
-    (filtro.includes("cores") && id.startsWith("cores-"))
+    (filtro.includes("cores") && id.startsWith("cores-")) ||
+    (filtro.includes("variante") && id.startsWith("variante-"))
   );
 }
 
@@ -242,7 +255,7 @@ function url({
   ledCores,
   semAnim,
 }) {
-  const q = new URLSearchParams({ skin: SKIN, preset, intro: "0" });
+  const q = new URLSearchParams({ skin: SKIN, preset: preset ?? PRESET_PADRAO, intro: "0" });
   if (efeito) q.set("efeito", efeito);
   if (intensidade !== undefined) q.set("intensidade", String(intensidade));
   if (led) q.set("led", led);
@@ -462,10 +475,27 @@ async function medirFps(browser, pageDaFolha, secret) {
   // a linha de base de repintura. Um efeito só responde pelo que SOMA.
   // QA_FPS_EFEITOS=ondas,aura restringe a tabela — pra iterar num efeito só
   // sem pagar a matriz inteira.
-  const alvos = process.env.QA_FPS_EFEITOS?.split(",").map((e) => e.trim()).filter(Boolean) ?? [
-    "nenhum",
-    ...EFEITOS,
-  ];
+  // EIXO DA TABELA. Sem variantes, as linhas são os EFEITOS sobre um preset
+  // (como sempre foi). Com variantes, as linhas são as VARIANTES sobre UM
+  // efeito: a célula que o portão julga passa a ser variante × modo de cor,
+  // porque um fundo claro e um escuro repintam superfícies diferentes e o
+  // mesmo efeito pode passar num e reprovar no outro. Medir variante ×
+  // efeito × modo seriam 900 cargas; o efeito fixo é o recomendado pro
+  // nicho, sobrescrevível por QA_FPS_EFEITO.
+  const porVariante = VARIANTES.length > 0;
+  const efeitoDaVariante = process.env.QA_FPS_EFEITO ?? "grao";
+  const alvos = porVariante
+    ? ["nenhum", ...VARIANTES]
+    : process.env.QA_FPS_EFEITOS?.split(",").map((e) => e.trim()).filter(Boolean) ?? [
+        "nenhum",
+        ...EFEITOS,
+      ];
+  /** Linha → {efeito, preset} de fato carregados. */
+  const alvoDaLinha = (linha) =>
+    porVariante
+      ? { efeito: linha === "nenhum" ? "nenhum" : efeitoDaVariante,
+          preset: linha === "nenhum" ? VARIANTES[0] : linha }
+      : { efeito: linha, preset: PRESET_PADRAO };
   /** celulas[efeito][modo] = { fps, medidas, mpxs, piorMs } */
   const celulas = {};
   const itens = [];
@@ -474,12 +504,13 @@ async function medirFps(browser, pageDaFolha, secret) {
     for (const modo of FPS_MODOS) {
       const medidas = [];
       let ultima;
+      const { efeito: efeitoUrl, preset: presetUrl } = alvoDaLinha(efeito);
       for (let carga = 0; carga < FPS_CARGAS; carga++) {
         await page.goto(
           url({
-            efeito,
+            efeito: efeitoUrl,
             intensidade: 3,
-            preset: "norte",
+            preset: presetUrl,
             led: "desligado",
             corModo: modo,
             cores: FPS_CORES_DO_MODO[modo],
@@ -503,7 +534,7 @@ async function medirFps(browser, pageDaFolha, secret) {
       );
       // A captura é sempre do modo mais caro que a rodada mediu.
       if (modo === FPS_MODOS[FPS_MODOS.length - 1]) {
-        const png = path.join(SAIDA, `fps-mobile-${efeito}${marca}.png`);
+        const png = path.join(SAIDA, `fps-mobile-${porVariante ? "variante-" : ""}${efeito}${marca}.png`);
         await page.screenshot({ path: png });
         gerados.push(png);
         itens.push({ efeito, png });
@@ -529,6 +560,12 @@ async function medirFps(browser, pageDaFolha, secret) {
     `| \`${efeito}\` | ${FPS_MODOS.map((modo) => valor(efeito, modo)).join(" | ")} |`;
 
   const cabecalho =
+    (porVariante
+      ? `# Portão de qualidade por CÉLULA (variante × modo de cor) — \`${SKIN}\`, efeito ` +
+        `\`${efeitoDaVariante}\`\n\nA linha \`nenhum\` é a referência: a página sem efeito, ` +
+        `na primeira variante. Modo que reprova é desabilitado SOZINHO (ver ` +
+        `\`SkinVariante.modosDeCorReprovados\`) — a variante inteira nunca é.\n\n`
+      : "") +
     `# Portão de qualidade dos efeitos — celular ${FPS_VIEWPORT.width}×${FPS_VIEWPORT.height} ` +
     `(dpr 2), CPU ${FPS_CPU_THROTTLE}×, intensidade 3, rolando a página inteira\n\n` +
     `Mediana de ${FPS_CARGAS} cargas independentes por célula; rolagem contínua a ` +
@@ -536,8 +573,9 @@ async function medirFps(browser, pageDaFolha, secret) {
     `Veredito: **${FPS_MINIMO} fps** em TODO modo de cor — e só isso reprova. ` +
     `A superfície repintada é reportada junto e MARCADA (⚠) acima de ` +
     `**+${REPINTE_ATENCAO_MPXS} Mpx/s** sobre a referência \`nenhum\`, sem reprovar.\n\n`;
+  const rotuloEixo = porVariante ? "variante" : "efeito";
   const tabelaFps =
-    `## fps (mediana)\n\n| efeito | ${FPS_MODOS.join(" | ")} |\n` +
+    `## fps (mediana)\n\n| ${rotuloEixo} | ${FPS_MODOS.join(" | ")} |\n` +
     `|---|${FPS_MODOS.map(() => "---").join("|")}|\n` +
     alvos
       .map((efeito) =>
@@ -548,7 +586,7 @@ async function medirFps(browser, pageDaFolha, secret) {
       )
       .join("\n");
   const tabelaMpx =
-    `\n\n## superfície repintada (Mpx/s, rolando)\n\n| efeito | ${FPS_MODOS.join(" | ")} |\n` +
+    `\n\n## superfície repintada (Mpx/s, rolando)\n\n| ${rotuloEixo} | ${FPS_MODOS.join(" | ")} |\n` +
     `|---|${FPS_MODOS.map(() => "---").join("|")}|\n` +
     alvos
       .map((efeito) =>
@@ -568,7 +606,10 @@ async function medirFps(browser, pageDaFolha, secret) {
     `\n\n## veredito\n\n` +
     (reprovadas.length
       ? `REPROVADAS ${reprovadas.length} célula(s) pelo piso de ${FPS_MINIMO} fps: ${reprovadas.join(", ")}. ` +
-        `Modo de cor que reprova é DESABILITADO para aquele efeito — o efeito inteiro não sai do registro.`
+        (porVariante
+          ? `Cada modo reprovado entra em \`modosDeCorReprovados\` DAQUELA variante ` +
+            `(src/components/demos/.../variantes.ts) — a variante inteira não é desabilitada.`
+          : `Modo de cor que reprova é DESABILITADO para aquele efeito — o efeito inteiro não sai do registro.`)
       : `Todas as células passam o piso de ${FPS_MINIMO} fps.`) +
     (marcados.length
       ? `\n\nMARCADOS (⚠, não reprovados): ${marcados
@@ -1515,6 +1556,72 @@ async function main() {
           },
         ]),
       );
+    }
+
+    /* ── VARIANTE × MODO DE COR ─────────────────────────────────────
+     *
+     * A matriz do eixo de variante: uma folha de contato por variante, com
+     * a página inteira em cada modo de cor da camada decorativa. É o que se
+     * OLHA antes de declarar pronto — o portão de fps (--so=fps) julga a
+     * mesma matriz por número, este item julga por imagem.
+     *
+     * Os três modos animados aparecem em duas fases: uma captura sozinha
+     * não distingue "cor fixa" de "cor que muda devagar".
+     */
+    if (querido("variante-matriz")) {
+      if (VARIANTES.length === 0) {
+        console.log(`[variante] ${SKIN} não tem variantes — use --skin=<id de skin com o eixo>.`);
+      } else {
+        const efeito = process.env.QA_VARIANTE_EFEITO ?? "grao";
+        for (const variante of VARIANTES) {
+          const linhas = [];
+          const semEfeito = await capturar(
+            page,
+            url({ efeito: "nenhum", preset: variante, led: "desligado" }),
+            `variante-${variante}-nenhum`,
+          );
+          gerados.push(semEfeito);
+          linhas.push({ rotulo: "sem efeito", itens: [{ rotulo: "—", png: semEfeito }] });
+
+          for (const modo of COR_MODOS) {
+            const itens = [];
+            for (const fase of modo.fases) {
+              await page.goto(
+                url({
+                  efeito,
+                  intensidade: 3,
+                  preset: variante,
+                  led: "desligado",
+                  corModo: modo.id,
+                  cores: modo.cores,
+                }),
+                { waitUntil: "networkidle" },
+              );
+              await page.waitForTimeout(700);
+              // Modo animado só se julga em MAIS DE UM instante: congela o
+              // relógio das animações na fase pedida (mesmo tratamento do
+              // item `cores`).
+              await congelarCores(page, fase);
+              const png = path.join(
+                SAIDA,
+                `variante-${variante}-${modo.id}-f${String(fase).replace(".", "")}${marca}.png`,
+              );
+              await page.screenshot({ path: png });
+              gerados.push(png);
+              itens.push({ rotulo: `fase ${fase}`, png });
+            }
+            linhas.push({ rotulo: modo.id, itens });
+          }
+          gerados.push(
+            await folhaDeContato(
+              page,
+              `Variante ${variante} — efeito ${efeito}, intensidade 3, por modo de cor`,
+              `variante-${variante}`,
+              linhas,
+            ),
+          );
+        }
+      }
     }
 
     /* ── Cor da barra do navegador ──────────────────────────────── */
