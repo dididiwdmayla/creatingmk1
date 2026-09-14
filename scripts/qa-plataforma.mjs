@@ -241,6 +241,18 @@ function semear() {
     },
       atualizadoEm: iso(2),
     },
+    // Fila de envio (painel em /config): pausada + tetos custom, pra
+    // capturar o estado "Pausada" (o default já nasce ativo, e o botão de
+    // pausa só prova que é óbvio se as duas cores aparecem em algum lugar).
+    "config/fila": {
+      ativo: false,
+      metaDiaria: 20,
+      tetoPorHora: 5,
+      exigirJanelaBoa: true,
+      nichosPermitidos: ["dentista"],
+      intervaloMinimoSegundos: 240,
+      inicioDiaOperacionalHora: 6,
+    },
     [`buscas/${buscaId}`]: {
       id: buscaId,
       nome: "Dentistas — Centro",

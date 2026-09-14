@@ -7,6 +7,7 @@ import type { AppConfig } from "@/lib/config";
 import type { DemoAvulsa } from "@/lib/demos/avulsas/types";
 import type { ImportacaoMaps } from "@/lib/demos/avulsas/googleMaps";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
+import type { FilaConfig } from "@/lib/fila/config";
 import type {
   ConjuntoSkin,
   FrasesProspeccao,
@@ -317,6 +318,14 @@ export const api = {
   getConfig: () => request<{ config: AppConfig }>("/api/config"),
   putConfig: (patch: Partial<AppConfig>) =>
     request<{ config: AppConfig }>("/api/config", {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    }),
+
+  /** Estado/tetos da fila de envio (doc `/config/fila`, próprio) — painel "Fila de envio". */
+  getFilaConfig: () => request<{ fila: FilaConfig }>("/api/config/fila"),
+  putFilaConfig: (patch: Partial<FilaConfig>) =>
+    request<{ fila: FilaConfig }>("/api/config/fila", {
       method: "PUT",
       body: JSON.stringify(patch),
     }),
