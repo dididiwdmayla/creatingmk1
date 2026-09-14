@@ -661,6 +661,7 @@ export function PainelImagens({
   onRemover,
   imagensModo,
   onImagensModoChange,
+  onAltChange,
   uploadVideoSlot,
   videoErro,
   onUploadVideo,
@@ -674,6 +675,7 @@ export function PainelImagens({
   onRemover: (slot: string) => void;
   imagensModo: ImagensModo;
   onImagensModoChange: (modo: ImagensModo) => void;
+  onAltChange?: (slot: string, texto: string) => void;
   uploadVideoSlot?: string | null;
   videoErro?: string | null;
   onUploadVideo?: (slot: string, file: File) => void;
@@ -711,8 +713,8 @@ export function PainelImagens({
       {slots.map((slot) => {
         const base = baseImagemSlot(skin.id, slot, skin.demoDataExemplo.imagens[slot], imagensModo);
         return (
+          <div key={slot}>
           <LinhaImagem
-            key={slot}
             slot={slot}
             atual={dados.imagens[slot] ?? base}
             placeholder={base}
@@ -720,6 +722,15 @@ export function PainelImagens({
             onUpload={onUpload}
             onRemover={onRemover}
           />
+          {Object.hasOwn(skin.demoDataExemplo.imagensAlt ?? {}, slot) && (
+            <label className="mt-2 flex flex-col gap-1 text-xs text-ink-muted">
+              Texto alternativo
+              <input data-editor-field={`imagensAlt.${slot}`} value={dados.imagensAlt?.[slot] ?? ""}
+                onChange={(e) => onAltChange?.(slot, e.target.value)} maxLength={2000}
+                className="rounded border border-line bg-transparent p-2 text-foreground" />
+            </label>
+          )}
+          </div>
         );
       })}
 

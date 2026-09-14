@@ -22,6 +22,7 @@ type RaizMicrocopia = "pt" | "en" | "es" | "fr" | "de" | "it" | "nl";
 export interface DemoMicrocopia {
   /** Indicador de scroll em caixa alta, sem seta (ex.: lancheria "ROLE"). */
   role: string;
+  pular: string;
   /**
    * Indicador de scroll em caixa alta "estilizado" (mantém o anglicismo
    * "SCROLL" também em pt-BR — voz de marca do painel da multimarcas,
@@ -53,6 +54,7 @@ export interface DemoMicrocopia {
 }
 
 const PT: DemoMicrocopia = {
+  pular: "Pular",
   role: "ROLE",
   scrollEstilizado: "SCROLL",
   desca: "Desça",
@@ -76,6 +78,7 @@ const PT: DemoMicrocopia = {
 };
 
 const EN: DemoMicrocopia = {
+  pular: "Skip",
   role: "SCROLL",
   scrollEstilizado: "SCROLL",
   desca: "Scroll",
@@ -99,6 +102,7 @@ const EN: DemoMicrocopia = {
 };
 
 const ES: DemoMicrocopia = {
+  pular: "Omitir",
   role: "DESLIZA",
   scrollEstilizado: "SCROLL",
   desca: "Desliza",
@@ -122,6 +126,7 @@ const ES: DemoMicrocopia = {
 };
 
 const FR: DemoMicrocopia = {
+  pular: "Passer",
   role: "DÉFILEZ",
   scrollEstilizado: "SCROLL",
   desca: "Défiler",
@@ -145,6 +150,7 @@ const FR: DemoMicrocopia = {
 };
 
 const DE: DemoMicrocopia = {
+  pular: "Überspringen",
   role: "SCROLLEN",
   scrollEstilizado: "SCROLL",
   desca: "Scrollen",
@@ -168,6 +174,7 @@ const DE: DemoMicrocopia = {
 };
 
 const IT: DemoMicrocopia = {
+  pular: "Salta",
   role: "SCORRI",
   scrollEstilizado: "SCROLL",
   desca: "Scorri",
@@ -191,6 +198,7 @@ const IT: DemoMicrocopia = {
 };
 
 const NL: DemoMicrocopia = {
+  pular: "Overslaan",
   role: "SCROLL",
   scrollEstilizado: "SCROLL",
   desca: "Scrollen",

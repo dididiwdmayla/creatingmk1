@@ -112,7 +112,7 @@ function validaDados(
   for (const chave of Object.keys(value)) {
     const conhecida =
       (CAMPOS_TEXTO as readonly string[]).includes(chave) ||
-      ["lancheria", "servicos", "depoimentos", "secoes", "imagens", "imagensModo", "videos", "ordemSecoes"].includes(
+      ["lancheria", "servicos", "depoimentos", "secoes", "imagens", "imagensAlt", "imagensModo", "videos", "ordemSecoes"].includes(
         chave,
       );
     if (!conhecida) problemas.push(`dados.${chave}: chave desconhecida`);
@@ -257,6 +257,15 @@ function validaDados(
           }
         }
       }
+    }
+  }
+
+  if (value.imagensAlt !== undefined) {
+    if (!isRecord(value.imagensAlt)) problemas.push("dados.imagensAlt deve ser um objeto");
+    else for (const [slot, alt] of Object.entries(value.imagensAlt)) {
+      validaTexto(alt, `dados.imagensAlt.${slot}`, problemas);
+      if (!Object.hasOwn(skin?.demoDataExemplo.imagensAlt ?? {}, slot))
+        problemas.push(`dados.imagensAlt.${slot}: slot não declarado pela skin`);
     }
   }
 

@@ -25,15 +25,15 @@ export function TypewriterText({
   triggerOnInView = false,
   threshold = 0.3,
 }: TypewriterTextProps) {
-  const [displayText, setDisplayText] = useState("");
-  const [isDone, setIsDone] = useState(false);
+  const [displayText, setDisplayText] = useState(text);
+  const [isDone, setIsDone] = useState(true);
   const [isStarted, setIsStarted] = useState(!triggerOnInView);
   const containerRef = useRef<HTMLSpanElement>(null);
 
-  const [reducedMotion] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  });
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }, []);
 
   useEffect(() => {
     if (reducedMotion) return;
@@ -55,6 +55,8 @@ export function TypewriterText({
   useEffect(() => {
     if (!isStarted || reducedMotion) return;
 
+    setDisplayText("");
+    setIsDone(false);
     let currentIndex = 0;
     let currentString = "";
     const activeTimeouts: ReturnType<typeof setTimeout>[] = [];
@@ -84,18 +86,16 @@ export function TypewriterText({
 
   return (
     <span ref={containerRef} className="relative inline-block">
-      {displayText}
+      {Array.from(text).map((char, i) => <span key={i} style={{ opacity: i < displayText.length ? 1 : 0 }}>{char}</span>)}
       {showCursor && !isDone && (
         <span
-          className="ml-0.5 inline-block animate-[d-blink_1.5s_infinite] font-sans font-normal text-[var(--d-accent)]"
+          className="ml-0.5 inline-block animate-pulse font-sans font-normal text-[var(--d-accent)]"
           aria-hidden="true"
         >
           |
         </span>
       )}
-      <style>{`
-        @keyframes d-blink { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
-      `}</style>
+
     </span>
   );
 }

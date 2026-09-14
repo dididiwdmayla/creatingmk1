@@ -11,10 +11,12 @@ export function ScrollHeader({
   nome,
   links,
   ctaHref,
+  ctaTexto,
 }: {
   nome: string;
   links: { href: string; label: string }[];
   ctaHref: string;
+  ctaTexto?: string;
 }) {
   const [scrolled, setScrolled] = useState(false);
 
@@ -51,7 +53,7 @@ export function ScrollHeader({
           href="#topo"
           className="font-[family-name:var(--d-deco)] text-[28px] tracking-[0.08em] text-[var(--d-accent)] transition-opacity hover:opacity-80"
         >
-          {nome}
+          <span data-demo-slot="nome">{nome}</span>
         </a>
         <nav className="hidden items-center gap-8 md:flex">
           {links.map((link) => (
@@ -65,9 +67,10 @@ export function ScrollHeader({
           ))}
           <a
             href={ctaHref}
+            data-demo-slot="secoes.hero.cta"
             className="border border-[var(--d-accent)]/30 px-4 py-2 font-[family-name:var(--d-mono)] text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--d-text)] transition-colors hover:bg-[var(--d-accent)] hover:text-[var(--d-accent-ink)]"
           >
-            AGENDAR
+            {ctaTexto}
           </a>
         </nav>
       </div>

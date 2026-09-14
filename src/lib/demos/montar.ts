@@ -89,7 +89,7 @@ function mergeSecoes(
 /** Aplica um patch parcial sobre uma base completa de DemoData. */
 export function aplicarPatch(base: DemoData, patch: DemoDataPatch | undefined): DemoData {
   if (!patch) return base;
-  const { secoes, imagens, videos, servicos, depoimentos, ...campos } = patch;
+  const { secoes, imagens, imagensAlt, videos, servicos, depoimentos, ...campos } = patch;
   const temVideos = { ...base.videos, ...(definidos(videos ?? {}) as Record<string, string>) };
   return {
     ...base,
@@ -99,6 +99,7 @@ export function aplicarPatch(base: DemoData, patch: DemoDataPatch | undefined): 
     secoes: mergeSecoes(base.secoes, secoes),
     // definidos() remove as chaves undefined; o cast devolve o índice string.
     imagens: { ...base.imagens, ...(definidos(imagens ?? {}) as Record<string, string>) },
+    ...((base.imagensAlt || imagensAlt) && { imagensAlt: { ...base.imagensAlt, ...definidos(imagensAlt ?? {}) } as Record<string, string> }),
     ...(Object.keys(temVideos).length > 0 && { videos: temVideos }),
   };
 }

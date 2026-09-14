@@ -834,6 +834,7 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
                 erro={imgErro}
                 onUpload={handleUpload}
                 onRemover={handleRemoverImagem}
+                onAltChange={(slot, texto) => setDados((d) => d ? ({ ...d, imagensAlt: { ...d.imagensAlt, [slot]: texto } }) : d)}
                 imagensModo={dados.imagensModo ?? "foto"}
                 onImagensModoChange={handleImagensModoChange}
                 uploadVideoSlot={uploadVideoSlot}

@@ -179,6 +179,8 @@ export interface DemoData {
    * em qualquer modo.
    */
   imagens: Record<string, string>;
+  /** Texto alternativo por slot, opt-in da skin; vazio marca imagem decorativa. */
+  imagensAlt?: Record<string, string>;
   /**
    * Base do placeholder de cada slot de `imagens` sem upload do lead:
    * "foto" usa a foto de produção em `foto/<slot>.webp` quando existe para
