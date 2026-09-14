@@ -8,8 +8,10 @@ import { PATCH } from "../config/fila/pendencias/[leadId]/route";
 
 /**
  * A lista de pendência do painel "Fila de envio". Mesma divisão de
- * `/api/config/fila`: GET aberto a qualquer sessão, escrita restrita ao
- * admin. E, sobretudo, ela mora sob `/api/config/` e não sob `/api/fila/` —
+ * `/api/config/fila`: o painel INTEIRO é do admin, leitura e escrita — a
+ * fila é global e drenada por um aparelho só, então ver o estado dela já é
+ * olhar o celular de outra pessoa. E, sobretudo, ela mora sob
+ * `/api/config/` e não sob `/api/fila/` —
  * aquele prefixo inteiro passa SEM sessão de usuário (é o celular com
  * Bearer, ver src/proxy.ts), e pendurar uma tela de admin lá a tiraria da
  * sessão junto.
@@ -62,9 +64,31 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("GET /api/config/fila/pendencias", () => {
-  it("lista vazia quando ninguém está pendente", async () => {
+describe("GET /api/config/fila/pendencias (restrito ao admin)", () => {
+  it("sem sessão → 401 (o painel inteiro é do admin, não só a escrita)", async () => {
+    semearPendencia("ChIJa", "Ink House", "print não anexou");
+
     const res = await GET(getRequest());
+
+    expect(res.status).toBe(401);
+    expect((await res.json()).error.code).toBe("unauthorized");
+  });
+
+  it("membro → 403, sem vazar uma linha da lista", async () => {
+    semearPendencia("ChIJa", "Ink House", "print não anexou");
+    const cookie = await cookieDeSessao(db, { id: "membro-1", papel: "membro" });
+
+    const res = await GET(getRequest("", cookie));
+
+    expect(res.status).toBe(403);
+    const corpo = await res.json();
+    expect(corpo.error.code).toBe("forbidden");
+    expect(corpo.pendencias).toBeUndefined();
+  });
+
+  it("lista vazia quando ninguém está pendente", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    const res = await GET(getRequest("", cookie));
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ pendencias: [] });
@@ -72,8 +96,9 @@ describe("GET /api/config/fila/pendencias", () => {
 
   it("devolve leadId, nome, data do envio e o detalhe", async () => {
     semearPendencia("ChIJa", "Ink House", "print não anexou");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
 
-    const { pendencias } = await (await GET(getRequest())).json();
+    const { pendencias } = await (await GET(getRequest("", cookie))).json();
 
     expect(pendencias).toEqual([
       {
@@ -91,8 +116,8 @@ describe("GET /api/config/fila/pendencias", () => {
     const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
     await PATCH(patchRequest({ resolvido: true }, cookie), params("ChIJa"));
 
-    expect((await (await GET(getRequest())).json()).pendencias).toEqual([]);
-    const comResolvidas = await (await GET(getRequest("?resolvidos=1"))).json();
+    expect((await (await GET(getRequest("", cookie))).json()).pendencias).toEqual([]);
+    const comResolvidas = await (await GET(getRequest("?resolvidos=1", cookie))).json();
     expect(comResolvidas.pendencias).toHaveLength(1);
     expect(comResolvidas.pendencias[0].resolvido).toBe(true);
   });

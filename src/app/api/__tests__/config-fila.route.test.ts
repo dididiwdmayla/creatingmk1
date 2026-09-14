@@ -18,6 +18,12 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+function getRequest(cookie?: string): Request {
+  return new Request("http://localhost/api/config/fila", {
+    headers: { ...(cookie && { cookie }) },
+  });
+}
+
 function putRequest(body: unknown, cookie?: string): Request {
   return new Request("http://localhost/api/config/fila", {
     method: "PUT",
@@ -29,12 +35,33 @@ function putRequest(body: unknown, cookie?: string): Request {
   });
 }
 
-describe("GET /api/config/fila", () => {
+describe("GET /api/config/fila (restrito ao admin)", () => {
   it("retorna os defaults quando não há doc", async () => {
-    const res = await GET();
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    const res = await GET(getRequest(cookie));
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ fila: DEFAULT_FILA_CONFIG });
+  });
+
+  it("sem sessão → 401 unauthorized", async () => {
+    const res = await GET(getRequest());
+
+    expect(res.status).toBe(401);
+    expect((await res.json()).error.code).toBe("unauthorized");
+  });
+
+  it("membro → 403, e a config da fila não vaza no corpo", async () => {
+    // O painel inteiro é do admin, não só a escrita: a fila é global (um
+    // config/fila, um pool, um contador) e drenada por UM aparelho físico.
+    const cookie = await cookieDeSessao(db, { id: "m1", papel: "membro" });
+
+    const res = await GET(getRequest(cookie));
+
+    expect(res.status).toBe(403);
+    const corpo = await res.json();
+    expect(corpo.error.code).toBe("forbidden");
+    expect(corpo.fila).toBeUndefined();
   });
 });
 
@@ -49,7 +76,7 @@ describe("PUT /api/config/fila (restrito ao admin)", () => {
     expect(fila.metaDiaria).toBe(20);
     expect(fila.tetoPorHora).toBe(DEFAULT_FILA_CONFIG.tetoPorHora);
 
-    const after = await (await GET()).json();
+    const after = await (await GET(getRequest(cookie))).json();
     expect(after.fila.ativo).toBe(false);
   });
 
