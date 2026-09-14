@@ -1050,11 +1050,85 @@ Regras do sistema:
 
 **Histórico — por que a `lancheria-2` existe.** Meia-Noite, Diner, Prático e Cantina chegaram como quatro `SkinDefinition` sobre o mesmo componente (`@radar/lancheria-rx`), cada uma com um preset único, e fora do sistema de personalização: a aba Imagens e a aba Estrutura eram substituídas por um aviso, a aba Tema desviava para um painel de três controles, `demoDataExemplo.imagens` era `{}`, e o teste de contrato do registro tinha três exceções `if (!skin.themeDefault.lancheria)`. A comparação das quatro (render de SSR, esqueleto de blocos, slots e knobs) mostrou **uma** divergência estrutural — o Prático não emitia `section.hero-faixa` — e nenhuma seção inventada: o resto era textura, paleta e cópia. Viraram quatro variantes de `lancheria-2`, e as exceções caíram junto. Os quatro `skinId` antigos continuam resolvendo por `SKINS_MIGRADAS` no registro (regra na RESOLUÇÃO, sem tocar no banco — mesma filosofia de `EFEITOS_MIGRADOS`), e o id da variante é o mesmo `themeId` que a demo já gravava.
 
+### Barbearia Editorial — migração de presets para variantes
+
+`barbearia-editorial` mantém uma entrada de skin, nove seções (`hero`,
+`agendamentoRapido`, `filosofia`, `servicos`, `equipe`, `ritual`, `depoimentos`,
+`agendamento`, `contato`) e sete slots de imagem. Só `hero` é fixa. As variantes
+Norte, Meia-noite, Creme e Vinho vivem em `barbearia/variantes.ts`; a composição
+é parametrizada por `Theme.barbearia`, sem quatro caminhos de render. A ordem
+continua em `criarVariante` → `exemploDaSkin` → `montarDemoData` → `secoesVisiveis`.
+O diff de ordem compara com a BASE da variante, não com o contrato neutro:
+abrir/salvar uma variante não pode congelar seu arranjo como edição do operador.
+
+**ID público coerente:** Vinho usa `vinho`. `SkinDefinition.themeAliases` declara
+`oliva: vinho` só nesta skin. `idThemeAtual` atende `getTheme`, `getVariante`,
+`exemploDaSkin` e a validação do PUT. O editor abre a seleção canônica; salvar
+um payload legado grava `vinho`, sem migração em lote do banco.
+
+**Atalho de conversão:** na Creme e na Vinho, `agendamentoRapido` vem imediatamente
+após o hero. Enterrá-lo depois dos perfis/ritual contrariava sua função. A
+narrativa editorial começa após o atalho; a Meia-noite mantém serviços antes
+dele para permitir a escolha do serviço/preço primeiro.
+
+**Origem SSR:** intro não é barreira sem JavaScript; as duas metades decorativas
+não são h1. O título completo já está no HTML e o typewriter preserva sua caixa;
+reveals só são ativados no cliente, sem esconder o documento servido. A trava
+específica usa um DOM parseado sem executar scripts, exige nome dentro do h1 da
+âncora hero, e o laço `qa-barbearia.mjs` confirma visibilidade com
+`javaScriptEnabled:false`. Fotos da equipe têm seus próprios `data-demo-slot`.
+`DemoData.imagensAlt` é opt-in por skin, com chaves declaradas no exemplo,
+validação estrita, edição e diff por slot; string vazia é alt decorativo.
+
+#### Lacuna sistêmica dos laços: preset não selecionado
+
+**Confirmada nas OITO skins nativas**, não só na barbearia: `colapso`, `barra` e
+`avulsa` enumeravam skins por `ANCORAS_PADRAO`, mas suas URLs não passavam
+`preset`. Assim, cada uma das oito era exercitada somente no `themeDefault`.
+A nona skin do registro, `lancheria-2`, também sofria: só Meia-Noite era carregada.
+O eixo `AVULSA_VARIANTES` desses laços significa identidade vazia/preenchida,
+não variantes visuais — não deve ser confundido com a cobertura de temas.
+
+Agora `capturas/temas.mjs` reúne `PRESETS_SEM_VARIANTES` e `VARIANTES_POR_SKIN` em
+`ALVOS_QA`. Os três laços passam skin E preset na URL e identificam ambos nos
+arquivos e relatórios. São 36 combinações no registro atual (9 × 4). O teste
+`capturas/__tests__/temas-mjs.test.ts` exige equivalência exata com `SKINS`,
+sem sobreposição ou ID duplicado. `--skin=<id>` filtra explicitamente o alvo;
+sem filtro, o laço percorre todas as combinações.
+
+**Para as próximas sete migrações:** remover a entrada de `PRESETS_SEM_VARIANTES`,
+adicionar suas variantes em `VARIANTES_POR_SKIN` e manter o teste verde. Não
+reintroduzir uma lista só de skins nem confiar que quatro presets existem só
+porque o default passou. A matriz visual inclui os cinco modos de cor,
+inclusive `tema`, além da referência sem efeito. Capturas esperam o título
+assentar, em vez de registrar o meio do typewriter.
+
+#### Auditoria de endereço — pendência fora desta migração
+
+Renderização SSR com um lead sem endereço confirmou que as SETE outras skins
+nativas preservam e exibem o endereço do exemplo. Elas **não foram corrigidas**
+neste bloco, conforme escopo aprovado. `CAMPOS_IDENTIDADE_DEMO` não inclui
+`endereco`; `dadosDoLead` omite valores ausentes e não apaga o exemplo.
+
+| Skin | Endereço do exemplo que aparece no HTML sem dado do lead |
+|---|---|
+| `barbearia2-sul` | Av. Brasil, 500 — Zona 3 |
+| `tatuagem-editorial` | Rua das Palmeiras, 512 — Zona 07 |
+| `tatuagem-pigmento-vivo` | Rua das Aquarelas, 88 — Centro |
+| `lancheria-chapa-burger` | Av. Principal, 500 — Centro |
+| `imobiliaria-curada` | Rua Principal, 100 — Centro |
+| `multimarcas-vortice` | Av. Principal, 1000 — Centro |
+| `petshop-focinho-feliz` | Rua das Begônias, 240 — Jardim das Flores |
+
+Na `barbearia-editorial`, o endereço fictício foi retirado de `BARBEARIA_EXEMPLO`;
+lead sem endereço não emite o slot nem o botão de rota. O teste específico
+cobre as quatro variantes e não depende da blocklist histórica incompleta.
+
 ### Animação (`Theme.animacao` + `DemoSecao.animacaoEntrada`)
 
 Três níveis globais — `nenhuma` / `sutil` / `marcante` — definidos no contrato (`Theme.animacao`, override em `TemaPatch.animacao`) e resolvidos por `aplicarTema` como qualquer outro token. Cada preset da skin tem um default (`themes.ts`); o editor pode sobrescrever na aba Tema. A skin de barbearia consome o nível em três pontos:
 
-- **Entrada de seção**: `interactive/SectionReveal.tsx` (por `whileInView`, `once: true`, distância/duração maiores em `marcante`) envolve cada seção na renderização (`Skin.tsx`), com o **tipo** vindo do override por seção. A seção Serviços sem override fica sem wrapper — tem uma sidebar `position: sticky` por dentro, e o `transform` residual que o `motion` deixa mesmo em repouso (`translateY(0px)`) cria um containing block que quebraria o sticky; por isso o contrato dela só oferece opções SEM transform.
+- **Entrada de seção**: `interactive/SectionReveal.tsx` serve HTML visível e, após hidratação, usa `IntersectionObserver` com limiar zero e Web Animations, uma vez, nas seções abaixo da tela (distância/duração maiores em `marcante`). O **tipo** vem do override por seção. A animação não persiste transform no fim, preservando a sidebar `position: sticky`. Serviços sem override continua sem wrapper; seu contrato só oferece opções SEM transform.
 - **Hovers e transições**: `Skin.tsx` deriva `--d-anim-duration`/`--d-anim-ease`/`--d-hover-scale`/`--d-hover-lift` do nível e injeta como CSS vars no wrapper; elementos com hover (CTA `.d-cta`, cards de depoimento `.d-card-hover`, `TeamCard`, título/borda das linhas de serviço) consomem essas vars em vez de valores fixos — em `nenhuma`, duração 0ms e escala/deslocamento neutros fazem o hover não animar (a mudança de cor/borda em si continua).
 - `nenhuma` e `prefers-reduced-motion` pulam o wrapper de `SectionReveal` por completo (sem elemento extra no DOM, sem custo) e desligam o typewriter.
 

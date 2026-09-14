@@ -43,7 +43,7 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
 
-import { ANCORAS_PADRAO } from "../src/lib/demos/capturas/padrao.mjs";
+import { ALVOS_QA } from "../src/lib/demos/capturas/temas.mjs";
 import { VARIANTES_POR_SKIN } from "../src/lib/demos/capturas/variantes.mjs";
 import { lerPng } from "./png.mjs";
 
@@ -276,6 +276,7 @@ function url({
  * fases diferentes do ciclo (ver `congelarCores`), lado a lado na folha.
  */
 const COR_MODOS = [
+  { id: "tema", fases: [0] },
   { id: "fixa", cores: ["#00c2ff"], fases: [0] },
   { id: "transicao", cores: ["#ff2e88", "#22d3a5", "#ffd23f"], fases: [0, 0.34, 0.67] },
   // 0 / 0.25 / 0.75 (não 0.5): o ciclo do iridescente é 0 → +16° → 0 →
@@ -326,10 +327,21 @@ async function congelarCores(page, fase) {
   await page.waitForTimeout(150);
 }
 
+/** A âncora hero precisa mostrar o nome inteiro, inclusive com typewriter. */
+async function esperarTitulo(page) {
+  if (SKIN !== "barbearia-editorial") return;
+  await page.waitForFunction(() => {
+    const h1 = document.querySelector("h1");
+    return h1 && [...h1.querySelectorAll("span:not([aria-hidden])")]
+      .every(el => Number(getComputedStyle(el).opacity) === 1);
+  }, undefined, { timeout: 15000 });
+}
+
 async function capturar(page, alvo, arquivo) {
   await page.goto(alvo, { waitUntil: "networkidle" });
   // O efeito entra por next/dynamic sem SSR — precisa de um beat pra montar.
   await page.waitForTimeout(700);
+  await esperarTitulo(page);
   const fase = FASE_POR_EFEITO[alvo.match(/efeito=([^&]+)/)?.[1] ?? ""];
   if (fase !== undefined) {
     await page.evaluate((f) => {
@@ -704,15 +716,12 @@ const BARRA_PLATOS_AMOSTRADOS = 8;
  * Todas as skins do registro — a barra é da rota, não de uma skin, e o
  * portão de colapso precisa ver TODAS.
  *
- * Sai de `ANCORAS_PADRAO` em vez de ser uma lista escrita à mão. A lista à
- * mão tinha oito nomes e o registro tinha doze: as quatro lancherias do
- * raio-x nunca foram visitadas por `--so=colapso`, `--so=barra` nem
- * `--so=avulsa`, e nada acusava — um portão que não visita a skin passa
- * sempre. `ANCORAS_PADRAO` mora num .mjs (o laço não compila TypeScript) e
- * já tem teste de contrato contra o registro (ver capturas/__tests__),
- * então derivar daqui é provadamente completo.
+ * Percorre `ALVOS_QA`: skin × preset/variante, com preset explícito na URL.
+ * A antiga enumeração só por skin cobria o default de todas as oito skins
+ * nativas e da lancheria-2. Ver ARCHITECTURE: migração não pode apagar eixo.
  */
-const BARRA_SKINS = Object.keys(ANCORAS_PADRAO);
+const ALVOS_DE_LACO = ALVOS_QA.filter(a => !opcao("skin") || a.skinId === SKIN);
+if (!ALVOS_DE_LACO.length) throw new Error(`Skin sem alvos de QA: ${SKIN}`);
 
 const corParaRgb = (cor) => {
   const hex = cor.trim().match(/^#([0-9a-f]{6})$/i);
@@ -737,8 +746,8 @@ async function medirBarra(browser, pageDaFolha, secret) {
   await ctx.addCookies([{ name: "radar_session", value: token, url: BASE }]);
   const page = await ctx.newPage();
 
-  const alvoDe = (skin, extra = "") =>
-    `${BASE}/interno/demo-qa?skin=${skin}&intro=0&efeito=nenhum&led=desligado${extra}`;
+  const alvoDe = (skinId, preset, extra = "") =>
+    `${BASE}/interno/demo-qa?skin=${skinId}&preset=${preset}&intro=0&efeito=nenhum&led=desligado${extra}`;
   /** Dois quadros: o listener é throttled por rAF (ler antes do quadro em
    *  que ele roda devolveria o valor do passo anterior — o mesmo defeito
    *  de laço já registrado na rampa da cobertura). */
@@ -774,13 +783,13 @@ async function medirBarra(browser, pageDaFolha, secret) {
   /** Ressalvas do LAÇO (o que ele não conseguiu medir), não do produto. */
   const ressalvas = [];
 
-  for (const skin of BARRA_SKINS) {
+  for (const { skinId, preset, id: skin } of ALVOS_DE_LACO) {
     /* (3) HTML SERVIDO — sem navegador, sem JavaScript. */
-    const html = await (await fetch(alvoDe(skin), { headers: { cookie: `radar_session=${token}` } })).text();
+    const html = await (await fetch(alvoDe(skinId, preset), { headers: { cookie: `radar_session=${token}` } })).text();
     const metaServida = html.match(/<meta name="theme-color" content="([^"]+)"/i)?.[1] ?? "(ausente)";
     const planoServido = html.match(/body\{background-color:\s*([^ ;!}]+)/i)?.[1] ?? "(ausente)";
 
-    await page.goto(alvoDe(skin), { waitUntil: "networkidle" });
+    await page.goto(alvoDe(skinId, preset), { waitUntil: "networkidle" });
     await page.waitForTimeout(700);
     await desligarScrollSuave();
 
@@ -905,10 +914,10 @@ async function medirBarra(browser, pageDaFolha, secret) {
       ["personalizada", "&barra=personalizada&barraCor=%2300c2ff", "#00c2ff"],
     ]) {
       const htmlFixo = await (
-        await fetch(alvoDe(skin, extra), { headers: { cookie: `radar_session=${token}` } })
+        await fetch(alvoDe(skinId, preset, extra), { headers: { cookie: `radar_session=${token}` } })
       ).text();
       const servida = htmlFixo.match(/<meta name="theme-color" content="([^"]+)"/i)?.[1] ?? "(ausente)";
-      await page.goto(alvoDe(skin, extra), { waitUntil: "networkidle" });
+      await page.goto(alvoDe(skinId, preset, extra), { waitUntil: "networkidle" });
       await page.waitForTimeout(400);
       await desligarScrollSuave();
       const antes = (await lerBarra()).meta;
@@ -990,11 +999,11 @@ async function verificarColapsoDeImagem(browser, secret) {
   const problemas = [];
   let totalSlots = 0;
 
-  for (const skin of BARRA_SKINS) {
+  for (const { skinId, preset, id: skin } of ALVOS_DE_LACO) {
     // imagensModo "foto": é onde o bug apareceu (o SVG do exemplo sempre
     // teve dimensão intrínseca — a foto real, atrás de um <div data-card>
     // com CSS de altura, é o caminho que colapsa).
-    await page.goto(`${BASE}/interno/demo-qa?skin=${skin}&imagens=foto&intro=0`, {
+    await page.goto(`${BASE}/interno/demo-qa?skin=${skinId}&preset=${preset}&imagens=foto&intro=0`, {
       waitUntil: "networkidle",
     });
     await page.waitForTimeout(400);
@@ -1029,7 +1038,7 @@ async function verificarColapsoDeImagem(browser, secret) {
   }
 
   await ctx.close();
-  console.log(`[colapso] ${totalSlots} slot(s) de imagem checados em ${BARRA_SKINS.length} skins.`);
+  console.log(`[colapso] ${totalSlots} slot(s) de imagem checados em ${ALVOS_DE_LACO.length} combinações skin × tema.`);
   if (problemas.length > 0) {
     throw new Error(
       `[colapso] ${problemas.length} elemento(s) com foto renderizando com largura ou altura zero:\n  ${problemas.join("\n  ")}`,
@@ -1097,12 +1106,13 @@ async function capturarAvulsa(page) {
     await page.setViewportSize({ width: tela.largura, height: tela.altura });
     for (const banda of AVULSA_BANDAS) {
       const linhas = [];
-      for (const skin of BARRA_SKINS) {
+      for (const { skinId, preset, id: skin } of ALVOS_DE_LACO) {
         const itens = [];
         for (const variante of AVULSA_VARIANTES) {
-          const alvo = `${BASE}/interno/demo-qa?skin=${skin}&intro=0&${variante.query}`;
+          const alvo = `${BASE}/interno/demo-qa?skin=${skinId}&preset=${preset}&intro=0&${variante.query}`;
           await page.goto(alvo, { waitUntil: "networkidle" });
           await page.waitForTimeout(700);
+          await esperarTitulo(page);
           await banda.aoAbrir(page);
           const destino = path.join(
             SAIDA,
@@ -1561,7 +1571,7 @@ async function main() {
     /* ── VARIANTE × MODO DE COR ─────────────────────────────────────
      *
      * A matriz do eixo de variante: uma folha de contato por variante, com
-     * a página inteira em cada modo de cor da camada decorativa. É o que se
+     * o topo em cada modo de cor da camada decorativa. É o que se
      * OLHA antes de declarar pronto — o portão de fps (--so=fps) julga a
      * mesma matriz por número, este item julga por imagem.
      *
@@ -1598,6 +1608,7 @@ async function main() {
                 { waitUntil: "networkidle" },
               );
               await page.waitForTimeout(700);
+              await esperarTitulo(page);
               // Modo animado só se julga em MAIS DE UM instante: congela o
               // relógio das animações na fase pedida (mesmo tratamento do
               // item `cores`).
