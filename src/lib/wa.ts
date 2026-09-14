@@ -27,13 +27,22 @@ export function aplicarMarcadores(
 }
 
 /**
+ * Dígitos puros (DDI + número) a partir do texto CRU que o Google devolve
+ * em `telefoneIntl` (com espaços, parênteses e traços — ex.: "+55 44
+ * 3222-1111"). Extraído de `linkWhatsApp` para ser reaproveitado também no
+ * servidor (ver `@/lib/fila/mensagem`), sem duplicar a limpeza.
+ */
+export function digitosTelefone(telefoneIntl: string): string {
+  return telefoneIntl.replace(/\D/g, "");
+}
+
+/**
  * Link wa.me a partir de um texto JÁ PRONTO (marcadores resolvidos) — é o
  * que a ficha usa depois de você editar a frase à mão na caixa de texto.
  * Montado no cliente sobre dados já persistidos: nenhuma chamada externa.
  */
 export function linkWhatsApp(texto: string, telefoneIntl: string): string {
-  const numero = telefoneIntl.replace(/\D/g, "");
-  return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
+  return `https://wa.me/${digitosTelefone(telefoneIntl)}?text=${encodeURIComponent(texto)}`;
 }
 
 /** Substituição + link num passo só — o caminho de quem não edita o texto. */
