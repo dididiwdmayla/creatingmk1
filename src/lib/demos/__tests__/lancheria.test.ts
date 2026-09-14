@@ -5,27 +5,47 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { criarPrecos, criarPedido, horarioDaCasa, validarDadosLancheria } from '@radar/lancheria-rx/contrato';
-import { LANCHERIA_RX_SKINS } from '@/components/demos/lancheria-rx/skins';
+import { LANCHERIA_2 } from '@/components/demos/lancheria2';
 import { dadosDaLancheria, temaDaLancheria } from '../lancheria/adapter';
 import { dadosQaLancheria } from '../lancheria/qa';
 import { montarPatch } from '../patch';
 import { montarDemoDataAvulsa } from '../avulsas/identidade';
 import { aplicarTema } from '../tema';
 import { validateLeadDemoInput } from '../validate';
+import { getSkin, getTheme } from '../registry';
+import { exemploDaSkin } from '../variantes';
 
-const skin=LANCHERIA_RX_SKINS[0];
+const skin=LANCHERIA_2;
+const variantes=skin.variantes!;
 const input=(dados:unknown={},tema:unknown={})=>({skinId:skin.id,themeId:skin.themeDefault.id,dados,tema});
 describe('lancheria: fronteira do Radar e motor fixo',()=>{
-  it.each(LANCHERIA_RX_SKINS)('$id é uma skin independente com um único preset',s=>{
-    expect(s.themePresets).toHaveLength(1);
-    expect(s.nicho).toBe('lancheria');expect(s.localeFixo).toEqual({idioma:'pt-BR',moeda:'BRL'});
-    const d=dadosDaLancheria(s.demoDataExemplo);
+  it('é UMA skin do nicho lancheria, com as quatro identidades como variantes',()=>{
+    expect(skin.id).toBe('lancheria-2');
+    expect(skin.nicho).toBe('lancheria');
+    expect(skin.localeFixo).toEqual({idioma:'pt-BR',moeda:'BRL'});
+    expect(variantes.map(v=>v.id)).toEqual([
+      'lancheria-meia-noite','lancheria-diner','lancheria-pratico','lancheria-cantina',
+    ]);
+    // A variante OCUPA o lugar do preset: mesma lista, mesma ordem.
+    expect(skin.themePresets).toEqual(variantes.map(v=>v.theme));
+    expect(skin.themeDefault).toBe(variantes[0].theme);
+  });
+  it.each(variantes.map(v=>[v.id,v] as const))('variante %s entrega o catálogo e as cores próprias',(_id,v)=>{
+    const d=dadosDaLancheria(v.exemplo);
     expect(validarDadosLancheria(d)).toEqual([]);
     expect(d.lanches).toHaveLength(6);
-    const tema=temaDaLancheria(s.themeDefault);
-    expect(tema.cores.quente).toBe(s.themeDefault.paleta.quente);
-    expect(tema.cores.frio).toBe(s.themeDefault.paleta.frio);
+    const tema=temaDaLancheria(v.theme);
+    expect(tema.cores.quente).toBe(v.theme.paleta.quente);
+    expect(tema.cores.frio).toBe(v.theme.paleta.frio);
     expect(tema.cores.quente).not.toBe(tema.cores.frio);
+    expect(tema.slug).toBe(v.id.replace(/^lancheria-/,''));
+  });
+  it('os quatro skinId antigos continuam resolvendo, na variante certa',()=>{
+    for(const v of variantes) {
+      expect(getSkin(v.id)).toBe(skin);            // o skinId antigo é o id da variante
+      expect(getTheme(skin,v.id)).toBe(v.theme);   // e o themeId salvo acha a variante
+      expect(exemploDaSkin(skin,v.id)).toBe(v.exemplo);
+    }
   });
   it('mudar slug não altera os knobs e pelo-rotulo funciona fora do Diner',()=>{
     const d=dadosDaLancheria(dadosQaLancheria(skin));

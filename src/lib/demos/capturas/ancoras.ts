@@ -1,4 +1,4 @@
-import { LANCHERIA_RX_SECOES } from "@/components/demos/lancheria-rx/secoes";
+import { LANCHERIA2_SECOES } from "@/components/demos/lancheria2/secoes";
 import { BARBEARIA_SECOES } from "@/components/demos/barbearia/secoes";
 import { BARBEARIA2_SECOES } from "@/components/demos/barbearia2/secoes";
 import { IMOBILIARIA_SECOES } from "@/components/demos/imobiliaria/secoes";
@@ -38,11 +38,7 @@ export const CAPTURAS_MAX_ANCORAS = 3;
  * as duas não divergem quando uma skin nova entrar no registro.
  */
 export const SECOES_POR_SKIN: Record<string, SkinSecaoDef[]> = {
-  "lancheria-meia-noite": LANCHERIA_RX_SECOES,
-  "lancheria-diner": LANCHERIA_RX_SECOES,
-  "lancheria-pratico": LANCHERIA_RX_SECOES,
-  "lancheria-cantina": LANCHERIA_RX_SECOES,
-
+  "lancheria-2": LANCHERIA2_SECOES,
   "barbearia-editorial": BARBEARIA_SECOES,
   "barbearia2-sul": BARBEARIA2_SECOES,
   "imobiliaria-curada": IMOBILIARIA_SECOES,
