@@ -3524,7 +3524,7 @@ function Horario({ compacto = false }) {
 function Hero() {
   const tema = useTema();
   const { CASA: CASA2, dados: { textos } } = useNegocio();
-  return /* @__PURE__ */ jsxs14(Fragment5, { children: [
+  return /* @__PURE__ */ jsxs14("div", { "data-d-secao": "hero", children: [
     /* @__PURE__ */ jsxs14("header", { className: "cabecalho-casa moldura", children: [
       /* @__PURE__ */ jsxs14("span", { className: "marca-texto", children: [
         CASA2.marca,
@@ -3535,7 +3535,7 @@ function Hero() {
         CASA2.cidade ? ` em ${CASA2.cidade.split(",")[0]}` : ""
       ] })
     ] }),
-    tema.hero !== "nenhum" && /* @__PURE__ */ jsxs14("section", { "data-d-secao": "hero", className: "hero-faixa", "aria-labelledby": "titulo-casa", children: [
+    tema.hero !== "nenhum" && /* @__PURE__ */ jsxs14("section", { className: "hero-faixa", "aria-labelledby": "titulo-casa", children: [
       tema.assinatura === "toldo" && /* @__PURE__ */ jsx16(Toldo, {}),
       tema.assinatura === "placa-de-porta" && /* @__PURE__ */ jsx16(PlacaDePorta, {}),
       textos.heroFoto && /* @__PURE__ */ jsx16("img", { src: textos.heroFoto, alt: textos.heroAlt, width: 2400, height: 1600, fetchPriority: "high" }),
