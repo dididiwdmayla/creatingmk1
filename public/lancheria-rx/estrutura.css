@@ -745,6 +745,11 @@ html:where(:has([data-lancheria-app]))[data-transicao] #rx-pilha [data-inst] > .
 @keyframes placa-assentar { 0% { transform: rotate(-7deg); } 45% { transform: rotate(3deg); } 75% { transform: rotate(-1deg); } 100% { transform: rotate(0); } }
 
 /* PRÁTICO — pedido em primeiro plano. Uma linha usa a mesma foto em 88px. */
+:is(html:has([data-lancheria-app][data-layout='lista'])) .hero-faixa { height: 88px; min-height: 0; max-height: 30dvh; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .hero-faixa::after { display: none; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .hero-texto h1 { font-size: 1.25rem; line-height: 1.2; max-width: none; letter-spacing: -.03em; font-weight: 750; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .hero-texto p { font-size: .8125rem; }
+:is(html:has([data-lancheria-app][data-layout='lista'])) .hero-texto { gap: 4px; }
 :is(html:has([data-lancheria-app][data-layout='lista'])) .cabecalho-casa { height: 52px; }
 :is(html:has([data-lancheria-app][data-layout='lista'])) .marca-texto { font-size: 1.2rem; color: var(--osso); font-weight: 800; }
 :is(html:has([data-lancheria-app][data-layout='lista'])) .cabecalho-casa .nota { font-size: .75rem; }
@@ -863,6 +868,8 @@ html:where(:has([data-lancheria-app]))[data-transicao] #rx-pilha [data-inst] > .
   :is(html:has([data-lancheria-app][data-layout='lista'])) .lanche-card > [data-add] { width: 108px; }
   :is(html:has([data-lancheria-app][data-layout='lista'])) .adicionar-label { position: static; width: auto; height: auto; clip-path: none; font-size: .875rem; }
   :is(html:has([data-lancheria-app][data-layout='lista'])) .adicionar-mais { display: none; }
+  :is(html:has([data-lancheria-app][data-layout='lista'])) .hero-faixa { height: 120px; }
+  :is(html:has([data-lancheria-app][data-layout='lista'])) .hero-texto h1 { font-size: 2rem; }
   :is(html:has([data-lancheria-app][data-layout='folha'])) .hero-faixa { height: 150px; }
   :is(html:has([data-lancheria-app][data-layout='folha'])) .hero-texto { padding: 40px 32px 26px; }
   :is(html:has([data-lancheria-app][data-layout='folha'])) .hero-texto h1 { font-size: 2.75rem; }

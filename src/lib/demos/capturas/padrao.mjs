@@ -19,10 +19,7 @@
  * pelo mesmo motivo que /interno/demo-qa existe.
  */
 export const ANCORAS_PADRAO = /** @type {Record<string, string[]>} */ ({
-  "lancheria-meia-noite": ["cardapio", "contato"],
-  "lancheria-diner": ["cardapio", "contato"],
-  "lancheria-pratico": ["cardapio", "contato"],
-  "lancheria-cantina": ["cardapio", "contato"],
+  "lancheria-2": ["hero", "cardapio", "contato"],
   "barbearia-editorial": ["hero", "servicos", "depoimentos"],
   "barbearia2-sul": ["hero", "servicos", "galeria"],
   "imobiliaria-curada": ["hero", "imoveis", "depoimento"],

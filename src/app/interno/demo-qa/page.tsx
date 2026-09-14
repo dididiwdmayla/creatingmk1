@@ -12,6 +12,7 @@ import { montarDemoDataAvulsa, patchIdentidadeAvulsa } from "@/lib/demos/avulsas
 import { montarDemoData } from "@/lib/demos/montar";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
+import { exemploDaSkin, varianteEfetiva } from "@/lib/demos/variantes";
 import type { EfeitoIntensidade } from "@/lib/demos/efeitos/types";
 import { modoValido } from "@/lib/demos/cores/modos";
 import { ALINHAMENTOS } from "@/lib/demos/types";
@@ -203,6 +204,7 @@ export default async function DemoQaPage({ searchParams }: Props) {
     efeitoId: efeitoFundo?.efeito.id,
     efeitoCores: theme.efeitoCores,
     auraCores: undefined,
+    modosReprovados: varianteEfetiva(skin, texto(query.preset))?.modosDeCorReprovados,
   });
 
   // Seções com animação desligada (item "Animação por seção"): mesmo
@@ -260,9 +262,11 @@ export default async function DemoQaPage({ searchParams }: Props) {
         },
       }),
   };
+  // `preset` no harness é o id da VARIANTE quando a skin tem o eixo.
+  const exemplo = exemploDaSkin(skin, texto(query.preset));
   const dados = comoAvulsa
-    ? montarDemoDataAvulsa(skin.demoDataExemplo, patchDados, skin.id)
-    : montarDemoData(skin.demoDataExemplo, undefined, patchDados, skin.id);
+    ? montarDemoDataAvulsa(exemplo, patchDados, skin.id)
+    : montarDemoData(exemplo, undefined, patchDados, skin.id);
 
   // Mesma cadeia da rota pública (fontesEscolhidas): sem isso, uma fonte
   // curada que não é default de preset nenhum (carregada sob demanda — ver

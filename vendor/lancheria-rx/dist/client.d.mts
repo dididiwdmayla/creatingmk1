@@ -21,6 +21,14 @@ type Tema = {
     densidade: 'solta' | 'media' | 'apertada';
     assinatura: string;
     mascote: boolean;
+    /**
+     * A faixa hero desta identidade usa FOTO? Meia-Noite e Diner sim;
+     * Prático e Cantina abrem só com tipografia. É knob, e não CSS
+     * `display:none`, porque a imagem não pode nem ser BAIXADA numa
+     * identidade que não a mostra — é hero, está acima da dobra, e o
+     * Prático existe justamente para ser o caminho mais curto.
+     */
+    heroFoto: boolean;
     filtroInicial: 'todos' | 'primeira-forma';
     abrirComposicao: 'nenhuma' | 'pela-foto' | 'pelo-rotulo';
     cardapio: 'editorial' | 'painel' | 'lista' | 'folha';
@@ -93,6 +101,8 @@ type TextosCasa = {
     heroAlt: string;
     historiaTitulo: string;
     historia: string[];
+    historiaFoto: string;
+    historiaAlt: string;
     carimbo: string;
     rodape: string;
 };

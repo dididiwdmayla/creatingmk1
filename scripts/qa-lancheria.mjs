@@ -27,7 +27,7 @@ async function ui(page){return page.evaluate(()=>{
 })}
 try{
   for(let i=0;i<100;i++){try{if((await fetch(base+'/login')).ok)break}catch{}await new Promise(r=>setTimeout(r,300));}
-  browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader']});
+  browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH??process.env.QA_CHROMIUM??'/opt/pw-browsers/chromium',args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader']});
   const temas=['meia-noite','diner','pratico','cantina'],metas=[3,6,4,4];
   for(const [i,tema] of temas.entries()){
     const ctx=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
@@ -41,7 +41,7 @@ try{
     await page.screenshot({path:`${pasta}/${tema}-entrada.jpg`,type:'jpeg',quality:85});
     await page.evaluate(()=>document.querySelector('[data-cardapio]').scrollIntoView({block:'start'}));
     await page.screenshot({path:`${pasta}/${tema}-cardapio.jpg`,type:'jpeg',quality:85});
-    copyFileSync(`${pasta}/${tema}-cardapio.jpg`,`public/demos/lancheria-rx/${tema}.jpg`);
+    copyFileSync(`${pasta}/${tema}-cardapio.jpg`,`public/demos/lancheria2/${tema}.jpg`);
     if(tema==='diner'){await page.locator('.diner-recheio summary').first().click();check(await page.locator('.diner-recheio[open]').count()===1,'Diner: foto abre composição');await page.locator('.diner-recheio summary').first().click()}
     await page.locator('[data-cardapio] [data-add]').first().click();await page.waitForSelector('[data-item-cardapio] [data-modificar]');
     await page.locator('[data-item-cardapio] [data-modificar]').first().click();await page.waitForSelector('#rx-painel[data-escala]');await page.waitForFunction(()=>!document.documentElement.dataset.transicao);await page.evaluate(()=>document.fonts.ready);

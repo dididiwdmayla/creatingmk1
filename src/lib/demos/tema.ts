@@ -122,6 +122,20 @@ export function aplicarTema(
       // A identidade estrutural e as fontes pertencem à skin. Overrides genéricos
       // antigos não viram alterações silenciosas de mecânica ou da tipografia.
       intro: preset.lancheria.intro && (patch.intro ?? true),
+      // A CAMADA DECORATIVA, porém, é da Forja e não da skin: efeito de
+      // fundo, LED e cor da barra são siblings, não tocam na tipografia
+      // nem na mecânica do pacote, e valem sobre qualquer variante.
+      // Mesmíssima resolução do ramo genérico abaixo.
+      fundoEfeito:
+        patch.fundoEfeito && fundoEfeitoValido(patch.fundoEfeito)
+          ? patch.fundoEfeito
+          : preset.fundoEfeito,
+      led: patch.led && LED_PRESETS.includes(patch.led) ? patch.led : preset.led,
+      ledEstilo:
+        patch.ledEstilo && getLedEstilo(patch.ledEstilo) ? patch.ledEstilo : preset.ledEstilo,
+      ...(coresModoValido(patch.efeitoCores) && { efeitoCores: coresModoValido(patch.efeitoCores) }),
+      ...(coresModoValido(patch.ledCores) && { ledCores: coresModoValido(patch.ledCores) }),
+      ...(barraCorValida(patch.barraCor) && { barraCor: barraCorValida(patch.barraCor) }),
     };
   }
 

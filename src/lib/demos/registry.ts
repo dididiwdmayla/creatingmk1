@@ -1,4 +1,4 @@
-import { LANCHERIA_RX_SKINS } from "@/components/demos/lancheria-rx/skins";
+import { LANCHERIA_2 } from "@/components/demos/lancheria2";
 import { BARBEARIA_EXEMPLO } from "@/components/demos/barbearia/exemplo";
 import { BARBEARIA_SECOES } from "@/components/demos/barbearia/secoes";
 import { BarbeariaEditorial } from "@/components/demos/barbearia/Skin";
@@ -205,13 +205,35 @@ export const SKINS: SkinDefinition[] = [
     // Editorial itálica + sans arredondada — o par tipográfico do material bruto.
     fontesRecomendadas: ["instrument-serif", "poppins", "cormorant", "montserrat", "josefin", "dm-sans"],
   },
-  ...LANCHERIA_RX_SKINS,
+  LANCHERIA_2,
 ];
 
 export const DEFAULT_SKIN: SkinDefinition = SKINS[0];
 
+/**
+ * skinId aposentado → skinId atual. As quatro lancherias do raio-x
+ * entraram no registro como quatro skins e viraram QUATRO VARIANTES de uma
+ * só (`lancheria-2`) — o id da variante é o mesmo `themeId` que a demo já
+ * gravava, então uma demo salva com o id antigo continua abrindo, na
+ * variante certa, sem migração no banco. Mesma filosofia de
+ * `EFEITOS_MIGRADOS`: a regra mora no registro e é aplicada na RESOLUÇÃO.
+ */
+const SKINS_MIGRADAS: Record<string, string> = {
+  "lancheria-meia-noite": "lancheria-2",
+  "lancheria-diner": "lancheria-2",
+  "lancheria-pratico": "lancheria-2",
+  "lancheria-cantina": "lancheria-2",
+};
+
+/** O id atual de uma skin (ela mesma, quando não foi migrada). */
+export function idSkinAtual(id: string): string {
+  return SKINS_MIGRADAS[id] ?? id;
+}
+
 export function getSkin(id: string | undefined): SkinDefinition | undefined {
-  return SKINS.find((skin) => skin.id === id);
+  if (id === undefined) return undefined;
+  const atual = idSkinAtual(id);
+  return SKINS.find((skin) => skin.id === atual);
 }
 
 /** Tema do preset pedido; desconhecido/ausente cai no default da skin. */

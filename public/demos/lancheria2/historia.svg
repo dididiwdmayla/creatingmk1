@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1600" role="img" aria-label="Placeholder: chapa de ferro vazia">
+  <defs>
+    <linearGradient id="ferro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#221C19"/>
+      <stop offset="1" stop-color="#100C0B"/>
+    </linearGradient>
+  </defs>
+  <rect width="2400" height="1600" fill="url(#ferro)"/>
+  <g fill="none" stroke="#332924" stroke-width="4" opacity=".7">
+    <path d="M0 300h2400M0 620h2400M0 940h2400M0 1260h2400"/>
+  </g>
+  <g fill="#2C231F" opacity=".85">
+    <ellipse cx="760" cy="760" rx="240" ry="58"/>
+    <ellipse cx="1600" cy="1010" rx="300" ry="66"/>
+  </g>
+  <text x="1200" y="1500" text-anchor="middle" font-family="system-ui, sans-serif" font-size="52" fill="#6E5B4C">Chapa da casa</text>
+</svg>

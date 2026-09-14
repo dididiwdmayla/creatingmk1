@@ -8,6 +8,7 @@ var meia_noite_default = {
   raio: 2,
   densidade: "media",
   assinatura: "letreiro",
+  heroFoto: true,
   mascote: true,
   filtroInicial: "primeira-forma",
   abrirComposicao: "nenhuma",
@@ -31,6 +32,7 @@ var diner_default = {
   raio: 4,
   densidade: "media",
   assinatura: "placa-de-porta",
+  heroFoto: true,
   mascote: true,
   filtroInicial: "todos",
   abrirComposicao: "pela-foto",
@@ -54,6 +56,7 @@ var pratico_default = {
   raio: 12,
   densidade: "apertada",
   assinatura: "nenhuma",
+  heroFoto: false,
   mascote: false,
   filtroInicial: "primeira-forma",
   abrirComposicao: "nenhuma",
@@ -77,6 +80,7 @@ var cantina_default = {
   raio: 2,
   densidade: "solta",
   assinatura: "toldo",
+  heroFoto: false,
   mascote: false,
   filtroInicial: "primeira-forma",
   abrirComposicao: "nenhuma",
@@ -189,6 +193,8 @@ var TEXTOS_CASA = {
     heroAlt: "Prensado fechando na chapa",
     historiaTitulo: "Antes do prato,\num carrinho.",
     historia: ["O prensado nasceu em Maring\xE1, dentro de um carrinho de lanches. Algu\xE9m instalou uma prensa na chapa e passou a fechar o p\xE3o sobre o recheio.", "Os concorrentes copiaram. Virou prato t\xEDpico da cidade e saiu do estado."],
+    historiaFoto: "/chapa/chapa-vazia.webp",
+    historiaAlt: "Chapa de ferro vazia, pronta para o pr\xF3ximo lanche",
     carimbo: "MARING\xC1 / P\xC3O / CHAPA / PRENSA",
     rodape: ""
   },
@@ -201,6 +207,8 @@ var TEXTOS_CASA = {
     heroAlt: "Prensado Meia-Noite",
     historiaTitulo: "Antes do prato,\num carrinho.",
     historia: ["O prensado nasceu em Maring\xE1, dentro de um carrinho de lanches. Algu\xE9m instalou uma prensa na chapa e passou a fechar o p\xE3o sobre o recheio.", "Os concorrentes copiaram. Virou prato t\xEDpico da cidade e saiu do estado."],
+    historiaFoto: "/chapa/chapa-vazia.webp",
+    historiaAlt: "Chapa de ferro vazia, pronta para o pr\xF3ximo lanche",
     carimbo: "MARING\xC1 / P\xC3O / CHAPA / PRENSA",
     rodape: ""
   },
@@ -213,6 +221,8 @@ var TEXTOS_CASA = {
     heroAlt: "",
     historiaTitulo: "Antes do prato,\num carrinho.",
     historia: ["O prensado nasceu em Maring\xE1, dentro de um carrinho de lanches. Algu\xE9m instalou uma prensa na chapa e passou a fechar o p\xE3o sobre o recheio.", "Os concorrentes copiaram. Virou prato t\xEDpico da cidade e saiu do estado."],
+    historiaFoto: "/chapa/chapa-vazia.webp",
+    historiaAlt: "Chapa de ferro vazia, pronta para o pr\xF3ximo lanche",
     carimbo: "MARING\xC1 / P\xC3O / CHAPA / PRENSA",
     rodape: "Da chapa para a mesa."
   },
@@ -225,6 +235,8 @@ var TEXTOS_CASA = {
     heroAlt: "",
     historiaTitulo: "Antes do prato,\num carrinho.",
     historia: ["O prensado nasceu em Maring\xE1, dentro de um carrinho de lanches. Algu\xE9m instalou uma prensa na chapa e passou a fechar o p\xE3o sobre o recheio.", "Os concorrentes copiaram. Virou prato t\xEDpico da cidade e saiu do estado."],
+    historiaFoto: "/chapa/chapa-vazia.webp",
+    historiaAlt: "Chapa de ferro vazia, pronta para o pr\xF3ximo lanche",
     carimbo: "MARING\xC1 / P\xC3O / CHAPA / PRENSA",
     rodape: ""
   }

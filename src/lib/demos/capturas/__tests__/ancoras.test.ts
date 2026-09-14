@@ -52,7 +52,7 @@ describe("contrato com o registro de skins", () => {
    */
   it("captura inicial respeita a estrutura de cada skin", () => {
     for (const [skinId, ancoras] of Object.entries(ANCORAS_PADRAO)) {
-      expect(ancoras[0], skinId).toBe(SKINS.find(s=>s.id===skinId)?.themeDefault.lancheria ? "cardapio" : "hero");
+      expect(ancoras[0], skinId).toBe("hero");
     }
   });
 });

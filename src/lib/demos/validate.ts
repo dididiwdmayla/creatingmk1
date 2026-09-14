@@ -1,4 +1,5 @@
 import { problemasLancheria } from "./lancheria/adapter";
+import { temaCalibrado } from "./variantes";
 import { ValidationError } from "@/lib/errors";
 import { IDIOMAS_SUPORTADOS } from "@/lib/idioma";
 import { barraModoValido } from "./barra/modos";
@@ -595,9 +596,20 @@ export function validateLeadDemoInput(body: Record<string, unknown>): LeadDemoIn
   const dados = body.dados === undefined ? {} : validaDados(body.dados, problemas, skin);
   const tema = body.tema === undefined ? undefined : validaTema(body.tema, problemas);
 
-  if (skin?.themeDefault.lancheria && tema) {
-    for (const chave of Object.keys(tema)) if (!["quente", "frio", "intro"].includes(chave))
-      problemas.push(`tema.${chave}: esta skin usa identidade fixa; ajuste quente/frio`);
+  // Skin com tema CALIBRADO (ver temaCalibrado): tipografia, raio,
+  // densidade, animação e título hero vêm do pacote dela, e `aplicarTema`
+  // ignora esses campos de propósito — persistir seria dado morto. Tudo o
+  // que é camada de cima (papéis de cor, efeito de fundo, LED, cor da
+  // barra) passa normalmente. Era uma lista BRANCA de três chaves, que
+  // recusava justamente a camada decorativa.
+  if (skin && temaCalibrado(skin) && tema) {
+    const daSkin = [
+      "destaque", "fonteDisplay", "fonteCorpo", "raio",
+      "densidade", "animacao", "hover", "clique", "heroTitulo",
+    ];
+    for (const chave of Object.keys(tema))
+      if (daSkin.includes(chave))
+        problemas.push(`tema.${chave}: esta skin traz isso calibrada; ajuste quente/frio`);
   }
   if (problemas.length > 0) {
     throw new ValidationError(problemas);

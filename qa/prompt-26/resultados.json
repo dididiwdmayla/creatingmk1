@@ -314,8 +314,8 @@
       "arquivosFonte": [
         "/_next/static/media/03bda585a99c6450-s.32sris142tqlb.woff2",
         "/fontes/archivo-latin-standard-normal.woff2",
-        "/fontes/fraunces-latin-full-normal.woff2",
-        "/fontes/ibm-plex-mono-latin-500-normal.woff2"
+        "/fontes/ibm-plex-mono-latin-500-normal.woff2",
+        "/fontes/fraunces-latin-full-normal.woff2"
       ],
       "rx": {
         "overflow": false,
@@ -393,8 +393,8 @@
         "arquivosFonte": [
           "/_next/static/media/03bda585a99c6450-s.32sris142tqlb.woff2",
           "/fontes/archivo-latin-standard-normal.woff2",
-          "/fontes/fraunces-latin-full-normal.woff2",
-          "/fontes/ibm-plex-mono-latin-500-normal.woff2"
+          "/fontes/ibm-plex-mono-latin-500-normal.woff2",
+          "/fontes/fraunces-latin-full-normal.woff2"
         ]
       },
       "estreito": {
@@ -802,26 +802,26 @@
       "limite": 769,
       "cards": [
         {
-          "top": 217.515625,
-          "bottom": 330.515625,
+          "top": 305.515625,
+          "bottom": 418.515625,
           "w": 358,
           "h": 113
         },
         {
-          "top": 330.515625,
-          "bottom": 443.515625,
+          "top": 418.515625,
+          "bottom": 531.515625,
           "w": 358,
           "h": 113
         },
         {
-          "top": 443.515625,
-          "bottom": 556.515625,
+          "top": 531.515625,
+          "bottom": 644.515625,
           "w": 358,
           "h": 113
         },
         {
-          "top": 556.515625,
-          "bottom": 669.515625,
+          "top": 644.515625,
+          "bottom": 757.515625,
           "w": 358,
           "h": 113
         }
@@ -949,31 +949,31 @@
         "limite": 641,
         "cards": [
           {
-            "top": 217.515625,
-            "bottom": 338.5625,
+            "top": 305.515625,
+            "bottom": 426.5625,
             "w": 288,
             "h": 121.046875
           },
           {
-            "top": 338.5625,
-            "bottom": 459.609375,
+            "top": 426.5625,
+            "bottom": 547.609375,
             "w": 288,
             "h": 121.046875
           },
           {
-            "top": 459.609375,
-            "bottom": 580.65625,
+            "top": 547.609375,
+            "bottom": 668.65625,
             "w": 288,
             "h": 121.046875
           },
           {
-            "top": 580.65625,
-            "bottom": 701.703125,
+            "top": 668.65625,
+            "bottom": 789.703125,
             "w": 288,
             "h": 121.046875
           }
         ],
-        "completos": 3,
+        "completos": 2,
         "nomes": [
           {
             "nome": "Prensado Completo",
@@ -1054,7 +1054,7 @@
           "nome": "Prensado Completo",
           "linhas": 1,
           "font": "17px",
-          "w": 149.78125,
+          "w": 148.15625,
           "h": 21.25,
           "inteiro": true
         },
@@ -1062,7 +1062,7 @@
           "nome": "Prensado de Frango",
           "linhas": 1,
           "font": "17px",
-          "w": 153.359375,
+          "w": 149.96875,
           "h": 21.25,
           "inteiro": true
         },
@@ -1070,7 +1070,7 @@
           "nome": "Prensado de Calabresa",
           "linhas": 1,
           "font": "17px",
-          "w": 173.078125,
+          "w": 170.8125,
           "h": 21.25,
           "inteiro": true
         },
@@ -1078,7 +1078,7 @@
           "nome": "Prensado Meia-Noite",
           "linhas": 1,
           "font": "17px",
-          "w": 160.9375,
+          "w": 158.515625,
           "h": 21.25,
           "inteiro": true
         }
@@ -1131,7 +1131,7 @@
             "nome": "Prensado Completo",
             "linhas": 1,
             "font": "17px",
-            "w": 149.78125,
+            "w": 148.15625,
             "h": 21.25,
             "inteiro": true
           },
@@ -1139,7 +1139,7 @@
             "nome": "Prensado de Frango",
             "linhas": 1,
             "font": "17px",
-            "w": 153.359375,
+            "w": 149.96875,
             "h": 21.25,
             "inteiro": true
           },
@@ -1147,7 +1147,7 @@
             "nome": "Prensado de Calabresa",
             "linhas": 1,
             "font": "17px",
-            "w": 173.078125,
+            "w": 170.8125,
             "h": 21.25,
             "inteiro": true
           },
@@ -1155,7 +1155,7 @@
             "nome": "Prensado Meia-Noite",
             "linhas": 1,
             "font": "17px",
-            "w": 160.9375,
+            "w": 158.515625,
             "h": 21.25,
             "inteiro": true
           }
@@ -1209,7 +1209,7 @@
             "nome": "Prensado Completo",
             "linhas": 1,
             "font": "17px",
-            "w": 149.78125,
+            "w": 148.15625,
             "h": 21.25,
             "inteiro": true
           },
@@ -1217,7 +1217,7 @@
             "nome": "Prensado de Frango",
             "linhas": 1,
             "font": "17px",
-            "w": 153.359375,
+            "w": 149.96875,
             "h": 21.25,
             "inteiro": true
           },
@@ -1225,7 +1225,7 @@
             "nome": "Prensado de Calabresa",
             "linhas": 1,
             "font": "17px",
-            "w": 173.078125,
+            "w": 170.8125,
             "h": 21.25,
             "inteiro": true
           },
@@ -1233,7 +1233,7 @@
             "nome": "Prensado Meia-Noite",
             "linhas": 1,
             "font": "17px",
-            "w": 160.9375,
+            "w": 158.515625,
             "h": 21.25,
             "inteiro": true
           }
@@ -1365,37 +1365,37 @@
       "cards": [
         {
           "top": 299.6875,
-          "bottom": 624.3125,
+          "bottom": 606.8125,
           "w": 89.328125,
-          "h": 324.625
+          "h": 307.125
         },
         {
           "top": 299.6875,
-          "bottom": 624.3125,
+          "bottom": 606.8125,
           "w": 89.328125,
-          "h": 324.625
+          "h": 307.125
         },
         {
           "top": 299.6875,
-          "bottom": 624.3125,
+          "bottom": 606.8125,
           "w": 89.34375,
-          "h": 324.625
+          "h": 307.125
         },
         {
-          "top": 634.3125,
-          "bottom": 888.953125,
+          "top": 616.8125,
+          "bottom": 871.453125,
           "w": 89.328125,
           "h": 254.640625
         },
         {
-          "top": 634.3125,
-          "bottom": 888.953125,
+          "top": 616.8125,
+          "bottom": 871.453125,
           "w": 89.328125,
           "h": 254.640625
         },
         {
-          "top": 634.3125,
-          "bottom": 888.953125,
+          "top": 616.8125,
+          "bottom": 871.453125,
           "w": 89.34375,
           "h": 254.640625
         }
@@ -1404,10 +1404,10 @@
       "nomes": [
         {
           "nome": "Prensado da Praça com frango, calabresa e queijo especial da madrugada",
-          "linhas": 9,
+          "linhas": 8,
           "font": "14px",
           "w": 85.328125,
-          "h": 157.5,
+          "h": 140,
           "inteiro": true
         },
         {

@@ -7,6 +7,7 @@ import { getFonte } from "../fontes";
 import { baseImagemSlot, caminhoFotoDoSlot, SLOTS_SEM_FOTO } from "../imagens-modo";
 import { getLedEstilo } from "../led/registry";
 import { DEFAULT_SKIN, SKINS, getSkin, getTheme } from "../registry";
+import { temaCalibrado } from "../variantes";
 
 describe("registro de skins", () => {
   it("tem ao menos uma skin e ids únicos", () => {
@@ -92,7 +93,9 @@ describe("registro de skins", () => {
 
       // Limites de escala do título hero: min < max, ambos positivos.
       expect(skin.heroEscalaLimites.min).toBeGreaterThan(0);
-      if (skin.themeDefault.lancheria) expect(skin.heroEscalaLimites.max).toBe(skin.heroEscalaLimites.min);
+      // Skin de tema calibrado não tem slider de escala do título (a
+      // tipografia é do pacote dela) — min === max fecha o controle.
+      if (temaCalibrado(skin)) expect(skin.heroEscalaLimites.max).toBe(skin.heroEscalaLimites.min);
       else expect(skin.heroEscalaLimites.max).toBeGreaterThan(skin.heroEscalaLimites.min);
 
       // Vídeo-no-título é opt-in: NUNCA vem com vídeo de exemplo (a Forja
@@ -147,7 +150,7 @@ describe("registro de skins", () => {
       const secaoIds = skin.secoes.map((secao) => secao.id);
       expect(secaoIds.length).toBeGreaterThan(0);
       expect(new Set(secaoIds).size).toBe(secaoIds.length);
-      if (!skin.themeDefault.lancheria) expect(skin.secoes.some((secao) => !secao.fixa)).toBe(true);
+      expect(skin.secoes.some((secao) => !secao.fixa)).toBe(true);
       for (const secao of skin.secoes) {
         expect(secao.nome, `nome da seção ${secao.id}`).toBeTruthy();
         expect(

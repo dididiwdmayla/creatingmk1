@@ -1,6 +1,6 @@
 {
   "name": "@radar/lancheria-rx",
-  "version": "0.26.0",
+  "version": "0.30.0",
   "private": true,
   "type": "module",
   "sideEffects": false,

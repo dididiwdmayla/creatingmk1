@@ -16,6 +16,7 @@ import { fontesEscolhidas } from "@/lib/demos/fontes";
 import { montarDemoData } from "@/lib/demos/montar";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { aplicarTema } from "@/lib/demos/tema";
+import { exemploDaSkin, temaCalibrado, varianteEfetiva } from "@/lib/demos/variantes";
 import type { LeadDemo } from "@/lib/demos/types";
 import type { AppDb } from "@/lib/firestore-like";
 import type { Lead } from "@/lib/leads/types";
@@ -77,13 +78,20 @@ export async function resolverDemo(fonte: FonteDemo) {
   // camada `dadosDoLead` entra no meio; sem ele, a identidade em branco
   // toma o lugar dela (nada de texto de template se passando por dado do
   // negócio numa página pública).
+  // Camada 1 da montagem: o exemplo da VARIANTE escolhida (skin sem
+  // variantes devolve o demoDataExemplo de sempre) — ver lib/demos/variantes.ts.
+  const exemplo = exemploDaSkin(skin, fonte.demo.themeId);
   const data = fonte.lead
-    ? montarDemoData(skin.demoDataExemplo, fonte.lead, fonte.demo.dados, skin.id)
-    : montarDemoDataAvulsa(skin.demoDataExemplo, fonte.demo.dados, skin.id);
+    ? montarDemoData(exemplo, fonte.lead, fonte.demo.dados, skin.id)
+    : montarDemoDataAvulsa(exemplo, fonte.demo.dados, skin.id);
 
   // Só busca (import dinâmico) as fontes curadas que o editor de fato
   // escolheu — o resto da lista nunca chega a ser fetched pelo cliente.
-  const extraFontClassName = skin.themeDefault.lancheria ? "" : await resolveExtraFontClassNames(fontesEscolhidas(fonte.demo.tema));
+  // Skin de tema calibrado traz a própria folha de fontes (Tema.folhaFontes):
+  // buscar as fontes curadas da Forja só baixaria família que ela não usa.
+  const extraFontClassName = temaCalibrado(skin)
+    ? ""
+    : await resolveExtraFontClassNames(fontesEscolhidas(fonte.demo.tema));
 
   // Efeito de fundo (registro de efeitos) + intensidade — undefined cobre
   // tanto "nenhum" quanto um id que não existe mais no registro. Nunca deve
@@ -106,6 +114,8 @@ export async function resolverDemo(fonte: FonteDemo) {
     efeitoId: efeitoFundo?.efeito.id,
     efeitoCores: theme.efeitoCores,
     auraCores: fonte.demo.tema?.auraCores,
+    // Veredito do portão de fps POR CÉLULA (variante × modo de cor).
+    modosReprovados: varianteEfetiva(skin, fonte.demo.themeId)?.modosDeCorReprovados,
   });
 
   return { skin, theme, data, extraFontClassName, efeitoFundo, camada, fonte };

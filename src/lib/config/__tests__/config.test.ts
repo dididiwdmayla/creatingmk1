@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SKINS } from "@/lib/demos/registry";
 import { ValidationError } from "@/lib/errors";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import {
@@ -255,12 +256,12 @@ describe("precificacao (calculadora regional)", () => {
 });
 
 describe("capturas.ancoras (marcação de âncoras de captura)", () => {
-  it("default: as 12 skins já vêm marcadas, mantendo o hero das existentes", async () => {
+  it("default: toda skin do registro já vem marcada, abrindo pelo hero", async () => {
     const db = new FakeFirestore();
 
     const config = await loadConfig(db);
 
-    expect(Object.keys(config.capturas.ancoras)).toHaveLength(12);
+    expect(Object.keys(config.capturas.ancoras).sort()).toEqual(SKINS.map((s) => s.id).sort());
     expect(config.capturas.ancoras["barbearia-editorial"]).toEqual([
       "hero",
       "servicos",

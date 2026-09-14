@@ -513,6 +513,74 @@ export interface SkinSecaoDef {
 }
 
 /**
+ * Arranjo default de seções de uma variante: a MESMA lista de ids do
+ * contrato da skin (`SkinDefinition.secoes`), em outra ordem, com algumas
+ * podendo nascer ocultas. É a metade "composição" do que uma variante pode
+ * mudar — a outra é textura/paleta, que vive no `Theme` dela.
+ */
+export interface VarianteArranjo {
+  /**
+   * PERMUTAÇÃO dos ids de `SkinDefinition.secoes` — todos, inclusive as
+   * fixas (que continuam na posição default no render; ver `ordemEfetiva`).
+   * Nem renomeia nem remove: id fora do contrato, id faltando ou id
+   * repetido é erro de contrato, pego pelo teste das variantes.
+   */
+  ordem: readonly string[];
+  /** Seções que nascem ocultas nesta variante. Só ids de seção NÃO-fixa. */
+  ocultas?: readonly string[];
+}
+
+/**
+ * Uma VARIANTE de skin — o eixo que substitui o preset de tema quando uma
+ * skin tem mais de um mundo visual sobre o MESMO contrato de seções e de
+ * slots (ver "Variante de skin" em ARCHITECTURE.md).
+ *
+ * A variante OCUPA O LUGAR DO PRESET: `id` é o id do `Theme` dela, e é o que
+ * `LeadDemo.themeId` persiste — nenhum campo novo no banco, e `getTheme`
+ * continua resolvendo pelo mesmo caminho de sempre.
+ *
+ * O que uma variante PODE mudar: paleta, tipografia e textura (tudo no
+ * `theme`), a composição (`arranjo`) e o conteúdo de exemplo (`exemplo`).
+ * O que ela NÃO PODE: renomear, remover ou inventar seção, e mudar o
+ * conjunto de slots. Essa é a trava, e ela é testada — não é convenção.
+ */
+export interface SkinVariante {
+  /** Id da variante = id do `theme` dela (a variante É o preset). */
+  id: string;
+  nome: string;
+  descricao?: string;
+  /**
+   * Fundo da variante. O registro exige que uma skin com variantes tenha
+   * ao menos uma `claro` e uma `escuro` — quem escolhe a demo precisa dos
+   * dois mundos, não de quatro tons do mesmo.
+   */
+  fundo: "claro" | "escuro";
+  /** Paleta + texturas. `theme.id` é sempre igual ao `id` acima. */
+  theme: Theme;
+  /** Arranjo default de seções (ver VarianteArranjo). */
+  arranjo: VarianteArranjo;
+  /**
+   * Camada de EXEMPLO da variante — é ela que entra como camada 1 de
+   * `montarDemoData`, ABAIXO de `dadosDoLead` e do patch do editor (ver
+   * `exemploDaSkin` em ./variantes.ts). Já vem com o `arranjo` aplicado em
+   * `ordemSecoes`/`secoes[].oculta`, que é a forma que o editor persiste:
+   * o operador reordena por cima da variante como reordenaria qualquer skin.
+   */
+  exemplo: DemoData;
+  /** Miniatura da variante no seletor da aba Tema e na escolha de skin. */
+  thumbnail: string;
+  /**
+   * Modos de cor da camada decorativa reprovados no portão de fps NESTA
+   * variante (mesmo contrato de `EfeitoDefinition.modosDeCorReprovados`).
+   * O veredito do portão é por CÉLULA — variante × modo: um modo que
+   * reprova é desabilitado sozinho, a variante inteira nunca é.
+   */
+  modosDeCorReprovados?: readonly string[];
+  /** Por que os modos acima reprovaram — texto curto, mostrado no editor. */
+  motivoModosReprovados?: string;
+}
+
+/**
  * Ajustes de tema por cima do preset escolhido (LeadDemo.tema). Fontes
  * vêm da lista curada (ids de DEMO_FONTES em ./fontes.ts); `destaque` é a
  * cor primária em hex — o ink sobre ela é recalculado por contraste
@@ -588,9 +656,32 @@ export interface SkinDefinition {
   themeDefault: Theme;
   /** Presets oferecidos na ficha do lead (inclui o default). */
   themePresets: Theme[];
+  /**
+   * VARIANTES desta skin — opt-in, ausente = a skin não tem o eixo e
+   * `themePresets` são presets de tema comuns (ver SkinVariante).
+   *
+   * Quando presente, a variante ocupa o lugar do preset: `themePresets` é
+   * derivado daqui (`variantes.map(v => v.theme)`, na mesma ordem) e
+   * `themeDefault`/`demoDataExemplo` são os da primeira. Tudo que já lia
+   * `themePresets`/`getTheme` continua funcionando sem saber de variante;
+   * quem precisa do arranjo e do exemplo por variante usa ./variantes.ts.
+   */
+  variantes?: readonly SkinVariante[];
   demoDataExemplo: DemoData;
   /** Seções da skin, na ordem default de render (contrato do editor). */
   secoes: SkinSecaoDef[];
+  /**
+   * A skin implementa animação de ENTRADA por seção (`DemoSecao.animacao`,
+   * o liga/desliga da aba Estrutura)? Ausente = sim, que é o caso das oito
+   * skins nativas: cada uma envolve suas seções em `SecaoMarcada` +
+   * `SectionReveal` e emite `data-d-secao-anim`.
+   *
+   * `false` para skin cujo componente vem de um pacote externo e monta as
+   * próprias seções — ela marca `data-d-secao` (a âncora de captura), mas
+   * não tem wrapper de entrada onde pendurar a animação. Sem isso o painel
+   * mostraria um botão que não faz nada.
+   */
+  animacaoPorSecao?: false;
   /** Limites de escala do título hero oferecidos na aba Tema do editor. */
   heroEscalaLimites: { min: number; max: number };
   /**
