@@ -13,7 +13,10 @@ import { montarDemoDataAvulsa } from '../avulsas/identidade';
 import { aplicarTema } from '../tema';
 import { validateLeadDemoInput } from '../validate';
 import { getSkin, getTheme } from '../registry';
-import { exemploDaSkin } from '../variantes';
+import { exemploDaSkin, getVariante } from '../variantes';
+import { secoesVisiveis } from '../estrutura';
+import { montarDemoData } from '../montar';
+import type { DemoData } from '../types';
 
 const skin=LANCHERIA_2;
 const variantes=skin.variantes!;
@@ -47,6 +50,57 @@ describe('lancheria: fronteira do Radar e motor fixo',()=>{
       expect(exemploDaSkin(skin,v.id)).toBe(v.exemplo);
     }
   });
+  it('a aba Estrutura chega no HTML do servidor: ordem e ocultação viram CSS',()=>{
+    const theme=aplicarTema(getTheme(skin,skin.themeDefault.id),undefined,skin.heroEscalaLimites);
+    const render=(patch:Partial<DemoData>)=>renderToStaticMarkup(createElement(skin.componente,{
+      data:montarDemoData({...exemploDaSkin(skin,skin.themeDefault.id),...patch},undefined,undefined,skin.id),
+      theme,
+    }));
+    const ordemDe=(html:string)=>[...html.matchAll(/\[data-d-secao="([^"]+)"\]\{order:(\d+)\}/g)]
+      .sort((a,b)=>Number(a[2])-Number(b[2])).map(m=>m[1]);
+    const ocultasDe=(html:string)=>[...html.matchAll(/\[data-d-secao="([^"]+)"\]\{display:none\}/g)].map(m=>m[1]);
+
+    // Sem patch: a ordem default do contrato, nada oculto.
+    const padrao=render({ordemSecoes:undefined,secoes:Object.fromEntries(skin.secoes.map(s=>[s.id,{}]))});
+    expect(ordemDe(padrao)).toEqual(skin.secoes.map(s=>s.id));
+    expect(ocultasDe(padrao)).toEqual([]);
+
+    // Reordenar as não-fixas: as fixas ficam no lugar, as outras seguem o pedido.
+    const reordenado=render({
+      ordemSecoes:['horarios','historia','acompanhamentos','bebidas','sugestoes'],
+      secoes:Object.fromEntries(skin.secoes.map(s=>[s.id,{}])),
+    });
+    expect(ordemDe(reordenado)).toEqual([
+      'hero','cardapio','horarios','historia','acompanhamentos','bebidas','sugestoes','contato',
+    ]);
+
+    // Ocultar sai do fluxo E some da numeração — nunca deixa buraco na ordem.
+    const comOculta=render({
+      ordemSecoes:undefined,
+      secoes:{...Object.fromEntries(skin.secoes.map(s=>[s.id,{}])),bebidas:{oculta:true}},
+    });
+    expect(ocultasDe(comOculta)).toEqual(['bebidas']);
+    expect(ordemDe(comOculta)).toEqual([
+      'hero','cardapio','sugestoes','acompanhamentos','historia','horarios','contato',
+    ]);
+
+    // Seção FIXA não pode ser ocultada, nem por dado salvo à mão.
+    const tentandoOcultarFixa=render({
+      ordemSecoes:undefined,
+      secoes:{...Object.fromEntries(skin.secoes.map(s=>[s.id,{}])),hero:{oculta:true}},
+    });
+    expect(ocultasDe(tentandoOcultarFixa)).toEqual([]);
+  });
+  it('cada variante entra com o SEU arranjo, e o Prático nasce sem a trilha',()=>{
+    const arranjo=(v:typeof variantes[number])=>secoesVisiveis(skin.secoes,
+      montarDemoData(v.exemplo,undefined,undefined,skin.id));
+    expect(arranjo(getVariante(skin,'lancheria-meia-noite')!)).toEqual(
+      ['hero','cardapio','sugestoes','historia','bebidas','acompanhamentos','horarios','contato']);
+    expect(arranjo(getVariante(skin,'lancheria-cantina')!)).toEqual(
+      ['hero','cardapio','historia','sugestoes','bebidas','acompanhamentos','horarios','contato']);
+    expect(arranjo(getVariante(skin,'lancheria-pratico')!)).toEqual(
+      ['hero','cardapio','bebidas','acompanhamentos','horarios','historia','contato']);
+  });
   it('mudar slug não altera os knobs e pelo-rotulo funciona fora do Diner',()=>{
     const d=dadosDaLancheria(dadosQaLancheria(skin));
     const tema={...temaDaLancheria(skin.themeDefault),slug:'identidade-futura',filtroInicial:'todos' as const,abrirComposicao:'pelo-rotulo' as const};
@@ -60,7 +114,7 @@ describe('lancheria: fronteira do Radar e motor fixo',()=>{
     expect(()=>validateLeadDemoInput(input({}, {quente:'#cc4411',frio:'#224466'}))).not.toThrow();
   });
   it('o diff do editor persiste os seis lanches, funcionamento e ingredientes sem perda',()=>{
-    const d=dadosQaLancheria(skin,'cliente');const patch=montarPatch(skin.demoDataExemplo,d,skin);
+    const d=dadosQaLancheria(skin,undefined,'cliente');const patch=montarPatch(skin.demoDataExemplo,d,skin);
     expect(()=>validateLeadDemoInput(input(patch))).not.toThrow();
     const montado=montarDemoDataAvulsa(skin.demoDataExemplo,patch,skin.id);
     expect(montado.lancheria).toEqual(d.lancheria);
@@ -71,7 +125,7 @@ describe('lancheria: fronteira do Radar e motor fixo',()=>{
     expect(d.casa).toMatchObject({nome:'Outra casa',marca:'Outra casa',telefone:'',whatsapp:'',cidade:'',endereco:''});
   });
   it('catálogos simultâneos não compartilham preço nem nome de ingrediente',()=>{
-    const a=dadosDaLancheria(dadosQaLancheria(skin,'cliente')),b=dadosDaLancheria(skin.demoDataExemplo);
+    const a=dadosDaLancheria(dadosQaLancheria(skin,undefined,'cliente')),b=dadosDaLancheria(skin.demoDataExemplo);
     const pa=criarPedido(a),pb=criarPedido(b),precos=criarPrecos(a);
     expect(pa.itemFixo(a.lanches[0]).cent).toBe(4100);
     expect(pb.itemFixo(b.lanches[0]).cent).toBe(b.lanches[0].precoCent);
@@ -89,7 +143,7 @@ describe('lancheria: fronteira do Radar e motor fixo',()=>{
     expect(()=>validateLeadDemoInput({...input(),idioma:'de-CH'})).toThrow();
   });
   it('o relógio respeita minutos, intervalo diurno e horário de madrugada',()=>{
-    const c=dadosDaLancheria(dadosQaLancheria(skin,'cliente')).casa;
+    const c=dadosDaLancheria(dadosQaLancheria(skin,undefined,'cliente')).casa;
     expect(horarioDaCasa(new Date('2026-09-13T14:29:00Z'),c).aberto).toBe(false);
     expect(horarioDaCasa(new Date('2026-09-13T14:30:00Z'),c).aberto).toBe(true);
     expect(horarioDaCasa(new Date('2026-09-14T01:16:00Z'),c).aberto).toBe(false);

@@ -22,6 +22,11 @@ export const LANCHERIA_2: SkinDefinition = {
   themePresets: LANCHERIA2_VARIANTES.map((v) => v.theme),
   demoDataExemplo: LANCHERIA2_VARIANTES[0].exemplo,
   secoes: LANCHERIA2_SECOES,
+  // O componente vem do pacote calibrado e monta as próprias seções: ele
+  // marca `data-d-secao` (a âncora de captura), mas não tem wrapper de
+  // entrada onde pendurar animação por seção. Sem isto o painel Estrutura
+  // mostraria um botão que não faz nada.
+  animacaoPorSecao: false,
   localeFixo: { idioma: "pt-BR", moeda: "BRL" },
   // O título hero é tipografia calibrada do pacote: sem slider de escala.
   heroEscalaLimites: { min: 1, max: 1 },

@@ -1,6 +1,6 @@
 {
   "repositorio": "dididiwdmayla/lancheriademodois",
-  "base": "9e298c4da7daee8fc828b45ec3fc56ba1c2e53f3",
+  "base": "88ee0a42a72572cac4d0ea33ee8bab6f6818e881",
   "motor": [
     "components/raio-x/prensa.ts",
     "components/raio-x/sombra.ts",

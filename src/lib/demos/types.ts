@@ -670,6 +670,18 @@ export interface SkinDefinition {
   demoDataExemplo: DemoData;
   /** Seções da skin, na ordem default de render (contrato do editor). */
   secoes: SkinSecaoDef[];
+  /**
+   * A skin implementa animação de ENTRADA por seção (`DemoSecao.animacao`,
+   * o liga/desliga da aba Estrutura)? Ausente = sim, que é o caso das oito
+   * skins nativas: cada uma envolve suas seções em `SecaoMarcada` +
+   * `SectionReveal` e emite `data-d-secao-anim`.
+   *
+   * `false` para skin cujo componente vem de um pacote externo e monta as
+   * próprias seções — ela marca `data-d-secao` (a âncora de captura), mas
+   * não tem wrapper de entrada onde pendurar a animação. Sem isso o painel
+   * mostraria um botão que não faz nada.
+   */
+  animacaoPorSecao?: false;
   /** Limites de escala do título hero oferecidos na aba Tema do editor. */
   heroEscalaLimites: { min: number; max: number };
   /**

@@ -1800,6 +1800,7 @@ function ItemEstrutura({
   alinhamento,
   entrada,
   animada,
+  temAnimacao,
   onOcultar,
   onAlinhar,
   onEntrada,
@@ -1815,6 +1816,8 @@ function ItemEstrutura({
   alinhamento: Alinhamento | undefined;
   entrada: AnimacaoEntrada | undefined;
   animada: boolean;
+  /** A skin implementa animação por seção? (SkinDefinition.animacaoPorSecao) */
+  temAnimacao: boolean;
   onOcultar: () => void;
   onAlinhar: (opcao: Alinhamento) => void;
   onEntrada: (opcao: AnimacaoEntrada | undefined) => void;
@@ -1868,7 +1871,7 @@ function ItemEstrutura({
           ))}
         </div>
       )}
-      {!oculta && (
+      {!oculta && temAnimacao && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] uppercase tracking-wide text-ink-muted">Animação</span>
           <BotaoAnimacaoSecao animada={animada} onToggle={onAnimacao} />
@@ -1935,9 +1938,10 @@ export function PainelEstrutura({
     <div className="flex flex-col gap-3">
       <p className="text-[11px] text-ink-muted">
         Arraste para reordenar. Seções ocultas continuam editáveis e podem voltar quando
-        quiser. Desligar a animação de uma seção tira a entrada no scroll e apaga o efeito
-        de fundo (com transição suave) enquanto ela estiver na tela. O template segue
-        responsivo — sem posicionamento livre.
+        quiser.{" "}
+        {skin.animacaoPorSecao !== false &&
+          "Desligar a animação de uma seção tira a entrada no scroll e apaga o efeito de fundo (com transição suave) enquanto ela estiver na tela. "}
+        O template segue responsivo — sem posicionamento livre.
       </p>
 
       {skin.secoes
@@ -1951,12 +1955,14 @@ export function PainelEstrutura({
             {def.nome}
             <span className="ml-auto text-[10px] uppercase tracking-wide">fixa</span>
             {/* Fixa não reordena nem oculta, mas anima — e pode deixar de animar. */}
-            <BotaoAnimacaoSecao
-              animada={secaoAnimada(dados, def.id)}
-              onToggle={() =>
-                setSecao(def.id, { animacao: secaoAnimada(dados, def.id) ? false : undefined })
-              }
-            />
+            {skin.animacaoPorSecao !== false && (
+              <BotaoAnimacaoSecao
+                animada={secaoAnimada(dados, def.id)}
+                onToggle={() =>
+                  setSecao(def.id, { animacao: secaoAnimada(dados, def.id) ? false : undefined })
+                }
+              />
+            )}
           </div>
         ))}
 
@@ -1981,6 +1987,7 @@ export function PainelEstrutura({
               alinhamento={alinhamento}
               entrada={secao?.animacaoEntrada}
               animada={secaoAnimada(dados, id)}
+              temAnimacao={skin.animacaoPorSecao !== false}
               onOcultar={() => setSecao(id, { oculta: oculta ? undefined : true })}
               onAlinhar={(opcao) => setSecao(id, { alinhamento: opcao })}
               onEntrada={(opcao) => setSecao(id, { animacaoEntrada: opcao })}

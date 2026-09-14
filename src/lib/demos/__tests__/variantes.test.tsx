@@ -43,7 +43,14 @@ function htmlNeutro(skin: SkinDefinition, variante: SkinVariante): string {
     ) };
   const data = montarDemoData(neutro, undefined, undefined, skin.id);
   const theme = aplicarTema(getTheme(skin, variante.id), undefined, skin.heroEscalaLimites);
-  return renderToStaticMarkup(createElement(skin.componente, { data, theme }));
+  // Fora o conteúdo de <style>: uma skin pode NOMEAR seções no CSS (a
+  // lancheria-2 ordena e oculta por `[data-d-secao="…"]{order:N}`), e isso
+  // não é marcação. Sem tirar, o teste contaria a regra como se fosse a
+  // caixa — e foi exatamente o que ele pegou quando o CSS entrou.
+  return renderToStaticMarkup(createElement(skin.componente, { data, theme })).replace(
+    /<style\b[^>]*>[\s\S]*?<\/style>/g,
+    "",
+  );
 }
 
 const secoesNoHtml = (html: string): string[] =>

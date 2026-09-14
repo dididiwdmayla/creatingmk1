@@ -1,10 +1,14 @@
 import { exemploLancheria } from '@radar/lancheria-rx/contrato';
 import type { DemoData, SkinDefinition } from '../types';
+import { exemploDaSkin, varianteEfetiva } from '../variantes';
 
-/** Fixtures explícitas, usadas apenas no harness interno e nos testes. */
-export function dadosQaLancheria(skin: SkinDefinition, cenario='padrao'): DemoData {
-  const data=structuredClone(skin.demoDataExemplo);
-  const {casa}=exemploLancheria(skin.themeDefault.lancheria!.hero);
+/** Fixtures explícitas, usadas apenas no harness interno e nos testes.
+ *  `varianteId` escolhe a camada de exemplo — sem ele as quatro variantes
+ *  renderizariam a primeira, e o harness compararia a mesma coisa 4x. */
+export function dadosQaLancheria(skin: SkinDefinition, varianteId?: string, cenario='padrao'): DemoData {
+  const data=structuredClone(exemploDaSkin(skin,varianteId));
+  const tema=(varianteEfetiva(skin,varianteId)?.theme ?? skin.themeDefault).lancheria!;
+  const {casa}=exemploLancheria(tema.hero);
   Object.assign(data,{nome:casa.nome,cidade:casa.cidade,endereco:casa.endereco,telefone:casa.telefone,whatsapp:casa.whatsapp});
   data.lancheria!.funcionamento.confirmado=true;
   if(cenario==='cliente') {

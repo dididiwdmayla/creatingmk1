@@ -856,8 +856,7 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
                 paisSalvando={salvandoPais}
               />
             )}
-            {aba === "estrutura" && skin.themeDefault.lancheria && <p className="text-sm">A estrutura pertence à skin escolhida. Edite lanches, ingredientes e textos em Conteúdo.</p>}
-            {aba === "estrutura" && !skin.themeDefault.lancheria && (
+            {aba === "estrutura" && (
               <PainelEstrutura dados={dados} skin={skin} atualizar={atualizar} />
             )}
             {aba === "capturas" && (
