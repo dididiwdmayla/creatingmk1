@@ -48,3 +48,30 @@ it("valida alts por slot declarado, incluindo vazio decorativo", () => {
   expect(() => validateLeadDemoInput({ skinId: skin.id, themeId: skin.themeDefault.id,
     dados: { imagensAlt: { desconhecido: "Foto" } } })).toThrow();
 });
+
+it("oliva resolve para vinho na leitura, montagem e escrita", async () => {
+  const { getVariante } = await import('../variantes');
+  expect(getTheme(skin, 'oliva')).toBe(getTheme(skin, 'vinho'));
+  expect(getVariante(skin, 'oliva')?.id).toBe('vinho');
+  expect(exemploDaSkin(skin, 'oliva')).toBe(exemploDaSkin(skin, 'vinho'));
+  expect(validateLeadDemoInput({skinId:skin.id,themeId:'oliva',dados:{}}).themeId).toBe('vinho');
+  expect(skin.themePresets.map(t=>t.id)).not.toContain('oliva');
+  expect(getTheme(getSkin('petshop-focinho-feliz')!, 'oliva').id).not.toBe('vinho');
+});
+
+it("variantes preservam campos internos de conteúdo e alts, não só IDs de seção", () => {
+  const shape = (d: typeof skin.demoDataExemplo) => Object.fromEntries(Object.entries(d.secoes).map(([id,s]) =>
+    [id, Object.keys(s).filter(k=>!['oculta','alinhamento','animacao','animacaoEntrada'].includes(k)).sort()]));
+  for(const v of skin.variantes ?? []) {
+    expect(shape(v.exemplo)).toEqual(shape(skin.demoDataExemplo));
+    expect(v.exemplo.imagensAlt).toEqual(skin.demoDataExemplo.imagensAlt);
+    const base=montarDemoData(v.exemplo,lead,undefined,skin.id);
+    const editado=montarDemoData(v.exemplo,lead,{ordemSecoes:['contato','servicos'],secoes:{ritual:{oculta:true}},imagens:{hero:'/foto-enviada.webp'}},skin.id);
+    const doc=new JSDOM(renderToStaticMarkup(createElement(skin.componente,{data:editado,theme:v.theme}))).window.document;
+    expect(doc.querySelector('[data-d-secao]')?.getAttribute('data-d-secao')).toBe('hero');
+    expect(doc.querySelector('[data-d-secao="ritual"]')).toBeNull();
+    expect(doc.querySelector('[data-demo-slot="imagens.hero"]')?.getAttribute('src')).toBe('/foto-enviada.webp');
+    expect(montarPatch(base,base,skin).imagens).toBeUndefined();
+    expect(montarPatch(base,base,skin).ordemSecoes).toBeUndefined();
+  }
+});

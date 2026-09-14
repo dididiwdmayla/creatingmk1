@@ -73,9 +73,7 @@ function estadoInicial(cliente: ClienteDemo, registro: RegistroDemo, skinPedida?
   const skin = getSkin(skinPedida ?? registro.demo?.skinId) ?? DEFAULT_SKIN;
   const daSkin = registro.demo?.skinId === skin.id;
   const themeSalvo = daSkin ? registro.demo?.themeId : undefined;
-  const themeId = skin.themePresets.some((t) => t.id === themeSalvo)
-    ? (themeSalvo as string)
-    : skin.themeDefault.id;
+  const themeId = getTheme(skin, themeSalvo).id;
   return {
     skinId: skin.id,
     themeId,

@@ -31,12 +31,11 @@ export function TeamCard({
     <div
       data-cursor="razor"
       data-cursor-text={cursorTexto}
-      className="group flex h-full flex-col overflow-hidden rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg)] p-4 pb-8 transition-transform duration-[var(--d-anim-duration)] hover:translate-y-[var(--d-hover-lift)]"
-      style={{ boxShadow: "0 16px 48px rgba(0,0,0,0.4)" }}
+      className="be-team-card group flex h-full flex-col overflow-hidden rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg)] p-4 pb-8 transition-transform duration-[var(--d-anim-duration)] hover:translate-y-[var(--d-hover-lift)]"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div className="relative mb-6 aspect-[3/4] w-full overflow-hidden rounded-[var(--d-radius)]">
+      <div data-be-foto className="be-team-photo relative mb-6 aspect-[3/4] w-full overflow-hidden rounded-[var(--d-radius)]">
         <HairParticles isHovered={hovered} />
         <Image
           src={imageSrc}
@@ -45,7 +44,6 @@ export function TeamCard({
           fill
           unoptimized
           className="object-cover transition-transform duration-[var(--d-anim-duration)] group-hover:scale-[var(--d-hover-scale)]"
-          style={{ filter: "contrast(0.95) saturate(0.9)" }}
           sizes="(max-width: 768px) 100vw, 33vw"
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--d-bg)] to-transparent" />

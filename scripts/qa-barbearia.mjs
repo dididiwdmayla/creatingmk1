@@ -14,7 +14,7 @@ const browser = await chromium.launch({ executablePath: CHROMIUM, headless: true
 const esperado = ['hero','agendamentoRapido','filosofia','servicos','equipe','ritual','depoimentos','agendamento','contato'];
 const relatorio = [];
 try {
-  for (const js of [false, true]) {
+  for (const js of (process.argv.includes("--sem-js") ? [false] : [false, true])) {
     const ctx = await browser.newContext({ javaScriptEnabled: js, viewport: { width: 1100, height: 800 } });
     await ctx.addCookies([app.cookie]);
     const page = await ctx.newPage();
@@ -47,6 +47,8 @@ try {
           await page.waitForTimeout(500);
         }
         const prefix=`${id}-${width}-${js?'js':'sem-js'}`;
+        // Mesmo recorte de identidade: chrome fixo fora da âncora fica fora do print.
+        await page.locator('.be header').evaluate(el => { el.style.display='none'; });
         await hero.screenshot({path:path.join(saida,`${prefix}-hero.png`)});
         if(js) await page.screenshot({path:path.join(saida,`${prefix}-pagina.png`),fullPage:true});
         relatorio.push({id,width,js,nome,secoes,...medida});

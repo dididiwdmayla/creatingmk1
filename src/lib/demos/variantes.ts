@@ -14,12 +14,17 @@ import type { DemoData, DemoSecao, SkinDefinition, SkinSecaoDef, SkinVariante } 
  * render, o editor no painel, os testes no contrato.
  */
 
+/** Alias restrito à skin; leitura tolerante, escrita retorna o ID canônico. */
+export function idThemeAtual(skin: SkinDefinition, id: string | undefined): string | undefined {
+  return id === undefined ? undefined : skin.themeAliases?.[id] ?? id;
+}
+
 /** A variante de id pedido, ou `undefined` se a skin não tem essa (ou nenhuma). */
 export function getVariante(
   skin: SkinDefinition,
   id: string | undefined,
 ): SkinVariante | undefined {
-  return skin.variantes?.find((variante) => variante.id === id);
+  return skin.variantes?.find((variante) => variante.id === idThemeAtual(skin, id));
 }
 
 /**

@@ -147,7 +147,7 @@ export function montarPatch(
   }
   if (Object.keys(videos).length > 0) patch.videos = videos;
 
-  const ordemDefault = skin.secoes.filter((s) => !s.fixa).map((s) => s.id);
+  const ordemDefault = base.ordemSecoes ?? skin.secoes.filter((s) => !s.fixa).map((s) => s.id);
   if (atual.ordemSecoes && !igualJson(atual.ordemSecoes, ordemDefault)) {
     patch.ordemSecoes = atual.ordemSecoes;
   }

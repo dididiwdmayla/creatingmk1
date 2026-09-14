@@ -110,16 +110,16 @@ const CREME: Theme = {
   animacao: "sutil",
 };
 
-const OLIVA: Theme = {
-  id: "oliva",
+const VINHO: Theme = {
+  id: "vinho",
   nome: "Vinho (bordô e ouro rosé)",
   ...INTERACOES_ORIGINAIS,
   paleta: {
     fundo: "#160C10",
     fundoAlt: "#241318",
     fundoElevado: "#32191F",
-    destaque: "#A23B54",
-    destaqueInk: "#FBEEF1",
+    destaque: "#C5788E",
+    destaqueInk: "#160C10",
     texto: "#F0E1E4",
     textoSuave: "#A98D93",
     borda: "rgba(240, 225, 228, 0.10)",
@@ -136,4 +136,4 @@ const OLIVA: Theme = {
 };
 
 export const BARBEARIA_THEME_DEFAULT: Theme = NORTE;
-export const BARBEARIA_THEME_PRESETS: Theme[] = [NORTE, MEIA_NOITE, CREME, OLIVA];
+export const BARBEARIA_THEME_PRESETS: Theme[] = [NORTE, MEIA_NOITE, CREME, VINHO];

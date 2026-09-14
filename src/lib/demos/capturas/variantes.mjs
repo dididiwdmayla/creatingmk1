@@ -12,6 +12,7 @@
  * lancherias ficaram fora de `--so=colapso` por uma rodada inteira.
  */
 export const VARIANTES_POR_SKIN = /** @type {Record<string, string[]>} */ ({
+  "barbearia-editorial": ["norte", "meia-noite", "creme", "vinho"],
   "lancheria-2": [
     "lancheria-meia-noite",
     "lancheria-diner",

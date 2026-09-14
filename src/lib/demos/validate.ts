@@ -1,3 +1,4 @@
+import { idThemeAtual } from "./variantes";
 import { problemasLancheria } from "./lancheria/adapter";
 import { temaCalibrado } from "./variantes";
 import { ValidationError } from "@/lib/errors";
@@ -591,7 +592,7 @@ export function validateLeadDemoInput(body: Record<string, unknown>): LeadDemoIn
 
   if (typeof body.themeId !== "string") {
     problemas.push("themeId deve ser string");
-  } else if (skin && !skin.themePresets.some((theme) => theme.id === body.themeId)) {
+  } else if (skin && !skin.themePresets.some((theme) => theme.id === idThemeAtual(skin, body.themeId as string))) {
     problemas.push(
       `themeId "${body.themeId}" não é preset da skin (${skin.themePresets
         .map((theme) => theme.id)
@@ -626,7 +627,7 @@ export function validateLeadDemoInput(body: Record<string, unknown>): LeadDemoIn
 
   return {
     skinId: body.skinId as string,
-    themeId: body.themeId as string,
+    themeId: skin ? idThemeAtual(skin, body.themeId as string)! : body.themeId as string,
     dados,
     ...(tema && Object.keys(tema).length > 0 && { tema }),
     ...(typeof body.idioma === "string" && { idioma: body.idioma }),
