@@ -2326,6 +2326,7 @@ Um celular Android com MacroDroid é um EXECUTOR BURRO: pergunta "qual o próxim
   "exigirJanelaBoa": true,           // só libera lead cuja janela de contato atual é "boa"
   "nichosPermitidos": [],            // vazio = todos
   "intervaloMinimoSegundos": 180,
+  "respostaAgrupamentoSegundos": 45, // janela de silêncio antes de gerar UM rascunho com as mensagens acumuladas — ver "Fila de respostas"
   "inicioDiaOperacionalHora": 0,     // hora (America/Sao_Paulo) em que o dia operacional começa; 0 = meia-noite
   "numeroTeste": "5544984570105",    // destino de TODO disparo de teste; vazio = disparo desligado
   "ativoAlteradoPor": "dispositivo", // "dispositivo" (POST /api/fila/pausar) ou o userId do admin (PUT); null = nunca mudou
@@ -2675,6 +2676,98 @@ A página `/config` já era restrita ao admin no proxy (membro é mandado de vol
 `/api/fila/diagnostico` continua sendo o caso especial que já era: vive sob o prefixo `/api/fila/*` que o proxy isenta da sessão (porque é lá que o celular bate com a `RADAR_DEVICE_KEY`), e por isso faz a própria checagem completa de sessão + papel. A `RADAR_DEVICE_KEY` **não abre esta tela**: aquele segredo é do aparelho e só serve às rotas de execução (`/proximo`, `/confirmar`).
 
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` captura o painel em três estados × celular e desktop × temas escuro e claro (o tema claro pelo mesmo motivo do `--so=pendencias`: é onde os tokens apagados deste bloco têm menos contraste de sobra, e as capturas de aba não o cobrem). Os estados: **cheia** (5 próximos + "e mais 1 na fila", 2 bloqueados, contador andando, retrato do pool datado); **vazia** — fila ativa, pool sem candidato e contador zerado, os três estados vazios de uma vez, que é o motivo de o passo existir e onde ele cobra que o painel ENCOLHA (−501px no celular, −381px no desktop) em vez de trocar as listas por um vão; e **sem pool**, o celular que nunca pediu tarefa. Os fixtures usam as famílias `petshop` (faixa `bom` o dia inteiro nos 7 dias) e `multimarcas` (`ruim` igual), pelo mesmo motivo já anotado para `imobiliaria` em /mundo: captura cujo CONTEÚDO muda com a hora da rodada não prova nada. Os aferidores do painel (não vaza da viewport, nenhum slot com caixa zerada) são compartilhados com o `--so=pendencias` e com o `--so=teste`, e a asserção "sobrou linha de lista" daquele passo passou a ser escopada por `[data-lista="pendencias"]` — o funil desta visão também é feito de `<li>`, e ele não é linha de pendência.
+
+## Fila de respostas — captura, agrupamento e rascunho por IA (`POST /api/fila/mensagem-recebida`)
+
+O terceiro pilar da fila do celular: depois de captar o lead (busca) e disparar a mensagem (fila de envio acima), este bloco capta a RESPOSTA do lead e prepara um rascunho para o operador revisar. Mesma macro do MacroDroid, mesmo aparelho pessoal do operador — mas agora observando notificações em vez de disparando.
+
+### O que o aparelho manda, e por que isso importa para o design
+
+Comportamento TESTADO no celular, não suposto: cada mensagem do WhatsApp gera uma notificação PRÓPRIA (sem agrupar), o corpo vem íntegro (quebras de linha, sem truncar), contato não salvo vem com o título sendo o número cru (`"+55 16 98213-3909"`), e o canal de notificação distingue conversa individual de grupo. Três consequências de design saem direto daí: (1) um lead que manda três linhas seguidas dispara três chamadas — sem agrupar, viraria três rascunhos; (2) o texto chega escapado no JSON, e a rota precisa aceitar corpo longo sem truncar; (3) o casamento com o lead tem que ser por TELEFONE normalizado, nunca por nome.
+
+Corpo: `{ remetente, texto, canal, recebidoEm, chave }`. Autenticada por `autenticarDispositivo` (`RADAR_DEVICE_KEY`), sob `/api/fila/*` — mesma exceção do proxy que o resto da fila já usa.
+
+### PRIVACIDADE — requisito de segurança, não de eficiência
+
+O aparelho é o celular PESSOAL do operador e manda TODA notificação do WhatsApp Business, inclusive de conversas que não são prospecção. Duas regras são fail-closed, e as duas descartam em SILÊNCIO (200, nada persistido, nada vai para a IA):
+
+- **Sem lead correspondente** ao telefone do remetente.
+- **Canal de grupo.** `CANAL_INDIVIDUAL = "individual_chat_defaults_1"` (`lib/fila/mensagemRecebida.ts`) é uma WHITELIST, não uma tentativa de reconhecer todo formato de canal de grupo: o aparelho só manda os canais que o Android de fato usa, e uma lista de permissão erra para o lado seguro (descarta o que não reconhece) em vez de tentar adivinhar um padrão.
+
+**NUNCA logar `texto`**, em nenhum caminho, inclusive tratamento de erro — um log de exceção com o corpo da requisição colocaria mensagem privada do operador no log da Vercel. Precisando logar falha, só a chave e o motivo (ver `flushGruposMaduros`, que isola erro por grupo sem nunca tocar no conteúdo das mensagens no que grava).
+
+### Casamento com o lead
+
+`digitosTelefone` (já extraído para `lib/wa.ts` — reaproveitado, não duplicado) normaliza o `remetente` para dígitos puros com DDI; a mesma função normaliza `telefoneIntl`/`detalhes.telefoneIntl` de cada lead, na MESMA precedência de `montarMensagemParaLead` (enriquecido vence o da busca). Varredura completa de `/leads`, mesmo espírito de `listLeads`/`construirPool`: dezenas ou centenas de docs, não milhões.
+
+### Dedupe — a armadilha do `recebidoEm`
+
+`chave` é um hash estável da notificação; `recebidoEm` é o CARIMBO DA NOTIFICAÇÃO, capturado UMA VEZ no aparelho. **Contrato com o lado do aparelho, documentado aqui porque quebrar isso quebra em produção sem barulho**: se a macro reenviar após queda de rede, `recebidoEm` tem que continuar sendo o mesmo instante original — nunca o instante da nova chamada HTTP. Se o aparelho recarimbasse `recebidoEm` a cada tentativa, e `chave` incluísse esse valor (é assim que o hash é montado do lado do aparelho), o hash mudaria e o dedupe falharia exatamente no caso em que ele existe para proteger — a macro reenviando por causa de rede instável.
+
+O dedupe em si sai de graça: `chave` (encoded) É o ID do doc de log em `leads/{leadId}/respostas/{chave}` (ver abaixo). Chave já registrada → devolve `{ processada: false, motivo: "chave_repetida" }` sem tocar em status nem no grupo pendente; a rota sempre responde `200 { ok: true }`, sucesso do ponto de vista do aparelho tanto no caminho novo quanto no repetido.
+
+### Registro e status (`lib/fila/mensagemRecebida.ts`)
+
+Cada mensagem aceita (lead casado, canal individual, chave nova) grava um log PERMANENTE em `leads/{leadId}/respostas/{chave}` — mesmo espírito de subcoleção que `/buscas/{id}/execucoes`, e o mesmo motivo de o id ser a própria chave: dedupe de graça, sem coleção auxiliar para o log em si.
+
+Transição de status: reusa `VALID_TRANSITIONS` (`lib/leads/types.ts`) em vez de checar `lead.status === "contactado"` à mão — só "contactado" tem "respondeu" na própria lista de destinos válidos, e é essa checagem que automaticamente impede rebaixar "fechado" e regravar "respondeu" (ambos ficam de fora da lista de destinos de "respondeu"/"fechado"). Lead em "novo" (nunca deveria responder antes de ser contatado, mas a rota não assume isso) também só recebe a mensagem, sem virar "respondeu".
+
+### Agrupamento — `/filaRespostasPendentes/{leadId}` (`lib/fila/respostasPendentes.ts`)
+
+Como cada mensagem vira uma chamada própria, agrupar é obrigatório: uma janela de silêncio configurável (`respostaAgrupamentoSegundos` em `config/fila`, default 45s) sem mensagem NOVA daquele lead, e só então um rascunho é gerado considerando tudo que chegou.
+
+```jsonc
+// filaRespostasPendentes/{leadId}
+{
+  "leadId": "ChIJ...",
+  "mensagens": [{ "texto": "Oi, tenho interesse!", "recebidoEm": "<ISO>" }],
+  "primeiraMensagemEm": "<ISO>",
+  "ultimaMensagemEm": "<ISO>",   // toda mensagem nova REABRE a janela, avançando este campo
+  "tentativas": 0,
+  "ultimoErro": null
+}
+```
+
+Coleção PRÓPRIA e pequena por natureza (só conversas com mensagem recente ainda sem rascunho) — ler a coleção INTEIRA a cada flush é barato, mesmo espírito de `/filaEnvios`. Existe separada de `leads/{leadId}/respostas` (log permanente, acima) porque os ciclos de vida são diferentes: o log nunca morre, o grupo pendente morre assim que o rascunho sai — e é o que permite achar, de QUALQUER rota, quais leads têm grupo maduro sem varrer `/leads` inteira.
+
+**Reivindicar sem `delete` transacional**: a `UsageTransaction` deste app só tem `get`/`set` (`firestore-like.ts`) — nenhum `delete` dentro de transação, mesmo motivo de `liberarClaim` marcar `expiraEm` no passado em vez de apagar a claim. `reivindicarGrupoMaduro` "reivindica" um grupo maduro devolvendo as mensagens acumuladas e ESVAZIANDO o doc (`mensagens: []`), nunca apagando-o: o doc esvaziado continua como âncora, então uma mensagem nova que chegue ENQUANTO o rascunho está sendo gerado (`adicionarMensagemAoGrupo`, chamada por `mensagemRecebida.ts`) começa um grupo NOVO em cima dele, sem se misturar com o que já foi reivindicado e sem se perder. Um segundo `reivindicarGrupoMaduro` sobre o mesmo doc esvaziado devolve `null` (nada a fazer) — é isso que impede dois flushes concorrentes (`/proximo` e `/mensagem-recebida` podem, em teoria, rodar ao mesmo tempo) de gerarem dois rascunhos do MESMO grupo.
+
+Falha na geração (ver flush, abaixo) devolve as mensagens ao grupo pendente via `restaurarGrupoComErro`, MESCLANDO com o que estiver no doc agora (mensagem nova pode ter chegado durante a tentativa que falhou): a mais antiga das duas `primeiraMensagemEm` e a mais recente das duas `ultimaMensagemEm` prevalecem — é isso que faz o grupo restaurado já nascer MADURO de novo (retentável no PRÓXIMO flush, sem esperar uma nova mensagem do lead para reabrir a janela).
+
+### Quem dispara o flush — o ponto que a serverless não resolve sozinha
+
+Sem servidor de longa duração (Vercel functions) e sem cron com granularidade de segundos, não dá para "esperar" a janela vencer. A solução reaproveita o que já existe: **o aparelho já chama `GET /api/fila/proximo` a cada 180s** (o ciclo normal de envio). Como a janela (45s default) é sempre menor que esse intervalo de polling, `flushGruposMaduros` (`lib/fila/flushRespostas.ts`) chamado no INÍCIO de `/proximo` garante que nenhum grupo fica preso por mais de um ciclo.
+
+`POST /api/fila/mensagem-recebida` chama o MESMO flush no seu próprio início, para grupos de OUTROS leads que já venceram — assim a rota se limpa sozinha quando há movimento, sem depender só do polling de `/proximo`.
+
+**Isolamento obrigatório, em duas camadas**: `processarGrupoReivindicado` (um grupo por vez) tem seu próprio `try/catch` — falha na geração de UM grupo (IA fora do ar, cota estourada, timeout) NUNCA propaga, e o grupo é devolvido ao pendente com o erro marcado, retentável, nunca perdido; `flushGruposMaduros` tem um `try/catch` de última linha por cima de TUDO (listagem + claim + processamento), para um erro na própria infraestrutura (ex.: Firestore fora do ar) também não vazar. O CONTRATO de `/proximo` — a mesma resposta achatada de sempre, com os mesmos seis motivos — nunca muda por causa disto; há teste travando exatamente essa garantia (`fila-proximo.route.test.ts`, describe "flush do agrupamento de respostas").
+
+### Geração do rascunho (`lib/fila/rascunhoResposta.ts`) → `filaRespostas/{id}`
+
+Uma chamada de IA por grupo — sem retry de schema (diferente de `gerarSugestaoDemo`, que tenta 2×): resposta fora do formato vira falha do GRUPO, e a "segunda tentativa" já existe no próprio mecanismo de flush (o grupo restaurado fica maduro de novo). A reserva de cota (`reserveQuota`, SKU `aiGeneration`) acontece ANTES do request ao Gemini, como todo o resto do app.
+
+Contexto no prompt — o que separa um rascunho útil de um educado e genérico:
+
+- **Nicho e nome do negócio** — direto do lead.
+- **A mensagem que o Radar mandou** — reconstruída via `montarMensagemParaLead(db, lead)` (a mesma função que a fila de envio usa): o app não guarda o texto literal que saiu, então reconstruir com a mesma regra de precedência (skin → grupo → global) é a fonte de verdade mais próxima do que o lead de fato recebeu.
+- **O que a demo mostra** — slogan, texto do hero e nomes dos serviços salvos em `lead.demo.dados` (ausência de qualquer um simplesmente omite a linha do prompt, nunca inventa).
+- **Posicionamento de preço** — índice de mercado da REGIÃO (leitura somente-cache de `/regioes`, via `regiaoCacheKey` — nunca gera/regenera aqui, isso é ação explícita do admin) × multiplicador do nicho × piso configurado (`config.precificacao`), com o mesmo `precoBase` de partida (R$2000, "Presença") que o card "Precificação" já assume antes do operador mexer no slider. Sem região cacheada, cai no índice NEUTRO (1.0) — ainda dá um número direcional, só sem a faixa de mercado local.
+
+A IA de análise interna do Radar é sempre pt-BR; o rascunho sai no idioma do LEAD (`idiomaEfetivoDemo`, a mesma derivação país/cidade → idioma que a Forja de Demos já usa).
+
+O rascunho vai para uma coleção PRÓPRIA, `filaRespostas/{id}` (id próprio, gerado na hora) — NUNCA `filaEnvios`, que é doc POR leadId e carrega o estado do ENVIO real daquele lead; aqui pode haver várias entradas por lead ao longo do tempo, uma por grupo:
+
+```jsonc
+// filaRespostas/{id}
+{
+  "id": "<uuid>",
+  "leadId": "ChIJ...",
+  "mensagens": [{ "texto": "Oi, tenho interesse!", "recebidoEm": "<ISO>" }],
+  "rascunho": "Oi! Posso te mostrar agora mesmo, tem 2 minutinhos?",
+  "geradoEm": "<ISO>",
+  "estado": "pendente"   // "pendente" | "usada" | "descartada"
+}
+```
 
 ## Disparo de teste da fila — o lead fixo, a tarefa injetada e os interruptores
 

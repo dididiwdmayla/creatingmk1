@@ -72,6 +72,24 @@ describe("saveFilaConfig", () => {
       ValidationError,
     );
   });
+
+  it("respostaAgrupamentoSegundos vem 45 por default e é patcheável", async () => {
+    const db = new FakeFirestore();
+    expect((await loadFilaConfig(db)).respostaAgrupamentoSegundos).toBe(45);
+
+    const salvo = await saveFilaConfig(db, { respostaAgrupamentoSegundos: 90 });
+    expect(salvo.respostaAgrupamentoSegundos).toBe(90);
+  });
+
+  it("rejeita respostaAgrupamentoSegundos negativo ou não inteiro", async () => {
+    const db = new FakeFirestore();
+    await expect(saveFilaConfig(db, { respostaAgrupamentoSegundos: -1 })).rejects.toThrow(
+      ValidationError,
+    );
+    await expect(saveFilaConfig(db, { respostaAgrupamentoSegundos: 1.5 })).rejects.toThrow(
+      ValidationError,
+    );
+  });
 });
 
 describe("numeroTeste — o destino do disparo de teste", () => {

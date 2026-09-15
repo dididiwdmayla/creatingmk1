@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FILA_CANDIDATOS_COLLECTION, FILA_CANDIDATOS_DOC } from "@/lib/fila/candidatos";
+import { FILA_RESPOSTAS_COLLECTION } from "@/lib/fila/flushRespostas";
+import { adicionarMensagemAoGrupo, listarGruposPendentes } from "@/lib/fila/respostasPendentes";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import type { Lead } from "@/lib/leads/types";
 import { GET } from "../fila/proximo/route";
@@ -483,5 +485,83 @@ describe("GET /api/fila/proximo — o contrato achatado", () => {
     expect(Object.keys(semTarefa).sort()).toEqual([...CHAVES_RESPOSTA].sort());
     expect(semTarefa).not.toHaveProperty("diagnostico");
     expect(semTarefa).not.toHaveProperty("escolhido");
+  });
+});
+
+describe("GET /api/fila/proximo — flush do agrupamento de respostas (isolamento)", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("GEMINI_API_KEY", "chave-teste");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("falha na geração do rascunho NUNCA altera a resposta de /proximo — contrato intacto", async () => {
+    fetchMock.mockImplementation(async () => new Response("fora do ar", { status: 500 }));
+    // Lead SEM nada de fila (base vazia de prospecção) — só o grupo maduro
+    // de resposta, para isolar o efeito do flush na resposta desta rota.
+    db.seed("leads/ChIJresp", {
+      placeId: "ChIJresp",
+      nome: "Lead resp",
+      status: "respondeu",
+      enriquecido: false,
+      telefoneIntl: "+55 44 99154-3803",
+      criadoEm: "2026-03-01T00:00:00.000Z",
+      atualizadoEm: "2026-03-01T00:00:00.000Z",
+    });
+    await adicionarMensagemAoGrupo(
+      db,
+      "ChIJresp",
+      { texto: "oi", recebidoEm: new Date(TERCA_10H.getTime() - 60_000).toISOString() },
+      new Date(TERCA_10H.getTime() - 60_000),
+    );
+
+    const corpo = await (await proximo()).json();
+
+    // Mesmíssimo contrato de sempre — a IA fora do ar não vazou nem alterou nada aqui.
+    expect(corpo).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
+    // E o grupo, de fato, tentou ser processado (não ficou parado por falta de maturidade).
+    expect(fetchMock).toHaveBeenCalled();
+    const [pendente] = await listarGruposPendentes(db);
+    expect(pendente.ultimoErro).toBeTruthy();
+  });
+
+  it("um grupo maduro de OUTRO lead é liberado no início da chamada, sem atrapalhar a tarefa entregue", async () => {
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify({ rascunho: "Oi, tudo bem?" }) }] } }],
+          }),
+          { status: 200 },
+        ),
+    );
+    semear(lead("ChIJa"));
+    db.seed("leads/ChIJresp", {
+      placeId: "ChIJresp",
+      nome: "Lead resp",
+      status: "respondeu",
+      enriquecido: false,
+      telefoneIntl: "+55 44 99154-3803",
+      criadoEm: "2026-03-01T00:00:00.000Z",
+      atualizadoEm: "2026-03-01T00:00:00.000Z",
+    });
+    await adicionarMensagemAoGrupo(
+      db,
+      "ChIJresp",
+      { texto: "oi", recebidoEm: new Date(TERCA_10H.getTime() - 60_000).toISOString() },
+      new Date(TERCA_10H.getTime() - 60_000),
+    );
+
+    const corpo = await (await proximo()).json();
+
+    expect(corpo.leadId).toBe("ChIJa");
+    const respostas = await db.collection(FILA_RESPOSTAS_COLLECTION).get();
+    expect(respostas.docs).toHaveLength(1);
   });
 });
