@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { BarraFaixasPreview } from "@/components/BarraDoDia";
 import { Button } from "@/components/Button";
@@ -45,6 +45,7 @@ import {
   type FilaTesteDoc,
   type LinhaFilaPainel,
   type PendenciaEnvio,
+  type RespostaPendente,
 } from "@/lib/fila/estado";
 import {
   FRASES_SLOTS,
@@ -52,6 +53,7 @@ import {
   type RelatorioMigracao,
 } from "@/lib/frases/types";
 import { SLIDER_MAX_BRL, SLIDER_MIN_BRL, SLIDER_STEP_BRL } from "@/lib/precificacao/calc";
+import { linkWhatsAppBusinessAndroid, podeAbrirBusiness } from "@/lib/wa";
 import { bandeiraDoPais, type PaisProspeccao } from "@/lib/prospeccao/paises";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
 import type { LimitesUsuario, MetasUsuario, Papel, UsuarioPublico } from "@/lib/usuarios/types";
@@ -140,6 +142,7 @@ export default function ConfigPage() {
       <CotasUsuariosSection />
       <MetasUsuariosSection />
       <FilaEnvioSection />
+      <RespostasPendentesSection />
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <section className="rounded-lg border border-line bg-surface p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Busca</h2>
@@ -2158,6 +2161,311 @@ function PrintPendenteLista() {
 
       {erro && <p className="mt-2 text-xs text-critical">{erro}</p>}
     </div>
+  );
+}
+
+/* ── Painel "Respostas pendentes" ────────────────────────────────────── */
+
+/**
+ * O lead respondeu, a IA rascunhou (ver `flushRespostas.ts`), e agora
+ * alguém precisa decidir. Esta é a tela dessa decisão.
+ *
+ * **Seção PRÓPRIA, irmã de "Fila de envio", e não um bloco subordinado a
+ * ela** como a lista de print. A pendência de print é um efeito colateral
+ * do ENVIO (mesma claim, mesmo `filaEnvios`, mesmo ciclo), então pertence
+ * àquele painel. A resposta do lead é o outro pilar: coleção própria
+ * (`filaRespostas`), rota própria, ciclo de vida próprio — e no
+ * ARCHITECTURE.md "Fila de envio" e "Fila de respostas" já são seções
+ * irmãs, não uma dentro da outra. Nada de linguagem nova, porém: é o mesmo
+ * `<section>` de todo painel da página.
+ *
+ * ADMIN ONLY, como o bloco da fila — com uma razão a mais: o corpo destas
+ * mensagens é conversa PRIVADA captada do celular pessoal do operador (ver
+ * PRIVACIDADE no ARCHITECTURE.md). 403 mostra a linha de restrição e nada
+ * mais.
+ */
+function RespostasPendentesSection() {
+  const [linhas, setLinhas] = useState<RespostaPendente[] | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [restrito, setRestrito] = useState(false);
+  /**
+   * Só o Android abre o Business por URI de intent. Sai de
+   * `useSyncExternalStore`, e não de estado num efeito, porque é
+   * exatamente o caso dele: um valor que o SERVIDOR não pode conhecer
+   * (`navigator` não existe lá) e que o cliente conhece já na primeira
+   * pintura. O instantâneo do servidor é `false` — o React reconcilia
+   * sozinho depois da hidratação, sem divergência e sem render em
+   * cascata. `subscribe` devolve um no-op porque o aparelho não vira
+   * outro no meio da sessão.
+   */
+  const noCelular = useSyncExternalStore(
+    () => () => {},
+    () => podeAbrirBusiness(navigator.userAgent),
+    () => false,
+  );
+
+  function carregar() {
+    api
+      .getFilaRespostas()
+      .then(({ respostas }) => setLinhas(respostas))
+      .catch((error) => {
+        setLinhas([]);
+        if (error instanceof ApiError && error.status === 403) {
+          setRestrito(true);
+          return;
+        }
+        setErro(mensagemErroFila(error, "Falha ao carregar as respostas"));
+      });
+  }
+
+  useEffect(carregar, []);
+
+  /** Tira a linha da lista na hora; a relê depois, que é quem tem a verdade. */
+  function resolvida(id: string) {
+    setLinhas((atual) => atual?.filter((l) => l.id !== id) ?? null);
+    carregar();
+  }
+
+  if (restrito) {
+    return (
+      <section className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Respostas pendentes
+        </h2>
+        <p className="mt-2 text-sm text-ink-muted">Respostas pendentes é restrito ao admin.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+        Respostas pendentes
+      </h2>
+      <p className="mt-1 text-xs text-ink-muted">
+        O lead respondeu e a IA rascunhou. O rascunho é ponto de partida: edite antes de usar — o
+        que sai é o que está na caixa.{" "}
+        {noCelular ? (
+          "“Usar” abre a conversa no WhatsApp Business com o texto pronto."
+        ) : (
+          /* O caso que o botão sozinho não resolve: sem Android não há
+             Business para abrir, e um botão que não faz nada em metade dos
+             casos é pior que botão ausente. Aqui ele TROCA de mecanismo, e
+             a tela diz qual — em vez de falhar calado. */
+          <span data-aviso="sem-business">
+            Aberta no computador, não há Business para abrir: “usar” copia o texto para a área de
+            transferência. O botão do Business aparece com a /config aberta no celular.
+          </span>
+        )}
+      </p>
+
+      {linhas === null && (
+        <SkeletonRows count={1} className="mt-3 h-40 rounded border border-line" />
+      )}
+
+      {linhas?.length === 0 && !erro && (
+        // Estado vazio de UMA linha: nada de caixa vazia ocupando o painel.
+        // `!erro` porque falhar ao carregar não é "não há resposta": dizer
+        // isso quando a lista nem chegou esconderia o que ela existe para
+        // mostrar.
+        <p className="mt-3 text-xs text-ink-muted">Nenhuma resposta esperando.</p>
+      )}
+
+      {linhas && linhas.length > 0 && (
+        <ul data-lista="respostas" className="mt-3 flex flex-col gap-3">
+          {linhas.map((linha) => (
+            <LinhaResposta
+              key={linha.id}
+              linha={linha}
+              noCelular={noCelular}
+              onResolvida={() => resolvida(linha.id)}
+              onErro={setErro}
+            />
+          ))}
+        </ul>
+      )}
+
+      {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
+    </section>
+  );
+}
+
+/**
+ * Copia para a área de transferência. `navigator.clipboard` exige contexto
+ * seguro (https, ou 127.0.0.1 — onde o laço de captura roda); a reserva com
+ * `execCommand` cobre o resto, inclusive um navegador que negue a permissão.
+ * Retorna se deu certo: "usar" que não copiou nada não pode marcar a
+ * pendência como usada e sumir com o único lugar onde o texto existia.
+ */
+async function copiarTexto(texto: string, campo: HTMLTextAreaElement | null): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(texto);
+    return true;
+  } catch {
+    if (!campo) return false;
+    try {
+      campo.select();
+      return document.execCommand("copy");
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Uma resposta pendente: o contexto (o que o lead mandou, o que o Radar
+ * tinha mandado), o rascunho EDITÁVEL, e as duas saídas.
+ *
+ * **A caixa é o estado, o rascunho é só o valor inicial.** É o texto
+ * editado que vai para o WhatsApp e é ele que o `PATCH` guarda — gravar o
+ * rascunho original registraria uma resposta que ninguém recebeu.
+ *
+ * **"Usar" no Android é uma âncora de VERDADE, não um `onClick` que
+ * navega.** O Chrome recusa lançar aplicativo externo a partir de
+ * navegação sem gesto do usuário; esperar o `PATCH` para só então mexer em
+ * `location` gastaria o gesto e o intent não abriria nada. Então o `href`
+ * carrega a URI de intent, o navegador navega sozinho, e a marcação sai na
+ * mesma ação com `keepalive` (ver `patchFilaResposta`) — sem `await` no
+ * caminho crítico.
+ */
+function LinhaResposta({
+  linha,
+  noCelular,
+  onResolvida,
+  onErro,
+}: {
+  linha: RespostaPendente;
+  noCelular: boolean;
+  onResolvida: () => void;
+  onErro: (erro: string | null) => void;
+}) {
+  const [texto, setTexto] = useState(linha.rascunho);
+  const [ocupado, setOcupado] = useState(false);
+  const campo = useRef<HTMLTextAreaElement>(null);
+
+  // Sem telefone não há conversa para abrir (lead sem número, ou lead que
+  // sumiu da base): o caminho vira o de copiar, no celular também.
+  const linkBusiness = linha.telefone
+    ? linkWhatsAppBusinessAndroid(texto, linha.telefone)
+    : undefined;
+  const abreNoBusiness = noCelular && linkBusiness !== undefined;
+
+  async function marcar(estado: "usada" | "descartada") {
+    setOcupado(true);
+    onErro(null);
+    try {
+      await api.patchFilaResposta(linha.id, estado, estado === "usada" ? texto : undefined);
+      onResolvida();
+    } catch (error) {
+      onErro(mensagemErroFila(error, "Falha ao salvar"));
+      setOcupado(false);
+    }
+  }
+
+  /** Fora do Android: copia PRIMEIRO, e só marca como usada se copiou. */
+  async function usarCopiando() {
+    if (!(await copiarTexto(texto, campo.current))) {
+      onErro("Não consegui copiar o texto. Selecione e copie à mão antes de marcar como usada.");
+      return;
+    }
+    await marcar("usada");
+  }
+
+  return (
+    <li className="rounded border border-line p-2">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <a
+          href={`/leads/${linha.leadId}`}
+          className="text-xs text-foreground underline decoration-line underline-offset-2"
+        >
+          {linha.nome || linha.leadId}
+        </a>
+        {linha.nicho && <span className="text-[10px] text-ink-muted">{linha.nicho}</span>}
+        {linha.geradoEm && (
+          <span className="text-[10px] text-ink-muted">{formatDateTime(linha.geradoEm)}</span>
+        )}
+      </div>
+
+      {/* O que o LEAD mandou — todas as mensagens do grupo, na ordem. É o
+          bloco em destaque: é ele que decide o que responder. */}
+      <ul data-bloco="mensagens" className="mt-2 flex flex-col gap-1">
+        {linha.mensagens.map((mensagem, i) => (
+          <li
+            key={`${mensagem.recebidoEm}-${i}`}
+            className="rounded border border-accent/30 bg-accent/10 px-2 py-1"
+          >
+            <p className="whitespace-pre-wrap text-xs text-foreground">{mensagem.texto}</p>
+            <p className="mt-0.5 text-[10px] text-ink-muted">
+              {formatDateTime(mensagem.recebidoEm)}
+            </p>
+          </li>
+        ))}
+      </ul>
+
+      {/* O que o Radar tinha mandado — contexto, não ação. Some quando a
+          reconstrução falha, em vez de deixar caixa vazia. */}
+      {linha.mensagemEnviada && (
+        <details data-bloco="enviada" className="mt-1.5">
+          <summary className="cursor-pointer text-[10px] text-ink-muted">
+            o que o Radar mandou
+          </summary>
+          <p className="mt-1 whitespace-pre-wrap border-l-2 border-line pl-2 text-[11px] text-ink-secondary">
+            {linha.mensagemEnviada}
+          </p>
+        </details>
+      )}
+
+      <textarea
+        ref={campo}
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        rows={4}
+        aria-label="Rascunho da resposta"
+        className={`${INPUT_CLS} mt-2 w-full resize-y whitespace-pre-wrap`}
+      />
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        {abreNoBusiness ? (
+          <a
+            href={linkBusiness}
+            onClick={() => {
+              // Sem `await`: a navegação tem que sair NESTE gesto (ver o
+              // comentário do componente). O PATCH vai junto, com keepalive.
+              void marcar("usada");
+            }}
+            className="rounded border border-accent bg-accent/15 px-2 py-1 text-xs text-accent"
+          >
+            usar no Business
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={usarCopiando}
+            disabled={ocupado}
+            title={
+              linha.telefone
+                ? "Copia o texto e marca como usada"
+                : "Lead sem telefone: não há conversa para abrir, só copiar"
+            }
+            className="rounded border border-accent bg-accent/15 px-2 py-1 text-xs text-accent disabled:opacity-50"
+          >
+            usar (copiar texto)
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => marcar("descartada")}
+          disabled={ocupado}
+          title="Some da lista — responda do seu jeito, sem usar o rascunho"
+          className="rounded border border-line bg-surface-2 px-2 py-1 text-xs text-ink-muted disabled:opacity-50"
+        >
+          descartar
+        </button>
+        {texto !== linha.rascunho && (
+          <span className="text-[10px] text-ink-muted">editado</span>
+        )}
+      </div>
+    </li>
   );
 }
 

@@ -14,6 +14,7 @@ import type {
   FilaTesteDoc,
   LinhaFilaPainel,
   PendenciaEnvio,
+  RespostaPendente,
 } from "@/lib/fila/estado";
 import type {
   ConjuntoSkin,
@@ -404,6 +405,37 @@ export const api = {
     request<{ pendencia: PendenciaEnvio }>(
       `/api/config/fila/pendencias/${encodeURIComponent(leadId)}`,
       { method: "PATCH", body: JSON.stringify({ resolvido }) },
+    ),
+
+  /**
+   * Respostas pendentes: o lead respondeu, a IA rascunhou, e o operador
+   * ainda não decidiu. Cada linha traz o que a decisão exige — quem é o
+   * lead, o que ELE mandou, o que o Radar tinha mandado e o rascunho.
+   *
+   * Sob `/api/config/` e não `/api/fila/`, pelo mesmo motivo das
+   * pendências de print, e restrita ao admin com uma razão a mais: o
+   * corpo destas respostas é conversa PRIVADA do celular do operador.
+   */
+  getFilaRespostas: () => request<{ respostas: RespostaPendente[] }>("/api/config/fila/respostas"),
+
+  /**
+   * Fecha uma pendência de resposta. `texto` é o que o operador de fato
+   * mandou — a caixa da tela é EDITÁVEL, e é a edição dela que vai para o
+   * WhatsApp, não o rascunho original.
+   *
+   * `keepalive` porque no Android o clique em "usar" navega para a URI de
+   * intent na MESMA ação (o Chrome recusa lançar app externo sem gesto do
+   * usuário, então não dá para esperar esta resposta antes de navegar):
+   * sem ele, a marcação poderia morrer junto com a página.
+   */
+  patchFilaResposta: (id: string, estado: "usada" | "descartada", texto?: string) =>
+    request<{ id: string; estado: string }>(
+      `/api/config/fila/respostas/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ estado, ...(texto !== undefined && { texto }) }),
+        keepalive: true,
+      },
     ),
 
   /**
