@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { loadFilaConfig } from "@/lib/fila/config";
 import { listarRespostasPendentes } from "@/lib/fila/respostasPainel";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError } from "@/lib/http";
@@ -26,8 +27,17 @@ export async function GET(req: Request) {
   try {
     const db = getDb();
     await requireAdmin(db, req);
-    const respostas = await listarRespostasPendentes(db);
-    return NextResponse.json({ respostas });
+    // A config entra porque a LISTA depende dela: com `respostaAutomatica`
+    // ligada, o que está na fila do aparelho não é pendência de aprovação —
+    // e desligar o interruptor devolve esses rascunhos para cá.
+    const config = await loadFilaConfig(db);
+    const respostas = await listarRespostasPendentes(db, config, new Date());
+    // `respostaAutomatica` viaja junto da lista de propósito: com ele ligado
+    // a lista é CURTA por construção (o que está na fila do aparelho não é
+    // pendência de aprovação), e uma lista curta sem explicação é um estado
+    // que mente. Vem da MESMA chamada que a filtrou, para os dois não
+    // poderem discordar.
+    return NextResponse.json({ respostas, respostaAutomatica: config.respostaAutomatica });
   } catch (error) {
     return handleRouteError(error);
   }

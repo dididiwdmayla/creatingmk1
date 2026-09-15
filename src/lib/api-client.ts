@@ -415,8 +415,15 @@ export const api = {
    * Sob `/api/config/` e não `/api/fila/`, pelo mesmo motivo das
    * pendências de print, e restrita ao admin com uma razão a mais: o
    * corpo destas respostas é conversa PRIVADA do celular do operador.
+   *
+   * `respostaAutomatica` vem junto porque explica a lista: ligado, o que
+   * está na fila do aparelho não aparece aqui, e a tela precisa dizer isso
+   * em vez de mostrar um vazio sem motivo.
    */
-  getFilaRespostas: () => request<{ respostas: RespostaPendente[] }>("/api/config/fila/respostas"),
+  getFilaRespostas: () =>
+    request<{ respostas: RespostaPendente[]; respostaAutomatica: boolean }>(
+      "/api/config/fila/respostas",
+    ),
 
   /**
    * Fecha uma pendência de resposta. `texto` é o que o operador de fato

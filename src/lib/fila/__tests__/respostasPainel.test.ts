@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import { InvalidTransitionError } from "@/lib/errors";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 
+import { DEFAULT_FILA_CONFIG } from "../config";
+import { criarTarefaResposta, lerTarefaResposta, proximaTarefaResposta } from "../respostaAutomatica";
 import { listarRespostasPendentes, resolverResposta } from "../respostasPainel";
+
+/** A config como ela é no padrão: resposta automática DESLIGADA. */
+const DESLIGADA = DEFAULT_FILA_CONFIG;
+const LIGADA = { ...DEFAULT_FILA_CONFIG, respostaAutomatica: true };
 
 /**
  * O painel "Respostas pendentes" (/config). O que estes testes protegem:
@@ -66,13 +73,13 @@ function comDados() {
 
 describe("listarRespostasPendentes", () => {
   it("lista só as pendentes, da mais recente para a mais antiga", async () => {
-    const linhas = await listarRespostasPendentes(comDados());
+    const linhas = await listarRespostasPendentes(comDados(), DESLIGADA, AGORA);
 
     expect(linhas.map((l) => l.id)).toEqual(["r-2", "r-1"]);
   });
 
   it("cada linha traz lead, nicho, o que o LEAD mandou e o rascunho", async () => {
-    const [, linha] = await listarRespostasPendentes(comDados());
+    const [, linha] = await listarRespostasPendentes(comDados(), DESLIGADA, AGORA);
 
     expect(linha).toMatchObject({
       id: "r-1",
@@ -87,13 +94,13 @@ describe("listarRespostasPendentes", () => {
   });
 
   it("as mensagens do grupo saem NA ORDEM em que chegaram", async () => {
-    const [linha] = await listarRespostasPendentes(comDados());
+    const [linha] = await listarRespostasPendentes(comDados(), DESLIGADA, AGORA);
 
     expect(linha.mensagens.map((m) => m.texto)).toEqual(["quanto custa?", "e tem mensalidade?"]);
   });
 
   it("a mensagem que o Radar mandou vem RECONSTRUÍDA, com os marcadores resolvidos", async () => {
-    const [, linha] = await listarRespostasPendentes(comDados());
+    const [, linha] = await listarRespostasPendentes(comDados(), DESLIGADA, AGORA);
 
     // O app não guarda o texto literal que saiu: a linha é remontada pela
     // MESMA precedência do envio (ver `montarMensagemParaLead`).
@@ -104,7 +111,7 @@ describe("listarRespostasPendentes", () => {
     const db = comDados();
     db.deleteDoc("leads/ChIJa");
 
-    const linha = (await listarRespostasPendentes(db)).find((l) => l.id === "r-1");
+    const linha = (await listarRespostasPendentes(db, DESLIGADA, AGORA)).find((l) => l.id === "r-1");
 
     expect(linha).toMatchObject({ leadId: "ChIJa", nome: "", nicho: "", telefone: "" });
     expect(linha?.rascunho).toBe("Oi! Posso te mostrar agora?");
@@ -122,7 +129,11 @@ describe("listarRespostasPendentes", () => {
       runTransaction: db.runTransaction.bind(db),
     };
 
-    expect(await listarRespostasPendentes(espiao as unknown as FakeFirestore)).toEqual([]);
+    expect(
+      await listarRespostasPendentes(espiao as unknown as FakeFirestore, DESLIGADA, AGORA),
+    ).toEqual([]);
+    // Lista vazia sai na primeira leitura: nem as tarefas nem as fontes da
+    // mensagem são tocadas.
     expect(lidas).toEqual(["filaRespostas"]);
   });
 
@@ -153,9 +164,11 @@ describe("listarRespostasPendentes", () => {
       runTransaction: db.runTransaction.bind(db),
     };
 
-    await listarRespostasPendentes(espiao as unknown as FakeFirestore);
+    await listarRespostasPendentes(espiao as unknown as FakeFirestore, DESLIGADA, AGORA);
 
     expect(lidos).toEqual(["ChIJb", "ChIJa"]);
+    // A coleção de tarefas também é UMA varredura para a lista inteira.
+    expect(varridas.filter((c) => c === "filaRespostasTarefas")).toHaveLength(1);
     // `buscas` e `frasesProspeccao` são VARREDURAS: uma vez para a lista
     // inteira, não uma por linha (é o que `carregarFontesDaMensagem` existe
     // para garantir). Com 2 linhas, duas seriam 4.
@@ -177,7 +190,7 @@ describe("resolverResposta", () => {
       // Merge de campo: as mensagens e o rascunho original ficam intactos.
       rascunho: "Oi! Posso te mostrar agora?",
     });
-    expect((await listarRespostasPendentes(db)).map((l) => l.id)).toEqual(["r-2"]);
+    expect((await listarRespostasPendentes(db, DESLIGADA, AGORA)).map((l) => l.id)).toEqual(["r-2"]);
   });
 
   it("sem texto no corpo, o usado é o próprio rascunho (quem não editou nada)", async () => {
@@ -195,7 +208,7 @@ describe("resolverResposta", () => {
 
     expect(db.getDoc("filaRespostas/r-1")).toMatchObject({ estado: "descartada" });
     expect(db.getDoc("filaRespostas/r-1")?.textoUsado).toBeUndefined();
-    expect((await listarRespostasPendentes(db)).map((l) => l.id)).toEqual(["r-2"]);
+    expect((await listarRespostasPendentes(db, DESLIGADA, AGORA)).map((l) => l.id)).toEqual(["r-2"]);
   });
 
   it("id que não existe → 404 e NENHUM doc criado", async () => {
@@ -232,6 +245,105 @@ describe("resolverResposta", () => {
     expect(db.getDoc("filaRespostas/r-1")).toMatchObject({
       estado: "usada",
       textoUsado: "texto que saiu",
+    });
+  });
+});
+
+describe("a lista quando a RESPOSTA AUTOMÁTICA entra no meio", () => {
+  async function comTarefa(id = "r-1", atrasoSegundos = 600) {
+    const db = comDados();
+    await criarTarefaResposta(
+      db,
+      {
+        id,
+        leadId: "ChIJa",
+        nome: "Ink House",
+        numero: "5551966660000",
+        texto: "Oi! Posso te mostrar agora?",
+        atrasoSegundos,
+      },
+      AGORA,
+    );
+    return db;
+  }
+
+  it("LIGADA, o rascunho que está na fila do aparelho some do painel", async () => {
+    const db = await comTarefa();
+
+    const linhas = await listarRespostasPendentes(db, LIGADA, AGORA);
+
+    // r-1 está na fila automática; r-2 nunca foi automática e continua lá.
+    expect(linhas.map((l) => l.id)).toEqual(["r-2"]);
+  });
+
+  it("DESLIGAR o interruptor devolve o rascunho ao painel, sem perder nada", async () => {
+    const db = await comTarefa();
+
+    const linhas = await listarRespostasPendentes(db, DESLIGADA, AGORA);
+
+    expect(linhas.map((l) => l.id)).toEqual(["r-2", "r-1"]);
+    // Nada foi descartado: a tarefa continua lá, esperando o interruptor.
+    expect((await lerTarefaResposta(db, "r-1"))?.estado).toBe("aguardando");
+    expect(db.getDoc("filaRespostas/r-1")?.estado).toBe("pendente");
+  });
+
+  it("rascunho JÁ ENTREGUE ao aparelho não volta ao painel nem com o interruptor desligado", async () => {
+    const db = await comTarefa("r-1", 0);
+    await proximaTarefaResposta(db, "android", AGORA);
+
+    expect((await listarRespostasPendentes(db, DESLIGADA, AGORA)).map((l) => l.id)).toEqual(["r-2"]);
+
+    // Passados os 5 minutos da claim, ela expira e o rascunho reaparece.
+    const depois = new Date(AGORA.getTime() + 6 * 60 * 1000);
+    expect((await listarRespostasPendentes(db, DESLIGADA, depois)).map((l) => l.id)).toEqual([
+      "r-2",
+      "r-1",
+    ]);
+  });
+
+  it("tarefa que a máquina desistiu volta ao painel mesmo com o interruptor LIGADO", async () => {
+    const db = await comTarefa("r-1", 0);
+    db.seed("filaRespostasTarefas/r-1", {
+      ...db.getDoc("filaRespostasTarefas/r-1"),
+      estado: "falhou",
+      tentativas: 3,
+    });
+
+    expect((await listarRespostasPendentes(db, LIGADA, AGORA)).map((l) => l.id)).toEqual([
+      "r-2",
+      "r-1",
+    ]);
+  });
+
+  it("fechar pelo painel ENCERRA a tarefa — o aparelho não responde depois", async () => {
+    const db = await comTarefa();
+
+    await resolverResposta(db, "r-1", "descartada", undefined, AGORA);
+
+    expect((await lerTarefaResposta(db, "r-1"))?.estado).toBe("encerrada");
+    expect(await proximaTarefaResposta(db, "android", new Date(AGORA.getTime() + 3600_000))).toBeNull();
+  });
+
+  it("fechar é RECUSADO enquanto a tarefa está na mão do aparelho", async () => {
+    const db = await comTarefa("r-1", 0);
+    await proximaTarefaResposta(db, "android", AGORA);
+
+    await expect(resolverResposta(db, "r-1", "usada", "texto", AGORA)).rejects.toThrow(
+      InvalidTransitionError,
+    );
+    // Nada mudou: nem o rascunho, nem a tarefa.
+    expect(db.getDoc("filaRespostas/r-1")?.estado).toBe("pendente");
+    expect((await lerTarefaResposta(db, "r-1"))?.estado).toBe("reservado");
+  });
+
+  it("rascunho sem tarefa nenhuma fecha como sempre", async () => {
+    const db = comDados();
+
+    await resolverResposta(db, "r-1", "usada", "o que eu mandei", AGORA);
+
+    expect(db.getDoc("filaRespostas/r-1")).toMatchObject({
+      estado: "usada",
+      textoUsado: "o que eu mandei",
     });
   });
 });
