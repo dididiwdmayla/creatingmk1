@@ -78,7 +78,7 @@ src/
       cotas/route.ts                # ✅ GET uso × limite do PRÓPRIO usuário (indicador em /leads e na ficha)
       metas/proprio/route.ts        # ✅ GET/PUT progresso (dia/semana) + minimizada da faixa fixa do PRÓPRIO usuário (self-service, leve)
       config/route.ts               # ✅ GET config (qualquer sessão) / PUT (admin)
-      config/fila/route.ts          # ✅ GET/PUT /config/fila (doc PRÓPRIO, não /config/app) — ver "Fila de envio"
+      config/fila/route.ts          # ✅ GET/PUT /config/fila (doc PRÓPRIO, não /config/app) — ADMIN nos dois, ver "Fila de envio"
       search/route.ts               # ✅ POST busca (geocode + Text Search paginado/qualificado) + registra em /buscas — exige sessão (cota individual)
       geocode/route.ts              # ✅ GET região resolvida ("Buscando em: X"), cache em /geocache
       regioes/route.ts              # ✅ GET índice de mercado da região (geocodifica + gera via IA se ainda não tiver)
@@ -156,8 +156,15 @@ src/
     fila/                           # ✅ fundação da fila de envio (celular MacroDroid) — ver "Fila de envio"
       auth.ts                       #    autenticarDispositivo: Bearer RADAR_DEVICE_KEY, comparação em tempo constante
       config.ts                     #    /config/fila (doc PRÓPRIO, não /config/app) — ativo/tetos/janela, defaults se ausente
-      contadores.ts                 #    /filaContadores/{dia operacional} — total do dia, última hora deslizante, segundos desde o último evento
+      contadores.ts                 #    /filaContadores/{dia operacional} — total do dia, última hora deslizante, virada do dia operacional
       envios.ts                     #    /filaEnvios/{leadId} — reservarLead/confirmarClaim/liberarClaim (claim expira em 5min)
+      estado.ts                     #    tipos + política SEM nada de servidor (a ficha e o painel são client)
+      candidatos.ts                 #    /filaCandidatos/pool — a varredura cara, uma vez a cada 10min, + diagnóstico estrutural
+      selecao.ts                    #    a DECISÃO pura: quem é o próximo, e o porquê quando não é ninguém
+      confirmar.ts                  #    confirmarEnvio: claim + lead + rotação + contador numa transação só
+      pendencias.ts                 #    a lista de print pendente do painel (varre filaEnvios, lê lead por id)
+      painel.ts                     #    a VISÃO do painel: linhas com nome (lead por ID) + contador do dia
+      print.ts                      #    printUrlDoLead: a imagem de celular que vai junto da mensagem
       mensagem.ts                   #    montarMensagemParaLead: resolverMensagem+aplicarMarcadores num route handler
       __tests__/
     firebase/
@@ -2317,7 +2324,7 @@ Um celular Android com MacroDroid é um EXECUTOR BURRO: pergunta "qual o próxim
 }
 ```
 
-Doc PRÓPRIO, fora de `/config/app`: a fila é lida com muito mais frequência (o celular bate a cada ciclo) e por um chamador totalmente diferente (dispositivo, não sessão de usuário) — misturar no doc de app acoplaria dois ritmos de escrita/leitura sem necessidade. `loadFilaConfig` aplica os defaults acima quando o doc não existe — a AUSÊNCIA do documento nunca pode virar erro nem liberar envio irrestrito. Editável em `/config` (painel "Fila de envio", `GET`/`PUT /api/config/fila` — `GET` aberto a qualquer sessão, `PUT` restrito ao admin, mesma divisão de `/api/config`) reaproveitando o padrão de edição inline de "Metas por integrante" (cada campo salva no próprio blur/clique, sem botão "salvar" geral) — o botão de pausa mostra o estado ATUAL sem precisar clicar ("Ativa ✓" / "Pausada ⏸").
+Doc PRÓPRIO, fora de `/config/app`: a fila é lida com muito mais frequência (o celular bate a cada ciclo) e por um chamador totalmente diferente (dispositivo, não sessão de usuário) — misturar no doc de app acoplaria dois ritmos de escrita/leitura sem necessidade. `loadFilaConfig` aplica os defaults acima quando o doc não existe — a AUSÊNCIA do documento nunca pode virar erro nem liberar envio irrestrito. Editável em `/config` (painel "Fila de envio", `GET`/`PUT /api/config/fila` — **os dois restritos ao admin**, ver "O painel inteiro é ADMIN ONLY" abaixo) reaproveitando o padrão de edição inline de "Metas por integrante" (cada campo salva no próprio blur/clique, sem botão "salvar" geral) — o botão de pausa mostra o estado ATUAL sem precisar clicar ("Ativa ✓" / "Pausada ⏸").
 
 ### `/filaContadores/{dia operacional}` — um doc por DIA OPERACIONAL (`src/lib/fila/contadores.ts`)
 
@@ -2466,9 +2473,9 @@ O dispositivo se identifica pelo header `X-Radar-Device` (ausente = `"android"`,
 
 **Onde os números ficam**: as contagens estruturais só são apuráveis na varredura completa de `/leads` — a que `construirPool` já faz — então vão dentro do próprio doc `/filaCandidatos/pool`. Isso tem um preço explícito: são um retrato do último rebuild, e podem ter até `POOL_TTL_MS` (10 min) de idade — ou mais, se `/proximo` não estiver sendo chamado. É por isso que `pool.geradoEm` viaja junto do `pool.estrutural` na resposta: quem olha o painel precisa poder dizer "isto é de X minutos atrás" na tela. Nicho e janela, ao contrário, são calculados NA HORA sobre esse mesmo pool — são sempre frescos.
 
-`ordenarCandidatos` (`lib/fila/selecao.ts`) passou a devolver `{ escolhido, diagnostico }` numa PASSAGEM SÓ — o mesmo laço que decide quem é elegível já conta nicho e janela; nunca uma varredura para escolher e outra para contar. `escolhido` é a lista ordenada de candidatos (o que `/proximo` chamava de `elegiveis`); `diagnostico` é `{ nichoBarrado, janela: { razoavel, ruim, semNivel } }`, estrutura de dados pura, testável sem rota.
+`ordenarCandidatos` (`lib/fila/selecao.ts`) passou a devolver `{ escolhido, diagnostico }` numa PASSAGEM SÓ — o mesmo laço que decide quem é elegível já conta nicho e janela; nunca uma varredura para escolher e outra para contar. `escolhido` é a lista ordenada de candidatos (o que `/proximo` chamava de `elegiveis`); `diagnostico` é `{ nichoBarrado, janela: { razoavel, ruim, semNivel }, bloqueados }`, estrutura de dados pura, testável sem rota. `bloqueados` (a LISTA de quem parou na janela, não só a contagem) só é preenchida sob demanda — ver "A VISÃO da fila" adiante.
 
-`GET /api/fila/diagnostico` junta as quatro etapas numa leitura: `motivoDeRitmo` de novo (portão 1), `lerPoolBruto` — o pool tal como está, **sem checar TTL e sem reconstruir** (o painel não pode custar uma varredura de `/leads` só para mostrar números) — para o `estrutural` e o `geradoEm` (portão 2), e `ordenarCandidatos` sobre esse pool para `nichoBarrado`, `janela` e `elegiveis` (portões 3 e 4). Pool nunca construído (ninguém bateu em `/proximo` ainda) devolve `pool.geradoEm: null` e `estrutural` zerado, nunca erro.
+`GET /api/fila/diagnostico` junta as quatro etapas numa leitura: `motivoDeRitmo` de novo (portão 1), `lerPoolBruto` — o pool tal como está, **sem checar TTL e sem reconstruir** (o painel não pode custar uma varredura de `/leads` só para mostrar números) — para o `estrutural` e o `geradoEm` (portão 2), e `ordenarCandidatos` sobre esse pool para `nichoBarrado`, `janela` e `elegiveis` (portões 3 e 4). Pool nunca construído (ninguém bateu em `/proximo` ainda) devolve `pool.geradoEm: null` e `estrutural` zerado, nunca erro. A mesma rota devolve também o contador do dia e as duas listas curtas COM NOME que a tela desenha — ver "A VISÃO da fila" adiante.
 
 Autenticação de **sessão de admin**, mesmo mecanismo de `PUT /api/config/fila` (`requireAdmin`) — **nunca a `RADAR_DEVICE_KEY`**: aquele segredo é do aparelho e não abre nada além das rotas de execução da fila. A rota vive sob `/api/fila/*`, o mesmo prefixo que `src/proxy.ts` isenta da sessão comum (porque o celular usa o device key, não cookie) — por isso ela faz sua própria checagem completa de sessão+papel, igual `/api/config/fila` PUT já faz.
 
@@ -2509,7 +2516,7 @@ A consequência aceita é que passam a existir **leads contactados com o texto m
 É lista de trabalho **MANUAL**: o operador abre a conversa e anexa o print à mão. **Sem ação em massa e sem botão de reenvio** — reenviar produziria justamente a mensagem duplicada que reportar "enviado" existe para evitar.
 
 - **`detalheEnvioResolvido` (booleano, ausente = false)**, gravado pelo alternador de cada linha. Sem ele a lista nunca esvazia e em uma semana vira ruído que ninguém olha — e lista que ninguém olha não avisa nada. **Reversível**, pelo mesmo motivo de `telefoneInvalido` na ficha: um alternador clicado por engano não pode sumir com a pendência para sempre. Daí o "ver resolvidas" ao lado do título; a visão padrão são as abertas.
-- **Fica sob `/api/config/`, não sob `/api/fila/`.** Aquele prefixo INTEIRO passa sem sessão de usuário (é o celular com Bearer `RADAR_DEVICE_KEY` — ver `src/proxy.ts`), e pendurar ali uma tela de admin a tiraria da sessão junto. `GET /api/config/fila/pendencias` é aberto a qualquer sessão e `PATCH /api/config/fila/pendencias/{leadId}` é restrito ao admin — a mesma divisão de `/api/config/fila`.
+- **Fica sob `/api/config/`, não sob `/api/fila/`.** Aquele prefixo INTEIRO passa sem sessão de usuário (é o celular com Bearer `RADAR_DEVICE_KEY` — ver `src/proxy.ts`), e pendurar ali uma tela de admin a tiraria da sessão junto. `GET /api/config/fila/pendencias` e `PATCH /api/config/fila/pendencias/{leadId}` são restritos ao admin, como todo o painel (ver "O painel inteiro é ADMIN ONLY").
 - **`PendenciaEnvio` mora em `estado.ts`**, não no módulo que a monta: quem desenha a lista é componente client e `pendencias.ts` lê o Firestore. Mesma divisão (e mesmo motivo) de `FilaEnvioDoc`; `pendencias.ts` reexporta o tipo para ninguém precisar saber dela.
 - **404 para lead sem pendência, sem criar doc.** `set` com `merge` CRIA o documento ausente — um leadId errado não pode plantar lixo em `filaEnvios`. A escrita é merge de um campo só, e sem transação de propósito: o doc já está em estado terminal (`enviado` nunca volta a ser reservado), então não há claim concorrente com que competir.
 
@@ -2543,6 +2550,49 @@ Um lead que esgota as tentativas some da fila sozinho. Se isso não aparecesse e
 `src/lib/fila/estado.ts` existe por causa disso: os TIPOS e a política (`TENTATIVAS_MAX`, `filaParado`) moram num módulo sem nada de servidor, porque a ficha é um componente client e `envios.ts` — o dono das transações — importa `node:crypto` para cunhar o claimId. Arrastá-lo para o navegador por causa de uma constante quebraria o bundle; `envios.ts` reexporta o que era dele para ninguém precisar saber da divisão.
 
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=listas` ganhou o fixture `lead-fila-parada` (número inválido + 3 tentativas) e um passo que cobra as duas tarjas, o texto do último erro e o alternador no estado que DESFAZ a marcação.
+
+### A VISÃO da fila no painel "Fila de envio" (/config)
+
+O diagnóstico acima responde "quantos pararam em cada etapa". Esta tela responde as outras quatro perguntas — **o que vai acontecer, quando, com quem, e por que os demais não entram** — sem ninguém precisar abrir log de aparelho. Bloco subordinado ao painel que já existia (mesma seção, separada por um filete, `<h3>` "O que vai acontecer"), ao lado da lista de print pendente.
+
+**A tela é LEITURA mais uma ação pontual. Nada nela dispara envio** — quem entrega continua sendo o celular, quando pedir a próxima tarefa; a tela só mostra o que ele vai encontrar quando pedir.
+
+Quatro partes:
+
+- **Contador do dia** — enviados, meta, restante, quantos na última hora contra o teto, e **quando o dia operacional vira** (`proximaViradaDiaOperacional`, respeitando `inicioDiaOperacionalHora`). Sem o instante da virada, "7 de 15" não diz se resta a noite inteira ou dez minutos. A função é calculada no relógio de São Paulo com o deslocamento reconferido NO ALVO, e há teste que a amarra a `diaOperacionalKey`: o instante devolvido é exatamente aquele em que a chave do contador muda. `restante` nunca é negativo — a meta pode ser reduzida no meio do dia, e "-3 restantes" não quer dizer nada.
+- **Funil**, nas quatro etapas e na ordem real de avaliação (ritmo → estrutural → nicho → janela). As sete contagens estruturais levam **o instante do rebuild ao lado delas** ("retrato do pool de 14h32, há 12min, 312 leads lidos"), e nicho/janela ficam sob "calculado agora, sobre esse mesmo pool". A fronteira entre defasado e fresco é visível NA TELA, não só na documentação: número defasado lido como se fosse agora é pior que número ausente. Pool nunca construído tem texto próprio, e não um funil de zeros sem explicação.
+- **Próximos elegíveis** — nome, nicho, nível e a hora local do lead, **na ordem em que serão entregues**. A lista é `ordenarCandidatos(...).escolhido`, a mesma função que `/proximo` usa: o painel não ordena por conta própria, porque duas ordenações seriam duas verdades sobre quem é o próximo e divergiriam em silêncio.
+- **Bloqueados por janela** — nome, nicho, nível agora e a **próxima faixa ACEITA**, que não é o `proximoBom` (ver abaixo).
+
+**A próxima faixa aceita não é o "próximo bom"** — e essa é a armadilha central desta tela. Com `exigirJanelaBoa === false`, `niveisAceitos` é `["bom", "razoavel"]` e o lead entra no próximo instante BOM **OU RAZOÁVEL**, que vem antes do `proximoBom`. Mostrar `proximoBom` nos dois casos daria uma hora errada e plausível — sempre mais tarde que a verdadeira, e ninguém desconfiaria. `barraDoDia` não expunha isso, e a generalização óbvia também estaria errada: `razoavel` é o `NIVEL_PADRAO`, então todo minuto ABERTO que nenhuma faixa cobre é razoável **sem existir faixa nenhuma** — varrer `faixas.filter(f => f.nivel === "razoavel")` acharia só o razoável explícito e diria "amanhã" para um lead que entra em meia hora. Por isso `acharProximoBom` virou `acharProximoNivel`, varrendo **segmentos** (que já resolvem o padrão implícito via `nivelEm`); `proximoBom` passou a ser o caso `["bom"]` da mesma varredura, com saída idêntica, e `proximoMomentoAceito(janelas, lead, niveis, now)` é o público que o painel usa. `diaClassificado` extraiu a classificação de UM dia, agora compartilhada entre o dia que a barra desenha e os 7 dias que a varredura percorre.
+
+**O custo de leitura, explícito.** As entradas do pool são compactas de propósito (`{ id, nicho, offset, faixas, criadoEm }`, teto de 1 MiB) e **continuam sem nome** — acrescentar nome ali encareceria a rota que o celular bate 1440× por dia para servir uma tela de admin. O nome vem de leitura **por id**, só das poucas linhas que a tela mostra (`PAINEL_LINHAS`, 5 por lista); nada aqui varre `/leads`, e há teste que espiona as chamadas. Varredura seria aceitável nesta tela (/config é admin, aberta esporadicamente por uma pessoa — ver a lista de pendência acima), mas aqui nem é preciso: o pool já tem os ids, e ler 10 docs é mais barato que varrer a base. **Nada de cache nem de pool para esta tela.**
+
+**A releitura por id também é honestidade, não só o nome.** O pool é CACHE, e a regra da fila inteira é "pode OFERECER um lead que não serve mais, nunca ENTREGAR" (ver `lerPool`). A tela segue a mesma regra: cada linha é reconferida contra o doc fresco (`motivoEstrutural`) e **sai da lista** quando não passa mais. É isso que faz o lead desaparecer assim que o operador o tira da fila, em vez de continuar listado como próximo até o pool reconstruir — e é o motivo de a lista poder ser mais curta que a contagem de elegíveis.
+
+**`ordenarCandidatos` ganhou `coletarBloqueados`**, opt-in: a LISTA de quem parou na janela sai da mesma passagem que já decide e conta, nunca de uma segunda varredura do pool. Fica opt-in porque `/proximo` roda de minuto em minuto e não tem o que fazer com ela — montar um array de até `POOL_MAX` itens para ninguém ler é desperdício. `nivel` ausente na linha = lead FECHADO neste minuto, a distinção que a tela precisa fazer entre "hora ruim" e "não está aberto".
+
+**Uma ação só sobre lead específico: tirar da fila.** É o `descartar` que já existe (`PATCH /api/leads/{id}`), o mesmo do card e da ficha: já reversível por lá, e já exclui o lead do pool na próxima reconstrução. **Nenhum campo novo**, e nada de `telefoneInvalido`, que quer dizer outra coisa (o número não tem WhatsApp). **"Despriorizar" ficou fora de propósito**: exigiria campo novo participando da ordenação e carregado nas entradas do pool, para uma fila que entrega no máximo 15 por dia onde o FIFO já resolve.
+
+**A resposta inteira vem de `GET /api/fila/diagnostico`** — a rota que já calculava o funil —, e não de uma rota nova: as listas saem da MESMA chamada de `ordenarCandidatos` que produz as contagens. Duas rotas recomputando a seleção no mesmo segundo seriam duas respostas capazes de discordar entre si. Editar a config no painel acima recarrega a visão (`versao`), porque `exigirJanelaBoa` e `nichosPermitidos` mudam o funil inteiro — um funil que não reagisse à edição ao lado dele seria justamente o número defasado lido como se fosse agora.
+
+#### Regras de segurança contra colapso
+
+Existem porque um humano edita esta tela enquanto o celular pode estar no meio de um ciclo:
+
+- **Alteração de configuração NUNCA invalida claim já emitida.** Quem decide a vida da claim é `expiraEm`; nada em `saveFilaConfig` escreve em `filaEnvios`. Há teste que pausa a fila, zera a meta e confere que a reserva viva continua byte a byte igual.
+- **`POST /api/fila/confirmar` continua aceitando confirmação de lead removido da fila pelo painel.** Recusar seria pior: o texto já pode ter saído, e o lead ficaria marcado como não contactado tendo sido contactado — com o contador do dia sem bater com o que o negócio recebeu. O descarte do operador sobrevive à confirmação (o lead vira `contactado` E continua `descartado`).
+- **O painel não libera claim de ninguém**, automaticamente ou não: não há botão para isso. Uma claim presa se resolve sozinha em 5 minutos pela expiração, e um botão que a devolvesse enquanto o aparelho está no meio do envio produziria a mensagem duplicada que a fila inteira existe para evitar.
+
+#### O painel inteiro é ADMIN ONLY
+
+Não é sigilo de dado: **a fila é global** — um `/config/fila`, um pool, um contador — e é drenada por UM aparelho físico. Membro que pausa, para o celular do admin; membro que mexe na meta, muda o que aquele aparelho vai fazer à noite. É comando sobre hardware alheio.
+
+A página `/config` já era restrita ao admin no proxy (membro é mandado de volta ao painel), mas a checagem de PAPEL nas rotas estava só na ESCRITA: `PUT /api/config/fila` e `PATCH .../pendencias/{leadId}` eram `requireAdmin`, e os dois GET passavam com qualquer sessão válida. Fechado: **as quatro rotas do bloco** (`GET`/`PUT /api/config/fila`, `GET /api/config/fila/pendencias`, `PATCH /api/config/fila/pendencias/{leadId}`) e `GET /api/fila/diagnostico` exigem sessão de admin — 401 sem sessão, 403 para membro, com teste em cada uma conferindo que o corpo do 403 não traz `fila` nem `pendencias`. `GET /api/config/fila` passou a receber a `Request` (não recebia argumento nenhum) para poder ler o cookie.
+
+`/api/fila/diagnostico` continua sendo o caso especial que já era: vive sob o prefixo `/api/fila/*` que o proxy isenta da sessão (porque é lá que o celular bate com a `RADAR_DEVICE_KEY`), e por isso faz a própria checagem completa de sessão + papel. A `RADAR_DEVICE_KEY` **não abre esta tela**: aquele segredo é do aparelho e só serve às rotas de execução (`/proximo`, `/confirmar`).
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` captura o painel em três estados × celular e desktop × temas escuro e claro (o tema claro pelo mesmo motivo do `--so=pendencias`: é onde os tokens apagados deste bloco têm menos contraste de sobra, e as capturas de aba não o cobrem). Os estados: **cheia** (5 próximos + "e mais 1 na fila", 2 bloqueados, contador andando, retrato do pool datado); **vazia** — fila ativa, pool sem candidato e contador zerado, os três estados vazios de uma vez, que é o motivo de o passo existir e onde ele cobra que o painel ENCOLHA (−501px no celular, −381px no desktop) em vez de trocar as listas por um vão; e **sem pool**, o celular que nunca pediu tarefa. Os fixtures usam as famílias `petshop` (faixa `bom` o dia inteiro nos 7 dias) e `multimarcas` (`ruim` igual), pelo mesmo motivo já anotado para `imobiliaria` em /mundo: captura cujo CONTEÚDO muda com a hora da rodada não prova nada. Os aferidores do painel (não vaza da viewport, nenhum slot com caixa zerada) são compartilhados com o `--so=pendencias`, e a asserção "sobrou linha de lista" daquele passo passou a ser escopada por `[data-lista="pendencias"]` — o funil desta visão também é feito de `<li>`, e ele não é linha de pendência.
 
 ## Proteção por sessão multiusuário (src/proxy.ts + lib/auth.ts + lib/usuarios)
 
@@ -3181,7 +3231,7 @@ não por assunto.
 | laço | superfície | o que ele julga |
 |---|---|---|
 | `scripts/qa-visual.mjs` | **camada decorativa das DEMOS** (rota pública das skins do registro, via o harness `/interno/demo-qa`) | efeito × intensidade × tema, estilos de LED, modos de cor, animação por seção, **variante × modo de cor** (`--so=variante`), cor da barra do navegador, fps no celular com CPU 4× (`--so=fps`, com `--skin=` para escolher a skin e, quando ela tem variantes, variante no eixo das linhas) e o portão de foto colapsada (`--so=colapso`). **Não conhece `/leads` nem `/buscas`** — não há tela da plataforma nele |
-| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz e — em `--so=listas` — o portão de `/leads` e `/buscas` no celular: caixa zerada, colunas da grade, escada de densidade, nada vazando |
+| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e o painel "Fila de envio" da /config, que fica abaixo da dobra e por isso tem passos próprios — `--so=pendencias` (lista de print) e `--so=fila` (a visão: funil, próximos, bloqueados), os dois cobrando os ESTADOS VAZIOS |
 | `scripts/qa-cls.mjs` | **deslocamento de layout**, nas três | `--so=skins` (rota pública), `--so=editor` (o preview do editor) e `--so=app` (as 7 abas da plataforma). Portão 0.1, o mesmo piso "bom" do Core Web Vital real |
 
 Os outros são de recorte estreito e o nome já diz: `qa-aura.mjs`,
