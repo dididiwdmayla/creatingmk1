@@ -26,6 +26,17 @@ export interface FilaConfig {
   /** Intervalo mínimo entre dois envios confirmados, em segundos. */
   intervaloMinimoSegundos: number;
   /**
+   * Janela de silêncio (segundos) sem mensagem NOVA do mesmo lead antes de
+   * gerar UM rascunho de resposta com tudo que chegou no grupo — ver
+   * "Fila de respostas" em ARCHITECTURE.md. Cada mensagem do WhatsApp vira
+   * uma notificação própria no aparelho; sem agrupar, um lead que manda três
+   * linhas seguidas geraria três rascunhos. Precisa ser MENOR que o
+   * intervalo de polling de `GET /api/fila/proximo` (hoje 180s no
+   * MacroDroid) — é essa rota (e o início de `POST
+   * /api/fila/mensagem-recebida`) que libera os grupos maduros.
+   */
+  respostaAgrupamentoSegundos: number;
+  /**
    * Hora (0-23, America/Sao_Paulo) em que o "dia operacional" começa —
    * usada para fechar a chave de `filaContadores`. 0 = meia-noite (mesmo
    * comportamento do calendário normal).
@@ -63,6 +74,7 @@ export const DEFAULT_FILA_CONFIG: FilaConfig = {
   exigirJanelaBoa: true,
   nichosPermitidos: [],
   intervaloMinimoSegundos: 180,
+  respostaAgrupamentoSegundos: 45,
   inicioDiaOperacionalHora: 0,
   numeroTeste: "5544984570105",
   ativoAlteradoPor: null,
@@ -76,6 +88,7 @@ const TOP_LEVEL_KEYS = new Set<keyof FilaConfig>([
   "exigirJanelaBoa",
   "nichosPermitidos",
   "intervaloMinimoSegundos",
+  "respostaAgrupamentoSegundos",
   "inicioDiaOperacionalHora",
   "numeroTeste",
 ]);
@@ -118,6 +131,14 @@ export function validateFilaConfigPatch(patch: unknown): asserts patch is Partia
   }
   if (patch.intervaloMinimoSegundos !== undefined) {
     validarInteiroNaoNegativo(patch.intervaloMinimoSegundos, "intervaloMinimoSegundos", problemas);
+  }
+
+  if (patch.respostaAgrupamentoSegundos !== undefined) {
+    validarInteiroNaoNegativo(
+      patch.respostaAgrupamentoSegundos,
+      "respostaAgrupamentoSegundos",
+      problemas,
+    );
   }
 
   if (patch.inicioDiaOperacionalHora !== undefined) {
@@ -166,6 +187,8 @@ export function mergeFilaConfig(base: FilaConfig, patch: Partial<FilaConfig>): F
     // sem isso não haveria como REMOVER um nicho liberado.
     nichosPermitidos: patch.nichosPermitidos ?? base.nichosPermitidos,
     intervaloMinimoSegundos: patch.intervaloMinimoSegundos ?? base.intervaloMinimoSegundos,
+    respostaAgrupamentoSegundos:
+      patch.respostaAgrupamentoSegundos ?? base.respostaAgrupamentoSegundos,
     inicioDiaOperacionalHora: patch.inicioDiaOperacionalHora ?? base.inicioDiaOperacionalHora,
     // `.trim()` só sobre string: `loadFilaConfig` faz este merge sobre o doc
     // CRU do Firestore, e um valor de tipo errado ali não pode derrubar

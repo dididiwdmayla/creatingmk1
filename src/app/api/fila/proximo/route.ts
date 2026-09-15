@@ -12,6 +12,7 @@ import {
   liberarClaim,
   reservarLead,
 } from "@/lib/fila/envios";
+import { flushGruposMaduros } from "@/lib/fila/flushRespostas";
 import { montarMensagemParaLead } from "@/lib/fila/mensagem";
 import { printUrlDoLead } from "@/lib/fila/print";
 import {
@@ -195,6 +196,16 @@ export async function GET(req: Request) {
     const dispositivo = req.headers.get(HEADER_DISPOSITIVO)?.trim() || DISPOSITIVO_PADRAO;
 
     const config = await loadFilaConfig(db);
+    const app = await loadConfig(db);
+
+    // Flush do agrupamento de respostas — TODA chamada de /proximo varre
+    // grupos maduros de mensagens recebidas (ver "Fila de respostas" em
+    // ARCHITECTURE.md) e libera o rascunho, antes de qualquer portão de
+    // ritmo: é o polling desta rota, a cada 180s, que garante que nenhum
+    // grupo fica preso (a janela de silêncio é sempre menor). Isolado por
+    // completo (`flushGruposMaduros` nunca lança) — falha na geração de um
+    // rascunho não pode alterar nem atrasar perceptivelmente esta resposta.
+    await flushGruposMaduros(db, now, config, app);
 
     // A TAREFA DE TESTE vem ANTES do portão de ritmo, de propósito: quem
     // decidiu que ela podia sair foi o operador na tela, que pode ter
@@ -229,7 +240,7 @@ export async function GET(req: Request) {
     const ritmo = motivoDeRitmo(config, contador);
     if (ritmo) return semTarefa(ritmo);
 
-    const [app, pool] = await Promise.all([loadConfig(db), lerPool(db, now)]);
+    const pool = await lerPool(db, now);
     const { escolhido, diagnostico } = ordenarCandidatos(
       pool.candidatos,
       config,
