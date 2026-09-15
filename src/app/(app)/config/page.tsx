@@ -12,6 +12,7 @@ import {
   api,
   type CotasUsuariosResponse,
   type FilaDiagnosticoResponse,
+  type FilaTesteEstadoResponse,
   type FrasesResponse,
   type MetasUsuariosResponse,
   type UsageResponse,
@@ -35,7 +36,13 @@ import {
   type NivelContato,
 } from "@/lib/leads/janelaContato";
 import type { FilaConfig } from "@/lib/fila/config";
-import type { LinhaFilaPainel, PendenciaEnvio } from "@/lib/fila/estado";
+import {
+  ETAPAS_TESTE,
+  type EtapaTeste,
+  type FilaTesteDoc,
+  type LinhaFilaPainel,
+  type PendenciaEnvio,
+} from "@/lib/fila/estado";
 import {
   FRASES_SLOTS,
   type FrasesProspeccao,
@@ -1100,6 +1107,11 @@ function FilaEnvioSection() {
   // Sobe a cada config salva: o funil e as listas abaixo dependem dela
   // (exigirJanelaBoa e nichosPermitidos mudam quem é elegível AGORA).
   const [versaoConfig, setVersaoConfig] = useState(0);
+  // Os leads que a visão já carregou, emprestados ao disparo de teste como
+  // atalho de escolha de alvo. Vêm de lá em vez de uma segunda chamada: o
+  // funil e as listas saem da MESMA `ordenarCandidatos`, e recalculá-las
+  // aqui seriam duas respostas capazes de discordar entre si.
+  const [leadsDaVisao, setLeadsDaVisao] = useState<LinhaFilaPainel[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -1220,10 +1232,24 @@ function FilaEnvioSection() {
             />
           </div>
           <p className="text-xs text-ink-muted">Vazio = todos os nichos.</p>
+
+          <div className="flex items-center gap-2 text-xs text-ink-secondary">
+            <span className="w-48 shrink-0">Número do teste</span>
+            <FilaNumeroTesteInput
+              valor={config.numeroTeste}
+              disabled={ocupado === "numeroTeste"}
+              onSalvar={(valor) => salvar({ numeroTeste: valor }, "numeroTeste")}
+            />
+          </div>
+          <p className="text-xs text-ink-muted">
+            Destino de TODO disparo de teste — nunca o telefone do lead. Dígitos com DDI; vazio
+            desliga o disparo.
+          </p>
         </div>
       )}
 
-      <VisaoFila versao={versaoConfig} />
+      <VisaoFila versao={versaoConfig} onLeads={setLeadsDaVisao} />
+      <DisparoTeste versao={versaoConfig} leadsDaVisao={leadsDaVisao} />
       <PrintPendenteLista />
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
@@ -1360,7 +1386,14 @@ function LinhaLeadFila({
  * reage à edição ao lado dele seria um número defasado lido como se fosse
  * agora — exatamente o que esta tela existe para não fazer.
  */
-function VisaoFila({ versao }: { versao: number }) {
+function VisaoFila({
+  versao,
+  onLeads,
+}: {
+  versao: number;
+  /** Empresta ao disparo de teste os leads já carregados — sem outra chamada. */
+  onLeads: (linhas: LinhaFilaPainel[]) => void;
+}) {
   const [dados, setDados] = useState<FilaDiagnosticoResponse | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -1376,6 +1409,7 @@ function VisaoFila({ versao }: { versao: number }) {
         if (ignore) return;
         setDados(resposta);
         setAgora(Date.now());
+        onLeads([...resposta.proximos, ...resposta.bloqueados]);
       })
       .catch((error) => {
         if (ignore) return;
@@ -1388,7 +1422,9 @@ function VisaoFila({ versao }: { versao: number }) {
     return () => {
       ignore = true;
     };
-  }, [versao, recarga]);
+    // `onLeads` é o setState do pai (identidade estável): entra na lista por
+    // exigência do lint, sem recarregar nada a mais.
+  }, [versao, recarga, onLeads]);
 
   async function tirarDaFila(leadId: string) {
     setOcupado(leadId);
@@ -1571,6 +1607,316 @@ function VisaoFila({ versao }: { versao: number }) {
 /** Quantos pararam na janela ao todo — a soma dos três baldes do diagnóstico. */
 function totalJanela(dados: FilaDiagnosticoResponse): number {
   return dados.janela.razoavel + dados.janela.ruim + dados.janela.semNivel;
+}
+
+
+/* ── Disparo de teste ──────────────────────────────────────────────────── */
+
+/** Rótulo de cada etapa onde o disparo de teste pode parar. */
+const ETAPA_TESTE_LABEL: Record<string, string> = {
+  numero: "número do teste",
+  ritmo: "ritmo",
+  estruturais: "filtros estruturais",
+  nicho: "nicho",
+  janela: "janela de contato",
+  conteudo: "o que enviar",
+};
+
+/**
+ * O motivo DENTRO da etapa, em português. As chaves são os códigos que
+ * `avaliarTeste` devolve (`MotivoSemTarefa`, `MotivoEstrutural`, o nível da
+ * janela) — o `?? motivo` na tela é a rede para um código novo aparecer cru
+ * em vez de sumir, mesmo padrão de `RITMO_LABEL`.
+ */
+const MOTIVO_TESTE_LABEL: Record<string, string> = {
+  numero_teste_vazio: "o “Número do teste” acima está vazio — sem destino não há disparo",
+  pausado: "a fila está pausada",
+  meta_atingida: "a meta do dia já foi atingida",
+  teto_hora: "o teto por hora foi atingido",
+  intervalo: "ainda não passou o intervalo mínimo entre envios",
+  status: "o lead já não está em “novo”",
+  descartado: "o lead foi descartado à mão",
+  telefoneInvalido: "o número do lead está marcado como sem WhatsApp",
+  semTelefone: "o lead não tem telefone",
+  semDemo: "o lead não tem demo",
+  capturaNaoPronta: "o print da demo não está pronto",
+  semFuso: "o lead não tem fuso conhecido",
+  fora_dos_nichos: "o nicho do lead não está em “nichos permitidos”",
+  sem_janela: "não dá para saber que horas são no lead (sem fuso)",
+  fechado: "o lead está fechado neste minuto",
+  razoavel: "a hora do lead é razoável, e a config só aceita “boa”",
+  ruim: "a hora do lead está ruim agora",
+  sem_demo: "sem demo, não há o que enviar",
+  captura_nao_pronta: "a captura não está pronta: não há print para mandar",
+  sem_print: "a captura não tem imagem de celular: não há print para mandar",
+};
+
+/** Rótulo curto de cada interruptor, na ordem real de avaliação. */
+const ETAPA_PULAR_LABEL: Record<EtapaTeste, string> = {
+  ritmo: "ritmo",
+  estruturais: "estruturais",
+  nicho: "nicho",
+  janela: "janela",
+};
+
+const RESULTADO_TESTE_LABEL: Record<string, string> = {
+  enviado: "enviado",
+  invalido: "número inválido",
+  falhou: "falhou",
+};
+
+/** Valor do seletor de alvo quando o operador vai digitar um id à mão. */
+const ALVO_OUTRO = "__outro__";
+
+/**
+ * A linha de estado da tarefa atual — o que ela é AGORA, sem o operador
+ * abrir log de aparelho. Pendente mostra o tempo restante; expirada diz
+ * isso em vez de ficar eternamente "aguardando", que seria um estado que
+ * mente.
+ */
+function estadoDoTeste(doc: FilaTesteDoc, agora: number): { texto: string; tom: string } {
+  if (doc.estado === "pendente") {
+    return new Date(doc.expiraEm).getTime() <= agora
+      ? { texto: "Expirou sem o aparelho puxar.", tom: "text-ink-muted" }
+      : {
+          texto: `Aguardando o aparelho puxar — expira ${formatTempoAte(doc.expiraEm, agora)}.`,
+          tom: "text-accent",
+        };
+  }
+  if (doc.estado === "entregue") {
+    return {
+      texto: `O aparelho puxou ${formatTempoRelativo(doc.entregueEm ?? doc.criadoEm, agora)} — aguardando o confirmar.`,
+      tom: "text-accent",
+    };
+  }
+  const resultado = RESULTADO_TESTE_LABEL[doc.resultado ?? ""] ?? doc.resultado ?? "";
+  return {
+    texto:
+      `Confirmado ${formatTempoRelativo(doc.confirmadoEm ?? doc.criadoEm, agora)}: ${resultado}` +
+      (doc.detalhe ? ` — ${doc.detalhe}` : "."),
+    tom: doc.resultado === "enviado" ? "text-good" : "text-warning",
+  };
+}
+
+/**
+ * O DISPARO DE TESTE — a única coisa nesta seção que faz o aparelho mandar
+ * mensagem. Bloco subordinado ao painel "Fila de envio", como a visão e a
+ * lista de pendência.
+ *
+ * **O operador ESCOLHE o lead**, com o fixo de teste pré-selecionado. Não é
+ * "o próximo elegível" de propósito: aquele é justamente quem já passou por
+ * todos os filtros, e testá-lo não ensina nada. Os interruptores existem
+ * para rodar um lead ESPECÍFICO pelo pipeline e ver onde ele para — daí o
+ * resultado dizer qual etapa barrou, nominalmente.
+ *
+ * O destino é sempre o "Número do teste" do painel acima, nunca o telefone
+ * do lead: é a rede de segurança de quando o alvo escolhido é um negócio
+ * real.
+ */
+function DisparoTeste({
+  versao,
+  leadsDaVisao,
+}: {
+  versao: number;
+  leadsDaVisao: LinhaFilaPainel[];
+}) {
+  const [estado, setEstado] = useState<FilaTesteEstadoResponse | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [recarga, setRecarga] = useState(0);
+  const [agora, setAgora] = useState(() => Date.now());
+  const [alvo, setAlvo] = useState("");
+  const [outroId, setOutroId] = useState("");
+  const [pular, setPular] = useState<EtapaTeste[]>([]);
+  const [barreira, setBarreira] = useState<{ etapa: string; motivo: string; nome: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .getFilaTeste()
+      .then((resposta) => {
+        if (ignore) return;
+        setEstado(resposta);
+        setAgora(Date.now());
+      })
+      .catch((error) => {
+        if (ignore) return;
+        setErro(
+          error instanceof ApiError && error.status === 403
+            ? "O disparo de teste é restrito ao admin."
+            : mensagemErroFila(error, "Falha ao carregar o disparo de teste"),
+        );
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [versao, recarga]);
+
+  async function disparar() {
+    setOcupado(true);
+    setErro(null);
+    setBarreira(null);
+    const leadId = alvo === ALVO_OUTRO ? outroId.trim() : alvo;
+    try {
+      const resposta = await api.postFilaTeste({
+        ...(leadId && { leadId }),
+        ...(pular.length > 0 && { pular }),
+      });
+      if (!resposta.injetada) {
+        setBarreira({ etapa: resposta.etapa, motivo: resposta.motivo, nome: resposta.nome });
+      }
+      setRecarga((n) => n + 1);
+    } catch (error) {
+      setErro(mensagemErroFila(error, "Falha ao disparar o teste"));
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  function alternarEtapa(etapa: EtapaTeste) {
+    setPular((atual) =>
+      atual.includes(etapa) ? atual.filter((e) => e !== etapa) : [...atual, etapa],
+    );
+  }
+
+  const fixo = estado?.leadDeTeste;
+  const linha = estado?.atual ? estadoDoTeste(estado.atual, agora) : null;
+
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <h3 className="text-xs font-medium text-ink-secondary">Disparo de teste</h3>
+      <p className="mt-1 text-xs text-ink-muted">
+        Injeta UMA tarefa na fila. O aparelho a recebe na próxima vez que pedir trabalho — e ele
+        pergunta a cada ~3 minutos, então pode levar até isso para sair. Clicar de novo não
+        acelera: substitui a tarefa que está esperando.
+      </p>
+
+      {estado === null && !erro && (
+        <SkeletonRows count={1} className="mt-2 h-24 rounded border border-line" />
+      )}
+
+      {estado && (
+        <>
+          <p className="mt-2 text-xs text-ink-secondary">
+            Destino:{" "}
+            {estado.numeroTeste ? (
+              <span className="font-mono text-foreground">{estado.numeroTeste}</span>
+            ) : (
+              <span className="text-critical">não configurado</span>
+            )}{" "}
+            <span className="text-ink-muted">— nunca o telefone do lead.</span>
+          </p>
+
+          {/* ── Alvo ──────────────────────────────────────────────────── */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
+            <span className="w-20 shrink-0">Lead alvo</span>
+            <select
+              value={alvo}
+              onChange={(event) => setAlvo(event.target.value)}
+              className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 text-xs text-foreground outline-none focus:border-accent"
+            >
+              <option value="">
+                {fixo?.nome ?? "lead fixo de teste"} (fixo de teste)
+                {fixo && !fixo.pronto ? " — sem print" : ""}
+              </option>
+              {leadsDaVisao.map((lead) => (
+                <option key={lead.leadId} value={lead.leadId}>
+                  {lead.nome}
+                </option>
+              ))}
+              <option value={ALVO_OUTRO}>outro lead (por id)…</option>
+            </select>
+          </div>
+          {alvo === ALVO_OUTRO && (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
+              <span className="w-20 shrink-0" />
+              <input
+                value={outroId}
+                placeholder="placeId do lead"
+                onChange={(event) => setOutroId(event.target.value)}
+                className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-accent"
+              />
+            </div>
+          )}
+          {fixo && !fixo.pronto && (
+            <p className="mt-1 text-[10px] text-warning">
+              O lead fixo de teste ainda não tem print:{" "}
+              <a
+                href={`/leads/${fixo.leadId}`}
+                className="underline decoration-line underline-offset-2"
+              >
+                abra a ficha dele
+              </a>{" "}
+              e gere as capturas uma vez — depois disso elas não expiram.
+            </p>
+          )}
+
+          {/* ── Interruptores, na ordem real de avaliação ──────────────── */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
+            <span className="w-20 shrink-0">Pular</span>
+            {ETAPAS_TESTE.map((etapa) => (
+              <button
+                key={etapa}
+                type="button"
+                onClick={() => alternarEtapa(etapa)}
+                aria-pressed={pular.includes(etapa)}
+                className={`rounded border px-2 py-1 text-xs ${
+                  pular.includes(etapa)
+                    ? "border-accent bg-accent/15 text-accent"
+                    : "border-line bg-surface-2 text-ink-muted"
+                }`}
+              >
+                {ETAPA_PULAR_LABEL[etapa]}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[10px] text-ink-muted">
+            Na ordem em que a seleção avalia. Ligado = a etapa não barra este disparo. Mesmo com
+            tudo ligado, sem demo, sem captura pronta ou sem print a tarefa não é injetada — tarefa
+            sem print quebra o ciclo no aparelho sem ensinar nada.
+          </p>
+
+          <button
+            type="button"
+            onClick={disparar}
+            disabled={ocupado}
+            className="mt-2 rounded border border-accent bg-accent/15 px-2 py-1 text-xs font-semibold text-accent disabled:opacity-50"
+          >
+            {ocupado ? "disparando…" : "Disparar teste"}
+          </button>
+
+          {/* ── O resultado do último clique ───────────────────────────── */}
+          {barreira && (
+            <p className="mt-2 rounded border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning">
+              Não injetou — {barreira.nome} parou em{" "}
+              <strong>{ETAPA_TESTE_LABEL[barreira.etapa] ?? barreira.etapa}</strong>:{" "}
+              {MOTIVO_TESTE_LABEL[barreira.motivo] ?? barreira.motivo}.
+            </p>
+          )}
+
+          {/* ── A tarefa atual ─────────────────────────────────────────── */}
+          {linha && estado.atual ? (
+            <div className="mt-2 rounded border border-line p-2">
+              <p className={`text-xs ${linha.tom}`}>{linha.texto}</p>
+              <p className="mt-0.5 text-[10px] text-ink-muted">
+                {estado.atual.nome} · para{" "}
+                <span className="font-mono">{estado.atual.numero}</span> · disparada em{" "}
+                {formatDateTime(estado.atual.criadoEm)}
+                {estado.atual.pulou.length > 0 &&
+                  ` · pulou ${estado.atual.pulou.map((e) => ETAPA_PULAR_LABEL[e]).join(", ")}`}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-ink-muted">Nenhum teste disparado ainda.</p>
+          )}
+        </>
+      )}
+
+      {erro && <p className="mt-2 text-xs text-critical">{erro}</p>}
+    </div>
+  );
 }
 
 
@@ -1758,6 +2104,52 @@ function FilaNumeroInput({
       onChange={(event) => setTexto(event.target.value)}
       onBlur={commit}
       className="w-20 rounded border border-line bg-surface-2 px-2 py-1 text-center font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+    />
+  );
+}
+
+/**
+ * O número de destino do disparo de teste. Dígitos com DDI, vazio = disparo
+ * desligado. Reverte o que não for dígito em vez de mandar ao servidor: a
+ * validação de verdade está lá (`validateFilaConfigPatch`), mas o WhatsApp
+ * do celular não resolve parêntese nem traço, e é melhor o campo dizer isso
+ * na hora do que a mensagem falhar de madrugada.
+ */
+function FilaNumeroTesteInput({
+  valor,
+  disabled,
+  onSalvar,
+}: {
+  valor: string;
+  disabled: boolean;
+  onSalvar: (valor: string) => void;
+}) {
+  const [texto, setTexto] = useState(valor);
+  const [ultimoValor, setUltimoValor] = useState(valor);
+  if (valor !== ultimoValor) {
+    setUltimoValor(valor);
+    setTexto(valor);
+  }
+
+  function commit() {
+    const limpo = texto.trim();
+    if (limpo !== "" && !/^\d{10,15}$/.test(limpo)) {
+      setTexto(valor); // inválido: reverte
+      return;
+    }
+    if (limpo !== valor) onSalvar(limpo);
+    else setTexto(valor);
+  }
+
+  return (
+    <input
+      inputMode="numeric"
+      value={texto}
+      placeholder="desligado"
+      disabled={disabled}
+      onChange={(event) => setTexto(event.target.value)}
+      onBlur={commit}
+      className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
     />
   );
 }

@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { AppDb } from "@/lib/firestore-like";
 
 import { RESERVA_DURACAO_MS } from "./envios";
+import type { EtapaTeste, FilaTesteDoc, TesteEstado, TesteResultado } from "./estado";
 
 /**
  * A TAREFA DE TESTE — um disparo que o operador injeta na tela e que o
@@ -56,49 +57,14 @@ export const TESTE_VALIDADE_MS = 15 * 60 * 1000;
  */
 export const CLAIM_TESTE_PREFIXO = "teste-";
 
-export type TesteEstado = "pendente" | "entregue" | "confirmado";
-
-/** O que o aparelho reporta — os mesmos três resultados da fila real. */
-export type TesteResultado = "enviado" | "invalido" | "falhou";
-
 /**
- * O doc `filaTestes/atual`. Tudo que a tarefa precisa é congelado na
- * INJEÇÃO — nome, texto e print —, e não relido na entrega: assim `/proximo`
- * não paga leitura de lead nem as três coleções de `montarMensagemParaLead`
- * para servir um teste, e a tarefa não muda de conteúdo entre o clique e a
- * puxada.
+ * A FORMA da tarefa de teste mora em `estado.ts`, não aqui, pelo mesmo
+ * motivo de `FilaEnvioDoc`: quem desenha o painel é componente client, e
+ * este módulo importa `node:crypto` para cunhar o claimId. Reexportado para
+ * ninguém precisar saber da divisão.
  */
-export interface FilaTesteDoc {
-  /** `teste-XXXXXXXXXXXX` — cunhado na injeção, não na entrega. */
-  claimId: string;
-  estado: TesteEstado;
-  /** O lead ALVO. Ele nunca é escrito por este caminho; está aqui para a tela e para o rastro. */
-  leadId: string;
-  nome: string;
-  /** Destino real do disparo: `config/fila.numeroTeste`, nunca o telefone do lead. */
-  numero: string;
-  texto: string;
-  printUrl: string;
-  criadoEm: string;
-  /** `criadoEm + TESTE_VALIDADE_MS`. Só significa alguma coisa enquanto `pendente`. */
-  expiraEm: string;
-  /** Admin que injetou. */
-  criadoPor: string;
-  /** Quais etapas o operador mandou pular — o rastro do diagnóstico. */
-  pulou: EtapaTeste[];
-  entregueEm: string | null;
-  confirmadoEm: string | null;
-  resultado: TesteResultado | null;
-  /** Texto livre que o aparelho mandou junto do resultado. */
-  detalhe: string;
-}
-
-/**
- * As quatro etapas da seleção, na ORDEM REAL de avaliação — a mesma de
- * `/proximo` e do funil da visão (ritmo → estrutural → nicho → janela).
- */
-export const ETAPAS_TESTE = ["ritmo", "estruturais", "nicho", "janela"] as const;
-export type EtapaTeste = (typeof ETAPAS_TESTE)[number];
+export type { FilaTesteDoc, TesteEstado, TesteResultado, EtapaTeste } from "./estado";
+export { ETAPAS_TESTE } from "./estado";
 
 export function ehClaimDeTeste(claimId: string): boolean {
   return claimId.startsWith(CLAIM_TESTE_PREFIXO);
