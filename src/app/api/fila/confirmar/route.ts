@@ -5,6 +5,10 @@ import { autenticarDispositivo } from "@/lib/fila/auth";
 import { loadFilaConfig } from "@/lib/fila/config";
 import { confirmarEnvio } from "@/lib/fila/confirmar";
 import { ClaimInvalidoError, type FilaEnvioResultado } from "@/lib/fila/envios";
+import {
+  confirmarTarefaResposta,
+  ehClaimDeResposta,
+} from "@/lib/fila/respostaAutomatica";
 import { confirmarTeste, ehClaimDeTeste } from "@/lib/fila/teste";
 import { handleRouteError, jsonError, readJsonBody } from "@/lib/http";
 
@@ -22,6 +26,12 @@ import { handleRouteError, jsonError, readJsonBody } from "@/lib/http";
  * - **Confirmação repetida da MESMA claim devolve sucesso sem duplicar
  *   nada.** A rede pode cair DEPOIS de a mensagem ter saído, e aí o celular
  *   reenvia o confirmar; repetir não pode contar duas vezes.
+ *
+ * **O contrato NÃO muda com a resposta automática**: os mesmos três
+ * resultados, a mesma idempotência, o mesmo 409, as mesmas chaves na
+ * resposta. O que muda é para onde a confirmação vai, e isso é decidido pelo
+ * PREFIXO do claimId — `teste-` e `resp-`, cada um com seu desvio de custo
+ * zero, os dois ANTES da transação que toca lead, contador e rotação.
  *
  * **A claim de TESTE desvia aqui, antes de tudo.** O desvio é pelo PREFIXO
  * do claimId (`lib/fila/teste.ts`), que custa zero leitura e acontece antes
@@ -86,6 +96,33 @@ export async function POST(req: Request) {
         tentativas: 0,
         parado: false,
       });
+    }
+
+    // ── CLAIM DE RESPOSTA AUTOMÁTICA ─────────────────────────────────
+    // Mesmo desvio por prefixo da claim de teste, e pela mesma razão: esta
+    // confirmação não pode passar por `confirmarEnvio`, que moveria o status
+    // do lead, gastaria a meta do dia e giraria a rotação de frases — nada
+    // disso vale para uma resposta (o lead já está em "respondeu", a
+    // resposta não sai de frase nenhuma, e a cota dela é outra coluna do
+    // contador). `RADAR_DEVICE_USER_ID` também não faz falta aqui: não há
+    // ação de usuário para atribuir, porque nenhum doc de lead é escrito.
+    if (ehClaimDeResposta(id as string)) {
+      const config = await loadFilaConfig(db);
+      const confirmacao = await confirmarTarefaResposta(
+        db,
+        id as string,
+        resultado as FilaEnvioResultado,
+        typeof detalhe === "string" ? detalhe.slice(0, DETALHE_MAX) : null,
+        new Date(),
+        config.inicioDiaOperacionalHora,
+      );
+      if (!confirmacao) {
+        // Mesmo dialeto dos outros dois caminhos: "esta tarefa não é mais sua".
+        return NextResponse.json({ erro: "claim_invalida" }, { status: 409 });
+      }
+      // As MESMAS chaves do caminho real, com os mesmos significados:
+      // `parado` aqui é "saiu do automático e voltou para o painel".
+      return NextResponse.json({ ok: true, teste: false, ...confirmacao });
     }
 
     // O usuário sob o qual as ações do celular são atribuídas — mantém

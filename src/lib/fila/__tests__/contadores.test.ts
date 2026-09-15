@@ -5,6 +5,7 @@ import {
   contadorComEnvio,
   contadorComFalha,
   contadorComInvalido,
+  contadorComResposta,
   diaOperacionalKey,
   lerContadorFila,
   momentoFimIntervalo,
@@ -107,6 +108,7 @@ describe("contadorComEnvio / contadorComFalha / contadorComInvalido — puros", 
       falhas: 1,
       invalidos: 0,
       semPrint: 0,
+      respostasEnviadas: 0,
     });
   });
 
@@ -121,6 +123,7 @@ describe("contadorComEnvio / contadorComFalha / contadorComInvalido — puros", 
       falhas: 0,
       invalidos: 1,
       semPrint: 0,
+      respostasEnviadas: 0,
     });
   });
 
@@ -171,5 +174,45 @@ describe("momentoFimIntervalo — quando o portão intervalo libera", () => {
 
   it("undefined quando nunca houve evento", () => {
     expect(momentoFimIntervalo({ ultimoEventoEm: null }, 180)).toBeUndefined();
+  });
+});
+
+describe("contadorComResposta — a coluna PRÓPRIA da resposta automática", () => {
+  const doc = {
+    enviados: 7,
+    envios: ["2026-03-10T11:30:00.000Z"],
+    ultimoEventoEm: "2026-03-10T11:30:00.000Z",
+    falhas: 2,
+    invalidos: 1,
+    semPrint: 3,
+    respostasEnviadas: 4,
+  };
+
+  it("anda SÓ respostasEnviadas", () => {
+    expect(contadorComResposta(doc)).toEqual({ ...doc, respostasEnviadas: 5 });
+  });
+
+  it("não consome a meta de prospecção nem suja os portões de ritmo", () => {
+    const depois = contadorComResposta(doc);
+    // `enviados` é a metaDiaria; `envios`/`ultimoEventoEm` são o teto por
+    // hora e o intervalo mínimo. Uma resposta que sai não pode fazer
+    // nenhum dos três pensar que saiu uma abordagem.
+    expect(depois.enviados).toBe(doc.enviados);
+    expect(depois.envios).toEqual(doc.envios);
+    expect(depois.ultimoEventoEm).toBe(doc.ultimoEventoEm);
+    expect(depois.falhas).toBe(doc.falhas);
+    expect(depois.invalidos).toBe(doc.invalidos);
+    expect(depois.semPrint).toBe(doc.semPrint);
+  });
+
+  it("doc ausente começa do zero", () => {
+    expect(contadorComResposta(undefined).respostasEnviadas).toBe(1);
+  });
+
+  it("o caminho inverso também vale: envio de prospecção não mexe nas respostas", () => {
+    const now = new Date("2026-03-10T12:00:00Z");
+    expect(contadorComEnvio(doc, now).respostasEnviadas).toBe(4);
+    expect(contadorComFalha(doc).respostasEnviadas).toBe(4);
+    expect(contadorComInvalido(doc).respostasEnviadas).toBe(4);
   });
 });

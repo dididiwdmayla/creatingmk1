@@ -2,9 +2,16 @@ import { InvalidTransitionError, NotFoundError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import { getLead } from "@/lib/leads/repo";
 
+import type { FilaConfig } from "./config";
 import type { RespostaPendente } from "./estado";
 import { FILA_RESPOSTAS_COLLECTION, type FilaRespostaDoc, type RascunhoEstado } from "./flushRespostas";
 import { carregarFontesDaMensagem, montarMensagemParaLead } from "./mensagem";
+import {
+  encerrarTarefaResposta,
+  listarTarefasResposta,
+  tarefaAutomaticaViva,
+  tarefaNoAparelho,
+} from "./respostaAutomatica";
 
 /**
  * RESPOSTAS PENDENTES — o lead respondeu, a IA rascunhou, e agora alguém
@@ -45,14 +52,51 @@ function docRef(db: AppDb, id: string) {
  * acabou de chegar ainda está quente, e é ali que responder custa menos.
  * Desempate por id, porque a ordem não pode depender de em que ordem o
  * Firestore devolveu os docs (mesma regra da seleção da fila).
+ *
+ * **O que a RESPOSTA AUTOMÁTICA muda aqui**, e é o cuidado central desta
+ * função: um rascunho que está na fila do aparelho não pode aparecer como
+ * pendência de aprovação, senão o operador responde à mão uma conversa que o
+ * celular vai responder sozinho daqui a oito minutos. Então:
+ *
+ * - rascunho SEM tarefa (o caminho normal, e todo o histórico anterior a
+ *   este bloco) → aparece, como sempre;
+ * - tarefa JÁ NA MÃO DO APARELHO (claim viva) → nunca aparece, nem com o
+ *   interruptor desligado: claim emitida segue seu curso, a mesma regra que
+ *   vale para a fila de envio;
+ * - tarefa viva com o interruptor LIGADO → não aparece (o automático cuida);
+ * - tarefa viva com o interruptor DESLIGADO → APARECE. É isto que faz
+ *   desligar `respostaAutomatica` devolver os pendentes ao painel sem
+ *   descartar nada;
+ * - tarefa que já acabou (`invalido`, tentativas esgotadas, encerrada) →
+ *   aparece: a máquina desistiu e a decisão voltou para o humano.
  */
-export async function listarRespostasPendentes(db: AppDb): Promise<RespostaPendente[]> {
+export async function listarRespostasPendentes(
+  db: AppDb,
+  config: FilaConfig,
+  now: Date,
+): Promise<RespostaPendente[]> {
   const snap = await db.collection(FILA_RESPOSTAS_COLLECTION).get();
 
-  const pendentes = snap.docs
+  const todas = snap.docs
     .map((d) => d.data() as unknown as FilaRespostaDoc)
     .filter((doc) => doc.estado === "pendente")
     .sort((a, b) => b.geradoEm.localeCompare(a.geradoEm) || a.id.localeCompare(b.id));
+
+  if (todas.length === 0) return [];
+
+  // A coleção de tarefas é pequena por natureza (só o que ainda não saiu) —
+  // ver `respostaAutomatica.ts`. Uma leitura para a lista inteira, nunca uma
+  // por linha.
+  const tarefas = new Map(
+    (await listarTarefasResposta(db)).map((tarefa) => [tarefa.id, tarefa] as const),
+  );
+
+  const pendentes = todas.filter((doc) => {
+    const tarefa = tarefas.get(doc.id);
+    if (!tarefa) return true;
+    if (tarefaNoAparelho(tarefa, now)) return false;
+    return !(config.respostaAutomatica && tarefaAutomaticaViva(tarefa));
+  });
 
   if (pendentes.length === 0) return [];
 
@@ -119,6 +163,9 @@ export async function listarRespostasPendentes(db: AppDb): Promise<RespostaPende
  * - Já fechada no MESMO estado → sucesso sem escrever nada (idempotente por
  *   VALOR, como `POST /api/fila/pausar`): o operador clicou duas vezes, ou
  *   tem duas abas abertas, e o resultado que ele queria já aconteceu.
+ * - Tarefa automática JÁ NA MÃO do aparelho → 409, sem escrever. O celular
+ *   pode ter puxado a resposta entre a tela carregar e o clique, e fechar
+ *   aqui faria o lead receber duas.
  * - Já fechada em estado DIFERENTE → 409, sem escrever. Deixar um
  *   "descartada" apagar o `textoUsado` de uma resposta que de fato saiu
  *   seria perder a única cópia dela. Reusa `InvalidTransitionError` (já
@@ -142,6 +189,16 @@ export async function resolverResposta(
   if (doc.estado !== "pendente") {
     if (doc.estado === estado) return id;
     throw new InvalidTransitionError(doc.estado, estado);
+  }
+
+  // Se este rascunho tinha tarefa na fila automática, ela morre aqui — o
+  // operador acabou de decidir, e o aparelho não pode responder depois.
+  // Tarefa JÁ NA MÃO do aparelho recusa: entre a tela carregar e o clique,
+  // o celular pode ter puxado a resposta, e fechar aqui produziria a
+  // mensagem duplicada que esta fila inteira existe para evitar. 409, como
+  // qualquer outra transição impossível.
+  if (!(await encerrarTarefaResposta(db, id, now))) {
+    throw new InvalidTransitionError("no aparelho", estado);
   }
 
   await ref.set(

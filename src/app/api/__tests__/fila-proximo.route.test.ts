@@ -2,6 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FILA_CANDIDATOS_COLLECTION, FILA_CANDIDATOS_DOC } from "@/lib/fila/candidatos";
 import { FILA_RESPOSTAS_COLLECTION } from "@/lib/fila/flushRespostas";
+import {
+  criarTarefaResposta,
+  lerTarefaResposta,
+  listarTarefasResposta,
+} from "@/lib/fila/respostaAutomatica";
 import { adicionarMensagemAoGrupo, listarGruposPendentes } from "@/lib/fila/respostasPendentes";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import type { Lead } from "@/lib/leads/types";
@@ -22,6 +27,7 @@ import { GET } from "../fila/proximo/route";
 
 const CHAVES_RESPOSTA = [
   "temTarefa",
+  "tipo",
   "teste",
   "id",
   "leadId",
@@ -94,10 +100,15 @@ function esquecerPool() {
   db.deleteDoc(`${FILA_CANDIDATOS_COLLECTION}/${FILA_CANDIDATOS_DOC}`);
 }
 
-/** O corpo achatado esperado quando não há tarefa: toda chave, tudo vazio. */
+/**
+ * O corpo achatado esperado quando não há tarefa: toda chave, tudo vazio —
+ * menos `tipo`, que é sempre um dos dois valores e cai no ramo de prospecção
+ * quando não há tarefa nenhuma (ver o route handler).
+ */
 function semTarefaEsperado(motivo: string) {
   return {
     temTarefa: false,
+    tipo: "prospeccao",
     teste: false,
     id: "",
     leadId: "",
@@ -563,5 +574,199 @@ describe("GET /api/fila/proximo — flush do agrupamento de respostas (isolament
     expect(corpo.leadId).toBe("ChIJa");
     const respostas = await db.collection(FILA_RESPOSTAS_COLLECTION).get();
     expect(respostas.docs).toHaveLength(1);
+  });
+});
+
+describe("GET /api/fila/proximo — a tarefa de RESPOSTA", () => {
+  /** Fila ligada e janela aberta o dia inteiro: o que se testa aqui é o resto. */
+  const LIGADA = { respostaAutomatica: true, respostaJanelaInicio: 0, respostaJanelaFim: 0 };
+
+  async function semearResposta(atrasoSegundos = 0, id = "rascunho-1") {
+    await criarTarefaResposta(
+      db,
+      {
+        id,
+        leadId: "ChIJresp",
+        nome: "Barbearia do Zé",
+        numero: "5516982133909",
+        texto: "Oi! Posso te mostrar agora mesmo, tem 2 minutinhos?",
+        atrasoSegundos,
+      },
+      new Date(),
+    );
+  }
+
+  it("entrega a resposta com tipo 'resposta' e printUrl VAZIO", async () => {
+    db.seed("config/fila", LIGADA);
+    await semearResposta();
+
+    const corpo = await (await proximo()).json();
+
+    expect(corpo).toMatchObject({
+      temTarefa: true,
+      tipo: "resposta",
+      teste: false,
+      leadId: "ChIJresp",
+      nome: "Barbearia do Zé",
+      numero: "5516982133909",
+      texto: "Oi! Posso te mostrar agora mesmo, tem 2 minutinhos?",
+      // Resposta não leva print — e a chave continua presente, vazia.
+      printUrl: "",
+      motivo: "",
+    });
+    expect(corpo.id.startsWith("resp-")).toBe(true);
+    expect(corpo.expiraEm).toBe(new Date(TERCA_10H.getTime() + 5 * 60 * 1000).toISOString());
+  });
+
+  it("a prospecção continua saindo com tipo 'prospeccao'", async () => {
+    db.seed("config/fila", LIGADA);
+    semear(lead("ChIJa"));
+
+    const corpo = await (await proximo()).json();
+
+    expect(corpo).toMatchObject({ temTarefa: true, tipo: "prospeccao", leadId: "ChIJa" });
+    expect(corpo.printUrl).toBe("https://storage/hero-cel.png");
+  });
+
+  it("DESLIGADA (o padrão), a tarefa de resposta não é entregue nem tocada", async () => {
+    await semearResposta();
+    semear(lead("ChIJa"));
+
+    const corpo = await (await proximo()).json();
+
+    expect(corpo).toMatchObject({ tipo: "prospeccao", leadId: "ChIJa" });
+    expect((await listarTarefasResposta(db))[0].estado).toBe("aguardando");
+  });
+
+  it("não entrega antes de o ATRASO SORTEADO vencer", async () => {
+    db.seed("config/fila", LIGADA);
+    await semearResposta(600);
+
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
+
+    vi.setSystemTime(new Date(TERCA_10H.getTime() + 600 * 1000));
+    esquecerPool();
+    expect((await (await proximo()).json()).tipo).toBe("resposta");
+  });
+
+  it("FORA DA JANELA do operador, a tarefa espera — e a prospecção segue normal", async () => {
+    // TERCA_10H é 10h UTC = 7h em São Paulo, antes da janela 8h–22h.
+    db.seed("config/fila", { respostaAutomatica: true, respostaJanelaInicio: 8, respostaJanelaFim: 22 });
+    await semearResposta();
+    semear(lead("ChIJa"));
+
+    const corpo = await (await proximo()).json();
+
+    expect(corpo).toMatchObject({ tipo: "prospeccao", leadId: "ChIJa" });
+    expect((await listarTarefasResposta(db))[0].estado).toBe("aguardando");
+
+    // 12h UTC = 9h em São Paulo: dentro da janela, e agora ela sai.
+    vi.setSystemTime(TERCA_12H);
+    esquecerPool();
+    expect((await (await proximo()).json()).tipo).toBe("resposta");
+  });
+
+  it("PAUSADA, nem a resposta sai — o botão vermelho para o aparelho inteiro", async () => {
+    db.seed("config/fila", { ...LIGADA, ativo: false });
+    await semearResposta();
+
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("pausado"));
+    expect((await listarTarefasResposta(db))[0].estado).toBe("aguardando");
+  });
+
+  it("meta de prospecção atingida NÃO barra a resposta", async () => {
+    db.seed("config/fila", { ...LIGADA, metaDiaria: 2 });
+    db.seed("filaContadores/2026-03-10", { enviados: 2, envios: [], ultimoEventoEm: null });
+    await semearResposta();
+    semear(lead("ChIJa"));
+
+    const corpo = await (await proximo()).json();
+
+    // A resposta sai; a prospecção é que está no teto.
+    expect(corpo).toMatchObject({ tipo: "resposta", temTarefa: true });
+  });
+
+  it("intervalo mínimo e teto por hora também não valem para a resposta", async () => {
+    db.seed("config/fila", { ...LIGADA, tetoPorHora: 1, intervaloMinimoSegundos: 3600 });
+    db.seed("filaContadores/2026-03-10", {
+      enviados: 1,
+      envios: ["2026-03-10T09:59:00.000Z"],
+      ultimoEventoEm: "2026-03-10T09:59:00.000Z",
+    });
+    await semearResposta();
+
+    expect((await (await proximo()).json()).tipo).toBe("resposta");
+  });
+
+  it("o TETO DIÁRIO próprio barra — e a prospecção continua saindo", async () => {
+    db.seed("config/fila", { ...LIGADA, respostasAutomaticasMaxDia: 2 });
+    db.seed("filaContadores/2026-03-10", { respostasEnviadas: 2 });
+    await semearResposta();
+    semear(lead("ChIJa"));
+
+    const corpo = await (await proximo()).json();
+
+    expect(corpo).toMatchObject({ tipo: "prospeccao", leadId: "ChIJa" });
+    expect((await listarTarefasResposta(db))[0].estado).toBe("aguardando");
+  });
+
+  it("a resposta vem ANTES da prospecção quando as duas estão prontas", async () => {
+    db.seed("config/fila", LIGADA);
+    await semearResposta();
+    semear(lead("ChIJa"));
+
+    expect((await (await proximo()).json()).tipo).toBe("resposta");
+    // E o lead de prospecção continua intocado, para a volta seguinte.
+    expect(db.getDoc("filaEnvios/ChIJa")).toBeUndefined();
+  });
+
+  it("uma tarefa por volta: a segunda chamada já traz a prospecção", async () => {
+    db.seed("config/fila", LIGADA);
+    await semearResposta();
+    semear(lead("ChIJa"));
+
+    const primeira = await (await proximo()).json();
+    const segunda = await (await proximo()).json();
+
+    expect(primeira.tipo).toBe("resposta");
+    expect(segunda).toMatchObject({ tipo: "prospeccao", leadId: "ChIJa" });
+  });
+
+  it("a mais antiga na fila sai primeiro", async () => {
+    db.seed("config/fila", LIGADA);
+    await semearResposta(600, "rascunho-tarde");
+    await semearResposta(60, "rascunho-cedo");
+    vi.setSystemTime(new Date(TERCA_10H.getTime() + 900 * 1000));
+
+    const corpo = await (await proximo()).json();
+
+    expect(await lerTarefaResposta(db, "rascunho-cedo")).toMatchObject({ estado: "reservado" });
+    expect(corpo.id.includes("rascunho-cedo")).toBe(true);
+  });
+
+  it("o contrato não mudou: as MESMAS chaves nos dois tipos e nos dois casos", async () => {
+    db.seed("config/fila", LIGADA);
+    await semearResposta();
+    semear(lead("ChIJa"));
+
+    const resposta = await (await proximo()).json();
+    const prospeccao = await (await proximo()).json();
+    const vazia = await (await proximo()).json();
+
+    for (const corpo of [resposta, prospeccao, vazia]) {
+      expect(Object.keys(corpo).sort()).toEqual([...CHAVES_RESPOSTA].sort());
+      for (const chave of CHAVES_RESPOSTA) {
+        expect(corpo[chave]).not.toBeNull();
+        expect(typeof corpo[chave]).toBe(
+          CHAVES_BOOLEANAS.includes(chave) ? "boolean" : "string",
+        );
+      }
+      // Sempre um dos DOIS valores, nunca vazio.
+      expect(["prospeccao", "resposta"]).toContain(corpo.tipo);
+    }
+    expect(resposta.tipo).toBe("resposta");
+    expect(prospeccao.tipo).toBe("prospeccao");
+    expect(vazia.tipo).toBe("prospeccao");
+    expect(vazia.temTarefa).toBe(false);
   });
 });

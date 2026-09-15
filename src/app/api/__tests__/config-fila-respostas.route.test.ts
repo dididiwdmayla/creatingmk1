@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { cookieDeSessao } from "@/lib/testing/sessao";
 
+import { criarTarefaResposta } from "@/lib/fila/respostaAutomatica";
+
 import { GET } from "../config/fila/respostas/route";
 import { PATCH } from "../config/fila/respostas/[id]/route";
 
@@ -98,7 +100,9 @@ describe("GET /api/config/fila/respostas (restrito ao admin)", () => {
     const res = await GET(getRequest(cookie));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ respostas: [] });
+    // O estado do interruptor viaja junto da lista: é ele que explica um
+    // painel curto (ver `respostaAutomatica` em `lib/fila/config.ts`).
+    expect(await res.json()).toEqual({ respostas: [], respostaAutomatica: false });
   });
 
   it("admin recebe lead, nicho, mensagens, o que o Radar mandou e o rascunho", async () => {
@@ -212,5 +216,54 @@ describe("PATCH /api/config/fila/respostas/{id} (restrito ao admin)", () => {
       estado: "usada",
       textoUsado: "o que saiu",
     });
+  });
+});
+
+describe("GET /api/config/fila/respostas — com a resposta automática ligada", () => {
+  it("o rascunho que está na fila do aparelho sai da lista, e o interruptor explica por quê", async () => {
+    semearResposta();
+    db.seed("config/fila", { respostaAutomatica: true });
+    await criarTarefaResposta(
+      db,
+      {
+        id: "r-1",
+        leadId: "ChIJa",
+        nome: "Ink House",
+        numero: "5551966660000",
+        texto: "Oi! Posso te mostrar agora?",
+        atrasoSegundos: 600,
+      },
+      new Date(),
+    );
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await GET(getRequest(cookie))).json();
+
+    // Lista vazia com a razão ao lado — a tela usa isso para não mostrar um
+    // painel vazio sem explicação.
+    expect(corpo).toEqual({ respostas: [], respostaAutomatica: true });
+  });
+
+  it("desligar o interruptor devolve o mesmo rascunho à lista", async () => {
+    semearResposta();
+    db.seed("config/fila", { respostaAutomatica: false });
+    await criarTarefaResposta(
+      db,
+      {
+        id: "r-1",
+        leadId: "ChIJa",
+        nome: "Ink House",
+        numero: "5551966660000",
+        texto: "Oi! Posso te mostrar agora?",
+        atrasoSegundos: 600,
+      },
+      new Date(),
+    );
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await GET(getRequest(cookie))).json();
+
+    expect(corpo.respostaAutomatica).toBe(false);
+    expect(corpo.respostas.map((r: { id: string }) => r.id)).toEqual(["r-1"]);
   });
 });

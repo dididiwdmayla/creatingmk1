@@ -28,7 +28,13 @@ const PARTES_FORMATTER = new Intl.DateTimeFormat("en-US", {
   second: "2-digit",
 });
 
-function saoPauloHour(now: Date): number {
+/**
+ * Hora (0-23) do relógio de SÃO PAULO — o fuso do OPERADOR. Exportada
+ * porque a janela da resposta automática (`respostaAutomatica.ts`) mede no
+ * mesmo relógio que o dia operacional, e duas leituras de "que horas são
+ * para o operador" poderiam divergir em silêncio.
+ */
+export function horaSaoPaulo(now: Date): number {
   return Number(HOUR_FORMATTER.format(now));
 }
 
@@ -42,7 +48,7 @@ function saoPauloHour(now: Date): number {
 export function diaOperacionalKey(now: Date, inicioHora: number): string {
   const hoje = saoPauloDateKey(now);
   if (inicioHora <= 0) return hoje;
-  return saoPauloHour(now) < inicioHora ? addDays(hoje, -1) : hoje;
+  return horaSaoPaulo(now) < inicioHora ? addDays(hoje, -1) : hoje;
 }
 
 /**
@@ -105,6 +111,17 @@ export interface FilaContadorDoc {
   invalidos: number;
   /** Envios "enviado" do dia com `detalhe` não vazio (texto saiu, print não). */
   semPrint: number;
+  /**
+   * RESPOSTAS AUTOMÁTICAS confirmadas como enviadas no dia operacional —
+   * contador PRÓPRIO, nunca `enviados`. Resposta automática não consome
+   * `metaDiaria`, não respeita `intervaloMinimoSegundos` e não conta no
+   * `tetoPorHora`: aqueles três existem para disfarçar disparo em rajada
+   * para quem NUNCA falou com você, e responder quem te escreveu é outra
+   * coisa — somar as duas faria uma noite movimentada de respostas comer a
+   * cota de prospecção do dia seguinte. O teto desta coluna é
+   * `config/fila.respostasAutomaticasMaxDia`.
+   */
+  respostasEnviadas: number;
 }
 
 export interface FilaContadorSnapshot {
@@ -146,6 +163,7 @@ function readContadorDoc(data: Record<string, unknown> | undefined): FilaContado
     falhas: numeroOuZero(data?.falhas),
     invalidos: numeroOuZero(data?.invalidos),
     semPrint: numeroOuZero(data?.semPrint),
+    respostasEnviadas: numeroOuZero(data?.respostasEnviadas),
   };
 }
 
@@ -182,6 +200,22 @@ export async function lerContadorFilaCompleto(
 }
 
 /**
+ * O snapshot que os PORTÕES de ritmo (`motivoDeRitmo`) leem, derivado de um
+ * doc completo JÁ LIDO — puro, sem tocar o banco. Existe porque
+ * `/api/fila/proximo` com a resposta automática ligada precisa do doc
+ * inteiro (é dele que sai `respostasEnviadas`, o teto próprio da resposta) e
+ * do snapshot do ritmo na mesma volta: sem isto seriam duas leituras do
+ * MESMO doc na mesma chamada.
+ */
+export function snapshotDoContador(completo: FilaContadorCompleto): FilaContadorSnapshot {
+  return {
+    totalDoDia: completo.enviados,
+    ultimaHora: completo.ultimaHora,
+    segundosDesdeUltimoEvento: completo.segundosDesdeUltimoEvento,
+  };
+}
+
+/**
  * Snapshot dos contadores da fila para um instante qualquer — só o que os
  * PORTÕES de ritmo (`motivoDeRitmo`) precisam. Casca fina sobre
  * `lerContadorFilaCompleto`, mantendo o formato de sempre (as três chaves,
@@ -192,12 +226,7 @@ export async function lerContadorFila(
   now: Date,
   inicioDiaOperacionalHora: number,
 ): Promise<FilaContadorSnapshot> {
-  const completo = await lerContadorFilaCompleto(db, now, inicioDiaOperacionalHora);
-  return {
-    totalDoDia: completo.enviados,
-    ultimaHora: completo.ultimaHora,
-    segundosDesdeUltimoEvento: completo.segundosDesdeUltimoEvento,
-  };
+  return snapshotDoContador(await lerContadorFilaCompleto(db, now, inicioDiaOperacionalHora));
 }
 
 /**
@@ -251,6 +280,22 @@ export function contadorComFalha(data: Record<string, unknown> | undefined): Fil
 export function contadorComInvalido(data: Record<string, unknown> | undefined): FilaContadorDoc {
   const atual = readContadorDoc(data);
   return { ...atual, invalidos: atual.invalidos + 1 };
+}
+
+/**
+ * O doc do contador depois de uma RESPOSTA AUTOMÁTICA confirmada como
+ * enviada, puro — mesmo espírito dos dois acima.
+ *
+ * Toca SÓ `respostasEnviadas`. Não `enviados` (a meta de prospecção não pode
+ * ser comida por uma noite de respostas), não `envios` nem `ultimoEventoEm`
+ * (a janela deslizante de 1h e o relógio do intervalo mínimo são portões da
+ * PROSPECÇÃO — uma resposta que sai não pode fazer o `teto_hora` pensar que
+ * acabou de sair uma abordagem). É a decisão central deste bloco, e ela vive
+ * inteira nesta função de três linhas.
+ */
+export function contadorComResposta(data: Record<string, unknown> | undefined): FilaContadorDoc {
+  const atual = readContadorDoc(data);
+  return { ...atual, respostasEnviadas: atual.respostasEnviadas + 1 };
 }
 
 /**

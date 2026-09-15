@@ -2330,6 +2330,13 @@ Um celular Android com MacroDroid é um EXECUTOR BURRO: pergunta "qual o próxim
   "nichosPermitidos": [],            // vazio = todos
   "intervaloMinimoSegundos": 180,
   "respostaAgrupamentoSegundos": 45, // janela de silêncio antes de gerar UM rascunho com as mensagens acumuladas — ver "Fila de respostas"
+  "respostaAutomatica": false,       // LIGA a resposta automática — ver "Resposta automática" adiante
+  "respostaAutomaticaApenasPrimeira": true, // só a primeira resposta do lead; da segunda em diante, painel
+  "respostaDelayMinSegundos": 180,   // atraso SORTEADO antes de a resposta ficar disponível…
+  "respostaDelayMaxSegundos": 720,   // …um sorteio por resposta, dentro desta faixa (3 a 12 min)
+  "respostaJanelaInicio": 8,         // janela PRÓPRIA da resposta, em horas do fuso do OPERADOR
+  "respostaJanelaFim": 22,           // (não a janelaContato, que é sobre o lead)
+  "respostasAutomaticasMaxDia": 30,  // teto próprio, contra filaContadores.respostasEnviadas
   "inicioDiaOperacionalHora": 0,     // hora (America/Sao_Paulo) em que o dia operacional começa; 0 = meia-noite
   "numeroTeste": "5544984570105",    // destino de TODO disparo de teste; vazio = disparo desligado
   "ativoAlteradoPor": "dispositivo", // "dispositivo" (POST /api/fila/pausar) ou o userId do admin (PUT); null = nunca mudou
@@ -2352,7 +2359,8 @@ Doc PRÓPRIO, fora de `/config/app`: a fila é lida com muito mais frequência (
   "ultimoEventoEm": "<ISO>",          // ou null
   "falhas": 2,                        // confirmações "falhou" do dia
   "invalidos": 1,                     // confirmações "invalido" do dia
-  "semPrint": 3                       // envios "enviado" do dia com `detalhe` não vazio (texto saiu, print não)
+  "semPrint": 3,                      // envios "enviado" do dia com `detalhe` não vazio (texto saiu, print não)
+  "respostasEnviadas": 4              // respostas AUTOMÁTICAS confirmadas no dia — coluna própria, ver adiante
 }
 ```
 
@@ -2460,12 +2468,17 @@ aninhado, com TODAS as chaves sempre presentes nos dois casos:
 
 ```jsonc
 // Com tarefa (200):
-{ "temTarefa": true, "teste": false, "id": "<claimId>", "leadId": "ChIJ...",
+{ "temTarefa": true, "tipo": "prospeccao", "teste": false, "id": "<claimId>", "leadId": "ChIJ...",
   "nome": "Ink House", "numero": "5544991543803", "texto": "<mensagem montada e resolvida>",
   "printUrl": "<url pública da captura>", "expiraEm": "<ISO>", "motivo": "" }
 
+// Com tarefa de RESPOSTA (200) — ver "Resposta automática" adiante:
+{ "temTarefa": true, "tipo": "resposta", "teste": false, "id": "resp-<id>.<token>", "leadId": "ChIJ...",
+  "nome": "Ink House", "numero": "5544991543803", "texto": "<o rascunho, congelado na geração>",
+  "printUrl": "", "expiraEm": "<ISO>", "motivo": "" }
+
 // Sem tarefa (200):
-{ "temTarefa": false, "teste": false, "id": "", "leadId": "", "nome": "", "numero": "",
+{ "temTarefa": false, "tipo": "prospeccao", "teste": false, "id": "", "leadId": "", "nome": "", "numero": "",
   "texto": "", "printUrl": "", "expiraEm": "", "motivo": "fora_de_janela" }
 ```
 
@@ -2480,6 +2493,9 @@ chave presente nos dois casos — chave ausente é o mesmo bug da chave
 aninhada, o marcador some e a macro carrega lixo sem perceber; chave ausente
 é pior que chave vazia; (3) todo valor é string, exceto `temTarefa` e
 `teste` (booleanos) — nunca `null`, nunca `undefined`, nunca campo omitido.
+`tipo` é a exceção dentro da regra (2): ele é string e está sempre presente,
+mas nunca vazio — vale "prospeccao" ou "resposta", e sem tarefa vale
+"prospeccao" (ver "Resposta automática" adiante).
 Com tarefa, `motivo` é string vazia; sem tarefa, todos os outros campos são
 string vazia e `motivo` é um dos seis valores (`pausado`, `meta_atingida`,
 `teto_hora`, `intervalo`, `fora_de_janela`, `sem_leads_elegiveis`).
@@ -2517,6 +2533,8 @@ Autenticação de **sessão de admin**, mesmo mecanismo de `PUT /api/config/fila
 ### `POST /api/fila/confirmar` — o celular reporta o que aconteceu
 
 Corpo `{ id, leadId, resultado, detalhe }`, onde `id` é o claimId da tarefa e `resultado` é `enviado | invalido | falhou`.
+
+**O contrato desta rota nunca mudou, e não muda com a resposta automática**: os mesmos três resultados, a mesma idempotência, o mesmo 409, as mesmas chaves na resposta. O que varia é para ONDE a confirmação vai, e isso é decidido pelo PREFIXO do claimId — `teste-` (adiante) e `resp-` (ver "Resposta automática") —, cada um com desvio de custo zero e ANTES da transação real. A posição não é estilo: uma resposta que passasse por `confirmarEnvio` moveria o status do lead, gravaria selo, giraria a rotação de frases e gastaria a meta do dia.
 
 **"enviado" move QUATRO docs em coleções diferentes, ou nenhum** (`src/lib/fila/confirmar.ts`, uma `runTransaction` só): a claim (`estado`/`enviadoEm`), o lead (`novo → contactado` + selo + `registrosEnvio` com a hora e o dia local DO LEAD), a rotação de frases e o contador do dia operacional (`enviados++`, push do ISO em `envios`, poda para 24h). Uma confirmação pela metade seria contador que não bate com lead que não bate com o que o negócio recebeu no WhatsApp.
 
@@ -2774,7 +2792,7 @@ O rascunho vai para uma coleção PRÓPRIA, `filaRespostas/{id}` (id próprio, g
 }
 ```
 
-Quem faz o estado sair de "pendente" é o painel abaixo — e só ele. `usada` ganha junto `textoUsado` (o texto EDITADO pelo operador) e `resolvidoEm`; `descartada` ganha só o carimbo.
+Quem faz o estado sair de "pendente" é o painel abaixo — ou, com a RESPOSTA AUTOMÁTICA ligada, a confirmação do próprio aparelho (ver o bloco adiante). `usada` ganha junto `textoUsado` (o texto EDITADO pelo operador, ou o rascunho congelado quando quem mandou foi o aparelho) e `resolvidoEm`; `descartada` ganha só o carimbo.
 
 ### O painel "Respostas pendentes" (/config)
 
@@ -2831,6 +2849,124 @@ A detecção é `podeAbrirBusiness` (a string do agente — a única checagem qu
 **`montarMensagemParaLead` ganhou fontes pré-carregadas** (`carregarFontesDaMensagem`, parâmetro OPCIONAL). `listBuscas`/`listConjuntos` são varreduras de coleção, e pagá-las uma vez por linha multiplicaria a leitura pelo tamanho da lista. Ausente, a função carrega sozinha — nenhum chamador de UM lead só mudou —, e há teste contando as varreduras: uma para a lista inteira, não uma por linha.
 
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=respostas` captura o painel em três estados × celular e desktop × temas escuro e claro. Os estados: **cheia** (um grupo de três mensagens, e um rascunho longo com quebras de linha — o pior caso de layout da caixa editável), **editada** e **VAZIA**, que cobra o painel ENCOLHER (−731px no celular, −689px no desktop) em vez de trocar a lista por um vão. O passo existe por um motivo a mais que os vizinhos: **a ação muda com o aparelho**, e o Chromium do laço se apresenta como desktop — sem forçar um agente Android (`contextoLogado` ganhou `userAgent`), a captura do "celular" mostraria o caminho do desktop, provando o contrário do que existe para provar. No Android o passo exige âncora `intent://` com o pacote do Business, e reprova se o pacote do WhatsApp COMUM aparecer mirado; no desktop exige o inverso — nenhuma âncora, o aviso e os botões de copiar. Dois aferidores que só a tela real faz: o texto extraído do `href` tem que ser IDÊNTICO ao valor da caixa editável (com `%0A` nas quebras), e depois de digitar um texto com `#` e `;` dentro o URI ainda tem que ter exatamente um `#Intent;` e terminar em `;end`. O unitário prova a função; este prova que o que o operador digitou é o que entra no link.
+
+## Resposta automática — o rascunho que deixa de esperar aprovação
+
+O bloco acima capta a resposta do lead e produz um rascunho; o painel é onde alguém decide o que fazer com ele. Este bloco é o interruptor que tira a pessoa do meio: ligado, o rascunho **não espera aprovação** — vira TAREFA DE ENVIO na fila que o aparelho já drena.
+
+`respostaAutomatica` em `config/fila`, **padrão FALSE**. É a única coisa em todo o Radar que fala com um negócio real sem ninguém ter lido o que ele escreveu; o padrão é a decisão, não um detalhe de implementação.
+
+### DOIS interruptores, não um
+
+- **`respostaAutomatica`** (padrão false) liga o mecanismo.
+- **`respostaAutomaticaApenasPrimeira`** (padrão **true**) limita à PRIMEIRA resposta do lead; da segunda em diante o rascunho cai na aprovação manual do painel. A primeira resposta é quase sempre a mesma pergunta ("quanto custa?", "como funciona?"), e é onde responder rápido vale mais; a segunda já é negociação, e negociar sozinho é outro risco.
+
+O segundo é **interruptor de verdade, editável no painel como os demais — não constante no código**. Desligado, a IA responde também as mensagens seguintes.
+
+Os dois decidem no INSTANTE DA GERAÇÃO, uma vez, dentro do flush (`decidirAutomatica`, `flushRespostas.ts`). "É a primeira?" é uma varredura de `filaRespostas` — a mesma que o painel paga, e aceitável pelo mesmo motivo: acontece quando um lead RESPONDE (algumas vezes por dia), não a cada ciclo do aparelho. Um rascunho automático que não vira tarefa tem só duas causas: os interruptores, e **lead sem telefone** (sem conversa para abrir, a tarefa nasceria impossível de cumprir — o rascunho fica no painel, onde uma pessoa decide).
+
+### Como chega ao aparelho — a MESMA rota, e a chave `tipo`
+
+Pela mesma `GET /api/fila/proximo`, nunca por rota nova: cada alteração no aparelho custa reconfiguração manual, e uma rota a mais seria uma segunda fonte da mesma decisão. A resposta ganha `tipo`, string, com dois valores: `"prospeccao"` ou `"resposta"`.
+
+**`tipo` segue a regra que vale para todas as outras chaves: SEMPRE PRESENTE, nos dois casos, com ou sem tarefa.** Chave ausente faz o MacroDroid devolver o marcador literal em vez de vazio — já custou um ciclo inteiro de depuração nesta fila. E sempre um dos DOIS VALORES, **nunca string vazia**: o desvio no aparelho é um se/senão de dois ramos, e sem tarefa o ramo certo é o de prospecção, que já sabia lidar com "não há nada para fazer agora". Um terceiro valor seria um caso a mais para a macro tratar, sem nada a ganhar.
+
+Para `tipo: "resposta"`, **`printUrl` vem string vazia**: resposta não leva print — a conversa já está aberta e a peça que vende já foi na abordagem.
+
+**Nenhuma outra chave muda de nome, tipo ou presença.** O teste de contrato compara `Object.keys` contra a lista fixa nos DOIS tipos e nos DOIS casos.
+
+**ATENÇÃO: este bloco EXIGE mudança na macro, ao contrário de todos os anteriores.** Com `printUrl` vazio a macro atual quebraria ao tentar baixar o print. O desenho do lado do aparelho é **uma macro só com um desvio por `tipo`, não duas macros**: duas disputariam a tela do mesmo aparelho, e a proteção do MacroDroid contra execução sobreposta é POR MACRO — uma não veria a outra.
+
+**Onde a entrega entra na ordem dos portões**: depois da tarefa de teste e **ANTES do portão de ritmo**, porque a resposta não disputa com a prospecção (ver o contador, abaixo). Os portões dela são próprios e são três:
+
+1. **A PAUSA continua valendo** (`config.ativo`). Não está escrito em lugar nenhum que a resposta a ignora, e ela não ignora: aquele botão é o vermelho do aparelho — quem pausa a fila espera que o celular pare, não que pare metade.
+2. **A JANELA de resposta** (abaixo).
+3. **O TETO diário próprio** (abaixo).
+
+O atraso sorteado não aparece aqui: ele já está embutido em `disponivelEm`, e tarefa que não venceu simplesmente não está disponível. O contador do dia é lido UMA vez e serve aos dois portões (o da resposta e o de ritmo) — é o mesmo doc, e lê-lo duas vezes na mesma chamada seria pagar de novo por nada. Com o interruptor desligado, nada disso é lido: custo zero.
+
+### RITMO HUMANO — o atraso sorteado
+
+`respostaDelayMinSegundos` e `respostaDelayMaxSegundos` em `config/fila`, padrão 180 e 720 (3 e 12 minutos). A tarefa só fica disponível depois do atraso **SORTEADO dentro da faixa, por resposta** (`sortearAtrasoSegundos`, puro) — resposta instantânea é a assinatura mais óbvia de robô. O sorteio é por resposta, e não um valor fixo, pelo mesmo motivo: um intervalo sempre igual é tão reconhecível quanto o zero.
+
+Faixa invertida (`max < min`) **não é erro de validação**: cada campo do painel salva no próprio blur, então existe um instante em que o mínimo já subiu e o máximo ainda não, e esse instante não pode derrubar a fila às duas da manhã. Quem resolve é o sorteio, usando o maior dos dois.
+
+### JANELA PRÓPRIA — não reusa `janelaContato`
+
+`respostaJanelaInicio` e `respostaJanelaFim` em `config/fila`, em horas do fuso do **OPERADOR** (America/Sao_Paulo — a mesma `horaSaoPaulo` que fecha a chave do dia operacional, para não haver duas leituras de "que horas são para o operador"). Padrão 8h–22h.
+
+A `janelaContato` existente responde "quando é bom abordar ESTE negócio" (faixas da família × horário de funcionamento × fuso do LEAD); aqui a pergunta é outra: **parecer humano**. Um lead que escreve às 4h e recebe resposta às 4h03 denuncia a automação mais que qualquer texto. Fora da janela, a tarefa **aguarda a abertura seguinte** — nunca é descartada.
+
+Detalhes que a função trava (`dentroDaJanelaResposta`): início inclusive e fim exclusivo (fim 22 = a última resposta sai às 22h59); `inicio === fim` é o dia inteiro; `inicio > fim` atravessa a meia-noite (22 → 6 é a madrugada inteira).
+
+### CONTADOR E TETO PRÓPRIOS — decisão tomada, não reabra
+
+Respostas automáticas **NÃO consomem `metaDiaria`, NÃO respeitam `intervaloMinimoSegundos` e NÃO contam no `tetoPorHora`**. Aqueles três existem para disfarçar disparo em rajada para quem NUNCA falou com você; responder quem te escreveu é outra coisa, e uma noite movimentada de respostas comeria a cota de prospecção do dia.
+
+Campo novo em `filaContadores`: **`respostasEnviadas`**, incrementado por `contadorComResposta` — puro, três linhas, e é onde a decisão inteira mora: toca SÓ essa coluna, nunca `enviados` (a meta), nunca `envios`/`ultimoEventoEm` (a janela deslizante de 1h e o relógio do intervalo mínimo). Mesmo dia operacional da prospecção, respeitando `inicioDiaOperacionalHora`. Teto próprio em `config/fila`: **`respostasAutomaticasMaxDia`** (padrão 30) — não é meta a perseguir, é o limite que impede a noite movimentada de virar outra rajada.
+
+Pelo mesmo motivo, `"falhou"` numa resposta **não entra em `falhas`**, e `"invalido"` não entra em `invalidos`: aquelas colunas são da prospecção, e sujá-las estragaria o diagnóstico de manhã. A tentativa fica na própria tarefa.
+
+`GET /api/fila/resumo` **não mudou** — o retrato da macro do desbloqueio continua com as mesmas chaves. O número das respostas vive no doc do contador e no painel; acrescentá-lo lá seria mudar um contrato que este bloco não precisa mudar.
+
+### `filaRespostasTarefas/{id}` — a fila, e por que uma coleção nova
+
+A tarefa tem o **MESMO id** do rascunho em `filaRespostas`: são os dois lados da mesma resposta, e um id próprio só criaria uma tabela de tradução entre eles.
+
+**Por que não guardar a claim dentro do próprio `filaRespostas`**, que já tem um doc por rascunho: aquela coleção é REGISTRO e acumula um doc por grupo de mensagens PARA SEMPRE (resolver marca o estado, nunca apaga). `/proximo` é chamada de minuto em minuto e o `AppDb` não tem query — guardar a claim lá faria a rota varrer a base inteira de conversas já respondidas 480× por dia, crescendo a cada resposta. É exatamente o custo que o pool de `candidatos.ts` existe para não pagar. Esta coleção some com o rascunho que sai: é pequena por natureza, como `/filaRespostasPendentes`, e varrê-la é ler quase nada.
+
+Conteúdo **CONGELADO na geração** (nome, número e texto), mesma decisão da tarefa de teste: `/proximo` serve a resposta sem reler lead nem rascunho, e o que o aparelho manda é exatamente o que foi gerado.
+
+```jsonc
+// filaRespostasTarefas/{id}
+{
+  "id": "<mesmo id do rascunho>", "leadId": "ChIJ...",
+  "nome": "Ink House", "numero": "5544991543803",
+  "texto": "<o rascunho, congelado>",
+  "estado": "aguardando",          // aguardando | reservado | enviado | invalido | falhou | encerrada
+  "disponivelEm": "<ISO>",         // criadoEm + atraso SORTEADO
+  "criadoEm": "<ISO>",
+  "claimId": null, "claimExpiraEm": null, "dispositivo": "",
+  "entregueEm": null, "enviadoEm": null,
+  "tentativas": 0, "ultimoErro": null
+}
+```
+
+Os quatro estados do meio são os mesmos de `FilaEnvioEstado` de propósito — o aparelho reporta os MESMOS três resultados nos dois caminhos, e um vocabulário paralelo faria a mesma palavra significar coisas diferentes em duas coleções. `encerrada` é a única saída que não vem do aparelho: o operador fechou o rascunho pelo painel.
+
+A reserva é transacional, pela mesma razão de `reservarLead` (duas chamadas no mesmo segundo não podem levar a mesma resposta), com **claim expirada valendo como livre** — é isso que devolve a resposta à fila sozinha quando o aparelho trava, sem job de limpeza, e reserva que expira **não gasta tentativa**: só a falha REPORTADA gasta. Ordem de atendimento: a que está disponível há mais tempo primeiro, desempate por id.
+
+**O claimId carrega o id do rascunho**: `resp-<id>.<token>`. Diferente de `filaEnvios`, aqui o `leadId` do corpo não endereça o doc — um lead pode ter várias respostas ao longo do tempo. Assim a confirmação encontra a tarefa sem varrer nada. O `.` separa sem ambiguidade (nem o uuid do id nem o base64url do token o contêm), e o prefixo não colide com os outros dois espaços de claim (`teste-`, e o base64url de 12 caracteres da fila real).
+
+### A confirmação, e o que ela NÃO faz
+
+`POST /api/fila/confirmar` **não muda**: mesmos três resultados, mesma idempotência, mesmo 409, mesmas chaves na resposta. O desvio é pelo prefixo, ANTES da transação real.
+
+- **"enviado"** move TRÊS docs numa transação só, ou nenhum: a tarefa (`enviado` + `enviadoEm`), o rascunho em `filaRespostas` (`usada` + `textoUsado` com o texto que de fato saiu) e o contador, só em `respostasEnviadas`. **Todas as leituras antes de todas as escritas**, como em `confirmarEnvio` — o Firestore real recusa `get` depois de `set` e o fake deixaria passar.
+- **"falhou"**: tentativa gasta e a tarefa volta à fila. Esgotadas as `RESPOSTA_TENTATIVAS_MAX` (3, número próprio ainda que hoje igual ao da prospecção — lá ele decide quando um LEAD para para inspeção; aqui, quando a máquina desiste), a resposta sai do caminho automático e o rascunho reaparece no painel.
+- **"invalido"**: a tarefa encerra e o rascunho volta ao painel, **mas o lead NÃO ganha `telefoneInvalido`**. Aquele número acabou de mandar mensagem; tirar o lead da fila de prospecção para sempre por causa de uma conversa que a macro não conseguiu abrir seria dano permanente a partir de um sinal fraco.
+
+O que a confirmação de uma resposta **não** faz é a parte importante, e há teste para cada uma: não move o status do lead (ele já está em "respondeu" desde que a mensagem dele chegou), não grava selo de contato, não gira a rotação de frases (a resposta não sai de frase nenhuma) e não encosta em `filaEnvios`.
+
+### Desligar NÃO descarta rascunho nenhum
+
+Desligar `respostaAutomatica` devolve os pendentes para a lista de aprovação manual — nada é apagado, e a tarefa continua no lugar esperando o interruptor voltar. **Rascunho já entregue ao aparelho segue seu curso**: a mudança de config nunca invalida claim emitida, a mesma regra que já vale na fila de envio.
+
+Isso tudo sai de uma regra só, em `listarRespostasPendentes`, que passou a receber a config e o relógio. A lista deixou de ser "tudo que está pendente" e virou "tudo que espera uma PESSOA":
+
+- rascunho SEM tarefa (o caminho normal, e todo o histórico anterior a este bloco) → aparece, como sempre;
+- tarefa JÁ NA MÃO DO APARELHO (claim viva) → nunca aparece, nem com o interruptor desligado;
+- tarefa viva com o interruptor LIGADO → não aparece (o automático cuida);
+- tarefa viva com o interruptor DESLIGADO → **aparece**;
+- tarefa em que a máquina desistiu (`invalido`, tentativas esgotadas, `encerrada`) → aparece: a decisão voltou para o humano.
+
+Fechar pelo painel (`resolverResposta`) **encerra a tarefa** na mesma ação, para o aparelho não responder depois — e é **RECUSADO com 409 enquanto a tarefa está com o celular**: entre a tela carregar e o clique, ele pode ter puxado a resposta, e fechar ali faria o lead receber duas. Reusa `InvalidTransitionError`, como as outras transições impossíveis desta tela.
+
+### No painel
+
+**"Resposta automática" é bloco subordinado a "Fila de envio"** (`<h3>`), ao lado da visão, do disparo de teste e da lista de print — e não uma parte da seção "Respostas pendentes" ao lado, ainda que o assunto seja dela. O motivo é a ESCRITA: estes campos são o mesmo doc `/config/fila` que aquele painel já carrega e salva, e duas seções editando o mesmo documento seriam dois donos da mesma escrita, capazes de sobrescrever um ao outro. Admin-only como todo o resto do bloco, e cada campo salva no próprio clique/blur.
+
+O que a seção "Respostas pendentes" mostra é o EFEITO do interruptor: com ele ligado a lista é curta por construção, e **lista curta sem explicação é um estado que mente** — o operador olharia um painel vazio e concluiria que ninguém respondeu. Por isso `GET /api/config/fila/respostas` devolve `respostaAutomatica` junto da lista, **da MESMA chamada que a filtrou** (duas fontes poderiam discordar), e a tela diz a razão e onde desligar.
 
 ## Disparo de teste da fila — o lead fixo, a tarefa injetada e os interruptores
 
@@ -4013,3 +4149,4 @@ Ver `.env.example`. Na Vercel, cadastrar todas em Project Settings → Environme
 - **Demo avulsa em coleção própria, não flag em `/leads`**: uma demo sem lead não é prospect e não pode entrar em contagem nenhuma do funil (metas, penetração, `/hoje`, `/leads`). Em `/demosAvulsas` isso vale por construção — nenhuma query de lead a alcança, hoje ou depois de qualquer refatoração; como flag, valeria só enquanto todo mundo lembrasse do filtro. O custo aceito é o adaptador `ClienteDemo` no editor e o alvo prefixado nas capturas (ver "Demos avulsas").
 - **Re-enriquecimento**: não existe. Lead enriquecido retorna do cache sempre; um novo Place Details para o mesmo lead nunca é disparado.
 - **Cotas por usuário vs. teto global**: o teto global (`/config/app.caps`) deixou de ser um limite absoluto de conta — desde as cotas individuais, ele é "vale pra todo mundo, menos admin". A trava absoluta de fatura passa a ser só a cota configurada no console do Google. Decisão deliberada (não um efeito colateral): ver "Cotas individuais por usuário".
+- **Resposta automática com cota PRÓPRIA**: uma resposta enviada sozinha não consome `metaDiaria`, não respeita `intervaloMinimoSegundos` e não conta no `tetoPorHora` — ela tem `filaContadores.respostasEnviadas` e `respostasAutomaticasMaxDia` só para ela. Aqueles três portões existem para disfarçar disparo em rajada para quem NUNCA falou com você; responder quem te escreveu é outra coisa, e somar as duas faria uma noite movimentada de respostas comer a cota de prospecção do dia seguinte. Ver "Resposta automática".

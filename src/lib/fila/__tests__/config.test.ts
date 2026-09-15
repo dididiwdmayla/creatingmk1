@@ -92,6 +92,118 @@ describe("saveFilaConfig", () => {
   });
 });
 
+describe("resposta automática — os dois interruptores e o ritmo", () => {
+  it("nasce DESLIGADA, e limitada à primeira resposta", () => {
+    // O padrão de cada um é a decisão, não um detalhe: o mecanismo só liga
+    // por ato explícito do admin, e ligado ele começa no recorte mais
+    // conservador (só a primeira resposta do lead).
+    expect(DEFAULT_FILA_CONFIG.respostaAutomatica).toBe(false);
+    expect(DEFAULT_FILA_CONFIG.respostaAutomaticaApenasPrimeira).toBe(true);
+  });
+
+  it("doc ausente não liga nada", async () => {
+    const db = new FakeFirestore();
+    expect((await loadFilaConfig(db)).respostaAutomatica).toBe(false);
+  });
+
+  it("os dois são interruptores de verdade: ligam e desligam pelo patch", async () => {
+    const db = new FakeFirestore();
+
+    const ligada = await saveFilaConfig(db, {
+      respostaAutomatica: true,
+      respostaAutomaticaApenasPrimeira: false,
+    });
+    expect(ligada.respostaAutomatica).toBe(true);
+    expect(ligada.respostaAutomaticaApenasPrimeira).toBe(false);
+
+    // `false` explícito tem que sobrescrever o default `true` — é o caso que
+    // um merge com `||` engoliria em silêncio.
+    expect((await loadFilaConfig(db)).respostaAutomaticaApenasPrimeira).toBe(false);
+
+    const desligada = await saveFilaConfig(db, { respostaAutomatica: false });
+    expect(desligada.respostaAutomatica).toBe(false);
+    // Desligar o mecanismo não mexe no outro interruptor.
+    expect(desligada.respostaAutomaticaApenasPrimeira).toBe(false);
+  });
+
+  it("rejeita interruptor que não é booleano", async () => {
+    const db = new FakeFirestore();
+    await expect(saveFilaConfig(db, { respostaAutomatica: "sim" })).rejects.toThrow(
+      ValidationError,
+    );
+    await expect(
+      saveFilaConfig(db, { respostaAutomaticaApenasPrimeira: 1 }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("o atraso vem 3 a 12 minutos e é patcheável", async () => {
+    const db = new FakeFirestore();
+    expect(DEFAULT_FILA_CONFIG.respostaDelayMinSegundos).toBe(180);
+    expect(DEFAULT_FILA_CONFIG.respostaDelayMaxSegundos).toBe(720);
+
+    const salvo = await saveFilaConfig(db, {
+      respostaDelayMinSegundos: 60,
+      respostaDelayMaxSegundos: 300,
+    });
+    expect(salvo.respostaDelayMinSegundos).toBe(60);
+    expect(salvo.respostaDelayMaxSegundos).toBe(300);
+  });
+
+  it("aceita faixa INVERTIDA sem estourar — quem resolve é o sorteio", async () => {
+    // Cada campo do painel salva no próprio blur: existe um instante em que
+    // o mínimo já subiu e o máximo ainda não, e ele não pode virar erro.
+    const db = new FakeFirestore();
+    const salvo = await saveFilaConfig(db, { respostaDelayMinSegundos: 900 });
+    expect(salvo.respostaDelayMinSegundos).toBe(900);
+    expect(salvo.respostaDelayMaxSegundos).toBe(720);
+  });
+
+  it("rejeita atraso negativo ou não inteiro", async () => {
+    const db = new FakeFirestore();
+    await expect(saveFilaConfig(db, { respostaDelayMinSegundos: -1 })).rejects.toThrow(
+      ValidationError,
+    );
+    await expect(saveFilaConfig(db, { respostaDelayMaxSegundos: 1.5 })).rejects.toThrow(
+      ValidationError,
+    );
+  });
+
+  it("a janela própria vem 8h–22h e aceita 0 a 23", async () => {
+    const db = new FakeFirestore();
+    expect(DEFAULT_FILA_CONFIG.respostaJanelaInicio).toBe(8);
+    expect(DEFAULT_FILA_CONFIG.respostaJanelaFim).toBe(22);
+
+    const salvo = await saveFilaConfig(db, { respostaJanelaInicio: 0, respostaJanelaFim: 23 });
+    expect(salvo.respostaJanelaInicio).toBe(0);
+    expect(salvo.respostaJanelaFim).toBe(23);
+  });
+
+  it("rejeita hora de janela fora de 0..23", async () => {
+    const db = new FakeFirestore();
+    await expect(saveFilaConfig(db, { respostaJanelaInicio: 24 })).rejects.toThrow(
+      ValidationError,
+    );
+    await expect(saveFilaConfig(db, { respostaJanelaFim: -1 })).rejects.toThrow(ValidationError);
+  });
+
+  it("o teto diário de respostas é PRÓPRIO, separado da metaDiaria", async () => {
+    const db = new FakeFirestore();
+    expect(DEFAULT_FILA_CONFIG.respostasAutomaticasMaxDia).toBe(30);
+
+    const salvo = await saveFilaConfig(db, { respostasAutomaticasMaxDia: 5 });
+    expect(salvo.respostasAutomaticasMaxDia).toBe(5);
+    // A cota de prospecção não se mexe junto.
+    expect(salvo.metaDiaria).toBe(DEFAULT_FILA_CONFIG.metaDiaria);
+  });
+
+  it("rejeita teto de respostas negativo", async () => {
+    const db = new FakeFirestore();
+    await expect(saveFilaConfig(db, { respostasAutomaticasMaxDia: -1 })).rejects.toThrow(
+      ValidationError,
+    );
+  });
+});
+
 describe("numeroTeste — o destino do disparo de teste", () => {
   it("vem preenchido por default", () => {
     expect(DEFAULT_FILA_CONFIG.numeroTeste).toBe("5544984570105");

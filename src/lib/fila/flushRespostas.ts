@@ -1,9 +1,13 @@
 import type { AppConfig } from "@/lib/config";
 import type { AppDb } from "@/lib/firestore-like";
 import { getLead } from "@/lib/leads/repo";
+import type { Lead } from "@/lib/leads/types";
+import { digitosTelefone } from "@/lib/wa";
 
 import type { FilaConfig } from "./config";
+import { FILA_RESPOSTAS_COLLECTION, type FilaRespostaDoc } from "./estado";
 import { gerarRascunhoResposta } from "./rascunhoResposta";
+import { criarTarefaResposta, sortearAtrasoSegundos } from "./respostaAutomatica";
 import {
   listarGruposPendentes,
   reivindicarGrupoMaduro,
@@ -13,42 +17,109 @@ import {
 } from "./respostasPendentes";
 
 /**
- * `filaRespostas/{id}` — o RASCUNHO gerado para um grupo maduro. Coleção
- * PRÓPRIA (não `filaEnvios`, que é doc por leadId e carrega o estado do
- * ENVIO real daquele lead): aqui pode haver várias entradas por lead ao
- * longo do tempo (uma por grupo de mensagens), cada uma com id próprio.
+ * A FORMA do rascunho (`filaRespostas/{id}`, coleção PRÓPRIA — não
+ * `filaEnvios`, que é doc por leadId e carrega o estado do ENVIO real
+ * daquele lead; aqui pode haver várias entradas por lead ao longo do tempo,
+ * uma por grupo de mensagens) mora em `estado.ts`, pelo mesmo motivo de
+ * `FilaEnvioDoc`: quem desenha o painel é componente client e este módulo lê
+ * o Firestore. Reexportada daqui para ninguém precisar saber da divisão.
  */
-export const FILA_RESPOSTAS_COLLECTION = "filaRespostas";
+export {
+  FILA_RESPOSTAS_COLLECTION,
+  RASCUNHO_ESTADOS,
+  type FilaRespostaDoc,
+  type RascunhoEstado,
+} from "./estado";
 
-export const RASCUNHO_ESTADOS = ["pendente", "usada", "descartada"] as const;
-export type RascunhoEstado = (typeof RASCUNHO_ESTADOS)[number];
-
-export interface FilaRespostaDoc {
-  id: string;
-  leadId: string;
-  mensagens: MensagemGrupo[];
-  rascunho: string;
-  geradoEm: string;
-  estado: RascunhoEstado;
-}
-
-async function salvarRascunho(
+/**
+ * O rascunho entra no caminho AUTOMÁTICO? Os dois interruptores decidem
+ * aqui, uma vez, no instante da geração:
+ *
+ * - `respostaAutomatica` desligada (o padrão) → nunca, e nem se pergunta o
+ *   resto.
+ * - `respostaAutomaticaApenasPrimeira` ligada (o padrão) → só se este for o
+ *   PRIMEIRO rascunho daquele lead. A primeira resposta é quase sempre a
+ *   mesma pergunta; da segunda em diante já é negociação, e negociar sozinho
+ *   é outro risco.
+ *
+ * O custo do "é a primeira?" é uma varredura de `filaRespostas` — a mesma
+ * que o painel paga, e aceitável pelo mesmo motivo: acontece quando um lead
+ * RESPONDE (algumas vezes por dia), não a cada ciclo do aparelho.
+ */
+async function decidirAutomatica(
   db: AppDb,
   leadId: string,
+  filaConfig: FilaConfig,
+): Promise<boolean> {
+  if (!filaConfig.respostaAutomatica) return false;
+  if (!filaConfig.respostaAutomaticaApenasPrimeira) return true;
+
+  const snap = await db.collection(FILA_RESPOSTAS_COLLECTION).get();
+  return !snap.docs.some((doc) => (doc.data() as unknown as FilaRespostaDoc).leadId === leadId);
+}
+
+/**
+ * Grava o rascunho e, quando os interruptores permitem, a TAREFA que o
+ * aparelho vai puxar (`respostaAutomatica.ts`). O rascunho é gravado
+ * SEMPRE: ele é o registro; a tarefa é só o caminho automático.
+ *
+ * Duas razões para um rascunho não virar tarefa:
+ *
+ * - **os interruptores** (ver `decidirAutomatica`);
+ * - **lead sem telefone** — não há conversa para abrir, e a tarefa nasceria
+ *   impossível de cumprir. O rascunho fica no painel, onde uma pessoa
+ *   decide o que fazer.
+ *
+ * O ATRASO é sorteado aqui, uma vez por resposta, e vira `disponivelEm` na
+ * tarefa: o aparelho não sabe de atraso nenhum — ele pergunta, e a tarefa
+ * está lá ou não está.
+ */
+async function salvarRascunho(
+  db: AppDb,
+  lead: Lead,
   mensagens: MensagemGrupo[],
   rascunho: string,
   now: Date,
+  filaConfig: FilaConfig,
 ): Promise<void> {
+  // A decisão vem ANTES da gravação: `decidirAutomatica` pergunta se este
+  // lead já tem rascunho, e o rascunho que está nascendo agora responderia
+  // "já tem" a si mesmo.
+  const automatica = await decidirAutomatica(db, lead.placeId, filaConfig);
+
   const id = crypto.randomUUID();
   const doc: FilaRespostaDoc = {
     id,
-    leadId,
+    leadId: lead.placeId,
     mensagens,
     rascunho,
     geradoEm: now.toISOString(),
     estado: "pendente",
   };
   await db.collection(FILA_RESPOSTAS_COLLECTION).doc(id).set({ ...doc });
+
+  if (!automatica) return;
+
+  // Mesma precedência de `montarMensagemParaLead` (o enriquecido vence o da
+  // busca), com `digitosTelefone` normalizando para dígitos puros com DDI.
+  const numero = digitosTelefone(lead.detalhes?.telefoneIntl ?? lead.telefoneIntl ?? "");
+  if (!numero) return;
+
+  await criarTarefaResposta(
+    db,
+    {
+      id,
+      leadId: lead.placeId,
+      nome: lead.nome,
+      numero,
+      texto: rascunho,
+      atrasoSegundos: sortearAtrasoSegundos(
+        filaConfig.respostaDelayMinSegundos,
+        filaConfig.respostaDelayMaxSegundos,
+      ),
+    },
+    now,
+  );
 }
 
 /**
@@ -66,6 +137,7 @@ async function processarGrupoReivindicado(
   db: AppDb,
   claim: GrupoPendenteDoc,
   now: Date,
+  filaConfig: FilaConfig,
   appConfig: AppConfig,
 ): Promise<void> {
   try {
@@ -76,7 +148,7 @@ async function processarGrupoReivindicado(
     if (!lead) return;
 
     const rascunho = await gerarRascunhoResposta(db, lead, claim.mensagens, appConfig);
-    await salvarRascunho(db, claim.leadId, claim.mensagens, rascunho, now);
+    await salvarRascunho(db, lead, claim.mensagens, rascunho, now, filaConfig);
   } catch (error) {
     const motivo = error instanceof Error ? error.message : "falha desconhecida na geração do rascunho";
     await restaurarGrupoComErro(db, claim, motivo);
@@ -112,7 +184,7 @@ export async function flushGruposMaduros(
         filaConfig.respostaAgrupamentoSegundos,
       );
       if (!claim) continue;
-      await processarGrupoReivindicado(db, claim, now, appConfig);
+      await processarGrupoReivindicado(db, claim, now, filaConfig, appConfig);
     }
   } catch {
     // Isolamento de última linha — ver o comentário da função. Sem `texto`

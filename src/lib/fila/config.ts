@@ -37,6 +37,73 @@ export interface FilaConfig {
    */
   respostaAgrupamentoSegundos: number;
   /**
+   * LIGA a resposta automática: o rascunho deixa de esperar aprovação no
+   * painel e vira TAREFA DE ENVIO na fila (ver `respostaAutomatica.ts`).
+   * Padrão FALSE — responder sozinho, em nome do operador, é a única coisa
+   * nesta fila que fala com o lead sem ninguém ter lido o que ele escreveu.
+   *
+   * Desligar NÃO descarta rascunho nenhum: os pendentes voltam para a lista
+   * de aprovação manual (`respostasPainel.ts`), e a claim já entregue ao
+   * aparelho segue seu curso — mudança de config nunca invalida claim
+   * emitida, a mesma regra que já vale para a fila de envio.
+   */
+  respostaAutomatica: boolean;
+  /**
+   * Limita o automático à PRIMEIRA resposta do lead; da segunda em diante o
+   * rascunho cai na aprovação manual do painel. Padrão TRUE: a primeira
+   * resposta é quase sempre a mesma pergunta ("quanto custa?", "como
+   * funciona?"), e é onde responder rápido vale mais; a segunda já é
+   * negociação, e negociar sozinho é outro risco.
+   *
+   * Interruptor de verdade, editável no painel como os demais — nunca
+   * constante no código. Desligado, a IA responde também as mensagens
+   * seguintes.
+   */
+  respostaAutomaticaApenasPrimeira: boolean;
+  /**
+   * Faixa (segundos) do atraso SORTEADO antes de a resposta ficar
+   * disponível para o aparelho — um sorteio por resposta, entre o mínimo e
+   * o máximo. Padrão 180 e 720 (3 a 12 minutos).
+   *
+   * Resposta instantânea é a assinatura mais óbvia de robô: ninguém lê,
+   * pensa e digita em dois segundos. O atraso é SORTEADO, e não fixo, pelo
+   * mesmo motivo — um intervalo sempre igual é tão reconhecível quanto o
+   * zero.
+   *
+   * Faixa invertida (`max < min`) não derruba a fila às duas da manhã: o
+   * sorteio usa o maior dos dois (ver `sortearAtrasoSegundos`).
+   */
+  respostaDelayMinSegundos: number;
+  respostaDelayMaxSegundos: number;
+  /**
+   * JANELA PRÓPRIA da resposta automática, em horas (0-23) do fuso do
+   * OPERADOR (America/Sao_Paulo) — nunca o do lead, e nunca a
+   * `janelaContato` que já existe.
+   *
+   * As duas perguntas são diferentes: `janelaContato` responde "quando é bom
+   * abordar ESTE negócio" (faixas da família × horário de funcionamento ×
+   * fuso do lead); aqui a pergunta é parecer humano. Um lead que escreve às
+   * 4h e recebe resposta às 4h03 denuncia a automação mais que qualquer
+   * texto. Fora da janela, a tarefa espera a abertura seguinte — nunca é
+   * descartada.
+   *
+   * `inicio === fim` = aberto o dia inteiro; `inicio > fim` atravessa a
+   * meia-noite (ver `dentroDaJanelaResposta`).
+   */
+  respostaJanelaInicio: number;
+  respostaJanelaFim: number;
+  /**
+   * Teto de respostas automáticas por DIA OPERACIONAL (o mesmo
+   * `inicioDiaOperacionalHora` da prospecção). Teto PRÓPRIO, contra
+   * `filaContadores.respostasEnviadas`: resposta automática não consome
+   * `metaDiaria`, não respeita `intervaloMinimoSegundos` e não conta no
+   * `tetoPorHora` — aqueles existem para disfarçar disparo em rajada para
+   * quem nunca falou com você, e responder quem te escreveu é outra coisa.
+   * Sem um teto próprio, porém, uma noite movimentada viraria uma rajada de
+   * outro tipo.
+   */
+  respostasAutomaticasMaxDia: number;
+  /**
    * Hora (0-23, America/Sao_Paulo) em que o "dia operacional" começa —
    * usada para fechar a chave de `filaContadores`. 0 = meia-noite (mesmo
    * comportamento do calendário normal).
@@ -75,6 +142,13 @@ export const DEFAULT_FILA_CONFIG: FilaConfig = {
   nichosPermitidos: [],
   intervaloMinimoSegundos: 180,
   respostaAgrupamentoSegundos: 45,
+  respostaAutomatica: false,
+  respostaAutomaticaApenasPrimeira: true,
+  respostaDelayMinSegundos: 180,
+  respostaDelayMaxSegundos: 720,
+  respostaJanelaInicio: 8,
+  respostaJanelaFim: 22,
+  respostasAutomaticasMaxDia: 30,
   inicioDiaOperacionalHora: 0,
   numeroTeste: "5544984570105",
   ativoAlteradoPor: null,
@@ -89,6 +163,13 @@ const TOP_LEVEL_KEYS = new Set<keyof FilaConfig>([
   "nichosPermitidos",
   "intervaloMinimoSegundos",
   "respostaAgrupamentoSegundos",
+  "respostaAutomatica",
+  "respostaAutomaticaApenasPrimeira",
+  "respostaDelayMinSegundos",
+  "respostaDelayMaxSegundos",
+  "respostaJanelaInicio",
+  "respostaJanelaFim",
+  "respostasAutomaticasMaxDia",
   "inicioDiaOperacionalHora",
   "numeroTeste",
 ]);
@@ -122,6 +203,15 @@ export function validateFilaConfigPatch(patch: unknown): asserts patch is Partia
   if (patch.exigirJanelaBoa !== undefined && typeof patch.exigirJanelaBoa !== "boolean") {
     problemas.push("exigirJanelaBoa deve ser booleano");
   }
+  if (patch.respostaAutomatica !== undefined && typeof patch.respostaAutomatica !== "boolean") {
+    problemas.push("respostaAutomatica deve ser booleano");
+  }
+  if (
+    patch.respostaAutomaticaApenasPrimeira !== undefined &&
+    typeof patch.respostaAutomaticaApenasPrimeira !== "boolean"
+  ) {
+    problemas.push("respostaAutomaticaApenasPrimeira deve ser booleano");
+  }
 
   if (patch.metaDiaria !== undefined) {
     validarInteiroNaoNegativo(patch.metaDiaria, "metaDiaria", problemas);
@@ -139,6 +229,34 @@ export function validateFilaConfigPatch(patch: unknown): asserts patch is Partia
       "respostaAgrupamentoSegundos",
       problemas,
     );
+  }
+
+  if (patch.respostaDelayMinSegundos !== undefined) {
+    validarInteiroNaoNegativo(patch.respostaDelayMinSegundos, "respostaDelayMinSegundos", problemas);
+  }
+  if (patch.respostaDelayMaxSegundos !== undefined) {
+    validarInteiroNaoNegativo(patch.respostaDelayMaxSegundos, "respostaDelayMaxSegundos", problemas);
+  }
+  // Faixa INVERTIDA não é erro de validação de propósito: um PUT pode trazer
+  // só um dos dois lados (cada campo do painel salva no próprio blur), e
+  // recusar aqui obrigaria o operador a editar os dois na ordem certa para
+  // aumentar a faixa. Quem resolve é `sortearAtrasoSegundos`, usando o maior
+  // dos dois — a fila nunca cai às duas da manhã por causa de uma edição
+  // pela metade.
+  if (patch.respostasAutomaticasMaxDia !== undefined) {
+    validarInteiroNaoNegativo(
+      patch.respostasAutomaticasMaxDia,
+      "respostasAutomaticasMaxDia",
+      problemas,
+    );
+  }
+
+  for (const campo of ["respostaJanelaInicio", "respostaJanelaFim"] as const) {
+    const v = patch[campo];
+    if (v === undefined) continue;
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 23) {
+      problemas.push(`${campo} deve ser inteiro entre 0 e 23`);
+    }
   }
 
   if (patch.inicioDiaOperacionalHora !== undefined) {
@@ -189,6 +307,18 @@ export function mergeFilaConfig(base: FilaConfig, patch: Partial<FilaConfig>): F
     intervaloMinimoSegundos: patch.intervaloMinimoSegundos ?? base.intervaloMinimoSegundos,
     respostaAgrupamentoSegundos:
       patch.respostaAgrupamentoSegundos ?? base.respostaAgrupamentoSegundos,
+    // Os dois interruptores da resposta automática passam pelo mesmo `??` do
+    // resto: `false` explícito sobrescreve o default, `undefined` mantém o
+    // que já estava (`??` não confunde os dois, diferente de `||`).
+    respostaAutomatica: patch.respostaAutomatica ?? base.respostaAutomatica,
+    respostaAutomaticaApenasPrimeira:
+      patch.respostaAutomaticaApenasPrimeira ?? base.respostaAutomaticaApenasPrimeira,
+    respostaDelayMinSegundos: patch.respostaDelayMinSegundos ?? base.respostaDelayMinSegundos,
+    respostaDelayMaxSegundos: patch.respostaDelayMaxSegundos ?? base.respostaDelayMaxSegundos,
+    respostaJanelaInicio: patch.respostaJanelaInicio ?? base.respostaJanelaInicio,
+    respostaJanelaFim: patch.respostaJanelaFim ?? base.respostaJanelaFim,
+    respostasAutomaticasMaxDia:
+      patch.respostasAutomaticasMaxDia ?? base.respostasAutomaticasMaxDia,
     inicioDiaOperacionalHora: patch.inicioDiaOperacionalHora ?? base.inicioDiaOperacionalHora,
     // `.trim()` só sobre string: `loadFilaConfig` faz este merge sobre o doc
     // CRU do Firestore, e um valor de tipo errado ali não pode derrubar
