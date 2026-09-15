@@ -1784,8 +1784,11 @@ function DisparoTeste({
   const fixo = estado?.leadDeTeste;
   const linha = estado?.atual ? estadoDoTeste(estado.atual, agora) : null;
 
+  // `data-bloco` é o gancho do QA visual (mesmo espírito de `data-lista`
+  // na visão): o painel inteiro passa de 2000px, e é este bloco que o
+  // `--so=teste` precisa mostrar legível.
   return (
-    <div className="mt-4 border-t border-line pt-3">
+    <div data-bloco="disparo-teste" className="mt-4 border-t border-line pt-3">
       <h3 className="text-xs font-medium text-ink-secondary">Disparo de teste</h3>
       <p className="mt-1 text-xs text-ink-muted">
         Injeta UMA tarefa na fila. O aparelho a recebe na próxima vez que pedir trabalho — e ele
@@ -1854,23 +1857,28 @@ function DisparoTeste({
           )}
 
           {/* ── Interruptores, na ordem real de avaliação ──────────────── */}
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
-            <span className="w-20 shrink-0">Pular</span>
-            {ETAPAS_TESTE.map((etapa) => (
-              <button
-                key={etapa}
-                type="button"
-                onClick={() => alternarEtapa(etapa)}
-                aria-pressed={pular.includes(etapa)}
-                className={`rounded border px-2 py-1 text-xs ${
-                  pular.includes(etapa)
-                    ? "border-accent bg-accent/15 text-accent"
-                    : "border-line bg-surface-2 text-ink-muted"
-                }`}
-              >
-                {ETAPA_PULAR_LABEL[etapa]}
-              </button>
-            ))}
+          <div className="mt-2 flex items-start gap-2 text-xs text-ink-secondary">
+            <span className="w-20 shrink-0 py-1">Pular</span>
+            {/* Grupo PRÓPRIO: no celular os quatro não cabem numa linha, e
+                sem esta caixa o que sobra quebra para debaixo do rótulo, em
+                vez de alinhar com os irmãos. */}
+            <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+              {ETAPAS_TESTE.map((etapa) => (
+                <button
+                  key={etapa}
+                  type="button"
+                  onClick={() => alternarEtapa(etapa)}
+                  aria-pressed={pular.includes(etapa)}
+                  className={`rounded border px-2 py-1 text-xs ${
+                    pular.includes(etapa)
+                      ? "border-accent bg-accent/15 text-accent"
+                      : "border-line bg-surface-2 text-ink-muted"
+                  }`}
+                >
+                  {ETAPA_PULAR_LABEL[etapa]}
+                </button>
+              ))}
+            </div>
           </div>
           <p className="mt-1 text-[10px] text-ink-muted">
             Na ordem em que a seleção avalia. Ligado = a etapa não barra este disparo. Mesmo com
