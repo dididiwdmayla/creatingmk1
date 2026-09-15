@@ -33,9 +33,9 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   try {
     const db = getDb();
-    await requireAdmin(db, req);
+    const usuario = await requireAdmin(db, req);
     const patch = await readJsonBody(req);
-    const fila = await saveFilaConfig(db, patch);
+    const fila = await saveFilaConfig(db, patch, usuario.id);
     return NextResponse.json({ fila });
   } catch (error) {
     return handleRouteError(error);
