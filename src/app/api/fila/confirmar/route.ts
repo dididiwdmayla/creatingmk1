@@ -5,6 +5,7 @@ import { autenticarDispositivo } from "@/lib/fila/auth";
 import { loadFilaConfig } from "@/lib/fila/config";
 import { confirmarEnvio } from "@/lib/fila/confirmar";
 import { ClaimInvalidoError, type FilaEnvioResultado } from "@/lib/fila/envios";
+import { confirmarTeste, ehClaimDeTeste } from "@/lib/fila/teste";
 import { handleRouteError, jsonError, readJsonBody } from "@/lib/http";
 
 /**
@@ -21,6 +22,13 @@ import { handleRouteError, jsonError, readJsonBody } from "@/lib/http";
  * - **Confirmação repetida da MESMA claim devolve sucesso sem duplicar
  *   nada.** A rede pode cair DEPOIS de a mensagem ter saído, e aí o celular
  *   reenvia o confirmar; repetir não pode contar duas vezes.
+ *
+ * **A claim de TESTE desvia aqui, antes de tudo.** O desvio é pelo PREFIXO
+ * do claimId (`lib/fila/teste.ts`), que custa zero leitura e acontece antes
+ * de `confirmarEnvio` — a transação que move lead, contador e rotação. Essa
+ * checagem não pode ficar depois de nenhuma escrita: um teste que
+ * incrementasse o contador do dia falsificaria a meta, e um que movesse o
+ * status marcaria como contactado um negócio que não recebeu nada.
  */
 
 const RESULTADOS: FilaEnvioResultado[] = ["enviado", "invalido", "falhou"];
@@ -50,6 +58,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "corpo_invalido", problemas }, { status: 400 });
     }
 
+    // ── CLAIM DE TESTE ────────────────────────────────────────────────
+    // ANTES de qualquer leitura de config e antes da transação real: o
+    // caminho de teste registra o resultado e não toca em lead, contador,
+    // rotação nem selo. Nem `RADAR_DEVICE_USER_ID` faz falta aqui — não há
+    // ação de usuário para atribuir.
+    if (ehClaimDeTeste(id as string)) {
+      const confirmacao = await confirmarTeste(
+        db,
+        id as string,
+        resultado as FilaEnvioResultado,
+        typeof detalhe === "string" ? detalhe.slice(0, DETALHE_MAX) : null,
+        new Date(),
+      );
+      if (!confirmacao) {
+        // Mesmo dialeto do caminho real: "esta tarefa não é mais sua".
+        return NextResponse.json({ erro: "claim_invalida" }, { status: 409 });
+      }
+      return NextResponse.json({
+        ok: true,
+        teste: true,
+        estado: confirmacao.resultado,
+        repetida: confirmacao.repetida,
+        // Chaves do contrato real mantidas: a macro lê por marcador, e uma
+        // chave que some numa das voltas carrega lixo sem avisar. Teste não
+        // tem tentativas nem lead parado — daí os valores fixos.
+        tentativas: 0,
+        parado: false,
+      });
+    }
+
     // O usuário sob o qual as ações do celular são atribuídas — mantém
     // coerente o registro de autor (quem contatou) mesmo quando quem dispara
     // é o executor automático, não uma sessão de navegador.
@@ -75,7 +113,7 @@ export async function POST(req: Request) {
       },
     );
 
-    return NextResponse.json({ ok: true, ...confirmacao });
+    return NextResponse.json({ ok: true, teste: false, ...confirmacao });
   } catch (error) {
     if (error instanceof ClaimInvalidoError) {
       // Dialeto próprio da fila (ver lib/fila/auth.ts): o executor no celular

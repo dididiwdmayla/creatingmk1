@@ -15,6 +15,7 @@ import {
 import { montarMensagemParaLead } from "@/lib/fila/mensagem";
 import { printUrlDoLead } from "@/lib/fila/print";
 import { motivoDeRitmo, ordenarCandidatos, type MotivoSemTarefa } from "@/lib/fila/selecao";
+import { lerTestePendente, marcarTesteEntregue } from "@/lib/fila/teste";
 import type { AppDb } from "@/lib/firestore-like";
 import { getLead } from "@/lib/leads/repo";
 import { handleRouteError } from "@/lib/http";
@@ -44,6 +45,12 @@ import { handleRouteError } from "@/lib/http";
  * presentes (chave ausente é o mesmo bug — o marcador some, a macro carrega
  * lixo sem perceber) e todo valor como string vazia (nunca `undefined`/`null`)
  * quando não há tarefa.
+ *
+ * A rota também é por onde sai a TAREFA DE TESTE (`lib/fila/teste.ts`):
+ * requisito duro, porque cada alteração na macro custa reconfiguração manual
+ * no celular. A macro pergunta a mesma coisa no mesmo lugar e só recebe,
+ * naquela volta, a tarefa de teste em vez da normal — daí a chave `teste`,
+ * booleana e sempre presente, e nenhuma outra mudança no contrato.
  */
 
 /** Cabeçalho com que o aparelho se identifica; ausente = o único que existe hoje. */
@@ -65,11 +72,19 @@ export interface TarefaFila {
 /**
  * Resposta achatada de `/proximo`: um nível só, chaves fixas, sempre todas
  * presentes — é o formato que o MacroDroid consegue ler (ver comentário do
- * arquivo). `temTarefa` é o único booleano; todo o resto é string, e vazio
- * (nunca omitido) quando o campo não se aplica.
+ * arquivo). `temTarefa` e `teste` são os únicos booleanos; todo o resto é
+ * string, e vazio (nunca omitido) quando o campo não se aplica.
  */
 interface RespostaFila {
   temTarefa: boolean;
+  /**
+   * Esta volta trouxe uma TAREFA DE TESTE (ver `lib/fila/teste.ts`), não uma
+   * prospecção real. Booleano, no mesmo espírito de `temTarefa`, e SEMPRE
+   * PRESENTE nos dois casos — chave ausente faz o MacroDroid devolver o
+   * marcador literal em vez de vazio, que foi a causa do bug do envelope
+   * aninhado.
+   */
+  teste: boolean;
   id: string;
   leadId: string;
   nome: string;
@@ -80,9 +95,10 @@ interface RespostaFila {
   motivo: MotivoSemTarefa | "";
 }
 
-function respostaComTarefa(tarefa: TarefaFila): NextResponse {
+function respostaComTarefa(tarefa: TarefaFila, teste = false): NextResponse {
   const corpo: RespostaFila = {
     temTarefa: true,
+    teste,
     id: tarefa.id,
     leadId: tarefa.leadId,
     nome: tarefa.nome,
@@ -98,6 +114,7 @@ function respostaComTarefa(tarefa: TarefaFila): NextResponse {
 function semTarefa(motivo: MotivoSemTarefa): NextResponse {
   const corpo: RespostaFila = {
     temTarefa: false,
+    teste: false,
     id: "",
     leadId: "",
     nome: "",
@@ -173,6 +190,36 @@ export async function GET(req: Request) {
     const dispositivo = req.headers.get(HEADER_DISPOSITIVO)?.trim() || DISPOSITIVO_PADRAO;
 
     const config = await loadFilaConfig(db);
+
+    // A TAREFA DE TESTE vem ANTES do portão de ritmo, de propósito: quem
+    // decidiu que ela podia sair foi o operador na tela, que pode ter
+    // mandado PULAR a etapa de ritmo justamente para ver o resto do
+    // pipeline. Reaplicar o portão aqui engoliria o teste em silêncio — que
+    // é o contrário do que o recurso promete. Entregar é one-shot
+    // (transação em `marcarTesteEntregue`); perder a corrida cai na fila
+    // normal, sem virar erro.
+    const pendente = await lerTestePendente(db, now);
+    if (pendente) {
+      const entregue = await marcarTesteEntregue(db, pendente.claimId, now);
+      if (entregue) {
+        return respostaComTarefa(
+          {
+            id: pendente.claimId,
+            leadId: pendente.leadId,
+            nome: pendente.nome,
+            // NUNCA o telefone do lead: é `config/fila.numeroTeste`, congelado
+            // na injeção. Vale inclusive para o lead fixo de teste — a
+            // sobrescrita é a rede de segurança de quando o alvo é real.
+            numero: pendente.numero,
+            texto: pendente.texto,
+            printUrl: pendente.printUrl,
+            expiraEm: entregue.expiraEm,
+          },
+          true,
+        );
+      }
+    }
+
     const contador = await lerContadorFila(db, now, config.inicioDiaOperacionalHora);
     const ritmo = motivoDeRitmo(config, contador);
     if (ritmo) return semTarefa(ritmo);
