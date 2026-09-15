@@ -47,7 +47,8 @@
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
  *   node scripts/qa-plataforma.mjs --so=pendencias # lista de print pendente em /config, cheia e VAZIA
  *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil, próximos, bloqueados
- *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, barrado, confirmado
+ *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, barrado, confirmado,
+ *                                                 # desligado, e os 5 estados da CAPTURA do lead fixo
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
  *   node scripts/qa-plataforma.mjs --sem-build    # reusa o .next já buildado
  */
@@ -1722,11 +1723,23 @@ async function medirFila(browser, secret) {
  * O tema claro entra pelo mesmo motivo do `--so=fila` e do `--so=pendencias`:
  * é onde os tokens apagados deste bloco têm menos contraste de sobra, e as
  * capturas de aba não o cobrem — o painel fica muito abaixo da dobra.
+ *
+ * **Também os CINCO estados da captura do lead fixo** (item "captura no
+ * próprio painel de teste"): pronta, enfileirada, gerando, falhou e
+ * inexistente — sub-bloco próprio (`data-bloco="captura-teste"`), folha de
+ * contato separada da do disparo (perguntas diferentes: uma é "o aparelho
+ * vai mandar?", a outra é "por que o teste não injeta?"). Enfileirada e
+ * gerando também conferem que "Disparar teste" fica DESABILITADO — a tarefa
+ * não sai sem print pronto, e o operador não devia nem tentar.
  */
 async function medirDisparoTeste(browser, secret) {
   const gerados = [];
   const problemas = [];
   const itens = [];
+  // Os cinco estados de CAPTURA (item 3) ganham folha própria — mistura-los
+  // com os quatro estados do DISPARO na mesma folha deixaria nove linhas
+  // por coluna, e as duas coisas respondem perguntas diferentes.
+  const itensCaptura = [];
 
   /** A tarefa de teste tal como o doc `filaTestes/atual` a guarda. */
   const tarefa = (extra = {}) => ({
@@ -1794,6 +1807,27 @@ async function medirDisparoTeste(browser, secret) {
         }
       }
     };
+
+    // Sub-bloco da captura — menor que o painel inteiro, e é o que muda nos
+    // cinco estados (`--so=teste` cobre pendente/barrado/confirmado/
+    // desligado; este é o zoom no que o item 3 acrescentou).
+    const capturarBlocoCaptura = async (rotulo, arquivo) => {
+      const alvo = page.locator('[data-bloco="captura-teste"]');
+      const png = path.join(SAIDA, `teste-captura-${arquivo}-${sufixo}${marca}.png`);
+      await alvo.first().screenshot({ path: png });
+      itensCaptura.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    // O estado da captura vem de uma SEGUNDA chamada (`useEstadoCapturas`,
+    // encadeada depois de `GET /api/fila/teste` resolver) — `assentar` já
+    // espera `networkidle`, mas o placeholder "carregando…" é o sinal
+    // direto de que essa segunda resposta ainda não chegou.
+    const aguardarCaptura = () =>
+      page
+        .getByText("carregando…")
+        .first()
+        .waitFor({ state: "hidden", timeout: 5000 })
+        .catch(() => {});
 
     // ── PENDENTE: a tarefa está na fila e o aparelho ainda não puxou. É o
     //    estado em que o operador olha para decidir se clica de novo — e a
@@ -1898,6 +1932,120 @@ async function medirDisparoTeste(browser, secret) {
       problemas.push(`pendente/${sufixo}: painel com altura zerada`);
     }
 
+    // ── CAPTURA DO LEAD FIXO (item 3): os CINCO estados que o sub-bloco
+    //    novo cobre — pronta, enfileirada, gerando, falhou e inexistente.
+    //    O produto é o operador ver POR QUE o teste não injeta sem clicar
+    //    em nada, e ter como regenerar sem sair do painel para a ficha.
+    //
+    //    Reseta ANTES (não só depois): a volta ao estado semeado é também
+    //    a linha de base "pronta" — mesmo `capturaPronta` de sempre, e
+    //    `numeroTeste` de volta (a rodada anterior, DESLIGADO, zerou-o).
+    //    `semear()` reescreve `usuarios/admin` inteiro — o TEMA que
+    //    `definirTemaNoDoc` gravou no topo da iteração some junto, então
+    //    ele volta a ser gravado logo depois (mesmo truque de
+    //    `esvaziarPendencias`/`repovoarPendencias`).
+    semear();
+    definirTemaNoDoc("admin", tema);
+    await abrirPainel(`captura-pronta/${sufixo}`);
+    await aguardarCaptura();
+    await exigirTextos(`captura-pronta/${sufixo}`, [
+      [/1 captura/, "rótulo da captura pronta"],
+      [/Refazer/, "botão de regenerar"],
+      [/substitui as imagens atuais/, "aviso de que regenerar substitui"],
+    ]);
+    await capturarBlocoCaptura("pronta (com aviso de substituição)", "pronta");
+
+    editarBanco((mapa) => {
+      mapa["leads/radar-lead-teste"] = {
+        ...mapa["leads/radar-lead-teste"],
+        capturas: {
+          estado: "enfileirado",
+          execucaoId: "qa-enfileirado",
+          pedidoEm: new Date(Date.now() - 30000).toISOString(),
+        },
+      };
+    });
+    await abrirPainel(`captura-enfileirada/${sufixo}`);
+    await aguardarCaptura();
+    await exigirTextos(`captura-enfileirada/${sufixo}`, [
+      [/Enfileirado/, "rótulo enfileirado"],
+      [/aguardando o runner/, "detalhe do enfileirado"],
+      [/Gerar de novo/, "botão continua re-disparável"],
+      [/a tarefa não sai sem print pronto/, "motivo do injetar desabilitado"],
+    ]);
+    if (!(await page.getByRole("button", { name: "Disparar teste" }).isDisabled())) {
+      problemas.push(
+        `captura-enfileirada/${sufixo}: "Disparar teste" deveria estar desabilitado com a captura em andamento`,
+      );
+    }
+    await capturarBlocoCaptura("enfileirada (injetar desabilitado)", "enfileirada");
+    // Painel INTEIRO aqui também: é a prova visual (não só a asserção) de
+    // que "Disparar teste" aparece cinza com o motivo, não só desabilitado
+    // no DOM sem ninguém ver.
+    await capturarPainel("captura enfileirada — injetar cinza com o motivo", "captura-enfileirada-painel");
+
+    editarBanco((mapa) => {
+      mapa["leads/radar-lead-teste"] = {
+        ...mapa["leads/radar-lead-teste"],
+        capturas: {
+          estado: "rodando",
+          execucaoId: "qa-rodando",
+          pedidoEm: new Date(Date.now() - 120000).toISOString(),
+          iniciadoEm: new Date(Date.now() - 60000).toISOString(),
+        },
+      };
+    });
+    await abrirPainel(`captura-gerando/${sufixo}`);
+    await aguardarCaptura();
+    await exigirTextos(`captura-gerando/${sufixo}`, [
+      [/Gerando…/, "rótulo gerando"],
+      [/leva alguns minutos/, "detalhe do gerando"],
+    ]);
+    if (!(await page.getByRole("button", { name: "Disparar teste" }).isDisabled())) {
+      problemas.push(
+        `captura-gerando/${sufixo}: "Disparar teste" deveria estar desabilitado com a captura em andamento`,
+      );
+    }
+    await capturarBlocoCaptura("gerando (injetar desabilitado)", "gerando");
+
+    editarBanco((mapa) => {
+      mapa["leads/radar-lead-teste"] = {
+        ...mapa["leads/radar-lead-teste"],
+        capturas: {
+          estado: "falhou",
+          execucaoId: "qa-falhou",
+          pedidoEm: new Date(Date.now() - 600000).toISOString(),
+          erro: "O GitHub recusou o token de capturas (401): ele venceu ou foi revogado.",
+        },
+      };
+    });
+    await abrirPainel(`captura-falhou/${sufixo}`);
+    await aguardarCaptura();
+    await exigirTextos(`captura-falhou/${sufixo}`, [
+      [/Falhou/, "rótulo falhou"],
+      [/venceu ou foi revogado/, "mensagem de erro"],
+    ]);
+    // Falhou não é "em andamento" — não deveria prender o disparo de teste.
+    if (await page.getByRole("button", { name: "Disparar teste" }).isDisabled()) {
+      problemas.push(
+        `captura-falhou/${sufixo}: "Disparar teste" não deveria ficar preso por uma captura que falhou`,
+      );
+    }
+    await capturarBlocoCaptura("falhou (com o erro)", "falhou");
+
+    editarBanco((mapa) => {
+      const lead = { ...mapa["leads/radar-lead-teste"] };
+      delete lead.capturas;
+      mapa["leads/radar-lead-teste"] = lead;
+    });
+    await abrirPainel(`captura-inexistente/${sufixo}`);
+    await aguardarCaptura();
+    await exigirTextos(`captura-inexistente/${sufixo}`, [
+      [/Sem capturas/, "rótulo sem capturas"],
+      [/Gerar captura/, "botão de gerar pela primeira vez"],
+    ]);
+    await capturarBlocoCaptura("inexistente (nunca gerada)", "inexistente");
+
     // Devolve o banco ao estado semeado para a próxima leva de viewport.
     semear();
     await ctx.close();
@@ -1913,6 +2061,34 @@ async function medirDisparoTeste(browser, secret) {
     ]),
   );
   await folha.close();
+
+  const folhaCaptura = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(
+      folhaCaptura,
+      "Captura do lead de teste — os cinco estados (/config)",
+      "teste-captura",
+      [
+        {
+          rotulo: "celular · escuro",
+          itens: itensCaptura.filter((i) => i.rotulo.endsWith("· celular")),
+        },
+        {
+          rotulo: "desktop · escuro",
+          itens: itensCaptura.filter((i) => i.rotulo.endsWith("· desktop")),
+        },
+        {
+          rotulo: "celular · claro",
+          itens: itensCaptura.filter((i) => i.rotulo.endsWith("celular-claro")),
+        },
+        {
+          rotulo: "desktop · claro",
+          itens: itensCaptura.filter((i) => i.rotulo.endsWith("desktop-claro")),
+        },
+      ],
+    ),
+  );
+  await folhaCaptura.close();
 
   if (problemas.length > 0) {
     throw new Error(`[teste] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);

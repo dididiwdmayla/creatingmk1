@@ -430,6 +430,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(corpo),
     }),
+  /**
+   * Gera (ou regenera) a captura do LEAD FIXO DE TESTE, direto do painel —
+   * reusa `enfileirarCapturas` por baixo (mesmo mecanismo de
+   * `gerarCapturas`/`gerarCapturasLote`), mas admin-only como o resto do
+   * bloco "Fila de envio" (as outras duas são qualquer sessão).
+   */
+  postFilaTesteCapturas: (forcar = false) =>
+    request<EnfileiramentoCapturas>("/api/fila/teste/capturas", {
+      method: "POST",
+      body: JSON.stringify({ forcar }),
+    }),
 
   listFrases: () => request<FrasesResponse>("/api/frases"),
   /** Textos de UMA skin do registro (admin). */
