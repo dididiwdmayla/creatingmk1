@@ -202,3 +202,100 @@ describe("confirmarEnvio — o detalhe de um envio que DEU CERTO", () => {
     });
   });
 });
+
+/**
+ * OS TRÊS CONTADORES NOVOS (`falhas`, `invalidos`, `semPrint`) — acrescentados
+ * na MESMA transação do confirmar, sem mexer em nenhuma escrita existente.
+ * O ponto frágil do bloco: confirmação repetida da mesma claim não pode
+ * incrementar NADA, nem os contadores velhos, nem os novos.
+ */
+describe("confirmarEnvio — os três contadores diários novos", () => {
+  const OPCOES = { userId: "radar-device", inicioDiaOperacionalHora: 0, now: AGORA };
+  const DIA = "filaContadores/2026-03-10";
+
+  async function reservado(overrides: Record<string, unknown> = {}) {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJa", {
+      placeId: "ChIJa",
+      nome: "Lead",
+      status: "novo",
+      enriquecido: false,
+      criadoEm: "2026-03-01T00:00:00.000Z",
+      atualizadoEm: "2026-03-01T00:00:00.000Z",
+      ...overrides,
+    });
+    const reserva = await reservarLead(db, "ChIJa", "android", AGORA);
+    return { db, claimId: reserva!.claimId };
+  }
+
+  it("'falhou' incrementa falhas, não enviados", async () => {
+    const { db, claimId } = await reservado();
+
+    await confirmarEnvio(db, "ChIJa", claimId, "falhou", { ...OPCOES, detalhe: "whatsapp travou" });
+
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 0, falhas: 1, invalidos: 0, semPrint: 0 });
+  });
+
+  it("'invalido' incrementa invalidos, não enviados", async () => {
+    const { db, claimId } = await reservado();
+
+    await confirmarEnvio(db, "ChIJa", claimId, "invalido", { ...OPCOES, detalhe: "numero errado" });
+
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 0, falhas: 0, invalidos: 1, semPrint: 0 });
+  });
+
+  it("'enviado' com detalhe não vazio incrementa semPrint junto de enviados", async () => {
+    const { db, claimId } = await reservado();
+
+    await confirmarEnvio(db, "ChIJa", claimId, "enviado", { ...OPCOES, detalhe: "print não anexou" });
+
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 1, semPrint: 1, falhas: 0, invalidos: 0 });
+  });
+
+  it("'enviado' sem detalhe NÃO incrementa semPrint", async () => {
+    const { db, claimId } = await reservado();
+
+    await confirmarEnvio(db, "ChIJa", claimId, "enviado", OPCOES);
+
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 1, semPrint: 0 });
+  });
+
+  it("confirmação repetida da MESMA claim não incrementa nenhum dos três contadores novos", async () => {
+    const { db, claimId } = await reservado();
+    await confirmarEnvio(db, "ChIJa", claimId, "falhou", OPCOES);
+    const depoisDaPrimeira = db.getDoc(DIA);
+
+    // A claim já saiu de "reservado" (virou "falhou"); confirmar de novo com
+    // o MESMO claimId cai no caminho idempotente antes de qualquer leitura
+    // do contador.
+    await confirmarEnvio(db, "ChIJa", claimId, "falhou", {
+      ...OPCOES,
+      now: new Date(AGORA.getTime() + 60_000),
+    });
+
+    expect(db.getDoc(DIA)).toEqual(depoisDaPrimeira);
+  });
+
+  it("falhas e invalidos de leads diferentes empilham no mesmo doc do dia", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJa", {
+      placeId: "ChIJa",
+      status: "novo",
+      criadoEm: "2026-03-01T00:00:00.000Z",
+      atualizadoEm: "2026-03-01T00:00:00.000Z",
+    });
+    db.seed("leads/ChIJb", {
+      placeId: "ChIJb",
+      status: "novo",
+      criadoEm: "2026-03-01T00:00:00.000Z",
+      atualizadoEm: "2026-03-01T00:00:00.000Z",
+    });
+    const reservaA = await reservarLead(db, "ChIJa", "android", AGORA);
+    const reservaB = await reservarLead(db, "ChIJb", "android", AGORA);
+
+    await confirmarEnvio(db, "ChIJa", reservaA!.claimId, "falhou", OPCOES);
+    await confirmarEnvio(db, "ChIJb", reservaB!.claimId, "invalido", OPCOES);
+
+    expect(db.getDoc(DIA)).toMatchObject({ falhas: 1, invalidos: 1, enviados: 0 });
+  });
+});

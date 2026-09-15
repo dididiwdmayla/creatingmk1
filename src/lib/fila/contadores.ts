@@ -99,6 +99,12 @@ export interface FilaContadorDoc {
   /** ISO de cada envio confirmado do dia — só as últimas 24h são mantidas. */
   envios: string[];
   ultimoEventoEm: string | null;
+  /** Confirmações "falhou" do dia — ver `contadorComFalha`. */
+  falhas: number;
+  /** Confirmações "invalido" do dia — ver `contadorComInvalido`. */
+  invalidos: number;
+  /** Envios "enviado" do dia com `detalhe` não vazio (texto saiu, print não). */
+  semPrint: number;
 }
 
 export interface FilaContadorSnapshot {
@@ -110,29 +116,54 @@ export interface FilaContadorSnapshot {
   segundosDesdeUltimoEvento: number | null;
 }
 
+/**
+ * O doc completo do dia mais os dois derivados que `FilaContadorSnapshot`
+ * também expõe (`ultimaHora`, `segundosDesdeUltimoEvento`) — o que
+ * `GET /api/fila/resumo` precisa. Não estende `FilaContadorSnapshot`: aquele
+ * usa `totalDoDia` para o mesmo número que aqui já é `enviados` (de
+ * `FilaContadorDoc`), e duplicar o campo sob dois nomes confundiria mais do
+ * que ajudaria.
+ */
+export interface FilaContadorCompleto extends FilaContadorDoc {
+  ultimaHora: number;
+  segundosDesdeUltimoEvento: number | null;
+}
+
+function numeroOuZero(valor: unknown): number {
+  return typeof valor === "number" && Number.isFinite(valor) ? valor : 0;
+}
+
 function readContadorDoc(data: Record<string, unknown> | undefined): FilaContadorDoc {
-  const enviados = typeof data?.enviados === "number" && Number.isFinite(data.enviados)
-    ? data.enviados
-    : 0;
+  const enviados = numeroOuZero(data?.enviados);
   const envios = Array.isArray(data?.envios)
     ? data.envios.filter((iso): iso is string => typeof iso === "string")
     : [];
   const ultimoEventoEm = typeof data?.ultimoEventoEm === "string" ? data.ultimoEventoEm : null;
-  return { enviados, envios, ultimoEventoEm };
+  return {
+    enviados,
+    envios,
+    ultimoEventoEm,
+    falhas: numeroOuZero(data?.falhas),
+    invalidos: numeroOuZero(data?.invalidos),
+    semPrint: numeroOuZero(data?.semPrint),
+  };
 }
 
 /**
- * Snapshot dos contadores da fila para um instante qualquer: total do dia
- * operacional, quantos envios na última hora deslizante (usa `envios`, não
- * `enviados` — é a janela de 1h que precisa das marcas de tempo) e segundos
- * desde o último evento (`null` = ainda não houve nenhum). Doc ausente é o
- * dia sem nenhum envio ainda — nunca erro.
+ * O doc do dia, LIDO, mais os dois derivados que dependem de `now`: envios na
+ * última hora deslizante (usa `envios`, não `enviados` — é a janela de 1h que
+ * precisa das marcas de tempo) e segundos desde o último evento (`null` =
+ * ainda não houve nenhum). Doc ausente é o dia sem nenhum envio ainda — nunca
+ * erro. Base tanto de `lerContadorFila` (o snapshot que os PORTÕES de ritmo
+ * usam) quanto de `GET /api/fila/resumo` (que também precisa de `falhas`,
+ * `invalidos`, `semPrint` e do `envios`/`ultimoEventoEm` brutos para calcular
+ * QUANDO o teto/intervalo libera) — uma leitura só, nunca duas do mesmo doc.
  */
-export async function lerContadorFila(
+export async function lerContadorFilaCompleto(
   db: AppDb,
   now: Date,
   inicioDiaOperacionalHora: number,
-): Promise<FilaContadorSnapshot> {
+): Promise<FilaContadorCompleto> {
   const chave = diaOperacionalKey(now, inicioDiaOperacionalHora);
   const snap = await db.collection(FILA_CONTADORES_COLLECTION).doc(chave).get();
   const doc = readContadorDoc(snap.exists ? snap.data() : undefined);
@@ -147,7 +178,26 @@ export async function lerContadorFila(
     ? Math.max(0, Math.floor((now.getTime() - new Date(doc.ultimoEventoEm).getTime()) / 1000))
     : null;
 
-  return { totalDoDia: doc.enviados, ultimaHora, segundosDesdeUltimoEvento };
+  return { ...doc, ultimaHora, segundosDesdeUltimoEvento };
+}
+
+/**
+ * Snapshot dos contadores da fila para um instante qualquer — só o que os
+ * PORTÕES de ritmo (`motivoDeRitmo`) precisam. Casca fina sobre
+ * `lerContadorFilaCompleto`, mantendo o formato de sempre (as três chaves,
+ * `totalDoDia` em vez de `enviados`) para não mexer em quem já consome isto.
+ */
+export async function lerContadorFila(
+  db: AppDb,
+  now: Date,
+  inicioDiaOperacionalHora: number,
+): Promise<FilaContadorSnapshot> {
+  const completo = await lerContadorFilaCompleto(db, now, inicioDiaOperacionalHora);
+  return {
+    totalDoDia: completo.enviados,
+    ultimaHora: completo.ultimaHora,
+    segundosDesdeUltimoEvento: completo.segundosDesdeUltimoEvento,
+  };
 }
 
 /**
@@ -163,6 +213,7 @@ export async function lerContadorFila(
 export function contadorComEnvio(
   data: Record<string, unknown> | undefined,
   now: Date,
+  opcoes: { semPrint?: boolean } = {},
 ): FilaContadorDoc {
   const atual = readContadorDoc(data);
   const limite24h = now.getTime() - 24 * UMA_HORA_MS;
@@ -171,5 +222,68 @@ export function contadorComEnvio(
     const t = new Date(iso).getTime();
     return Number.isFinite(t) && t > limite24h;
   });
-  return { enviados: atual.enviados + 1, envios: [...envios, em], ultimoEventoEm: em };
+  return {
+    ...atual,
+    enviados: atual.enviados + 1,
+    envios: [...envios, em],
+    ultimoEventoEm: em,
+    semPrint: atual.semPrint + (opcoes.semPrint ? 1 : 0),
+  };
+}
+
+/**
+ * O doc do contador depois de uma confirmação "falhou", puro — mesmo espírito
+ * de `contadorComEnvio`. NÃO toca `envios`/`ultimoEventoEm`: uma tentativa que
+ * falhou não é uma mensagem que saiu, e sujar a janela deslizante de 1h (ou o
+ * relógio do intervalo mínimo) com ela faria os portões de RITMO pensarem que
+ * acabou de sair uma mensagem quando não saiu nenhuma.
+ */
+export function contadorComFalha(data: Record<string, unknown> | undefined): FilaContadorDoc {
+  const atual = readContadorDoc(data);
+  return { ...atual, falhas: atual.falhas + 1 };
+}
+
+/**
+ * O doc do contador depois de uma confirmação "invalido", puro — mesma razão
+ * de `contadorComFalha` para não tocar `envios`/`ultimoEventoEm`: número sem
+ * WhatsApp não é uma mensagem enviada.
+ */
+export function contadorComInvalido(data: Record<string, unknown> | undefined): FilaContadorDoc {
+  const atual = readContadorDoc(data);
+  return { ...atual, invalidos: atual.invalidos + 1 };
+}
+
+/**
+ * Quando o portão `teto_hora` libera: o instante em que envios suficientes
+ * saem da janela deslizante de 1h para `ultimaHora` cair abaixo de
+ * `tetoPorHora` de novo. Não é "daqui a 1h" — se `tetoPorHora` caiu (edição no
+ * meio do plantão) pode ser preciso mais de um envio sair da janela.
+ * `undefined` só no caso degenerado (`tetoPorHora` ≤ 0 sem nenhum envio na
+ * janela): não há envio nenhum cuja saída resolva, e mentir uma hora seria
+ * pior que não dizer nenhuma.
+ */
+export function momentoFimTetoHora(
+  doc: Pick<FilaContadorDoc, "envios">,
+  tetoPorHora: number,
+  now: Date,
+): Date | undefined {
+  const limiteHora = now.getTime() - UMA_HORA_MS;
+  const naJanela = doc.envios
+    .map((iso) => new Date(iso).getTime())
+    .filter((t) => Number.isFinite(t) && t > limiteHora)
+    .sort((a, b) => a - b);
+  const excedente = naJanela.length - tetoPorHora + 1;
+  if (excedente <= 0 || excedente > naJanela.length) return undefined;
+  return new Date(naJanela[excedente - 1] + UMA_HORA_MS);
+}
+
+/** Quando o portão `intervalo` libera: `ultimoEventoEm + intervaloMinimoSegundos`. */
+export function momentoFimIntervalo(
+  doc: Pick<FilaContadorDoc, "ultimoEventoEm">,
+  intervaloMinimoSegundos: number,
+): Date | undefined {
+  if (!doc.ultimoEventoEm) return undefined;
+  const base = new Date(doc.ultimoEventoEm).getTime();
+  if (!Number.isFinite(base)) return undefined;
+  return new Date(base + intervaloMinimoSegundos * 1000);
 }

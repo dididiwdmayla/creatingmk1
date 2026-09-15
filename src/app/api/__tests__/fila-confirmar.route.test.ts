@@ -281,8 +281,9 @@ describe("POST /api/fila/confirmar — 'invalido'", () => {
       ultimoErro: "numero nao tem whatsapp",
       tentativas: 0, // não é tentativa que pode dar certo depois
     });
-    // O contador NÃO anda: não saiu mensagem nenhuma.
-    expect(db.getDoc(DIA)).toBeUndefined();
+    // `enviados` NÃO anda: não saiu mensagem nenhuma. Mas o dia operacional
+    // passa a existir, com o resultado contado em `invalidos`.
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 0, invalidos: 1 });
   });
 
   it("e o lead não é entregue de novo", async () => {
@@ -309,7 +310,9 @@ describe("POST /api/fila/confirmar — 'falhou'", () => {
     });
 
     expect(await res.json()).toMatchObject({ estado: "falhou", tentativas: 1, parado: false });
-    expect(db.getDoc(DIA)).toBeUndefined();
+    // `enviados` NÃO anda: não saiu mensagem nenhuma. Mas o dia operacional
+    // passa a existir, com a tentativa contada em `falhas`.
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 0, falhas: 1 });
 
     // Volta à fila na próxima varredura.
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 20 * 60 * 1000));
