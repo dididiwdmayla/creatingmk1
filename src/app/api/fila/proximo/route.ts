@@ -5,15 +5,25 @@ import { getDb } from "@/lib/firebase/admin";
 import { autenticarDispositivo } from "@/lib/fila/auth";
 import { candidatoEstavel, lerPool } from "@/lib/fila/candidatos";
 import { loadFilaConfig } from "@/lib/fila/config";
-import { lerContadorFila } from "@/lib/fila/contadores";
+import {
+  lerContadorFila,
+  lerContadorFilaCompleto,
+  snapshotDoContador,
+  type FilaContadorCompleto,
+} from "@/lib/fila/contadores";
 import {
   TENTATIVAS_MAX,
   anotarRotacao,
   liberarClaim,
   reservarLead,
 } from "@/lib/fila/envios";
+import type { TipoTarefaFila } from "@/lib/fila/estado";
 import { flushGruposMaduros } from "@/lib/fila/flushRespostas";
 import { montarMensagemParaLead } from "@/lib/fila/mensagem";
+import {
+  dentroDaJanelaResposta,
+  proximaTarefaResposta,
+} from "@/lib/fila/respostaAutomatica";
 import { printUrlDoLead } from "@/lib/fila/print";
 import {
   motivoDeRitmo,
@@ -52,6 +62,14 @@ import { handleRouteError } from "@/lib/http";
  * lixo sem perceber) e todo valor como string vazia (nunca `undefined`/`null`)
  * quando não há tarefa.
  *
+ * **Duas tarefas, uma macro.** Esta rota entrega tanto a PROSPECÇÃO quanto a
+ * RESPOSTA AUTOMÁTICA (`lib/fila/respostaAutomatica.ts`), e quem diz qual é a
+ * chave `tipo`. Duas macros no aparelho disputariam a tela do mesmo celular, e
+ * a proteção do MacroDroid contra execução sobreposta é POR MACRO — uma não
+ * veria a outra. Então é uma macro só, com um desvio por `tipo`: em
+ * "resposta" ela pula o passo do print (`printUrl` vem VAZIO — resposta não
+ * leva print) e manda só o texto.
+ *
  * A rota também é por onde sai a TAREFA DE TESTE (`lib/fila/teste.ts`):
  * requisito duro, porque cada alteração na macro custa reconfiguração manual
  * no celular. A macro pergunta a mesma coisa no mesmo lugar e só recebe,
@@ -84,6 +102,18 @@ export interface TarefaFila {
 interface RespostaFila {
   temTarefa: boolean;
   /**
+   * "prospeccao" ou "resposta" — o desvio da macro no aparelho. SEMPRE
+   * PRESENTE nos dois casos, com e sem tarefa, pela mesma regra que vale
+   * para todas as outras chaves (chave ausente faz o MacroDroid devolver o
+   * marcador literal em vez de vazio; já custou um ciclo de depuração).
+   *
+   * E sempre um dos DOIS VALORES, nunca string vazia: o desvio é um se/senão
+   * de dois ramos, e sem tarefa o ramo certo é o de prospecção — o que já
+   * sabia lidar com "não tem nada para fazer agora". Um terceiro valor vazio
+   * seria um caso a mais para a macro tratar, sem nada a ganhar.
+   */
+  tipo: TipoTarefaFila;
+  /**
    * Esta volta trouxe uma TAREFA DE TESTE (ver `lib/fila/teste.ts`), não uma
    * prospecção real. Booleano, no mesmo espírito de `temTarefa`, e SEMPRE
    * PRESENTE nos dois casos — chave ausente faz o MacroDroid devolver o
@@ -101,10 +131,14 @@ interface RespostaFila {
   motivo: MotivoSemTarefa | "";
 }
 
-function respostaComTarefa(tarefa: TarefaFila, teste = false): NextResponse {
+function respostaComTarefa(
+  tarefa: TarefaFila,
+  opcoes: { teste?: boolean; tipo?: TipoTarefaFila } = {},
+): NextResponse {
   const corpo: RespostaFila = {
     temTarefa: true,
-    teste,
+    tipo: opcoes.tipo ?? "prospeccao",
+    teste: opcoes.teste ?? false,
     id: tarefa.id,
     leadId: tarefa.leadId,
     nome: tarefa.nome,
@@ -120,6 +154,8 @@ function respostaComTarefa(tarefa: TarefaFila, teste = false): NextResponse {
 function semTarefa(motivo: MotivoSemTarefa): NextResponse {
   const corpo: RespostaFila = {
     temTarefa: false,
+    // Sem tarefa, o ramo da macro é o de prospecção — ver `tipo` acima.
+    tipo: "prospeccao",
     teste: false,
     id: "",
     leadId: "",
@@ -231,12 +267,63 @@ export async function GET(req: Request) {
             printUrl: pendente.printUrl,
             expiraEm: entregue.expiraEm,
           },
-          true,
+          { teste: true },
         );
       }
     }
 
-    const contador = await lerContadorFila(db, now, config.inicioDiaOperacionalHora);
+    // A RESPOSTA AUTOMÁTICA vem ANTES do portão de ritmo porque ela não
+    // disputa com a prospecção: não consome `metaDiaria`, não respeita
+    // `intervaloMinimoSegundos` e não conta no `tetoPorHora`. Aqueles três
+    // existem para disfarçar disparo em rajada para quem NUNCA falou com
+    // você; responder quem te escreveu é outra coisa, e uma noite movimentada
+    // de respostas não pode comer a cota de prospecção do dia.
+    //
+    // Os portões dela são PRÓPRIOS, e são três:
+    //
+    // 1. a PAUSA continua valendo (`config.ativo`) — é o botão vermelho do
+    //    aparelho, e ele para tudo que o celular faria, não só a prospecção;
+    // 2. a JANELA de horário do OPERADOR (`dentroDaJanelaResposta`), que é
+    //    outra pergunta que a `janelaContato` do lead;
+    // 3. o TETO diário próprio, contra `respostasEnviadas`.
+    //
+    // O atraso sorteado já está embutido em `disponivelEm` (ver
+    // `criarTarefaResposta`), então aqui ele não aparece: tarefa que ainda
+    // não venceu simplesmente não está disponível.
+    let contadorCompleto: FilaContadorCompleto | undefined;
+    if (
+      config.ativo &&
+      config.respostaAutomatica &&
+      dentroDaJanelaResposta(now, config.respostaJanelaInicio, config.respostaJanelaFim)
+    ) {
+      contadorCompleto = await lerContadorFilaCompleto(db, now, config.inicioDiaOperacionalHora);
+      if (contadorCompleto.respostasEnviadas < config.respostasAutomaticasMaxDia) {
+        const resposta = await proximaTarefaResposta(db, dispositivo, now);
+        if (resposta) {
+          return respostaComTarefa(
+            {
+              id: resposta.claimId,
+              leadId: resposta.leadId,
+              nome: resposta.nome,
+              numero: resposta.numero,
+              texto: resposta.texto,
+              // Resposta não leva print: a conversa já está aberta, e a peça
+              // que vende já foi na abordagem. VAZIO, nunca omitido.
+              printUrl: "",
+              expiraEm: resposta.expiraEm,
+            },
+            { tipo: "resposta" },
+          );
+        }
+      }
+    }
+
+    // O contador do dia já pode ter sido lido pelo bloco acima — é o MESMO
+    // doc que o portão de ritmo precisa, e lê-lo duas vezes na mesma chamada
+    // seria pagar de novo por nada.
+    const contador = contadorCompleto
+      ? snapshotDoContador(contadorCompleto)
+      : await lerContadorFila(db, now, config.inicioDiaOperacionalHora);
     const ritmo = motivoDeRitmo(config, contador);
     if (ritmo) return semTarefa(ritmo);
 

@@ -151,7 +151,14 @@ describe("a fila das respostas — atraso, reserva e confirmação", () => {
     });
     await criarTarefaResposta(
       db,
-      { id, leadId: "ChIJa", numero: "5544991543803", texto: "Oi! Posso te mostrar agora mesmo?", atrasoSegundos },
+      {
+        id,
+        leadId: "ChIJa",
+        nome: "Barbearia do Zé",
+        numero: "5544991543803",
+        texto: "Oi! Posso te mostrar agora mesmo?",
+        atrasoSegundos,
+      },
       AGORA,
     );
     return { db, id };
@@ -182,7 +189,14 @@ describe("a fila das respostas — atraso, reserva e confirmação", () => {
     const { db } = await comTarefa(600);
     await criarTarefaResposta(
       db,
-      { id: "rascunho-2", leadId: "ChIJb", numero: "5544000000000", texto: "segunda", atrasoSegundos: 60 },
+      {
+        id: "rascunho-2",
+        leadId: "ChIJb",
+        nome: "Pet Shop",
+        numero: "5544000000000",
+        texto: "segunda",
+        atrasoSegundos: 60,
+      },
       AGORA,
     );
 

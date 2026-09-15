@@ -110,6 +110,7 @@ async function salvarRascunho(
     {
       id,
       leadId: lead.placeId,
+      nome: lead.nome,
       numero,
       texto: rascunho,
       atrasoSegundos: sortearAtrasoSegundos(

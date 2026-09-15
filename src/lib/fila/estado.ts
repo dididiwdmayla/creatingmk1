@@ -280,6 +280,8 @@ export type RespostaTarefaEstado =
 export interface RespostaTarefaDoc {
   id: string;
   leadId: string;
+  /** Nome do lead, congelado — a chave `nome` do contrato vale nos dois tipos de tarefa. */
+  nome: string;
   /** Dígitos puros com DDI — congelado, como o texto. */
   numero: string;
   /** O rascunho tal como saiu da IA: é isto que o aparelho manda. */

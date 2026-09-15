@@ -199,6 +199,7 @@ export interface NovaTarefaResposta {
   /** O MESMO id do rascunho em `filaRespostas`. */
   id: string;
   leadId: string;
+  nome: string;
   numero: string;
   texto: string;
   /** Segundos de atraso já SORTEADOS por quem chama (ver `sortearAtrasoSegundos`). */
@@ -220,6 +221,7 @@ export async function criarTarefaResposta(
   const doc: RespostaTarefaDoc = {
     id: dados.id,
     leadId: dados.leadId,
+    nome: dados.nome,
     numero: dados.numero,
     texto: dados.texto,
     estado: "aguardando",
@@ -290,6 +292,7 @@ export interface TarefaRespostaEntregue {
   claimId: string;
   id: string;
   leadId: string;
+  nome: string;
   numero: string;
   texto: string;
   expiraEm: string;
@@ -321,6 +324,7 @@ export async function proximaTarefaResposta(
       claimId: reserva.claimId,
       id: tarefa.id,
       leadId: tarefa.leadId,
+      nome: tarefa.nome,
       numero: tarefa.numero,
       texto: tarefa.texto,
       expiraEm: reserva.expiraEm,
