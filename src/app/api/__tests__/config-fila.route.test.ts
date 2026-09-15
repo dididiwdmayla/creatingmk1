@@ -119,3 +119,35 @@ describe("PUT /api/config/fila (restrito ao admin)", () => {
     expect(error.code).toBe("validation_error");
   });
 });
+
+/**
+ * REGRA DE SEGURANÇA CONTRA COLAPSO: alteração de configuração NUNCA
+ * invalida claim já emitida. Um humano edita a /config enquanto o celular
+ * pode estar no meio de um ciclo — lead reservado segue reservado até
+ * confirmar ou expirar. Quem decide a vida da claim é `expiraEm`, e nada
+ * nesta rota escreve em `filaEnvios`.
+ */
+describe("PUT /api/config/fila — não encosta nas claims", () => {
+  it("pausar a fila deixa a reserva viva intacta", async () => {
+    const claim = {
+      leadId: "ChIJa",
+      estado: "reservado",
+      claimId: "claim-viva",
+      reservadoEm: "2026-03-10T10:00:00.000Z",
+      expiraEm: "2026-03-10T10:05:00.000Z",
+      dispositivo: "android",
+      tentativas: 0,
+      ultimoErro: null,
+      enviadoEm: null,
+    };
+    db.seed("filaEnvios/ChIJa", claim);
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const res = await PUT(
+      putRequest({ ativo: false, metaDiaria: 0, exigirJanelaBoa: false }, cookie),
+      );
+
+    expect(res.status).toBe(200);
+    expect(db.getDoc("filaEnvios/ChIJa")).toEqual(claim);
+  });
+});

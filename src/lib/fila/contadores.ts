@@ -17,6 +17,17 @@ const HOUR_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
 });
 
+const PARTES_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: SP_TIME_ZONE,
+  hourCycle: "h23",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
 function saoPauloHour(now: Date): number {
   return Number(HOUR_FORMATTER.format(now));
 }
@@ -32,6 +43,53 @@ export function diaOperacionalKey(now: Date, inicioHora: number): string {
   const hoje = saoPauloDateKey(now);
   if (inicioHora <= 0) return hoje;
   return saoPauloHour(now) < inicioHora ? addDays(hoje, -1) : hoje;
+}
+
+/**
+ * Deslocamento UTC de São Paulo NO INSTANTE dado, em minutos — derivado da
+ * base IANA, não fixado em -180. O Brasil não observa horário de verão
+ * desde 2019, mas depender da tabela em vez de um número cravado é de
+ * graça (mesmo motivo já anotado em `costs/periodoUsuario.ts`).
+ */
+function saoPauloOffsetMinutos(instante: Date): number {
+  const partes = PARTES_FORMATTER.formatToParts(instante);
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) =>
+    Number(partes.find((parte) => parte.type === tipo)?.value ?? "0");
+  const comoUtc = Date.UTC(
+    valor("year"),
+    valor("month") - 1,
+    valor("day"),
+    valor("hour"),
+    valor("minute"),
+    valor("second"),
+  );
+  return Math.round((comoUtc - instante.getTime()) / 60_000);
+}
+
+/**
+ * O instante em que o DIA OPERACIONAL vira — a próxima vez que
+ * `diaOperacionalKey` passa a devolver outra chave. É o "quando o contador
+ * zera" da tela: sem ele, "7 de 15 enviados" não diz se resta a noite
+ * inteira ou dez minutos.
+ *
+ * Calculado sobre o relógio de São Paulo (mesmo fuso da chave), com o
+ * deslocamento reconferido NO ALVO: mudança de fuso entre agora e a virada
+ * deslocaria o instante em uma hora, e a segunda conta corrige isso.
+ */
+export function proximaViradaDiaOperacional(now: Date, inicioHora: number): Date {
+  const hora = Math.min(23, Math.max(0, Math.trunc(inicioHora)));
+  const offset = saoPauloOffsetMinutos(now);
+  // Relógio de parede de São Paulo representado como se fosse UTC, só para
+  // a aritmética de "hoje às H" / "amanhã às H".
+  const parede = new Date(now.getTime() + offset * 60_000);
+  const alvo = new Date(
+    Date.UTC(parede.getUTCFullYear(), parede.getUTCMonth(), parede.getUTCDate(), hora),
+  );
+  if (alvo.getTime() <= parede.getTime()) alvo.setUTCDate(alvo.getUTCDate() + 1);
+
+  const bruto = new Date(alvo.getTime() - offset * 60_000);
+  const offsetNoAlvo = saoPauloOffsetMinutos(bruto);
+  return offsetNoAlvo === offset ? bruto : new Date(alvo.getTime() - offsetNoAlvo * 60_000);
 }
 
 const UMA_HORA_MS = 60 * 60 * 1000;

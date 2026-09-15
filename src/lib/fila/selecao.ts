@@ -116,17 +116,17 @@ export function nichoPermitido(nicho: string, permitidos: string[]): boolean {
 }
 
 /**
- * A janela de contato do candidato AGORA. Reconstrói a forma mínima de lead
- * que `barraDoDia` lê, a partir do que o pool guardou já resolvido — assim a
- * regra de janela continua existindo num lugar só (faixas da família ×
- * horário de funcionamento × fuso do lead), sem uma segunda cópia aqui.
+ * A forma mínima de lead que as regras de janela (`barraDoDia` e
+ * `proximoMomentoAceito`) leem, reconstruída a partir do que o pool guardou
+ * já resolvido. Existe para a regra de janela continuar num lugar só
+ * (faixas da família × horário de funcionamento × fuso do lead) — e é
+ * exportada porque o painel da /config calcula a PRÓXIMA faixa aceita
+ * sobre a mesma entrada de pool, e duas reconstruções divergiriam.
  */
-function nivelAgora(
+export function leadSinteticoDoCandidato(
   candidato: CandidatoFila,
-  janelas: JanelasContatoConfig,
-  now: Date,
-): NivelContato | undefined {
-  const sintetico: Pick<Lead, "busca" | "horarios" | "endereco"> = {
+): Pick<Lead, "busca" | "horarios" | "endereco"> {
+  return {
     busca: { nicho: candidato.nicho, regiao: "", em: candidato.criadoEm },
     horarios: {
       faixas: candidato.faixas,
@@ -134,7 +134,15 @@ function nivelAgora(
       obtidoEm: candidato.criadoEm,
     },
   };
-  const barra = barraDoDia(janelas, sintetico, now);
+}
+
+/** A janela de contato do candidato AGORA, sobre o lead sintético acima. */
+function nivelAgora(
+  candidato: CandidatoFila,
+  janelas: JanelasContatoConfig,
+  now: Date,
+): NivelContato | undefined {
+  const barra = barraDoDia(janelas, leadSinteticoDoCandidato(candidato), now);
   // Fechado agora não tem nível: fora do funcionamento não se aborda.
   return barra?.aberto ? barra.nivelAgora : undefined;
 }

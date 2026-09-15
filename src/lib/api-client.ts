@@ -8,7 +8,12 @@ import type { DemoAvulsa } from "@/lib/demos/avulsas/types";
 import type { ImportacaoMaps } from "@/lib/demos/avulsas/googleMaps";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
 import type { FilaConfig } from "@/lib/fila/config";
-import type { FilaEnvioDoc, PendenciaEnvio } from "@/lib/fila/estado";
+import type {
+  ContadorPainel,
+  FilaEnvioDoc,
+  LinhaFilaPainel,
+  PendenciaEnvio,
+} from "@/lib/fila/estado";
 import type {
   ConjuntoSkin,
   FrasesProspeccao,
@@ -141,6 +146,35 @@ export interface GeocodeResponse {
     high: { latitude: number; longitude: number };
   };
   cached: boolean;
+}
+
+/**
+ * `GET /api/fila/diagnostico` — o que o painel "Fila de envio" (/config)
+ * desenha: o funil inteiro, na ordem em que a seleção avalia.
+ *
+ * `pool.geradoEm` date as contagens ESTRUTURAIS: elas só são apuráveis na
+ * varredura completa de `/leads`, então são o retrato do último rebuild
+ * (até POOL_TTL_MS de idade, ou mais). `nichoBarrado`, `janela`,
+ * `elegiveis` e as duas listas são calculados AGORA sobre esse mesmo pool.
+ */
+export interface FilaDiagnosticoResponse {
+  /** Portão de ritmo ativo agora (`pausado`, `meta_atingida`…), ou null. */
+  ritmo: string | null;
+  contador: ContadorPainel;
+  pool: {
+    /** ISO do último rebuild, ou null se ninguém bateu em /proximo ainda. */
+    geradoEm: string | null;
+    lidos: number;
+    truncado: boolean;
+    estrutural: Record<string, number>;
+  };
+  nichoBarrado: number;
+  janela: { razoavel: number; ruim: number; semNivel: number };
+  elegiveis: number;
+  /** As próximas linhas a serem entregues, na ordem em que serão. */
+  proximos: LinhaFilaPainel[];
+  /** Quem passou no nicho e parou na janela, com a próxima faixa aceita. */
+  bloqueados: LinhaFilaPainel[];
 }
 
 /** Fila do dia (/hoje): as 4 seções + contexto para badges e WhatsApp. */
@@ -346,6 +380,19 @@ export const api = {
       `/api/config/fila/pendencias/${encodeURIComponent(leadId)}`,
       { method: "PATCH", body: JSON.stringify({ resolvido }) },
     ),
+
+  /**
+   * A VISÃO da fila para o painel da /config (admin): o portão de ritmo
+   * ativo, o contador do dia, as contagens por etapa do funil e as duas
+   * listas curtas (próximos elegíveis, bloqueados por janela).
+   *
+   * Vive sob `/api/fila/` — o prefixo que o proxy isenta da sessão porque é
+   * onde o celular bate com a RADAR_DEVICE_KEY —, mas a rota faz a própria
+   * checagem de sessão + papel de admin. Leitura pura: NADA aqui dispara
+   * envio, e a chamada nem reconstrói o pool (as contagens estruturais são
+   * o retrato do último rebuild, datado em `pool.geradoEm`).
+   */
+  getFilaDiagnostico: () => request<FilaDiagnosticoResponse>("/api/fila/diagnostico"),
 
   listFrases: () => request<FrasesResponse>("/api/frases"),
   /** Textos de UMA skin do registro (admin). */
