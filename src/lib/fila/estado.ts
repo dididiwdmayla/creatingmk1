@@ -190,3 +190,52 @@ export interface FilaTesteDoc {
  */
 export const ETAPAS_TESTE = ["ritmo", "estruturais", "nicho", "janela"] as const;
 export type EtapaTeste = (typeof ETAPAS_TESTE)[number];
+
+/**
+ * Uma mensagem que o LEAD mandou, como o aparelho a capturou. Mora aqui, e
+ * não em `respostasPendentes.ts` (que a acumula) nem em `flushRespostas.ts`
+ * (que a congela no rascunho), pelo mesmo motivo de `PendenciaEnvio`: o
+ * painel de respostas pendentes da /config é componente client, e os dois
+ * módulos que a usam leem o Firestore. Os dois reexportam daqui.
+ */
+export interface MensagemGrupo {
+  texto: string;
+  /** Carimbo DA NOTIFICAÇÃO (não do instante da chamada HTTP) — ver mensagemRecebida.ts. */
+  recebidoEm: string;
+}
+
+/**
+ * Uma linha do painel "Respostas pendentes" (/config): o lead respondeu, a
+ * IA rascunhou, e o operador ainda não decidiu o que fazer. Traz de uma vez
+ * as quatro coisas que a decisão exige — quem é o lead, o que ELE mandou, o
+ * que o Radar tinha mandado, e o rascunho — para o operador não precisar
+ * abrir a ficha ao lado só para lembrar o contexto.
+ */
+export interface RespostaPendente {
+  /** Id do doc em `/filaRespostas` — a chave da ação, não o leadId: pode
+   *  haver várias respostas do mesmo lead ao longo do tempo. */
+  id: string;
+  leadId: string;
+  /** Nome do lead, ou "" se o lead não existe mais (a resposta sobrevive). */
+  nome: string;
+  /** Nicho CRU da busca que trouxe o lead — o mesmo que a visão da fila mostra. */
+  nicho: string;
+  /**
+   * Dígitos puros (DDI + número) do lead, para montar o link do WhatsApp no
+   * cliente. `""` quando o lead não tem telefone: aí não há conversa para
+   * abrir, e a tela cai no caminho de copiar o texto.
+   */
+  telefone: string;
+  /** Tudo que o lead mandou no grupo, na ordem em que chegou. */
+  mensagens: MensagemGrupo[];
+  /**
+   * O texto que o Radar tinha mandado, reconstruído com a MESMA precedência
+   * do envio (`montarMensagemParaLead`) — o app não guarda o literal que
+   * saiu. `""` quando a reconstrução falha, e a tela omite o bloco em vez
+   * de mostrar caixa vazia.
+   */
+  mensagemEnviada: string;
+  /** O rascunho da IA — ponto de PARTIDA da caixa editável, não o que vai sair. */
+  rascunho: string;
+  geradoEm: string;
+}

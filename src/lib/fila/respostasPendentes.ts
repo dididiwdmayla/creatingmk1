@@ -1,5 +1,7 @@
 import type { AppDb } from "@/lib/firestore-like";
 
+import type { MensagemGrupo } from "./estado";
+
 /**
  * `/filaRespostasPendentes/{leadId}` — o GRUPO EM ABERTO de mensagens de um
  * lead, acumulando enquanto a janela de silêncio (`respostaAgrupamentoSegundos`
@@ -17,11 +19,13 @@ import type { AppDb } from "@/lib/firestore-like";
  */
 export const FILA_RESPOSTAS_PENDENTES_COLLECTION = "filaRespostasPendentes";
 
-export interface MensagemGrupo {
-  texto: string;
-  /** Carimbo DA NOTIFICAÇÃO (não do instante da chamada HTTP) — ver mensagemRecebida.ts. */
-  recebidoEm: string;
-}
+/**
+ * Reexportado de `estado.ts`, e não declarado aqui, pelo mesmo motivo de
+ * `PendenciaEnvio`: quem DESENHA a lista de respostas pendentes (/config) é
+ * componente client, e este módulo lê o Firestore. O tipo mora no módulo
+ * sem servidor; ninguém precisa saber da divisão.
+ */
+export type { MensagemGrupo } from "./estado";
 
 export interface GrupoPendenteDoc {
   leadId: string;
