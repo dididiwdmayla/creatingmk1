@@ -516,8 +516,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const INPUT_CLS =
-  "w-full rounded border border-line bg-surface-2 px-3 py-2 text-sm text-foreground outline-none focus:border-accent";
+/**
+ * Os tokens do campo SEM o tamanho do texto — separado porque a caixa do
+ * rascunho (painel "Respostas pendentes") precisa do mesmo campo em
+ * `text-xs`, para ficar na escala das mensagens que ela responde. Duas
+ * classes de tamanho na mesma string dependeriam da ordem no CSS gerado,
+ * não da ordem em que foram escritas.
+ */
+const CAMPO_BASE_CLS =
+  "w-full rounded border border-line bg-surface-2 px-3 py-2 text-foreground outline-none focus:border-accent";
+
+const INPUT_CLS = `${CAMPO_BASE_CLS} text-sm`;
 
 /**
  * Gestão de usuários (admin): criar, renomear, ativar/desativar, trocar
@@ -2245,17 +2254,22 @@ function RespostasPendentesSection() {
       <p className="mt-1 text-xs text-ink-muted">
         O lead respondeu e a IA rascunhou. O rascunho é ponto de partida: edite antes de usar — o
         que sai é o que está na caixa.{" "}
-        {noCelular ? (
-          "“Usar” abre a conversa no WhatsApp Business com o texto pronto."
-        ) : (
-          /* O caso que o botão sozinho não resolve: sem Android não há
-             Business para abrir, e um botão que não faz nada em metade dos
-             casos é pior que botão ausente. Aqui ele TROCA de mecanismo, e
-             a tela diz qual — em vez de falhar calado. */
-          <span data-aviso="sem-business">
-            Aberta no computador, não há Business para abrir: “usar” copia o texto para a área de
-            transferência. O botão do Business aparece com a /config aberta no celular.
-          </span>
+        {/* Como a instrução da lista de print: a explicação do MECANISMO só
+            aparece quando há o que fazer. Com a lista vazia, dizer como o
+            botão abre o Business é instruir uma tarefa que não existe. */}
+        {linhas !== null && linhas.length > 0 && (
+          noCelular ? (
+            "“Usar” abre a conversa no WhatsApp Business com o texto pronto."
+          ) : (
+            /* O caso que o botão sozinho não resolve: sem Android não há
+               Business para abrir, e um botão que não faz nada em metade dos
+               casos é pior que botão ausente. Aqui ele TROCA de mecanismo, e
+               a tela diz qual — em vez de falhar calado. */
+            <span data-aviso="sem-business">
+              Aberta no computador, não há Business para abrir: “usar” copia o texto para a área de
+              transferência. O botão do Business aparece com a /config aberta no celular.
+            </span>
+          )
         )}
       </p>
 
@@ -2313,6 +2327,15 @@ async function copiarTexto(texto: string, campo: HTMLTextAreaElement | null): Pr
 }
 
 /**
+ * As três ações de uma linha. Classe COMPARTILHADA porque uma delas é
+ * `<a>` e as outras `<button>`: o botão tem `line-height: normal` do
+ * navegador e a âncora herda o da página, e sem fixar o leading a âncora
+ * fica uns 4px mais alta que o botão ao lado — desalinhamento que só a
+ * captura mostra.
+ */
+const ACAO_RESPOSTA_CLS = "rounded border px-2 py-1 text-xs leading-4";
+
+/**
  * Uma resposta pendente: o contexto (o que o lead mandou, o que o Radar
  * tinha mandado), o rascunho EDITÁVEL, e as duas saídas.
  *
@@ -2342,6 +2365,21 @@ function LinhaResposta({
   const [texto, setTexto] = useState(linha.rascunho);
   const [ocupado, setOcupado] = useState(false);
   const campo = useRef<HTMLTextAreaElement>(null);
+
+  /**
+   * A caixa cresce com o conteúdo. Altura fixa cortava o rascunho no meio
+   * de uma linha — meia fileira de letras fatiada, que lê como quebrado
+   * mesmo rolando —, e não dá para editar o que não se vê. `max-h` na
+   * classe segura o caso patológico (o rascunho da IA é limitado em 700
+   * caracteres, mas o operador cola o que quiser). Mexer no DOM dentro de
+   * um efeito é o uso para o qual efeito existe; não há estado aqui.
+   */
+  useEffect(() => {
+    const el = campo.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [texto]);
 
   // Sem telefone não há conversa para abrir (lead sem número, ou lead que
   // sumiu da base): o caminho vira o de copiar, no celular também.
@@ -2419,9 +2457,9 @@ function LinhaResposta({
         ref={campo}
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
-        rows={4}
+        rows={3}
         aria-label="Rascunho da resposta"
-        className={`${INPUT_CLS} mt-2 w-full resize-y whitespace-pre-wrap`}
+        className={`${CAMPO_BASE_CLS} mt-2 max-h-[50vh] resize-y overflow-y-auto text-xs leading-relaxed`}
       />
 
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -2433,7 +2471,7 @@ function LinhaResposta({
               // comentário do componente). O PATCH vai junto, com keepalive.
               void marcar("usada");
             }}
-            className="rounded border border-accent bg-accent/15 px-2 py-1 text-xs text-accent"
+            className={`${ACAO_RESPOSTA_CLS} border-accent bg-accent/15 text-accent`}
           >
             usar no Business
           </a>
@@ -2447,7 +2485,7 @@ function LinhaResposta({
                 ? "Copia o texto e marca como usada"
                 : "Lead sem telefone: não há conversa para abrir, só copiar"
             }
-            className="rounded border border-accent bg-accent/15 px-2 py-1 text-xs text-accent disabled:opacity-50"
+            className={`${ACAO_RESPOSTA_CLS} border-accent bg-accent/15 text-accent disabled:opacity-50`}
           >
             usar (copiar texto)
           </button>
@@ -2457,7 +2495,7 @@ function LinhaResposta({
           onClick={() => marcar("descartada")}
           disabled={ocupado}
           title="Some da lista — responda do seu jeito, sem usar o rascunho"
-          className="rounded border border-line bg-surface-2 px-2 py-1 text-xs text-ink-muted disabled:opacity-50"
+          className={`${ACAO_RESPOSTA_CLS} border-line bg-surface-2 text-ink-muted disabled:opacity-50`}
         >
           descartar
         </button>

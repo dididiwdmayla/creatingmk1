@@ -47,6 +47,7 @@
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
  *   node scripts/qa-plataforma.mjs --so=pendencias # lista de print pendente em /config, cheia e VAZIA
  *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil, próximos, bloqueados
+ *   node scripts/qa-plataforma.mjs --so=respostas # respostas pendentes em /config: cheia e VAZIA, celular e desktop
  *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, barrado, confirmado,
  *                                                 # desligado, e os 5 estados da CAPTURA do lead fixo
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
@@ -691,6 +692,64 @@ function semear() {
     },
   };
 
+  // ── RESPOSTAS PENDENTES (painel próprio em /config, --so=respostas) ─
+  //
+  // Pendura nos leads da VISÃO da fila, que já existem e já têm nicho —
+  // assim o painel não muda o tamanho de /leads (que o --so=listas mede).
+  // Três estados de propósito: um grupo de VÁRIAS mensagens (o caso que o
+  // agrupamento existe para produzir), uma mensagem só com rascunho LONGO e
+  // quebras de linha (o pior caso de layout, e o texto que precisa
+  // sobreviver à codificação da URL), e uma já usada — que NÃO pode
+  // aparecer, é o que faz a lista esvaziar.
+  const respostas = [
+    {
+      id: "resp-1",
+      leadId: "fila-1",
+      estado: "pendente",
+      geradoEm: new Date(AGORA.getTime() - 4 * 60000).toISOString(),
+      mensagens: [
+        { texto: "Oi! Vi o site que vocês fizeram", recebidoEm: new Date(AGORA.getTime() - 9 * 60000).toISOString() },
+        { texto: "ficou muito bom mesmo", recebidoEm: new Date(AGORA.getTime() - 8 * 60000).toISOString() },
+        { texto: "quanto fica pra gente? e tem mensalidade?", recebidoEm: new Date(AGORA.getTime() - 7 * 60000).toISOString() },
+      ],
+      rascunho:
+        "Que bom que gostou! Fica em R$ 2.000, sem mensalidade nenhuma — o domínio e a " +
+        "hospedagem do primeiro ano já vão junto. Posso te mandar o link pra você mexer?",
+    },
+    {
+      id: "resp-2",
+      leadId: "fila-3",
+      estado: "pendente",
+      geradoEm: new Date(AGORA.getTime() - 26 * 60000).toISOString(),
+      mensagens: [
+        {
+          texto: "bom dia, quem fala? recebi um link aqui de um site com o nome da minha loja",
+          recebidoEm: new Date(AGORA.getTime() - 31 * 60000).toISOString(),
+        },
+      ],
+      // Rascunho LONGO e com quebras de linha: é o pior caso de layout da
+      // caixa editável, e é exatamente o texto que precisa atravessar a URI
+      // de intent inteiro (ver `linkWhatsAppBusinessAndroid`).
+      rascunho:
+        "Bom dia! Aqui é o Willian.\n\nEu montei uma demonstração do site do Mundo Animal " +
+        "Petrópolis pra te mostrar como ficaria — o link que você recebeu é ela, funcionando " +
+        "de verdade, com os serviços e os horários de vocês.\n\nSe fizer sentido, fica em " +
+        "R$ 2.000 (50% de sinal; 50% na entrega). Posso te explicar melhor?",
+    },
+    {
+      // JÁ USADA: não entra na lista. É o que prova que a pendência SAI.
+      id: "resp-3",
+      leadId: "fila-2",
+      estado: "usada",
+      geradoEm: new Date(AGORA.getTime() - 90 * 60000).toISOString(),
+      mensagens: [{ texto: "pode mandar", recebidoEm: new Date(AGORA.getTime() - 95 * 60000).toISOString() }],
+      rascunho: "Mando agora!",
+      textoUsado: "Mando agora mesmo!",
+      resolvidoEm: new Date(AGORA.getTime() - 89 * 60000).toISOString(),
+    },
+  ];
+  for (const resposta of respostas) mapa[`filaRespostas/${resposta.id}`] = resposta;
+
   // ── O LEAD FIXO DE TESTE (--so=teste) ───────────────────────────────
   //
   // Semeado PRONTO (demo + captura com print de celular) porque o passo do
@@ -839,10 +898,19 @@ function lerTemaDoDoc(userId) {
 
 /* ── Captura ─────────────────────────────────────────────────────────── */
 
-async function contextoLogado(browser, { viewport, userId = "admin", papel = "admin", secret, tema }) {
+async function contextoLogado(
+  browser,
+  { viewport, userId = "admin", papel = "admin", secret, tema, userAgent },
+) {
   const ctx = await browser.newContext({
     viewport,
     ...(viewport === VIEWPORT_CELULAR && { deviceScaleFactor: 2, isMobile: true, hasTouch: true }),
+    // O agente importa em UM lugar só: o painel de respostas pendentes
+    // mostra o botão do Business apenas no ANDROID (ver `podeAbrirBusiness`
+    // em lib/wa.ts). O Chromium do laço se apresenta como desktop, então
+    // sem isto a captura do celular mostraria o caminho de copiar — o
+    // contrário do que ela existe para provar.
+    ...(userAgent && { userAgent }),
     reducedMotion: "no-preference",
   });
   await ctx.addCookies([
@@ -1704,6 +1772,370 @@ async function medirFila(browser, secret) {
     throw new Error(`[fila] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
   }
   console.log("[fila] ok — cheia, VAZIA e sem pool, sem vazamento nem caixa zerada.");
+  return gerados;
+}
+
+/* ── Item: respostas pendentes em /config (`--so=respostas`) ─────────── */
+
+/** Caixa do painel "Respostas pendentes" — altura e borda direita, em px. */
+const caixaDoPainelRespostas = (page) =>
+  page.evaluate(() => {
+    const titulo = [...document.querySelectorAll("h2")].find(
+      (h) => h.textContent?.trim() === "Respostas pendentes",
+    );
+    const secao = titulo?.closest("section");
+    if (!secao) return null;
+    const r = secao.getBoundingClientRect();
+    return { altura: Math.round(r.height), direita: Math.round(r.right) };
+  });
+
+/**
+ * As mesmas duas cobranças de `conferirPainelFila`, sobre o painel próprio
+ * de respostas: não vaza da viewport e nenhuma folha com conteúdo renderiza
+ * com caixa zerada. Separado, e não um parâmetro daquele, porque o seletor
+ * do painel é outro — e porque aqui a lista tem `<textarea>`, que TEM caixa
+ * própria mas não tem `textContent` visível, e por isso o aferidor de slot
+ * zerado precisa ignorá-lo junto com `<option>`.
+ */
+async function conferirPainelRespostas(page, onde, largura, problemas) {
+  const caixa = await caixaDoPainelRespostas(page);
+  if (!caixa) {
+    problemas.push(`${onde}: painel "Respostas pendentes" não foi encontrado`);
+    return null;
+  }
+  if (caixa.direita > largura + 1) {
+    problemas.push(`${onde}: painel vaza da viewport (direita=${caixa.direita}, tela=${largura})`);
+  }
+  const zeradas = await page.evaluate(() => {
+    const titulo = [...document.querySelectorAll("h2")].find(
+      (h) => h.textContent?.trim() === "Respostas pendentes",
+    );
+    const secao = titulo?.closest("section");
+    if (!secao) return [];
+    return [...secao.querySelectorAll("*")]
+      .filter((el) => el.tagName !== "OPTION" && el.tagName !== "TEXTAREA")
+      .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          altura: Math.round(r.height),
+          largura: Math.round(r.width),
+          texto: (el.textContent ?? "").trim().slice(0, 30),
+        };
+      })
+      .filter((s) => s.altura <= 0 || s.largura <= 0);
+  });
+  for (const s of zeradas) {
+    problemas.push(`${onde}: slot com caixa zerada ("${s.texto}") ${s.largura}×${s.altura}`);
+  }
+
+  // A CAIXA DO RASCUNHO MOSTRA O RASCUNHO INTEIRO. Com altura fixa ela
+  // cortava o texto no meio de uma linha — meia fileira de letras fatiada,
+  // que lê como quebrado mesmo rolando, e não dá para editar o que não se
+  // vê. O aferidor: nada escondido, a menos que a caixa tenha batido no
+  // teto (aí rolar é a resposta certa, e a captura não reprova).
+  const cortadas = await page.evaluate(() => {
+    const titulo = [...document.querySelectorAll("h2")].find(
+      (h) => h.textContent?.trim() === "Respostas pendentes",
+    );
+    const secao = titulo?.closest("section");
+    if (!secao) return [];
+    return [...secao.querySelectorAll("textarea")]
+      .map((el) => ({
+        escondido: el.scrollHeight - el.clientHeight,
+        altura: el.clientHeight,
+        teto: parseFloat(getComputedStyle(el).maxHeight) || Infinity,
+        inicio: el.value.slice(0, 30),
+      }))
+      .filter((t) => t.escondido > 2 && t.altura < t.teto - 2);
+  });
+  for (const t of cortadas) {
+    problemas.push(
+      `${onde}: caixa do rascunho corta ${t.escondido}px de texto ("${t.inicio}…")`,
+    );
+  }
+  return caixa;
+}
+
+/** Tira (e devolve) as respostas pendentes, para capturar o estado VAZIO. */
+let respostasGuardadas = null;
+function esvaziarRespostas() {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  respostasGuardadas = {};
+  for (const chave of Object.keys(mapa)) {
+    if (chave.startsWith("filaRespostas/") && mapa[chave].estado === "pendente") {
+      respostasGuardadas[chave] = mapa[chave];
+      delete mapa[chave];
+    }
+  }
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+function restaurarRespostas() {
+  if (!respostasGuardadas) return;
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  Object.assign(mapa, respostasGuardadas);
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+  respostasGuardadas = null;
+}
+
+/**
+ * Agente de um Android real. Existe porque o painel troca de AÇÃO conforme
+ * o aparelho: no Android o botão é a âncora que abre o WhatsApp Business
+ * por URI de intent; fora dele não há Business para abrir, e a mesma ação
+ * copia o texto. Sem forçar o agente, a captura do "celular" mostraria o
+ * caminho do desktop — provando o contrário do que ela existe para provar.
+ */
+const UA_ANDROID =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) " +
+  "Chrome/131.0.0.0 Mobile Safari/537.36";
+
+/**
+ * O painel "Respostas pendentes" — o lead respondeu, a IA rascunhou, e
+ * alguém precisa decidir (ver ARCHITECTURE.md).
+ *
+ * Existe como passo próprio por DOIS motivos, e o segundo é o que nenhum
+ * outro passo alcança:
+ *
+ *  1. o ESTADO VAZIO, mesma razão do `--so=pendencias`: cheio, o painel
+ *     aparece nas capturas de /config de todo tema; vazio, não apareceria
+ *     em lugar nenhum — e é aí que um painel deixa caixa quebrada ou
+ *     espaço morto. O passo cobra que ele ENCOLHA sem pendências, em vez
+ *     de trocar a lista por um vão;
+ *  2. a AÇÃO que muda com o aparelho. No Android o botão é uma âncora
+ *     `intent://` que abre o WhatsApp Business; no desktop não há Business
+ *     para abrir, e o mesmo botão copia o texto, com a tela dizendo por
+ *     quê. São duas telas diferentes no mesmo código, e só forçando o
+ *     agente uma captura consegue mostrar as duas.
+ *
+ * O tema claro entra pelo mesmo motivo do `--so=fila` e do
+ * `--so=pendencias`: é onde os tokens apagados têm menos contraste de
+ * sobra, e as capturas de aba não cobrem o painel — ele fica muito abaixo
+ * da dobra de /config.
+ */
+async function medirRespostas(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  for (const [viewport, sufixo, tema, userAgent] of [
+    [VIEWPORT_CELULAR, "celular", "escuro", UA_ANDROID],
+    [VIEWPORT_DESKTOP, "desktop", "escuro", undefined],
+    [VIEWPORT_CELULAR, "celular-claro", "claro", UA_ANDROID],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro", undefined],
+  ]) {
+    const ehAndroid = userAgent !== undefined;
+    definirTemaNoDoc("admin", tema);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema, userAgent });
+    const page = await ctx.newPage();
+
+    const abrirPainel = async (onde) => {
+      await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `respostas/${onde}`);
+      await page.getByRole("heading", { name: "Respostas pendentes" }).scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+    };
+
+    const capturarPainel = async (rotulo, arquivo) => {
+      const alvo = page.locator("section", {
+        has: page.getByRole("heading", { name: "Respostas pendentes" }),
+      });
+      const png = path.join(SAIDA, `respostas-${arquivo}-${sufixo}${marca}.png`);
+      // A nav é `fixed` no rodapé e pinta por cima da última faixa numa
+      // captura de elemento mais alto que a viewport — mesmo motivo do
+      // `--so=pendencias`.
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await alvo.first().screenshot({ path: png });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    // ── CHEIA: duas pendentes, uma com três mensagens, outra com rascunho
+    //    longo e quebras de linha. A já usada NÃO pode aparecer.
+    await abrirPainel(`cheia/${sufixo}`);
+    const cheia = await conferirPainelRespostas(page, `cheia/${sufixo}`, viewport.width, problemas);
+
+    for (const [alvo, oque] of [
+      [/quanto fica pra gente\? e tem mensalidade\?/, "última mensagem do grupo de três"],
+      [/recebi um link aqui de um site com o nome da minha loja/, "mensagem do segundo lead"],
+      [/Pet Center Ipiranga/, "nome do lead"],
+      [/petshop/, "nicho do lead"],
+    ]) {
+      if ((await page.getByText(alvo).count()) === 0) {
+        problemas.push(`cheia/${sufixo}: ${oque} não apareceu`);
+      }
+    }
+    // A já usada não volta para a lista — é o que faz a pendência SAIR.
+    if ((await page.getByText(/Mando agora mesmo!/).count()) > 0) {
+      problemas.push(`cheia/${sufixo}: resposta já usada apareceu na lista`);
+    }
+
+    const linhas = await page.locator('[data-lista="respostas"] > li').count();
+    if (linhas !== 2) {
+      problemas.push(`cheia/${sufixo}: esperava 2 respostas pendentes, achei ${linhas}`);
+    }
+    // TODAS as mensagens do grupo, não só a última: três na primeira linha.
+    const noPrimeiro = await page
+      .locator('[data-lista="respostas"] > li')
+      .first()
+      .locator('[data-bloco="mensagens"] > li')
+      .count();
+    if (noPrimeiro !== 3) {
+      problemas.push(`cheia/${sufixo}: esperava 3 mensagens no primeiro grupo, achei ${noPrimeiro}`);
+    }
+
+    // O rascunho é campo EDITÁVEL, não texto estático — e é o que decide se
+    // a edição do operador é o que vai para o WhatsApp.
+    const caixas = page.locator('[data-lista="respostas"] textarea');
+    if ((await caixas.count()) !== 2) {
+      problemas.push(`cheia/${sufixo}: o rascunho não é campo editável`);
+    } else if (!(await caixas.first().inputValue()).includes("sem mensalidade nenhuma")) {
+      problemas.push(`cheia/${sufixo}: a caixa não nasceu com o rascunho dentro`);
+    }
+
+    // ── A AÇÃO MUDA COM O APARELHO. Aqui a captura para de ser ilustração:
+    //    no Android tem que haver âncora `intent://` mirando o pacote do
+    //    BUSINESS; no desktop não pode haver âncora nenhuma, e a tela tem
+    //    que dizer por que o botão copia.
+    const ancora = page.locator('[data-lista="respostas"] a[href^="intent://"]');
+    const aviso = page.locator('[data-aviso="sem-business"]');
+    if (ehAndroid) {
+      if ((await ancora.count()) !== 2) {
+        problemas.push(
+          `cheia/${sufixo}: no Android esperava 2 âncoras de intent, achei ${await ancora.count()}`,
+        );
+      } else {
+        const href = await ancora.first().getAttribute("href");
+        for (const [trecho, oque] of [
+          ["package=com.whatsapp.w4b", "o pacote do Business"],
+          ["scheme=https", "o esquema do dado"],
+          ["api.whatsapp.com/send?phone=5551966660000", "o telefone do lead"],
+          ["S.browser_fallback_url=", "a reserva para quem não tem o Business"],
+          [";end", "o fim do intent"],
+        ]) {
+          if (!href.includes(trecho)) {
+            problemas.push(`cheia/${sufixo}: ${oque} não está no href (${trecho})`);
+          }
+        }
+        // O pacote do WhatsApp COMUM não pode estar mirado em lugar nenhum:
+        // é o aparelho com os dois instalados que motiva tudo isto.
+        if (/package=com\.whatsapp[;&]/.test(href)) {
+          problemas.push(`cheia/${sufixo}: o href mira o WhatsApp comum`);
+        }
+        if ((await aviso.count()) > 0) {
+          problemas.push(`cheia/${sufixo}: o aviso de "sem Business" apareceu no celular`);
+        }
+      }
+    } else {
+      if ((await ancora.count()) > 0) {
+        problemas.push(`cheia/${sufixo}: âncora de intent no desktop — ali ela não faz nada`);
+      }
+      // Botão que não faz nada em metade dos casos é pior que botão
+      // ausente: aqui ele troca de mecanismo, e a tela diz qual.
+      if ((await aviso.count()) === 0) {
+        problemas.push(`cheia/${sufixo}: o desktop não explicou por que não abre o Business`);
+      }
+      if ((await page.getByRole("button", { name: /usar \(copiar texto\)/ }).count()) !== 2) {
+        problemas.push(`cheia/${sufixo}: o desktop não ofereceu copiar o texto`);
+      }
+    }
+
+    // A QUEBRA DE LINHA do rascunho longo sobrevive à codificação da URL.
+    // É o teste que só a tela real faz: o unitário prova a função, este
+    // prova que o que chegou na caixa é o que entrou no href.
+    if (ehAndroid && (await ancora.count()) === 2) {
+      const href = await ancora.nth(1).getAttribute("href");
+      if (!href.includes("%0A")) {
+        problemas.push(`cheia/${sufixo}: a quebra de linha do rascunho não virou %0A no href`);
+      }
+      const texto = new URL(`https://${href.slice("intent://".length, href.indexOf("#Intent;"))}`)
+        .searchParams.get("text");
+      if (texto !== (await caixas.nth(1).inputValue())) {
+        problemas.push(`cheia/${sufixo}: o texto do href não bate com a caixa editável`);
+      }
+    }
+
+    await capturarPainel("lista cheia (3 mensagens, rascunho longo)", "cheia");
+
+    // ── EDITADA: a edição do operador é o que vai para o WhatsApp, não o
+    //    original. No Android isso tem que aparecer no href, na hora.
+    await caixas.first().fill("Texto que o operador escreveu #1; do jeito dele.\nCom duas linhas.");
+    await page.waitForTimeout(250);
+    if (ehAndroid) {
+      const href = await ancora.first().getAttribute("href");
+      const texto = new URL(`https://${href.slice("intent://".length, href.indexOf("#Intent;"))}`)
+        .searchParams.get("text");
+      if (texto !== "Texto que o operador escreveu #1; do jeito dele.\nCom duas linhas.") {
+        problemas.push(`editada/${sufixo}: o href não acompanhou a edição (${texto})`);
+      }
+      // O `#` e o `;` do texto editado não podem ter cortado o intent.
+      if (href.split("#Intent;").length !== 2 || !href.endsWith(";end")) {
+        problemas.push(`editada/${sufixo}: o texto editado partiu o URI de intent`);
+      }
+    }
+    if ((await page.getByText("editado").count()) === 0) {
+      problemas.push(`editada/${sufixo}: a tela não avisou que o rascunho foi editado`);
+    }
+    await conferirPainelRespostas(page, `editada/${sufixo}`, viewport.width, problemas);
+    await capturarPainel("rascunho editado pelo operador", "editada");
+
+    // ── VAZIA: nenhuma resposta esperando. O painel não pode ficar com
+    //    caixa quebrada nem espaço morto — some a lista, fica a linha.
+    esvaziarRespostas();
+    await abrirPainel(`vazia/${sufixo}`);
+    const vazia = await conferirPainelRespostas(page, `vazia/${sufixo}`, viewport.width, problemas);
+    if ((await page.getByText("Nenhuma resposta esperando.").count()) === 0) {
+      problemas.push(`vazia/${sufixo}: o estado vazio não disse nada`);
+    }
+    if ((await page.locator('[data-lista="respostas"] > li').count()) > 0) {
+      problemas.push(`vazia/${sufixo}: sobrou linha de lista com a lista vazia`);
+    }
+    // A explicação do mecanismo some junto: sem pendência, dizer como o
+    // botão abre o Business é instruir uma tarefa que não existe (mesma
+    // regra da lista de print).
+    for (const [texto, onde2] of [
+      ["abre a conversa no WhatsApp Business", "a instrução do Business"],
+      ["copia o texto para a área de transferência", "a instrução de copiar"],
+    ]) {
+      if ((await page.getByText(texto).count()) > 0) {
+        problemas.push(`vazia/${sufixo}: ${onde2} ficou na tela sem pendência nenhuma`);
+      }
+    }
+    if (cheia && vazia) {
+      const encolheu = cheia.altura - vazia.altura;
+      console.log(
+        `  [respostas] ${sufixo}: painel ${cheia.altura}px cheio → ${vazia.altura}px vazio (−${encolheu}px)`,
+      );
+      if (encolheu <= 0) {
+        problemas.push(
+          `vazia/${sufixo}: painel não encolheu sem respostas (${cheia.altura} → ${vazia.altura})`,
+        );
+      }
+    }
+    await capturarPainel("lista vazia (nenhuma resposta)", "vazia");
+
+    restaurarRespostas();
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, "Respostas pendentes (/config)", "respostas", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[respostas] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log(
+    "[respostas] ok — cheia, editada e VAZIA; intent do Business no celular, copiar no desktop.",
+  );
   return gerados;
 }
 
@@ -2983,6 +3415,7 @@ async function main() {
     if (querido("listas")) gerados.push(...(await medirListas(browser, secret)));
     if (querido("pendencias")) gerados.push(...(await medirPendencias(browser, secret)));
     if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
+    if (querido("respostas")) gerados.push(...(await medirRespostas(browser, secret)));
     if (querido("teste")) gerados.push(...(await medirDisparoTeste(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
