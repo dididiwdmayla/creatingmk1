@@ -43,15 +43,37 @@ function origemPublica(): string | undefined {
   return bruto || undefined;
 }
 
-export async function montarMensagemParaLead(
-  db: AppDb,
-  lead: Lead,
-): Promise<MensagemParaLeadResultado> {
+/**
+ * As três fontes que a precedência da mensagem consulta (skin → grupo →
+ * global). Existem como parâmetro OPCIONAL por causa de quem monta a
+ * mensagem de VÁRIOS leads de uma vez — hoje, a lista de respostas
+ * pendentes do painel (`respostasPainel.ts`): `listBuscas`/`listConjuntos`
+ * são varreduras de coleção, e pagá-las uma vez por linha multiplicaria a
+ * leitura pelo tamanho da lista. Ausentes, a função carrega sozinha — é o
+ * caminho de todo chamador de UM lead só, que não muda em nada.
+ */
+export interface FontesDaMensagem {
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  buscas: Awaited<ReturnType<typeof listBuscas>>;
+  conjuntos: Awaited<ReturnType<typeof listConjuntos>>;
+}
+
+/** Carrega as três fontes UMA vez, para reusar em vários leads. */
+export async function carregarFontesDaMensagem(db: AppDb): Promise<FontesDaMensagem> {
   const [config, buscas, conjuntos] = await Promise.all([
     loadConfig(db),
     listBuscas(db),
     listConjuntos(db),
   ]);
+  return { config, buscas, conjuntos };
+}
+
+export async function montarMensagemParaLead(
+  db: AppDb,
+  lead: Lead,
+  fontes?: FontesDaMensagem,
+): Promise<MensagemParaLeadResultado> {
+  const { config, buscas, conjuntos } = fontes ?? (await carregarFontesDaMensagem(db));
 
   const resolvida = resolverMensagem({
     lead,

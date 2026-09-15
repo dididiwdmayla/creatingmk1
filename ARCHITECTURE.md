@@ -79,6 +79,8 @@ src/
       metas/proprio/route.ts        # ✅ GET/PUT progresso (dia/semana) + minimizada da faixa fixa do PRÓPRIO usuário (self-service, leve)
       config/route.ts               # ✅ GET config (qualquer sessão) / PUT (admin)
       config/fila/route.ts          # ✅ GET/PUT /config/fila (doc PRÓPRIO, não /config/app) — ADMIN nos dois, ver "Fila de envio"
+      config/fila/respostas/route.ts    # ✅ GET as respostas pendentes do painel (ADMIN; sob /api/config/ de propósito — ver "O painel Respostas pendentes")
+      config/fila/respostas/[id]/route.ts # ✅ PATCH { estado, texto? } — usar (guarda o texto EDITADO) ou descartar (ADMIN)
       search/route.ts               # ✅ POST busca (geocode + Text Search paginado/qualificado) + registra em /buscas — exige sessão (cota individual)
       geocode/route.ts              # ✅ GET região resolvida ("Buscando em: X"), cache em /geocache
       regioes/route.ts              # ✅ GET índice de mercado da região (geocodifica + gera via IA se ainda não tiver)
@@ -163,6 +165,7 @@ src/
       selecao.ts                    #    a DECISÃO pura: quem é o próximo, e o porquê quando não é ninguém
       confirmar.ts                  #    confirmarEnvio: claim + lead + rotação + contador numa transação só
       pendencias.ts                 #    a lista de print pendente do painel (varre filaEnvios, lê lead por id)
+      respostasPainel.ts            #    as respostas pendentes do painel: lista (varre filaRespostas, lead por id) + usar/descartar
       painel.ts                     #    a VISÃO do painel: linhas com nome (lead por ID) + contador do dia
       print.ts                      #    printUrlDoLead: a imagem de celular que vai junto da mensagem
       mensagem.ts                   #    montarMensagemParaLead: resolverMensagem+aplicarMarcadores num route handler
@@ -2675,6 +2678,8 @@ A página `/config` já era restrita ao admin no proxy (membro é mandado de vol
 
 `/api/fila/diagnostico` continua sendo o caso especial que já era: vive sob o prefixo `/api/fila/*` que o proxy isenta da sessão (porque é lá que o celular bate com a `RADAR_DEVICE_KEY`), e por isso faz a própria checagem completa de sessão + papel. A `RADAR_DEVICE_KEY` **não abre esta tela**: aquele segredo é do aparelho e só serve às rotas de execução (`/proximo`, `/confirmar`).
 
+O painel "Respostas pendentes" (adiante) nasceu com a mesma checagem nas duas rotas dele (`GET /api/config/fila/respostas`, `PATCH .../{id}`), e ali a razão vai além de "comando sobre hardware alheio": o corpo daquelas mensagens é conversa PRIVADA captada do celular pessoal do operador.
+
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` captura o painel em três estados × celular e desktop × temas escuro e claro (o tema claro pelo mesmo motivo do `--so=pendencias`: é onde os tokens apagados deste bloco têm menos contraste de sobra, e as capturas de aba não o cobrem). Os estados: **cheia** (5 próximos + "e mais 1 na fila", 2 bloqueados, contador andando, retrato do pool datado); **vazia** — fila ativa, pool sem candidato e contador zerado, os três estados vazios de uma vez, que é o motivo de o passo existir e onde ele cobra que o painel ENCOLHA (−501px no celular, −381px no desktop) em vez de trocar as listas por um vão; e **sem pool**, o celular que nunca pediu tarefa. Os fixtures usam as famílias `petshop` (faixa `bom` o dia inteiro nos 7 dias) e `multimarcas` (`ruim` igual), pelo mesmo motivo já anotado para `imobiliaria` em /mundo: captura cujo CONTEÚDO muda com a hora da rodada não prova nada. Os aferidores do painel (não vaza da viewport, nenhum slot com caixa zerada) são compartilhados com o `--so=pendencias` e com o `--so=teste`, e a asserção "sobrou linha de lista" daquele passo passou a ser escopada por `[data-lista="pendencias"]` — o funil desta visão também é feito de `<li>`, e ele não é linha de pendência.
 
 ## Fila de respostas — captura, agrupamento e rascunho por IA (`POST /api/fila/mensagem-recebida`)
@@ -2768,6 +2773,64 @@ O rascunho vai para uma coleção PRÓPRIA, `filaRespostas/{id}` (id próprio, g
   "estado": "pendente"   // "pendente" | "usada" | "descartada"
 }
 ```
+
+Quem faz o estado sair de "pendente" é o painel abaixo — e só ele. `usada` ganha junto `textoUsado` (o texto EDITADO pelo operador) e `resolvidoEm`; `descartada` ganha só o carimbo.
+
+### O painel "Respostas pendentes" (/config)
+
+O bloco acima capta a resposta e produz o rascunho. Esta tela é onde alguém DECIDE o que fazer com ele — e é a única parte da fila de respostas que um humano opera.
+
+**Seção PRÓPRIA, irmã de "Fila de envio", e não um bloco subordinado a ela** como a lista de print. A distinção não é de tamanho, é de pertencimento: a pendência de print é efeito colateral do ENVIO (mesma claim, mesmo doc de `filaEnvios`, mesmo ciclo de vida), então pertence àquele painel; a resposta do lead é o outro pilar, com coleção própria (`filaRespostas`), rota própria e ciclo próprio — e aqui neste documento "Fila de envio" e "Fila de respostas" já são seções irmãs, não uma dentro da outra. Nada de linguagem nova, porém: é o mesmo `<section>` de todo painel da página, os mesmos tokens, o mesmo estado vazio de uma linha.
+
+Cada item traz de uma vez as quatro coisas que a decisão exige — **nome e nicho do lead, TODAS as mensagens do grupo na ordem em que chegaram, o texto que o Radar tinha mandado, e o rascunho**. Mostrar só a última mensagem faria o operador responder à pergunta errada: o agrupamento existe justamente porque o lead manda três linhas seguidas, e a pergunta costuma estar na terceira. A mensagem do Radar fica recolhida num `<details>` — é contexto, não ação — e é RECONSTRUÍDA por `montarMensagemParaLead` (o app não guarda o literal que saiu; `rascunhoResposta.ts` já a reconstrói pelo mesmo caminho para montar o prompt). Reconstrução que falha apaga o bloco, nunca a pendência.
+
+**O rascunho é campo EDITÁVEL, e é a edição que vai para o WhatsApp.** A caixa é o estado; o rascunho é só o valor inicial dela. `PATCH` guarda `textoUsado` — o editado, não o original: gravar o rascunho da IA registraria uma resposta que ninguém recebeu. A caixa cresce com o conteúdo (teto em 50vh); altura fixa cortava o texto no meio de uma linha, e não se edita o que não se vê.
+
+**Duas ações, e as duas tiram a linha da lista:** usar (o operador mandou o texto) e descartar (prefere responder do próprio jeito). Sem a segunda, a lista só cresceria — e lista que não esvazia é lista que ninguém olha, o mesmo motivo de `detalheEnvioResolvido` existir na pendência de print.
+
+#### Abrir o Business, e não o WhatsApp comum
+
+O aparelho tem os dois instalados. Um `wa.me` genérico ali abre o seletor de aplicativo ou o app errado, e o rascunho vai parar na conta pessoal do operador — o problema central desta tela, e o que decide se ela serve para alguma coisa.
+
+A integração que a própria WhatsApp documenta para Android é `ACTION_VIEW` sobre `https://api.whatsapp.com/send?phone=…&text=…` com `setPackage("com.whatsapp.w4b")`. Da web não há como chamar `setPackage`, mas o Chrome no Android aceita a mesma coisa escrita na gramática de `Intent.parseUri` — URI de dados, `#Intent;`, campos separados por `;`, `end` (`linkWhatsAppBusinessAndroid`, em `lib/wa.ts`):
+
+```
+intent://api.whatsapp.com/send?phone=<dígitos>&text=<texto>#Intent;scheme=https;
+  action=android.intent.action.VIEW;package=com.whatsapp.w4b;
+  S.browser_fallback_url=<wa.me codificado>;end
+```
+
+Preferido ao `whatsapp://send` de esquema próprio porque é EXATAMENTE a mesma ação, o mesmo dado e o mesmo pacote da integração documentada; o esquema próprio funciona, mas é folclore.
+
+**A codificação do texto é o detalhe que decide.** `encodeURIComponent` não está ali só pelas quebras de linha (que viram `%0A` e atravessam inteiras): ele também escapa `#` → `%23` e `;` → `%3B`, que são precisamente os dois caracteres que delimitam `#Intent;…;end`. Um rascunho com "Pacote #1" ou "50% de sinal; 50% na entrega" — texto comum numa negociação — cortaria o intent no meio, e provavelmente sem erro visível. Há teste que remonta o URI por um parser escrito a partir da GRAMÁTICA, e não do construtor (um parser que reusasse a mesma montagem concordaria com ela até quando os dois estivessem errados), e confere que um texto adversário volta byte a byte — inclusive com o próprio `#Intent;` colado dentro do rascunho. Verificado quebrando de propósito: trocar `encodeURIComponent` por `encodeURI` reprova três testes.
+
+**`S.browser_fallback_url` existe porque o padrão do Chrome é pior.** Sem ele, pacote não instalado manda o operador para a página do app na Play Store. Com ele, cai no `wa.me` de sempre: pior que o Business, muito melhor que a loja. Vai codificado porque `Intent.parseUri` decodifica extras `S.`, e porque um `;` cru ali encerraria o campo no meio da URL.
+
+**O botão é uma âncora de VERDADE, não um `onClick` que navega.** O Chrome recusa lançar aplicativo externo a partir de navegação sem gesto do usuário. Esperar o `PATCH` para só então mexer em `location` gastaria o gesto e o intent não abriria nada — então o `href` carrega a URI e o navegador navega sozinho, com a marcação saindo na mesma ação e com `keepalive` (a página pode ser trocada pelo fallback antes de a requisição terminar).
+
+**O que isto NÃO prova, dito aqui de propósito:** que o Android escolhe o Business. A gramática, a codificação e o pacote mirado estão travados em teste; a escolha do app é do aparelho, e só o aparelho responde por ela.
+
+#### A /config aberta no computador
+
+Metade do uso desta página não é no celular, e ali não há Business para abrir. Botão que não faz nada em metade dos casos é pior que botão ausente — então ele **troca de mecanismo** em vez de existir morto: fora do Android, "usar" copia o texto para a área de transferência e marca como usada, e a linha acima da lista diz exatamente isso ("Aberta no computador, não há Business para abrir…"). Mesmo caminho para lead sem telefone, no celular também: sem número não há conversa para abrir.
+
+A detecção é `podeAbrirBusiness` (a string do agente — a única checagem que existe: não dá para perguntar ao navegador se ele resolve `intent://` sem tentar navegar) e sai de `useSyncExternalStore`, não de estado num efeito. É o caso dele: valor que o servidor não pode conhecer (`navigator` não existe lá) e que o cliente conhece na primeira pintura, com instantâneo de servidor `false` — o React reconcilia depois da hidratação, sem divergência e sem render em cascata. Erra para o lado seguro: um Android com navegador fora da família Chrome cai no `browser_fallback_url`, nunca num beco sem saída. `copiarTexto` tenta `navigator.clipboard` (contexto seguro: https, e o `127.0.0.1` do laço de captura) e cai em `execCommand` sobre a própria caixa quando a permissão é negada. **Copiar que falha NÃO marca como usada** — sumir com a pendência apagaria o único lugar onde aquele texto existia.
+
+#### As rotas e o custo
+
+`GET /api/config/fila/respostas` e `PATCH /api/config/fila/respostas/{id}` (`lib/fila/respostasPainel.ts`). Ficam sob `/api/config/`, e não sob `/api/fila/`, pelo mesmo motivo da lista de print: aquele prefixo INTEIRO passa sem sessão de usuário (é o celular com Bearer `RADAR_DEVICE_KEY` — ver `src/proxy.ts`). As duas são `requireAdmin` — 401 sem sessão, 403 para membro —, e aqui a razão é mais forte que "comando sobre hardware alheio": o corpo destas mensagens é **conversa PRIVADA** captada do celular pessoal do operador (ver PRIVACIDADE acima). Há teste conferindo que o corpo do 403 não traz uma linha sequer.
+
+`PATCH` tem três saídas, e a terceira é a que protege um dado que não tem segunda cópia:
+
+- **id ausente → 404 e nenhuma escrita.** `set` com merge CRIA o documento que falta, e um id errado não pode plantar lixo em `filaRespostas`.
+- **Repetir o MESMO estado → sucesso sem escrever nada** (idempotente por VALOR, como `POST /api/fila/pausar`): o operador clicou duas vezes, ou tem duas abas abertas, e o resultado que ele queria já aconteceu. Nem o carimbo é retocado.
+- **Trocar o estado de uma já fechada → 409, sem escrever.** Deixar um "descartada" apagar o `textoUsado` de uma resposta que de fato saiu seria perder a única cópia dela. Reusa `InvalidTransitionError` (já mapeado a 409 com `de`/`para` em `http.ts`) em vez de uma classe nova: é literalmente uma máquina de estados recusando uma transição, e a única diferença é qual máquina.
+
+**O custo de leitura, explícito.** O `AppDb` não tem query, então listar é VARREDURA de `filaRespostas`. Está tudo bem AQUI pelo mesmo motivo da lista de print — /config é página de admin aberta esporadicamente por uma pessoa, não `/api/fila/proximo` —, com uma diferença que vale dizer: `filaEnvios` tem um doc por LEAD e `filaRespostas` acumula um por GRUPO de mensagens, para sempre (resolver marca o estado, nunca apaga: o registro é o que sobra da conversa). A varredura cresce com o total de conversas já respondidas, não com o número de pendências; para uma operação de um aparelho só isso são dezenas a centenas de docs. Se um dia não for, o conserto é uma coleção de índice, não um cache — mas hoje seria complexidade sem problema. O que a varredura NÃO faz é ler `/leads` inteira atrás dos nomes: filtra primeiro e só então lê, POR ID, os poucos docs que sobraram, e há teste que espiona as chamadas.
+
+**`montarMensagemParaLead` ganhou fontes pré-carregadas** (`carregarFontesDaMensagem`, parâmetro OPCIONAL). `listBuscas`/`listConjuntos` são varreduras de coleção, e pagá-las uma vez por linha multiplicaria a leitura pelo tamanho da lista. Ausente, a função carrega sozinha — nenhum chamador de UM lead só mudou —, e há teste contando as varreduras: uma para a lista inteira, não uma por linha.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=respostas` captura o painel em três estados × celular e desktop × temas escuro e claro. Os estados: **cheia** (um grupo de três mensagens, e um rascunho longo com quebras de linha — o pior caso de layout da caixa editável), **editada** e **VAZIA**, que cobra o painel ENCOLHER (−731px no celular, −689px no desktop) em vez de trocar a lista por um vão. O passo existe por um motivo a mais que os vizinhos: **a ação muda com o aparelho**, e o Chromium do laço se apresenta como desktop — sem forçar um agente Android (`contextoLogado` ganhou `userAgent`), a captura do "celular" mostraria o caminho do desktop, provando o contrário do que existe para provar. No Android o passo exige âncora `intent://` com o pacote do Business, e reprova se o pacote do WhatsApp COMUM aparecer mirado; no desktop exige o inverso — nenhuma âncora, o aviso e os botões de copiar. Dois aferidores que só a tela real faz: o texto extraído do `href` tem que ser IDÊNTICO ao valor da caixa editável (com `%0A` nas quebras), e depois de digitar um texto com `#` e `;` dentro o URI ainda tem que ter exatamente um `#Intent;` e terminar em `;end`. O unitário prova a função; este prova que o que o operador digitou é o que entra no link.
 
 ## Disparo de teste da fila — o lead fixo, a tarefa injetada e os interruptores
 
@@ -3508,7 +3571,7 @@ não por assunto.
 | laço | superfície | o que ele julga |
 |---|---|---|
 | `scripts/qa-visual.mjs` | **camada decorativa das DEMOS** (rota pública das skins do registro, via o harness `/interno/demo-qa`) | efeito × intensidade × tema, estilos de LED, modos de cor, animação por seção, **variante × modo de cor** (`--so=variante`), cor da barra do navegador, fps no celular com CPU 4× (`--so=fps`, com `--skin=` para escolher a skin e, quando ela tem variantes, variante no eixo das linhas) e o portão de foto colapsada (`--so=colapso`). **Não conhece `/leads` nem `/buscas`** — não há tela da plataforma nele |
-| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e o painel "Fila de envio" da /config, que fica abaixo da dobra e por isso tem passos próprios — `--so=pendencias` (lista de print) e `--so=fila` (a visão: funil, próximos, bloqueados), os dois cobrando os ESTADOS VAZIOS |
+| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e os painéis da /config que ficam abaixo da dobra e por isso têm passos próprios — `--so=pendencias` (lista de print), `--so=fila` (a visão: funil, próximos, bloqueados) e `--so=respostas` (respostas pendentes, que além do estado vazio cobra a AÇÃO mudando com o aparelho: intent do Business no Android, copiar no desktop), todos cobrando os ESTADOS VAZIOS |
 | `scripts/qa-cls.mjs` | **deslocamento de layout**, nas três | `--so=skins` (rota pública), `--so=editor` (o preview do editor) e `--so=app` (as 7 abas da plataforma). Portão 0.1, o mesmo piso "bom" do Core Web Vital real |
 
 Os outros são de recorte estreito e o nome já diz: `qa-aura.mjs`,
