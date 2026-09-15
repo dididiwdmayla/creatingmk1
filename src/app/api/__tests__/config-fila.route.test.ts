@@ -121,6 +121,47 @@ describe("PUT /api/config/fila (restrito ao admin)", () => {
 });
 
 /**
+ * "pausada pelo aparelho às 03:12" responde sozinho uma pergunta que hoje
+ * exige adivinhação — mas só quando `ativo` de fato muda. Editar outro campo
+ * ao lado não pode fazer parecer que o admin acabou de mexer na pausa.
+ */
+describe("PUT /api/config/fila — registro de quem alterou `ativo`", () => {
+  it("mudar ativo carimba ativoAlteradoPor com o userId do admin", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin-1", papel: "admin" });
+
+    const res = await PUT(putRequest({ ativo: false }, cookie));
+
+    const { fila } = await res.json();
+    expect(fila.ativoAlteradoPor).toBe("admin-1");
+    expect(fila.ativoAlteradoEm).toEqual(expect.any(String));
+  });
+
+  it("mandar o mesmo valor de ativo (sem mudar) NÃO carimba nada", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin-1", papel: "admin" });
+    // ativo já é `true` (default) — reenviar o mesmo valor não é uma mudança.
+    const res = await PUT(putRequest({ ativo: true }, cookie));
+
+    const { fila } = await res.json();
+    expect(fila.ativoAlteradoPor).toBeNull();
+    expect(fila.ativoAlteradoEm).toBeNull();
+  });
+
+  it("editar outro campo sem tocar ativo não mexe no carimbo", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin-1", papel: "admin" });
+    await PUT(putRequest({ ativo: false }, cookie));
+
+    const res = await PUT(putRequest({ metaDiaria: 30 }, cookie));
+
+    const { fila } = await res.json();
+    expect(fila.metaDiaria).toBe(30);
+    expect(fila.ativo).toBe(false);
+    // O carimbo continua sendo o da mudança de ativo anterior, não apagado
+    // nem reescrito por um PUT que nem tocou o campo.
+    expect(fila.ativoAlteradoPor).toBe("admin-1");
+  });
+});
+
+/**
  * REGRA DE SEGURANÇA CONTRA COLAPSO: alteração de configuração NUNCA
  * invalida claim já emitida. Um humano edita a /config enquanto o celular
  * pode estar no meio de um ciclo — lead reservado segue reservado até

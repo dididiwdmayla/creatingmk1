@@ -2327,11 +2327,15 @@ Um celular Android com MacroDroid é um EXECUTOR BURRO: pergunta "qual o próxim
   "nichosPermitidos": [],            // vazio = todos
   "intervaloMinimoSegundos": 180,
   "inicioDiaOperacionalHora": 0,     // hora (America/Sao_Paulo) em que o dia operacional começa; 0 = meia-noite
-  "numeroTeste": "5544984570105"     // destino de TODO disparo de teste; vazio = disparo desligado
+  "numeroTeste": "5544984570105",    // destino de TODO disparo de teste; vazio = disparo desligado
+  "ativoAlteradoPor": "dispositivo", // "dispositivo" (POST /api/fila/pausar) ou o userId do admin (PUT); null = nunca mudou
+  "ativoAlteradoEm": "<ISO>"         // quando — null junto com o campo acima
 }
 ```
 
 `numeroTeste` é dígitos puros com DDI (mesmo formato que `montarMensagemParaLead` entrega ao aparelho — nada de parêntese ou traço, que o WhatsApp do celular não resolve). Ver "Disparo de teste da fila" adiante: toda tarefa de teste sai para ELE, nunca para o telefone real do lead escolhido.
+
+`ativoAlteradoPor`/`ativoAlteradoEm` existem para o painel responder sozinho "pausada pelo aparelho às 03:12" em vez de exigir adivinhação. **Não são patcheáveis direto** — ficam fora de `TOP_LEVEL_KEYS`/`validateFilaConfigPatch`, então um PUT que tentasse setá-los cai em "chave desconhecida". Só duas escritas os tocam, cada uma com sua própria identidade: `POST /api/fila/pausar` (adiante) grava `"dispositivo"`; `saveFilaConfig` (usado por `PUT /api/config/fila`) grava o `userId` do admin — e só quando o patch de fato MUDA `ativo` (editar `metaDiaria` ao lado não pode fazer parecer que o admin acabou de mexer na pausa). `mergeFilaConfig` trata os dois campos como passthrough normal (`patch.campo ?? base.campo`) por uma razão não óbvia: é também o motor de `loadFilaConfig`, que o chama com o **doc cru do Firestore** como "patch" para reidratar o que está persistido — um passthrough especial (tipo "nunca vem do patch") quebraria essa releitura silenciosamente.
 
 Doc PRÓPRIO, fora de `/config/app`: a fila é lida com muito mais frequência (o celular bate a cada ciclo) e por um chamador totalmente diferente (dispositivo, não sessão de usuário) — misturar no doc de app acoplaria dois ritmos de escrita/leitura sem necessidade. `loadFilaConfig` aplica os defaults acima quando o doc não existe — a AUSÊNCIA do documento nunca pode virar erro nem liberar envio irrestrito. Editável em `/config` (painel "Fila de envio", `GET`/`PUT /api/config/fila` — **os dois restritos ao admin**, ver "O painel inteiro é ADMIN ONLY" abaixo) reaproveitando o padrão de edição inline de "Metas por integrante" (cada campo salva no próprio blur/clique, sem botão "salvar" geral) — o botão de pausa mostra o estado ATUAL sem precisar clicar ("Ativa ✓" / "Pausada ⏸").
 
@@ -2341,11 +2345,22 @@ Doc PRÓPRIO, fora de `/config/app`: a fila é lida com muito mais frequência (
 {
   "enviados": 7,
   "envios": ["<ISO>", "<ISO>"],       // um por envio confirmado do dia — só as últimas 24h são mantidas
-  "ultimoEventoEm": "<ISO>"           // ou null
+  "ultimoEventoEm": "<ISO>",          // ou null
+  "falhas": 2,                        // confirmações "falhou" do dia
+  "invalidos": 1,                     // confirmações "invalido" do dia
+  "semPrint": 3                       // envios "enviado" do dia com `detalhe` não vazio (texto saiu, print não)
 }
 ```
 
 A chave do doc (`YYYY-MM-DD`) é o dia OPERACIONAL, não o calendário UTC nem a meia-noite fixa de São Paulo: `diaOperacionalKey(now, inicioHora)` calcula em `America/Sao_Paulo` e desloca para o dia ANTERIOR quando o instante ainda está antes de `inicioDiaOperacionalHora` — um plantão que atravessa a meia-noite não vê a cota resetar no meio. `inicioHora` 0 é meia-noite normal (mesma chave do calendário). `lerContadorFila(db, now, inicioDiaOperacionalHora)` é uma leitura PURA que devolve, para o instante dado: total do dia (`enviados`), quantos na ÚLTIMA HORA deslizante (filtra `envios` pela janela de 1h a partir de `now` — por isso o array, não só o contador) e segundos desde o último evento (`null` se nunca houve um). Doc ausente é o dia sem nenhum envio ainda — nunca erro. Esta fundação só tem a LEITURA; o incremento (grava `enviados`/`envios`/`ultimoEventoEm`, podando o array para 24h) fica para as rotas que consomem a fila.
+
+**`falhas`/`invalidos`/`semPrint` — os três contadores que faltavam para o resumo do dia.** Nenhum dos três era derivável do que já estava gravado: um lead que falhou e depois foi enviado fica com estado final `"enviado"` e nenhum carimbo de QUANDO falhou; `estado === "invalido"` não tem data; `semPrint` só seria derivável varrendo `filaEnvios` inteira. `lerContadorFilaCompleto(db, now, inicioDiaOperacionalHora)` devolve o doc inteiro (os seis campos acima) mais os dois derivados que `lerContadorFila` já expunha — é a base tanto do snapshot de RITMO (que continua com o mesmo contrato de sempre, `totalDoDia`/`ultimaHora`/`segundosDesdeUltimoEvento`) quanto de `GET /api/fila/resumo` (adiante), numa leitura só do mesmo doc.
+
+Os três são incrementados dentro da MESMA transação de `POST /api/fila/confirmar` (`confirmarEnvio`, uma escrita a mais no MESMO doc que já lia `enviados` só para `"enviado"` — agora lê para os três resultados): `contadorComFalha`/`contadorComInvalido` (puras, análogas a `contadorComEnvio`) incrementam SÓ o campo correspondente. **Deliberadamente NÃO tocam `envios`/`ultimoEventoEm`**: uma tentativa que falhou, ou um número inválido, não é uma mensagem que saiu, e sujar a janela deslizante de 1h (ou o relógio do intervalo mínimo) com eles faria os portões de RITMO (`teto_hora`, `intervalo`) pensarem que acabou de sair uma mensagem quando não saiu nenhuma. `semPrint` entra dentro de `contadorComEnvio` (`{ semPrint: Boolean(detalhe) }`), incrementado junto de `enviados` quando o `detalhe` que a macro manda não é vazio — o mesmo sinal que a lista de pendência do painel já usa (ver `detalheEnvio` adiante), só que contado por dia em vez de varrido.
+
+**Aditivo, e só aditivo.** Nenhuma escrita existente, transição de status ou regra de idempotência mudou: confirmação repetida da MESMA claim continua devolvendo sucesso sem reescrever nada, e "nada" agora inclui os três contadores novos (o caminho idempotente retorna ANTES de qualquer leitura do doc de contador). Os contadores só contam PARA FRENTE — o dia em que isso subiu para produção começou em zero, e dias anteriores não são retroativos (não há como reconstruir, por exemplo, quantas falhas aconteceram num dia que só gravava `enviados`).
+
+`momentoFimTetoHora(doc, tetoPorHora, now)` e `momentoFimIntervalo(doc, intervaloMinimoSegundos)` são os dois outros puros que vivem aqui: dado o doc do dia, QUANDO o portão `teto_hora`/`intervalo` deixa de bloquear. `momentoFimTetoHora` não é "daqui a 1h" — é quando envios SUFICIENTES saem da janela deslizante para `ultimaHora` cair abaixo do teto de novo (se o teto caiu no meio do plantão, pode ser preciso mais de um envio sair). Os dois existem para `GET /api/fila/resumo` (adiante) calcular `proximaJanela` sem inventar uma hora.
 
 ### `/filaEnvios/{leadId}` — um doc por LEAD (`src/lib/fila/envios.ts`)
 
@@ -2384,7 +2399,7 @@ Mesma precedência e os mesmos marcadores que já rodam na ficha (`LeadDetailCli
 
 ## Fila de envio ao WhatsApp — as rotas que o celular chama (`/api/fila/*`)
 
-A fundação acima guarda o estado; estas são as duas rotas que o MacroDroid de fato bate. O contrato inteiro cabe em duas frases: **`GET /proximo` devolve no máximo UMA tarefa, ou o MOTIVO de não ter nenhuma**; **`POST /confirmar` fecha aquela tarefa**. O celular não decide nada — nem horário, nem cota, nem qual lead.
+A fundação acima guarda o estado; estas são as rotas que o MacroDroid de fato bate — mas por **duas macros diferentes, com raios de explosão diferentes**. A macro GRANDE roda o ciclo completo de envio e é a única que decide algo: **`GET /proximo` devolve no máximo UMA tarefa, ou o MOTIVO de não ter nenhuma**; **`POST /confirmar` fecha aquela tarefa**. O celular não decide nada — nem horário, nem cota, nem qual lead. `GET /resumo` e `POST /pausar` (adiante) são para uma macro PEQUENA e SEPARADA, disparada no desbloqueio do aparelho — dezenas de vezes por dia, porque é o celular pessoal do operador — e por isso **nunca reservam nada nem tocam em mais que um campo**: o alcance de cada uma é proporcional a quantas vezes ela é chamada e a quão exposta a chave que a autentica está.
 
 ### O pool de candidatos (`src/lib/fila/candidatos.ts`) — por que existe
 
@@ -2508,9 +2523,9 @@ Duas regras específicas do envio pela fila:
 - **Nunca rebaixa status.** Só move quem ainda está em `"novo"`; lead que o time já avançou à mão (respondeu, fechado) mantém o status — o que importa registrar aqui é o disparo, e isso é o selo.
 - **A rotação é a COMPARTILHADA**, o mesmo doc que o clique manual gira (o dispositivo não tem contador próprio), e gira a skin gravada em `filaEnvios.rotacaoSkinId` — a frase que o lead de fato recebeu, não a que estaria valendo agora. Escrita com `merge`, como sempre: girar o contador nunca pisa nos textos que o admin possa estar salvando no mesmo segundo. Entra na transação porque, dentro da fila, o confirmar é atômico inteiro — o que APERTA a regra otimista de `frases/repo.ts`, não a contradiz.
 
-**"invalido"**: a claim é encerrada e o lead ganha `telefoneInvalido = true` — número sem WhatsApp não volta à fila nunca mais, mas o lead continua na base com demo e capturas, porque o número pode ser corrigido depois. O contador NÃO anda: não saiu mensagem.
+**"invalido"**: a claim é encerrada e o lead ganha `telefoneInvalido = true` — número sem WhatsApp não volta à fila nunca mais, mas o lead continua na base com demo e capturas, porque o número pode ser corrigido depois. `enviados` NÃO anda (não saiu mensagem), mas `invalidos` sim — ver "`falhas`/`invalidos`/`semPrint`" em `/filaContadores` acima.
 
-**"falhou"**: `tentativas + 1` e a claim devolvida à fila. A partir de `TENTATIVAS_MAX` (3) o lead **para**: não é excluído nem marcado como inválido, só deixa de ser elegível — e a ficha mostra por quê, para a inspeção manual acontecer.
+**"falhou"**: `tentativas + 1` e a claim devolvida à fila. A partir de `TENTATIVAS_MAX` (3) o lead **para**: não é excluído nem marcado como inválido, só deixa de ser elegível — e a ficha mostra por quê, para a inspeção manual acontecer. Mesma ressalva: `enviados` não anda, `falhas` sim.
 
 ### `detalheEnvio` — o texto saiu, o print não
 
@@ -2550,6 +2565,59 @@ A consequência aceita é que passam a existir **leads contactados com o texto m
 - **`reservarLead` devolve `{ claimId, expiraEm }`** em vez de só o `claimId`: a resposta ao celular carrega esse instante, e recomputá-lo do lado de fora criaria duas fontes para a mesma data.
 - **`filaEnvios.rotacaoSkinId`**, gravado por `anotarRotacao` logo depois da reserva: é a skin cuja frase DE FATO saiu. Fica na claim, e não é re-resolvido na confirmação, porque entre entregar a tarefa e o celular confirmar o envio a rotação compartilhada pode ter girado por um envio manual de alguém do time — o contador que gira tem que ser o da frase que o lead recebeu.
 - **A política de reenvio entrou como argumento explícito** (`reservarLead(..., { tentativasMax })`), que é exatamente onde a fundação a tinha deixado ("esta função não decide política de reenvio; isso fica para as rotas que vêm depois"). O default 0 mantém `falhou` terminal; `/proximo` passa `TENTATIVAS_MAX` (3), e com isso um lead que falhou volta à fila até esgotar as tentativas. `enviado` e `invalido` são terminais em qualquer política.
+
+### `GET /api/fila/resumo` — o retrato somente-leitura, para a macro do desbloqueio
+
+`/proximo` e `/confirmar` são a macro GRANDE, o ciclo completo de envio. Esta rota é para uma macro PEQUENA e SEPARADA, disparada no desbloqueio do aparelho — dezenas de vezes por dia, porque é o celular pessoal do operador. Mesma autenticação (`RADAR_DEVICE_KEY`, cabeçalhos de dispositivo), sob `/api/fila/*` para cair na mesma exceção do proxy.
+
+**Resposta ACHATADA, mesma regra de `/proximo`**: um nível só, TODAS as chaves sempre presentes, tudo string exceto o booleano e os números — chave ausente faz o MacroDroid devolver o marcador literal em vez de vazio (já custou um ciclo inteiro de depuração nesta fila).
+
+```jsonc
+{
+  "ativo": true,
+  "enviados": 7, "meta": 15, "restante": 8,
+  "semPrint": 3, "falhas": 2, "invalidos": 1,
+  "elegiveisAgora": 4,
+  "motivoAtual": "",            // um de MotivoSemTarefa, ou "" quando há tarefa disponível agora
+  "proximaJanela": "<ISO>",     // ou "" — ver abaixo
+  "diaOperacional": "2026-03-10"
+}
+```
+
+Tudo referente ao DIA OPERACIONAL corrente (`inicioDiaOperacionalHora`, não o dia civil — o operador trabalha em turno noturno e o dia vira no meio da jornada dele). `enviados`/`meta`/`restante`/`semPrint`/`falhas`/`invalidos` vêm de `lerContadorFilaCompleto` (ver `/filaContadores` acima). `semPrint` aqui são os EVENTOS do dia (o contador); a lista de pendência do painel (adiante) são os NÃO RESOLVIDOS de sempre, sem corte por dia — números diferentes, os dois certos, perguntas diferentes.
+
+**ESTA ROTA NUNCA RESERVA NADA.** Calcula o mesmo motivo que `/proximo` devolveria, mas em caminho somente-leitura: não chama `reservarLead`, não cria claim, não toca `filaEnvios`, não incrementa contador. Reusar o handler de `/proximo` aqui queimaria uma claim e prenderia um lead por 5 minutos à toa a cada desbloqueio do celular — em vez disso, `decidirFila` (`lib/fila/selecao.ts`) extrai a MESMA cadeia de portões (ritmo → nicho → janela) numa função pura, sem a etapa de reserva/releitura fresca que só faz sentido quando se está de fato ENTREGANDO. `/proximo` foi refatorado para reusar o pedaço que os dois precisam idêntico (`motivoSemTarefaAgora`, a distinção `fora_de_janela`/`sem_leads_elegiveis`) em vez de ganhar uma segunda implementação da mesma regra — duas rotas recomputando a cadeia de portões cada uma à sua maneira seriam duas verdades sobre o motivo, capazes de divergir em silêncio. O contrato de `/proximo` não mudou (mesma resposta plana, mesma idempotência — há teste travando isso).
+
+**`elegiveisAgora` conta os leads que passam nos filtros DE LEAD (estruturais, nicho, janela), independente dos portões de RITMO.** Por isso `decidirFila` sempre roda `ordenarCandidatos` sobre o pool, mesmo quando `motivoDeRitmo` já bloqueou — diferente de `/proximo`, que só paga a leitura do pool DEPOIS de passar pelo ritmo (a ordem ali é a ordem do custo, porque a rota é chamada 1440× por noite). Aqui o custo é aceitável: a macro do desbloqueio bate dezenas de vezes por dia, não 1440, e o pool em si continua sendo CACHE (`lerPool`, TTL de 10min) — a maioria das chamadas paga 1 leitura, não a varredura de `/leads`. Sem isso, "pausado com 12 leads prontos" e "pausado e vazio" seriam indistinguíveis — e são situações diferentes: o operador precisa ver 12, não 0.
+
+**`proximaJanela` — o cuidado central desta rota: número plausível e ERRADO é pior que número ausente.** Se o que está bloqueando é RITMO (`meta_atingida`, `teto_hora`, `intervalo`) e não janela, o próximo momento enviável NÃO é a abertura da próxima faixa — é a virada do dia operacional, ou o instante em que o teto/intervalo se resolve. Mostrar a faixa nesse caso daria uma hora que parece certa e está errada, o mesmo erro já visto na "próxima faixa aceita" do painel (ver `barraDoDia.ts` mais adiante). A rota decide pelo PORTÃO que está bloqueando e devolve o instante coerente com ele:
+
+- `meta_atingida` → `proximaViradaDiaOperacional(now, inicioDiaOperacionalHora)`.
+- `teto_hora` → `momentoFimTetoHora` (quando envios saem da janela deslizante e `ultimaHora` cai abaixo do teto).
+- `intervalo` → `momentoFimIntervalo` (`ultimoEventoEm + intervaloMinimoSegundos`).
+- `fora_de_janela` → a MENOR das próximas faixas aceitas entre os candidatos bloqueados por janela (`proximoMomentoAceito` com `niveisAceitos(config)` — nunca `proximoBom` direto, que estaria errado com `exigirJanelaBoa` false, já que o próximo aceito seria "bom" OU "razoável", e pode vir antes do próximo bom).
+- `pausado` e `sem_leads_elegiveis` → `""`: não há instante que resolva (o primeiro depende do admin/dispositivo reativar; o segundo, de alguém gerar demo e capturas) — melhor não prometer hora nenhuma do que inventar uma.
+- `""` (tarefa disponível agora) → `""`.
+
+**Conversão de fuso, sempre para o OPERADOR (America/Sao_Paulo), nunca para o lead.** `proximoMomentoAceito` devolve o próximo trecho aceito no calendário LOCAL DO LEAD (`{ offsetDias, inicioMin }`); a rota converte isso num instante ABSOLUTO (a aritmética funciona porque o deslocamento do lead é constante entre agora e o alvo — mesma simplificação que o resto da fila já assume) antes de devolver. Devolver o par bruto, ou o rótulo do dia na hora do lead, seria mostrar ao operador uma hora no fuso errado.
+
+### `POST /api/fila/pausar` — liga/desliga, e só isso
+
+Também para a macro pequena do desbloqueio, mesma autenticação. Escreve UM ÚNICO campo de config — nem meta, nem tetos, nem janela, nem `numeroTeste`. O motivo é o ALCANCE da chave: `RADAR_DEVICE_KEY` vive numa variável do MacroDroid, num celular que sai de casa. Comprometida, deve permitir no máximo ligar e desligar a fila — nunca reconfigurar cotas. `PUT /api/config/fila` continua sendo o único caminho para o resto, e continua `requireAdmin`.
+
+**Nunca reusa `saveFilaConfig`** (`lib/fila/pausar.ts`, `aplicarPausar`): aquela grava o doc INTEIRO com `set` (lê a config efetiva, mescla, regrava tudo) — se esta rota lesse a config e regravasse por ali, ela estouraria uma edição que o admin tivesse acabado de fazer ao lado, em outro campo, entre a leitura e a escrita. A escrita aqui é DIRIGIDA: `set({ ativo, ativoAlteradoPor, ativoAlteradoEm }, { merge: true })`, só os três campos, nunca o doc inteiro.
+
+**Valor EXPLÍCITO no corpo, nunca toggle**: `{ "ativo": true }` ou `{ "ativo": false }`. A macro pode reenviar o POST se a rede cair depois de a escrita já ter saído, e um toggle desligaria o que acabou de ligar no reenvio. **Idempotente por VALOR**: mandar o valor que já está vale como sucesso e não escreve nada (`alterado: false`) — nem `ativoAlteradoPor`/`ativoAlteradoEm` são retocados, porque não houve mudança nenhuma para registrar.
+
+Resposta plana, mesma regra das outras rotas da fila — as três chaves sempre presentes:
+
+```jsonc
+{ "ativo": true, "alterado": false, "erro": "" }
+```
+
+`alterado` indica se houve escrita de fato. Corpo malformado (`ativo` ausente ou não booleano) é bug de integração da própria macro, não um estado operacional da fila — sai com `400` e `ativo: false` de PLACEHOLDER (quem lê deve checar `erro` antes de `ativo` nesse caso), sem escrever nada.
+
+**`ativoAlteradoPor`/`ativoAlteradoEm`** (ver `/config/fila` acima): esta rota grava `"dispositivo"`; `saveFilaConfig` (o `PUT` de admin) grava o `userId`, e só quando o patch de fato muda `ativo`. O painel "Fila de envio" passa a poder mostrar "pausada pelo aparelho às 03:12" — responde sozinho uma pergunta que hoje exige adivinhação.
 
 ### `Lead.telefoneInvalido` — o número que não tem WhatsApp
 

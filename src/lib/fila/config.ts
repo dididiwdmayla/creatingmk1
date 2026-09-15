@@ -44,6 +44,16 @@ export interface FilaConfig {
    * vez de cair num destino padrão.
    */
   numeroTeste: string;
+  /**
+   * Quem mudou `ativo` da última vez: `"dispositivo"` (POST /api/fila/pausar,
+   * a macro do celular) ou o `userId` do admin (PUT /api/config/fila). `null`
+   * = nunca mudou desde que o doc existe. NÃO é patcheável direto — só as
+   * duas rotas que de fato mudam `ativo` escrevem aqui, cada uma com sua
+   * própria identidade (ver `lib/fila/pausar.ts` e `saveFilaConfig`).
+   */
+  ativoAlteradoPor: string | null;
+  /** ISO de quando `ativoAlteradoPor` foi gravado. `null` junto com ele. */
+  ativoAlteradoEm: string | null;
 }
 
 export const DEFAULT_FILA_CONFIG: FilaConfig = {
@@ -55,6 +65,8 @@ export const DEFAULT_FILA_CONFIG: FilaConfig = {
   intervaloMinimoSegundos: 180,
   inicioDiaOperacionalHora: 0,
   numeroTeste: "5544984570105",
+  ativoAlteradoPor: null,
+  ativoAlteradoEm: null,
 };
 
 const TOP_LEVEL_KEYS = new Set<keyof FilaConfig>([
@@ -159,6 +171,14 @@ export function mergeFilaConfig(base: FilaConfig, patch: Partial<FilaConfig>): F
     // CRU do Firestore, e um valor de tipo errado ali não pode derrubar
     // `/proximo` às duas da manhã.
     numeroTeste: normalizarNumeroTeste(patch.numeroTeste) ?? base.numeroTeste,
+    // Passthrough normal, como o resto — `mergeFilaConfig` também é o motor
+    // de `loadFilaConfig` (que chama isto com o doc CRU do Firestore como
+    // "patch", para reidratar o que está persistido). `validateFilaConfigPatch`
+    // é quem impede um PUT de admin de setar estes dois direto (fora de
+    // `TOP_LEVEL_KEYS`) — só `saveFilaConfig` os recarimba, e só quando
+    // `ativo` de fato muda.
+    ativoAlteradoPor: patch.ativoAlteradoPor ?? base.ativoAlteradoPor,
+    ativoAlteradoEm: patch.ativoAlteradoEm ?? base.ativoAlteradoEm,
   };
 }
 
@@ -177,10 +197,26 @@ export async function loadFilaConfig(db: AppDb): Promise<FilaConfig> {
 /**
  * Valida o patch, aplica sobre a config efetiva e persiste o doc COMPLETO
  * (sem merge do Firestore — o merge é feito aqui, determinístico).
+ *
+ * `alteradoPor` é o `userId` do admin que chamou — vem de `PUT
+ * /api/config/fila` (`requireAdmin`), nunca de sessão do próprio usuário
+ * comum. Só é usado (e só re-carimba `ativoAlteradoPor`/`ativoAlteradoEm`)
+ * quando o patch de fato MUDA `ativo`: um PUT que edita `metaDiaria` sem
+ * tocar `ativo` não pode fazer parecer que o admin acabou de pausar/religar
+ * a fila. Omitido = comportamento de sempre (campos de auditoria intocados),
+ * o que mantém as chamadas existentes (inclusive as de teste) válidas.
  */
-export async function saveFilaConfig(db: AppDb, patch: unknown): Promise<FilaConfig> {
+export async function saveFilaConfig(
+  db: AppDb,
+  patch: unknown,
+  alteradoPor?: string,
+): Promise<FilaConfig> {
   validateFilaConfigPatch(patch);
-  const merged = mergeFilaConfig(await loadFilaConfig(db), patch);
+  const base = await loadFilaConfig(db);
+  let merged = mergeFilaConfig(base, patch);
+  if (alteradoPor && patch.ativo !== undefined && patch.ativo !== base.ativo) {
+    merged = { ...merged, ativoAlteradoPor: alteradoPor, ativoAlteradoEm: new Date().toISOString() };
+  }
   await db
     .collection(FILA_CONFIG_COLLECTION)
     .doc(FILA_CONFIG_DOC)

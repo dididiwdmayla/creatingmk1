@@ -223,3 +223,62 @@ export function ordenarCandidatos(
     },
   };
 }
+
+/**
+ * O motivo quando NENHUM candidato de `escolhido` virou tarefa — extraído de
+ * `/proximo` (que chama isto só depois de esgotar a tentativa de ENTREGA de
+ * cada um) para `GET /api/fila/resumo` poder chegar ao mesmo motivo sem
+ * reimplementar a distinção. `escolhidoLength` continua explícito (em vez de
+ * assumir 0) porque `/proximo` chega aqui mesmo com `escolhido` não vazio
+ * quando todos falharam na releitura fresca (pool desatualizado) — nesse
+ * caso o motivo é "sem_leads_elegiveis", nunca "fora_de_janela", ainda que
+ * outros candidatos do pool tenham parado na janela.
+ */
+export function motivoSemTarefaAgora(
+  escolhidoLength: number,
+  diagnostico: DiagnosticoSelecao,
+): "fora_de_janela" | "sem_leads_elegiveis" {
+  const foraDeJanela = diagnostico.janela.razoavel + diagnostico.janela.ruim + diagnostico.janela.semNivel;
+  return escolhidoLength === 0 && foraDeJanela > 0 ? "fora_de_janela" : "sem_leads_elegiveis";
+}
+
+/** A decisão de `ordenarCandidatos` mais o MOTIVO — ver `decidirFila`. */
+export interface DecisaoFila {
+  motivo: MotivoSemTarefa | "";
+  escolhido: CandidatoOrdenado[];
+  diagnostico: DiagnosticoSelecao;
+}
+
+/**
+ * A decisão PURA e COMPLETA da fila: dado o pool, a config, as janelas, o
+ * contador do dia e o instante, qual é o motivo de não haver tarefa agora
+ * (ou `""` quando há) — a MESMA cadeia de portões que `/proximo` percorre
+ * (ritmo → nicho → janela) antes de tentar reservar, numa função só.
+ *
+ * Existe para `GET /api/fila/resumo`, que NUNCA reserva e por isso não pode
+ * chamar `/proximo`: precisa do motivo sem pagar o custo (nem o efeito
+ * colateral) de uma claim. `/proximo` continua com o próprio atalho de custo
+ * — só carrega o pool depois de passar pelo ritmo — e por isso NÃO chama
+ * esta função (que sempre roda `ordenarCandidatos` sobre um pool já
+ * carregado); reusa só `motivoSemTarefaAgora` acima, o pedaço que os dois
+ * precisam idêntico.
+ *
+ * Diferença deliberada do caminho de `/proximo`: aqui o ritmo NÃO impede de
+ * calcular `escolhido`/`diagnostico` — o resumo precisa de `elegiveisAgora`
+ * (quantos passariam nos filtros DE LEAD) mesmo com a fila pausada ou a meta
+ * batida, que são situações diferentes de "pausada e vazia".
+ */
+export function decidirFila(
+  pool: CandidatoFila[],
+  config: FilaConfig,
+  janelas: JanelasContatoConfig,
+  contador: FilaContadorSnapshot,
+  now: Date,
+  opcoes: { coletarBloqueados?: boolean } = {},
+): DecisaoFila {
+  const { escolhido, diagnostico } = ordenarCandidatos(pool, config, janelas, now, opcoes);
+  const ritmo = motivoDeRitmo(config, contador);
+  const motivo: MotivoSemTarefa | "" =
+    ritmo ?? (escolhido.length > 0 ? "" : motivoSemTarefaAgora(escolhido.length, diagnostico));
+  return { motivo, escolhido, diagnostico };
+}

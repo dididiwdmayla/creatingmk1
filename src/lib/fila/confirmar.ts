@@ -3,7 +3,13 @@ import { conjuntoDoDoc, patchAvancoRotacao, refConjunto } from "@/lib/frases/rep
 import { aplicarSeloContato, aplicarTransicao, toDoc as leadToDoc } from "@/lib/leads/repo";
 import { LEADS_COLLECTION, VALID_TRANSITIONS, type Lead } from "@/lib/leads/types";
 
-import { FILA_CONTADORES_COLLECTION, contadorComEnvio, diaOperacionalKey } from "./contadores";
+import {
+  FILA_CONTADORES_COLLECTION,
+  contadorComEnvio,
+  contadorComFalha,
+  contadorComInvalido,
+  diaOperacionalKey,
+} from "./contadores";
 import {
   ClaimInvalidoError,
   FILA_ENVIOS_COLLECTION,
@@ -114,8 +120,11 @@ export async function confirmarEnvio(
 
     const chaveDia = diaOperacionalKey(now, opcoes.inicioDiaOperacionalHora);
     const refContador = db.collection(FILA_CONTADORES_COLLECTION).doc(chaveDia);
-    const contador =
-      resultado === "enviado" ? (await tx.get(refContador)).data() : undefined;
+    // Lido para os TRÊS resultados agora — não só "enviado": `falhas` e
+    // `invalidos` vivem neste MESMO doc (ver `contadorComFalha`/
+    // `contadorComInvalido`), incrementados na mesma transação, nunca um
+    // segundo doc nem uma segunda escrita.
+    const contador = (await tx.get(refContador)).data();
 
     // ── Escritas ──────────────────────────────────────────────────────────
     const tentativas = resultado === "falhou" ? envio.tentativas + 1 : envio.tentativas;
@@ -155,9 +164,17 @@ export async function confirmarEnvio(
       if (avanco) tx.set(refFrases, avanco.patch, { merge: true });
     }
 
-    if (resultado === "enviado") {
-      tx.set(refContador, contadorComEnvio(contador, now) as unknown as Record<string, unknown>);
-    }
+    // `semPrint` conta o envio que saiu com `detalhe` não vazio (texto saiu,
+    // print não anexou — ver `detalheEnvio` no topo do arquivo): é o mesmo
+    // sinal que a lista de pendência do painel já usa, só que contado por dia
+    // em vez de varrido de `filaEnvios`.
+    const proximoContador =
+      resultado === "enviado"
+        ? contadorComEnvio(contador, now, { semPrint: Boolean(detalhe) })
+        : resultado === "falhou"
+          ? contadorComFalha(contador)
+          : contadorComInvalido(contador);
+    tx.set(refContador, proximoContador as unknown as Record<string, unknown>);
 
     return {
       estado: resultado,

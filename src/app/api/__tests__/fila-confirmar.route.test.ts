@@ -79,6 +79,47 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+/**
+ * CONTRATO INALTERADO: os itens de contadores/resumo/pausar acrescentados
+ * nesta mesma leva não podem mexer no que o celular já lê hoje. Trava a
+ * FORMA da resposta de sucesso — as mesmas seis chaves de sempre, nada a
+ * mais (os contadores novos são gravados no Firestore, nunca devolvidos
+ * aqui).
+ */
+describe("POST /api/fila/confirmar — contrato inalterado", () => {
+  const CHAVES_RESPOSTA = ["ok", "teste", "estado", "repetida", "tentativas", "parado"] as const;
+
+  it("'enviado' devolve exatamente as seis chaves de sempre", async () => {
+    semear(lead("ChIJa"));
+    const tarefa = await pegarTarefa();
+
+    const corpo = await (await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "enviado" })).json();
+
+    expect(Object.keys(corpo).sort()).toEqual([...CHAVES_RESPOSTA].sort());
+  });
+
+  it("'falhou' e 'invalido' também", async () => {
+    semear(lead("ChIJa"), lead("ChIJb"));
+    // Reserva as DUAS tarefas antes de confirmar qualquer uma — assim cada
+    // claim já sai presa a um lead diferente (reserva viva não é reofertada
+    // pelo pool), em vez de arriscar a segunda chamada re-oferecer o mesmo
+    // lead que a primeira acabou de devolver com "falhou".
+    const a = await pegarTarefa();
+    const b = await pegarTarefa();
+    expect(a.leadId).not.toBe(b.leadId);
+
+    const corpoFalhou = await (
+      await confirmar({ id: a.id, leadId: a.leadId, resultado: "falhou" })
+    ).json();
+    expect(Object.keys(corpoFalhou).sort()).toEqual([...CHAVES_RESPOSTA].sort());
+
+    const corpoInvalido = await (
+      await confirmar({ id: b.id, leadId: b.leadId, resultado: "invalido" })
+    ).json();
+    expect(Object.keys(corpoInvalido).sort()).toEqual([...CHAVES_RESPOSTA].sort());
+  });
+});
+
 describe("POST /api/fila/confirmar — porta de entrada", () => {
   it("sem a chave correta devolve 401", async () => {
     expect((await confirmar({ id: "x", leadId: "y", resultado: "enviado" }, "errada")).status).toBe(401);
@@ -281,8 +322,9 @@ describe("POST /api/fila/confirmar — 'invalido'", () => {
       ultimoErro: "numero nao tem whatsapp",
       tentativas: 0, // não é tentativa que pode dar certo depois
     });
-    // O contador NÃO anda: não saiu mensagem nenhuma.
-    expect(db.getDoc(DIA)).toBeUndefined();
+    // `enviados` NÃO anda: não saiu mensagem nenhuma. Mas o dia operacional
+    // passa a existir, com o resultado contado em `invalidos`.
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 0, invalidos: 1 });
   });
 
   it("e o lead não é entregue de novo", async () => {
@@ -309,7 +351,9 @@ describe("POST /api/fila/confirmar — 'falhou'", () => {
     });
 
     expect(await res.json()).toMatchObject({ estado: "falhou", tentativas: 1, parado: false });
-    expect(db.getDoc(DIA)).toBeUndefined();
+    // `enviados` NÃO anda: não saiu mensagem nenhuma. Mas o dia operacional
+    // passa a existir, com a tentativa contada em `falhas`.
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 0, falhas: 1 });
 
     // Volta à fila na próxima varredura.
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 20 * 60 * 1000));
