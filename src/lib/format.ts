@@ -73,3 +73,19 @@ export function formatTempoRelativo(iso: string, agora: number): string {
   const dias = Math.floor(diffMs / DIA_MS);
   return `há ${dias} dia${dias === 1 ? "" : "s"}`;
 }
+
+/**
+ * "em 45min" / "em 19h" / "em 2 dias" — o espelho de `formatTempoRelativo`,
+ * para instante FUTURO. Mesma regra do `agora` fixo (instante pego no
+ * carregamento, nunca `Date.now()` no render). Passado, ou agora mesmo,
+ * vira "a qualquer momento": a tela que pergunta isto quer saber quanto
+ * falta, e um número negativo ali não quer dizer nada.
+ */
+export function formatTempoAte(iso: string, agora: number): string {
+  const diffMs = new Date(iso).getTime() - agora;
+  if (!Number.isFinite(diffMs) || diffMs <= MINUTO_MS) return "a qualquer momento";
+  if (diffMs < HORA_MS) return `em ${Math.floor(diffMs / MINUTO_MS)}min`;
+  if (diffMs < DIA_MS) return `em ${Math.floor(diffMs / HORA_MS)}h`;
+  const dias = Math.floor(diffMs / DIA_MS);
+  return `em ${dias} dia${dias === 1 ? "" : "s"}`;
+}

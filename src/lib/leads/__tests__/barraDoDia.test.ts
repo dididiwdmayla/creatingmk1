@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { barraDoDia, linhaEstadoContato, marcasDaBarra } from "../barraDoDia";
+import { barraDoDia, linhaEstadoContato, marcasDaBarra, proximoMomentoAceito } from "../barraDoDia";
 import { DEFAULT_JANELAS_CONTATO, type JanelasContatoConfig } from "../janelaContato";
 import type { Lead } from "../types";
 
@@ -310,5 +310,83 @@ describe("marcasDaBarra", () => {
     const marcas = marcasDaBarra(barra);
     expect(marcas.some((m) => m.minuto === barra.abertura!.inicio)).toBe(false);
     expect(marcas.some((m) => m.minuto === barra.abertura!.fim)).toBe(false);
+  });
+});
+
+/**
+ * A generalização de "próximo bom" para "próximo ACEITO" — o que a fila de
+ * envio precisa quando `exigirJanelaBoa` está desmarcado e os níveis
+ * aceitos são `["bom", "razoavel"]`. Mostrar o `proximoBom` nesse caso
+ * daria uma hora errada e PLAUSÍVEL (sempre mais tarde que a verdadeira),
+ * que é o pior tipo de erro de tela.
+ */
+describe("proximoMomentoAceito", () => {
+  it("com ['bom'] devolve exatamente o proximoBom da barra — uma verdade só", () => {
+    for (const [l, quando] of [
+      [barbearia([abertura(2, 10, 19)]), instanteLocal(TERCA, 8, 0)],
+      [barbearia([abertura(5, 9, 19), abertura(1, 9, 19)]), instanteLocal(SEXTA, 10, 0)],
+      [barbearia([abertura(6, 9, 18), abertura(1, 9, 19)]), instanteLocal(SABADO, 11, 0)],
+    ] as const) {
+      const barra = barraDoDia(DEFAULT_JANELAS_CONTATO, l, quando)!;
+      expect(proximoMomentoAceito(DEFAULT_JANELAS_CONTATO, l, ["bom"], quando)).toEqual(
+        barra.proximoBom,
+      );
+    }
+  });
+
+  it("a faixa aceita vem ANTES do próximo bom: sexta 9h contra segunda 9h", () => {
+    // Sexta é o dia útil com o `bom` rebaixado a `razoavel` (rebaixarSexta).
+    const l = barbearia([abertura(5, 9, 19), abertura(1, 9, 19)]);
+    const agora = instanteLocal(SEXTA, 8, 0);
+
+    expect(barraDoDia(DEFAULT_JANELAS_CONTATO, l, agora)!.proximoBom).toEqual({
+      offsetDias: 3,
+      rotuloDia: "segunda",
+      inicioMin: 9 * 60,
+    });
+    expect(proximoMomentoAceito(DEFAULT_JANELAS_CONTATO, l, ["bom", "razoavel"], agora)).toEqual({
+      offsetDias: 0,
+      rotuloDia: "hoje",
+      inicioMin: 9 * 60,
+    });
+  });
+
+  it("razoável IMPLÍCITO conta: o trecho aberto que nenhuma faixa cobre", () => {
+    // Terça abrindo ao meio-dia: o `bom` da barbearia (9h-11h30) fica fora
+    // do expediente e 12h-16h30 não é coberto por faixa nenhuma — é
+    // razoável por NIVEL_PADRAO, sem existir faixa. Varrer as faixas
+    // marcadas atrás de `nivel === "razoavel"` não acharia nada aqui.
+    const l = barbearia([abertura(2, 12, 19)]);
+    const agora = instanteLocal(TERCA, 8, 0);
+
+    expect(barraDoDia(DEFAULT_JANELAS_CONTATO, l, agora)!.proximoBom).toBeUndefined();
+    expect(proximoMomentoAceito(DEFAULT_JANELAS_CONTATO, l, ["bom", "razoavel"], agora)).toEqual({
+      offsetDias: 0,
+      rotuloDia: "hoje",
+      inicioMin: 12 * 60,
+    });
+  });
+
+  it("já dentro de um trecho aceito: o instante é AGORA, não o começo do trecho", () => {
+    const l = barbearia([abertura(2, 9, 19)]);
+    const agora = instanteLocal(TERCA, 13, 0);
+
+    expect(proximoMomentoAceito(DEFAULT_JANELAS_CONTATO, l, ["bom", "razoavel"], agora)).toEqual({
+      offsetDias: 0,
+      rotuloDia: "hoje",
+      inicioMin: 13 * 60,
+    });
+  });
+
+  it("sem deslocamento UTC conhecido → undefined, igual à barra", () => {
+    expect(proximoMomentoAceito(DEFAULT_JANELAS_CONTATO, lead(), ["bom", "razoavel"])).toBeUndefined();
+  });
+
+  it("nenhum trecho aceito em 7 dias → undefined", () => {
+    // Sábado de barbearia é `ruim` o dia inteiro, e nenhum outro dia abre.
+    const l = barbearia([abertura(6, 9, 18)]);
+    expect(
+      proximoMomentoAceito(DEFAULT_JANELAS_CONTATO, l, ["bom", "razoavel"], instanteLocal(SABADO, 8, 0)),
+    ).toBeUndefined();
   });
 });

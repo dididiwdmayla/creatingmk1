@@ -8,6 +8,7 @@ import {
   utcOffsetDoLead,
   NIVEL_PADRAO,
   type FaixaNivelContato,
+  type FamiliaJanelaContato,
   type JanelasContatoConfig,
   type NivelContato,
 } from "./janelaContato";
@@ -51,12 +52,18 @@ export interface SegmentoBarra {
   nivel: NivelContato;
 }
 
-export interface ProximoBom {
+/**
+ * O próximo trecho de um conjunto de níveis aceitos, a partir de agora.
+ * Chamado de "próximo bom" quando os níveis são só `["bom"]` (o campo
+ * `BarraDoDia.proximoBom`), mas a forma serve a qualquer conjunto — ver
+ * `proximoMomentoAceito`.
+ */
+export interface ProximoMomento {
   /** 0 = hoje, 1 = amanhã… (dias à frente na hora local do lead). */
   offsetDias: number;
   /** "hoje" | "amanhã" | "quarta" */
   rotuloDia: string;
-  /** Minuto do dia em que o próximo trecho bom começa (já recortado por agora e pelo funcionamento). */
+  /** Minuto do dia em que o trecho começa (já recortado por agora e pelo funcionamento). */
   inicioMin: number;
 }
 
@@ -82,7 +89,7 @@ export interface BarraDoDia {
   /** true = o lead não tem horário de funcionamento e a barra usa o intervalo comercial padrão. */
   estimado: boolean;
   /** Próximo trecho bom a partir de agora (até 7 dias à frente); ausente se agora já é bom, ou se não há. */
-  proximoBom?: ProximoBom;
+  proximoBom?: ProximoMomento;
 }
 
 const NOME_DIA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"] as const;
@@ -170,52 +177,87 @@ function segmentar(aberto: Intervalo, faixas: FaixaNivelContato[]): SegmentoBarr
   return saida;
 }
 
-function interseccao(a: Intervalo, b: Intervalo): Intervalo | undefined {
-  const inicio = Math.max(a.inicio, b.inicio);
-  const fim = Math.min(a.fim, b.fim);
-  return fim > inicio ? { inicio, fim } : undefined;
+/**
+ * Um dia inteiro já classificado: os trechos abertos, se vieram do
+ * intervalo comercial estimado, e os segmentos (aberto × nível). Uma
+ * função só, usada tanto pelo dia de HOJE (que a barra desenha) quanto
+ * pelos dias à frente que `acharProximoNivel` varre — a classificação de
+ * um dia não pode ter duas implementações.
+ */
+function diaClassificado(
+  lead: Pick<Lead, "horarios">,
+  familia: FamiliaJanelaContato,
+  dia: number,
+): { intervalos: Intervalo[]; estimado: boolean; segmentos: SegmentoBarra[] } {
+  const { intervalos, estimado } = aberturaDoDia(lead.horarios?.faixas, dia);
+  const faixas = faixasDoDia(familia, dia);
+  return { intervalos, estimado, segmentos: intervalos.flatMap((a) => segmentar(a, faixas)) };
 }
 
 /**
- * Próximo trecho BOM (nível `bom` da família ∩ funcionamento) que ainda não
- * terminou, varrendo de hoje até 7 dias à frente. Sem nenhum → undefined,
- * e a linha de texto simplesmente não promete nada.
+ * Próximo trecho ABERTO cujo nível está em `niveis`, varrendo de hoje até 7
+ * dias à frente. Sem nenhum → undefined, e quem chama simplesmente não
+ * promete nada.
+ *
+ * Varre SEGMENTOS, não as faixas marcadas da família, e é isso que faz a
+ * generalização ser correta: `razoavel` é o `NIVEL_PADRAO` — todo minuto
+ * aberto que nenhuma faixa cobre é razoável sem existir faixa nenhuma.
+ * Uma varredura de `faixas.filter(f => f.nivel === "razoavel")` acharia só
+ * o razoável EXPLÍCITO e diria "amanhã" para um lead que entra daqui a
+ * meia hora. Os segmentos já resolvem o padrão implícito (ver `nivelEm`).
  */
-function acharProximoBom(
+function acharProximoNivel(
   janelas: JanelasContatoConfig,
   lead: Pick<Lead, "busca" | "horarios">,
   diaHoje: number,
   minutoAgora: number,
-): ProximoBom | undefined {
+  niveis: readonly NivelContato[],
+): ProximoMomento | undefined {
   const familia = familiaDasJanelas(janelas, lead);
   if (!familia) return undefined;
   for (let offsetDias = 0; offsetDias <= 7; offsetDias++) {
     const dia = (diaHoje + offsetDias) % 7;
-    const { intervalos } = aberturaDoDia(lead.horarios?.faixas, dia);
-    const bons = faixasDoDia(familia, dia).filter((faixa) => faixa.nivel === "bom");
-    const candidatos: Intervalo[] = [];
-    for (const bom of bons) {
-      for (const aberto of intervalos) {
-        const trecho = interseccao(
-          { inicio: minutoDoDia(bom.inicio), fim: minutoDoDia(bom.fim) },
-          aberto,
-        );
-        if (trecho) candidatos.push(trecho);
-      }
-    }
     const limite = offsetDias === 0 ? minutoAgora : -1;
-    const proximo = candidatos
-      .sort((a, b) => a.inicio - b.inicio)
-      .find((trecho) => trecho.fim > limite);
+    const proximo = diaClassificado(lead, familia, dia)
+      .segmentos.filter((segmento) => niveis.includes(segmento.nivel))
+      .sort((a, b) => a.inicioMin - b.inicioMin)
+      .find((segmento) => segmento.fimMin > limite);
     if (proximo) {
       return {
         offsetDias,
         rotuloDia: offsetDias === 0 ? "hoje" : offsetDias === 1 ? "amanhã" : NOME_DIA[dia],
-        inicioMin: Math.max(proximo.inicio, limite),
+        inicioMin: Math.max(proximo.inicioMin, limite),
       };
     }
   }
   return undefined;
+}
+
+/**
+ * O próximo instante em que o lead entra numa faixa ACEITA, dado o conjunto
+ * de níveis que quem pergunta aceita agora. `BarraDoDia.proximoBom` é o
+ * caso `["bom"]` desta mesma varredura.
+ *
+ * Existe por causa da fila de envio: com `exigirJanelaBoa === false` os
+ * níveis aceitos são `["bom", "razoavel"]`, e a próxima faixa aceita vem
+ * ANTES do `proximoBom` — mostrar `proximoBom` nos dois casos daria uma
+ * hora errada e plausível, que é o pior tipo de erro de tela (ninguém
+ * desconfia). Ver `niveisAceitos` em `lib/fila/selecao.ts`.
+ *
+ * `undefined` quando não dá pra saber a hora local do lead (mesmo critério
+ * de `barraDoDia`) ou quando não há nenhum trecho aceito em 7 dias.
+ */
+export function proximoMomentoAceito(
+  janelas: JanelasContatoConfig,
+  lead: Pick<Lead, "busca" | "horarios" | "endereco">,
+  niveis: readonly NivelContato[],
+  now: Date = new Date(),
+): ProximoMomento | undefined {
+  const offset = utcOffsetDoLead(lead);
+  if (offset === undefined) return undefined;
+  const nowMin = minutoDaSemanaLocal(offset, now);
+  const diaSemana = Math.floor(nowMin / MIN_DIA);
+  return acharProximoNivel(janelas, lead, diaSemana, nowMin - diaSemana * MIN_DIA, niveis);
 }
 
 /**
@@ -237,9 +279,7 @@ export function barraDoDia(
   const diaSemana = Math.floor(nowMin / MIN_DIA);
   const minutoAgora = nowMin - diaSemana * MIN_DIA;
 
-  const { intervalos, estimado } = aberturaDoDia(lead.horarios?.faixas, diaSemana);
-  const faixas = faixasDoDia(familia, diaSemana);
-  const segmentos = intervalos.flatMap((aberto) => segmentar(aberto, faixas));
+  const { intervalos, estimado, segmentos } = diaClassificado(lead, familia, diaSemana);
   const abertura =
     intervalos.length > 0
       ? { inicio: intervalos[0].inicio, fim: intervalos[intervalos.length - 1].fim }
@@ -251,7 +291,7 @@ export function barraDoDia(
   const proximoBom =
     segmentoAgora?.nivel === "bom"
       ? undefined
-      : acharProximoBom(janelas, lead, diaSemana, minutoAgora);
+      : acharProximoNivel(janelas, lead, diaSemana, minutoAgora, ["bom"]);
 
   return {
     offsetMinutos: offset,

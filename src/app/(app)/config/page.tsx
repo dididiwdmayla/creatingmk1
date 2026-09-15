@@ -11,6 +11,7 @@ import {
   ApiError,
   api,
   type CotasUsuariosResponse,
+  type FilaDiagnosticoResponse,
   type FrasesResponse,
   type MetasUsuariosResponse,
   type UsageResponse,
@@ -22,7 +23,7 @@ import {
   type PresetPrecificacao,
 } from "@/lib/config";
 import type { Sku, UsoUsuario } from "@/lib/costs";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatInt, formatTempoAte, formatTempoRelativo } from "@/lib/format";
 import { frasesEfetivas, normalizarSlots, posicaoAtual } from "@/lib/frases/rotacao";
 import {
   FAMILIAS_JANELA_CONTATO,
@@ -34,7 +35,7 @@ import {
   type NivelContato,
 } from "@/lib/leads/janelaContato";
 import type { FilaConfig } from "@/lib/fila/config";
-import type { PendenciaEnvio } from "@/lib/fila/estado";
+import type { LinhaFilaPainel, PendenciaEnvio } from "@/lib/fila/estado";
 import {
   FRASES_SLOTS,
   type FrasesProspeccao,
@@ -1096,6 +1097,9 @@ function FilaEnvioSection() {
   const [config, setConfig] = useState<FilaConfig | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  // Sobe a cada config salva: o funil e as listas abaixo dependem dela
+  // (exigirJanelaBoa e nichosPermitidos mudam quem é elegível AGORA).
+  const [versaoConfig, setVersaoConfig] = useState(0);
 
   useEffect(() => {
     let ignore = false;
@@ -1123,6 +1127,7 @@ function FilaEnvioSection() {
     try {
       const { fila } = await api.putFilaConfig(patch);
       setConfig(fila);
+      setVersaoConfig((n) => n + 1);
     } catch (error) {
       setErro(mensagemErroFila(error, "Falha ao salvar"));
     } finally {
@@ -1218,12 +1223,356 @@ function FilaEnvioSection() {
         </div>
       )}
 
+      <VisaoFila versao={versaoConfig} />
       <PrintPendenteLista />
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </section>
   );
 }
+
+/**
+ * Rótulo de cada portão de ritmo — o motivo pelo qual NINGUÉM sai agora,
+ * seja qual for o lead. Mesma ordem e mesmos nomes de `MOTIVOS_SEM_TAREFA`
+ * (lib/fila/selecao.ts); o `?? motivo` na tela é a rede para um motivo novo
+ * aparecer cru em vez de sumir.
+ */
+const RITMO_LABEL: Record<string, string> = {
+  pausado: "a fila está pausada",
+  meta_atingida: "a meta do dia já foi atingida",
+  teto_hora: "o teto por hora foi atingido",
+  intervalo: "ainda não passou o intervalo mínimo entre envios",
+};
+
+/**
+ * As sete peneiras ESTRUTURAIS na ordem real de avaliação (`motivoEstrutural`,
+ * lib/fila/candidatos.ts) — um lead que falha em várias conta só na
+ * primeira, então a ordem é o que torna a coluna de números legível.
+ */
+const FUNIL_ESTRUTURAL: Array<{ chave: string; label: string }> = [
+  { chave: "status", label: "já não está em “novo”" },
+  { chave: "descartado", label: "descartado à mão" },
+  { chave: "telefoneInvalido", label: "número sem WhatsApp" },
+  { chave: "semTelefone", label: "sem telefone" },
+  { chave: "semDemo", label: "sem demo" },
+  { chave: "capturaNaoPronta", label: "print da demo não pronto" },
+  { chave: "semFuso", label: "sem fuso conhecido" },
+];
+
+/** Uma linha do funil: rótulo à esquerda, quantos pararam ali à direita. */
+function LinhaFunil({ label, valor }: { label: string; valor: number }) {
+  return (
+    <li className="flex items-baseline justify-between gap-2">
+      <span className={valor > 0 ? "text-ink-secondary" : "text-ink-muted"}>{label}</span>
+      <span
+        className={`shrink-0 font-mono ${valor > 0 ? "text-foreground" : "text-ink-muted"}`}
+      >
+        {formatInt(valor)}
+      </span>
+    </li>
+  );
+}
+
+/** Selo do nível da janela — mesmas cores da barra do dia. `null` = fechado. */
+function SeloNivel({ nivel }: { nivel: NivelContato | null }) {
+  if (nivel === null) {
+    return (
+      <span className="rounded border border-line bg-surface-2 px-1 text-[10px] text-ink-muted">
+        fechado
+      </span>
+    );
+  }
+  return (
+    <span className={`rounded border px-1 text-[10px] ${NIVEL_CLS[nivel]}`}>
+      {NIVEL_LABEL[nivel]}
+    </span>
+  );
+}
+
+/**
+ * Uma linha de lead nas listas da visão. A ÚNICA ação é "tirar da fila", e
+ * ela é o `descartar` que já existe (`PATCH /api/leads/{id}`) — o mesmo do
+ * card e da ficha, já reversível por lá, e que já exclui o lead do pool na
+ * próxima reconstrução. Nada de campo novo, e nada de `telefoneInvalido`,
+ * que quer dizer outra coisa (o número não tem WhatsApp).
+ */
+function LinhaLeadFila({
+  linha,
+  ocupado,
+  onTirar,
+  esperando = false,
+}: {
+  linha: LinhaFilaPainel;
+  ocupado: boolean;
+  onTirar: () => void;
+  /** Linha da lista de BLOQUEADOS: é ela que fala da próxima faixa aceita. */
+  esperando?: boolean;
+}) {
+  return (
+    <li className="flex flex-wrap items-start justify-between gap-2 rounded border border-line p-2">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <a
+            href={`/leads/${linha.leadId}`}
+            className="text-xs text-foreground underline decoration-line underline-offset-2"
+          >
+            {linha.nome || linha.leadId}
+          </a>
+          {linha.nicho && <span className="text-[10px] text-ink-muted">{linha.nicho}</span>}
+          <SeloNivel nivel={linha.nivel} />
+        </div>
+        <p className="mt-0.5 text-[10px] text-ink-muted">
+          {linha.horaLocal} na hora do lead
+          {/* A PRÓXIMA FAIXA ACEITA, não o "próximo bom": com
+              `exigirJanelaBoa` desmarcado, o razoável vale e vem antes.
+              Sem nenhuma em 7 dias, dizer isso é melhor do que calar — calado
+              pareceria que o lead entra a qualquer hora. */}
+          {esperando &&
+            (linha.proximaFaixa
+              ? ` · entra ${linha.proximaFaixa.rotuloDia} ${linha.proximaFaixa.hora}`
+              : " · sem faixa aceita nos próximos 7 dias")}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onTirar}
+        disabled={ocupado}
+        title="Descarta o lead: sai da fila de envio. É o mesmo descarte do card, reversível na ficha."
+        className="shrink-0 rounded border border-line bg-surface-2 px-2 py-1 text-xs text-ink-muted hover:border-critical/60 hover:text-critical disabled:opacity-50"
+      >
+        tirar da fila
+      </button>
+    </li>
+  );
+}
+
+/**
+ * A VISÃO da fila — o que vai acontecer, quando, com quem, e por que os
+ * demais não entram. Subordinada ao painel "Fila de envio" (mesma seção,
+ * separada por um filete), como a lista de print pendente.
+ *
+ * É LEITURA mais uma ação pontual: nada aqui dispara envio. Quem entrega é
+ * o celular, quando pedir a próxima tarefa — esta tela só mostra o que ele
+ * vai encontrar quando pedir.
+ *
+ * `versao` sobe a cada config salva no painel acima: mexer em
+ * `exigirJanelaBoa` ou nos nichos muda o funil inteiro, e um funil que não
+ * reage à edição ao lado dele seria um número defasado lido como se fosse
+ * agora — exatamente o que esta tela existe para não fazer.
+ */
+function VisaoFila({ versao }: { versao: number }) {
+  const [dados, setDados] = useState<FilaDiagnosticoResponse | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [recarga, setRecarga] = useState(0);
+  // Instante FIXO do carregamento — nunca Date.now() no render.
+  const [agora, setAgora] = useState(() => Date.now());
+
+  useEffect(() => {
+    let ignore = false;
+    api
+      .getFilaDiagnostico()
+      .then((resposta) => {
+        if (ignore) return;
+        setDados(resposta);
+        setAgora(Date.now());
+      })
+      .catch((error) => {
+        if (ignore) return;
+        setErro(
+          error instanceof ApiError && error.status === 403
+            ? "A visão da fila é restrita ao admin."
+            : mensagemErroFila(error, "Falha ao carregar a visão da fila"),
+        );
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [versao, recarga]);
+
+  async function tirarDaFila(leadId: string) {
+    setOcupado(leadId);
+    setErro(null);
+    try {
+      await api.patchLead(leadId, { descartado: true });
+      // Relê: quem decide se o lead sumiu da lista é o servidor, que
+      // reconfere cada linha contra o doc fresco do lead.
+      setRecarga((n) => n + 1);
+    } catch (error) {
+      setErro(mensagemErroFila(error, "Falha ao tirar da fila"));
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  const motivoRitmo = dados?.ritmo ? (RITMO_LABEL[dados.ritmo] ?? dados.ritmo) : null;
+
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-xs font-medium text-ink-secondary">O que vai acontecer</h3>
+        <button
+          type="button"
+          onClick={() => setRecarga((n) => n + 1)}
+          className="rounded px-1.5 py-0.5 text-xs text-ink-muted hover:text-foreground"
+        >
+          atualizar
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-ink-muted">
+        Só leitura: nada aqui dispara envio. Quem entrega é o celular, quando pedir a próxima
+        tarefa.
+      </p>
+
+      {dados === null && !erro && (
+        <SkeletonRows count={1} className="mt-2 h-40 rounded border border-line" />
+      )}
+
+      {dados && (
+        <>
+          {/* ── Contador do dia ───────────────────────────────────────── */}
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
+            <span>
+              <span className="font-mono text-sm text-foreground">
+                {formatInt(dados.contador.enviados)}
+              </span>
+              <span className="text-ink-muted"> de {formatInt(dados.contador.meta)} hoje</span>
+            </span>
+            <span className="text-ink-secondary">
+              {dados.contador.restante === 0
+                ? "meta cumprida"
+                : `faltam ${formatInt(dados.contador.restante)}`}
+            </span>
+            <span className="text-ink-muted">
+              {formatInt(dados.contador.ultimaHora)}/{formatInt(dados.contador.tetoPorHora)} na
+              última hora
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-ink-muted">
+            O dia operacional vira às {dados.contador.inicioHora}h (
+            {formatTempoAte(dados.contador.viraEm, agora)}) — é quando o contador zera.
+          </p>
+
+          {motivoRitmo ? (
+            <p className="mt-2 rounded border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning">
+              Nada sai agora: {motivoRitmo}.
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-good">
+              Ritmo liberado — o próximo pedido do celular leva tarefa, se houver lead em janela.
+            </p>
+          )}
+
+          {/* ── Funil ─────────────────────────────────────────────────── */}
+          <h4 className="mt-3 text-xs font-medium text-ink-secondary">
+            Por onde os leads param
+          </h4>
+          <p className="mt-1 text-[10px] text-ink-muted">
+            {dados.pool.geradoEm ? (
+              <>
+                Retrato do pool de {formatDateTime(dados.pool.geradoEm)} (
+                {formatTempoRelativo(dados.pool.geradoEm, agora)}), {formatInt(dados.pool.lidos)}{" "}
+                leads lidos. Estas sete contagens só são apuráveis na varredura completa, então
+                são desse instante — não de agora.
+                {dados.pool.truncado && " A base passou do teto e o pool saiu cortado."}
+              </>
+            ) : (
+              <>
+                O pool ainda não foi construído — o celular não pediu tarefa nenhuma. As sete
+                contagens abaixo ficam zeradas até a primeira chamada.
+              </>
+            )}
+          </p>
+          <ul className="mt-1 flex flex-col gap-0.5 text-xs">
+            {FUNIL_ESTRUTURAL.map(({ chave, label }) => (
+              <LinhaFunil key={chave} label={label} valor={dados.pool.estrutural[chave] ?? 0} />
+            ))}
+          </ul>
+
+          <p className="mt-2 text-[10px] text-ink-muted">
+            {/* Sem pool não há "esse mesmo pool" a que se referir — e a
+                etapa continua sendo calculada agora, sobre nada. */}
+            {dados.pool.geradoEm ? "Calculado agora, sobre esse mesmo pool:" : "Calculado agora:"}
+          </p>
+          <ul className="mt-1 flex flex-col gap-0.5 text-xs">
+            <LinhaFunil label="fora dos nichos permitidos" valor={dados.nichoBarrado} />
+            <LinhaFunil label="em hora razoável (não aceita agora)" valor={dados.janela.razoavel} />
+            <LinhaFunil label="em hora ruim" valor={dados.janela.ruim} />
+            <LinhaFunil label="fechado na hora do lead" valor={dados.janela.semNivel} />
+          </ul>
+          <p className="mt-1 flex items-baseline justify-between gap-2 border-t border-line pt-1 text-xs">
+            <span className="text-foreground">elegíveis agora</span>
+            <span className="shrink-0 font-mono text-foreground">{formatInt(dados.elegiveis)}</span>
+          </p>
+
+          {/* ── Próximos ──────────────────────────────────────────────── */}
+          <h4 className="mt-3 text-xs font-medium text-ink-secondary">Próximos a receber</h4>
+          {dados.proximos.length === 0 ? (
+            <p className="mt-1 text-xs text-ink-muted">
+              {motivoRitmo
+                ? `Ninguém sai enquanto ${motivoRitmo}.`
+                : "Nenhum lead elegível agora."}
+            </p>
+          ) : (
+            <>
+              {/* `data-lista` é o gancho do QA visual: o funil também usa
+                  <li>, e "sobrou linha de lista" só pode olhar as de LEAD. */}
+              <ul data-lista="proximos" className="mt-1 flex flex-col gap-1.5">
+                {dados.proximos.map((linha) => (
+                  <LinhaLeadFila
+                    key={linha.leadId}
+                    linha={linha}
+                    ocupado={ocupado === linha.leadId}
+                    onTirar={() => tirarDaFila(linha.leadId)}
+                  />
+                ))}
+              </ul>
+              {dados.elegiveis > dados.proximos.length && (
+                <p className="mt-1 text-[10px] text-ink-muted">
+                  e mais {formatInt(dados.elegiveis - dados.proximos.length)} na fila, nesta ordem.
+                </p>
+              )}
+            </>
+          )}
+
+          {/* ── Bloqueados por janela ─────────────────────────────────── */}
+          <h4 className="mt-3 text-xs font-medium text-ink-secondary">Bloqueados por janela</h4>
+          {dados.bloqueados.length === 0 ? (
+            <p className="mt-1 text-xs text-ink-muted">Ninguém parado na janela.</p>
+          ) : (
+            <>
+              <ul data-lista="bloqueados" className="mt-1 flex flex-col gap-1.5">
+                {dados.bloqueados.map((linha) => (
+                  <LinhaLeadFila
+                    key={linha.leadId}
+                    linha={linha}
+                    ocupado={ocupado === linha.leadId}
+                    onTirar={() => tirarDaFila(linha.leadId)}
+                    esperando
+                  />
+                ))}
+              </ul>
+              {totalJanela(dados) > dados.bloqueados.length && (
+                <p className="mt-1 text-[10px] text-ink-muted">
+                  e mais {formatInt(totalJanela(dados) - dados.bloqueados.length)} parados na
+                  janela.
+                </p>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {erro && <p className="mt-2 text-xs text-critical">{erro}</p>}
+    </div>
+  );
+}
+
+/** Quantos pararam na janela ao todo — a soma dos três baldes do diagnóstico. */
+function totalJanela(dados: FilaDiagnosticoResponse): number {
+  return dados.janela.razoavel + dados.janela.ruim + dados.janela.semNivel;
+}
+
 
 /**
  * Lista de pendência de PRINT, subordinada ao painel "Fila de envio".
@@ -1313,7 +1662,7 @@ function PrintPendenteLista() {
       )}
 
       {linhas && linhas.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-1.5">
+        <ul data-lista="pendencias" className="mt-2 flex flex-col gap-1.5">
           {linhas.map((linha) => (
             <li
               key={linha.leadId}

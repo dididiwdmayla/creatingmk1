@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { estruturalVazio } from "@/lib/fila/candidatos";
+import { PAINEL_LINHAS } from "@/lib/fila/painel";
 import type { AppDb } from "@/lib/firestore-like";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { cookieDeSessao } from "@/lib/testing/sessao";
@@ -205,5 +206,220 @@ describe("GET /api/fila/diagnostico — etapas 3 e 4: nicho e janela (frescos, s
     const semExigencia = await (await diagnostico(cookie)).json();
     expect(semExigencia.janela).toEqual({ razoavel: 0, ruim: 0, semNivel: 0 });
     expect(semExigencia.elegiveis).toBe(1);
+  });
+});
+
+/**
+ * A VISÃO da tela, além das contagens: o contador do dia e as duas listas
+ * curtas com nome. O que estes testes protegem é o custo (leitura de lead
+ * POR ID, nunca varredura de /leads) e a honestidade das linhas (o pool é
+ * cache: pode oferecer quem não serve mais, a tela não mostra).
+ */
+
+const LEAD_BASE = {
+  status: "novo",
+  enriquecido: false,
+  telefoneIntl: "+55 44 99154-3803",
+  demo: { skinId: "barbearia-editorial" },
+  horarios: { faixas: [], utcOffsetMinutes: -180, obtidoEm: "2026-03-01T00:00:00.000Z" },
+  capturas: {
+    estado: "pronto",
+    execucaoId: "e1",
+    pedidoEm: "2026-03-01T00:00:00.000Z",
+    imagens: [{ ancora: "hero", tela: "celular", ordem: 1, url: "u", largura: 1, altura: 1 }],
+  },
+  criadoEm: "2026-03-01T00:00:00.000Z",
+  atualizadoEm: "2026-03-01T00:00:00.000Z",
+};
+
+function semearLead(id: string, nome: string, extra: Record<string, unknown> = {}) {
+  db.seed(`leads/${id}`, {
+    ...LEAD_BASE,
+    placeId: id,
+    nome,
+    busca: { nicho: "Barbearia Masculina", regiao: "Maringá", em: "2026-03-01T00:00:00.000Z" },
+    ...extra,
+  });
+}
+
+/**
+ * Põe o relógio às 10h LOCAIS do lead (offset -180) — a faixa "bom" da
+ * barbearia (9h-11h30). `AGORA` (10h UTC) é 7h lá, antes de abrir: bom para
+ * os testes de bloqueio, inútil para os de elegível.
+ */
+function emJanelaBoa() {
+  vi.setSystemTime(new Date("2026-03-10T13:00:00Z"));
+}
+
+function semearPool(ids: string[], geradoEm = AGORA.toISOString()) {
+  db.seed("filaCandidatos/pool", {
+    geradoEm,
+    candidatos: ids.map((id, i) => ({
+      id,
+      nicho: "barbearia masculina",
+      offset: -180,
+      faixas: [],
+      criadoEm: `2026-03-0${i + 1}T00:00:00.000Z`,
+    })),
+    lidos: ids.length,
+    truncado: false,
+    estrutural: estruturalVazio(),
+  });
+}
+
+describe("GET /api/fila/diagnostico — contador do dia", () => {
+  it("enviados, meta, restante e QUANDO o dia operacional vira", async () => {
+    db.seed("config/fila", { metaDiaria: 15, inicioDiaOperacionalHora: 6 });
+    db.seed("filaContadores/2026-03-10", {
+      enviados: 4,
+      envios: ["2026-03-10T09:50:00.000Z"],
+      ultimoEventoEm: "2026-03-10T09:50:00.000Z",
+    });
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const { contador } = await (await diagnostico(cookie)).json();
+
+    expect(contador).toEqual({
+      diaOperacional: "2026-03-10",
+      enviados: 4,
+      meta: 15,
+      restante: 11,
+      viraEm: "2026-03-11T09:00:00.000Z",
+      inicioHora: 6,
+      ultimaHora: 1,
+      tetoPorHora: 4,
+    });
+  });
+
+  it("dia sem nenhum envio: contador zerado, nunca erro", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const { contador } = await (await diagnostico(cookie)).json();
+
+    expect(contador).toMatchObject({ enviados: 0, restante: 15, ultimaHora: 0 });
+  });
+});
+
+describe("GET /api/fila/diagnostico — as listas da tela", () => {
+  it("próximos elegíveis com nome, nicho cru, nível e hora local do lead", async () => {
+    emJanelaBoa();
+    semearPool(["a"]);
+    semearLead("a", "Barbearia do Zé");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await diagnostico(cookie)).json();
+
+    expect(corpo.elegiveis).toBe(1);
+    expect(corpo.proximos).toEqual([
+      {
+        leadId: "a",
+        nome: "Barbearia do Zé",
+        nicho: "Barbearia Masculina",
+        nivel: "bom",
+        horaLocal: "10h",
+        proximaFaixa: null,
+      },
+    ]);
+    expect(corpo.bloqueados).toEqual([]);
+  });
+
+  it("a ordem dos próximos é a da SELEÇÃO — quem esperou mais primeiro", async () => {
+    emJanelaBoa();
+    semearPool(["velho", "novo"]);
+    semearLead("velho", "Primeiro da fila");
+    semearLead("novo", "Chegou depois");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const { proximos } = await (await diagnostico(cookie)).json();
+
+    expect(proximos.map((l: { leadId: string }) => l.leadId)).toEqual(["velho", "novo"]);
+  });
+
+  it("bloqueado por janela: nível de agora e a próxima faixa ACEITA", async () => {
+    // 3h UTC = meia-noite em Brasília: fechado.
+    vi.setSystemTime(new Date("2026-03-10T03:00:00Z"));
+    semearPool(["a"]);
+    semearLead("a", "Barbearia do Zé");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await diagnostico(cookie)).json();
+
+    expect(corpo.proximos).toEqual([]);
+    expect(corpo.janela).toEqual({ razoavel: 0, ruim: 0, semNivel: 1 });
+    expect(corpo.bloqueados).toEqual([
+      {
+        leadId: "a",
+        nome: "Barbearia do Zé",
+        nicho: "Barbearia Masculina",
+        nivel: null,
+        horaLocal: "0h",
+        proximaFaixa: { rotuloDia: "hoje", hora: "9h" },
+      },
+    ]);
+  });
+
+  it("a próxima faixa aceita segue exigirJanelaBoa — nunca o 'próximo bom' fixo", async () => {
+    // Sexta 6h local: fechado, e o próximo BOM da barbearia só na segunda.
+    vi.setSystemTime(new Date("2026-03-13T09:00:00Z"));
+    semearPool(["a"]);
+    semearLead("a", "Barbearia do Zé");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const comExigencia = await (await diagnostico(cookie)).json();
+    expect(comExigencia.bloqueados[0].proximaFaixa).toEqual({ rotuloDia: "segunda", hora: "9h" });
+
+    db.seed("config/fila", { exigirJanelaBoa: false });
+    const semExigencia = await (await diagnostico(cookie)).json();
+    expect(semExigencia.bloqueados[0].proximaFaixa).toEqual({ rotuloDia: "hoje", hora: "9h" });
+  });
+
+  it("lê lead POR ID: nem as listas disparam varredura de /leads", async () => {
+    emJanelaBoa();
+    semearPool(["a"]);
+    semearLead("a", "Barbearia do Zé");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const { db: dbContado, leituras } = contandoLeituraDeLeads(db);
+    db = dbContado as unknown as FakeFirestore;
+
+    const { proximos } = await (await diagnostico(cookie)).json();
+
+    expect(proximos).toHaveLength(1);
+    expect(leituras()).toBe(0);
+  });
+
+  it("lead descartado desde o rebuild sai da lista — o pool oferece, a tela não mostra", async () => {
+    emJanelaBoa();
+    semearPool(["a", "b"]);
+    semearLead("a", "Descartado à mão", { descartado: true });
+    semearLead("b", "Segue na fila");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const { proximos } = await (await diagnostico(cookie)).json();
+
+    expect(proximos.map((l: { leadId: string }) => l.leadId)).toEqual(["b"]);
+  });
+
+  it("as listas são CURTAS: no máximo PAINEL_LINHAS linhas, e só esses leads são lidos", async () => {
+    emJanelaBoa();
+    const ids = Array.from({ length: PAINEL_LINHAS + 3 }, (_, i) => `lead-${i}`);
+    semearPool(ids);
+    for (const id of ids) semearLead(id, `Lead ${id}`);
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await diagnostico(cookie)).json();
+
+    expect(corpo.elegiveis).toBe(ids.length);
+    expect(corpo.proximos).toHaveLength(PAINEL_LINHAS);
+  });
+
+  it("pool nunca construído: listas vazias, sem erro", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await diagnostico(cookie)).json();
+
+    expect(corpo.proximos).toEqual([]);
+    expect(corpo.bloqueados).toEqual([]);
+    expect(corpo.contador).toBeDefined();
   });
 });

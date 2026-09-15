@@ -1,9 +1,12 @@
 /**
  * A forma e a política da fila de envio, SEM nada de servidor — este módulo
- * é importado pela ficha do lead, que é um componente client. `envios.ts`,
- * que é o dono das transações, importa `node:crypto` para cunhar o claimId;
- * arrastá-lo para o navegador por causa de uma constante quebraria o bundle.
+ * é importado pela ficha do lead e pelo painel da /config, que são
+ * componentes client. `envios.ts`, que é o dono das transações, importa
+ * `node:crypto` para cunhar o claimId; arrastá-lo para o navegador por
+ * causa de uma constante quebraria o bundle.
  */
+
+import type { NivelContato } from "@/lib/leads/janelaContato";
 
 export type FilaEnvioEstado = "reservado" | "enviado" | "invalido" | "falhou";
 
@@ -89,4 +92,49 @@ export interface PendenciaEnvio {
   /** O texto que o celular reportou junto do envio. */
   detalhe: string;
   resolvido: boolean;
+}
+
+/**
+ * Uma linha das listas do painel "Fila de envio" (/config): um lead que vai
+ * receber mensagem agora, ou um que está parado na janela. Mora aqui, e não
+ * em `painel.ts`, pelo mesmo motivo de `PendenciaEnvio`: quem desenha é
+ * componente client e o módulo que MONTA lê o Firestore.
+ */
+export interface LinhaFilaPainel {
+  leadId: string;
+  nome: string;
+  /** Nicho CRU da busca que trouxe o lead (não o normalizado do pool). */
+  nicho: string;
+  /** Nível da janela agora; `null` = o lead está FECHADO neste minuto. */
+  nivel: NivelContato | null;
+  /** Hora local DO LEAD agora ("14h30"), calculada do deslocamento dele. */
+  horaLocal: string;
+  /**
+   * Só nos bloqueados: a próxima faixa ACEITA — que com
+   * `exigirJanelaBoa === false` vem antes do "próximo bom" (ver
+   * `proximoMomentoAceito`). `null` = não entra em nenhum dos 7 dias
+   * varridos, e a tela não promete hora nenhuma.
+   */
+  proximaFaixa: { rotuloDia: string; hora: string } | null;
+}
+
+/**
+ * O contador do dia como a tela mostra: quanto saiu, quanto falta e QUANDO
+ * o dia operacional vira — sem o instante da virada, "7 de 15" não diz se
+ * resta a noite inteira ou dez minutos.
+ */
+export interface ContadorPainel {
+  /** Chave do dia operacional corrente (YYYY-MM-DD, America/Sao_Paulo). */
+  diaOperacional: string;
+  enviados: number;
+  meta: number;
+  /** `meta - enviados`, nunca negativo (a meta pode ser reduzida no meio do dia). */
+  restante: number;
+  /** ISO do instante em que a chave do dia operacional muda. */
+  viraEm: string;
+  /** `inicioDiaOperacionalHora` da config, para a tela dizer a regra junto do número. */
+  inicioHora: number;
+  /** Envios na última hora corrida, e o teto que eles disputam. */
+  ultimaHora: number;
+  tetoPorHora: number;
 }

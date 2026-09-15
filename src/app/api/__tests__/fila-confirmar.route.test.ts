@@ -367,3 +367,53 @@ describe("POST /api/fila/confirmar — claim que não bate", () => {
     expect(res.status).toBe(409);
   });
 });
+
+/**
+ * REGRAS DE SEGURANÇA CONTRA COLAPSO — o painel da /config é editado por
+ * uma pessoa enquanto o celular pode estar no meio de um ciclo. Nada que o
+ * painel faça pode derrubar uma claim já emitida nem recusar a confirmação
+ * de uma mensagem que JÁ SAIU.
+ */
+describe("POST /api/fila/confirmar — o painel mexeu na fila no meio do ciclo", () => {
+  it("lead tirado da fila pelo painel (descartado) ainda confirma o envio", async () => {
+    semear(lead("ChIJa"));
+    const tarefa = await pegarTarefa();
+
+    // O operador descarta o lead no painel DEPOIS de a tarefa ter saído — o
+    // texto já pode estar no WhatsApp do negócio.
+    db.seed("leads/ChIJa", {
+      ...(db.getDoc("leads/ChIJa") as Record<string, unknown>),
+      descartado: true,
+    });
+
+    const res = await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "enviado" });
+
+    // Recusar seria pior: o lead ficaria marcado como não contactado tendo
+    // sido contactado, e o contador do dia não bateria com o que saiu.
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, estado: "enviado" });
+    const leadSalvo = db.getDoc("leads/ChIJa") as unknown as Lead;
+    expect(leadSalvo.status).toBe("contactado");
+    // E o descarte do operador continua de pé — a confirmação não o desfaz.
+    expect(leadSalvo.descartado).toBe(true);
+    expect(db.getDoc(DIA)).toMatchObject({ enviados: 1 });
+  });
+
+  it("config mudada no meio do ciclo não invalida a claim: a confirmação passa igual", async () => {
+    semear(lead("ChIJa"));
+    const tarefa = await pegarTarefa();
+
+    // Pausa, meta zerada e nichos restritos — tudo o que o painel edita.
+    db.seed("config/fila", {
+      ativo: false,
+      metaDiaria: 0,
+      nichosPermitidos: ["tatuagem"],
+      exigirJanelaBoa: true,
+    });
+
+    const res = await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "enviado" });
+
+    expect(res.status).toBe(200);
+    expect((db.getDoc("leads/ChIJa") as unknown as Lead).status).toBe("contactado");
+  });
+});

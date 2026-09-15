@@ -18,6 +18,12 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+function getRequest(cookie?: string): Request {
+  return new Request("http://localhost/api/config/fila", {
+    headers: { ...(cookie && { cookie }) },
+  });
+}
+
 function putRequest(body: unknown, cookie?: string): Request {
   return new Request("http://localhost/api/config/fila", {
     method: "PUT",
@@ -29,12 +35,33 @@ function putRequest(body: unknown, cookie?: string): Request {
   });
 }
 
-describe("GET /api/config/fila", () => {
+describe("GET /api/config/fila (restrito ao admin)", () => {
   it("retorna os defaults quando não há doc", async () => {
-    const res = await GET();
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    const res = await GET(getRequest(cookie));
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ fila: DEFAULT_FILA_CONFIG });
+  });
+
+  it("sem sessão → 401 unauthorized", async () => {
+    const res = await GET(getRequest());
+
+    expect(res.status).toBe(401);
+    expect((await res.json()).error.code).toBe("unauthorized");
+  });
+
+  it("membro → 403, e a config da fila não vaza no corpo", async () => {
+    // O painel inteiro é do admin, não só a escrita: a fila é global (um
+    // config/fila, um pool, um contador) e drenada por UM aparelho físico.
+    const cookie = await cookieDeSessao(db, { id: "m1", papel: "membro" });
+
+    const res = await GET(getRequest(cookie));
+
+    expect(res.status).toBe(403);
+    const corpo = await res.json();
+    expect(corpo.error.code).toBe("forbidden");
+    expect(corpo.fila).toBeUndefined();
   });
 });
 
@@ -49,7 +76,7 @@ describe("PUT /api/config/fila (restrito ao admin)", () => {
     expect(fila.metaDiaria).toBe(20);
     expect(fila.tetoPorHora).toBe(DEFAULT_FILA_CONFIG.tetoPorHora);
 
-    const after = await (await GET()).json();
+    const after = await (await GET(getRequest(cookie))).json();
     expect(after.fila.ativo).toBe(false);
   });
 
@@ -90,5 +117,37 @@ describe("PUT /api/config/fila (restrito ao admin)", () => {
     expect(res.status).toBe(400);
     const { error } = await res.json();
     expect(error.code).toBe("validation_error");
+  });
+});
+
+/**
+ * REGRA DE SEGURANÇA CONTRA COLAPSO: alteração de configuração NUNCA
+ * invalida claim já emitida. Um humano edita a /config enquanto o celular
+ * pode estar no meio de um ciclo — lead reservado segue reservado até
+ * confirmar ou expirar. Quem decide a vida da claim é `expiraEm`, e nada
+ * nesta rota escreve em `filaEnvios`.
+ */
+describe("PUT /api/config/fila — não encosta nas claims", () => {
+  it("pausar a fila deixa a reserva viva intacta", async () => {
+    const claim = {
+      leadId: "ChIJa",
+      estado: "reservado",
+      claimId: "claim-viva",
+      reservadoEm: "2026-03-10T10:00:00.000Z",
+      expiraEm: "2026-03-10T10:05:00.000Z",
+      dispositivo: "android",
+      tentativas: 0,
+      ultimoErro: null,
+      enviadoEm: null,
+    };
+    db.seed("filaEnvios/ChIJa", claim);
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const res = await PUT(
+      putRequest({ ativo: false, metaDiaria: 0, exigirJanelaBoa: false }, cookie),
+      );
+
+    expect(res.status).toBe(200);
+    expect(db.getDoc("filaEnvios/ChIJa")).toEqual(claim);
   });
 });

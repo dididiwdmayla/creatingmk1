@@ -46,6 +46,7 @@
  *   node scripts/qa-plataforma.mjs --so=listas    # PORTÃO das listas longas: /leads e /buscas no celular
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
  *   node scripts/qa-plataforma.mjs --so=pendencias # lista de print pendente em /config, cheia e VAZIA
+ *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil, próximos, bloqueados
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
  *   node scripts/qa-plataforma.mjs --sem-build    # reusa o .next já buildado
  */
@@ -172,6 +173,34 @@ function hashSenha(senha) {
 const chaveDia = (d = AGORA) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
 const chaveMes = () => chaveDia().slice(0, 7);
+/**
+ * Chave do DIA OPERACIONAL (mesma regra de `lib/fila/contadores.ts`): antes
+ * de `inicioHora`, o instante ainda conta como o dia anterior.
+ */
+function chaveDiaOperacional(inicioHora, d = AGORA) {
+  const hoje = chaveDia(d);
+  if (inicioHora <= 0) return hoje;
+  const hora = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      hourCycle: "h23",
+      hour: "2-digit",
+    }).format(d),
+  );
+  if (hora >= inicioHora) return hoje;
+  const ontem = new Date(d.getTime() - 86400000);
+  return chaveDia(ontem);
+}
+
+/** Faixa cobrindo o dia inteiro, nos 7 dias — ver `janelasContato` abaixo. */
+function diaInteiro(nivel) {
+  return Object.fromEntries(
+    [0, 1, 2, 3, 4, 5, 6].map((dia) => [
+      dia,
+      [{ inicio: { hora: 0, minuto: 0 }, fim: { hora: 23, minuto: 59 }, nivel }],
+    ]),
+  );
+}
 
 function semear() {
   const buscaId = "busca-centro";
@@ -230,6 +259,12 @@ function semear() {
     // As outras famílias ficam com o padrão — em especial `barbearia`, que
     // é a das FICHAS capturadas (a barra do dia delas continua mostrando a
     // escada de níveis de verdade).
+    // Mesmo motivo para as duas famílias abaixo: a VISÃO da fila (--so=fila)
+    // depende do relógio — quem é elegível agora muda a cada hora. Com faixa
+    // de dia inteiro em todos os dias, `petshop` é SEMPRE bom (elegível) e
+    // `multimarcas` é SEMPRE ruim (bloqueado por nível, e sem faixa aceita
+    // em 7 dias), em qualquer horário de rodada. Os leads de fixture da fila
+    // são dessas duas famílias, e só eles.
     janelasContato: {
       imobiliaria: {
         dias: Object.fromEntries(
@@ -239,6 +274,8 @@ function semear() {
           ]),
         ),
       },
+      petshop: { dias: diaInteiro("bom") },
+      multimarcas: { dias: diaInteiro("ruim") },
     },
       atualizadoEm: iso(2),
     },
@@ -250,7 +287,10 @@ function semear() {
       metaDiaria: 20,
       tetoPorHora: 5,
       exigirJanelaBoa: true,
-      nichosPermitidos: ["dentista"],
+      // Os nichos dos fixtures da visão da fila (--so=fila). Um candidato de
+      // "dentista" fica no pool de propósito, para a linha "fora dos nichos
+      // permitidos" do funil não ser sempre zero.
+      nichosPermitidos: ["petshop", "multimarcas"],
       intervaloMinimoSegundos: 240,
       inicioDiaOperacionalHora: 6,
     },
@@ -544,6 +584,120 @@ function semear() {
       ...(resolvido && { detalheEnvioResolvido: true }),
     };
   }
+
+  // ── VISÃO DA FILA (painel "Fila de envio" em /config, --so=fila) ────
+  //
+  // Leads PRÓPRIOS, e não os de cima, porque a visão só mostra quem passa
+  // na peneira estrutural inteira (status novo + telefone + demo + captura
+  // PRONTA com print de celular + fuso). Família `petshop` = sempre bom
+  // (elegível); `multimarcas` = sempre ruim (bloqueado), em qualquer hora
+  // de rodada — ver `janelasContato` acima.
+  const capturaPronta = {
+    estado: "pronto",
+    execucaoId: "exec-qa",
+    pedidoEm: iso(2),
+    imagens: [
+      { ancora: "hero", tela: "celular", ordem: 1, url: "/qa.png", largura: 390, altura: 844 },
+    ],
+  };
+  const leadDaFila = (placeId, nome, nicho) => ({
+    placeId,
+    nome,
+    endereco: "Av. Brasil, 500 — Porto Alegre, RS",
+    status: "novo",
+    busca: { nicho, regiao: "Porto Alegre RS", em: iso(6) },
+    temTelefone: true,
+    telefone: "(51) 96666-0000",
+    telefoneIntl: "5551966660000",
+    temSite: false,
+    siteProprio: false,
+    demo: { skinId: "barbearia-editorial", themeId: "norte", dados: {}, criadoEm: iso(5) },
+    capturas: capturaPronta,
+    criadoEm: iso(6),
+    atualizadoEm: iso(1),
+    enriquecido: true,
+    horarios: {
+      faixas: Array.from({ length: 7 }, (_, dia) => ({
+        diaAbre: dia,
+        horaAbre: 0,
+        minAbre: 0,
+        diaFecha: dia,
+        horaFecha: 23,
+        minFecha: 59,
+      })),
+      utcOffsetMinutes: -180,
+      obtidoEm: iso(1),
+    },
+  });
+
+  // Seis elegíveis: um a mais que PAINEL_LINHAS (5), para a linha "e mais 1
+  // na fila, nesta ordem" aparecer — é ela que diz que a lista é uma JANELA
+  // sobre a fila, não a fila inteira.
+  const elegiveis = [
+    ["fila-1", "Pet Center Ipiranga"],
+    ["fila-2", "Banho & Tosa Menino Deus"],
+    ["fila-3", "Mundo Animal Petrópolis"],
+    ["fila-4", "Pet Shop Bom Fim"],
+    ["fila-5", "Clínica Veterinária Tristeza"],
+    ["fila-6", "Agropet Cavalhada"],
+  ];
+  const bloqueados = [
+    ["fila-b1", "Multimarcas Farrapos"],
+    ["fila-b2", "Loja Multimarcas Azenha"],
+  ];
+  for (const [id, nome] of elegiveis) mapa[`leads/${id}`] = leadDaFila(id, nome, "petshop");
+  for (const [id, nome] of bloqueados) mapa[`leads/${id}`] = leadDaFila(id, nome, "multimarcas");
+
+  // O POOL: o cache que a visão lê (ela NUNCA reconstrói — ver
+  // `lerPoolBruto`). `geradoEm` uns minutos atrás de propósito: é o retrato
+  // que a tela data ao lado das sete contagens estruturais.
+  const candidatoPool = (id, nicho, diasAtras) => ({
+    id,
+    nicho,
+    offset: -180,
+    faixas: Array.from({ length: 7 }, (_, dia) => ({
+      diaAbre: dia,
+      horaAbre: 0,
+      minAbre: 0,
+      diaFecha: dia,
+      horaFecha: 23,
+      minFecha: 59,
+    })),
+    criadoEm: iso(diasAtras),
+  });
+  mapa["filaCandidatos/pool"] = {
+    geradoEm: new Date(AGORA.getTime() - 7 * 60000).toISOString(),
+    candidatos: [
+      ...elegiveis.map(([id], i) => candidatoPool(id, "petshop", 20 - i)),
+      ...bloqueados.map(([id], i) => candidatoPool(id, "multimarcas", 12 - i)),
+      // Barrado pelo NICHO: a etapa 3 do funil não pode ser sempre zero.
+      candidatoPool("lead-5", "dentista", 9),
+    ],
+    lidos: 312,
+    truncado: false,
+    estrutural: {
+      status: 180,
+      descartado: 4,
+      telefoneInvalido: 9,
+      semTelefone: 21,
+      semDemo: 60,
+      capturaNaoPronta: 30,
+      semFuso: 2,
+    },
+  };
+
+  // O CONTADOR do dia operacional (corte às 6h, como a config acima). Os
+  // dois envios ficam a 30 e 50 min: dentro da hora corrida (para o "2/5 na
+  // última hora" aparecer) e FORA do intervalo mínimo de 240s, para o ritmo
+  // poder ficar liberado quando a captura despausar a fila.
+  mapa[`filaContadores/${chaveDiaOperacional(6)}`] = {
+    enviados: 4,
+    envios: [
+      new Date(AGORA.getTime() - 50 * 60000).toISOString(),
+      new Date(AGORA.getTime() - 30 * 60000).toISOString(),
+    ],
+    ultimoEventoEm: new Date(AGORA.getTime() - 30 * 60000).toISOString(),
+  };
 
   // Leads ESTRANGEIROS de imobiliária, não contatados: são eles que fazem a
   // linha do país abrir com "o que já está pago" na tela /mundo, em vez de
@@ -1157,55 +1311,65 @@ async function medirListas(browser, secret) {
  * zerada, e o painel continua um só — a lista é subordinada a ele, não uma
  * seção competindo.
  */
+/** Caixa do painel "Fila de envio" — altura e borda direita, em px. */
+const caixaDoPainelFila = (page) =>
+  page.evaluate(() => {
+    const titulo = [...document.querySelectorAll("h2")].find(
+      (h) => h.textContent?.trim() === "Fila de envio",
+    );
+    const secao = titulo?.closest("section");
+    if (!secao) return null;
+    const r = secao.getBoundingClientRect();
+    return { altura: Math.round(r.height), direita: Math.round(r.right) };
+  });
+
+/**
+ * As duas cobranças que valem para QUALQUER estado do painel: ele não vaza
+ * da viewport, e nenhuma folha com conteúdo dentro dele renderiza com caixa
+ * zerada — um slot que "some" por colapsar não aparece como erro em captura
+ * nenhuma, a tela só fica um pouco mais vazia. Compartilhado por
+ * `--so=pendencias` e `--so=fila`, que olham o mesmo painel.
+ */
+async function conferirPainelFila(page, onde, largura, problemas) {
+  const caixa = await caixaDoPainelFila(page);
+  if (!caixa) {
+    problemas.push(`${onde}: painel "Fila de envio" não foi encontrado`);
+    return null;
+  }
+  if (caixa.direita > largura + 1) {
+    problemas.push(`${onde}: painel vaza da viewport (direita=${caixa.direita}, tela=${largura})`);
+  }
+  const zeradas = await page.evaluate(() => {
+    const titulo = [...document.querySelectorAll("h2")].find(
+      (h) => h.textContent?.trim() === "Fila de envio",
+    );
+    const secao = titulo?.closest("section");
+    if (!secao) return [];
+    return [...secao.querySelectorAll("*")]
+      .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          altura: Math.round(r.height),
+          largura: Math.round(r.width),
+          texto: (el.textContent ?? "").trim().slice(0, 30),
+        };
+      })
+      .filter((s) => s.altura <= 0 || s.largura <= 0);
+  });
+  for (const s of zeradas) {
+    problemas.push(`${onde}: slot com caixa zerada ("${s.texto}") ${s.largura}×${s.altura}`);
+  }
+  return caixa;
+}
+
 async function medirPendencias(browser, secret) {
   const gerados = [];
   const problemas = [];
   const itens = [];
 
-  const caixaDoPainel = (page) =>
-    page.evaluate(() => {
-      const titulo = [...document.querySelectorAll("h2")].find(
-        (h) => h.textContent?.trim() === "Fila de envio",
-      );
-      const secao = titulo?.closest("section");
-      if (!secao) return null;
-      const r = secao.getBoundingClientRect();
-      return { altura: Math.round(r.height), direita: Math.round(r.right) };
-    });
-
-  /** Toda folha com conteúdo dentro do painel: nenhuma pode colapsar. */
-  const conferirPainel = async (page, onde, largura) => {
-    const caixa = await caixaDoPainel(page);
-    if (!caixa) {
-      problemas.push(`${onde}: painel "Fila de envio" não foi encontrado`);
-      return;
-    }
-    if (caixa.direita > largura + 1) {
-      problemas.push(`${onde}: painel vaza da viewport (direita=${caixa.direita}, tela=${largura})`);
-    }
-    const zeradas = await page.evaluate(() => {
-      const titulo = [...document.querySelectorAll("h2")].find(
-        (h) => h.textContent?.trim() === "Fila de envio",
-      );
-      const secao = titulo?.closest("section");
-      if (!secao) return [];
-      return [...secao.querySelectorAll("*")]
-        .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
-        .map((el) => {
-          const r = el.getBoundingClientRect();
-          return {
-            altura: Math.round(r.height),
-            largura: Math.round(r.width),
-            texto: (el.textContent ?? "").trim().slice(0, 30),
-          };
-        })
-        .filter((s) => s.altura <= 0 || s.largura <= 0);
-    });
-    for (const s of zeradas) {
-      problemas.push(`${onde}: slot com caixa zerada ("${s.texto}") ${s.largura}×${s.altura}`);
-    }
-    return caixa;
-  };
+  const conferirPainel = (page, onde, largura) =>
+    conferirPainelFila(page, onde, largura, problemas);
 
   // O tema CLARO entra na leva porque é onde os tokens apagados deste bloco
   // (ink-muted, surface-2, a borda do alternador) têm menos contraste de
@@ -1282,7 +1446,9 @@ async function medirPendencias(browser, secret) {
     if ((await page.getByText("Nenhuma pendência.").count()) === 0) {
       problemas.push(`vazia/${sufixo}: o estado vazio não disse nada`);
     }
-    if ((await page.getByRole("listitem").count()) > 0) {
+    // Escopado à lista de pendências: o funil da visão da fila, no mesmo
+    // painel, também é feito de <li> — e ele não é linha de pendência.
+    if ((await page.locator('[data-lista="pendencias"] li').count()) > 0) {
       problemas.push(`vazia/${sufixo}: sobrou linha de lista com a lista vazia`);
     }
     // Espaço morto: o painel vazio tem que ser MENOR que o cheio, e a
@@ -1319,6 +1485,178 @@ async function medirPendencias(browser, secret) {
     throw new Error(`[pendencias] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
   }
   console.log("[pendencias] ok — lista cheia, resolvidas e VAZIA, sem vazamento nem caixa zerada.");
+  return gerados;
+}
+
+/* ── Item: a visão da fila em /config (`--so=fila`) ──────────────────── */
+
+/**
+ * Mexe no banco falso (um ARQUIVO, mesmo truque de `definirTemaNoDoc`) sem
+ * derrubar o servidor. É assim que os estados VAZIOS são capturados: sem
+ * pool, sem contador, sem elegível.
+ */
+function editarBanco(fn) {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  fn(mapa);
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+/**
+ * A VISÃO da fila — o bloco "O que vai acontecer" do painel "Fila de envio".
+ *
+ * Existe como passo próprio pelos ESTADOS VAZIOS. Cheio, o bloco já aparece
+ * nas capturas de /config de todo tema; vazio — fila sem elegíveis, sem
+ * bloqueados e contador zerado — ele não apareceria em lugar nenhum, e é
+ * exatamente aí que um bloco subordinado deixa caixa quebrada ou espaço
+ * morto. O terceiro estado é o pool NUNCA CONSTRUÍDO, que tem texto próprio
+ * (as sete contagens estruturais ficam zeradas até a primeira chamada do
+ * celular) e não pode virar um funil de zeros sem explicação.
+ *
+ * O tema claro entra pelo mesmo motivo do `--so=pendencias`: é onde os
+ * tokens apagados deste bloco têm menos contraste de sobra, e as capturas
+ * de aba não o cobrem — o painel fica muito abaixo da dobra de /config.
+ */
+async function medirFila(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    const abrirPainel = async (onde) => {
+      await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `fila/${onde}`);
+      await page.getByRole("heading", { name: "O que vai acontecer" }).scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+    };
+
+    const capturarPainel = async (rotulo, arquivo) => {
+      const alvo = page.locator("section", {
+        has: page.getByRole("heading", { name: "Fila de envio" }),
+      });
+      const png = path.join(SAIDA, `fila-${arquivo}-${sufixo}${marca}.png`);
+      // A nav é `fixed` no rodapé e pinta por cima da última faixa numa
+      // captura de elemento mais alto que a viewport — mesmo motivo do
+      // `--so=pendencias`.
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await alvo.first().screenshot({ path: png });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    const exigirTextos = async (onde, alvos) => {
+      for (const [alvo, oque] of alvos) {
+        if ((await page.getByText(alvo).count()) === 0) {
+          problemas.push(`${onde}: ${oque} não apareceu`);
+        }
+      }
+    };
+
+    // ── CHEIA: fila ativa, ritmo liberado, 6 elegíveis (5 na tela + "e mais
+    //    1"), 2 bloqueados, contador andando, pool de minutos atrás.
+    editarBanco((mapa) => {
+      mapa["config/fila"] = { ...mapa["config/fila"], ativo: true };
+    });
+    await abrirPainel(`cheia/${sufixo}`);
+    const cheia = await conferirPainelFila(page, `cheia/${sufixo}`, viewport.width, problemas);
+    await exigirTextos(`cheia/${sufixo}`, [
+      [/de 20 hoje/, "contador do dia"],
+      [/O dia operacional vira às 6h/, "instante da virada do dia"],
+      [/Ritmo liberado/, "linha de ritmo liberado"],
+      [/Retrato do pool/, "data do retrato do pool, ao lado das contagens estruturais"],
+      [/print da demo não pronto/, "linha estrutural do funil"],
+      [/fora dos nichos permitidos/, "etapa de nicho"],
+      [/elegíveis agora/, "total de elegíveis"],
+      [/Pet Center Ipiranga/, "primeiro lead elegível"],
+      [/e mais 1 na fila/, "aviso de que a lista é uma janela sobre a fila"],
+      [/Multimarcas Farrapos/, "lead bloqueado por janela"],
+      [/sem faixa aceita nos próximos 7 dias/, "próxima faixa aceita do bloqueado"],
+    ]);
+    const proximos = await page.locator('[data-lista="proximos"] li').count();
+    if (proximos !== 5) {
+      problemas.push(`cheia/${sufixo}: esperava 5 próximos na tela, achei ${proximos}`);
+    }
+    const tirar = await page.getByRole("button", { name: "tirar da fila" }).count();
+    if (tirar !== 7) {
+      problemas.push(`cheia/${sufixo}: esperava 7 botões "tirar da fila", achei ${tirar}`);
+    }
+    await capturarPainel("cheia (5 próximos + 2 bloqueados)", "cheia");
+
+    // ── VAZIA: fila ATIVA, pool sem candidato nenhum e contador zerado — os
+    //    três estados vazios de uma vez.
+    editarBanco((mapa) => {
+      mapa["filaCandidatos/pool"] = { ...mapa["filaCandidatos/pool"], candidatos: [] };
+      for (const chave of Object.keys(mapa)) {
+        if (chave.startsWith("filaContadores/")) delete mapa[chave];
+      }
+    });
+    await abrirPainel(`vazia/${sufixo}`);
+    const vazia = await conferirPainelFila(page, `vazia/${sufixo}`, viewport.width, problemas);
+    await exigirTextos(`vazia/${sufixo}`, [
+      [/0 de 20 hoje/, "contador zerado"],
+      [/Nenhum lead elegível agora/, "estado vazio dos próximos"],
+      [/Ninguém parado na janela/, "estado vazio dos bloqueados"],
+    ]);
+    const sobrou = await page.locator('[data-lista="proximos"] li, [data-lista="bloqueados"] li').count();
+    if (sobrou > 0) {
+      problemas.push(`vazia/${sufixo}: sobrou linha de lead com as listas vazias`);
+    }
+    if (cheia && vazia) {
+      const encolheu = cheia.altura - vazia.altura;
+      console.log(
+        `  [fila] ${sufixo}: painel ${cheia.altura}px cheio → ${vazia.altura}px vazio (−${encolheu}px)`,
+      );
+      if (encolheu <= 0) {
+        problemas.push(
+          `vazia/${sufixo}: painel não encolheu sem leads (${cheia.altura} → ${vazia.altura})`,
+        );
+      }
+    }
+    await capturarPainel("vazia (sem elegível, sem bloqueado, contador zerado)", "vazia");
+
+    // ── SEM POOL: o celular nunca pediu tarefa. Texto próprio, não um funil
+    //    de zeros sem explicação — e a fila pausada, para a tarja de ritmo.
+    editarBanco((mapa) => {
+      delete mapa["filaCandidatos/pool"];
+      mapa["config/fila"] = { ...mapa["config/fila"], ativo: false };
+    });
+    await abrirPainel(`sem-pool/${sufixo}`);
+    await conferirPainelFila(page, `sem-pool/${sufixo}`, viewport.width, problemas);
+    await exigirTextos(`sem-pool/${sufixo}`, [
+      [/O pool ainda não foi construído/, "aviso de pool inexistente"],
+      [/a fila está pausada/, "tarja de ritmo pausado"],
+    ]);
+    await capturarPainel("sem pool + fila pausada", "sem-pool");
+
+    // Devolve o banco ao estado semeado para a próxima leva de viewport.
+    semear();
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, 'Visão da fila — painel "Fila de envio" (/config)', "fila", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[fila] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[fila] ok — cheia, VAZIA e sem pool, sem vazamento nem caixa zerada.");
   return gerados;
 }
 
@@ -2207,6 +2545,7 @@ async function main() {
     }
     if (querido("listas")) gerados.push(...(await medirListas(browser, secret)));
     if (querido("pendencias")) gerados.push(...(await medirPendencias(browser, secret)));
+    if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));
