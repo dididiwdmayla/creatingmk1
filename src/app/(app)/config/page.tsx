@@ -7,6 +7,8 @@ import { Button } from "@/components/Button";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { SkeletonRows } from "@/components/Skeleton";
 import { UsageMeter } from "@/components/UsageMeter";
+import { CapturaBadge } from "@/components/capturas/CapturaBadge";
+import { useEstadoCapturas } from "@/components/capturas/useEstadoCapturas";
 import {
   ApiError,
   api,
@@ -35,6 +37,7 @@ import {
   type HoraMinuto,
   type NivelContato,
 } from "@/lib/leads/janelaContato";
+import { estadoVisivel } from "@/lib/demos/capturas/estado";
 import type { FilaConfig } from "@/lib/fila/config";
 import {
   ETAPAS_TESTE,
@@ -1731,6 +1734,9 @@ function DisparoTeste({
   const [barreira, setBarreira] = useState<{ etapa: string; motivo: string; nome: string } | null>(
     null,
   );
+  const [gerandoCaptura, setGerandoCaptura] = useState(false);
+  const [avisoCaptura, setAvisoCaptura] = useState<string | null>(null);
+  const [erroCaptura, setErroCaptura] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -1783,6 +1789,41 @@ function DisparoTeste({
 
   const fixo = estado?.leadDeTeste;
   const linha = estado?.atual ? estadoDoTeste(estado.atual, agora) : null;
+
+  // O painel que é DONO do lead de teste é o dono da manutenção dele: o
+  // mesmo laço de acompanhamento da ficha (`useEstadoCapturas`), aqui, sem
+  // o operador sair do painel para ver POR QUE o teste não injeta.
+  const {
+    mapa: mapaCapturas,
+    agora: agoraCaptura,
+    carregado: capturasCarregadas,
+    recarregar: recarregarCapturas,
+  } = useEstadoCapturas(fixo ? [fixo.leadId] : []);
+  const capturasDoFixo = fixo ? (mapaCapturas[fixo.leadId] ?? undefined) : undefined;
+  const visivelCaptura = capturasCarregadas ? estadoVisivel(capturasDoFixo, agoraCaptura) : null;
+  const capturaEmAndamento = visivelCaptura?.acompanhar === true;
+  // Só bloqueia o disparo quando o alvo É o lead fixo (alvo "" = default) —
+  // outro lead escolhido nos interruptores não depende desta captura.
+  const injetarBloqueadoPelaCaptura = alvo === "" && capturaEmAndamento;
+
+  function gerarCapturaTeste(forcar: boolean) {
+    setGerandoCaptura(true);
+    setAvisoCaptura(null);
+    setErroCaptura(null);
+    api
+      .postFilaTesteCapturas(forcar)
+      .then((resposta) => {
+        if (resposta.enfileirados.length > 0) {
+          setAvisoCaptura("Geração enfileirada — leva alguns minutos.");
+        } else {
+          setAvisoCaptura(`Nada a gerar: ${resposta.pulados[0]?.motivo ?? "sem demo salva"}.`);
+        }
+        recarregarCapturas();
+        setRecarga((n) => n + 1); // também atualiza `fixo.pronto`, usado pela etapa "conteudo".
+      })
+      .catch((error: unknown) => setErroCaptura(mensagemErroFila(error, "Falha ao gerar a captura")))
+      .finally(() => setGerandoCaptura(false));
+  }
 
   // `data-bloco` é o gancho do QA visual (mesmo espírito de `data-lista`
   // na visão): o painel inteiro passa de 2000px, e é este bloco que o
@@ -1843,18 +1884,64 @@ function DisparoTeste({
               />
             </div>
           )}
-          {fixo && !fixo.pronto && (
-            <p className="mt-1 text-[10px] text-warning">
-              O lead fixo de teste ainda não tem print:{" "}
-              <a
-                href={`/leads/${fixo.leadId}`}
-                className="underline decoration-line underline-offset-2"
+          {/* ── Captura do lead fixo — visível sem clicar, e re-disparável ─
+              O painel dono do lead de teste é o dono da manutenção dele:
+              a regra "sem captura pronta o teste não injeta" já existia
+              (`avaliarTeste`, etapa "conteudo"), mas até aqui o operador só
+              via a CONSEQUÊNCIA (barrou em "o que enviar"), nunca o motivo
+              — nem tinha como gerar sem sair do painel para a ficha. */}
+          <div
+            data-bloco="captura-teste"
+            className="mt-2 rounded border border-line bg-surface-2 px-2 py-1.5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs">
+                <span className="text-ink-muted">Captura: </span>
+                {capturasCarregadas && visivelCaptura ? (
+                  <CapturaBadge capturas={capturasDoFixo} agora={agoraCaptura} />
+                ) : (
+                  <span className="text-ink-muted">carregando…</span>
+                )}
+              </div>
+              <Button
+                onClick={() => gerarCapturaTeste(capturaEmAndamento)}
+                loading={gerandoCaptura}
+                disabled={gerandoCaptura || !capturasCarregadas}
+                variant={visivelCaptura?.estado === "pronto" ? "secondary" : "primary"}
               >
-                abra a ficha dele
-              </a>{" "}
-              e gere as capturas uma vez — depois disso elas não expiram.
-            </p>
-          )}
+                {capturaEmAndamento
+                  ? "Gerar de novo"
+                  : visivelCaptura?.estado === "pronto"
+                    ? "Refazer"
+                    : "Gerar captura"}
+              </Button>
+            </div>
+            {visivelCaptura?.estado === "pronto" && (
+              <p className="mt-1 text-[10px] text-ink-muted">
+                Já há captura pronta — gerar de novo substitui as imagens atuais.
+              </p>
+            )}
+            {visivelCaptura?.estado === "falhou" && visivelCaptura.detalhe && (
+              <p className="mt-1 rounded border border-critical/40 bg-critical/10 px-2 py-1 text-xs text-critical">
+                {visivelCaptura.detalhe}
+                {capturasDoFixo?.runUrl && (
+                  <>
+                    {" "}
+                    <a
+                      href={capturasDoFixo.runUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
+                      ver o log da execução ↗
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
+            {avisoCaptura && <p className="mt-1 text-xs text-good">{avisoCaptura}</p>}
+            {erroCaptura && <p className="mt-1 text-xs text-critical">{erroCaptura}</p>}
+          </div>
 
           {/* ── Interruptores, na ordem real de avaliação ──────────────── */}
           <div className="mt-2 flex items-start gap-2 text-xs text-ink-secondary">
@@ -1889,11 +1976,18 @@ function DisparoTeste({
           <button
             type="button"
             onClick={disparar}
-            disabled={ocupado}
+            disabled={ocupado || injetarBloqueadoPelaCaptura}
             className="mt-2 rounded border border-accent bg-accent/15 px-2 py-1 text-xs font-semibold text-accent disabled:opacity-50"
           >
             {ocupado ? "disparando…" : "Disparar teste"}
           </button>
+          {injetarBloqueadoPelaCaptura && (
+            <p className="mt-1 text-[10px] text-warning">
+              Desabilitado: a captura do lead fixo está{" "}
+              {visivelCaptura?.estado === "rodando" ? "gerando" : "enfileirada"} — a tarefa não sai
+              sem print pronto.
+            </p>
+          )}
 
           {/* ── O resultado do último clique ───────────────────────────── */}
           {barreira && (
