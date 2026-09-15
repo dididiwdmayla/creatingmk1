@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TENTATIVAS_MAX } from "@/lib/fila/envios";
+import { FILA_RESPOSTAS_COLLECTION } from "@/lib/fila/estado";
+import { criarTarefaResposta } from "@/lib/fila/respostaAutomatica";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import type { Lead } from "@/lib/leads/types";
 import { GET } from "../fila/proximo/route";
@@ -459,5 +461,174 @@ describe("POST /api/fila/confirmar — o painel mexeu na fila no meio do ciclo",
 
     expect(res.status).toBe(200);
     expect((db.getDoc("leads/ChIJa") as unknown as Lead).status).toBe("contactado");
+  });
+});
+
+/**
+ * O CICLO DA RESPOSTA AUTOMÁTICA pela mesma rota, com o mesmo contrato: os
+ * mesmos três resultados, a mesma idempotência, o mesmo 409. O que muda é
+ * onde a confirmação cai — e o que ela NÃO toca.
+ */
+describe("POST /api/fila/confirmar — a claim de resposta", () => {
+  const LIGADA = { respostaAutomatica: true, respostaJanelaInicio: 0, respostaJanelaFim: 0 };
+
+  async function pegarResposta(id = "rascunho-1") {
+    db.seed("config/fila", LIGADA);
+    db.seed(`${FILA_RESPOSTAS_COLLECTION}/${id}`, {
+      id,
+      leadId: "ChIJresp",
+      mensagens: [{ texto: "quanto custa?", recebidoEm: TERCA_10H.toISOString() }],
+      rascunho: "Oi! Posso te mostrar agora mesmo?",
+      geradoEm: TERCA_10H.toISOString(),
+      estado: "pendente",
+    });
+    await criarTarefaResposta(
+      db,
+      {
+        id,
+        leadId: "ChIJresp",
+        nome: "Barbearia do Zé",
+        numero: "5516982133909",
+        texto: "Oi! Posso te mostrar agora mesmo?",
+        atrasoSegundos: 0,
+      },
+      TERCA_10H,
+    );
+    return pegarTarefa();
+  }
+
+  it('"enviado" conta na coluna das respostas e deixa a prospecção do dia intacta', async () => {
+    db.seed(DIA, { enviados: 5, envios: ["2026-03-10T09:50:00.000Z"], ultimoEventoEm: "2026-03-10T09:50:00.000Z" });
+    const tarefa = await pegarResposta();
+
+    const res = await confirmar({
+      id: tarefa.id,
+      leadId: tarefa.leadId,
+      resultado: "enviado",
+      detalhe: "",
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      teste: false,
+      estado: "enviado",
+      repetida: false,
+      tentativas: 0,
+      parado: false,
+    });
+    expect(db.getDoc(DIA)).toMatchObject({
+      respostasEnviadas: 1,
+      enviados: 5,
+      envios: ["2026-03-10T09:50:00.000Z"],
+      ultimoEventoEm: "2026-03-10T09:50:00.000Z",
+    });
+    // O rascunho fecha com o texto que saiu.
+    expect(db.getDoc(`${FILA_RESPOSTAS_COLLECTION}/rascunho-1`)).toMatchObject({
+      estado: "usada",
+      textoUsado: "Oi! Posso te mostrar agora mesmo?",
+    });
+  });
+
+  it("não move o status do lead, nem grava selo, nem gira a rotação", async () => {
+    semear(lead("ChIJresp", { status: "respondeu" }));
+    db.seed("frasesProspeccao/barbearia-editorial", { frases: ["a", "b"], indice: 0 });
+    const antesDoLead = db.getDoc("leads/ChIJresp");
+    const tarefa = await pegarResposta();
+
+    await confirmar({ id: tarefa.id, leadId: tarefa.leadId, resultado: "enviado", detalhe: "" });
+
+    expect(db.getDoc("leads/ChIJresp")).toEqual(antesDoLead);
+    expect(db.getDoc("frasesProspeccao/barbearia-editorial")).toMatchObject({ indice: 0 });
+    expect(db.getDoc("filaEnvios/ChIJresp")).toBeUndefined();
+  });
+
+  it("confirmação repetida devolve sucesso sem contar duas vezes", async () => {
+    const tarefa = await pegarResposta();
+    await confirmar({ id: tarefa.id, leadId: tarefa.leadId, resultado: "enviado", detalhe: "" });
+
+    const res = await confirmar({
+      id: tarefa.id,
+      leadId: tarefa.leadId,
+      resultado: "enviado",
+      detalhe: "de novo",
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, estado: "enviado", repetida: true });
+    expect(db.getDoc(DIA)?.respostasEnviadas).toBe(1);
+  });
+
+  it("claim velha devolve 409 sem alterar nada", async () => {
+    const tarefa = await pegarResposta();
+    await confirmar({ id: tarefa.id, leadId: tarefa.leadId, resultado: "falhou", detalhe: "x" });
+
+    const res = await confirmar({
+      id: tarefa.id,
+      leadId: tarefa.leadId,
+      resultado: "enviado",
+      detalhe: "",
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ repetida: true, estado: "falhou" });
+
+    // Uma claim que NUNCA existiu, com a forma certa: 409.
+    const inexistente = await confirmar({
+      id: "resp-rascunho-1.claimvelha",
+      leadId: "ChIJresp",
+      resultado: "enviado",
+      detalhe: "",
+    });
+    expect(inexistente.status).toBe(409);
+    expect(await inexistente.json()).toEqual({ erro: "claim_invalida" });
+    expect(db.getDoc(DIA)?.respostasEnviadas).toBeUndefined();
+  });
+
+  it('"falhou" não conta em `falhas` (aquela coluna é da prospecção)', async () => {
+    const tarefa = await pegarResposta();
+
+    const res = await confirmar({
+      id: tarefa.id,
+      leadId: tarefa.leadId,
+      resultado: "falhou",
+      detalhe: "sem rede",
+    });
+
+    expect(await res.json()).toMatchObject({ estado: "falhou", tentativas: 1, parado: false });
+    expect(db.getDoc(DIA)).toBeUndefined();
+  });
+
+  it('"invalido" tira do automático sem marcar o telefone do lead', async () => {
+    semear(lead("ChIJresp", { status: "respondeu" }));
+    const tarefa = await pegarResposta();
+
+    const res = await confirmar({
+      id: tarefa.id,
+      leadId: tarefa.leadId,
+      resultado: "invalido",
+      detalhe: "não abriu",
+    });
+
+    expect(await res.json()).toMatchObject({ estado: "invalido", parado: true });
+    expect(db.getDoc("leads/ChIJresp")?.telefoneInvalido).toBeUndefined();
+  });
+
+  it("o contrato é o MESMO do caminho de prospecção — as seis chaves, nada a mais", async () => {
+    const tarefa = await pegarResposta();
+
+    const corpo = await (
+      await confirmar({ id: tarefa.id, leadId: tarefa.leadId, resultado: "enviado", detalhe: "" })
+    ).json();
+
+    expect(Object.keys(corpo).sort()).toEqual(
+      ["ok", "teste", "estado", "repetida", "tentativas", "parado"].sort(),
+    );
+  });
+
+  it("corpo inválido continua sendo 400, antes de qualquer desvio", async () => {
+    const res = await confirmar({ id: "resp-x.y", leadId: "ChIJresp", resultado: "voou" });
+
+    expect(res.status).toBe(400);
   });
 });
