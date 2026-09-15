@@ -104,15 +104,28 @@ describe("processarMensagemRecebida — dedupe por chave", () => {
     expect(grupo.ultimaMensagemEm).toBe(T0.toISOString());
   });
 
-  it("recebidoEm é o carimbo DA NOTIFICAÇÃO — chave nova (reenvio após queda de rede) NÃO deduplica, mas cada chave só processa uma vez", async () => {
+  it("recebidoEm ESTÁVEL (o mesmo carimbo da notificação original) é o que faz o reenvio deduplicar — chave diferente NÃO deduplicaria", async () => {
     const db = new FakeFirestore();
     db.seed("leads/ChIJlead1", baseLead() as unknown as Record<string, unknown>);
 
-    await processarMensagemRecebida(db, corpo({ chave: "hash-A" }), T0);
-    await processarMensagemRecebida(db, corpo({ chave: "hash-A" }), T0);
+    // A macro reenvia após queda de rede com o MESMO recebidoEm (contrato:
+    // carimbo da notificação, nunca do instante da chamada HTTP) — mesma
+    // chave, dedupe funciona.
+    await processarMensagemRecebida(db, corpo({ chave: "hash-A", recebidoEm: T0.toISOString() }), T0);
+    const reenvio = await processarMensagemRecebida(
+      db,
+      corpo({ chave: "hash-A", recebidoEm: T0.toISOString() }),
+      new Date(T0.getTime() + 5_000),
+    );
+    expect(reenvio).toEqual({ processada: false, motivo: "chave_repetida" });
+
+    // Duas mensagens DE VERDADE distintas (chave própria cada) continuam
+    // processando normalmente, uma por uma.
+    const t2 = new Date(T0.getTime() + 60_000);
+    await processarMensagemRecebida(db, corpo({ chave: "hash-B", texto: "outra pergunta", recebidoEm: t2.toISOString() }), t2);
 
     const [grupo] = await listarGruposPendentes(db);
-    expect(grupo.mensagens).toHaveLength(1);
+    expect(grupo.mensagens.map((m) => m.texto)).toEqual(["Oi, tenho interesse!", "outra pergunta"]);
   });
 });
 
