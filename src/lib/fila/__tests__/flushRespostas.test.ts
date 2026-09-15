@@ -5,6 +5,7 @@ import type { Lead } from "@/lib/leads/types";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { DEFAULT_FILA_CONFIG } from "../config";
 import { flushGruposMaduros, FILA_RESPOSTAS_COLLECTION, type FilaRespostaDoc } from "../flushRespostas";
+import { listarTarefasResposta, type RespostaTarefaDoc } from "../respostaAutomatica";
 import { adicionarMensagemAoGrupo, listarGruposPendentes } from "../respostasPendentes";
 
 const T0 = new Date("2026-03-01T10:00:00.000Z");
@@ -146,5 +147,134 @@ describe("flushGruposMaduros", () => {
     const respostas = await todasAsRespostas(db);
     expect(respostas).toHaveLength(2);
     expect(new Set(respostas.map((r) => r.leadId))).toEqual(new Set(["ChIJlead1", "ChIJlead2"]));
+  });
+});
+
+describe("flushGruposMaduros — quando o rascunho vira TAREFA automática", () => {
+  const LIGADA = {
+    ...DEFAULT_FILA_CONFIG,
+    respostaAutomatica: true,
+    respostaDelayMinSegundos: 300,
+    respostaDelayMaxSegundos: 300,
+  };
+
+  async function responder(
+    db: FakeFirestore,
+    config = LIGADA,
+    texto = "Oi",
+    quando = T0,
+  ): Promise<void> {
+    await adicionarMensagemAoGrupo(db, "ChIJlead1", { texto, recebidoEm: quando.toISOString() }, quando);
+    await flushGruposMaduros(
+      db,
+      new Date(quando.getTime() + (JANELA + 1) * 1000),
+      config,
+      DEFAULT_CONFIG,
+    );
+  }
+
+  async function tarefas(db: FakeFirestore): Promise<RespostaTarefaDoc[]> {
+    return listarTarefasResposta(db);
+  }
+
+  it("desligada (o padrão), o rascunho é gravado e NENHUMA tarefa nasce", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJlead1", baseLead() as unknown as Record<string, unknown>);
+
+    await responder(db, DEFAULT_FILA_CONFIG);
+
+    expect(await todasAsRespostas(db)).toHaveLength(1);
+    expect(await tarefas(db)).toHaveLength(0);
+  });
+
+  it("ligada, o rascunho vira tarefa com número, texto e o ATRASO já aplicado", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJlead1", baseLead() as unknown as Record<string, unknown>);
+
+    await responder(db);
+
+    const [tarefa] = await tarefas(db);
+    const [rascunho] = await todasAsRespostas(db);
+    expect(tarefa).toMatchObject({
+      id: rascunho.id,
+      leadId: "ChIJlead1",
+      // Dígitos puros com DDI, mesma normalização do envio.
+      numero: "5516982133909",
+      texto: "Rascunho gerado.",
+      estado: "aguardando",
+    });
+    expect(new Date(tarefa.disponivelEm).getTime() - new Date(rascunho.geradoEm).getTime()).toBe(
+      300 * 1000,
+    );
+  });
+
+  it("apenasPrimeira LIGADO: a segunda resposta do mesmo lead vai para o painel", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJlead1", baseLead() as unknown as Record<string, unknown>);
+
+    await responder(db, LIGADA, "Oi", T0);
+    await responder(db, LIGADA, "e o preço?", depois(600));
+
+    expect(await todasAsRespostas(db)).toHaveLength(2);
+    // Uma tarefa só: a da primeira resposta. A segunda é negociação, e
+    // negociar sozinho é outro risco.
+    expect(await tarefas(db)).toHaveLength(1);
+  });
+
+  it("apenasPrimeira DESLIGADO: a segunda também vira tarefa", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJlead1", baseLead() as unknown as Record<string, unknown>);
+    const config = { ...LIGADA, respostaAutomaticaApenasPrimeira: false };
+
+    await responder(db, config, "Oi", T0);
+    await responder(db, config, "e o preço?", depois(600));
+
+    expect(await tarefas(db)).toHaveLength(2);
+  });
+
+  it("lead SEM telefone gera rascunho, nunca tarefa — não há conversa para abrir", async () => {
+    const db = new FakeFirestore();
+    db.seed(
+      "leads/ChIJlead1",
+      baseLead({ telefoneIntl: undefined }) as unknown as Record<string, unknown>,
+    );
+
+    await responder(db);
+
+    expect(await todasAsRespostas(db)).toHaveLength(1);
+    expect(await tarefas(db)).toHaveLength(0);
+  });
+
+  it("o telefone ENRIQUECIDO tem precedência, como no envio", async () => {
+    const db = new FakeFirestore();
+    db.seed(
+      "leads/ChIJlead1",
+      baseLead({ detalhes: { telefoneIntl: "+55 44 99154-3803" } } as Partial<Lead>) as unknown as Record<
+        string,
+        unknown
+      >,
+    );
+
+    await responder(db);
+
+    expect((await tarefas(db))[0].numero).toBe("5544991543803");
+  });
+
+  it("o atraso é SORTEADO dentro da faixa, não fixo", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJlead1", baseLead() as unknown as Record<string, unknown>);
+
+    await responder(db, {
+      ...LIGADA,
+      respostaAutomaticaApenasPrimeira: false,
+      respostaDelayMinSegundos: 180,
+      respostaDelayMaxSegundos: 720,
+    }, "Oi", T0);
+
+    const [tarefa] = await tarefas(db);
+    const atraso =
+      (new Date(tarefa.disponivelEm).getTime() - new Date(tarefa.criadoEm).getTime()) / 1000;
+    expect(atraso).toBeGreaterThanOrEqual(180);
+    expect(atraso).toBeLessThanOrEqual(720);
   });
 });

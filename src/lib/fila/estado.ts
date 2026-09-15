@@ -205,6 +205,109 @@ export interface MensagemGrupo {
 }
 
 /**
+ * O TIPO da tarefa que `GET /api/fila/proximo` entrega — a chave `tipo` do
+ * contrato achatado, e o desvio que a macro do MacroDroid faz no aparelho.
+ *
+ * Duas tarefas, UMA macro, um desvio por este campo: duas macros disputariam
+ * a tela do mesmo aparelho, e a proteção do MacroDroid contra execução
+ * sobreposta é POR MACRO — duas delas não se veem. A chave é sempre uma
+ * destas duas strings, nunca vazia, com ou sem tarefa (ver o route handler).
+ */
+export const TIPOS_TAREFA = ["prospeccao", "resposta"] as const;
+export type TipoTarefaFila = (typeof TIPOS_TAREFA)[number];
+
+/* ── O RASCUNHO e a TAREFA de resposta ────────────────────────────────
+ *
+ * `filaRespostas/{id}` é o REGISTRO (o rascunho gerado, o que o lead
+ * mandou, o que o operador fez com ele) e `filaRespostasTarefas/{id}` é a
+ * TAREFA (o que o aparelho vai puxar, com claim e tentativas). Os dois
+ * moram aqui pelo mesmo motivo do resto do arquivo: o painel que os desenha
+ * é componente client, e os módulos que os escrevem leem o Firestore e
+ * cunham claimId com `node:crypto`. `flushRespostas.ts` e
+ * `respostaAutomatica.ts` reexportam daqui.
+ */
+
+/**
+ * `filaRespostas/{id}` — o RASCUNHO gerado para um grupo maduro. Coleção
+ * PRÓPRIA (não `filaEnvios`, que é doc por leadId e carrega o estado do
+ * ENVIO real daquele lead): aqui pode haver várias entradas por lead ao
+ * longo do tempo, uma por grupo de mensagens, cada uma com id próprio.
+ */
+export const FILA_RESPOSTAS_COLLECTION = "filaRespostas";
+
+export const RASCUNHO_ESTADOS = ["pendente", "usada", "descartada"] as const;
+export type RascunhoEstado = (typeof RASCUNHO_ESTADOS)[number];
+
+export interface FilaRespostaDoc {
+  id: string;
+  leadId: string;
+  mensagens: MensagemGrupo[];
+  rascunho: string;
+  geradoEm: string;
+  estado: RascunhoEstado;
+}
+
+/**
+ * Estados da TAREFA de resposta. Os quatro do meio são os mesmos de
+ * `FilaEnvioEstado` de propósito — o aparelho reporta os MESMOS três
+ * resultados nos dois caminhos, e inventar um vocabulário paralelo faria a
+ * mesma palavra significar coisas diferentes em duas coleções.
+ *
+ * - `aguardando`: o atraso sorteado ainda corre, ou a tarefa voltou à fila.
+ * - `reservado`: está com o aparelho (claim viva).
+ * - `enviado` / `invalido` / `falhou`: o que o aparelho reportou.
+ * - `encerrada`: o operador fechou o rascunho pelo painel antes de a tarefa
+ *   sair — a única saída que não vem do aparelho.
+ */
+export type RespostaTarefaEstado =
+  | "aguardando"
+  | "reservado"
+  | "enviado"
+  | "invalido"
+  | "falhou"
+  | "encerrada";
+
+/**
+ * `filaRespostasTarefas/{id}` — a tarefa de envio de UMA resposta
+ * automática. O id é o MESMO do rascunho em `filaRespostas`: são os dois
+ * lados da mesma resposta, e um id próprio só criaria uma tabela de
+ * tradução entre eles.
+ *
+ * Conteúdo CONGELADO na geração (número e texto), mesma decisão da tarefa de
+ * teste: assim `/proximo` serve a resposta sem reler lead nem rascunho, e o
+ * que o aparelho manda é exatamente o que foi gerado.
+ */
+export interface RespostaTarefaDoc {
+  id: string;
+  leadId: string;
+  /** Dígitos puros com DDI — congelado, como o texto. */
+  numero: string;
+  /** O rascunho tal como saiu da IA: é isto que o aparelho manda. */
+  texto: string;
+  estado: RespostaTarefaEstado;
+  /** Quando o ATRASO SORTEADO vence e a tarefa pode ser puxada. */
+  disponivelEm: string;
+  criadoEm: string;
+  claimId: string | null;
+  /** Instante em que a claim morre sozinha; `null` fora de `reservado`. */
+  claimExpiraEm: string | null;
+  dispositivo: string;
+  entregueEm: string | null;
+  enviadoEm: string | null;
+  tentativas: number;
+  ultimoErro: string | null;
+}
+
+/**
+ * Tentativas de uma RESPOSTA antes de ela sair do caminho automático e cair
+ * na aprovação manual do painel. Número PRÓPRIO, ainda que hoje igual ao da
+ * prospecção (`TENTATIVAS_MAX`): lá ele decide quando um lead para para
+ * inspeção; aqui, quando a máquina desiste e devolve a decisão ao humano —
+ * duas perguntas que podem querer respostas diferentes amanhã.
+ */
+export const RESPOSTA_TENTATIVAS_MAX = 3;
+
+/**
  * Uma linha do painel "Respostas pendentes" (/config): o lead respondeu, a
  * IA rascunhou, e o operador ainda não decidiu o que fazer. Traz de uma vez
  * as quatro coisas que a decisão exige — quem é o lead, o que ELE mandou, o
