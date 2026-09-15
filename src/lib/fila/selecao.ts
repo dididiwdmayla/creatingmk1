@@ -47,6 +47,18 @@ export interface DiagnosticoJanela {
 }
 
 /**
+ * Um candidato que passou no nicho e parou na JANELA, com o nível que ele
+ * tem agora (ausente = fechado na hora dele). É a linha que o painel
+ * mostra em "bloqueados por janela"; só é coletado sob demanda (ver
+ * `ordenarCandidatos`).
+ */
+export interface CandidatoBloqueado {
+  id: string;
+  /** Nível agora; ausente quando o lead está FECHADO neste minuto. */
+  nivel?: NivelContato;
+}
+
+/**
  * O diagnóstico das etapas FRESCAS da seleção (nicho e janela) — calculado
  * sobre o pool, na mesma passada que escolhe os elegíveis. As contagens
  * estruturais (etapa anterior, "quantos leads nem chegaram a ser
@@ -57,6 +69,13 @@ export interface DiagnosticoSelecao {
   /** Passariam na janela, mas o nicho deles não está em `nichosPermitidos`. */
   nichoBarrado: number;
   janela: DiagnosticoJanela;
+  /**
+   * Quem parou na janela, identificado — vazio quando ninguém pediu
+   * (`coletarBloqueados`), que é o caso de `/proximo`. A rota de execução
+   * conta; só o painel precisa de nomes, e ele é aberto por uma pessoa de
+   * vez em quando, não 1440× por dia.
+   */
+  bloqueados: CandidatoBloqueado[];
 }
 
 /**
@@ -137,17 +156,26 @@ export function niveisAceitos(config: FilaConfig): NivelContato[] {
  * conta quem passaria em tudo e esbarrou no nicho, e quem passaria no nicho
  * e esbarrou na hora (quebrado por nível: é o que separa "está todo mundo
  * fechado agora" de "a config não pegou" — ver `DiagnosticoJanela`).
+ *
+ * `coletarBloqueados` acrescenta a essa mesma passagem a LISTA de quem
+ * parou na janela, na mesma ordem justa (mais antigo primeiro). Fica
+ * opt-in porque `/proximo` roda de minuto em minuto e não tem o que fazer
+ * com ela — montar um array de até `POOL_MAX` itens 1440× por dia para
+ * ninguém ler é desperdício. Quem pede é o painel da /config, aberto por
+ * uma pessoa de vez em quando.
  */
 export function ordenarCandidatos(
   pool: CandidatoFila[],
   config: FilaConfig,
   janelas: JanelasContatoConfig,
   now: Date,
+  opcoes: { coletarBloqueados?: boolean } = {},
 ): { escolhido: CandidatoOrdenado[]; diagnostico: DiagnosticoSelecao } {
   const aceitos = niveisAceitos(config);
   const elegiveis: Array<CandidatoOrdenado & { criadoEm: string }> = [];
   let nichoBarrado = 0;
   const janela: DiagnosticoJanela = { razoavel: 0, ruim: 0, semNivel: 0 };
+  const bloqueados: Array<CandidatoBloqueado & { criadoEm: string }> = [];
 
   for (const candidato of pool) {
     if (!nichoPermitido(candidato.nicho, config.nichosPermitidos)) {
@@ -159,6 +187,9 @@ export function ordenarCandidatos(
       if (nivel === undefined) janela.semNivel += 1;
       else if (nivel === "razoavel") janela.razoavel += 1;
       else janela.ruim += 1;
+      if (opcoes.coletarBloqueados) {
+        bloqueados.push({ id: candidato.id, criadoEm: candidato.criadoEm, ...(nivel && { nivel }) });
+      }
       continue;
     }
     elegiveis.push({ id: candidato.id, nivel, criadoEm: candidato.criadoEm });
@@ -170,8 +201,17 @@ export function ordenarCandidatos(
       a.criadoEm.localeCompare(b.criadoEm) ||
       a.id.localeCompare(b.id),
   );
+  // Sem nível a ordenar por (nenhum deles está em `aceitos`), a ordem dos
+  // bloqueados é só a justa: quem esperou mais aparece primeiro.
+  bloqueados.sort(
+    (a, b) => a.criadoEm.localeCompare(b.criadoEm) || a.id.localeCompare(b.id),
+  );
   return {
     escolhido: elegiveis.map(({ id, nivel }) => ({ id, nivel })),
-    diagnostico: { nichoBarrado, janela },
+    diagnostico: {
+      nichoBarrado,
+      janela,
+      bloqueados: bloqueados.map(({ id, nivel }) => ({ id, ...(nivel && { nivel }) })),
+    },
   };
 }

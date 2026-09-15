@@ -34,6 +34,11 @@ function ordenar(pool: CandidatoFila[], cfg = config(), now = TERCA_10H) {
   return ordenarCandidatos(pool, cfg, DEFAULT_JANELAS_CONTATO, now);
 }
 
+/** Mesma seleção, pedindo a lista de bloqueados (o que o painel da /config faz). */
+function ordenarComBloqueados(pool: CandidatoFila[], cfg = config(), now = TERCA_10H) {
+  return ordenarCandidatos(pool, cfg, DEFAULT_JANELAS_CONTATO, now, { coletarBloqueados: true });
+}
+
 const JANELA_ZERADA = { razoavel: 0, ruim: 0, semNivel: 0 };
 
 describe("motivoDeRitmo — os portões que não custam lead nenhum", () => {
@@ -109,7 +114,7 @@ describe("ordenarCandidatos — escolhido", () => {
     const { escolhido, diagnostico } = ordenar([candidato("a")]);
 
     expect(escolhido).toEqual([{ id: "a", nivel: "bom" }]);
-    expect(diagnostico).toEqual({ nichoBarrado: 0, janela: JANELA_ZERADA });
+    expect(diagnostico).toEqual({ nichoBarrado: 0, janela: JANELA_ZERADA, bloqueados: [] });
   });
 
   it("razoável só entra com exigirJanelaBoa false", () => {
@@ -158,7 +163,7 @@ describe("ordenarCandidatos — diagnóstico: nicho (etapa 3)", () => {
     );
 
     expect(escolhido).toEqual([]);
-    expect(diagnostico).toEqual({ nichoBarrado: 1, janela: JANELA_ZERADA });
+    expect(diagnostico).toEqual({ nichoBarrado: 1, janela: JANELA_ZERADA, bloqueados: [] });
   });
 
   it("hoje não incrementa contador de janela nenhum (nicho é barrado antes de olhar a hora)", () => {
@@ -169,7 +174,7 @@ describe("ordenarCandidatos — diagnóstico: nicho (etapa 3)", () => {
       TERCA_3H,
     );
 
-    expect(diagnostico).toEqual({ nichoBarrado: 1, janela: JANELA_ZERADA });
+    expect(diagnostico).toEqual({ nichoBarrado: 1, janela: JANELA_ZERADA, bloqueados: [] });
   });
 });
 
@@ -234,5 +239,83 @@ describe("ordenarCandidatos — diagnóstico: janela por nível (etapa 4)", () =
       ruim: 0,
       semNivel: 1,
     });
+  });
+});
+
+/**
+ * A LISTA de bloqueados, não só a contagem — o painel da /config mostra
+ * nome por nome. Fica opt-in porque `/proximo` roda de minuto em minuto e
+ * não tem o que fazer com ela.
+ */
+describe("ordenarCandidatos — bloqueados (opt-in)", () => {
+  it("sem pedir, a lista vem vazia mesmo havendo bloqueado — /proximo não paga por ela", () => {
+    const { diagnostico } = ordenar([candidato("a")], config(), TERCA_3H);
+
+    expect(diagnostico.janela.semNivel).toBe(1);
+    expect(diagnostico.bloqueados).toEqual([]);
+  });
+
+  it("pedindo, devolve id e o nível de agora", () => {
+    const { diagnostico } = ordenarComBloqueados([candidato("a")], config(), TERCA_12H);
+
+    expect(diagnostico.bloqueados).toEqual([{ id: "a", nivel: "razoavel" }]);
+  });
+
+  it("fechado na hora do lead entra SEM nível — é o que a tela precisa distinguir", () => {
+    const { diagnostico } = ordenarComBloqueados([candidato("a")], config(), TERCA_3H);
+
+    expect(diagnostico.bloqueados).toEqual([{ id: "a" }]);
+  });
+
+  it("a lista bate com a contagem, e na ordem justa (mais antigo primeiro)", () => {
+    const pool = [
+      candidato("novo", { criadoEm: "2026-03-05T00:00:00.000Z" }),
+      candidato("velho", { criadoEm: "2020-01-01T00:00:00.000Z" }),
+      candidato("meio", { criadoEm: "2023-01-01T00:00:00.000Z" }),
+    ];
+
+    const { diagnostico } = ordenarComBloqueados(pool, config(), TERCA_17H);
+
+    expect(diagnostico.bloqueados.map((b) => b.id)).toEqual(["velho", "meio", "novo"]);
+    expect(diagnostico.bloqueados).toHaveLength(diagnostico.janela.ruim);
+  });
+
+  it("empate de criadoEm desempata por id — a ordem não depende do Firestore", () => {
+    const pool = ["z", "a", "m"].map((id) => candidato(id));
+
+    const { diagnostico } = ordenarComBloqueados(pool, config(), TERCA_3H);
+
+    expect(diagnostico.bloqueados.map((b) => b.id)).toEqual(["a", "m", "z"]);
+  });
+
+  it("barrado por NICHO não entra em bloqueados — parou numa etapa antes da janela", () => {
+    const { diagnostico } = ordenarComBloqueados(
+      [candidato("a")],
+      config({ nichosPermitidos: ["tatuagem"] }),
+      TERCA_3H,
+    );
+
+    expect(diagnostico.nichoBarrado).toBe(1);
+    expect(diagnostico.bloqueados).toEqual([]);
+  });
+
+  it("elegível não entra em bloqueados", () => {
+    const { escolhido, diagnostico } = ordenarComBloqueados([candidato("a")]);
+
+    expect(escolhido).toEqual([{ id: "a", nivel: "bom" }]);
+    expect(diagnostico.bloqueados).toEqual([]);
+  });
+
+  it("desmarcar exigirJanelaBoa move o razoável de bloqueado para elegível", () => {
+    const comExigencia = ordenarComBloqueados([candidato("a")], config(), TERCA_12H);
+    expect(comExigencia.diagnostico.bloqueados).toEqual([{ id: "a", nivel: "razoavel" }]);
+
+    const semExigencia = ordenarComBloqueados(
+      [candidato("a")],
+      config({ exigirJanelaBoa: false }),
+      TERCA_12H,
+    );
+    expect(semExigencia.diagnostico.bloqueados).toEqual([]);
+    expect(semExigencia.escolhido).toEqual([{ id: "a", nivel: "razoavel" }]);
   });
 });
