@@ -201,6 +201,12 @@ export async function listLeads(db: AppDb, filters: LeadFilters = {}): Promise<L
     .map((doc) => asLead(doc.data()))
     .filter(
       (lead) =>
+        // O lead fixo de teste não é negócio nenhum: fica fora de TODA
+        // listagem e de todo agregado derivado desta varredura — /leads,
+        // /demos, /hoje, /mundo, a análise de grupo por IA e a penetração
+        // de site por nicho+cidade. Excluir na origem é o que impede o
+        // vazamento silencioso; ver `lib/fila/leadTeste.ts`.
+        lead.leadDeTeste !== true &&
         (status === undefined || lead.status === status) &&
         (buscaId === undefined || (lead.buscaId ?? []).includes(buscaId)) &&
         (!soFavoritos || lead.favorito === true) &&

@@ -31,6 +31,19 @@ export interface FilaConfig {
    * comportamento do calendário normal).
    */
   inicioDiaOperacionalHora: number;
+  /**
+   * NÚMERO DE DESTINO DO DISPARO DE TESTE — dígitos puros com DDI.
+   *
+   * Toda tarefa de teste sai para ELE, e nunca para o telefone real do lead
+   * escolhido. Isso vale inclusive quando o alvo é o lead fixo de teste: a
+   * sobrescrita não é conveniência, é a REDE DE SEGURANÇA para quando o
+   * operador escolhe um lead de verdade para ver onde ele para no pipeline
+   * — sem ela, o diagnóstico mandaria prospecção para o negócio.
+   *
+   * Vazio = disparo de teste desligado; o botão recusa e diz por quê, em
+   * vez de cair num destino padrão.
+   */
+  numeroTeste: string;
 }
 
 export const DEFAULT_FILA_CONFIG: FilaConfig = {
@@ -41,6 +54,7 @@ export const DEFAULT_FILA_CONFIG: FilaConfig = {
   nichosPermitidos: [],
   intervaloMinimoSegundos: 180,
   inicioDiaOperacionalHora: 0,
+  numeroTeste: "5544984570105",
 };
 
 const TOP_LEVEL_KEYS = new Set<keyof FilaConfig>([
@@ -51,6 +65,7 @@ const TOP_LEVEL_KEYS = new Set<keyof FilaConfig>([
   "nichosPermitidos",
   "intervaloMinimoSegundos",
   "inicioDiaOperacionalHora",
+  "numeroTeste",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -100,6 +115,15 @@ export function validateFilaConfigPatch(patch: unknown): asserts patch is Partia
     }
   }
 
+  if (patch.numeroTeste !== undefined) {
+    // Dígitos puros com DDI, como `montarMensagemParaLead` já entrega para
+    // o aparelho — nada de espaço, parêntese ou traço, que o WhatsApp do
+    // celular não resolve. Vazio é válido: é o disparo de teste desligado.
+    if (typeof patch.numeroTeste !== "string" || !/^(\d{10,15})?$/.test(patch.numeroTeste.trim())) {
+      problemas.push("numeroTeste deve ser dígitos com DDI (10 a 15) ou vazio");
+    }
+  }
+
   if (patch.nichosPermitidos !== undefined) {
     if (
       !Array.isArray(patch.nichosPermitidos) ||
@@ -114,6 +138,11 @@ export function validateFilaConfigPatch(patch: unknown): asserts patch is Partia
   }
 }
 
+/** Dígitos do `numeroTeste`, ou `undefined` quando não veio string nenhuma. */
+function normalizarNumeroTeste(valor: unknown): string | undefined {
+  return typeof valor === "string" ? valor.trim() : undefined;
+}
+
 /** Merge raso de um patch validado sobre uma config completa. */
 export function mergeFilaConfig(base: FilaConfig, patch: Partial<FilaConfig>): FilaConfig {
   return {
@@ -126,6 +155,10 @@ export function mergeFilaConfig(base: FilaConfig, patch: Partial<FilaConfig>): F
     nichosPermitidos: patch.nichosPermitidos ?? base.nichosPermitidos,
     intervaloMinimoSegundos: patch.intervaloMinimoSegundos ?? base.intervaloMinimoSegundos,
     inicioDiaOperacionalHora: patch.inicioDiaOperacionalHora ?? base.inicioDiaOperacionalHora,
+    // `.trim()` só sobre string: `loadFilaConfig` faz este merge sobre o doc
+    // CRU do Firestore, e um valor de tipo errado ali não pode derrubar
+    // `/proximo` às duas da manhã.
+    numeroTeste: normalizarNumeroTeste(patch.numeroTeste) ?? base.numeroTeste,
   };
 }
 

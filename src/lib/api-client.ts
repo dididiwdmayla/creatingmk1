@@ -11,6 +11,7 @@ import type { FilaConfig } from "@/lib/fila/config";
 import type {
   ContadorPainel,
   FilaEnvioDoc,
+  FilaTesteDoc,
   LinhaFilaPainel,
   PendenciaEnvio,
 } from "@/lib/fila/estado";
@@ -176,6 +177,30 @@ export interface FilaDiagnosticoResponse {
   /** Quem passou no nicho e parou na janela, com a próxima faixa aceita. */
   bloqueados: LinhaFilaPainel[];
 }
+
+/**
+ * `GET /api/fila/teste` — o estado do disparo de teste do painel
+ * "Fila de envio" (/config). Rota própria, e não mais um campo do
+ * diagnóstico: o ciclo de vida é outro (recarrega ao injetar, não ao salvar
+ * a config) e aqui há escrita.
+ */
+export interface FilaTesteEstadoResponse {
+  /** Destino de TODO disparo de teste. Vazio = disparo desligado. */
+  numeroTeste: string;
+  leadDeTeste: { leadId: string; nome: string; pronto: boolean };
+  /** A tarefa atual, seja qual for o estado dela, ou null se nunca houve. */
+  atual: FilaTesteDoc | null;
+  validadeMs: number;
+}
+
+/**
+ * `POST /api/fila/teste` — injetou, ou parou em alguma etapa. Barrar é
+ * resultado legítimo (é o diagnóstico que a tela pediu), então vem em 200
+ * com `injetada: false` e a etapa NOMINAL.
+ */
+export type FilaTesteInjecaoResponse =
+  | { injetada: true; teste: FilaTesteDoc }
+  | { injetada: false; leadId: string; nome: string; etapa: string; motivo: string };
 
 /** Fila do dia (/hoje): as 4 seções + contexto para badges e WhatsApp. */
 export interface HojeResponse {
@@ -393,6 +418,18 @@ export const api = {
    * o retrato do último rebuild, datado em `pool.geradoEm`).
    */
   getFilaDiagnostico: () => request<FilaDiagnosticoResponse>("/api/fila/diagnostico"),
+
+  /**
+   * O DISPARO DE TESTE (admin). `getFilaTeste` lê o estado; `postFilaTeste`
+   * injeta a tarefa que o aparelho vai puxar na próxima volta de `/proximo`,
+   * ou responde qual etapa barrou o lead escolhido.
+   */
+  getFilaTeste: () => request<FilaTesteEstadoResponse>("/api/fila/teste"),
+  postFilaTeste: (corpo: { leadId?: string; pular?: string[] }) =>
+    request<FilaTesteInjecaoResponse>("/api/fila/teste", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
 
   listFrases: () => request<FrasesResponse>("/api/frases"),
   /** Textos de UMA skin do registro (admin). */

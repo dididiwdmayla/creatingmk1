@@ -20,6 +20,7 @@ import { GET } from "../fila/proximo/route";
 
 const CHAVES_RESPOSTA = [
   "temTarefa",
+  "teste",
   "id",
   "leadId",
   "nome",
@@ -29,6 +30,13 @@ const CHAVES_RESPOSTA = [
   "expiraEm",
   "motivo",
 ] as const;
+
+/**
+ * As duas únicas chaves booleanas do contrato. Todo o resto é string, mesmo
+ * vazia — e a distinção importa porque é exatamente o que o MacroDroid lê
+ * por marcador de texto.
+ */
+const CHAVES_BOOLEANAS: readonly string[] = ["temTarefa", "teste"];
 
 const CHAVE = "chave-do-celular";
 
@@ -88,6 +96,7 @@ function esquecerPool() {
 function semTarefaEsperado(motivo: string) {
   return {
     temTarefa: false,
+    teste: false,
     id: "",
     leadId: "",
     nome: "",
@@ -417,7 +426,10 @@ describe("GET /api/fila/proximo — o contrato achatado", () => {
     }
     expect(typeof corpo.temTarefa).toBe("boolean");
     for (const chave of CHAVES_RESPOSTA) {
-      if (chave === "temTarefa") continue;
+      if (CHAVES_BOOLEANAS.includes(chave)) {
+        expect(typeof corpo[chave]).toBe("boolean");
+        continue;
+      }
       expect(typeof corpo[chave]).toBe("string");
     }
     expect(corpo.motivo).toBe("");
@@ -434,7 +446,10 @@ describe("GET /api/fila/proximo — o contrato achatado", () => {
     }
     expect(typeof corpo.temTarefa).toBe("boolean");
     for (const chave of CHAVES_RESPOSTA) {
-      if (chave === "temTarefa") continue;
+      if (CHAVES_BOOLEANAS.includes(chave)) {
+        expect(typeof corpo[chave]).toBe("boolean");
+        continue;
+      }
       expect(typeof corpo[chave]).toBe("string");
     }
     expect(corpo.temTarefa).toBe(false);

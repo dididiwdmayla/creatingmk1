@@ -15,8 +15,12 @@ import type { FilaEnvioDoc, FilaEnvioResultado } from "./estado";
  */
 export const FILA_ENVIOS_COLLECTION = "filaEnvios";
 
-/** Janela de uma reserva antes de virar livre de novo sozinha. */
-const RESERVA_DURACAO_MS = 5 * 60 * 1000;
+/**
+ * Janela de uma reserva antes de virar livre de novo sozinha. Exportada
+ * porque a tarefa de TESTE devolve um `expiraEm` com a mesma duração: a
+ * resposta ao aparelho tem que significar a mesma coisa nos dois caminhos.
+ */
+export const RESERVA_DURACAO_MS = 5 * 60 * 1000;
 
 /** Sempre "no passado" pra qualquer `now` real — usado por `liberarClaim`. */
 const EPOCH_ISO = new Date(0).toISOString();

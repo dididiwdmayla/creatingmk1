@@ -47,6 +47,7 @@
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
  *   node scripts/qa-plataforma.mjs --so=pendencias # lista de print pendente em /config, cheia e VAZIA
  *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil, próximos, bloqueados
+ *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, barrado, confirmado
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
  *   node scripts/qa-plataforma.mjs --sem-build    # reusa o .next já buildado
  */
@@ -293,6 +294,9 @@ function semear() {
       nichosPermitidos: ["petshop", "multimarcas"],
       intervaloMinimoSegundos: 240,
       inicioDiaOperacionalHora: 6,
+      // Destino do disparo de teste (--so=teste). Fixo aqui para a captura
+      // não depender do default do código mudar.
+      numeroTeste: "5544984570105",
     },
     [`buscas/${buscaId}`]: {
       id: buscaId,
@@ -684,6 +688,43 @@ function semear() {
       capturaNaoPronta: 30,
       semFuso: 2,
     },
+  };
+
+  // ── O LEAD FIXO DE TESTE (--so=teste) ───────────────────────────────
+  //
+  // Semeado PRONTO (demo + captura com print de celular) porque o passo do
+  // disparo de teste precisa do alvo padrão servindo. Ele carrega
+  // `leadDeTeste: true`, então nenhuma outra captura pode mostrá-lo: nem
+  // /leads, nem /demos, nem /hoje, nem o funil da visão da fila.
+  mapa["leads/radar-lead-teste"] = {
+    placeId: "radar-lead-teste",
+    nome: "Barbearia Dom Aurélio",
+    endereco: "Rua Néo Alves Martins, 2820 — Zona 01, Maringá — PR, 87013-060",
+    status: "novo",
+    leadDeTeste: true,
+    busca: { nicho: "barbearia", regiao: "Maringá PR", em: iso(40) },
+    temSite: false,
+    siteProprio: false,
+    temTelefone: true,
+    telefone: "(44) 3555-0142",
+    telefoneIntl: "+55 44 3555-0142",
+    enriquecido: false,
+    horarios: {
+      faixas: [2, 3, 4, 5, 6].map((dia) => ({
+        diaAbre: dia,
+        horaAbre: 9,
+        minAbre: 0,
+        diaFecha: dia,
+        horaFecha: 19,
+        minFecha: 0,
+      })),
+      utcOffsetMinutes: -180,
+      obtidoEm: iso(40),
+    },
+    demo: { skinId: "barbearia-editorial", themeId: "norte", dados: {}, criadoEm: iso(40), atualizadoEm: iso(40) },
+    capturas: capturaPronta,
+    criadoEm: iso(40),
+    atualizadoEm: iso(40),
   };
 
   // O CONTADOR do dia operacional (corte às 6h, como a config acima). Os
@@ -1346,6 +1387,11 @@ async function conferirPainelFila(page, onde, largura, problemas) {
     const secao = titulo?.closest("section");
     if (!secao) return [];
     return [...secao.querySelectorAll("*")]
+      // `<option>` não tem caixa própria (quem desenha a lista é o SO), e o
+      // texto dele aparece do mesmo jeito. Medi-lo aqui acusaria de "slot
+      // zerado" um seletor que funciona — o aferidor procura conteúdo
+      // INVISÍVEL, não conteúdo fora do fluxo do documento.
+      .filter((el) => el.tagName !== "OPTION")
       .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
       .map((el) => {
         const r = el.getBoundingClientRect();
@@ -1657,6 +1703,221 @@ async function medirFila(browser, secret) {
     throw new Error(`[fila] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
   }
   console.log("[fila] ok — cheia, VAZIA e sem pool, sem vazamento nem caixa zerada.");
+  return gerados;
+}
+
+/* ── Item: o disparo de teste em /config (`--so=teste`) ──────────────── */
+
+/**
+ * O DISPARO DE TESTE — o bloco que faz o aparelho acordar a tela e mandar
+ * mensagem, subordinado ao painel "Fila de envio".
+ *
+ * Existe como passo próprio pelos estados que nenhuma outra captura alcança:
+ * a tarefa PENDENTE com o tempo restante (é ela que diz ao operador para não
+ * clicar de novo), o resultado de um disparo BARRADO — com a etapa nominal,
+ * que é o produto principal dos interruptores — e o CONFIRMADO. O quarto é o
+ * destino vazio, em que o bloco tem que dizer "não configurado" em vez de
+ * oferecer um botão que só falharia.
+ *
+ * O tema claro entra pelo mesmo motivo do `--so=fila` e do `--so=pendencias`:
+ * é onde os tokens apagados deste bloco têm menos contraste de sobra, e as
+ * capturas de aba não o cobrem — o painel fica muito abaixo da dobra.
+ */
+async function medirDisparoTeste(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  /** A tarefa de teste tal como o doc `filaTestes/atual` a guarda. */
+  const tarefa = (extra = {}) => ({
+    claimId: "teste-qaQaQaQaQaQ",
+    estado: "pendente",
+    leadId: "radar-lead-teste",
+    nome: "Barbearia Dom Aurélio",
+    numero: "5544984570105",
+    texto: "Oi, Barbearia Dom Aurélio! Fiz um site de exemplo pra vocês.",
+    printUrl: "/qa.png",
+    // Relativo ao instante da EDIÇÃO, não ao início do script: a rodada
+    // percorre quatro viewports e leva minutos, e o contador da tela é
+    // relativo ao carregamento — sem isto a última captura diria outro
+    // número (e o aferidor do tempo restante falharia sozinho).
+    criadoEm: new Date(Date.now() - 4 * 60000).toISOString(),
+    expiraEm: new Date(Date.now() + 11 * 60000).toISOString(),
+    criadoPor: "admin",
+    pulou: [],
+    entregueEm: null,
+    confirmadoEm: null,
+    resultado: null,
+    detalhe: "",
+    ...extra,
+  });
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    const abrirPainel = async (onde) => {
+      await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `teste/${onde}`);
+      await page.getByRole("heading", { name: "Disparo de teste" }).scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+    };
+
+    // Captura o BLOCO, não a seção inteira: o painel "Fila de envio" passa
+    // de 2000px de altura (config + visão + pendências) e já é capturado
+    // por inteiro em `--so=fila` e `--so=pendencias`. Aqui o que precisa
+    // ser julgado a olho é este bloco — numa folha de contato de seção
+    // inteira ele sairia com 30px de altura.
+    const capturarPainel = async (rotulo, arquivo) => {
+      const alvo = page.locator('[data-bloco="disparo-teste"]');
+      const png = path.join(SAIDA, `teste-${arquivo}-${sufixo}${marca}.png`);
+      // A nav é `fixed` no rodapé e pinta por cima da última faixa numa
+      // captura de elemento mais alto que a viewport — mesmo motivo do
+      // `--so=fila`.
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await alvo.first().screenshot({ path: png });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    const exigirTextos = async (onde, alvos) => {
+      for (const [alvo, oque] of alvos) {
+        if ((await page.getByText(alvo).count()) === 0) {
+          problemas.push(`${onde}: ${oque} não apareceu`);
+        }
+      }
+    };
+
+    // ── PENDENTE: a tarefa está na fila e o aparelho ainda não puxou. É o
+    //    estado em que o operador olha para decidir se clica de novo — e a
+    //    resposta é não: o tempo restante e a nota dos ~3 minutos.
+    editarBanco((mapa) => {
+      mapa["filaTestes/atual"] = tarefa();
+    });
+    await abrirPainel(`pendente/${sufixo}`);
+    const pendente = await conferirPainelFila(page, `pendente/${sufixo}`, viewport.width, problemas);
+    await exigirTextos(`pendente/${sufixo}`, [
+      [/5544984570105/, "número de destino"],
+      [/nunca o telefone do lead/, "aviso de que o destino não é o do lead"],
+      [/pergunta a cada ~3 minutos/, "nota do intervalo da macro"],
+      [/Aguardando o aparelho puxar/, "estado da tarefa pendente"],
+      [/expira em \d+min/, "tempo restante da tarefa"],
+      [/Barbearia Dom Aurélio/, "nome do lead alvo"],
+    ]);
+    const interruptores = await page.getByRole("button", { name: /^(ritmo|estruturais|nicho|janela)$/ }).count();
+    if (interruptores !== 4) {
+      problemas.push(`pendente/${sufixo}: esperava 4 interruptores, achei ${interruptores}`);
+    }
+    await capturarPainel("pendente (aguardando o aparelho)", "pendente");
+
+    // ── BARRADO: o clique de verdade, com a fila pausada. O produto aqui é
+    //    a ETAPA nominal — "parou em ritmo: a fila está pausada" —, não um
+    //    "não deu" que devolveria a caixa preta que os interruptores abrem.
+    editarBanco((mapa) => {
+      delete mapa["filaTestes/atual"];
+      mapa["config/fila"] = { ...mapa["config/fila"], ativo: false };
+    });
+    await abrirPainel(`barrado/${sufixo}`);
+    await page.getByRole("button", { name: "Disparar teste" }).click();
+    await page.waitForTimeout(700);
+    await exigirTextos(`barrado/${sufixo}`, [
+      [/parou em/, "aviso de que o disparo não saiu"],
+      [/a fila está pausada/, "motivo nominal da etapa de ritmo"],
+    ]);
+    await conferirPainelFila(page, `barrado/${sufixo}`, viewport.width, problemas);
+    await capturarPainel("barrado (parou no ritmo)", "barrado");
+
+    // ── CONFIRMADO: o aparelho puxou, mandou e reportou. Fecha o ciclo na
+    //    tela, para o operador não precisar abrir log de aparelho nenhum.
+    editarBanco((mapa) => {
+      mapa["config/fila"] = { ...mapa["config/fila"], ativo: true };
+      mapa["filaTestes/atual"] = tarefa({
+        estado: "confirmado",
+        pulou: ["ritmo", "janela"],
+        entregueEm: new Date(Date.now() - 3 * 60000).toISOString(),
+        confirmadoEm: new Date(Date.now() - 2 * 60000).toISOString(),
+        resultado: "enviado",
+        detalhe: "o texto saiu, o print não anexou",
+      });
+    });
+    await abrirPainel(`confirmado/${sufixo}`);
+    const confirmado = await conferirPainelFila(
+      page,
+      `confirmado/${sufixo}`,
+      viewport.width,
+      problemas,
+    );
+    await exigirTextos(`confirmado/${sufixo}`, [
+      [/Confirmado/, "estado confirmado"],
+      [/o texto saiu, o print não anexou/, "detalhe reportado pelo aparelho"],
+      [/pulou ritmo, janela/, "rastro das etapas puladas"],
+    ]);
+    await capturarPainel("confirmado (com detalhe do aparelho)", "confirmado");
+
+    // ── DESLIGADO: sem `numeroTeste` não há destino. O bloco tem que DIZER
+    //    isso, em vez de oferecer um botão que só falharia — e é o estado
+    //    mais curto, onde um bloco subordinado costuma deixar espaço morto.
+    editarBanco((mapa) => {
+      delete mapa["filaTestes/atual"];
+      mapa["config/fila"] = { ...mapa["config/fila"], numeroTeste: "" };
+    });
+    await abrirPainel(`desligado/${sufixo}`);
+    const desligado = await conferirPainelFila(
+      page,
+      `desligado/${sufixo}`,
+      viewport.width,
+      problemas,
+    );
+    await exigirTextos(`desligado/${sufixo}`, [
+      [/não configurado/, "aviso de destino ausente"],
+      [/Nenhum teste disparado ainda/, "estado vazio da tarefa"],
+    ]);
+    await capturarPainel("desligado (sem número de destino)", "desligado");
+
+    // O bloco ENCOLHE sem tarefa: é aqui que um subordinado costuma deixar
+    // caixa quebrada ou um vão no lugar do conteúdo.
+    if (confirmado && desligado) {
+      const encolheu = confirmado.altura - desligado.altura;
+      console.log(
+        `  [teste] ${sufixo}: painel ${confirmado.altura}px com tarefa → ${desligado.altura}px sem (−${encolheu}px)`,
+      );
+      if (encolheu <= 0) {
+        problemas.push(
+          `desligado/${sufixo}: painel não encolheu sem tarefa (${confirmado.altura} → ${desligado.altura})`,
+        );
+      }
+    }
+    if (pendente && pendente.altura <= 0) {
+      problemas.push(`pendente/${sufixo}: painel com altura zerada`);
+    }
+
+    // Devolve o banco ao estado semeado para a próxima leva de viewport.
+    semear();
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, 'Disparo de teste — painel "Fila de envio" (/config)', "teste", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[teste] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[teste] ok — pendente, barrado, confirmado e desligado, sem vazamento nem caixa zerada.");
   return gerados;
 }
 
@@ -2546,6 +2807,7 @@ async function main() {
     if (querido("listas")) gerados.push(...(await medirListas(browser, secret)));
     if (querido("pendencias")) gerados.push(...(await medirPendencias(browser, secret)));
     if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
+    if (querido("teste")) gerados.push(...(await medirDisparoTeste(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));

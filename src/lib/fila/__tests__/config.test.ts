@@ -73,3 +73,45 @@ describe("saveFilaConfig", () => {
     );
   });
 });
+
+describe("numeroTeste — o destino do disparo de teste", () => {
+  it("vem preenchido por default", () => {
+    expect(DEFAULT_FILA_CONFIG.numeroTeste).toBe("5544984570105");
+  });
+
+  it("aceita dígitos com DDI e guarda sem espaço", async () => {
+    const db = new FakeFirestore();
+    const salvo = await saveFilaConfig(db, { numeroTeste: " 5544991543803 " });
+    expect(salvo.numeroTeste).toBe("5544991543803");
+  });
+
+  it("aceita vazio — é o disparo de teste desligado, não um erro", async () => {
+    const db = new FakeFirestore();
+    const salvo = await saveFilaConfig(db, { numeroTeste: "" });
+    expect(salvo.numeroTeste).toBe("");
+  });
+
+  it("recusa número com máscara: o WhatsApp do celular não resolve parêntese nem traço", async () => {
+    const db = new FakeFirestore();
+    await expect(saveFilaConfig(db, { numeroTeste: "(44) 99154-3803" })).rejects.toThrow(
+      ValidationError,
+    );
+  });
+
+  it("recusa curto demais e comprido demais", async () => {
+    const db = new FakeFirestore();
+    await expect(saveFilaConfig(db, { numeroTeste: "123" })).rejects.toThrow(ValidationError);
+    await expect(saveFilaConfig(db, { numeroTeste: "1".repeat(16) })).rejects.toThrow(
+      ValidationError,
+    );
+  });
+
+  it("doc com tipo errado no campo não derruba a leitura (o celular bate nela a noite toda)", async () => {
+    const db = new FakeFirestore();
+    db.seed(DOC, { numeroTeste: 5544984570105 });
+
+    const config = await loadFilaConfig(db);
+
+    expect(config.numeroTeste).toBe(DEFAULT_FILA_CONFIG.numeroTeste);
+  });
+});

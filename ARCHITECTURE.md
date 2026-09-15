@@ -674,6 +674,8 @@ Regras de escrita:
 
 100% sobre dados já salvos — **nenhum request novo ao Google**. `src/lib/leads/penetracao.ts` tem a agregação pura: `calcularPenetracaoSite(leads)` classifica cada lead pelo `siteProprio` já existente (com site próprio / só rede social — `siteProprio: false` com `temSite: true` / sem nada — `siteProprio: false` com `temSite` falso) e soma. Leads com `siteProprio` indefinido (nunca enriquecidos nem de busca qualificada) ficam de fora do "total conhecido" e voltam à parte em `desconhecidos`. Com menos de `PENETRACAO_BASE_MINIMA` (5) leads conhecidos, `percentuais` fica `undefined` — a UI mostra a contagem, nunca um percentual sobre base pequena demais pra significar algo.
 
+O lead fixo de teste da fila de envio (`leadDeTeste`) **nunca entra nesta conta**: `calcularPenetracaoGrupo` monta o conjunto a partir de `listLeads`, que já o exclui na origem — um lead inventado somado aqui mudaria um percentual que vai numa conversa de venda.
+
 `src/lib/buscas/penetracao.ts` faz a parte com Firestore: **"neste nicho nesta cidade" é o grupo lógico de TODAS as buscas com o mesmo nicho+região** (normalizado: minúsculas, espaços colapsados), não só a busca corrente — `calcularPenetracaoGrupo` reúne os leads de todas elas. `recalcularPenetracao(db, buscaId)` recalcula e cacheia o agregado no campo `penetracao` do doc da busca (ver `/buscas/{id}`); é chamado **toda vez que a busca roda de novo** — em `POST /api/search` (logo após criar o doc) e no cron (`executarBusca`, logo após `registrarExecucao`). Cada busca doc reflete o agregado de quando ELA rodou por último — buscas irmãs (mesmo nicho+região) que não rodaram desde então ficam com o cache defasado até rodarem de novo; é uma leitura, não uma fonte de verdade em tempo real.
 
 Onde aparece:
@@ -683,6 +685,8 @@ Onde aparece:
 - **Badge "argumento forte"** (`argumentoForte(penetracao)`, `percentuais.comSiteProprio > 60`) em `/hoje` e no `LeadCard` da lista de leads — discreto, não bloqueia nada, só sinaliza que o argumento é forte.
 
 O campo **`capturas`** do lead guarda a última geração de prints (estado, `execucaoId`, `pedidoEm`/`iniciadoEm`/`geradoEm`, `runUrl`, `erro` e as `imagens` com âncora/tela/URL/dimensões) — ver "Disparo pela plataforma" na Forja de Demos.
+
+O campo **`leadDeTeste`** (booleano, ausente = false) marca o LEAD FIXO DE TESTE da fila de envio — ver "Disparo de teste da fila". Ele não é um negócio real, então fica fora de TODA listagem e de todo agregado: `listLeads` (e com ela /leads, /demos, /hoje, /mundo, a análise de grupo e a penetração por nicho+cidade), `getMetrics`/`getMetricsPorUsuario` e `construirPool` o excluem na ORIGEM. Um lead de teste somado à penetração envenenaria, em silêncio, um número usado como argumento de venda.
 
 ### `/buscas/{id}` — um doc por busca executada
 
@@ -820,6 +824,8 @@ ID = região normalizada (minúsculas, espaços colapsados, URL-encoded). Doc: `
 Sem coleção própria no MVP: são **queries sobre `/leads`** usando os timestamps de `contato` (ex.: contatos hoje = `contato.primeiroContatoEm >= startOfDay`; taxa de resposta = leads com `respondeuEm` ÷ leads com `primeiroContatoEm`). `demosCriadas` (card "Demos criadas" do dashboard) conta leads com o campo `demo` presente na mesma passada. Na escala de uso pessoal (centenas de leads) isso custa nada; se um dia doer, materializamos agregados.
 
 **Escopo por papel**: membro recebe as métricas escopadas aos carimbos DELE (`primeiroContatoPor`/`demo.criadoPor`); admin recebe o agregado E um rollup `porUsuario` (buscas via `/buscas.userId`, demos, contatos — com nome do usuário). Ações antigas sem carimbo aparecem só no agregado.
+
+As duas varreduras pulam o lead marcado com `leadDeTeste` — inclusive em `demosCriadas`, que ele inflaria por já nascer com demo salva (ver "Disparo de teste da fila").
 
 ## Contrato das rotas (route handlers)
 
@@ -2320,9 +2326,12 @@ Um celular Android com MacroDroid é um EXECUTOR BURRO: pergunta "qual o próxim
   "exigirJanelaBoa": true,           // só libera lead cuja janela de contato atual é "boa"
   "nichosPermitidos": [],            // vazio = todos
   "intervaloMinimoSegundos": 180,
-  "inicioDiaOperacionalHora": 0      // hora (America/Sao_Paulo) em que o dia operacional começa; 0 = meia-noite
+  "inicioDiaOperacionalHora": 0,     // hora (America/Sao_Paulo) em que o dia operacional começa; 0 = meia-noite
+  "numeroTeste": "5544984570105"     // destino de TODO disparo de teste; vazio = disparo desligado
 }
 ```
+
+`numeroTeste` é dígitos puros com DDI (mesmo formato que `montarMensagemParaLead` entrega ao aparelho — nada de parêntese ou traço, que o WhatsApp do celular não resolve). Ver "Disparo de teste da fila" adiante: toda tarefa de teste sai para ELE, nunca para o telefone real do lead escolhido.
 
 Doc PRÓPRIO, fora de `/config/app`: a fila é lida com muito mais frequência (o celular bate a cada ciclo) e por um chamador totalmente diferente (dispositivo, não sessão de usuário) — misturar no doc de app acoplaria dois ritmos de escrita/leitura sem necessidade. `loadFilaConfig` aplica os defaults acima quando o doc não existe — a AUSÊNCIA do documento nunca pode virar erro nem liberar envio irrestrito. Editável em `/config` (painel "Fila de envio", `GET`/`PUT /api/config/fila` — **os dois restritos ao admin**, ver "O painel inteiro é ADMIN ONLY" abaixo) reaproveitando o padrão de edição inline de "Metas por integrante" (cada campo salva no próprio blur/clique, sem botão "salvar" geral) — o botão de pausa mostra o estado ATUAL sem precisar clicar ("Ativa ✓" / "Pausada ⏸").
 
@@ -2432,12 +2441,12 @@ aninhado, com TODAS as chaves sempre presentes nos dois casos:
 
 ```jsonc
 // Com tarefa (200):
-{ "temTarefa": true, "id": "<claimId>", "leadId": "ChIJ...", "nome": "Ink House",
-  "numero": "5544991543803", "texto": "<mensagem montada e resolvida>",
+{ "temTarefa": true, "teste": false, "id": "<claimId>", "leadId": "ChIJ...",
+  "nome": "Ink House", "numero": "5544991543803", "texto": "<mensagem montada e resolvida>",
   "printUrl": "<url pública da captura>", "expiraEm": "<ISO>", "motivo": "" }
 
 // Sem tarefa (200):
-{ "temTarefa": false, "id": "", "leadId": "", "nome": "", "numero": "",
+{ "temTarefa": false, "teste": false, "id": "", "leadId": "", "nome": "", "numero": "",
   "texto": "", "printUrl": "", "expiraEm": "", "motivo": "fora_de_janela" }
 ```
 
@@ -2450,11 +2459,16 @@ reportado como falha sem nada ter sido enviado. Daí as três regras que valem
 para sempre, não só estilo: (1) nenhum objeto ou array aninhado; (2) toda
 chave presente nos dois casos — chave ausente é o mesmo bug da chave
 aninhada, o marcador some e a macro carrega lixo sem perceber; chave ausente
-é pior que chave vazia; (3) todo valor é string, exceto `temTarefa`
-(booleano) — nunca `null`, nunca `undefined`, nunca campo omitido. Com
-tarefa, `motivo` é string vazia; sem tarefa, todos os outros campos são
+é pior que chave vazia; (3) todo valor é string, exceto `temTarefa` e
+`teste` (booleanos) — nunca `null`, nunca `undefined`, nunca campo omitido.
+Com tarefa, `motivo` é string vazia; sem tarefa, todos os outros campos são
 string vazia e `motivo` é um dos seis valores (`pausado`, `meta_atingida`,
 `teto_hora`, `intervalo`, `fora_de_janela`, `sem_leads_elegiveis`).
+
+`teste` diz se aquela volta trouxe uma TAREFA DE TESTE em vez de uma
+prospecção real — ver "Disparo de teste da fila" adiante. Ela entra pela
+MESMA rota, antes do portão de ritmo, e é o único caso em que a chave é
+`true`.
 
 **`printUrl` (`src/lib/fila/print.ts`)** é escolhido por regra fixa, não pelo operador — o celular é executor burro. Duas decisões: a **seção principal no celular** (a âncora de MENOR `ordem`, que em todos os padrões é o hero — a primeira impressão da marca é o que abre uma conversa), e **com moldura, caindo para a crua** (a composta "se lê como um site num aparelho" numa conversa; numa mensagem com UMA imagem é a peça que vende, mas a composição pode ter falhado). Sem nenhuma imagem de celular o lead **não é elegível**: `estado === "pronto"` não garante que a tela de celular saiu, e tarefa sem print é mensagem sem a peça que vende. As URLs do Storage são públicas e estáveis (`public: true`, `scripts/capturas.mjs`), então o celular baixa direto, sem passar pelo proxy de `servir.ts`.
 
@@ -2588,11 +2602,103 @@ Existem porque um humano edita esta tela enquanto o celular pode estar no meio d
 
 Não é sigilo de dado: **a fila é global** — um `/config/fila`, um pool, um contador — e é drenada por UM aparelho físico. Membro que pausa, para o celular do admin; membro que mexe na meta, muda o que aquele aparelho vai fazer à noite. É comando sobre hardware alheio.
 
-A página `/config` já era restrita ao admin no proxy (membro é mandado de volta ao painel), mas a checagem de PAPEL nas rotas estava só na ESCRITA: `PUT /api/config/fila` e `PATCH .../pendencias/{leadId}` eram `requireAdmin`, e os dois GET passavam com qualquer sessão válida. Fechado: **as quatro rotas do bloco** (`GET`/`PUT /api/config/fila`, `GET /api/config/fila/pendencias`, `PATCH /api/config/fila/pendencias/{leadId}`) e `GET /api/fila/diagnostico` exigem sessão de admin — 401 sem sessão, 403 para membro, com teste em cada uma conferindo que o corpo do 403 não traz `fila` nem `pendencias`. `GET /api/config/fila` passou a receber a `Request` (não recebia argumento nenhum) para poder ler o cookie.
+A página `/config` já era restrita ao admin no proxy (membro é mandado de volta ao painel), mas a checagem de PAPEL nas rotas estava só na ESCRITA: `PUT /api/config/fila` e `PATCH .../pendencias/{leadId}` eram `requireAdmin`, e os dois GET passavam com qualquer sessão válida. Fechado: **as quatro rotas do bloco** (`GET`/`PUT /api/config/fila`, `GET /api/config/fila/pendencias`, `PATCH /api/config/fila/pendencias/{leadId}`) e `GET /api/fila/diagnostico` exigem sessão de admin — 401 sem sessão, 403 para membro, com teste em cada uma conferindo que o corpo do 403 não traz `fila` nem `pendencias`. `GET /api/config/fila` passou a receber a `Request` (não recebia argumento nenhum) para poder ler o cookie. `GET`/`POST /api/fila/teste` (o disparo de teste, adiante) nasceram com a mesma checagem — ali a razão fica ainda mais literal: um membro que injeta tarefa de teste faz o celular do admin acordar a tela e enviar.
 
 `/api/fila/diagnostico` continua sendo o caso especial que já era: vive sob o prefixo `/api/fila/*` que o proxy isenta da sessão (porque é lá que o celular bate com a `RADAR_DEVICE_KEY`), e por isso faz a própria checagem completa de sessão + papel. A `RADAR_DEVICE_KEY` **não abre esta tela**: aquele segredo é do aparelho e só serve às rotas de execução (`/proximo`, `/confirmar`).
 
-**Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` captura o painel em três estados × celular e desktop × temas escuro e claro (o tema claro pelo mesmo motivo do `--so=pendencias`: é onde os tokens apagados deste bloco têm menos contraste de sobra, e as capturas de aba não o cobrem). Os estados: **cheia** (5 próximos + "e mais 1 na fila", 2 bloqueados, contador andando, retrato do pool datado); **vazia** — fila ativa, pool sem candidato e contador zerado, os três estados vazios de uma vez, que é o motivo de o passo existir e onde ele cobra que o painel ENCOLHA (−501px no celular, −381px no desktop) em vez de trocar as listas por um vão; e **sem pool**, o celular que nunca pediu tarefa. Os fixtures usam as famílias `petshop` (faixa `bom` o dia inteiro nos 7 dias) e `multimarcas` (`ruim` igual), pelo mesmo motivo já anotado para `imobiliaria` em /mundo: captura cujo CONTEÚDO muda com a hora da rodada não prova nada. Os aferidores do painel (não vaza da viewport, nenhum slot com caixa zerada) são compartilhados com o `--so=pendencias`, e a asserção "sobrou linha de lista" daquele passo passou a ser escopada por `[data-lista="pendencias"]` — o funil desta visão também é feito de `<li>`, e ele não é linha de pendência.
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` captura o painel em três estados × celular e desktop × temas escuro e claro (o tema claro pelo mesmo motivo do `--so=pendencias`: é onde os tokens apagados deste bloco têm menos contraste de sobra, e as capturas de aba não o cobrem). Os estados: **cheia** (5 próximos + "e mais 1 na fila", 2 bloqueados, contador andando, retrato do pool datado); **vazia** — fila ativa, pool sem candidato e contador zerado, os três estados vazios de uma vez, que é o motivo de o passo existir e onde ele cobra que o painel ENCOLHA (−501px no celular, −381px no desktop) em vez de trocar as listas por um vão; e **sem pool**, o celular que nunca pediu tarefa. Os fixtures usam as famílias `petshop` (faixa `bom` o dia inteiro nos 7 dias) e `multimarcas` (`ruim` igual), pelo mesmo motivo já anotado para `imobiliaria` em /mundo: captura cujo CONTEÚDO muda com a hora da rodada não prova nada. Os aferidores do painel (não vaza da viewport, nenhum slot com caixa zerada) são compartilhados com o `--so=pendencias` e com o `--so=teste`, e a asserção "sobrou linha de lista" daquele passo passou a ser escopada por `[data-lista="pendencias"]` — o funil desta visão também é feito de `<li>`, e ele não é linha de pendência.
+
+## Disparo de teste da fila — o lead fixo, a tarefa injetada e os interruptores
+
+A visão acima responde o que vai acontecer. Este bloco responde a pergunta que vem depois: **o ciclo do aparelho ainda funciona?** Um disparo que o operador injeta na tela, que sai pela MESMA rota que o celular já chama, e que não deixa rastro em lead nenhum.
+
+Ele é o terceiro bloco subordinado ao painel "Fila de envio" (`<h3>` "Disparo de teste"), ao lado da visão e da lista de print pendente — e, como eles, **é ADMIN ONLY**: fazer o celular do admin acordar a tela e mandar mensagem é comando sobre hardware alheio, igual à pausa e à meta.
+
+### O LEAD FIXO DE TESTE (`src/lib/fila/leadTeste.ts` + `Lead.leadDeTeste`)
+
+Um lead permanente, com demo e captura prontas, que serve de alvo estável para validar o ciclo sem envolver nenhum negócio real. `leadDeTeste: true` no doc é a marcação; o id (`radar-lead-teste`) **não tem forma de placeId do Google**, então nenhuma busca pode devolvê-lo e o `upsertLeads` do cron nunca vai sobrescrevê-lo.
+
+**Por que um lead de verdade, e não um objeto sintético na rota:** o teste só prova alguma coisa se percorrer o MESMO caminho da tarefa real — `montarMensagemParaLead` (frases, precedência skin→grupo→global, marcadores, link da demo com token) e `printUrlDoLead` (âncora principal, celular, moldura caindo para a crua). Um mock na rota testaria a rota, não o ciclo.
+
+**Por que ele parece um negócio comum** ("Barbearia Dom Aurélio", endereço de Maringá, terça a sábado das 9h às 19h, nicho `barbearia` — que tem skin registrada): o destino é sempre sobrescrito por `numeroTeste`, mas a rede de segurança pode falhar, e se a mensagem escapar para o número errado é muito melhor parecer prospecção normal do que chegar assinada "LEAD TESTE 123".
+
+**Demo e captura são geradas UMA vez e persistem.** `garantirLeadDeTeste(db)` cria o doc se não existir e **nunca sobrescreve** o que já está lá — é chamada pelo painel, então abrir a tela basta (não há seed nem migração neste repo, e não precisa haver). A captura o operador gera à mão, uma vez, pela ficha do lead. Depois disso nada a invalida: **não existe ciclo de expiração de captura** — a regra de `semNoticia` (`capturas/estado.ts`) só degrada `enfileirado` e `rodando`, nunca `pronto`. O único caminho que apagaria a demo do alvo era o `DELETE /api/leads/{id}/demo` manual, e ele passou a **recusar** neste lead: se ele aparecesse como "não pronto" justamente na noite do teste, o recurso não serviria para nada.
+
+#### O INVENTÁRIO — onde ele é excluído, e por quê isso é o trabalho central
+
+Criar o lead é a parte fácil. O que custa é garantir que ele não vaze: **um lead de teste somado à penetração de site por nicho envenena, em silêncio, um número que é usado como argumento de venda**; somado ao pool da fila, manda mensagem de verdade sozinho às dez da noite.
+
+A exclusão acontece na ORIGEM de cada varredura, nunca em cada consumidor:
+
+- **`listLeads`** (`leads/repo.ts`) — e com ela `/api/leads` (páginas `/leads` e `/demos`), `/api/hoje` (a fila do dia), `/api/mundo`, a análise de grupo por IA, o apagar demos em lote do grupo e `calcularPenetracaoGrupo` (a penetração por nicho+cidade). Os derivados puros que rodam sobre essa lista — `montarFilaDoDia`, `montarMundo`, `calcularPenetracaoSite`, `calculaScore` — ficam cobertos sem código novo.
+- **`getMetrics` e `getMetricsPorUsuario`** (`leads/metrics.ts`) — o painel e o rollup por integrante, inclusive `demosCriadas`, que ele inflaria por já nascer com demo.
+- **`construirPool`** (`fila/candidatos.ts`) — nem como candidato, nem em `lidos`, nem em nenhuma das sete contagens estruturais do funil. Aqui não é só higiene de número: candidato, ele receberia prospecção de verdade à noite. O alvo do disparo de teste chega por id, nunca pelo pool.
+
+Dois lugares que a busca alcançou e onde **não havia nada a excluir**, conferido no código: o **índice regional de preço** (`lib/regioes`, `lib/precificacao`) não lê `/leads`, e as **metas por integrante** (`usuarios/metas.ts`) leem o contador de buscas em `usage_users`. A lista de print pendente também fica de fora por construção: ela varre `filaEnvios`, onde o teste nunca escreve.
+
+### A TAREFA DE TESTE (`src/lib/fila/teste.ts` + `filaTestes/atual`)
+
+**Por dentro de `/proximo`, nunca por rota nova — requisito duro.** Cada alteração na macro custa reconfiguração manual no celular. Ela continua perguntando a mesma coisa no mesmo lugar, com o mesmo contrato achatado; só recebe, naquela volta, a tarefa de teste em vez da normal.
+
+**Onde a claim mora, e por que NÃO em `filaEnvios/{leadId}`.** Aquele doc é por leadId e carrega o estado REAL daquele lead: claimId, tentativas, `enviadoEm`, `detalheEnvio`. Dez testes no mesmo lead destruiriam o histórico dele — o contrário do que este recurso promete. A claim de teste tem **id próprio** e vive numa coleção separada.
+
+**Por que doc próprio e não dentro de `config/fila`** (que `/proximo` já lê em toda chamada, e onde sairia de graça): `saveFilaConfig` grava o documento INTEIRO com `set`, então o admin ajustando a meta destruiria uma tarefa pendente ao lado, e consumir a tarefa faria o caminho do APARELHO escrever no doc que hoje só o admin escreve. Seria exatamente a corrida que a regra "alteração de configuração nunca invalida claim já emitida" existe para não ter. O preço é **+1 leitura por chamada** (~480/dia, trivial) — e ele some quando há teste pendente: a entrega acontece ANTES do portão de ritmo e pula a leitura do contador.
+
+**UM doc, três estados**, `filaTestes/atual`:
+
+```jsonc
+{
+  "claimId": "teste-XXXXXXXXXXXX",  // cunhado na INJEÇÃO, não na entrega
+  "estado": "pendente",              // "pendente" | "entregue" | "confirmado"
+  "leadId": "radar-lead-teste",
+  "nome": "Barbearia Dom Aurélio",
+  "numero": "5544984570105",         // config/fila.numeroTeste, nunca o telefone do lead
+  "texto": "<mensagem montada e resolvida>",
+  "printUrl": "<url pública da captura>",
+  "criadoEm": "<ISO>",
+  "expiraEm": "<ISO>",               // criadoEm + 15min — só vale enquanto "pendente"
+  "criadoPor": "<userId do admin>",
+  "pulou": ["ritmo"],                // rastro de quais etapas foram puladas
+  "entregueEm": null, "confirmadoEm": null, "resultado": null, "detalhe": ""
+}
+```
+
+Injetar de novo **sobrescreve**: há UM aparelho, e duas tarefas de teste vivas ao mesmo tempo não significariam nada.
+
+**Tudo é congelado na INJEÇÃO** — nome, texto e print. Assim `/proximo` serve o teste sem ler o lead nem as três coleções de `montarMensagemParaLead`, e a tarefa não muda de conteúdo entre o clique e a puxada. Como efeito direto, **a rotação de frases não gira**: `montarMensagemParaLead` é leitura pura, e `anotarRotacao` nunca é chamada no caminho de teste.
+
+**Comportamento:**
+
+- **One-shot, por transação** (`marcarTesteEntregue`): duas chamadas de `/proximo` no mesmo segundo — a macro repetindo o pedido, um retry de rede — não podem as duas levar a mesma tarefa. Quem perde a corrida cai na fila normal, sem virar erro.
+- **Expira em 15 minutos e some sozinha.** Sem prazo, o operador clica às 18h, se distrai, e às 2h da manhã a macro puxa e dispara. A regra é a MESMA da claim expirada da fila real ("instante no passado = não existe"), sem job de limpeza: o doc fica como rastro de que houve um teste que ninguém puxou, e a tela mostra isso em vez de ficar eternamente "aguardando".
+- **Destino sempre `config/fila.numeroTeste`** (campo novo, inicial `5544984570105`; dígitos com DDI, vazio = disparo desligado). **Nunca o telefone real do lead — inclusive quando o alvo é o lead fixo de teste**, porque a sobrescrita não é conveniência: é a rede de segurança de quando o alvo escolhido é um negócio real.
+- **Entregue ANTES do portão de ritmo.** Quem decidiu que ela podia sair foi o operador na tela, que pode ter mandado PULAR justamente a etapa de ritmo. Reaplicar o portão em `/proximo` engoliria o teste em silêncio.
+- **Nenhum efeito colateral**: não move o status do lead, não incrementa o contador do dia, não gira a rotação, não grava selo de contato e não toca `filaEnvios`. O mesmo lead pode ser testado dez vezes sem consequência.
+
+**O contrato de `/proximo` ganha `teste`, BOOLEANO e SEMPRE PRESENTE nos dois casos** — com e sem tarefa. Chave ausente faz o MacroDroid devolver o marcador literal em vez de vazio; foi exatamente essa a causa do bug do envelope aninhado. Nenhuma outra chave muda de nome, tipo ou presença, e o teste de contrato (que compara `Object.keys` contra a lista fixa) cobre os dois casos com a chave nova. `temTarefa` e `teste` passam a ser os dois únicos booleanos; todo o resto continua string.
+
+**`POST /api/fila/confirmar` desvia pelo PREFIXO do claimId** (`teste-`), custo zero e **ANTES** de `confirmarEnvio` — a transação que toca lead, contador e rotação. Essa checagem não podia ficar depois de nenhuma escrita: um teste que incrementasse o contador do dia falsificaria a meta, e um que movesse o status marcaria como contactado um negócio que não recebeu nada. O prefixo não colide: um claimId real é `randomBytes(9)` em base64url, SEMPRE 12 caracteres; o de teste tem 18. O caminho de teste registra o resultado, responde com as MESMAS chaves do caminho real (mais `teste: true`, e `teste: false` no real) e repete com sucesso sem regravar, como a claim normal.
+
+### Os INTERRUPTORES e a escolha do lead
+
+**O operador ESCOLHE o lead**, com o fixo de teste pré-selecionado. Não é "o próximo elegível" de propósito: aquele é justamente quem já passou por todos os filtros, e testá-lo não ensina nada. A funcionalidade existe para rodar um lead **específico** pelo pipeline — o que você jurava que devia estar saindo e não sai — e ver **onde ele para**.
+
+`POST /api/fila/teste` avalia as quatro etapas na **ordem real** (ritmo → estruturais → nicho → janela, a mesma de `/proximo` e a mesma do funil da visão) e, quando barra, devolve a etapa **nominal** e o motivo dentro dela: `meta_atingida`, não "ritmo"; `status`, não "estruturais". Um lead que reprovaria em várias é reportado pela PRIMEIRA, como no diagnóstico — é a ordem que torna a resposta acionável. Cada etapa tem um interruptor; ligado, ela não barra aquele disparo.
+
+**Duas etapas não têm interruptor**, de propósito:
+
+- **`numero`** — `numeroTeste` vazio. Sem destino não há disparo, e cair num número padrão seria exatamente o acidente que a sobrescrita existe para evitar. É avaliada primeiro, porque não depende de lead nenhum.
+- **`conteudo`** — sem demo, sem captura pronta ou sem `printUrl`. Os estruturais podem ser pulados para diagnóstico, **mas a tarefa só é injetada se houver o que enviar**: entregar tarefa sem print quebraria o ciclo no aparelho sem ensinar nada. Vem por ÚLTIMO, depois das quatro etapas, porque o produto principal é saber QUAL ETAPA barrou — só quando nenhuma barrou a pergunta vira "tem o que enviar?".
+
+Barrar é resultado legítimo de um pedido válido (é o diagnóstico que a tela pediu), então vem em **200 com `injetada: false`**; 4xx fica para pedido malformado (leadId inexistente → 404, etapa que não existe → 400).
+
+**Rota própria, e não mais um campo em `/api/fila/diagnostico`.** Aquela rota é o FUNIL, e as listas dela saem todas da mesma chamada de `ordenarCandidatos` de propósito. Esta tem outro ciclo de vida (recarrega ao injetar, não ao salvar a config) e é ESCRITA — misturar as duas faria o funil recalcular a cada clique no botão. `GET /api/fila/teste` devolve o estado que a tela desenha (destino, alvo padrão e se ele está pronto, a tarefa atual) e é quem chama `garantirLeadDeTeste`.
+
+Como `/api/fila/diagnostico`, ela vive sob o prefixo `/api/fila/*` que o proxy isenta da sessão (é lá que o aparelho bate com a `RADAR_DEVICE_KEY`) e por isso faz a **própria checagem completa de sessão + papel** (`requireAdmin`). A `RADAR_DEVICE_KEY` não abre esta rota.
+
+**Na tela:** destino, seletor de alvo (o fixo de teste, os leads que a visão ao lado já carregou — emprestados por callback, nunca por uma segunda chamada que recalcularia o funil — ou um id digitado à mão), os quatro interruptores na ordem de avaliação, o botão, o resultado do último clique e o estado da tarefa atual. A nota de que **a macro pergunta a cada ~3 minutos** fica explícita: sem ela o operador clica de novo achando que não funcionou, e clicar de novo só substitui a tarefa que está esperando.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=teste` captura o BLOCO (não a seção inteira, que já passa de 2000px e é capturada nos outros dois passos — ali este bloco sairia com 30px de altura) em quatro estados × celular e desktop × temas escuro e claro: **pendente** com o tempo restante, **barrado** (o clique de verdade, com a fila pausada, cobrando a etapa nominal na tarja), **confirmado** com o detalhe do aparelho e o rastro das etapas puladas, e **desligado** — sem `numeroTeste`, onde o bloco tem que DIZER "não configurado" em vez de oferecer um botão que só falharia, e onde o passo cobra que o painel ENCOLHA (−66px no celular, −50px no desktop). O lead fixo entra na semeadura já pronto, e como ele carrega `leadDeTeste: true` nenhuma outra captura pode mostrá-lo: `--so=listas`, `--so=fila` e `--so=pendencias` continuarem passando é a prova visual do inventário. Duas correções saíram dessas capturas — os quatro interruptores ganharam caixa própria (no celular o que sobrava quebrava para debaixo do rótulo "Pular" em vez de alinhar com os irmãos), e o aferidor de "slot com caixa zerada", compartilhado com os outros dois passos, passou a ignorar `<option>`: ele não tem caixa própria (quem desenha a lista é o SO) e o texto aparece do mesmo jeito — o aferidor procura conteúdo INVISÍVEL, não conteúdo fora do fluxo do documento.
 
 ## Proteção por sessão multiusuário (src/proxy.ts + lib/auth.ts + lib/usuarios)
 

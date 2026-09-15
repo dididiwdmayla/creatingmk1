@@ -110,7 +110,11 @@ export function estruturalVazio(): DiagnosticoEstrutural {
 export interface PoolCandidatos {
   geradoEm: string;
   candidatos: CandidatoFila[];
-  /** Quantos leads a varredura leu — o custo da última reconstrução, explícito. */
+  /**
+   * Quantos leads a varredura CONSIDEROU — o custo da última reconstrução,
+   * explícito. O lead fixo de teste não entra nesta conta (nem em nenhuma
+   * outra): ele não é um negócio da base.
+   */
   lidos: number;
   /** A base passou de POOL_MAX e o pool saiu cortado. */
   truncado: boolean;
@@ -210,8 +214,17 @@ export async function construirPool(db: AppDb, now: Date = new Date()): Promise<
 
   const estrutural = estruturalVazio();
   const candidatos: CandidatoFila[] = [];
+  let lidos = 0;
   for (const doc of leadsSnap.docs) {
     const lead = doc.data() as unknown as Lead;
+    // O LEAD FIXO DE TESTE não existe para esta varredura — nem como
+    // candidato, nem em `lidos`, nem numa das sete contagens estruturais.
+    // Não é só higiene de número: candidato ele mandaria mensagem DE
+    // VERDADE sozinho, à noite, para o telefone do doc. O alvo do disparo
+    // de teste é escolhido na tela e chega por id, nunca pelo pool (ver
+    // `lib/fila/leadTeste.ts`).
+    if (lead.leadDeTeste === true) continue;
+    lidos += 1;
     const motivo = motivoEstrutural(lead);
     if (motivo) {
       estrutural[motivo] += 1;
@@ -225,7 +238,7 @@ export async function construirPool(db: AppDb, now: Date = new Date()): Promise<
   return {
     geradoEm: now.toISOString(),
     candidatos: candidatos.slice(0, POOL_MAX),
-    lidos: leadsSnap.docs.length,
+    lidos,
     truncado: candidatos.length > POOL_MAX,
     estrutural,
   };

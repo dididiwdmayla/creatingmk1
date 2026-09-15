@@ -57,6 +57,9 @@ export async function getMetrics(
 
   for (const doc of snapshot.docs) {
     const lead = doc.data() as unknown as Lead;
+    // O lead fixo de teste não conta em métrica nenhuma — nem em
+    // `demosCriadas`, que ele inflaria por ter demo salva de fábrica.
+    if (lead.leadDeTeste === true) continue;
     const contatoDoUsuario =
       userId === undefined || lead.contato?.primeiroContatoPor === userId;
     const primeiro = lead.contato?.primeiroContatoEm;
@@ -110,6 +113,9 @@ export async function getMetricsPorUsuario(
   const leads = await db.collection(LEADS_COLLECTION).get();
   for (const doc of leads.docs) {
     const lead = doc.data() as unknown as Lead;
+    // Mesma regra do agregado acima: o lead de teste não entra no rollup
+    // por integrante (demos, contatos, fechamentos).
+    if (lead.leadDeTeste === true) continue;
     if (lead.demo?.criadoPor) de(lead.demo.criadoPor).demos += 1;
     if (lead.contato?.primeiroContatoPor) de(lead.contato.primeiroContatoPor).contatos += 1;
     const fechadoEm = lead.contato?.fechadoEm;

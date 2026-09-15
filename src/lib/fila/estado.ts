@@ -138,3 +138,55 @@ export interface ContadorPainel {
   ultimaHora: number;
   tetoPorHora: number;
 }
+
+/* ── A TAREFA DE TESTE (`lib/fila/teste.ts`) ───────────────────────────
+ *
+ * Mesma divisão do resto deste módulo: a FORMA fica aqui porque o painel
+ * que a desenha é componente client, e `teste.ts` — dono das transações —
+ * importa `node:crypto` para cunhar o claimId. `teste.ts` reexporta tudo
+ * abaixo, para ninguém precisar saber da divisão.
+ */
+
+export type TesteEstado = "pendente" | "entregue" | "confirmado";
+
+/** O que o aparelho reporta — os mesmos três resultados da fila real. */
+export type TesteResultado = "enviado" | "invalido" | "falhou";
+
+/**
+ * O doc `filaTestes/atual`. Tudo que a tarefa precisa é congelado na
+ * INJEÇÃO — nome, texto e print —, e não relido na entrega: assim `/proximo`
+ * não paga leitura de lead nem as três coleções de `montarMensagemParaLead`
+ * para servir um teste, e a tarefa não muda de conteúdo entre o clique e a
+ * puxada.
+ */
+export interface FilaTesteDoc {
+  /** `teste-XXXXXXXXXXXX` — cunhado na injeção, não na entrega. */
+  claimId: string;
+  estado: TesteEstado;
+  /** O lead ALVO. Ele nunca é escrito por este caminho; está aqui para a tela e para o rastro. */
+  leadId: string;
+  nome: string;
+  /** Destino real do disparo: `config/fila.numeroTeste`, nunca o telefone do lead. */
+  numero: string;
+  texto: string;
+  printUrl: string;
+  criadoEm: string;
+  /** `criadoEm + TESTE_VALIDADE_MS`. Só significa alguma coisa enquanto `pendente`. */
+  expiraEm: string;
+  /** Admin que injetou. */
+  criadoPor: string;
+  /** Quais etapas o operador mandou pular — o rastro do diagnóstico. */
+  pulou: EtapaTeste[];
+  entregueEm: string | null;
+  confirmadoEm: string | null;
+  resultado: TesteResultado | null;
+  /** Texto livre que o aparelho mandou junto do resultado. */
+  detalhe: string;
+}
+
+/**
+ * As quatro etapas da seleção, na ORDEM REAL de avaliação — a mesma de
+ * `/proximo` e do funil da visão (ritmo → estrutural → nicho → janela).
+ */
+export const ETAPAS_TESTE = ["ritmo", "estruturais", "nicho", "janela"] as const;
+export type EtapaTeste = (typeof ETAPAS_TESTE)[number];

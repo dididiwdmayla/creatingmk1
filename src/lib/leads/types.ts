@@ -144,6 +144,20 @@ export interface Lead {
    * gerou.
    */
   capturas?: LeadCapturas;
+  /**
+   * O LEAD FIXO DE TESTE — alvo estável do disparo de teste da fila
+   * (`lib/fila/leadTeste.ts`). Ausente = lead normal.
+   *
+   * Ele não é um negócio real, então não pode entrar em NENHUM agregado:
+   * penetração de site por nicho/cidade, métricas do painel, rollup por
+   * integrante, listagens, /hoje, /mundo, /demos e o pool da fila de envio
+   * o excluem na origem. Um lead de teste somado à penetração envenena, em
+   * silêncio, um número que é usado como argumento de venda.
+   *
+   * Também nunca entra no pool da fila real: o alvo do teste é escolhido na
+   * tela, e um lead de teste elegível à noite mandaria mensagem de verdade.
+   */
+  leadDeTeste?: boolean;
   criadoEm: string;
   atualizadoEm: string;
 }
