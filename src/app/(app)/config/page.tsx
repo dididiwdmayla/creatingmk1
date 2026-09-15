@@ -1489,7 +1489,11 @@ function VisaoFila({ versao }: { versao: number }) {
             ))}
           </ul>
 
-          <p className="mt-2 text-[10px] text-ink-muted">Calculado agora, sobre esse mesmo pool:</p>
+          <p className="mt-2 text-[10px] text-ink-muted">
+            {/* Sem pool não há "esse mesmo pool" a que se referir — e a
+                etapa continua sendo calculada agora, sobre nada. */}
+            {dados.pool.geradoEm ? "Calculado agora, sobre esse mesmo pool:" : "Calculado agora:"}
+          </p>
           <ul className="mt-1 flex flex-col gap-0.5 text-xs">
             <LinhaFunil label="fora dos nichos permitidos" valor={dados.nichoBarrado} />
             <LinhaFunil label="em hora razoável (não aceita agora)" valor={dados.janela.razoavel} />
@@ -1511,7 +1515,9 @@ function VisaoFila({ versao }: { versao: number }) {
             </p>
           ) : (
             <>
-              <ul className="mt-1 flex flex-col gap-1.5">
+              {/* `data-lista` é o gancho do QA visual: o funil também usa
+                  <li>, e "sobrou linha de lista" só pode olhar as de LEAD. */}
+              <ul data-lista="proximos" className="mt-1 flex flex-col gap-1.5">
                 {dados.proximos.map((linha) => (
                   <LinhaLeadFila
                     key={linha.leadId}
@@ -1535,7 +1541,7 @@ function VisaoFila({ versao }: { versao: number }) {
             <p className="mt-1 text-xs text-ink-muted">Ninguém parado na janela.</p>
           ) : (
             <>
-              <ul className="mt-1 flex flex-col gap-1.5">
+              <ul data-lista="bloqueados" className="mt-1 flex flex-col gap-1.5">
                 {dados.bloqueados.map((linha) => (
                   <LinhaLeadFila
                     key={linha.leadId}
@@ -1656,7 +1662,7 @@ function PrintPendenteLista() {
       )}
 
       {linhas && linhas.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-1.5">
+        <ul data-lista="pendencias" className="mt-2 flex flex-col gap-1.5">
           {linhas.map((linha) => (
             <li
               key={linha.leadId}
