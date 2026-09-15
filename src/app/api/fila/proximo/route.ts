@@ -14,7 +14,12 @@ import {
 } from "@/lib/fila/envios";
 import { montarMensagemParaLead } from "@/lib/fila/mensagem";
 import { printUrlDoLead } from "@/lib/fila/print";
-import { motivoDeRitmo, ordenarCandidatos, type MotivoSemTarefa } from "@/lib/fila/selecao";
+import {
+  motivoDeRitmo,
+  motivoSemTarefaAgora,
+  ordenarCandidatos,
+  type MotivoSemTarefa,
+} from "@/lib/fila/selecao";
 import { lerTestePendente, marcarTesteEntregue } from "@/lib/fila/teste";
 import type { AppDb } from "@/lib/firestore-like";
 import { getLead } from "@/lib/leads/repo";
@@ -241,12 +246,10 @@ export async function GET(req: Request) {
     // mais tarde e vai sair. "sem_leads_elegiveis" é não existir lead pronto
     // (ou os que existiam estarem todos reservados) — nenhuma espera resolve,
     // alguém precisa gerar demo e capturas. Colapsar os dois apagaria a
-    // única informação que diz qual providência tomar.
-    const foraDeJanela =
-      diagnostico.janela.razoavel + diagnostico.janela.ruim + diagnostico.janela.semNivel;
-    return semTarefa(
-      escolhido.length === 0 && foraDeJanela > 0 ? "fora_de_janela" : "sem_leads_elegiveis",
-    );
+    // única informação que diz qual providência tomar. Extraído para
+    // `motivoSemTarefaAgora` (lib/fila/selecao.ts) para `GET /api/fila/resumo`
+    // reusar a mesma distinção sem duplicá-la.
+    return semTarefa(motivoSemTarefaAgora(escolhido.length, diagnostico));
   } catch (error) {
     return handleRouteError(error);
   }
