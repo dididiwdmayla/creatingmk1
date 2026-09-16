@@ -13,6 +13,7 @@ import type {
   FilaEnvioDoc,
   FilaTesteDoc,
   LinhaFilaPainel,
+  LinhaRetido,
   PendenciaEnvio,
   RespostaPendente,
 } from "@/lib/fila/estado";
@@ -177,6 +178,22 @@ export interface FilaDiagnosticoResponse {
   proximos: LinhaFilaPainel[];
   /** Quem passou no nicho e parou na janela, com a próxima faixa aceita. */
   bloqueados: LinhaFilaPainel[];
+}
+
+/**
+ * `GET /api/config/fila/retidos` e a resposta do DELETE que libera um deles.
+ *
+ * `total` é o número que o funil mostra e `linhas` é a lista logo abaixo: a
+ * MESMA varredura produz os dois, então eles não têm como discordar. A lista
+ * não tem teto — o volume é limitado pela própria fila (`metaDiaria` reservas
+ * por dia), e um teto esconderia justamente o lead que o operador quer
+ * liberar.
+ */
+export interface FilaRetidosResponse {
+  total: number;
+  linhas: LinhaRetido[];
+  /** `retencaoEnvioHoras` em vigor — 0 quer dizer retenção DESLIGADA. */
+  retencaoHoras: number;
 }
 
 /**
@@ -406,6 +423,36 @@ export const api = {
       `/api/config/fila/pendencias/${encodeURIComponent(leadId)}`,
       { method: "PATCH", body: JSON.stringify({ resolvido }) },
     ),
+
+  /**
+   * Os leads que a RETENÇÃO POR CLAIM NÃO CONFIRMADA está segurando — o
+   * aparelho levou a tarefa e não disse o que houve, então o lead fica fora
+   * da fila pela janela de `retencaoEnvioHoras` (ver `lib/fila/retidos.ts`).
+   *
+   * `total` e `linhas` vêm da MESMA varredura de propósito: é o número que o
+   * funil do painel mostra, e ele não pode discordar da lista logo abaixo
+   * dele. `retencaoHoras` viaja junto porque "0 retidos" com a retenção
+   * ligada e "0 retidos" com ela desligada são fatos diferentes.
+   *
+   * Sob `/api/config/` e não `/api/fila/`, pelo mesmo motivo das pendências
+   * de print, e restrita ao admin como todo o painel.
+   */
+  getFilaRetidos: () => request<FilaRetidosResponse>("/api/config/fila/retidos"),
+
+  /**
+   * LIBERA um retido: o operador conferiu que a mensagem não saiu e devolve
+   * o lead à fila antes de a janela vencer. Devolve a lista NOVA (quem
+   * continua retido é decisão do servidor, não da tela).
+   *
+   * DELETE porque o que se apaga é a retenção, e a ação é de mão única — não
+   * há "re-reter". 409 `claim_ativa` quando o aparelho está com o lead
+   * reservado NESTE momento: liberar ali produziria a segunda reserva do
+   * mesmo lead, que é a duplicata que a retenção existe para evitar.
+   */
+  deleteFilaRetido: (leadId: string) =>
+    request<FilaRetidosResponse>(`/api/config/fila/retidos/${encodeURIComponent(leadId)}`, {
+      method: "DELETE",
+    }),
 
   /**
    * Respostas pendentes: o lead respondeu, a IA rascunhou, e o operador

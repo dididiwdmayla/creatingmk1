@@ -14,6 +14,7 @@ import {
   api,
   type CotasUsuariosResponse,
   type FilaDiagnosticoResponse,
+  type FilaRetidosResponse,
   type FilaTesteEstadoResponse,
   type FrasesResponse,
   type MetasUsuariosResponse,
@@ -44,6 +45,7 @@ import {
   type EtapaTeste,
   type FilaTesteDoc,
   type LinhaFilaPainel,
+  type LinhaRetido,
   type PendenciaEnvio,
   type RespostaPendente,
 } from "@/lib/fila/estado";
@@ -1527,6 +1529,63 @@ function LinhaLeadFila({
 }
 
 /**
+ * Uma linha da lista de RETIDOS. Mostra as três coisas que a decisão de
+ * liberar exige — quem é, quando foi a reserva (o instante em que a mensagem
+ * provavelmente saiu, o que o operador confere no WhatsApp) e quando a
+ * retenção vence sozinha. Só o número não bastaria: sem isso não há como
+ * liberar um ESPECÍFICO.
+ *
+ * A ação é de mão única e não é o `descartar` das outras listas: aqui o
+ * operador afirma um fato que o servidor não tem como saber ("conferi, não
+ * saiu"), e o lead volta à fila. Recusa por claim ativa aparece NA LINHA, com
+ * a hora — recusa sem explicação faz clicar de novo.
+ */
+function LinhaRetidoFila({
+  linha,
+  agora,
+  ocupado,
+  erro,
+  onLiberar,
+}: {
+  linha: LinhaRetido;
+  agora: number;
+  ocupado: boolean;
+  erro: string | null;
+  onLiberar: () => void;
+}) {
+  return (
+    <li className="flex flex-wrap items-start justify-between gap-2 rounded border border-line p-2">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <a
+            href={`/leads/${linha.leadId}`}
+            className="text-xs text-foreground underline decoration-line underline-offset-2"
+          >
+            {linha.nome || linha.leadId}
+          </a>
+          <span className="text-[10px] text-ink-muted">{linha.dispositivo}</span>
+        </div>
+        <p className="mt-0.5 text-[10px] text-ink-muted">
+          reservado {formatDateTime(linha.reservadoEm)} (
+          {formatTempoRelativo(linha.reservadoEm, agora)}) · volta à fila{" "}
+          {formatTempoAte(linha.venceEm, agora)}
+        </p>
+        {erro && <p className="mt-0.5 text-[10px] text-critical">{erro}</p>}
+      </div>
+      <button
+        type="button"
+        onClick={onLiberar}
+        disabled={ocupado}
+        title="Só se você conferiu no WhatsApp que a mensagem NÃO saiu: devolve o lead à fila agora."
+        className="shrink-0 rounded border border-line bg-surface-2 px-2 py-1 text-xs text-ink-muted hover:border-accent/60 hover:text-accent disabled:opacity-50"
+      >
+        liberar
+      </button>
+    </li>
+  );
+}
+
+/**
  * A VISÃO da fila — o que vai acontecer, quando, com quem, e por que os
  * demais não entram. Subordinada ao painel "Fila de envio" (mesma seção,
  * separada por um filete), como a lista de print pendente.
@@ -1554,6 +1613,17 @@ function VisaoFila({
   const [recarga, setRecarga] = useState(0);
   // Instante FIXO do carregamento — nunca Date.now() no render.
   const [agora, setAgora] = useState(() => Date.now());
+  /**
+   * Os RETIDOS vêm de rota própria (`/api/config/fila/retidos`), e não do
+   * diagnóstico: achá-los exige varrer `filaEnvios`, que é exatamente o custo
+   * que `/api/fila/diagnostico` existe para não pagar (ele lê UM doc, o
+   * pool). O que importa é que a contagem do funil e a lista saiam do MESMO
+   * payload — aí não têm como discordar.
+   */
+  const [retidos, setRetidos] = useState<FilaRetidosResponse | null>(null);
+  const [erroRetidos, setErroRetidos] = useState<string | null>(null);
+  /** Recusa por claim ativa, por linha: o motivo aparece ONDE se clicou. */
+  const [erroLinha, setErroLinha] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let ignore = false;
@@ -1579,6 +1649,55 @@ function VisaoFila({
     // `onLeads` é o setState do pai (identidade estável): entra na lista por
     // exigência do lint, sem recarregar nada a mais.
   }, [versao, recarga, onLeads]);
+
+  // Efeito SEPARADO do de cima de propósito: são duas rotas, e uma que falha
+  // não pode apagar a outra da tela. O funil diz "—" no lugar do número
+  // quando esta cai, em vez de mostrar zero — que seria mentira.
+  useEffect(() => {
+    let ignore = false;
+    api
+      .getFilaRetidos()
+      .then((resposta) => {
+        if (ignore) return;
+        setRetidos(resposta);
+        setErroRetidos(null);
+      })
+      .catch((error) => {
+        if (ignore) return;
+        setErroRetidos(
+          error instanceof ApiError && error.status === 403
+            ? "A lista de retidos é restrita ao admin."
+            : mensagemErroFila(error, "Falha ao carregar os leads retidos"),
+        );
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [versao, recarga]);
+
+  async function liberarRetido(leadId: string) {
+    setOcupado(leadId);
+    setErroLinha((atual) => {
+      const resto = { ...atual };
+      delete resto[leadId];
+      return resto;
+    });
+    try {
+      // A resposta JÁ traz a lista nova: quem continua retido é decisão do
+      // servidor, não da tela.
+      setRetidos(await api.deleteFilaRetido(leadId));
+    } catch (error) {
+      setErroLinha((atual) => ({
+        ...atual,
+        [leadId]:
+          error instanceof ApiError && error.status === 409
+            ? "O aparelho está com esse lead reservado agora — pode estar enviando. Tente em alguns minutos."
+            : mensagemErroFila(error, "Falha ao liberar"),
+      }));
+    } finally {
+      setOcupado(null);
+    }
+  }
 
   async function tirarDaFila(leadId: string) {
     setOcupado(leadId);
@@ -1679,6 +1798,31 @@ function VisaoFila({
             ))}
           </ul>
 
+          {/* A RETENÇÃO entra no funil — e é a exceção deliberada ao
+              precedente de `filaParado`, que fica fora do diagnóstico
+              estrutural por já ter vitrine na ficha do lead. Esta não tem
+              vitrine em lugar nenhum: sem a linha, o lead pararia em
+              silêncio. Vem de varredura PRÓPRIA e fresca de `filaEnvios`,
+              não do retrato do pool — daí a linha separada, com a lista
+              inteira logo abaixo. */}
+          <p className="mt-2 flex items-baseline justify-between gap-2 border-t border-line pt-1 text-xs">
+            <span className={retidos && retidos.total > 0 ? "text-ink-secondary" : "text-ink-muted"}>
+              retidos por envio recente não confirmado
+            </span>
+            <span
+              className={`shrink-0 font-mono ${
+                retidos && retidos.total > 0 ? "text-foreground" : "text-ink-muted"
+              }`}
+            >
+              {retidos ? formatInt(retidos.total) : "—"}
+            </span>
+          </p>
+          <p className="mt-0.5 text-[10px] text-ink-muted">
+            {retidos?.retencaoHoras === 0
+              ? "Retenção desligada: claim que expira sem confirmação devolve o lead na hora."
+              : `Contado agora, direto da fila de envio — não é do retrato do pool. Janela de ${formatInt(retidos?.retencaoHoras ?? 0)}h a partir da reserva.`}
+          </p>
+
           <p className="mt-2 text-[10px] text-ink-muted">
             {/* Sem pool não há "esse mesmo pool" a que se referir — e a
                 etapa continua sendo calculada agora, sobre nada. */}
@@ -1749,6 +1893,40 @@ function VisaoFila({
                 </p>
               )}
             </>
+          )}
+
+          {/* ── Retidos por envio não confirmado ─────────────────────── */}
+          <h4 className="mt-3 text-xs font-medium text-ink-secondary">
+            Retidos por envio recente não confirmado
+          </h4>
+          <p className="mt-1 text-[10px] text-ink-muted">
+            O aparelho levou a tarefa e não disse o que houve. Na dúvida entre não mandar e mandar
+            duas vezes, o lead fica fora da fila — libere só depois de conferir no WhatsApp que a
+            mensagem não saiu.
+          </p>
+          {erroRetidos ? (
+            <p className="mt-1 text-xs text-critical">{erroRetidos}</p>
+          ) : retidos === null ? (
+            <SkeletonRows count={1} className="mt-1 h-10 rounded border border-line" />
+          ) : retidos.linhas.length === 0 ? (
+            <p className="mt-1 text-xs text-ink-muted">
+              {retidos.retencaoHoras === 0
+                ? "Retenção desligada."
+                : "Nenhum lead retido — toda tarefa entregue foi confirmada."}
+            </p>
+          ) : (
+            <ul data-lista="retidos" className="mt-1 flex flex-col gap-1.5">
+              {retidos.linhas.map((linha) => (
+                <LinhaRetidoFila
+                  key={linha.leadId}
+                  linha={linha}
+                  agora={agora}
+                  ocupado={ocupado === linha.leadId}
+                  erro={erroLinha[linha.leadId] ?? null}
+                  onLiberar={() => liberarRetido(linha.leadId)}
+                />
+              ))}
+            </ul>
           )}
         </>
       )}

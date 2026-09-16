@@ -19,6 +19,7 @@ import {
   retidoPorEnvio,
   type FilaEnvioDoc,
 } from "../envios";
+import { liberarRetido, listarRetidos } from "../retidos";
 import { confirmarTeste, injetarTeste, marcarTesteEntregue } from "../teste";
 import { LEAD_TESTE_ID, leadDeTesteInicial } from "../leadTeste";
 
@@ -407,5 +408,83 @@ describe("CLAIM DE TESTE não retém o lead fixo de teste", () => {
 
     expect(escritas.every((chave) => chave.startsWith("filaTestes/"))).toBe(true);
     expect(escritas.some((chave) => chave.startsWith("filaEnvios/"))).toBe(false);
+  });
+});
+
+describe("liberação manual devolve o lead à fila de verdade", () => {
+  it("liberado, o lead volta ao POOL e à RESERVA — não só à lista", async () => {
+    // O que importa aqui é que liberar não seja um efeito cosmético: a
+    // liberação reusa a invariante `expiraEm <= reservadoEm` que a própria
+    // retenção lê, então os três lugares concordam por construção.
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJa", lead("ChIJa") as unknown as Record<string, unknown>);
+    db.seed("filaEnvios/ChIJa", { ...envio() } as unknown as Record<string, unknown>);
+
+    expect((await listarRetidos(db, AGORA, RETENCAO_MS)).total).toBe(1);
+    expect((await construirPool(db, AGORA, { retencaoMs: RETENCAO_MS })).candidatos).toEqual([]);
+
+    expect(await liberarRetido(db, "ChIJa", AGORA, RETENCAO_MS)).toEqual({ ok: true });
+
+    expect((await listarRetidos(db, AGORA, RETENCAO_MS)).total).toBe(0);
+    const pool = await construirPool(db, AGORA, { retencaoMs: RETENCAO_MS });
+    expect(pool.candidatos.map((c) => c.id)).toEqual(["ChIJa"]);
+    expect(
+      await reservarLead(db, "ChIJa", "android", AGORA, {
+        tentativasMax: TENTATIVAS_MAX,
+        retencaoMs: RETENCAO_MS,
+      }),
+    ).not.toBeNull();
+  });
+
+  it("a recusa por claim ativa é decidida DENTRO da transação", async () => {
+    // Entre ler a lista e clicar em liberar, `/proximo` pode ter re-reservado
+    // o lead (retenção vencida no intervalo). A transação relê o doc, vê a
+    // claim NOVA e viva, e recusa — em vez de atropelar um envio em curso.
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJa", lead("ChIJa") as unknown as Record<string, unknown>);
+    db.seed("filaEnvios/ChIJa", { ...envio() } as unknown as Record<string, unknown>);
+
+    // A tela leu a lista com o lead retido...
+    expect((await listarRetidos(db, AGORA, RETENCAO_MS)).total).toBe(1);
+
+    // ...e nesse meio-tempo a janela venceu e o aparelho levou o lead.
+    const depois = new Date("2026-03-10T21:00:01Z");
+    const nova = await reservarLead(db, "ChIJa", "android", depois, {
+      tentativasMax: TENTATIVAS_MAX,
+      retencaoMs: RETENCAO_MS,
+    });
+    expect(nova).not.toBeNull();
+
+    const recusa = await liberarRetido(db, "ChIJa", depois, RETENCAO_MS);
+    expect(recusa).toEqual({
+      ok: false,
+      motivo: "claim_ativa",
+      expiraEm: nova!.expiraEm,
+    });
+    // A claim nova fica intacta — o aparelho pode estar enviando agora.
+    expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({ claimId: nova!.claimId });
+  });
+
+  it("`retencaoEnvioHoras: 0` não lista nada e não varre a coleção", async () => {
+    const db = new FakeFirestore();
+    let varreduras = 0;
+    const espiao: AppDb = {
+      collection(name: string) {
+        const real = db.collection(name);
+        return {
+          ...real,
+          doc: (id: string) => real.doc(id),
+          get: async () => {
+            varreduras += 1;
+            return real.get();
+          },
+        };
+      },
+      runTransaction: (fn) => db.runTransaction(fn),
+    };
+    db.seed("filaEnvios/ChIJa", { ...envio() } as unknown as Record<string, unknown>);
+
+    expect(await listarRetidos(espiao, AGORA, 0)).toEqual({ total: 0, linhas: [] });
+    expect(varreduras).toBe(0);
   });
 });
