@@ -76,6 +76,128 @@ export function filaParado(envio: FilaEnvioDoc | undefined | null): boolean {
 }
 
 /**
+ * RETENÇÃO POR CLAIM NÃO CONFIRMADA — a proteção contra mensagem repetida
+ * que NÃO depende do aparelho.
+ *
+ * O caso que a criou, reconstituído pelo log do celular: o ciclo rodou
+ * inteiro (texto enviado, print anexado), o `POST /api/fila/confirmar`
+ * respondeu 503, a macro não repetiu a chamada, a claim expirou, o lead
+ * voltou ao pool e recebeu a MESMA mensagem de novo. O lado do aparelho já
+ * repete a confirmação 3 vezes, o que reduz a probabilidade e não elimina a
+ * classe: aparelho reiniciado, macro morta pelo sistema, rede caindo ou
+ * servidor indisponível de novo produzem o mesmo resultado.
+ *
+ * **Isto INVERTE deliberadamente a regra original** de que claim expirada
+ * volta livre (ver `reservarLead`). Aquela regra existia para o lead não
+ * ficar preso quando o celular trava; o fato novo é que "o aparelho pegou e
+ * não disse o que houve" é mais provavelmente "mandou" do que "não mandou".
+ * A reserva já é evidência suficiente.
+ *
+ * **A assimetria que justifica:** bloquear um lead que não recebeu nada
+ * custa um envio, recuperável a qualquer momento (pela liberação manual do
+ * painel, ou sozinho quando a janela vence). Liberar um lead que já recebeu
+ * manda duas vezes, e isso não tem volta — mensagem repetida é o padrão que
+ * mais gera denúncia no WhatsApp, e denúncia derruba número. Na dúvida,
+ * bloqueia.
+ *
+ * **O que retém é o SILÊNCIO, não a falha reportada.** Claim confirmada com
+ * resultado "falhou" NÃO entra aqui: confirmação de falha é evidência
+ * POSITIVA de que nada saiu — é exatamente o caso em que o aparelho falou.
+ * Sai de graça, por construção: confirmar move `estado` para
+ * `enviado`/`invalido`/`falhou` na mesma transação, então só uma claim NUNCA
+ * confirmada continua em `"reservado"`, e a política de 3 tentativas
+ * (`TENTATIVAS_MAX`) segue valendo intacta para aquele caminho. Ler o pedido
+ * ao pé da letra ("claim reservada nas últimas horas") mataria a
+ * retentativa; não é isso que se quer.
+ */
+
+/**
+ * A claim MORREU EM SILÊNCIO: reservada, prazo vencido, e nenhuma
+ * confirmação jamais chegou.
+ *
+ * `expiraEm > reservadoEm` é o que separa silêncio de desistência declarada,
+ * e não é heurística: `reservarLead` é a ÚNICA escrita que cria
+ * `"reservado"` e sempre grava `expiraEm = reservadoEm + RESERVA_DURACAO_MS`
+ * (5 min à frente); `liberarClaim` é a única que move `expiraEm` para trás
+ * (`EPOCH_ISO`). Então `expiraEm <= reservadoEm` quer dizer "a claim foi
+ * devolvida de propósito", que é o caminho em que a ROTA desistiu antes de o
+ * aparelho receber tarefa nenhuma (lead que perdeu o print, lead sem
+ * telefone) — ali nada saiu, e o servidor sabe disso. Retê-lo seria afirmar
+ * um envio que nunca foi montado. Há teste travando a invariante contra o
+ * doc que `liberarClaim` de fato produz.
+ */
+export function claimExpiradaSemConfirmacao(doc: FilaEnvioDoc, now: Date): boolean {
+  if (doc.estado !== "reservado") return false;
+  const expiraEm = new Date(doc.expiraEm).getTime();
+  const reservadoEm = new Date(doc.reservadoEm).getTime();
+  if (!Number.isFinite(expiraEm) || !Number.isFinite(reservadoEm)) return false;
+  // Claim devolvida à mão (painel) ou pela rota: nada saiu, não é silêncio.
+  if (expiraEm <= reservadoEm) return false;
+  return expiraEm <= now.getTime();
+}
+
+/**
+ * Instante em que a retenção deste doc vence — `reservadoEm + janela`, e não
+ * `expiraEm + janela`: a âncora é quando a mensagem PROVAVELMENTE saiu, não
+ * cinco minutos depois. `undefined` quando o doc não está sob retenção
+ * nenhuma (não é claim silenciosa, ou a janela está desligada).
+ *
+ * `reservadoEm` é sobrescrito a cada nova reserva, e isso NÃO atrapalha:
+ * enquanto a retenção vale, o lead está fora do pool E o portão de
+ * `leadDisponivel` recusa a reserva, então nada re-reserva — logo nada
+ * reescreve o carimbo. Vencida a janela, uma reserva nova reinicia a
+ * contagem do carimbo novo, que é o correto: é evidência nova de um envio
+ * novo.
+ */
+export function retencaoVenceEm(
+  doc: FilaEnvioDoc,
+  now: Date,
+  retencaoMs: number,
+): string | undefined {
+  if (retencaoMs <= 0 || !claimExpiradaSemConfirmacao(doc, now)) return undefined;
+  return new Date(new Date(doc.reservadoEm).getTime() + retencaoMs).toISOString();
+}
+
+/**
+ * O lead está RETIDO agora — claim morta em silêncio e a janela ainda
+ * correndo. `retencaoMs <= 0` desliga a retenção inteira (é o
+ * `retencaoEnvioHoras: 0` da config), e aí a regra antiga volta a valer tal
+ * como era.
+ */
+export function retidoPorEnvio(doc: FilaEnvioDoc, now: Date, retencaoMs: number): boolean {
+  const venceEm = retencaoVenceEm(doc, now, retencaoMs);
+  return venceEm !== undefined && now.getTime() < new Date(venceEm).getTime();
+}
+
+/** Horas da config (`retencaoEnvioHoras`) em milissegundos, sem negativo. */
+export function retencaoMsDeHoras(horas: number): number {
+  return Number.isFinite(horas) && horas > 0 ? horas * 60 * 60 * 1000 : 0;
+}
+
+/**
+ * Uma linha da lista "Retidos por envio recente não confirmado" do painel
+ * "Fila de envio" (/config). Mora aqui, e não em `retidos.ts`, pelo mesmo
+ * motivo de `PendenciaEnvio`: quem desenha a lista é componente client e o
+ * módulo que a MONTA lê o Firestore.
+ *
+ * Traz as três coisas que a decisão de liberar exige — quem é, QUANDO foi a
+ * reserva (é o instante em que a mensagem provavelmente saiu, o que o
+ * operador vai conferir no WhatsApp) e QUANDO a retenção vence sozinha. Só o
+ * número não bastaria: sem lista não há como liberar um específico.
+ */
+export interface LinhaRetido {
+  leadId: string;
+  /** Nome do lead, ou "" se o lead não existe mais (a retenção sobrevive). */
+  nome: string;
+  /** Quando a claim silenciosa foi reservada (ISO). */
+  reservadoEm: string;
+  /** Quando a retenção vence e o lead volta ao pool sozinho (ISO). */
+  venceEm: string;
+  /** Aparelho que levou a tarefa e não disse o que houve. */
+  dispositivo: string;
+}
+
+/**
  * Uma linha da lista de pendência de print do painel "Fila de envio"
  * (/config): o lead recebeu o TEXTO mas não a peça que vende. Mora aqui,
  * e não em `pendencias.ts`, pelo mesmo motivo de `FilaEnvioDoc`: quem

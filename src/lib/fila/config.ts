@@ -26,6 +26,19 @@ export interface FilaConfig {
   /** Intervalo mínimo entre dois envios confirmados, em segundos. */
   intervaloMinimoSegundos: number;
   /**
+   * RETENÇÃO POR CLAIM NÃO CONFIRMADA, em horas. Lead cuja claim expirou sem
+   * o aparelho dizer o que houve fica inelegível por esta janela — ver o
+   * bloco da retenção em `lib/fila/estado.ts` para a assimetria que a
+   * justifica (bloquear quem não recebeu custa um envio, recuperável;
+   * liberar quem já recebeu manda duas vezes, e isso não tem volta).
+   *
+   * Padrão 12. **0 desliga a retenção** e devolve a regra antiga ("claim
+   * expirada volta livre") — fica configurável, e não constante no código,
+   * porque o número certo depende do ritmo do aparelho e de quanto o
+   * operador confia na macro daquela semana.
+   */
+  retencaoEnvioHoras: number;
+  /**
    * Janela de silêncio (segundos) sem mensagem NOVA do mesmo lead antes de
    * gerar UM rascunho de resposta com tudo que chegou no grupo — ver
    * "Fila de respostas" em ARCHITECTURE.md. Cada mensagem do WhatsApp vira
@@ -141,6 +154,7 @@ export const DEFAULT_FILA_CONFIG: FilaConfig = {
   exigirJanelaBoa: true,
   nichosPermitidos: [],
   intervaloMinimoSegundos: 180,
+  retencaoEnvioHoras: 12,
   respostaAgrupamentoSegundos: 45,
   respostaAutomatica: false,
   respostaAutomaticaApenasPrimeira: true,
@@ -162,6 +176,7 @@ const TOP_LEVEL_KEYS = new Set<keyof FilaConfig>([
   "exigirJanelaBoa",
   "nichosPermitidos",
   "intervaloMinimoSegundos",
+  "retencaoEnvioHoras",
   "respostaAgrupamentoSegundos",
   "respostaAutomatica",
   "respostaAutomaticaApenasPrimeira",
@@ -221,6 +236,11 @@ export function validateFilaConfigPatch(patch: unknown): asserts patch is Partia
   }
   if (patch.intervaloMinimoSegundos !== undefined) {
     validarInteiroNaoNegativo(patch.intervaloMinimoSegundos, "intervaloMinimoSegundos", problemas);
+  }
+  // Inteiro ≥ 0 como os outros tetos: 0 é válido e quer dizer "retenção
+  // desligada", não "retenha por zero hora" (ver `retencaoMsDeHoras`).
+  if (patch.retencaoEnvioHoras !== undefined) {
+    validarInteiroNaoNegativo(patch.retencaoEnvioHoras, "retencaoEnvioHoras", problemas);
   }
 
   if (patch.respostaAgrupamentoSegundos !== undefined) {
@@ -305,6 +325,7 @@ export function mergeFilaConfig(base: FilaConfig, patch: Partial<FilaConfig>): F
     // sem isso não haveria como REMOVER um nicho liberado.
     nichosPermitidos: patch.nichosPermitidos ?? base.nichosPermitidos,
     intervaloMinimoSegundos: patch.intervaloMinimoSegundos ?? base.intervaloMinimoSegundos,
+    retencaoEnvioHoras: patch.retencaoEnvioHoras ?? base.retencaoEnvioHoras,
     respostaAgrupamentoSegundos:
       patch.respostaAgrupamentoSegundos ?? base.respostaAgrupamentoSegundos,
     // Os dois interruptores da resposta automática passam pelo mesmo `??` do
