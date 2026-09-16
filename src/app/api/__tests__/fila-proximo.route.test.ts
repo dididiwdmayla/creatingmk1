@@ -200,12 +200,70 @@ describe("GET /api/fila/proximo — a tarefa", () => {
     expect([primeira.leadId, segunda.leadId].sort()).toEqual(["ChIJa", "ChIJb"]);
   });
 
-  it("claim expirada volta a ser entregue", async () => {
+  /**
+   * A REGRA INVERTIDA. Este teste dizia "claim expirada volta a ser
+   * entregue" — o comportamento que mandou a MESMA mensagem duas vezes
+   * quando `/confirmar` respondeu 503 e a macro não repetiu a chamada. A
+   * retenção por claim não confirmada (`retencaoEnvioHoras`, padrão 12h)
+   * inverte isso de propósito: ver o bloco em `lib/fila/estado.ts`. O que
+   * o teste antigo protegia — a re-reserva funcionando, com claimId NOVO —
+   * continua coberto abaixo, nos dois caminhos em que ela é permitida.
+   */
+  it("claim expirada SEM CONFIRMAÇÃO não volta a ser entregue (retenção)", async () => {
+    semear(lead("ChIJa"));
+    const primeira = await (await proximo()).json();
+    expect(primeira.leadId).toBe("ChIJa");
+
+    // O celular pegou a tarefa e não disse o que houve: a claim morre sozinha
+    // 5 minutos depois. O pool ainda está no TTL e continua oferecendo o
+    // lead — quem recusa é a transação da reserva, sobre o doc fresco.
+    vi.setSystemTime(new Date(TERCA_10H.getTime() + 6 * 60 * 1000));
+    const segunda = await (await proximo()).json();
+
+    expect(segunda).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
+  });
+
+  it("vencida a retenção, o mesmo lead volta com claimId NOVO", async () => {
+    // Janela curta para o cenário caber dentro da faixa boa do lead (9h–11h30).
+    db.seed("config/fila", { retencaoEnvioHoras: 1 });
     semear(lead("ChIJa"));
     const primeira = await (await proximo()).json();
 
-    // O celular travou: a claim morre sozinha 5 minutos depois.
+    vi.setSystemTime(new Date(TERCA_10H.getTime() + 61 * 60 * 1000));
+    esquecerPool();
+    const segunda = await (await proximo()).json();
+
+    expect(segunda.leadId).toBe("ChIJa");
+    expect(segunda.id).not.toBe(primeira.id);
+  });
+
+  it("com a retenção desligada (0), a regra antiga volta tal como era", async () => {
+    db.seed("config/fila", { retencaoEnvioHoras: 0 });
+    semear(lead("ChIJa"));
+    const primeira = await (await proximo()).json();
+
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 6 * 60 * 1000));
+    const segunda = await (await proximo()).json();
+
+    expect(segunda.leadId).toBe("ChIJa");
+    expect(segunda.id).not.toBe(primeira.id);
+  });
+
+  it("claim confirmada como FALHA não retém: o lead volta na mesma hora", async () => {
+    // A política de 3 tentativas segue intacta — o que retém é o silêncio,
+    // não a falha reportada.
+    semear(lead("ChIJa"));
+    const primeira = await (await proximo()).json();
+
+    db.seed("filaEnvios/ChIJa", {
+      ...(db.getDoc("filaEnvios/ChIJa") as Record<string, unknown>),
+      estado: "falhou",
+      tentativas: 1,
+      ultimoErro: "WhatsApp não abriu a conversa",
+    });
+
+    vi.setSystemTime(new Date(TERCA_10H.getTime() + 6 * 60 * 1000));
+    esquecerPool();
     const segunda = await (await proximo()).json();
 
     expect(segunda.leadId).toBe("ChIJa");

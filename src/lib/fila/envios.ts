@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import type { AppDb } from "@/lib/firestore-like";
 
-import type { FilaEnvioDoc, FilaEnvioResultado } from "./estado";
+import { retidoPorEnvio, type FilaEnvioDoc, type FilaEnvioResultado } from "./estado";
 
 /**
  * `/filaEnvios/{leadId}` — um doc por LEAD (mesmo id do doc em `/leads`,
@@ -22,11 +22,26 @@ export const FILA_ENVIOS_COLLECTION = "filaEnvios";
  */
 export const RESERVA_DURACAO_MS = 5 * 60 * 1000;
 
-/** Sempre "no passado" pra qualquer `now` real — usado por `liberarClaim`. */
-const EPOCH_ISO = new Date(0).toISOString();
+/**
+ * Sempre "no passado" pra qualquer `now` real — usado por `liberarClaim`.
+ *
+ * Exportado porque virou INVARIANTE observável: `expiraEm <= reservadoEm` é
+ * o que distingue claim devolvida de propósito (nada saiu) de claim morta em
+ * silêncio (provavelmente saiu) — ver `claimExpiradaSemConfirmacao` em
+ * `estado.ts`. O teste da retenção precisa poder pinar este valor contra o
+ * doc que `liberarClaim` de fato grava.
+ */
+export const EPOCH_ISO = new Date(0).toISOString();
 
-export type { FilaEnvioDoc, FilaEnvioEstado, FilaEnvioResultado } from "./estado";
-export { TENTATIVAS_MAX, filaParado } from "./estado";
+export type { FilaEnvioDoc, FilaEnvioEstado, FilaEnvioResultado, LinhaRetido } from "./estado";
+export {
+  TENTATIVAS_MAX,
+  claimExpiradaSemConfirmacao,
+  filaParado,
+  retencaoMsDeHoras,
+  retencaoVenceEm,
+  retidoPorEnvio,
+} from "./estado";
 
 /** Resultado de uma reserva bem-sucedida. */
 export interface FilaReserva {
@@ -80,6 +95,18 @@ function reservaExpirada(doc: FilaEnvioDoc, now: Date): boolean {
  * virgem; a rota `/api/fila/proximo` passa `TENTATIVAS_MAX` e com isso um
  * lead que falhou volta à fila até esgotar as tentativas.
  *
+ * `retencaoMs` é a RETENÇÃO POR CLAIM NÃO CONFIRMADA (ver o bloco em
+ * `estado.ts`), explícita no chamador pelo mesmo motivo — 0, o default,
+ * mantém a regra antiga ("reservado expirado = livre") intacta.
+ *
+ * **Este é o portão que de fato impede a mensagem repetida**, e não o
+ * pré-filtro do pool. O pool dura `POOL_TTL_MS` (10 min) e a claim dura
+ * `RESERVA_DURACAO_MS` (5 min): um pool construído antes da expiração
+ * continua OFERECENDO o lead por até ~4 minutos depois de ela acontecer, e
+ * quem é consultado nesse intervalo é esta função — transacional, sobre o
+ * doc fresco. Filtrar só na construção do pool deixaria a janela aberta em
+ * TODA expiração, que é exatamente o caso que a retenção existe para matar.
+ *
  * `enviado` e `invalido` são terminais em qualquer política: um já foi, o
  * outro é número que não existe.
  */
@@ -87,9 +114,13 @@ export function leadDisponivel(
   doc: FilaEnvioDoc | undefined,
   now: Date,
   tentativasMax = 0,
+  retencaoMs = 0,
 ): boolean {
   if (!doc) return true;
-  if (doc.estado === "reservado") return reservaExpirada(doc, now);
+  if (doc.estado === "reservado") {
+    if (retidoPorEnvio(doc, now, retencaoMs)) return false;
+    return reservaExpirada(doc, now);
+  }
   if (doc.estado === "falhou") return doc.tentativas < tentativasMax;
   return false;
 }
@@ -103,6 +134,14 @@ export function leadDisponivel(
  * reserva viva de outro ciclo ou num estado que a política em vigor trata
  * como terminal — ver `leadDisponivel`.
  *
+ * **`opcoes.retencaoMs` INVERTE essa regra central**, de propósito: com ela,
+ * a claim que expirou SEM CONFIRMAÇÃO prende o lead pela janela configurada
+ * em vez de devolvê-lo livre. A regra antiga existia para o lead não ficar
+ * preso quando o celular trava; a retenção existe porque "o aparelho pegou e
+ * não disse o que houve" é mais provavelmente "mandou" do que "não mandou",
+ * e mandar duas vezes não tem volta. Ver o bloco da retenção em `estado.ts`
+ * para a assimetria inteira. Sem a opção (default 0), nada muda.
+ *
  * O `expiraEm` volta daqui em vez de ser recalculado por quem chama porque a
  * resposta ao celular carrega esse instante: recomputá-lo do lado de fora
  * criaria duas fontes para a mesma data.
@@ -112,13 +151,13 @@ export async function reservarLead(
   leadId: string,
   dispositivo: string,
   now: Date = new Date(),
-  opcoes: { tentativasMax?: number } = {},
+  opcoes: { tentativasMax?: number; retencaoMs?: number } = {},
 ): Promise<FilaReserva | null> {
   return db.runTransaction(async (tx) => {
     const ref = docRef(db, leadId);
     const atual = asDoc((await tx.get(ref)).data());
 
-    if (!leadDisponivel(atual, now, opcoes.tentativasMax ?? 0)) {
+    if (!leadDisponivel(atual, now, opcoes.tentativasMax ?? 0, opcoes.retencaoMs ?? 0)) {
       return null;
     }
 

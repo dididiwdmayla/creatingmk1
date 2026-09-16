@@ -390,6 +390,15 @@ describe("POST /api/fila/confirmar — 'falhou'", () => {
 
 describe("POST /api/fila/confirmar — claim que não bate", () => {
   it("claimId velho devolve 409 e NÃO mexe no contador", async () => {
+    // `retencaoEnvioHoras: 0` desliga a RETENÇÃO por claim não confirmada
+    // (ver `lib/fila/estado.ts`) só neste cenário: com ela ligada — o padrão —
+    // a claim silenciosa PRENDE o lead, e a re-reserva de que este teste
+    // precisa não acontece. A regra do 409 é ortogonal à retenção: ela vale
+    // sempre que o claimId não bate com o atual, e o caminho que produz isso
+    // hoje é a retenção vencida (ou desligada). O caso oposto — claim velha
+    // que AINDA é a atual porque a retenção segurou o lead — está logo
+    // abaixo.
+    db.seed("config/fila", { retencaoEnvioHoras: 0 });
     semear(lead("ChIJa"));
     const tarefa = await pegarTarefa();
     // A claim expira e o lead é re-reservado antes de o celular travado voltar.
@@ -405,6 +414,33 @@ describe("POST /api/fila/confirmar — claim que não bate", () => {
     // A reserva NOVA continua intacta.
     expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({ estado: "reservado", claimId: nova.id });
     expect((db.getDoc("leads/ChIJa") as unknown as Lead).status).toBe("novo");
+  });
+
+  /**
+   * O DESFECHO DO CASO QUE CRIOU A RETENÇÃO. O ciclo rodou inteiro, o
+   * `/confirmar` respondeu 503 e a macro só voltou muito depois. Com a
+   * retenção ligada o lead NÃO foi re-reservado nesse meio-tempo, então o
+   * claimId velho ainda é o atual — e a confirmação atrasada é aceita e
+   * aplicada inteira, em vez de bater num 409 depois de o lead já ter
+   * recebido a mensagem de novo. É o outro lado da proteção: ela não só
+   * impede o envio duplicado, ela mantém a confirmação tardia válida.
+   */
+  it("confirmação ATRASADA de claim que a retenção segurou é aceita", async () => {
+    semear(lead("ChIJa"));
+    const tarefa = await pegarTarefa();
+
+    // Duas horas depois — muito além dos 5 min da claim, muito antes das 12h
+    // da retenção.
+    vi.setSystemTime(new Date(TERCA_10H.getTime() + 2 * 60 * 60 * 1000));
+    const res = await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "enviado" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, estado: "enviado", repetida: false });
+    expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({
+      estado: "enviado",
+      claimId: tarefa.id,
+    });
+    expect((db.getDoc("leads/ChIJa") as unknown as Lead).status).toBe("contactado");
   });
 
   it("lead que nunca passou pela fila também é 409", async () => {

@@ -7,6 +7,7 @@ import { normalizaNicho } from "@/lib/precificacao/calc";
 import {
   FILA_ENVIOS_COLLECTION,
   TENTATIVAS_MAX,
+  retidoPorEnvio,
   type FilaEnvioDoc,
 } from "./envios";
 import { printUrlDoLead } from "./print";
@@ -160,24 +161,56 @@ export function motivoEstrutural(lead: Lead): MotivoEstrutural | undefined {
 
 /**
  * Só o que é PERMANENTE barra aqui (já enviado, número inválido, tentativas
- * esgotadas). Claim viva NÃO barra: ela dura 5 min e o pool dura 10, então
- * quem decide isso é a transação de `reservarLead`, na hora, sem cache.
+ * esgotadas) — mais a RETENÇÃO, que é temporária mas datada. Claim VIVA não
+ * barra: ela dura 5 min e o pool dura 10, então quem decide isso é a
+ * transação de `reservarLead`, na hora, sem cache.
  *
- * Fica FORA do diagnóstico estrutural de propósito: por construção, "enviado"
- * já reprova antes em `status` (a confirmação move `novo → contactado` na
- * mesma transação) e "inválido" já reprova antes em `telefoneInvalido` (mesma
- * transação). O único caso que sobra aqui — tentativas esgotadas — já tem
- * vitrine própria (`filaParado`, na ficha do lead); duplicá-lo no pool
- * confundiria duas fontes da mesma informação.
+ * `retencaoMs` (0 = desligada) barra o lead cuja claim expirou SEM
+ * CONFIRMAÇÃO enquanto a janela corre — ver o bloco da retenção em
+ * `estado.ts`. Aqui ela é PRÉ-FILTRO, não a proteção: quem impede a
+ * mensagem repetida é `leadDisponivel`, na transação da reserva, porque o
+ * pool é cache e pode estar até `POOL_TTL_MS` atrasado. O papel deste filtro
+ * é outro, e também necessário: manter o funil e as listas do painel
+ * honestos, e não dar a vaga de candidato a quem não pode receber nada.
+ *
+ * Que o cache atrase é seguro justamente por causa dessa divisão — o portão
+ * duro relê o doc fresco, então nem um pool velho nem uma janela recém
+ * aumentada no painel conseguem liberar um lead retido.
+ *
+ * O resto fica FORA do diagnóstico estrutural de propósito: por construção,
+ * "enviado" já reprova antes em `status` (a confirmação move
+ * `novo → contactado` na mesma transação) e "inválido" já reprova antes em
+ * `telefoneInvalido` (mesma transação). O único caso que sobra — tentativas
+ * esgotadas — já tem vitrine própria (`filaParado`, na ficha do lead);
+ * duplicá-lo no pool confundiria duas fontes da mesma informação. A
+ * RETENÇÃO é a exceção deliberada a esse precedente: ela não tem vitrine
+ * em lugar nenhum, e um lead que para por ela pararia em silêncio — por
+ * isso ela é contada e listada no painel (ver `lib/fila/retidos.ts`).
  */
-function envioImpedePool(envio: FilaEnvioDoc | undefined): boolean {
-  if (!envio || envio.estado === "reservado") return false;
+function envioImpedePool(
+  envio: FilaEnvioDoc | undefined,
+  now: Date,
+  retencaoMs: number,
+): boolean {
+  if (!envio) return false;
+  if (envio.estado === "reservado") return retidoPorEnvio(envio, now, retencaoMs);
   if (envio.estado === "falhou") return envio.tentativas >= TENTATIVAS_MAX;
   return true;
 }
 
-export function candidatoEstavel(lead: Lead, envio: FilaEnvioDoc | undefined): boolean {
-  return motivoEstrutural(lead) === undefined && !envioImpedePool(envio);
+/**
+ * `now`/`retencaoMs` são opcionais porque o chamador de `/proximo` usa esta
+ * função para reconferir só o LEAD (o estado da fila já foi decidido pela
+ * transação da reserva, e ele passa `undefined` no envio). Sem envio, os
+ * dois não têm o que fazer.
+ */
+export function candidatoEstavel(
+  lead: Lead,
+  envio: FilaEnvioDoc | undefined,
+  now: Date = new Date(),
+  retencaoMs = 0,
+): boolean {
+  return motivoEstrutural(lead) === undefined && !envioImpedePool(envio, now, retencaoMs);
 }
 
 function paraCandidato(lead: Lead): CandidatoFila {
@@ -202,7 +235,11 @@ function paraCandidato(lead: Lead): CandidatoFila {
  * barrado só por `envioImpedePool` (tentativas esgotadas) não conta em
  * lugar nenhum — ver o comentário de `envioImpedePool`.
  */
-export async function construirPool(db: AppDb, now: Date = new Date()): Promise<PoolCandidatos> {
+export async function construirPool(
+  db: AppDb,
+  now: Date = new Date(),
+  opcoes: { retencaoMs?: number } = {},
+): Promise<PoolCandidatos> {
   const [leadsSnap, enviosSnap] = await Promise.all([
     db.collection(LEADS_COLLECTION).get(),
     db.collection(FILA_ENVIOS_COLLECTION).get(),
@@ -230,7 +267,7 @@ export async function construirPool(db: AppDb, now: Date = new Date()): Promise<
       estrutural[motivo] += 1;
       continue;
     }
-    if (envioImpedePool(envios.get(lead.placeId))) continue;
+    if (envioImpedePool(envios.get(lead.placeId), now, opcoes.retencaoMs ?? 0)) continue;
     candidatos.push(paraCandidato(lead));
   }
   candidatos.sort((a, b) => a.criadoEm.localeCompare(b.criadoEm) || a.id.localeCompare(b.id));
@@ -260,13 +297,26 @@ function poolValido(data: Record<string, unknown> | undefined, now: Date): PoolC
  * sem job de manutenção: quem paga a varredura é a primeira chamada que
  * chega na seleção depois do pool vencer, e as chamadas barradas pelos
  * portões baratos (pausa, meta, teto, intervalo) nunca chegam aqui.
+ *
+ * `retencaoMs` é a política em vigor NA HORA DA RECONSTRUÇÃO — o doc é
+ * compartilhado, então os dois chamadores (`/api/fila/proximo` e
+ * `montarResumoFila`) passam o mesmo valor da config, senão quem
+ * reconstruísse primeiro decidiria pelo outro. Que o valor fique congelado
+ * até o TTL vencer é aceitável pela mesma razão de sempre: o pool só
+ * OFERECE, e quem ENTREGA (`reservarLead`) relê o doc fresco com a política
+ * fresca. Uma janela recém aumentada no painel vale na reserva no mesmo
+ * segundo, mesmo que o pool ainda não saiba dela.
  */
-export async function lerPool(db: AppDb, now: Date = new Date()): Promise<PoolCandidatos> {
+export async function lerPool(
+  db: AppDb,
+  now: Date = new Date(),
+  opcoes: { retencaoMs?: number } = {},
+): Promise<PoolCandidatos> {
   const snap = await poolRef(db).get();
   const valido = poolValido(snap.exists ? snap.data() : undefined, now);
   if (valido) return valido;
 
-  const novo = await construirPool(db, now);
+  const novo = await construirPool(db, now, opcoes);
   await poolRef(db).set(novo as unknown as Record<string, unknown>);
   return novo;
 }
