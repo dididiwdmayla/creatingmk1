@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FILA_CANDIDATOS_COLLECTION, FILA_CANDIDATOS_DOC } from "@/lib/fila/candidatos";
-import { FILA_TESTES_COLLECTION, FILA_TESTE_DOC, TESTE_VALIDADE_MS, injetarTeste } from "@/lib/fila/teste";
+import {
+  FILA_TESTES_COLLECTION,
+  FILA_TESTE_DOC,
+  TESTE_VALIDADE_MS,
+  cancelarRepeticoesTeste,
+  injetarTeste,
+} from "@/lib/fila/teste";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import type { Lead } from "@/lib/leads/types";
 import { GET } from "../fila/proximo/route";
@@ -323,5 +329,97 @@ describe("dez testes no mesmo lead", () => {
     expect(db.getDoc(DIA)).toEqual(contadorAntes);
     // Sobrou UM doc de teste, não dez — o id é da claim atual, não do lead.
     expect(db.getDoc(TESTE_DOC)?.leadId).toBe("ChIJalvo");
+  });
+});
+
+describe("auto-repeat — o servidor rearma sozinho a cada confirmação", () => {
+  it("dez repetições pedidas de UMA VEZ: dez voltas de /proximo e /confirmar por elas mesmas", async () => {
+    semear(lead("ChIJalvo"));
+    const primeira = await injetar("ChIJalvo", { repeticoes: 10 });
+    expect(primeira.repeticoesTotal).toBe(10);
+    expect(primeira.repeticoesRestantes).toBe(9);
+
+    for (let ciclo = 1; ciclo <= 10; ciclo += 1) {
+      esquecerPool();
+      const tarefa = await proximo();
+      expect(tarefa.teste).toBe(true);
+      const res = await confirmar({ id: tarefa.id, leadId: "ChIJalvo", resultado: "enviado" });
+      expect(res.status).toBe(200);
+    }
+
+    // Zerou sozinho: nenhum rearme depois da décima confirmação.
+    expect(db.getDoc(TESTE_DOC)).toMatchObject({ estado: "confirmado", repeticoesRestantes: 0 });
+    // `ChIJalvo` também é um lead real elegível — não checamos a volta
+    // SEGUINTE de propósito (ela cairia na fila normal e o reservaria de
+    // verdade, o que provaria outra coisa); o que este teste protege é que
+    // as DEZ voltas de teste, sozinhas, nunca tocaram `filaEnvios`.
+    expect(db.getDoc("filaEnvios/ChIJalvo")).toBeUndefined();
+  });
+
+  it("cancelar no meio do ciclo impede o próximo rearme — a tarefa em voo segue seu curso", async () => {
+    semear(lead("ChIJalvo"));
+    await injetar("ChIJalvo", { repeticoes: 5 });
+
+    const primeira = await proximo();
+    expect(primeira.teste).toBe(true);
+
+    const cancelado = await cancelarRepeticoesTeste(db, new Date());
+    expect(cancelado).toMatchObject({ repeticoesRestantes: 0 });
+
+    // A tarefa já entregue confirma normalmente — o cancelamento não a afeta.
+    const res = await confirmar({ id: primeira.id, leadId: "ChIJalvo", resultado: "enviado" });
+    expect(res.status).toBe(200);
+
+    esquecerPool();
+    const segunda = await proximo();
+    expect(segunda.teste).toBe(false); // não rearmou
+  });
+
+  it("expirada sem ser puxada, a tarefa rearmada cancela as repetições que sobravam", async () => {
+    semear(lead("ChIJalvo"));
+    await injetar("ChIJalvo", { repeticoes: 3 });
+
+    const primeira = await proximo();
+    await confirmar({ id: primeira.id, leadId: "ChIJalvo", resultado: "enviado" }); // rearma
+
+    expect(db.getDoc(TESTE_DOC)).toMatchObject({ estado: "pendente", repeticoesRestantes: 1 });
+
+    vi.setSystemTime(new Date(TERCA_10H.getTime() + TESTE_VALIDADE_MS + 1000));
+    esquecerPool();
+    const depois = await proximo();
+
+    // Some sozinha, como qualquer tarefa expirada — a volta seguinte não
+    // traz teste nenhum (cai na fila normal, que é outro caminho já coberto
+    // em "GET /api/fila/proximo — a tarefa de teste" acima).
+    expect(depois.teste).toBe(false);
+    expect(db.getDoc(TESTE_DOC)).toMatchObject({ estado: "pendente", repeticoesRestantes: 1 });
+  });
+
+  it("o contrato de /proximo e /confirmar não muda com o rearme", async () => {
+    semear(lead("ChIJalvo"));
+    await injetar("ChIJalvo", { repeticoes: 3 });
+
+    const tarefa = await proximo();
+    const res = await confirmar({ id: tarefa.id, leadId: "ChIJalvo", resultado: "enviado" });
+    const corpoConfirmar = await res.json();
+
+    expect(Object.keys(tarefa).sort()).toEqual(
+      [
+        "temTarefa",
+        "tipo",
+        "teste",
+        "id",
+        "leadId",
+        "nome",
+        "numero",
+        "texto",
+        "printUrl",
+        "expiraEm",
+        "motivo",
+      ].sort(),
+    );
+    expect(Object.keys(corpoConfirmar).sort()).toEqual(
+      ["ok", "teste", "estado", "repetida", "tentativas", "parado"].sort(),
+    );
   });
 });
