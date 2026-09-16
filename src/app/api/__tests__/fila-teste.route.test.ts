@@ -6,6 +6,7 @@ import type { Lead } from "@/lib/leads/types";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { cookieDeSessao } from "@/lib/testing/sessao";
 import { GET, POST } from "../fila/teste/route";
+import { DELETE } from "../fila/teste/repeticoes/route";
 
 /**
  * A ROTA DO DISPARO DE TESTE — o botão da tela.
@@ -225,6 +226,102 @@ describe("POST /api/fila/teste — o alvo", () => {
   it("etapa desconhecida em `pular` → 400", async () => {
     const { status } = await disparar({ pular: ["inventada"] });
     expect(status).toBe(400);
+  });
+});
+
+describe("POST /api/fila/teste — o campo de repetições", () => {
+  it("sem `repeticoes`, injeta com 1 total e 0 restantes — o disparo de sempre", async () => {
+    semear(lead(LEAD_TESTE_ID, { leadDeTeste: true }));
+
+    const { corpo } = await disparar();
+
+    expect(corpo.teste).toMatchObject({ repeticoesTotal: 1, repeticoesRestantes: 0 });
+  });
+
+  it("aceita o valor pedido, até o teto", async () => {
+    semear(lead(LEAD_TESTE_ID, { leadDeTeste: true }));
+
+    const { corpo } = await disparar({ repeticoes: 10 });
+
+    expect(corpo.injetada).toBe(true);
+    expect(corpo.teste).toMatchObject({ repeticoesTotal: 10, repeticoesRestantes: 9 });
+  });
+
+  it("barra acima do teto (10) — o campo é para operador distraído, não disparo em massa", async () => {
+    semear(lead(LEAD_TESTE_ID, { leadDeTeste: true }));
+
+    const { status } = await disparar({ repeticoes: 11 });
+
+    expect(status).toBe(400);
+    expect(db.getDoc(TESTE_DOC)).toBeUndefined();
+  });
+
+  it("barra zero, negativo e fracionário", async () => {
+    semear(lead(LEAD_TESTE_ID, { leadDeTeste: true }));
+
+    expect((await disparar({ repeticoes: 0 })).status).toBe(400);
+    expect((await disparar({ repeticoes: -1 })).status).toBe(400);
+    expect((await disparar({ repeticoes: 2.5 })).status).toBe(400);
+    expect(db.getDoc(TESTE_DOC)).toBeUndefined();
+  });
+});
+
+describe("DELETE /api/fila/teste/repeticoes — cancelar as restantes", () => {
+  it("sem sessão → 401, e nada muda", async () => {
+    semear(lead(LEAD_TESTE_ID, { leadDeTeste: true }));
+    await disparar({ repeticoes: 5 });
+
+    const res = await DELETE(
+      new Request("http://localhost/api/fila/teste/repeticoes", { method: "DELETE" }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(db.getDoc(TESTE_DOC)).toMatchObject({ repeticoesRestantes: 4, repeticoesCanceladasEm: null });
+  });
+
+  it("de membro → 403, e nada muda", async () => {
+    semear(lead(LEAD_TESTE_ID, { leadDeTeste: true }));
+    await disparar({ repeticoes: 5 });
+    const cookie = await cookieDeSessao(db, { id: "m1", papel: "membro" });
+
+    const res = await DELETE(
+      new Request("http://localhost/api/fila/teste/repeticoes", {
+        method: "DELETE",
+        headers: { cookie },
+      }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(db.getDoc(TESTE_DOC)).toMatchObject({ repeticoesRestantes: 4 });
+  });
+
+  it("admin: zera as restantes e devolve o doc atualizado", async () => {
+    semear(lead(LEAD_TESTE_ID, { leadDeTeste: true }));
+    await disparar({ repeticoes: 5 });
+
+    const res = await DELETE(
+      new Request("http://localhost/api/fila/teste/repeticoes", {
+        method: "DELETE",
+        headers: { cookie: await admin() },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const corpo = await res.json();
+    expect(corpo.teste).toMatchObject({ repeticoesRestantes: 0 });
+    expect(corpo.teste.repeticoesCanceladasEm).not.toBeNull();
+    expect(db.getDoc(TESTE_DOC)).toMatchObject({ repeticoesRestantes: 0 });
+  });
+
+  it("sem teste nenhum → 404", async () => {
+    const res = await DELETE(
+      new Request("http://localhost/api/fila/teste/repeticoes", {
+        method: "DELETE",
+        headers: { cookie: await admin() },
+      }),
+    );
+
+    expect(res.status).toBe(404);
   });
 });
 

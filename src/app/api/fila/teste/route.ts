@@ -8,7 +8,13 @@ import { lerContadorFila } from "@/lib/fila/contadores";
 import { LEAD_TESTE_ID, garantirLeadDeTeste } from "@/lib/fila/leadTeste";
 import { montarMensagemParaLead } from "@/lib/fila/mensagem";
 import { printUrlDoLead } from "@/lib/fila/print";
-import { TESTE_VALIDADE_MS, injetarTeste, lerTesteAtual } from "@/lib/fila/teste";
+import {
+  REPETICOES_TESTE_MAX,
+  TESTE_VALIDADE_MS,
+  injetarTeste,
+  lerTesteAtual,
+  repeticoesValidas,
+} from "@/lib/fila/teste";
 import { avaliarTeste, etapasValidas } from "@/lib/fila/testeEtapas";
 import { getLead } from "@/lib/leads/repo";
 import { handleRouteError, readJsonBody } from "@/lib/http";
@@ -61,6 +67,8 @@ export async function GET(req: Request) {
       atual: atual ?? null,
       /** Quanto tempo a tarefa injetada espera o aparelho puxar. */
       validadeMs: TESTE_VALIDADE_MS,
+      /** Teto rígido do campo de repetições — a tela usa como `max` do input. */
+      repeticoesMax: REPETICOES_TESTE_MAX,
     });
   } catch (error) {
     return handleRouteError(error);
@@ -70,8 +78,11 @@ export async function GET(req: Request) {
 /**
  * Injeta a tarefa de teste, ou diz QUAL ETAPA barrou.
  *
- * Corpo: `{ leadId?, pular?: ["ritmo" | "estruturais" | "nicho" | "janela"] }`.
+ * Corpo: `{ leadId?, pular?: ["ritmo" | "estruturais" | "nicho" | "janela"], repeticoes? }`.
  * Sem `leadId`, o alvo é o lead fixo de teste — ele é o PADRÃO, não o único.
+ * Sem `repeticoes`, é 1 — o disparo de sempre, sem rearme automático. O
+ * REARME em si (a cada CONFIRMAÇÃO, nunca aqui no disparo) mora inteiro em
+ * `lib/fila/teste.ts` (`confirmarTeste`) — ver ARCHITECTURE.md.
  *
  * Barrar é resultado legítimo de um pedido válido (é o diagnóstico que a tela
  * pediu), não erro: responde 200 com `injetada: false` e a etapa nominal. 4xx
@@ -83,7 +94,11 @@ export async function POST(req: Request) {
     const usuario = await requireAdmin(db, req);
 
     const corpo = await readJsonBody(req);
-    const { leadId, pular } = corpo as { leadId?: unknown; pular?: unknown };
+    const { leadId, pular, repeticoes } = corpo as {
+      leadId?: unknown;
+      pular?: unknown;
+      repeticoes?: unknown;
+    };
 
     if (leadId !== undefined && (typeof leadId !== "string" || leadId.length > LEAD_ID_MAX)) {
       throw new ValidationError(["leadId deve ser o id de um lead"]);
@@ -91,6 +106,12 @@ export async function POST(req: Request) {
     const etapas = etapasValidas(pular);
     if (!etapas) {
       throw new ValidationError(["pular deve ser uma lista de: ritmo, estruturais, nicho, janela"]);
+    }
+    const repeticoesTotal = repeticoesValidas(repeticoes);
+    if (repeticoesTotal === undefined) {
+      throw new ValidationError([
+        `repeticoes deve ser um inteiro entre 1 e ${REPETICOES_TESTE_MAX}`,
+      ]);
     }
 
     const alvo = (typeof leadId === "string" && leadId.trim()) || LEAD_TESTE_ID;
@@ -131,6 +152,7 @@ export async function POST(req: Request) {
         printUrl: printUrlDoLead(lead.capturas) as string,
         criadoPor: usuario.id,
         pulou: etapas,
+        repeticoes: repeticoesTotal,
       },
       now,
     );

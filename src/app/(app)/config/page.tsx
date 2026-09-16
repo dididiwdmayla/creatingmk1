@@ -42,6 +42,7 @@ import { estadoVisivel } from "@/lib/demos/capturas/estado";
 import type { FilaConfig } from "@/lib/fila/config";
 import {
   ETAPAS_TESTE,
+  repeticoesRestantesEfetivas,
   type EtapaTeste,
   type FilaTesteDoc,
   type LinhaFilaPainel,
@@ -2060,6 +2061,8 @@ function DisparoTeste({
   const [alvo, setAlvo] = useState("");
   const [outroId, setOutroId] = useState("");
   const [pular, setPular] = useState<EtapaTeste[]>([]);
+  const [repeticoes, setRepeticoes] = useState("1");
+  const [cancelando, setCancelando] = useState(false);
   const [barreira, setBarreira] = useState<{ etapa: string; motivo: string; nome: string } | null>(
     null,
   );
@@ -2098,6 +2101,7 @@ function DisparoTeste({
       const resposta = await api.postFilaTeste({
         ...(leadId && { leadId }),
         ...(pular.length > 0 && { pular }),
+        repeticoes: repeticoesNumero,
       });
       if (!resposta.injetada) {
         setBarreira({ etapa: resposta.etapa, motivo: resposta.motivo, nome: resposta.nome });
@@ -2110,6 +2114,19 @@ function DisparoTeste({
     }
   }
 
+  async function cancelarRepeticoes() {
+    setCancelando(true);
+    setErro(null);
+    try {
+      await api.deleteFilaTesteRepeticoes();
+      setRecarga((n) => n + 1);
+    } catch (error) {
+      setErro(mensagemErroFila(error, "Falha ao cancelar as repetições"));
+    } finally {
+      setCancelando(false);
+    }
+  }
+
   function alternarEtapa(etapa: EtapaTeste) {
     setPular((atual) =>
       atual.includes(etapa) ? atual.filter((e) => e !== etapa) : [...atual, etapa],
@@ -2118,6 +2135,22 @@ function DisparoTeste({
 
   const fixo = estado?.leadDeTeste;
   const linha = estado?.atual ? estadoDoTeste(estado.atual, agora) : null;
+  const repeticoesMax = estado?.repeticoesMax ?? 10;
+  // Teto do lado do CLIENTE é só UX (evita o clique óbvio); quem barra de
+  // verdade é a rota — o campo é para operador distraído, não uma segunda
+  // fonte de política.
+  const repeticoesNumero = Math.min(
+    repeticoesMax,
+    Math.max(1, Math.round(Number(repeticoes)) || 1),
+  );
+  const restantes = estado?.atual ? repeticoesRestantesEfetivas(estado.atual, new Date(agora)) : 0;
+  const canceladas = Boolean(estado?.atual?.repeticoesCanceladasEm);
+  // Só multi-ciclo pedido tem o que mostrar: `restantes > 0` já garante que
+  // não é o caso "terminou/expirou sozinho" (repeticoesRestantesEfetivas
+  // zera os dois), e `!canceladas` separa de "operador interrompeu".
+  const emAndamento = Boolean(
+    estado?.atual && estado.atual.repeticoesTotal > 1 && restantes > 0 && !canceladas,
+  );
 
   // O painel que é DONO do lead de teste é o dono da manutenção dele: o
   // mesmo laço de acompanhamento da ficha (`useEstadoCapturas`), aqui, sem
@@ -2301,6 +2334,49 @@ function DisparoTeste({
             tudo ligado, sem demo, sem captura pronta ou sem print a tarefa não é injetada — tarefa
             sem print quebra o ciclo no aparelho sem ensinar nada.
           </p>
+
+          {/* ── Repetições — rearma sozinho a cada confirmação ──────────── */}
+          <div data-bloco="repeticoes-teste" className="mt-2 flex items-center gap-2 text-xs text-ink-secondary">
+            <span className="w-20 shrink-0">Repetições</span>
+            <input
+              type="number"
+              min={1}
+              max={repeticoesMax}
+              step={1}
+              value={repeticoes}
+              onChange={(event) => setRepeticoes(event.target.value)}
+              className="w-16 rounded border border-line bg-surface-2 px-2 py-1 text-xs text-foreground outline-none focus:border-accent"
+            />
+            <span className="text-[10px] text-ink-muted">
+              de 1 a {repeticoesMax} — a cada confirmação, o servidor rearma sozinho.
+            </span>
+          </div>
+          <p className="mt-1 text-[10px] text-ink-muted">
+            A macro pergunta a cada ~3 minutos, então cada volta pode levar até isso para ser
+            puxada.{" "}
+            {repeticoesNumero > 1
+              ? `${repeticoesNumero} repetições podem levar até ~${repeticoesNumero * 3} minutos — não é travamento.`
+              : "Só rearma na CONFIRMAÇÃO: se ela não chegar, para aí — nunca vira laço de envios."}
+          </p>
+          {(emAndamento || canceladas) && (
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className={`text-xs ${canceladas ? "text-warning" : "text-accent"}`}>
+                {canceladas
+                  ? `Repetições canceladas pelo operador${estado?.atual ? ` (pedidas ${estado.atual.repeticoesTotal}).` : "."}`
+                  : `Faltam ${restantes} de ${estado?.atual?.repeticoesTotal ?? 0} repetições.`}
+              </p>
+              {emAndamento && (
+                <button
+                  type="button"
+                  onClick={cancelarRepeticoes}
+                  disabled={cancelando}
+                  className="rounded border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning disabled:opacity-50"
+                >
+                  {cancelando ? "cancelando…" : "Cancelar repetições restantes"}
+                </button>
+              )}
+            </div>
+          )}
 
           <button
             type="button"

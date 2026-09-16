@@ -209,6 +209,8 @@ export interface FilaTesteEstadoResponse {
   /** A tarefa atual, seja qual for o estado dela, ou null se nunca houve. */
   atual: FilaTesteDoc | null;
   validadeMs: number;
+  /** Teto rígido do campo de repetições — o `max` do input na tela. */
+  repeticoesMax: number;
 }
 
 /**
@@ -511,11 +513,18 @@ export const api = {
    * ou responde qual etapa barrou o lead escolhido.
    */
   getFilaTeste: () => request<FilaTesteEstadoResponse>("/api/fila/teste"),
-  postFilaTeste: (corpo: { leadId?: string; pular?: string[] }) =>
+  postFilaTeste: (corpo: { leadId?: string; pular?: string[]; repeticoes?: number }) =>
     request<FilaTesteInjecaoResponse>("/api/fila/teste", {
       method: "POST",
       body: JSON.stringify(corpo),
     }),
+  /**
+   * Cancela as repetições que ainda restam do disparo de teste, a qualquer
+   * momento — inclusive com uma tarefa em voo (ela segue o curso normal, só
+   * não rearma ao confirmar). Mão única, mesmo espírito de `deleteFilaRetido`.
+   */
+  deleteFilaTesteRepeticoes: () =>
+    request<{ teste: FilaTesteDoc }>("/api/fila/teste/repeticoes", { method: "DELETE" }),
   /**
    * Gera (ou regenera) a captura do LEAD FIXO DE TESTE, direto do painel —
    * reusa `enfileirarCapturas` por baixo (mesmo mecanismo de

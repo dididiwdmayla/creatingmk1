@@ -3,7 +3,14 @@ import { randomBytes } from "node:crypto";
 import type { AppDb } from "@/lib/firestore-like";
 
 import { RESERVA_DURACAO_MS } from "./envios";
-import type { EtapaTeste, FilaTesteDoc, TesteEstado, TesteResultado } from "./estado";
+import {
+  REPETICOES_TESTE_MAX,
+  testeExpirado,
+  type EtapaTeste,
+  type FilaTesteDoc,
+  type TesteEstado,
+  type TesteResultado,
+} from "./estado";
 
 /**
  * A TAREFA DE TESTE — um disparo que o operador injeta na tela e que o
@@ -64,7 +71,12 @@ export const CLAIM_TESTE_PREFIXO = "teste-";
  * ninguém precisar saber da divisão.
  */
 export type { FilaTesteDoc, TesteEstado, TesteResultado, EtapaTeste } from "./estado";
-export { ETAPAS_TESTE } from "./estado";
+export {
+  ETAPAS_TESTE,
+  REPETICOES_TESTE_MAX,
+  repeticoesRestantesEfetivas,
+  testeExpirado,
+} from "./estado";
 
 export function ehClaimDeTeste(claimId: string): boolean {
   return claimId.startsWith(CLAIM_TESTE_PREFIXO);
@@ -81,11 +93,6 @@ function testeRef(db: AppDb) {
 async function lerDoc(db: AppDb): Promise<FilaTesteDoc | undefined> {
   const snap = await testeRef(db).get();
   return snap.exists ? (snap.data() as unknown as FilaTesteDoc) : undefined;
-}
-
-/** A tarefa pendente EXPIROU sem o aparelho puxar? */
-export function testeExpirado(doc: FilaTesteDoc, now: Date): boolean {
-  return new Date(doc.expiraEm).getTime() <= now.getTime();
 }
 
 /**
@@ -116,6 +123,27 @@ export interface InjecaoTeste {
   printUrl: string;
   criadoPor: string;
   pulou: EtapaTeste[];
+  /**
+   * Quantos ciclos o operador pediu. Omitido = 1 (o disparo de sempre, sem
+   * rearme) — nunca 0, que sumiria o disparo por acidente. Quem valida o
+   * teto (`REPETICOES_TESTE_MAX`) contra o corpo da requisição é
+   * `repeticoesValidas`, não aqui: a fundação não decide política de limite,
+   * mesmo padrão de `tentativasMax`/`retencaoMs` em `envios.ts`.
+   */
+  repeticoes?: number;
+}
+
+/**
+ * Valida o campo de repetições do corpo da requisição. Ausente = 1 (sem
+ * rearme automático, o comportamento de sempre) — omitir o campo não pode
+ * virar "zero disparos" por acidente. `undefined` sinaliza corpo inválido,
+ * mesmo padrão de `etapasValidas` em `testeEtapas.ts`.
+ */
+export function repeticoesValidas(valor: unknown): number | undefined {
+  if (valor === undefined) return 1;
+  if (typeof valor !== "number" || !Number.isInteger(valor)) return undefined;
+  if (valor < 1 || valor > REPETICOES_TESTE_MAX) return undefined;
+  return valor;
 }
 
 /**
@@ -128,6 +156,7 @@ export async function injetarTeste(
   dados: InjecaoTeste,
   now: Date,
 ): Promise<FilaTesteDoc> {
+  const repeticoesTotal = dados.repeticoes ?? 1;
   const doc: FilaTesteDoc = {
     claimId: gerarClaimIdTeste(),
     estado: "pendente",
@@ -144,6 +173,9 @@ export async function injetarTeste(
     confirmadoEm: null,
     resultado: null,
     detalhe: "",
+    repeticoesTotal,
+    repeticoesRestantes: repeticoesTotal - 1,
+    repeticoesCanceladasEm: null,
   };
   await testeRef(db).set(doc as unknown as Record<string, unknown>);
   return doc;
@@ -191,15 +223,52 @@ export interface ConfirmacaoTeste {
 }
 
 /**
- * Registra o resultado de uma claim de teste. **Nenhum efeito colateral**: o
- * lead não muda de status, o contador do dia não anda, a rotação de frases
- * não gira, nenhum selo de contato é gravado e `filaEnvios` não é tocada.
- * O mesmo lead pode ser testado dez vezes sem consequência.
+ * O PRÓXIMO CICLO do auto-repeat: mesmo alvo, mesmo texto, mesmo print,
+ * congelados na injeção original — só claim, tempos e contador de
+ * repetições são novos. Reusa a doutrina de `injetarTeste` (claim nova,
+ * `pendente`, validade do zero), mas mora aqui porque só o REARME (dentro de
+ * `confirmarTeste`, nunca o disparo) pode chamá-la — é a regra de segurança
+ * central deste recurso: sem confirmação, sem rearme, sem laço.
+ */
+function proximoCiclo(atual: FilaTesteDoc, now: Date): FilaTesteDoc {
+  return {
+    ...atual,
+    claimId: gerarClaimIdTeste(),
+    estado: "pendente",
+    criadoEm: now.toISOString(),
+    expiraEm: new Date(now.getTime() + TESTE_VALIDADE_MS).toISOString(),
+    repeticoesRestantes: atual.repeticoesRestantes - 1,
+    entregueEm: null,
+    confirmadoEm: null,
+    resultado: null,
+    detalhe: "",
+  };
+}
+
+/**
+ * Registra o resultado de uma claim de teste e, se sobrar repetição, REARMA
+ * o próximo ciclo na mesma transação. **Nenhum efeito colateral no lead ou
+ * na fila real**: o lead não muda de status, o contador do dia não anda, a
+ * rotação de frases não gira, nenhum selo de contato é gravado e
+ * `filaEnvios` não é tocada — dez ciclos seguidos, zero rastro fora de
+ * `filaTestes/atual`.
+ *
+ * **O rearme só acontece AQUI, na confirmação — nunca no disparo.** Se a
+ * confirmação não chega (aparelho travou, macro morta, rede caiu), o doc
+ * fica `entregue` para sempre e NADA rearma: é a regra de segurança que
+ * impede um ciclo quebrado de virar laço infinito de envios reais para
+ * `numeroTeste`. Quando rearma, a claim que acabou de confirmar não fica
+ * gravada como `confirmado` — vira direto o próximo `pendente`; a resposta
+ * desta chamada já carrega tudo que o aparelho precisa saber sobre ELA,
+ * então nada se perde.
  *
  * Transação de um doc só, pela mesma razão de `confirmarClaim`: confirmação
  * repetida (a rede cai DEPOIS de a mensagem sair, e o aparelho reenvia) tem
  * que devolver sucesso sem regravar. `null` = a claim não é a atual, e a
- * rota responde 409 como no caminho real.
+ * rota responde 409 como no caminho real — inclusive quando a claim que caiu
+ * de rede já foi substituída por um rearme: a claim velha não existe mais
+ * para ser reconfirmada, o mesmo dialeto "esta tarefa não é mais sua" que já
+ * valia para qualquer claim substituída.
  */
 export async function confirmarTeste(
   db: AppDb,
@@ -221,13 +290,46 @@ export async function confirmarTeste(
       };
     }
 
-    tx.set(ref, {
-      ...atual,
-      estado: "confirmado",
-      resultado,
-      detalhe: detalhe ?? "",
-      confirmadoEm: now.toISOString(),
-    } as unknown as Record<string, unknown>);
+    if (atual.repeticoesRestantes > 0) {
+      tx.set(ref, proximoCiclo(atual, now) as unknown as Record<string, unknown>);
+    } else {
+      tx.set(ref, {
+        ...atual,
+        estado: "confirmado",
+        resultado,
+        detalhe: detalhe ?? "",
+        confirmadoEm: now.toISOString(),
+      } as unknown as Record<string, unknown>);
+    }
     return { estado: "confirmado" as const, resultado, repetida: false };
+  });
+}
+
+/**
+ * CANCELA as repetições que ainda restam, a qualquer momento — inclusive
+ * com uma tarefa "em voo" (`entregue`, ainda sem confirmação): ela segue o
+ * curso normal, só não rearma quando confirmar. Zera `repeticoesRestantes`
+ * e grava `repeticoesCanceladasEm`, sem tocar em mais nada do doc — não há
+ * "re-armar", mesma mão única da liberação de retidos
+ * (`DELETE /api/config/fila/retidos/{leadId}`). `null` quando não há teste
+ * nenhum para cancelar.
+ */
+export async function cancelarRepeticoesTeste(
+  db: AppDb,
+  now: Date,
+): Promise<FilaTesteDoc | null> {
+  return db.runTransaction(async (tx) => {
+    const ref = testeRef(db);
+    const atual = (await tx.get(ref)).data() as unknown as FilaTesteDoc | undefined;
+    if (!atual) return null;
+    if (atual.repeticoesRestantes === 0) return atual;
+
+    const atualizado: FilaTesteDoc = {
+      ...atual,
+      repeticoesRestantes: 0,
+      repeticoesCanceladasEm: now.toISOString(),
+    };
+    tx.set(ref, atualizado as unknown as Record<string, unknown>);
+    return atualizado;
   });
 }

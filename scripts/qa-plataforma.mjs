@@ -49,7 +49,8 @@
  *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil, próximos,
  *                                                 # bloqueados, RETIDOS (com e sem)
  *   node scripts/qa-plataforma.mjs --so=respostas # respostas pendentes em /config: cheia e VAZIA, celular e desktop
- *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, barrado, confirmado,
+ *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, repetições
+ *                                                 # (zerado/andamento/cancelado), barrado, confirmado,
  *                                                 # desligado, e os 5 estados da CAPTURA do lead fixo
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
  *   node scripts/qa-plataforma.mjs --sem-build    # reusa o .next já buildado
@@ -2320,6 +2321,9 @@ async function medirDisparoTeste(browser, secret) {
     confirmadoEm: null,
     resultado: null,
     detalhe: "",
+    repeticoesTotal: 1,
+    repeticoesRestantes: 0,
+    repeticoesCanceladasEm: null,
     ...extra,
   });
 
@@ -2408,6 +2412,45 @@ async function medirDisparoTeste(browser, secret) {
       problemas.push(`pendente/${sufixo}: esperava 4 interruptores, achei ${interruptores}`);
     }
     await capturarPainel("pendente (aguardando o aparelho)", "pendente");
+
+    // ── REPETIÇÕES EM ANDAMENTO: pedidas 5, faltam 2 — o campo mostra
+    //    quantas faltam e o botão de cancelar aparece. Este é o estado que
+    //    prova que "clicou uma vez, o aparelho reporta e o servidor rearma
+    //    sozinho" é visível na tela, não só no banco.
+    editarBanco((mapa) => {
+      mapa["filaTestes/atual"] = tarefa({ repeticoesTotal: 5, repeticoesRestantes: 2 });
+    });
+    await abrirPainel(`repeticoes-andamento/${sufixo}`);
+    await exigirTextos(`repeticoes-andamento/${sufixo}`, [
+      [/Faltam 2 de 5 repetições/, "contagem de repetições restantes"],
+      [/Cancelar repetições restantes/, "botão de cancelar"],
+    ]);
+    await capturarPainel("repetições em andamento (faltam 2 de 5)", "repeticoes-andamento");
+
+    // ── REPETIÇÕES CANCELADAS: o operador interrompeu com uma tarefa AINDA
+    //    em voo (`entregue`, sem confirmação) — ela segue o curso normal
+    //    (mostrado pela linha de estado "aguardando o confirmar"), só não
+    //    rearma mais. Distinto de "zerou sozinho" — que não mostra nada.
+    editarBanco((mapa) => {
+      mapa["filaTestes/atual"] = tarefa({
+        estado: "entregue",
+        repeticoesTotal: 5,
+        repeticoesRestantes: 0,
+        repeticoesCanceladasEm: new Date(Date.now() - 30000).toISOString(),
+        entregueEm: new Date(Date.now() - 60000).toISOString(),
+      });
+    });
+    await abrirPainel(`repeticoes-cancelado/${sufixo}`);
+    await exigirTextos(`repeticoes-cancelado/${sufixo}`, [
+      [/Repetições canceladas pelo operador/, "aviso de cancelamento"],
+      [/aguardando o confirmar/, "a tarefa em voo segue o curso normal"],
+    ]);
+    if ((await page.getByRole("button", { name: "Cancelar repetições restantes" }).count()) !== 0) {
+      problemas.push(
+        `repeticoes-cancelado/${sufixo}: o botão de cancelar não deveria aparecer depois de já cancelado`,
+      );
+    }
+    await capturarPainel("repetições canceladas (tarefa em voo segue)", "repeticoes-cancelado");
 
     // ── BARRADO: o clique de verdade, com a fila pausada. O produto aqui é
     //    a ETAPA nominal — "parou em ritmo: a fila está pausada" —, não um
@@ -2651,7 +2694,9 @@ async function medirDisparoTeste(browser, secret) {
   if (problemas.length > 0) {
     throw new Error(`[teste] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
   }
-  console.log("[teste] ok — pendente, barrado, confirmado e desligado, sem vazamento nem caixa zerada.");
+  console.log(
+    "[teste] ok — pendente, repetições (zerado/andamento/cancelado), barrado, confirmado e desligado, sem vazamento nem caixa zerada.",
+  );
   return gerados;
 }
 

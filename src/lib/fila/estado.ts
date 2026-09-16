@@ -304,6 +304,27 @@ export interface FilaTesteDoc {
   resultado: TesteResultado | null;
   /** Texto livre que o aparelho mandou junto do resultado. */
   detalhe: string;
+  /**
+   * Quantos ciclos o operador pediu ao injetar — congelado, o MESMO em todo
+   * REARME (ver `repeticoesRestantes` abaixo): é o que a tela usa para
+   * distinguir "nunca pediu repetição" de "pediu e já zerou sozinho".
+   */
+  repeticoesTotal: number;
+  /**
+   * Quantas rearmadas AUTOMÁTICAS ainda faltam depois deste ciclo. Cunhado
+   * na injeção como `repeticoesTotal - 1`; cada CONFIRMAÇÃO (nunca o
+   * disparo) decrementa e faz nascer o próximo ciclo na mesma transação,
+   * até zerar. `POST .../repeticoes` (cancelar) também zera, a qualquer
+   * momento — é a única outra escrita que toca este campo.
+   */
+  repeticoesRestantes: number;
+  /**
+   * `null` enquanto nada foi cancelado — inclusive quando o contador chegou
+   * a zero sozinho, terminando as repetições pedidas. Só o operador
+   * cancelando grava um ISO aqui, e é o que distingue "terminou" de
+   * "interrompido" na tela.
+   */
+  repeticoesCanceladasEm: string | null;
 }
 
 /**
@@ -312,6 +333,37 @@ export interface FilaTesteDoc {
  */
 export const ETAPAS_TESTE = ["ritmo", "estruturais", "nicho", "janela"] as const;
 export type EtapaTeste = (typeof ETAPAS_TESTE)[number];
+
+/**
+ * Teto rígido do campo de repetições do disparo de teste. O campo é para
+ * operador distraído: sem teto, 50 "repetições" seriam 50 mensagens reais
+ * saindo para `numeroTeste` — e cada volta já leva até `TESTE_VALIDADE_MS`
+ * (a macro pergunta a cada ~180s), então dez já cobrem meia hora de prova.
+ */
+export const REPETICOES_TESTE_MAX = 10;
+
+/**
+ * A tarefa pendente EXPIROU sem o aparelho puxar? Pura, e vive aqui (não em
+ * `teste.ts`) pela mesma razão da FORMA: `repeticoesRestantesEfetivas`
+ * abaixo precisa dela, e quem desenha o painel é componente client — que não
+ * pode importar `teste.ts` (arrasta `node:crypto`).
+ */
+export function testeExpirado(doc: FilaTesteDoc, now: Date): boolean {
+  return new Date(doc.expiraEm).getTime() <= now.getTime();
+}
+
+/**
+ * Quantas repetições restam, considerando que uma tarefa pendente que
+ * EXPIROU sem ser puxada cancela junto o que sobrava — mesma regra de
+ * "instante no passado = não existe" que já vale para a tarefa em si. Pura e
+ * sem escrita: o painel já mostra 0 no mesmo instante em que passa a mostrar
+ * "Expirou", sem precisar de um job para sobrescrever o doc (que também não
+ * teria como: só a PRÓXIMA injeção legitimamente o substitui).
+ */
+export function repeticoesRestantesEfetivas(doc: FilaTesteDoc, now: Date): number {
+  if (doc.estado === "pendente" && testeExpirado(doc, now)) return 0;
+  return doc.repeticoesRestantes;
+}
 
 /**
  * Uma mensagem que o LEAD mandou, como o aparelho a capturou. Mora aqui, e
