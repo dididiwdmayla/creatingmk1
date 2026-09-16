@@ -2329,6 +2329,7 @@ Um celular Android com MacroDroid é um EXECUTOR BURRO: pergunta "qual o próxim
   "exigirJanelaBoa": true,           // só libera lead cuja janela de contato atual é "boa"
   "nichosPermitidos": [],            // vazio = todos
   "intervaloMinimoSegundos": 180,
+  "retencaoEnvioHoras": 12,          // claim que expirou SEM CONFIRMAÇÃO prende o lead por estas horas; 0 desliga — ver "Retenção por claim não confirmada"
   "respostaAgrupamentoSegundos": 45, // janela de silêncio antes de gerar UM rascunho com as mensagens acumuladas — ver "Fila de respostas"
   "respostaAutomatica": false,       // LIGA a resposta automática — ver "Resposta automática" adiante
   "respostaAutomaticaApenasPrimeira": true, // só a primeira resposta do lead; da segunda em diante, painel
@@ -2382,7 +2383,7 @@ Os três são incrementados dentro da MESMA transação de `POST /api/fila/confi
   "estado": "reservado",             // "reservado" | "enviado" | "invalido" | "falhou"
   "claimId": "<token curto>",        // novo a cada reserva
   "reservadoEm": "<ISO>",
-  "expiraEm": "<ISO>",               // reservadoEm + 5min
+  "expiraEm": "<ISO>",               // reservadoEm + 5min (ou EPOCH, se a claim foi devolvida — ver a retenção adiante)
   "dispositivo": "celular-1",
   "tentativas": 0,
   "ultimoErro": null,
@@ -2398,7 +2399,12 @@ Três helpers, cada um com `runTransaction` só nesta coleção:
 
 - **`reservarLead(db, leadId, dispositivo, now)`** → `claimId` novo, ou `null` quando o lead está com reserva viva de outro ciclo OU num estado TERMINAL (`enviado`/`invalido`/`falhou` — esta função não decide política de reenvio; isso fica para as rotas que vêm depois). **Regra central**: um doc `"reservado"` com `expiraEm` no passado é tratado como LIVRE e é re-reservado (claimId NOVO; `tentativas`/`ultimoErro` do lead sobrevivem à re-reserva) — é isso que devolve o lead à fila sozinho quando o celular trava ou a execução morre no meio, sem precisar de nenhum job de limpeza.
 - **`confirmarClaim(db, leadId, claimId, resultado, detalhe?, now)`** — grava o resultado: `"enviado"` carimba `enviadoEm` e limpa `ultimoErro`; `"falhou"` incrementa `tentativas` e grava `detalhe` em `ultimoErro`; `"invalido"` grava `ultimoErro` SEM incrementar `tentativas` (é lead descartado — número errado etc. —, não uma tentativa que pode ter sucesso depois). Este helper é a fundação; quem a rota `/confirmar` de fato chama é `confirmarEnvio` (`lib/fila/confirmar.ts`), que faz isto e mais três docs numa transação só.
-- **`liberarClaim(db, leadId, claimId)`** — o dispositivo desiste ANTES de expirar (sem confirmar envio/falha): devolve o lead à fila na hora, reaproveitando a mesma regra de "reservado expirado = livre" (marca `expiraEm` bem no passado) em vez de inventar um terceiro estado de disponibilidade.
+- **`liberarClaim(db, leadId, claimId)`** — o dispositivo desiste ANTES de expirar (sem confirmar envio/falha): devolve o lead à fila na hora, reaproveitando a mesma regra de "reservado expirado = livre" (marca `expiraEm` bem no passado, `EPOCH_ISO`) em vez de inventar um terceiro estado de disponibilidade.
+
+**Duas invariantes deste doc, que a retenção adiante LÊ** (e é por isso que ela não precisou de campo novo):
+
+1. **`estado === "reservado"` já quer dizer NUNCA CONFIRMADA.** Confirmar move para `enviado`/`invalido`/`falhou` na mesma transação, então uma claim que continua "reservado" com prazo vencido é silêncio, não resultado.
+2. **`expiraEm <= reservadoEm` só acontece por `liberarClaim`.** `reservarLead` é a única escrita que CRIA "reservado" e sempre grava `expiraEm = reservadoEm + RESERVA_DURACAO_MS` (5 min à frente); `liberarClaim` (e a liberação manual do painel) é a única que joga `expiraEm` para trás. Então a comparação distingue, sem ambiguidade, "o aparelho ficou calado" de "a claim foi devolvida de propósito" — e o segundo caso é justamente onde a ROTA desistiu antes de montar tarefa nenhuma (lead que perdeu o print, lead sem telefone): ali nada saiu, e o servidor sabe. `EPOCH_ISO` é exportado porque a invariante passou a ser observável, e há teste pinando-a contra o doc que `liberarClaim` de fato grava.
 
 **Correção explícita, nos dois últimos**: `claimId` que não bate com o ATUAL do doc é REJEITADO (`ClaimInvalidoError`), nunca ignorado em silêncio. Cenário real que isso impede: o celular trava, a claim expira, o lead é re-reservado (claimId novo) e só então o celular volta e tenta confirmar/liberar a claim VELHA — sem essa checagem isso vira envio duplicado ou contador errado.
 
@@ -2686,7 +2692,7 @@ Existem porque um humano edita esta tela enquanto o celular pode estar no meio d
 
 - **Alteração de configuração NUNCA invalida claim já emitida.** Quem decide a vida da claim é `expiraEm`; nada em `saveFilaConfig` escreve em `filaEnvios`. Há teste que pausa a fila, zera a meta e confere que a reserva viva continua byte a byte igual.
 - **`POST /api/fila/confirmar` continua aceitando confirmação de lead removido da fila pelo painel.** Recusar seria pior: o texto já pode ter saído, e o lead ficaria marcado como não contactado tendo sido contactado — com o contador do dia sem bater com o que o negócio recebeu. O descarte do operador sobrevive à confirmação (o lead vira `contactado` E continua `descartado`).
-- **O painel não libera claim de ninguém**, automaticamente ou não: não há botão para isso. Uma claim presa se resolve sozinha em 5 minutos pela expiração, e um botão que a devolvesse enquanto o aparelho está no meio do envio produziria a mensagem duplicada que a fila inteira existe para evitar.
+- **O painel nunca libera claim ATIVA**, automaticamente ou não. A regra nasceu como "não há botão nenhum para isso": uma claim presa se resolvia sozinha em 5 minutos pela expiração, e um botão que a devolvesse enquanto o aparelho está no meio do envio produziria a mensagem duplicada que a fila inteira existe para evitar. A **retenção por claim não confirmada** (adiante) mudou a primeira metade dessa frase, não a segunda: ela criou um estado que NÃO se resolve em 5 minutos — o lead fica preso 12h —, e um estado assim precisa de saída manual. Então existe um botão, com a guarda que a razão original exige: `DELETE /api/config/fila/retidos/{leadId}` **recusa com 409 se houver claim não expirada** naquele lead, e a decisão é tomada dentro da transação, sobre o doc fresco. O que continua não existindo é botão que interrompa um envio em curso.
 
 #### O painel inteiro é ADMIN ONLY
 
@@ -2698,7 +2704,86 @@ A página `/config` já era restrita ao admin no proxy (membro é mandado de vol
 
 O painel "Respostas pendentes" (adiante) nasceu com a mesma checagem nas duas rotas dele (`GET /api/config/fila/respostas`, `PATCH .../{id}`), e ali a razão vai além de "comando sobre hardware alheio": o corpo daquelas mensagens é conversa PRIVADA captada do celular pessoal do operador.
 
-**Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` captura o painel em três estados × celular e desktop × temas escuro e claro (o tema claro pelo mesmo motivo do `--so=pendencias`: é onde os tokens apagados deste bloco têm menos contraste de sobra, e as capturas de aba não o cobrem). Os estados: **cheia** (5 próximos + "e mais 1 na fila", 2 bloqueados, contador andando, retrato do pool datado); **vazia** — fila ativa, pool sem candidato e contador zerado, os três estados vazios de uma vez, que é o motivo de o passo existir e onde ele cobra que o painel ENCOLHA (−501px no celular, −381px no desktop) em vez de trocar as listas por um vão; e **sem pool**, o celular que nunca pediu tarefa. Os fixtures usam as famílias `petshop` (faixa `bom` o dia inteiro nos 7 dias) e `multimarcas` (`ruim` igual), pelo mesmo motivo já anotado para `imobiliaria` em /mundo: captura cujo CONTEÚDO muda com a hora da rodada não prova nada. Os aferidores do painel (não vaza da viewport, nenhum slot com caixa zerada) são compartilhados com o `--so=pendencias` e com o `--so=teste`, e a asserção "sobrou linha de lista" daquele passo passou a ser escopada por `[data-lista="pendencias"]` — o funil desta visão também é feito de `<li>`, e ele não é linha de pendência.
+As rotas dos RETIDOS (`GET /api/config/fila/retidos`, `DELETE .../{leadId}`) nasceram com a mesma checagem, e no DELETE a razão é a mais literal do bloco: liberar um retido devolve o lead à fila do celular alheio — e a decisão que ela registra ("conferi no WhatsApp, a mensagem não saiu") só quem tem o aparelho na mão pode tomar.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` captura o painel em quatro estados × celular e desktop × temas escuro e claro (o tema claro pelo mesmo motivo do `--so=pendencias`: é onde os tokens apagados deste bloco têm menos contraste de sobra, e as capturas de aba não o cobrem). Os estados: **cheia** (5 próximos + "e mais 1 na fila", 2 bloqueados, 3 retidos, contador andando, retrato do pool datado); **sem retidos** com a fila cheia em volta (ver "Os RETIDOS no painel" adiante para por que este estado é próprio); **vazia** — fila ativa, pool sem candidato, contador zerado e as três listas vazias ao mesmo tempo, que é o motivo de o passo existir e onde ele cobra que o painel ENCOLHA (−679px no celular, −530px no desktop) em vez de trocar as listas por um vão; e **sem pool**, o celular que nunca pediu tarefa. Os fixtures usam as famílias `petshop` (faixa `bom` o dia inteiro nos 7 dias) e `multimarcas` (`ruim` igual), pelo mesmo motivo já anotado para `imobiliaria` em /mundo: captura cujo CONTEÚDO muda com a hora da rodada não prova nada. Os aferidores do painel (não vaza da viewport, nenhum slot com caixa zerada) são compartilhados com o `--so=pendencias` e com o `--so=teste`, e a asserção "sobrou linha de lista" daquele passo passou a ser escopada por `[data-lista="pendencias"]` — o funil desta visão também é feito de `<li>`, e ele não é linha de pendência.
+
+### Retenção por claim não confirmada — a proteção que não depende do aparelho
+
+**O que aconteceu.** Um lead recebeu a mesma mensagem duas vezes. Reconstituído pelo log do aparelho: o ciclo executou inteiro (texto enviado, print anexado), o `POST /api/fila/confirmar` respondeu 503, a macro não repetiu a chamada, a claim expirou, o lead voltou ao pool e foi enviado de novo. O lado do aparelho foi corrigido (a confirmação agora repete 3 vezes) — isso reduz a probabilidade e **não elimina a classe**: aparelho reiniciado, macro morta pelo sistema, rede caindo ou nova indisponibilidade do servidor produzem o mesmo resultado. Mensagem repetida é o comportamento que mais gera denúncia no WhatsApp, e denúncia derruba número. Então a proteção tem que viver no servidor.
+
+**A regra.** Lead cuja claim EXPIROU SEM CONFIRMAÇÃO fica inelegível por uma janela configurável (`retencaoEnvioHoras` em `/config/fila`, padrão **12**, editável no painel; **0 desliga**).
+
+**Isto INVERTE deliberadamente a regra central de `reservarLead`** ("reserva `reservado` com `expiraEm` no passado é livre"), que está documentada em `/filaEnvios` acima. Aquela regra existia para o lead não ficar preso quando o celular trava; o fato novo é que **"o aparelho pegou e não disse o que houve" é mais provavelmente "mandou" do que "não mandou"** — a reserva já é evidência suficiente. A assimetria que decide: bloquear um lead que não recebeu nada custa **um envio, recuperável a qualquer momento** (pela liberação manual do painel, ou sozinho quando a janela vence); liberar um lead que já recebeu **manda duas vezes, e isso não tem volta**. Na dúvida, bloqueia.
+
+#### O RECORTE: o que retém é o SILÊNCIO, não a falha reportada
+
+Claim confirmada com resultado `"falhou"` **não** entra na retenção. Confirmação de falha é evidência POSITIVA de que nada saiu — é exatamente o caso em que o aparelho falou —, e a política de `TENTATIVAS_MAX` (3) segue valendo **intacta** para esse caminho. Lido ao pé da letra, o pedido original ("claim reservada nas últimas horas") mataria a retentativa.
+
+O recorte sai de graça, por construção, e é isso que o torna confiável: confirmar move `estado` para `enviado`/`invalido`/`falhou` na mesma transação, então só uma claim NUNCA confirmada continua em `"reservado"` — a retenção nem precisa saber o que é uma falha. Mesma coisa para a claim devolvida de propósito, que a segunda invariante de `/filaEnvios` separa.
+
+#### EM DOIS LUGARES — e o pool sozinho não fecha o furo
+
+O filtro entra na construção do pool, junto de `envioImpedePool`, como pedido. Isso é **necessário e não suficiente**, por aritmética: o pool dura `POOL_TTL_MS` (10 min) e a claim dura `RESERVA_DURACAO_MS` (5 min), então um pool construído ANTES de uma expiração continua OFERECENDO o lead por ~4 minutos DEPOIS dela — em toda expiração. A sequência que produzia a duplicata cabe dentro dessa janela:
+
+```
+t=0      pool construído, lead L dentro (a claim dele nem existe ainda)
+t=1min   /proximo reserva L → claim expira em t=6min
+t=6min   a claim expira EM SILÊNCIO
+t=7min   /proximo: pool ainda no TTL e ainda listando L → reserva de novo → DUPLICATA
+```
+
+Então a retenção mora nos dois lados, exatamente na doutrina que o pool já declara ("pode OFERECER um lead que não serve mais, nunca ENTREGAR"):
+
+- **`leadDisponivel`/`reservarLead` (`retencaoMs`) — o portão DURO.** Transacional, sobre o doc fresco. É este que impede a mensagem repetida, e há teste que percorre a janela pool-versus-claim minuto a minuto.
+- **`envioImpedePool`/`construirPool`/`lerPool` (`retencaoMs`) — o PRÉ-FILTRO.** Mantém o funil e as listas do painel honestos e não dá a vaga de candidato a quem não pode receber nada.
+
+`retencaoMs` é explícito no chamador, como `tentativasMax` já era e pelo mesmo motivo ("a fundação não decide política de reenvio"): o default 0 mantém o comportamento antigo byte a byte para quem não a declara. Que o pool congele a política até o TTL vencer é **seguro justamente por causa dessa divisão** — uma janela recém aumentada no painel vale na reserva no mesmo segundo, mesmo que o pool ainda não saiba dela. `/api/fila/proximo` e `montarResumoFila` passam o MESMO valor, porque o doc do pool é compartilhado e quem reconstruísse primeiro decidiria pelo outro.
+
+#### SEM CAMPO NOVO — a evidência já estava em `/filaEnvios`
+
+As duas invariantes documentadas em `/filaEnvios` acima bastam, e a derivação mora em `lib/fila/estado.ts` (política pura, sem servidor, ao lado de `TENTATIVAS_MAX`/`filaParado`): `claimExpiradaSemConfirmacao`, `retencaoVenceEm`, `retidoPorEnvio`, `retencaoMsDeHoras`.
+
+**A âncora é `reservadoEm`, não `expiraEm`**: a janela conta de quando a mensagem PROVAVELMENTE saiu, não de cinco minutos depois. E **`reservadoEm` ser sobrescrito a cada nova reserva não atrapalha** — foi verificado, não presumido: enquanto a retenção vale, o lead está fora do pool E a reserva o recusa, então nada o re-reserva, logo nada reescreve o carimbo. Vencida a janela, uma reserva nova reinicia a contagem do carimbo novo, que é o correto — é evidência nova de um envio novo.
+
+#### CLAIMS DE TESTE FICAM DE FORA — verificado, em duas camadas
+
+O lead fixo de teste é reservado a cada disparo, por construção. Se a retenção o enxergasse, o PRIMEIRO teste o bloquearia por 12h e o recurso de teste repetível morreria na primeira volta. Duas camadas independentes impedem isso, e há teste cobrando cada uma:
+
+1. **A tarefa de teste vive em `filaTestes/atual` e nunca escreve `filaEnvios`** (ver "A TAREFA DE TESTE" adiante, que já era assim por outro motivo: dez testes no mesmo lead destruiriam o histórico dele). Teste espiona as escritas das três etapas — injetar, entregar, confirmar — e reprova qualquer uma que toque `filaEnvios`.
+2. **`construirPool` pula `leadDeTeste === true`**, então nem como candidato nem como retido ele entra. Teste semeia uma claim silenciosa no lead fixo e confere que o pool não a vê.
+
+Dez ciclos de teste seguidos, sem retenção nenhuma.
+
+#### A confirmação ATRASADA continua válida — o outro lado da proteção
+
+A retenção não só impede o envio duplicado: ela mantém a confirmação tardia correta. Com o lead retido, `/proximo` não o re-reserva, então **o claimId velho ainda é o atual** — e a confirmação que chega duas horas depois (o desfecho do caso que criou esta seção) é aceita e aplicada inteira, em vez de bater num 409 depois de o lead já ter recebido a mensagem outra vez. O 409 para claim que não bate continua valendo como sempre; o que mudou é que o caminho que produzia essa divergência agora só existe com a retenção vencida ou desligada.
+
+**`/api/fila/proximo` e `/api/fila/confirmar` não mudam de contrato**: nenhuma chave nova, nenhum `motivo` novo. Lead retido não entra no pool, então o motivo segue `sem_leads_elegiveis` — e continua havendo teste comparando `Object.keys` do corpo contra a lista fixa.
+
+### Os RETIDOS no painel "Fila de envio" (/config) — contagem, lista e liberação
+
+A retenção tira o lead da fila **sem que nada no lead mude**: o doc continua `status: "novo"`, com demo, com print, elegível a olho nu. Sem vitrine ele pararia EM SILÊNCIO — a mesma razão de `filaParado` aparecer na ficha e de `detalheEnvio` ter lista própria. Três peças, todas dentro da visão da fila:
+
+- **Contagem própria no funil, com etiqueta explícita** ("retidos por envio recente não confirmado"). É a **exceção deliberada** ao precedente registrado acima, de que razão do lado de `filaEnvios` fica fora do diagnóstico estrutural: `filaParado` fica fora porque já tem vitrine na ficha do lead; a retenção não tem vitrine em lugar nenhum, então entra. Linha separada das sete contagens estruturais por um filete, e com o aviso de que ela é contada AGORA, direto de `filaEnvios` — **não** é do retrato do pool. A fronteira entre defasado e fresco é a disciplina desta tela, e misturar as duas coisas na mesma lista a apagaria.
+- **Lista dos retidos**, com nome, **quando foi a reserva** (o instante em que a mensagem provavelmente saiu — é o que o operador confere no WhatsApp) e **quando a retenção vence**. Não só o número: sem lista não há como liberar um específico. Ordenada do mais RECENTE para o mais antigo, porque a conversa mais nova é a que ainda está no topo do WhatsApp dele. Lead excluído não apaga a retenção (some o nome, fica o id).
+- **Ação de liberar por linha**, para quando o operador confirmar que o envio realmente não saiu.
+
+**Uma varredura, uma verdade.** `total` (o número do funil) e `linhas` (a lista) saem da MESMA chamada de `listarRetidos`, e por isso não têm como discordar — duas fontes para o mesmo número, uma congelada no pool e outra fresca, divergiriam em silêncio justamente na tela que existe para nada ficar em silêncio. É também por isso que a lista **não tem teto**, diferente das listas de próximos/bloqueados: o volume é limitado pela própria fila (`metaDiaria` reservas por dia, uma claim por reserva), e um teto esconderia exatamente o lead que o operador quer liberar.
+
+**Rota PRÓPRIA, e não `/api/fila/diagnostico`.** Aquela rota é declaradamente sem varredura (lê UM doc, o pool), e o retido está exatamente FORA do pool — achá-lo exige varrer `filaEnvios`, que é o custo que o diagnóstico existe para não pagar. `GET /api/config/fila/retidos` devolve `{ total, linhas, retencaoHoras }`; `retencaoHoras` viaja junto porque "0 retidos" com a retenção ligada e "0 retidos" com ela desligada são fatos diferentes, e a tela não pode confundi-los. A varredura é aceitável aqui pelo mesmo motivo da lista de pendência (/config é admin, aberta esporadicamente por uma pessoa) e **não lê `/leads` inteira atrás de nomes**: filtra primeiro e lê **por id** só os que sobraram — há teste que espiona as chamadas e reprova uma varredura de `/leads`.
+
+**A liberação: `DELETE /api/config/fila/retidos/{leadId}`.** DELETE porque o que se apaga é a RETENÇÃO — não o lead, não a claim — e a ação é de mão única: diferente do alternador de `pendencias`, não há "re-reter". A retenção é estado DERIVADO da claim silenciosa, e "conferi, não saiu" é informação que o servidor não tem como reproduzir depois.
+
+- **Implementada com a semântica de `liberarClaim`** (`expiraEm` no `EPOCH_ISO`), e não com campo ou estado novo: a invariante `expiraEm <= reservadoEm` JÁ significa "devolvida de propósito, nada saiu", que é exatamente o que o operador está afirmando. Reusar a distinção que a própria retenção lê é o que garante que os três lugares — lista, pool e reserva — concordem por construção; um segundo conceito de "livre" poderia divergir do primeiro. `reservadoEm` fica **intacto**: é o rastro de que houve um envio provável ali.
+- **NUNCA atropela claim ativa.** Claim não expirada quer dizer que o aparelho pode estar com o WhatsApp aberto NESTE segundo, e liberar ali produziria a segunda reserva do mesmo lead — a duplicata que a retenção inteira existe para evitar. **409 com o motivo estruturado** (`claim_ativa`) e o `expiraEm`, porque a tela precisa DIZER por quê: recusa sem explicação faz o operador clicar de novo. A decisão é tomada DENTRO da transação, não sobre um doc lido antes — entre a lista e o clique, `/proximo` pode ter re-reservado o lead (retenção vencida no intervalo), e aí a transação vê a claim nova e recusa. Há teste para essa corrida.
+- **404 para lead que não está retido, sem criar doc** (`set` com merge CRIA o documento ausente — um leadId errado não pode plantar lixo em `filaEnvios`), e liberar duas vezes dá 404 na segunda em vez de um segundo efeito.
+
+**Admin-only como todo o bloco**: as duas rotas exigem sessão de admin — 401 sem sessão, 403 para membro, com teste conferindo que o corpo do 403 não traz `linhas` nem `total`, e que um membro não consegue liberar (a claim fica byte a byte como estava). Ver "O painel inteiro é ADMIN ONLY" acima para a razão: a fila é global e drenada por UM aparelho físico.
+
+**No painel**, a contagem e a lista ficam no MESMO componente (`VisaoFila`) porque têm de vir do mesmo payload — mas em **efeitos separados**: a rota de retidos que falha não pode apagar o funil da tela, e nesse caso o número vira "—" em vez de zero, que seria mentira.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` ganhou **dois** estados, não um: **com retidos** (a lista, o "reservado … · volta à fila em …", o botão de liberar por linha) e **sem retidos com a fila CHEIA em volta** — este último porque é o caso em que uma lista vazia no meio de um painel cheio deixa caixa quebrada ou espaço morto, e o estado "vazia" (onde tudo está vazio junto, e que agora também cobra o vazio dos retidos) não o revelaria. O passo também CONFRONTA o número renderizado no funil com a quantidade de linhas da lista: se um dia divergirem, é ali que aparece. Medido: o painel encolhe sem retidos (−178px no celular, −149px no desktop) em vez de trocar a lista por um vão. Os fixtures trazem três estados de propósito — um recém retido, um no FIM da janela (volta em 9min, o caso em que o "volta à fila" mais importa) e um cujo LEAD foi excluído, que mostra o id sem nome — com claims silenciosas de verdade (`estado: "reservado"`, prazo vencido, `expiraEm = reservadoEm + 5min`, a relação exata que `reservarLead` grava).
 
 ## Fila de respostas — captura, agrupamento e rascunho por IA (`POST /api/fila/mensagem-recebida`)
 
@@ -4149,4 +4234,6 @@ Ver `.env.example`. Na Vercel, cadastrar todas em Project Settings → Environme
 - **Demo avulsa em coleção própria, não flag em `/leads`**: uma demo sem lead não é prospect e não pode entrar em contagem nenhuma do funil (metas, penetração, `/hoje`, `/leads`). Em `/demosAvulsas` isso vale por construção — nenhuma query de lead a alcança, hoje ou depois de qualquer refatoração; como flag, valeria só enquanto todo mundo lembrasse do filtro. O custo aceito é o adaptador `ClienteDemo` no editor e o alvo prefixado nas capturas (ver "Demos avulsas").
 - **Re-enriquecimento**: não existe. Lead enriquecido retorna do cache sempre; um novo Place Details para o mesmo lead nunca é disparado.
 - **Cotas por usuário vs. teto global**: o teto global (`/config/app.caps`) deixou de ser um limite absoluto de conta — desde as cotas individuais, ele é "vale pra todo mundo, menos admin". A trava absoluta de fatura passa a ser só a cota configurada no console do Google. Decisão deliberada (não um efeito colateral): ver "Cotas individuais por usuário".
+- **Claim que expira em SILÊNCIO prende o lead, não o libera**: a regra central de `reservarLead` ("reserva expirada = livre") foi deliberadamente INVERTIDA por `retencaoEnvioHoras` (padrão 12h). Aquela existia para o lead não ficar preso quando o celular trava; depois de um lead receber a mesma mensagem duas vezes (503 no `/confirmar`, macro não repetiu, claim expirou, lead voltou ao pool), a leitura mudou: "o aparelho pegou e não disse o que houve" é mais provavelmente "mandou". A assimetria é o argumento — bloquear quem não recebeu custa um envio recuperável; liberar quem já recebeu manda duas vezes, e isso não tem volta. Falha REPORTADA continua fora da retenção (a política de 3 tentativas fica intacta): o que retém é o silêncio. Ver "Retenção por claim não confirmada".
+- **A retenção não ganhou campo novo, e mora em DOIS portões**: a evidência já estava em `/filaEnvios` (`estado: "reservado"` = nunca confirmada; `expiraEm <= reservadoEm` = devolvida de propósito). E o filtro do pool sozinho não fecharia o furo — pool de 10 min contra claim de 5 min deixa ~4 minutos em que o cache ainda oferece o lead —, então quem impede a duplicata é `leadDisponivel`, na transação da reserva; o pool é pré-filtro. Ver "EM DOIS LUGARES" naquela seção.
 - **Resposta automática com cota PRÓPRIA**: uma resposta enviada sozinha não consome `metaDiaria`, não respeita `intervaloMinimoSegundos` e não conta no `tetoPorHora` — ela tem `filaContadores.respostasEnviadas` e `respostasAutomaticasMaxDia` só para ela. Aqueles três portões existem para disfarçar disparo em rajada para quem NUNCA falou com você; responder quem te escreveu é outra coisa, e somar as duas faria uma noite movimentada de respostas comer a cota de prospecção do dia seguinte. Ver "Resposta automática".
