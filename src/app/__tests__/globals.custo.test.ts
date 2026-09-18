@@ -27,6 +27,16 @@ const META_FAIXA = fs.readFileSync(
   path.join(process.cwd(), "src/components/MetaFaixa.tsx"),
   "utf8",
 );
+/**
+ * O BALÃO DA FILA entra na mesma lista pelo mesmo motivo que a nav e a faixa
+ * de metas: ele é `fixed`, existe em TODA tela do app e fica visível o dia
+ * inteiro. Um ponto pulsando ali custa bateria em cada aba aberta, e o halo
+ * estático desenha a mesma ideia com custo zero por quadro.
+ */
+const BALAO_FILA = fs.readFileSync(
+  path.join(process.cwd(), "src/components/BalaoFila.tsx"),
+  "utf8",
+);
 
 function regras(css: string): Array<{ seletor: string; corpo: string }> {
   const saida: Array<{ seletor: string; corpo: string }> = [];
@@ -89,9 +99,17 @@ describe("custo do cromo", () => {
     for (const [nome, fonte] of [
       ["Nav.tsx", NAV],
       ["MetaFaixa.tsx", META_FAIXA],
+      ["BalaoFila.tsx", BALAO_FILA],
     ] as const) {
       expect(semComentarios(fonte), nome).not.toMatch(/animate-(ping|pulse|spin|bounce)/);
     }
+  });
+
+  it("o balão da fila não usa desfoque — nem no painel aberto", () => {
+    // `backdrop-blur` num elemento que cobre a tela inteira é a combinação
+    // mais cara que existe no celular, e ela entraria aqui sem ninguém
+    // notar: o painel tem uma sobreposição de tela cheia.
+    expect(BALAO_FILA).not.toMatch(/blur/);
   });
 
   it("a iridescência é ESTÁTICA: nenhum keyframe mexe nos tokens do arco", () => {

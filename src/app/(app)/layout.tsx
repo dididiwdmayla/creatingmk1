@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import type { MetaProprioResponse } from "@/lib/api-client";
 import { getDb } from "@/lib/firebase/admin";
 import { getProgressoMetaUsuario, usuarioDaRequest } from "@/lib/usuarios";
+import { BalaoFila } from "@/components/BalaoFila";
 import { MetaFaixa } from "@/components/MetaFaixa";
 import { Nav } from "@/components/Nav";
 import { PageTransition } from "@/components/PageTransition";
@@ -18,7 +19,17 @@ import { PageTransition } from "@/components/PageTransition";
  * ainda faz o próprio refetch ao trocar de rota (o progresso muda
  * navegando) — isto só resolve o PRIMEIRO desenho.
  */
-async function metaInicial(): Promise<MetaProprioResponse | null> {
+/**
+ * `admin` sai da MESMA leitura de usuário que a meta já fazia — o balão da
+ * fila é ADMIN ONLY, e resolver isso no servidor significa que, para membro,
+ * ele não chega a entrar no HTML (não é um `display: none` que uma aba de
+ * DevTools desfaz, nem uma chamada que volta 403 em toda tela). As rotas
+ * dele cobram o papel de novo, como sempre: a tela nunca é a permissão.
+ */
+async function estadoInicial(): Promise<{
+  meta: MetaProprioResponse | null;
+  admin: boolean;
+}> {
   const jar = await cookies();
   const cookieHeader = jar
     .getAll()
@@ -27,20 +38,28 @@ async function metaInicial(): Promise<MetaProprioResponse | null> {
   const req = new Request("http://localhost/", { headers: { cookie: cookieHeader } });
   const db = getDb();
   const usuario = await usuarioDaRequest(db, req);
-  if (!usuario) return null;
+  if (!usuario) return { meta: null, admin: false };
   const progresso = await getProgressoMetaUsuario(db, usuario.id, usuario.metas);
-  return { ...progresso, minimizada: usuario.metaFaixaMinimizada ?? false };
+  return {
+    meta: { ...progresso, minimizada: usuario.metaFaixaMinimizada ?? false },
+    admin: usuario.papel === "admin",
+  };
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const inicial = await metaInicial();
+  const { meta, admin } = await estadoInicial();
   return (
     <div className="flex flex-1 flex-col">
-      <MetaFaixa inicial={inicial} />
+      <MetaFaixa inicial={meta} />
       <Nav />
       <main className="mx-auto w-full max-w-lg flex-1 px-4 pb-20 pt-4">
         <PageTransition>{children}</PageTransition>
       </main>
+      {/* Fora do <main>: o balão é `fixed` e vale para a tela inteira, não
+          para o conteúdo da aba. Fica no LAYOUT (e não em cada página) para
+          não remontar a cada navegação — é isso que faz o estado fechado
+          custar 2 leituras por carregamento em vez de 2 por aba aberta. */}
+      {admin && <BalaoFila />}
     </div>
   );
 }
