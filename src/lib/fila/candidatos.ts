@@ -83,6 +83,7 @@ export interface CandidatoFila {
  */
 export const MOTIVOS_ESTRUTURAIS = [
   "status",
+  "contactadoForaDaFila",
   "descartado",
   "telefoneInvalido",
   "semTelefone",
@@ -99,6 +100,7 @@ export type DiagnosticoEstrutural = Record<MotivoEstrutural, number>;
 export function estruturalVazio(): DiagnosticoEstrutural {
   return {
     status: 0,
+    contactadoForaDaFila: 0,
     descartado: 0,
     telefoneInvalido: 0,
     semTelefone: 0,
@@ -141,9 +143,36 @@ function poolRef(db: AppDb) {
  * que o operador descartou à mão não pode voltar por uma porta automática —
  * o descarte é suave (reversível, continua na base), mas é uma decisão
  * humana explícita de não falar com aquele negócio.
+ *
+ * `contactadoForaDaFila` cobre o mesmo tipo de furo: o clique manual no botão
+ * de WhatsApp (ficha e /hoje) grava `seloContato` e soma em `registrosEnvio`
+ * (`registrarSeloContato`, `lib/leads/repo.ts`) SEM tocar `status` — só o
+ * botão "Contactado", à parte, faz isso. Sem esta checagem, um lead
+ * contactado à mão continuava "novo" para sempre e voltava candidato à fila
+ * automática todo santo dia, como se nada tivesse acontecido. `contato.
+ * primeiroContatoEm` entra pelo mesmo motivo: é o carimbo da transição
+ * "novo → contactado" (`STATUS_STAMPS`, `lib/leads/repo.ts`), e um doc
+ * gravado por fora dessa regra (migração, edição direta) não pode escapar
+ * pela falta dela.
+ *
+ * ESSA CHECAGEM VEM DEPOIS DE `status`, e a ordem importa: o envio
+ * confirmado PELA fila também grava selo e registro (`confirmarEnvio`,
+ * `lib/fila/confirmar.ts`), na MESMA transação que move `status` para
+ * "contactado" — os dois nascem juntos, atomicamente. Checando `status`
+ * primeiro, esse lead já sai por "status"; só quem tem selo/registro/carimbo
+ * SEM status ter mudado (o caso do clique manual) cai em
+ * `contactadoForaDaFila`. Checar na ordem inversa rotularia o envio
+ * automático como "contactado fora da fila", o que seria falso.
  */
 export function motivoEstrutural(lead: Lead): MotivoEstrutural | undefined {
   if (lead.status !== "novo") return "status";
+  if (
+    lead.seloContato !== undefined ||
+    (lead.registrosEnvio?.length ?? 0) > 0 ||
+    lead.contato?.primeiroContatoEm !== undefined
+  ) {
+    return "contactadoForaDaFila";
+  }
   if (lead.descartado === true) return "descartado";
   if (lead.telefoneInvalido === true) return "telefoneInvalido";
   if (!(lead.detalhes?.telefoneIntl ?? lead.telefoneIntl)) return "semTelefone";
@@ -179,13 +208,22 @@ export function motivoEstrutural(lead: Lead): MotivoEstrutural | undefined {
  *
  * O resto fica FORA do diagnóstico estrutural de propósito: por construção,
  * "enviado" já reprova antes em `status` (a confirmação move
- * `novo → contactado` na mesma transação) e "inválido" já reprova antes em
- * `telefoneInvalido` (mesma transação). O único caso que sobra — tentativas
- * esgotadas — já tem vitrine própria (`filaParado`, na ficha do lead);
- * duplicá-lo no pool confundiria duas fontes da mesma informação. A
- * RETENÇÃO é a exceção deliberada a esse precedente: ela não tem vitrine
- * em lugar nenhum, e um lead que para por ela pararia em silêncio — por
- * isso ela é contada e listada no painel (ver `lib/fila/retidos.ts`).
+ * `novo → contactado` na mesma transação, com selo e registro incluídos) e
+ * "inválido" já reprova antes em `telefoneInvalido` (mesma transação). O
+ * único caso que sobra — tentativas esgotadas — já tem vitrine própria
+ * (`filaParado`, na ficha do lead); duplicá-lo no pool confundiria duas
+ * fontes da mesma informação. A RETENÇÃO é a exceção deliberada a esse
+ * precedente: ela não tem vitrine em lugar nenhum, e um lead que para por
+ * ela pararia em silêncio — por isso ela é contada e listada no painel (ver
+ * `lib/fila/retidos.ts`).
+ *
+ * Essa garantia (selo e registro sempre vêm com `status` já mudado) só vale
+ * para quem passou pela CONFIRMAÇÃO da fila — as duas escritas são atômicas,
+ * na mesma transação. O clique manual do botão de WhatsApp na ficha
+ * (`registrarSeloContato`) grava o MESMO selo e registro sem tocar `status`
+ * nenhum, e sem doc de envio nenhum — por isso ele não passa por aqui: quem
+ * pega esse caso é `motivoEstrutural` (`contactadoForaDaFila`), na etapa
+ * anterior.
  */
 function envioImpedePool(
   envio: FilaEnvioDoc | undefined,

@@ -32,12 +32,19 @@ const RITMO_LABEL: Record<string, string> = {
 };
 
 /**
- * As sete peneiras ESTRUTURAIS na ordem real de avaliação (`motivoEstrutural`,
+ * As oito peneiras ESTRUTURAIS na ordem real de avaliação (`motivoEstrutural`,
  * lib/fila/candidatos.ts) — um lead que falha em várias conta só na
  * primeira, então a ordem é o que torna a coluna de números legível.
+ *
+ * `contactadoForaDaFila` é a peneira que falhava antes: contato feito pelo
+ * clique manual do WhatsApp (ficha/hoje) não muda `status`, então esse lead
+ * ficava invisível — a fila continuava contando ele como candidato até
+ * mandar mensagem de novo. Rótulo explícito aqui é o que evita o operador
+ * ver a contagem de elegíveis cair e não saber por quê.
  */
 const FUNIL_ESTRUTURAL: Array<{ chave: string; label: string }> = [
   { chave: "status", label: "já não está em “novo”" },
+  { chave: "contactadoForaDaFila", label: "já contactado fora da fila (selo/registro manual)" },
   { chave: "descartado", label: "descartado à mão" },
   { chave: "telefoneInvalido", label: "número sem WhatsApp" },
   { chave: "semTelefone", label: "sem telefone" },
@@ -409,13 +416,13 @@ export function VisaoFila({
               <>
                 Retrato do pool de {formatDateTime(dados.pool.geradoEm)} (
                 {formatTempoRelativo(dados.pool.geradoEm, agora)}), {formatInt(dados.pool.lidos)}{" "}
-                leads lidos. Estas sete contagens só são apuráveis na varredura completa, então
+                leads lidos. Estas oito contagens só são apuráveis na varredura completa, então
                 são desse instante — não de agora.
                 {dados.pool.truncado && " A base passou do teto e o pool saiu cortado."}
               </>
             ) : (
               <>
-                O pool ainda não foi construído — o celular não pediu tarefa nenhuma. As sete
+                O pool ainda não foi construído — o celular não pediu tarefa nenhuma. As oito
                 contagens abaixo ficam zeradas até a primeira chamada.
               </>
             )}

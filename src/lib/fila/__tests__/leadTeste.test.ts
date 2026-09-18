@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { calcularPenetracaoGrupo } from "@/lib/buscas/penetracao";
+import { getLead, listLeads } from "@/lib/leads/repo";
 import { getMetrics, getMetricsPorUsuario } from "@/lib/leads/metrics";
-import { listLeads } from "@/lib/leads/repo";
 import type { Lead } from "@/lib/leads/types";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 
-import { construirPool } from "../candidatos";
+import { candidatoEstavel, construirPool, motivoEstrutural } from "../candidatos";
 import { LEAD_TESTE_ID, ehLeadDeTeste, garantirLeadDeTeste, leadDeTesteInicial } from "../leadTeste";
+import { confirmarTeste, injetarTeste, lerTesteAtual } from "../teste";
 
 /**
  * O INVENTÁRIO — o trabalho central do lead fixo de teste não é criá-lo, é
@@ -168,7 +169,11 @@ describe("lead fixo de teste — fora de toda listagem e agregado", () => {
   });
 
   it("não entra no pool da fila — nem como candidato, nem em `lidos`, nem no funil", async () => {
-    const db = comLeads(lead("ChIJa"), leadTeste());
+    // `contato: undefined` porque o fixture padrão já vem com
+    // `primeiroContatoEm` (para os testes de métricas acima) — um lead
+    // REALMENTE candidato da fila não teria esse carimbo (ver
+    // `contactadoForaDaFila` em `candidatos.ts`).
+    const db = comLeads(lead("ChIJa", { contato: undefined }), leadTeste());
     const pool = await construirPool(db, AGORA);
 
     expect(pool.candidatos.map((c) => c.id)).toEqual(["ChIJa"]);
@@ -183,5 +188,67 @@ describe("lead fixo de teste — fora de toda listagem e agregado", () => {
     const pool = await construirPool(db, AGORA);
     expect(pool.lidos).toBe(0);
     expect(pool.estrutural.descartado).toBe(0);
+  });
+});
+
+describe("disparo de teste — nunca grava selo de contato no lead", () => {
+  /**
+   * TRAVA para o item novo de `motivoEstrutural` (`contactadoForaDaFila`):
+   * `confirmarTeste` promete não deixar rastro no lead (ver o comentário
+   * dela em `lib/fila/teste.ts`), mas até agora isso era pressuposto, nunca
+   * verificado. Se algum dia uma confirmação de teste passasse a chamar
+   * `aplicarSeloContato` por engano, o LEAD FIXO DE TESTE passaria a "cair"
+   * do próprio disparo de teste — o pior lugar possível para essa regressão
+   * aparecer.
+   */
+  it("dez disparos de teste seguidos no mesmo lead não gravam seloContato/registrosEnvio — ele segue elegível", async () => {
+    const db = new FakeFirestore();
+    // Captura + fuso completos: um lead genuinamente elegível, não só "fora
+    // do pool por ser de teste" — é essa distinção que a asserção final prova.
+    const leadCompleto: Lead = {
+      ...leadDeTesteInicial(),
+      capturas: {
+        estado: "pronto",
+        execucaoId: "e1",
+        pedidoEm: EM,
+        imagens: [{ ancora: "hero", tela: "celular", ordem: 1, url: "u", largura: 1, altura: 1 }],
+      },
+    };
+    db.seed(`leads/${LEAD_TESTE_ID}`, leadCompleto as unknown as Record<string, unknown>);
+
+    expect(motivoEstrutural(leadCompleto)).toBeUndefined();
+    expect(candidatoEstavel(leadCompleto, undefined)).toBe(true);
+
+    await injetarTeste(
+      db,
+      {
+        leadId: LEAD_TESTE_ID,
+        nome: leadCompleto.nome,
+        numero: "+55 44 90000-0000",
+        texto: "texto de teste",
+        printUrl: "u",
+        criadoPor: "admin",
+        pulou: [],
+        repeticoes: 10,
+      },
+      AGORA,
+    );
+
+    for (let i = 0; i < 10; i++) {
+      const atual = await lerTesteAtual(db);
+      if (!atual) throw new Error(`teste sumiu na repetição ${i + 1}`);
+      const confirmacao = await confirmarTeste(db, atual.claimId, "enviado", null, AGORA);
+      expect(confirmacao?.repetida).toBe(false);
+    }
+
+    const depoisDeDezTestes = await getLead(db, LEAD_TESTE_ID);
+    expect(depoisDeDezTestes?.seloContato).toBeUndefined();
+    expect(depoisDeDezTestes?.registrosEnvio ?? []).toHaveLength(0);
+    expect(depoisDeDezTestes?.status).toBe("novo");
+
+    // A trava em si: nenhum sinal novo em `motivoEstrutural`, então o lead
+    // continua tão elegível quanto antes do primeiro disparo de teste.
+    expect(motivoEstrutural(depoisDeDezTestes!)).toBeUndefined();
+    expect(candidatoEstavel(depoisDeDezTestes!, undefined)).toBe(true);
   });
 });

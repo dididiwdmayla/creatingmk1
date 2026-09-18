@@ -149,6 +149,25 @@ describe("motivoEstrutural — o diagnóstico por trás de candidatoEstavel", ()
       "capturaNaoPronta",
     ],
     ["sem fuso derivável", { horarios: undefined, endereco: undefined }, "semFuso"],
+    [
+      "seloContato gravado (clique manual do WhatsApp)",
+      { seloContato: { userId: "u1", em: "2026-03-05T12:00:00.000Z" } },
+      "contactadoForaDaFila",
+    ],
+    [
+      "registrosEnvio não vazio (mesmo sem seloContato)",
+      {
+        registrosEnvio: [
+          { em: "2026-03-05T12:00:00.000Z", horaLocalLead: "09:00", diaSemanaLocalLead: 4 },
+        ],
+      },
+      "contactadoForaDaFila",
+    ],
+    [
+      "contato.primeiroContatoEm preenchido",
+      { contato: { primeiroContatoEm: "2026-03-05T12:00:00.000Z" } },
+      "contactadoForaDaFila",
+    ],
   ];
   for (const [nome, override, esperado] of casos) {
     it(`${nome} → "${esperado}"`, () => {
@@ -161,6 +180,30 @@ describe("motivoEstrutural — o diagnóstico por trás de candidatoEstavel", ()
     expect(
       motivoEstrutural(lead("ChIJa", { descartado: true, telefoneInvalido: true })),
     ).toBe("descartado");
+  });
+
+  describe("contactadoForaDaFila — o clique manual do WhatsApp, que não mexe em status", () => {
+    it("lead com seloContato e status ainda 'novo' é excluído, com a razão nova", () => {
+      const l = lead("ChIJa", { seloContato: { userId: "u1", em: "2026-03-05T12:00:00.000Z" } });
+      expect(l.status).toBe("novo"); // a premissa do buraco: o clique não mudou status
+      expect(motivoEstrutural(l)).toBe("contactadoForaDaFila");
+    });
+
+    it("lead enviado PELA fila (status e selo mudam juntos, na confirmação) retorna \"status\" — não a razão nova", () => {
+      // `confirmarEnvio` grava status e selo na MESMA transação: quem chega
+      // aqui com selo tem status !== "novo" também, e "status" é checado
+      // ANTES — a ordem certa não rotula o envio automático como "fora da
+      // fila", que seria mentira (ver o comentário de `motivoEstrutural`).
+      const l = lead("ChIJa", {
+        status: "contactado",
+        seloContato: { userId: "u1", em: "2026-03-05T12:00:00.000Z" },
+        registrosEnvio: [
+          { em: "2026-03-05T12:00:00.000Z", horaLocalLead: "09:00", diaSemanaLocalLead: 4 },
+        ],
+        contato: { primeiroContatoEm: "2026-03-05T12:00:00.000Z" },
+      });
+      expect(motivoEstrutural(l)).toBe("status");
+    });
   });
 
   it("o telefone do enriquecimento vale quando o da busca falta — não conta como semTelefone", () => {
@@ -239,12 +282,19 @@ describe("construirPool", () => {
       "leads/semfuso",
       lead("semfuso", { horarios: undefined, endereco: undefined }) as unknown as Record<string, unknown>,
     );
+    db.seed(
+      "leads/foradafila",
+      lead("foradafila", {
+        seloContato: { userId: "u1", em: "2026-03-05T12:00:00.000Z" },
+      }) as unknown as Record<string, unknown>,
+    );
 
     const pool = await construirPool(db, AGORA);
 
     expect(pool.candidatos.map((c) => c.id)).toEqual(["ok"]);
     expect(pool.estrutural).toEqual({
       status: 1,
+      contactadoForaDaFila: 1,
       descartado: 1,
       telefoneInvalido: 1,
       semTelefone: 1,
@@ -252,6 +302,8 @@ describe("construirPool", () => {
       capturaNaoPronta: 1,
       semFuso: 1,
     });
+    // A contagem do funil bate com quem de fato ficou de fora do pool.
+    expect(pool.candidatos.map((c) => c.id)).not.toContain("foradafila");
   });
 
   it("lead barrado só por tentativas esgotadas some do pool sem incrementar contador estrutural nenhum", async () => {
