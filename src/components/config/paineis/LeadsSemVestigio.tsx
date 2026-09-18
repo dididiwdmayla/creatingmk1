@@ -142,11 +142,20 @@ export function LeadsSemVestigioSection() {
   return (
     <PainelColapsavel
       id={PAINEL_SEM_VESTIGIO}
-      titulo="Leads antigos sem vestígio de contato"
+      // Título CURTO de propósito: o cabeçalho divide a linha com o resumo
+      // ("antes de 10/08/2026 · 5 leads"), e um título longo o espreme até
+      // virar "an…" — que é a poluição trocando de forma, não um resumo.
+      // O que o título deixa de dizer, a linha logo abaixo diz por inteiro.
+      titulo="Leads sem vestígio"
+      // Curto porque o espaço é o que sobra do título na MESMA linha — e um
+      // resumo truncado não diz o estado (medido pelo `--so=vestigio`). Antes
+      // de procurar a data não é estado nenhum, é só o padrão do campo, então
+      // ela nem aparece; o total é sempre o de VERDADE, e o corte da lista
+      // (que pode diferir do campo já mexido) vem junto dele.
       resumo={
         revisao === null
-          ? `antes de ${formatCorte(corte)} · não procurado`
-          : `antes de ${formatCorte(revisao.corte)} · ${revisao.total} lead${revisao.total === 1 ? "" : "s"}${revisao.truncado ? ` (mostrando ${revisao.linhas.length})` : ""}`
+          ? "não procurado"
+          : `até ${formatCorte(revisao.corte)} · ${revisao.total} lead${revisao.total === 1 ? "" : "s"}`
       }
     >
       <p className="mt-1 text-xs text-ink-muted">
@@ -246,7 +255,7 @@ export function LeadsSemVestigioSection() {
       <ConfirmModal
         aberto={confirmarExclusao}
         titulo={`Excluir ${marcados.length} lead${marcados.length === 1 ? "" : "s"} em definitivo`}
-        mensagem={mensagemDaExclusao(marcados)}
+        mensagem={`Isso apaga ${marcados.length} lead${marcados.length === 1 ? "" : "s"} da base, sem desfazer. O que vai junto:`}
         confirmarLabel="Excluir em definitivo"
         confirmarDesabilitado={textoConfirmacao !== FRASE_CONFIRMACAO}
         onConfirmar={excluir}
@@ -255,15 +264,29 @@ export function LeadsSemVestigioSection() {
           setTextoConfirmacao("");
         }}
         filhos={
-          <input
-            type="text"
-            value={textoConfirmacao}
-            onChange={(event) => setTextoConfirmacao(event.target.value)}
-            placeholder={FRASE_CONFIRMACAO}
-            aria-label={`Digite ${FRASE_CONFIRMACAO} para confirmar`}
-            autoFocus
-            className={`${CAMPO_BASE_CLS} w-full text-sm`}
-          />
+          <>
+            {/* LISTA, e não um parágrafo corrido: são quatro consequências
+                independentes, e em prosa elas viram um bloco que ninguém
+                termina de ler — exatamente na tela em que ler é o ponto. */}
+            <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-ink-secondary">
+              {consequenciasDaExclusao(marcados).map((linha) => (
+                <li key={linha.texto} className={linha.alerta ? "text-warning" : undefined}>
+                  {linha.texto}
+                </li>
+              ))}
+            </ul>
+            <label className="mt-3 block text-xs text-ink-muted">
+              Para confirmar, digite {FRASE_CONFIRMACAO}:
+              <input
+                type="text"
+                value={textoConfirmacao}
+                onChange={(event) => setTextoConfirmacao(event.target.value)}
+                placeholder={FRASE_CONFIRMACAO}
+                autoFocus
+                className={`${CAMPO_BASE_CLS} mt-1 w-full text-sm`}
+              />
+            </label>
+          </>
         }
       />
     </PainelColapsavel>
@@ -271,32 +294,37 @@ export function LeadsSemVestigioSection() {
 }
 
 /**
- * O texto da confirmação cita a MESMA lista do cabeçalho de
- * `lib/leads/exclusao.ts`, item por item. A promessa que o operador lê
- * antes de apertar e o que o código faz têm que ser a mesma frase — e a
- * consequência mais cara (o link já compartilhado virando página morta) só
- * é citada quando ALGUM dos marcados tem demo aberta por fora, porque um
- * aviso que aparece sempre é um aviso que ninguém lê.
+ * As consequências da exclusão, uma por item. Cita a MESMA lista do
+ * cabeçalho de `lib/leads/exclusao.ts`, item por item: a promessa que o
+ * operador lê antes de apertar e o que o código faz têm que ser a mesma
+ * frase.
+ *
+ * A mais cara — o link já compartilhado virando página morta — só aparece
+ * quando ALGUM dos marcados tem demo aberta por fora. Aviso que aparece
+ * sempre é aviso que ninguém lê.
  */
-function mensagemDaExclusao(marcados: LinhaSemVestigio[]): string {
-  const n = marcados.length;
+function consequenciasDaExclusao(
+  marcados: LinhaSemVestigio[],
+): Array<{ texto: string; alerta?: boolean }> {
   const abertas = marcados.filter((l) => l.abertaPorFora).length;
   const comDemo = marcados.filter((l) => l.temDemo).length;
 
-  const partes = [
-    `Isso apaga ${n} lead${n === 1 ? "" : "s"} da base, sem desfazer.`,
-    comDemo > 0
-      ? `A rota pública /demo/{lead} de ${comDemo} del${comDemo === 1 ? "e" : "es"} passa a dar 404.`
-      : "",
-    abertas > 0
-      ? `ATENÇÃO: ${abertas} ${abertas === 1 ? "tem demo que já foi aberta" : "têm demo que já foi aberta"} por alguém de fora — há link circulando, e quem tiver o link vai ver página morta.`
-      : "",
-    "As capturas e as imagens de demo saem do Storage junto.",
-    "A penetração por nicho/cidade muda, porque ela agrega o temSite salvo de cada lead.",
-    "O doc correspondente em filaEnvios é removido junto.",
-    `Para confirmar, digite "${FRASE_CONFIRMACAO}" abaixo.`,
+  return [
+    ...(comDemo > 0
+      ? [{ texto: `a rota pública /demo/{lead} de ${comDemo} del${comDemo === 1 ? "e" : "es"} passa a dar 404` }]
+      : []),
+    ...(abertas > 0
+      ? [
+          {
+            texto: `${abertas} ${abertas === 1 ? "tem demo que já foi aberta" : "têm demo que já foi aberta"} por alguém de fora — há link circulando, e quem tiver o link vai ver página morta`,
+            alerta: true,
+          },
+        ]
+      : []),
+    { texto: "as capturas e as imagens de demo saem do Storage junto" },
+    { texto: "a penetração por nicho/cidade muda, porque ela agrega o temSite salvo de cada lead" },
+    { texto: "o doc correspondente em filaEnvios é removido junto" },
   ];
-  return partes.filter(Boolean).join(" ");
 }
 
 /** "10/08/2026" a partir da chave de calendário YYYY-MM-DD. */
