@@ -19,7 +19,7 @@ scripts/
   qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato; `--so=avulsa` compara identidade em branco × preenchida nas 8 skins (ver "Demos avulsas"); `--so=fps` é o PORTÃO: efeito × os 5 modos de cor, celular com CPU 4×, rolando a página — piso de 45 fps por CÉLULA (modo que reprova é desabilitado, não o efeito) + a superfície repintada em Mpx/s ao lado (ver "Verificação da UI")
   qa-editor.mjs                     # ✅ laço de captura do EDITOR (não da rota pública): digita num campo com o efeito ativo e reporta fps do preview + contagem de <style> antes/depois; exige o patch temporário de fake DB documentado no cabeçalho
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
-  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma"); `--so=listas` é o PORTÃO das duas listas longas (/leads e /buscas no celular, dirigindo os controles de verdade): nenhuma linha com altura zero, nada vazando da viewport e a compactação MEDIDA (ver "Compactação de /leads e /buscas")
+  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma"); `--so=listas` é o PORTÃO das duas listas longas (/leads e /buscas no celular, dirigindo os controles de verdade): nenhuma linha com altura zero, nada vazando da viewport e a compactação MEDIDA (ver "Compactação de /leads e /buscas"); `--so=paineis` é o PORTÃO dos blocos colapsáveis de /config — tudo fechado, um aberto e o estado PERSISTIDO entre recargas (ver "Painéis colapsáveis da /config")
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
   qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia, prova que o seletor de fontes alcança o título, refaz tudo com ALINHAMENTO/ESCALA/ENTRE-LETRAS trocados POR CÓDIGO (sem remontar) e mede a FAIXA ACIMA do título depois do repique da rolagem contra a mesma faixa sem vídeo — desktop e celular (ver "Título hero: uma caixa de texto, a mídia como máscara" e "O rastro na borda superior")
   capturas-ci.mjs                   # ✅ orquestrador do workflow: move o estado no doc do lead e chama o motor como processo filho (não captura nada por conta própria)
@@ -65,7 +65,8 @@ src/
       buscas/page.tsx               # ✅ buscas salvas → clique filtra os leads da busca; mostra autor (busca.userId → nome via /api/usuarios/nomes)
       demos/page.tsx                # ✅ todas as demos ativas: skin, datas, link copiável, editar/excluir
       mensagens/page.tsx            # ✅ chat privado entre usuários: conversas, envio, polling leve
-      config/page.tsx               # ✅ config completa + gestão de usuários + cotas e metas por integrante (página restrita a admin)
+      config/page.tsx               # ✅ casca de SERVIDOR: resolve os painéis abertos do usuário antes do primeiro desenho (ver "Painéis colapsáveis da /config")
+      config/ConfigClient.tsx       # ✅ a página: percorre o registro de painéis, o `AppConfig` em edição e o único "Salvar" (restrita a admin no proxy)
     api/
       login/route.ts                # ✅ POST { nome, senha } → cookie de sessão assinado (+ seed de /usuarios)
       logout/route.ts               # ✅ POST limpa o cookie de sessão
@@ -287,6 +288,12 @@ src/
       fake-firestore.test.ts        # ✅ paridade de segmentos do path (.collection() ímpar, como o SDK real)
       fake-storage.ts               # ✅ fake em memória do DemoStorage (rotas de imagens)
   components/                       # ✅ UI compartilhada
+    config/                         # ✅ os painéis da /config (ver "Painéis colapsáveis da /config")
+      PainelColapsavel.tsx          #    o invólucro: cabeçalho, linha de RESUMO do estado e o corpo que abre/fecha (+ o provider do aberto/fechado)
+      registro.ts                   #    A LISTA que a página percorre — painel novo é uma entrada aqui, e a ordem do array é a ordem da tela
+      tipos.ts                      #    `PainelFormProps` — o contrato dos painéis que vivem dentro do formulário
+      comum.tsx                     #    campos e rótulos que MAIS DE UM painel usa (Field, LimiteInput, FilaNumeroInput, NIVEL_CLS…)
+      paineis/*.tsx                 #    um arquivo por painel; exporta o componente e o id da persistência
     Button.tsx                      # variantes + estado de loading
     Nav.tsx                         # bottom nav + logout (client)
     StatusBadge.tsx                 # badge ordinal do status do lead (cor + forma + marcador)
@@ -3457,6 +3464,151 @@ nova medição: **0.0000**.
   porque a nav inferior aponta pra `/buscas` fixo; a posição de rolagem
   volta por `radar:buscas:scroll`. É o mesmo par de chaves que `/leads` já
   usava para sobreviver à ida e volta da ficha.
+
+## Painéis colapsáveis da /config (`src/components/config/`)
+
+**Relato**: a /config acumulou catorze painéis de origens diferentes —
+tetos de custo, frases, janelas de contato, fila de envio, disparo de
+teste, pendências de print, respostas pendentes, metas por integrante — e
+virou uma parede única de conteúdo. O uso sofria, e cada painel novo
+piorava. Cada um virou um **bloco colapsável com cabeçalho próprio**, e a
+página passou a ser renderizada a partir de um **registro**, não de JSX
+escrito à mão painel a painel.
+
+Medido no laço: a página inteira cabe em **1299px com tudo fechado**;
+abrir só "Fila de envio" já soma +660px no celular.
+
+### Onde um painel NOVO nasce
+
+1. **Um arquivo em `src/components/config/paineis/<Nome>.tsx`**, com
+   `"use client"`. Ele exporta duas coisas: o componente e o **id do
+   painel** (`export const PAINEL_<NOME> = "<id>"`). O id é a chave da
+   persistência, então trocá-lo devolve o painel ao padrão fechado para
+   quem já o tinha aberto — é decisão, não descuido.
+2. **O componente devolve um `<PainelColapsavel>`**, nunca uma `<section>`
+   solta: é ele que desenha o cabeçalho, a linha de resumo e o corpo que
+   abre e fecha.
+3. **Uma entrada em `src/components/config/registro.ts`** — e é só isso
+   que a página precisa saber. A ordem do array é a ordem da tela.
+   `posicao` diz de que natureza o painel é, e a diferença é de contrato:
+   - `antes` / `depois` → painel **autônomo**: busca e salva pela PRÓPRIA
+     rota, não recebe prop nenhuma (Usuários, Cotas, Metas, Fila de envio,
+     Respostas pendentes, Frases).
+   - `formulario` → edita o `AppConfig` em mãos e é gravado pelo **único
+     "Salvar"** da página (um `PUT /api/config` com o documento inteiro).
+     Recebe `{ form, onChange }` (contrato em `config/tipos.ts`).
+4. **Campo de formulário que um SEGUNDO painel passe a usar** sobe para
+   `src/components/config/comum.tsx`. O que é de um painel só fica no
+   arquivo dele.
+5. **A lista em `scripts/paineis-config.mjs`** (o laço de captura não
+   compila TypeScript) — com teste de contrato contra o registro em
+   `src/components/config/__tests__/registro.test.ts`. Um portão que não
+   visita o painel novo passa sempre; foi assim que quatro skins ficaram
+   fora de três laços por uma rodada inteira.
+
+### O cabeçalho FECHADO tem de ser útil
+
+Bloco fechado mostra **uma linha de resumo do estado**, não só o título:
+"Fila de envio — Ativa · 4/20 hoje", "Print pendente — 3", "Respostas
+pendentes — 2 · automática ligada", "Busca — dentista · Porto Alegre RS".
+Sem isso o operador abre tudo para saber o que está acontecendo, e a
+poluição só troca de forma.
+
+**O resumo sai SEMPRE de estado que o painel já carregou** — nenhuma
+requisição existe por causa dele. Quando o dado mora num filho, ele sobe
+por callback, no desenho que já existia: `VisaoFila.onContador` é irmão do
+`onLeads` que já emprestava os leads ao disparo de teste, e o contador do
+dia já vinha naquela mesma resposta.
+
+### O corpo fechado continua MONTADO
+
+Fechar esconde por `display:none`; não desmonta. As duas razões são o item
+inteiro:
+
+1. É o que permite o resumo existir sem chamada nova — desmontar mataria a
+   busca que produz o estado que o cabeçalho mostra.
+2. **Nenhum painel muda de comportamento por estar fechado.** Desmontar
+   obrigaria a separar "quem busca" de "quem desenha" nos catorze, ou seja,
+   mexer na lógica interna de cada um — o oposto do que a extração se
+   propôs.
+
+O corpo carrega `data-corpo="aberto|fechado"`, e os laços de captura
+pulam o que está dentro de um fechado: o aferidor de "slot com caixa
+zerada" existe para pegar conteúdo que some SEM QUERER, e um corpo
+colapsado é conteúdo escondido de propósito.
+
+### Onde mora o aberto/fechado
+
+Em `/usuarios/{id}.paineisConfigAbertos`, via `GET`/`PUT
+/api/preferencias/paineis` — **self-service**, mesmo padrão de `tema`,
+`ultimoNivelIA`, `metaFaixaMinimizada` e `preferenciasListas`: qualquer
+sessão lê e grava só o próprio doc, e a gravação não toca `atualizadoEm`
+nem `sessao` (abrir um painel não é edição administrativa e não derruba
+sessão nenhuma). Escrita **otimista**, no desenho do `MetaFaixa`: aplica
+local, dispara o PUT, reverte no erro.
+
+Guarda os **abertos**, e não os fechados como `gruposFechados` das listas,
+porque o padrão aqui é o inverso do de lá: a /config nasce com TUDO
+fechado, e abrir é a exceção deliberada. Lista vazia é o estado de quem
+nunca mexeu e é também o estado correto. O servidor não conhece o registro
+de painéis: normaliza "string não-vazia, sem duplicata, dentro do teto", e
+id desconhecido é tolerado (nada o lê), como chave de grupo apagada.
+
+**O estado inicial é resolvido no SERVIDOR** — `config/page.tsx` é uma
+casca de servidor sobre `ConfigClient.tsx`, mesma resposta que o
+`AppLayout` dá para o progresso da meta. Sem isso a página pintaria fechada
+e a preferência, chegando depois, expandiria os painéis guardados
+empurrando todo o resto para baixo: o deslocamento que o portão de CLS
+reprova, e aqui ele seria grande (um painel aberto cresce centenas de
+pixels). Medido: `app:config` em **CLS 0.0000**.
+
+### Permissão — admin por default, e onde a chave do aparelho PARA
+
+A `/config` inteira é restrita ao admin **no proxy** (`src/proxy.ts`:
+membro é mandado de volta ao painel). Isso é a porta da tela, não a
+autorização do dado: **todo painel novo checa papel na PRÓPRIA rota**, e o
+default é `requireAdmin`. Painel que leia dado de outra pessoa (cotas,
+metas, respostas pendentes) ou que comande o aparelho (fila, disparo de
+teste) é admin nos dois verbos, GET incluído — foi exatamente o furo
+fechado no bloco da fila, onde só a ESCRITA checava papel. Painel de
+preferência do próprio usuário é a exceção, e é self-service (ver acima).
+
+**A `RADAR_DEVICE_KEY` não alcança painel de config, e nunca vai
+alcançar.** Aquele segredo é do aparelho e só serve às rotas de EXECUÇÃO
+sob `/api/fila/*` que o proxy isenta de sessão (`/proximo`, `/confirmar`,
+`/mensagem-recebida`). As rotas dos painéis vivem sob `/api/config/fila/*`
+de propósito — prefixo diferente, autenticação diferente. A única rota que
+mora sob o prefixo isento e serve a tela é `GET /api/fila/diagnostico`, e
+por isso ela faz a checagem completa de sessão + papel por conta própria.
+Se um painel novo precisar de dado que hoje só existe atrás da chave do
+aparelho, a resposta é uma rota nova sob `/api/config/`, não afrouxar
+aquela.
+
+### O que este bloco deliberadamente NÃO fez
+
+- **Não fatiou `config/app`.** Os tetos por SKU estão num documento só
+  porque o `reserveQuota` os lê juntos DENTRO de transação; separá-los
+  faria cada request pago ler mais documentos.
+- **Não uniformizou as rotas de config.** A assimetria entre `PUT
+  /api/config` (documento inteiro, um "Salvar"), `PUT /api/config/fila`
+  (patch campo a campo, salva no blur) e a rota estreita do dispositivo é
+  proteção deliberada, não inconsistência.
+- **Não promoveu os quatro blocos da fila a painéis de topo.** "Resposta
+  automática" edita o mesmo `/config/fila` que o painel acima já carrega e
+  salva — dois donos da mesma escrita se sobrescrevem —, e o disparo de
+  teste recebe da visão os leads já carregados, sem uma segunda chamada.
+  Eles são blocos `nivel={3}` DENTRO de "Fila de envio", cada um com
+  cabeçalho e resumo próprios.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=paineis` —
+tudo fechado, um aberto (clique real, com os quatro blocos da fila
+aparecendo dentro dele) e o estado sobrevivendo a uma RECARGA, em celular e
+desktop, escuro e claro. Os passos que já olhavam a página
+(`--so=pendencias|fila|respostas|teste`) mantiveram todas as asserções e
+só passaram a DIZER qual painel estão olhando, com
+`definirPaineisAbertosNoDoc` — gêmeo de `definirTemaNoDoc`, inclusive na
+armadilha de `semear()` reescrever `usuarios/admin` inteiro.
+
 
 ## UI (implementada)
 
