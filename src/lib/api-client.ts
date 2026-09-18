@@ -25,6 +25,7 @@ import type {
 import type { UsageCounts, UsoUsuario } from "@/lib/costs";
 import type { DemoData, DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
+import type { RevisaoSemVestigio } from "@/lib/leads/semVestigio";
 import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 import type { PenetracaoSite } from "@/lib/leads/penetracao";
 import type { Metrics, MetricsUsuario } from "@/lib/leads/metrics";
@@ -457,6 +458,54 @@ export const api = {
   deleteFilaRetido: (leadId: string) =>
     request<FilaRetidosResponse>(`/api/config/fila/retidos/${encodeURIComponent(leadId)}`, {
       method: "DELETE",
+    }),
+
+  /**
+   * OS LEADS ANTIGOS SEM VESTÍGIO NENHUM DE CONTATO — a tela de revisão da
+   * /config (ver `lib/leads/semVestigio.ts`). `corte` é a chave de
+   * calendário em America/Sao_Paulo; corte malformado é 400, nunca um
+   * fallback silencioso para o padrão.
+   *
+   * Não é chamada ao montar o painel, e isso é deliberado: a varredura lê
+   * `/leads` inteira mais `filaEnvios` inteira, e pagá-la a cada abertura
+   * da /config (mesmo com o painel fechado, que continua montado) seria
+   * custo por enfeite. Quem dispara é o botão "Procurar".
+   */
+  getLeadsSemVestigio: (corte: string) =>
+    request<RevisaoSemVestigio>(
+      `/api/config/leads-sem-vestigio?corte=${encodeURIComponent(corte)}`,
+    ),
+
+  /**
+   * TIRAR DA FILA em lote — a ação padrão, reversível pela ficha
+   * ("Restaurar lead"). Devolve a lista NOVA: quem decide quem continua na
+   * revisão é o servidor, não a tela.
+   */
+  descartarLeadsSemVestigio: (leadIds: string[], corte: string) =>
+    request<RevisaoSemVestigio & { descartados: number }>(
+      "/api/config/leads-sem-vestigio/descartar",
+      { method: "POST", body: JSON.stringify({ leadIds, corte }) },
+    ),
+
+  /**
+   * EXCLUIR EM DEFINITIVO. Caminho separado do descarte, e não um `modo` no
+   * mesmo corpo: reversível e irreversível não são variantes do mesmo
+   * verbo, e um endpoint único é como um bug de cliente vira destruição.
+   *
+   * POST e não DELETE porque o corpo é uma lista de ids — DELETE com corpo
+   * é terreno em que proxy e cliente divergem demais para uma ação sem
+   * desfazer. Ver o que ela destrói em `lib/leads/exclusao.ts`.
+   */
+  excluirLeadsSemVestigio: (leadIds: string[], corte: string) =>
+    request<
+      RevisaoSemVestigio & {
+        excluidos: number;
+        filaEnviosRemovidos: number;
+        storageFalhou: number;
+      }
+    >("/api/config/leads-sem-vestigio/excluir", {
+      method: "POST",
+      body: JSON.stringify({ leadIds, corte }),
     }),
 
   /**

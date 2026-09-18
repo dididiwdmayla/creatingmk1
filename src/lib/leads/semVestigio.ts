@@ -1,4 +1,5 @@
 import { saoPauloDateKey } from "@/lib/costs/periodoUsuario";
+import { ValidationError } from "@/lib/errors";
 import { FILA_ENVIOS_COLLECTION } from "@/lib/fila/envios";
 import type { AppDb } from "@/lib/firestore-like";
 
@@ -236,4 +237,34 @@ export async function descartarEmLote(db: AppDb, leadIds: string[]): Promise<num
     descartados += 1;
   }
   return descartados;
+}
+
+/**
+ * O corpo `{ leadIds }` das duas ações, validado no MESMO lugar para as
+ * duas — descartar e excluir recebem exatamente a mesma entrada, e é
+ * justamente por isso que a validação não pode divergir entre elas.
+ *
+ * O teto por chamada é recusa explícita (400), nunca um `slice` calado: a
+ * tela manda em levas de `SEM_VESTIGIO_LOTE_MAX`, e um lote maior que isso
+ * quer dizer que alguém está chamando a rota por fora do painel. Cortar em
+ * silêncio ali devolveria "ok" tendo agido sobre parte da lista — na rota
+ * que destrói lead, é o pior tipo de resposta.
+ */
+export function validarLeadIds(body: Record<string, unknown>): string[] {
+  const bruto = body.leadIds;
+  if (!Array.isArray(bruto) || bruto.length === 0) {
+    throw new ValidationError(["leadIds deve ser um array não-vazio de ids de lead"]);
+  }
+  if (bruto.some((id) => typeof id !== "string" || id.trim() === "")) {
+    throw new ValidationError(["leadIds deve conter só ids de lead não-vazios"]);
+  }
+  // Dedupe antes do teto: a mesma linha marcada duas vezes pela tela não
+  // pode consumir vaga do lote nem contar duas exclusões.
+  const ids = [...new Set((bruto as string[]).map((id) => id.trim()))];
+  if (ids.length > SEM_VESTIGIO_LOTE_MAX) {
+    throw new ValidationError([
+      `leadIds tem ${ids.length} ids; o máximo por chamada é ${SEM_VESTIGIO_LOTE_MAX}`,
+    ]);
+  }
+  return ids;
 }
