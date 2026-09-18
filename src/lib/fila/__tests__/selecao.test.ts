@@ -155,6 +155,91 @@ describe("ordenarCandidatos — escolhido", () => {
   });
 });
 
+describe("ordenarCandidatos — a SELEÇÃO MANUAL (`filaManual`)", () => {
+  it("no mesmo nível de janela, o manual vem antes do natural mais antigo", () => {
+    const pool = [
+      candidato("natural-velho", { criadoEm: "2020-01-01T00:00:00.000Z" }),
+      // O mais NOVO da base: pelo FIFO seria o último.
+      candidato("manual-novo", { criadoEm: "2026-03-09T00:00:00.000Z", manual: true }),
+    ];
+
+    expect(ordenar(pool).escolhido.map((c) => c.id)).toEqual(["manual-novo", "natural-velho"]);
+  });
+
+  it("dois manuais entre si voltam ao FIFO, com desempate por id", () => {
+    const pool = [
+      candidato("m-novo", { criadoEm: "2026-03-09T00:00:00.000Z", manual: true }),
+      candidato("m-velho-z", { criadoEm: "2020-01-01T00:00:00.000Z", manual: true }),
+      candidato("m-velho-a", { criadoEm: "2020-01-01T00:00:00.000Z", manual: true }),
+    ];
+
+    expect(ordenar(pool).escolhido.map((c) => c.id)).toEqual([
+      "m-velho-a",
+      "m-velho-z",
+      "m-novo",
+    ]);
+  });
+
+  it("manual em 'razoavel' NÃO passa na frente de natural em 'bom' — o nível vem primeiro", () => {
+    const pool = [
+      // TERCA_12H: sem offset é "razoavel"; com offset -180 é 9h local, "bom".
+      candidato("manual-razoavel", { manual: true }),
+      candidato("natural-bom", { offset: -180, criadoEm: "2026-03-09T00:00:00.000Z" }),
+    ];
+
+    const { escolhido } = ordenar(pool, config({ exigirJanelaBoa: false }), TERCA_12H);
+
+    expect(escolhido).toEqual([
+      { id: "natural-bom", nivel: "bom" },
+      { id: "manual-razoavel", nivel: "razoavel" },
+    ]);
+  });
+
+  it("fura o nicho permitido — e não conta como barrado no funil", () => {
+    const pool = [candidato("manual", { manual: true }), candidato("natural")];
+
+    const { escolhido, diagnostico } = ordenar(pool, config({ nichosPermitidos: ["tatuagem"] }));
+
+    expect(escolhido).toEqual([{ id: "manual", nivel: "bom" }]);
+    // O natural barrou; o manual não foi barrado, então não pode aparecer
+    // como barrado.
+    expect(diagnostico.nichoBarrado).toBe(1);
+  });
+
+  it("NÃO fura a janela: manual fechado agora fica bloqueado como qualquer outro", () => {
+    const { escolhido, diagnostico } = ordenarComBloqueados(
+      [candidato("manual", { manual: true })],
+      config(),
+      TERCA_3H,
+    );
+
+    expect(escolhido).toEqual([]);
+    expect(diagnostico.janela).toEqual({ razoavel: 0, ruim: 0, semNivel: 1 });
+    expect(diagnostico.bloqueados).toEqual([{ id: "manual" }]);
+  });
+
+  it("manual fora do nicho e fora da janela conta na JANELA, não no nicho", () => {
+    // Prova a ordem das etapas para quem furou o nicho: ele chega à janela.
+    const { diagnostico } = ordenar(
+      [candidato("manual", { manual: true })],
+      config({ nichosPermitidos: ["tatuagem"] }),
+      TERCA_3H,
+    );
+
+    expect(diagnostico.nichoBarrado).toBe(0);
+    expect(diagnostico.janela).toEqual({ razoavel: 0, ruim: 0, semNivel: 1 });
+  });
+
+  it("`manual` ausente (pool gravado antes deste campo) é lido como não-manual", () => {
+    const pool = [
+      candidato("sem-campo", { criadoEm: "2026-03-09T00:00:00.000Z" }),
+      candidato("velho", { criadoEm: "2020-01-01T00:00:00.000Z" }),
+    ];
+
+    expect(ordenar(pool).escolhido.map((c) => c.id)).toEqual(["velho", "sem-campo"]);
+  });
+});
+
 describe("ordenarCandidatos — diagnóstico: nicho (etapa 3)", () => {
   it("nicho barrado incrementa nichoBarrado e não conta como janela", () => {
     const { escolhido, diagnostico } = ordenar(

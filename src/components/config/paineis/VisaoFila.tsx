@@ -114,6 +114,17 @@ function LinhaLeadFila({
           </a>
           {linha.nicho && <span className="text-[10px] text-ink-muted">{linha.nicho}</span>}
           <SeloNivel nivel={linha.nivel} />
+          {/* Sem este selo, um lead na frente de quem chegou antes pareceria
+              erro de ordenação. Ele é a resposta visível a "por que esse
+              está em primeiro". */}
+          {linha.manual && (
+            <span
+              title="Adicionado à fila à mão: fura o nicho permitido e a ordem natural, dentro da mesma janela."
+              className="rounded border border-accent/40 bg-accent/10 px-1 text-[10px] text-accent"
+            >
+              manual
+            </span>
+          )}
         </div>
         <p className="mt-0.5 text-[10px] text-ink-muted">
           {linha.horaLocal} na hora do lead

@@ -10,6 +10,7 @@ import {
   retidoPorEnvio,
   type FilaEnvioDoc,
 } from "./envios";
+import { MOTIVOS_FISICOS, motivoEhFisico, type MotivoFisico } from "./estado";
 import { printUrlDoLead } from "./print";
 
 /**
@@ -73,6 +74,19 @@ export interface CandidatoFila {
   faixas: FaixaHorario[];
   /** Ordem justa da fila: quem entrou na base primeiro é atendido primeiro. */
   criadoEm: string;
+  /**
+   * SELEÇÃO MANUAL do operador (`Lead.filaManual`) — ausente = false.
+   *
+   * Um BOOLEANO, e nada mais: esta entrada é compacta de propósito (o doc do
+   * pool tem teto de 1 MiB e `POOL_MAX` de 2000 entradas), e é ela que a
+   * rota que o celular bate 1440× por dia carrega. Quem precisa de nome ou
+   * de motivo lê o doc do lead POR ID, e só das linhas que a tela mostra.
+   *
+   * Opcional (em vez de sempre presente) para o doc que já está gravado
+   * continuar válido sem migração: pool antigo não tem a chave, e `!== true`
+   * lê isso como "não é manual", que é o correto.
+   */
+  manual?: boolean;
 }
 
 /**
@@ -93,6 +107,17 @@ export const MOTIVOS_ESTRUTURAIS = [
 ] as const;
 
 export type MotivoEstrutural = (typeof MOTIVOS_ESTRUTURAIS)[number];
+
+/**
+ * Trava, em tempo de COMPILAÇÃO, que toda ausência de peça listada no módulo
+ * client-safe é de fato uma peneira estrutural daqui. As duas listas vivem
+ * separadas por necessidade (`estado.ts` não pode arrastar `node:crypto` para
+ * o navegador), e separadas sem guarda elas divergiriam em silêncio — um
+ * motivo renomeado aqui faria o lead pendente sumir da tela sem erro nenhum.
+ * Há também um teste conferindo o mesmo em tempo de execução.
+ */
+const _MOTIVOS_FISICOS_SAO_ESTRUTURAIS: readonly MotivoEstrutural[] = MOTIVOS_FISICOS;
+void _MOTIVOS_FISICOS_SAO_ESTRUTURAIS;
 
 /** Quantos leads pararam em cada filtro estrutural na última reconstrução do pool. */
 export type DiagnosticoEstrutural = Record<MotivoEstrutural, number>;
@@ -123,7 +148,43 @@ export interface PoolCandidatos {
   truncado: boolean;
   /** Diagnóstico da etapa estrutural desta mesma varredura — ver `motivoEstrutural`. */
   estrutural: DiagnosticoEstrutural;
+  /**
+   * Os leads marcados à mão (`Lead.filaManual`) que pararam numa AUSÊNCIA DE
+   * PEÇA (`MOTIVOS_FISICOS`) — o operador escolheu aquele negócio e ele não
+   * pode sumir em silêncio, mesmo não sendo entregável.
+   *
+   * Apurados NA MESMA passada de `construirPool`: são leads que reprovam em
+   * `motivoEstrutural`, então nunca serão candidatos, e achá-los depois
+   * custaria de novo a varredura cara que o pool existe para evitar. Ordem
+   * justa (`criadoEm`, desempate por id), a mesma dos candidatos.
+   */
+  manuaisPendentes: PendenteManual[];
+  /**
+   * Quantos são ao todo — `manuaisPendentes` é cortado em
+   * `MANUAIS_PENDENTES_MAX` e este número não. Sem ele, um corte apareceria
+   * como "são só estes", que é a mentira calada que `truncado` existe para
+   * não deixar acontecer do lado dos candidatos.
+   */
+  manuaisPendentesTotal: number;
 }
+
+/**
+ * Um lead marcado à mão que ainda não tem a peça que o envio exige. Só id e
+ * motivo: o nome vem de leitura POR ID, e só das linhas que a tela mostra —
+ * a mesma regra que mantém a entrada do candidato compacta.
+ */
+export interface PendenteManual {
+  id: string;
+  motivo: MotivoFisico;
+}
+
+/**
+ * Teto da lista de pendentes dentro do doc do pool. Baixo de propósito: cada
+ * entrada aqui nasce de um clique humano na ficha, então a ordem de grandeza
+ * é de punhados — e o doc é o mesmo que o celular lê a cada ciclo. O total
+ * real continua em `manuaisPendentesTotal`.
+ */
+export const MANUAIS_PENDENTES_MAX = 20;
 
 function poolRef(db: AppDb) {
   return db.collection(FILA_CANDIDATOS_COLLECTION).doc(FILA_CANDIDATOS_DOC);
@@ -259,6 +320,10 @@ function paraCandidato(lead: Lead): CandidatoFila {
     offset: utcOffsetDoLead(lead) as number,
     faixas: lead.horarios?.faixas ?? [],
     criadoEm: lead.criadoEm,
+    // Chave OMITIDA quando não é manual (e não `manual: false`): são até
+    // POOL_MAX entradas no mesmo doc de 1 MiB, e a ausência já significa
+    // exatamente isso em todo mundo que a lê.
+    ...(lead.filaManual === true && { manual: true }),
   };
 }
 
@@ -289,6 +354,8 @@ export async function construirPool(
 
   const estrutural = estruturalVazio();
   const candidatos: CandidatoFila[] = [];
+  // Ordenados junto com os candidatos, e pela MESMA regra justa — ver abaixo.
+  const pendentes: Array<PendenteManual & { criadoEm: string }> = [];
   let lidos = 0;
   for (const doc of leadsSnap.docs) {
     const lead = doc.data() as unknown as Lead;
@@ -303,12 +370,25 @@ export async function construirPool(
     const motivo = motivoEstrutural(lead);
     if (motivo) {
       estrutural[motivo] += 1;
+      // O lead que o operador ESCOLHEU não some em silêncio quando o que
+      // falta é uma PEÇA (demo, print, telefone, fuso): ele sai da fila de
+      // entrega — `/proximo` nunca o vê, porque ele não vira candidato —, mas
+      // continua visível como pendência, com o motivo. As demais peneiras
+      // (status, contactado fora da fila, descartado, número sem WhatsApp)
+      // não entram: ali não falta peça, houve decisão.
+      if (lead.filaManual === true && motivoEhFisico(motivo)) {
+        pendentes.push({ id: lead.placeId, motivo, criadoEm: lead.criadoEm });
+      }
       continue;
     }
     if (envioImpedePool(envios.get(lead.placeId), now, opcoes.retencaoMs ?? 0)) continue;
     candidatos.push(paraCandidato(lead));
   }
   candidatos.sort((a, b) => a.criadoEm.localeCompare(b.criadoEm) || a.id.localeCompare(b.id));
+  // A MESMA ordem justa dos candidatos, e não uma ordenação nova: pendente
+  // não disputa vaga com ninguém (não está na fila de entrega), então o que
+  // resta é só "quem espera há mais tempo aparece primeiro".
+  pendentes.sort((a, b) => a.criadoEm.localeCompare(b.criadoEm) || a.id.localeCompare(b.id));
 
   return {
     geradoEm: now.toISOString(),
@@ -316,6 +396,10 @@ export async function construirPool(
     lidos,
     truncado: candidatos.length > POOL_MAX,
     estrutural,
+    manuaisPendentes: pendentes
+      .slice(0, MANUAIS_PENDENTES_MAX)
+      .map(({ id, motivo }) => ({ id, motivo })),
+    manuaisPendentesTotal: pendentes.length,
   };
 }
 
@@ -371,6 +455,24 @@ function estruturalDoDoc(data: unknown): DiagnosticoEstrutural {
 }
 
 /**
+ * `manuaisPendentes` de um doc lido cru — descarta entrada malformada e
+ * motivo que não é físico, em vez de deixar lixo virar linha na tela. Doc
+ * pré-migração (campo ausente) vira lista vazia, nunca `undefined`.
+ */
+function pendentesDoDoc(data: unknown): PendenteManual[] {
+  if (!Array.isArray(data)) return [];
+  const saida: PendenteManual[] = [];
+  for (const item of data) {
+    if (typeof item !== "object" || item === null) continue;
+    const { id, motivo } = item as { id?: unknown; motivo?: unknown };
+    if (typeof id !== "string" || !id) continue;
+    if (typeof motivo !== "string" || !motivoEhFisico(motivo)) continue;
+    saida.push({ id, motivo });
+  }
+  return saida;
+}
+
+/**
  * O pool tal como está agora — sem checar TTL, sem reconstruir. Existe só
  * para `/api/fila/diagnostico`: o painel lê os números do último rebuild
  * numa leitura só, e NUNCA dispara a varredura cara de `/leads` — que é
@@ -386,11 +488,21 @@ export async function lerPoolBruto(db: AppDb): Promise<PoolCandidatos | undefine
   if (!snap.exists) return undefined;
   const data = snap.data();
   if (!data || typeof data.geradoEm !== "string" || !Array.isArray(data.candidatos)) return undefined;
+  const manuaisPendentes = pendentesDoDoc(data.manuaisPendentes);
   return {
     geradoEm: data.geradoEm,
     candidatos: data.candidatos as CandidatoFila[],
     lidos: typeof data.lidos === "number" ? data.lidos : 0,
     truncado: data.truncado === true,
     estrutural: estruturalDoDoc(data.estrutural),
+    manuaisPendentes,
+    // Total ausente ou menor que a lista (doc pré-migração, doc escrito à
+    // mão) cai para o tamanho da lista: "e mais -1 pendentes" não quer dizer
+    // nada, e o número nunca pode ser MENOR do que o que já está na tela.
+    manuaisPendentesTotal:
+      typeof data.manuaisPendentesTotal === "number" &&
+      Number.isFinite(data.manuaisPendentesTotal)
+        ? Math.max(data.manuaisPendentesTotal, manuaisPendentes.length)
+        : manuaisPendentes.length,
   };
 }

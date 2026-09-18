@@ -153,11 +153,26 @@ export function niveisAceitos(config: FilaConfig): NivelContato[] {
 }
 
 /**
- * Os candidatos entregáveis AGORA, na ordem de atendimento: janela `bom`
- * antes de `razoavel` (a hora melhor primeiro), e dentro do mesmo nível o
- * mais ANTIGO na base primeiro — quem esperou mais é atendido antes.
- * Desempate por id para a ordem ser determinística, e não depender da ordem
- * em que o Firestore devolveu os docs.
+ * Os candidatos entregáveis AGORA, na ordem de atendimento:
+ *
+ *   nível de janela  →  MANUAL antes de natural  →  `criadoEm`  →  id
+ *
+ * O NÍVEL VEM PRIMEIRO, e isso não é detalhe de implementação: um lead
+ * escolhido à mão em janela "razoavel" NÃO passa na frente de um lead natural
+ * em "bom", porque entregar em janela pior custa resposta — e a fila inteira
+ * existe para falar com o negócio na hora em que ele atende. A seleção manual
+ * fura a POLÍTICA (o nicho permitido e a ordem natural), nunca o relógio do
+ * outro lado.
+ *
+ * Dentro do mesmo nível, o manual vem antes do FIFO por `criadoEm` — é
+ * exatamente o que "escolhi este agora" quer dizer. Desempate final por id
+ * para a ordem ser determinística, e não depender da ordem em que o Firestore
+ * devolveu os docs.
+ *
+ * **Esta é a ÚNICA ordenação da fila.** O painel da /config e o balão
+ * mostram o que esta função devolve; nenhum dos dois ordena por conta
+ * própria, porque duas ordenações seriam duas verdades sobre quem é o
+ * próximo e divergiriam em silêncio.
  *
  * UMA PASSAGEM SÓ sobre o pool: escolhe e diagnostica ao mesmo tempo — nunca
  * duas varreduras, uma para decidir e outra para contar. `diagnostico`
@@ -180,16 +195,23 @@ export function ordenarCandidatos(
   opcoes: { coletarBloqueados?: boolean } = {},
 ): { escolhido: CandidatoOrdenado[]; diagnostico: DiagnosticoSelecao } {
   const aceitos = niveisAceitos(config);
-  const elegiveis: Array<CandidatoOrdenado & { criadoEm: string }> = [];
+  const elegiveis: Array<CandidatoOrdenado & { criadoEm: string; manual: boolean }> = [];
   let nichoBarrado = 0;
   const janela: DiagnosticoJanela = { razoavel: 0, ruim: 0, semNivel: 0 };
   const bloqueados: Array<CandidatoBloqueado & { criadoEm: string }> = [];
 
   for (const candidato of pool) {
-    if (!nichoPermitido(candidato.nicho, config.nichosPermitidos)) {
+    const manual = candidato.manual === true;
+    // O NICHO é política, e é o que a seleção manual fura: o operador olhou
+    // aquele negócio e decidiu falar com ele. `nichoBarrado` não conta quem
+    // furou — quem não foi barrado não pode aparecer como barrado no funil.
+    if (!manual && !nichoPermitido(candidato.nicho, config.nichosPermitidos)) {
       nichoBarrado += 1;
       continue;
     }
+    // A JANELA vale igual para o manual: ela não é política do operador, é a
+    // hora do outro lado. Lead manual fora de janela cai em `bloqueados`
+    // como qualquer outro.
     const nivel = nivelAgora(candidato, janelas, now);
     if (nivel === undefined || !aceitos.includes(nivel)) {
       if (nivel === undefined) janela.semNivel += 1;
@@ -200,12 +222,15 @@ export function ordenarCandidatos(
       }
       continue;
     }
-    elegiveis.push({ id: candidato.id, nivel, criadoEm: candidato.criadoEm });
+    elegiveis.push({ id: candidato.id, nivel, criadoEm: candidato.criadoEm, manual });
   }
 
   elegiveis.sort(
     (a, b) =>
       aceitos.indexOf(a.nivel) - aceitos.indexOf(b.nivel) ||
+      // Só DEPOIS do nível: manual em "razoavel" não passa na frente de
+      // natural em "bom" (ver o cabeçalho). `true` primeiro.
+      Number(b.manual) - Number(a.manual) ||
       a.criadoEm.localeCompare(b.criadoEm) ||
       a.id.localeCompare(b.id),
   );

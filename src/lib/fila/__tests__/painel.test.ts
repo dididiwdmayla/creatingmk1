@@ -104,9 +104,24 @@ describe("linhasDoPainel", () => {
         nicho: "Barbearia Masculina",
         nivel: "bom",
         horaLocal: "10h",
+        manual: false,
         proximaFaixa: null,
       },
     ]);
+  });
+
+  it("o selo MANUAL vem do candidato do pool — a mesma entrada que ordenou a fila", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/a", lead("a") as unknown as Record<string, unknown>);
+
+    const linhas = await linhasDoPainel(
+      db,
+      [{ ...candidato("a"), manual: true }],
+      [{ id: "a", nivel: "bom" }],
+      OPCOES,
+    );
+
+    expect(linhas[0].manual).toBe(true);
   });
 
   it("lê lead POR ID — nunca varre /leads atrás de nomes", async () => {

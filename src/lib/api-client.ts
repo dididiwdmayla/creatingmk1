@@ -14,6 +14,7 @@ import type {
   FilaTesteDoc,
   LinhaFilaPainel,
   LinhaRetido,
+  MotivoFisico,
   PendenciaEnvio,
   RespostaPendente,
 } from "@/lib/fila/estado";
@@ -735,7 +736,9 @@ export const api = {
   },
 
   getLead: (id: string) =>
-    request<{ lead: Lead; filaEnvio?: FilaEnvioDoc }>(`/api/leads/${id}`),
+    request<{ lead: Lead; filaEnvio?: FilaEnvioDoc; filaPendencia?: MotivoFisico }>(
+      `/api/leads/${id}`,
+    ),
   patchLead: (
     id: string,
     patch: {
@@ -745,6 +748,12 @@ export const api = {
       descartado?: boolean;
       /** Número sem WhatsApp: tira o lead da fila de envio, reversível. */
       telefoneInvalido?: boolean;
+      /**
+       * "Adicionar à fila": seleção deliberada do operador. Fura o nicho
+       * permitido e a ordem natural; não fura demo, captura, telefone nem
+       * fuso. Reversível pela mesma ficha.
+       */
+      filaManual?: boolean;
       /** Admin ajusta o vendedor do fechamento (default: quem fechou). */
       vendidoPor?: string;
     },

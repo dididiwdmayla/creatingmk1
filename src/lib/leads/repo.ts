@@ -357,6 +357,7 @@ export async function updateLeadExtras(
     favorito?: boolean;
     descartado?: boolean;
     telefoneInvalido?: boolean;
+    filaManual?: boolean;
   },
   now: Date = new Date(),
 ): Promise<Lead> {
@@ -367,6 +368,7 @@ export async function updateLeadExtras(
     ...(extras.favorito !== undefined && { favorito: extras.favorito }),
     ...(extras.descartado !== undefined && { descartado: extras.descartado }),
     ...(extras.telefoneInvalido !== undefined && { telefoneInvalido: extras.telefoneInvalido }),
+    ...(extras.filaManual !== undefined && { filaManual: extras.filaManual }),
     atualizadoEm: now.toISOString(),
   };
   await docRef(db, placeId).set(toDoc(updated));

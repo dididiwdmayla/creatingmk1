@@ -2680,6 +2680,67 @@ Um lead que esgota as tentativas some da fila sozinho. Se isso não aparecesse e
 
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=listas` ganhou o fixture `lead-fila-parada` (número inválido + 3 tentativas) e um passo que cobra as duas tarjas, o texto do último erro e o alternador no estado que DESFAZ a marcação.
 
+## Seleção manual da fila — `Lead.filaManual` ("adicionar à fila" na ficha)
+
+A fila decide sozinha quem é o próximo, e isso está certo 15 vezes por noite. O que faltava era a exceção: o operador abre a ficha de um negócio, decide falar com AQUELE, e não tem como dizer isso. `filaManual` (booleano no lead, ausente = false, ligado e desligado pelo mesmo botão da ficha, junto de "Descartar lead" e "Número sem WhatsApp") é essa frase.
+
+### O QUE ELA FURA E O QUE NÃO FURA — a distinção central
+
+**Fura os filtros de POLÍTICA: `nichosPermitidos` e a ordem natural.** São as duas regras que o próprio time escreveu para a fila automática não sair falando com qualquer um em qualquer ordem — e uma escolha deliberada, feita olhando a ficha, é exatamente a informação que essas regras aproximam quando ninguém está olhando.
+
+**NÃO fura os filtros FÍSICOS: demo, captura pronta, telefone, fuso.** Esses não são regra, são a AUSÊNCIA da coisa que seria enviada: sem captura não existe `printUrl`, e o ciclo quebra no aparelho — a macro baixa uma URL vazia e reporta falha sobre uma mensagem que nunca teve o que mandar. Marcar não cria a peça.
+
+**Também não fura o resto da peneira estrutural** (`status`, `contactadoForaDaFila`, `descartado`, `telefoneInvalido`): ali não falta peça, houve decisão. `descartado` em especial não pode ser furado, e a razão é operacional, não filosófica: a única ação do balão da fila (adiante) é justamente descartar, e um descarte que o manual atropelasse não removeria nada.
+
+**A JANELA continua valendo.** Ela não é política do operador — é a hora do outro lado. Lead manual fora de janela aparece em "bloqueados por janela" como qualquer outro.
+
+### O lead PENDENTE — marcado, sem a peça, e visível
+
+Um lead manual a que falta uma peça não vira candidato: ele reprova em `motivoEstrutural`, logo não entra no pool, logo `/api/fila/proximo` nunca o vê (e, se um pool velho o oferecesse, a releitura fresca de `tentarEntregar` o recusaria de novo — duas travas, nenhuma delas nova). Sem mais nada, porém, ele ficaria marcado E invisível: o operador clicou, e nada acontece para sempre.
+
+Então `construirPool` grava, **na mesma varredura e sem uma leitura a mais**, quem são:
+
+```jsonc
+"manuaisPendentes": [{ "id": "ChIJ...", "motivo": "semDemo" }],  // teto de MANUAIS_PENDENTES_MAX (20)
+"manuaisPendentesTotal": 3
+```
+
+O recorte de "pendente" é `MOTIVOS_FISICOS` (`lib/fila/estado.ts`): `semTelefone`, `semDemo`, `capturaNaoPronta`, `semFuso` — o subconjunto de `MotivoEstrutural` que alguém RESOLVE fazendo o trabalho (gerar a demo, rodar a captura, consertar o número). A lista vive no módulo client-safe porque a ficha e o balão a leem, e `candidatos.ts` arrasta `node:crypto` por `envios.ts`; uma asserção de tipo em `candidatos.ts` **mais** um teste travam que ela é subconjunto de `MOTIVOS_ESTRUTURAIS` — duas listas separadas sem guarda divergiriam em silêncio, e um motivo renomeado faria o pendente sumir da tela sem erro nenhum.
+
+`manuaisPendentesTotal` existe separado da lista pelo mesmo motivo de `truncado` existir do lado dos candidatos: um corte que aparecesse como "são só estes" seria a mentira calada. Teto BAIXO (20, contra `POOL_MAX` de 2000) de propósito — cada entrada aqui nasce de um clique humano, então a ordem de grandeza é de punhados, e o doc é o mesmo que o celular lê a cada ciclo. A ordem é a justa de sempre (`criadoEm`, desempate por id); não é ordenação nova, porque pendente não disputa vaga com ninguém.
+
+**Gerar a demo automaticamente ao marcar é trabalho futuro e não faz parte deste bloco.**
+
+### A ordenação — uma mudança cirúrgica, e UMA verdade só
+
+`ordenarCandidatos` (`lib/fila/selecao.ts`) passa a ordenar por:
+
+```
+nível de janela  →  MANUAL antes de natural  →  criadoEm  →  placeId
+```
+
+**O nível vem primeiro, e isso não é detalhe de implementação:** um lead manual em janela "razoavel" NÃO passa na frente de um natural em "bom", porque entregar em janela pior custa resposta — a fila inteira existe para falar com o negócio na hora em que ele atende. Dentro do mesmo nível, o manual vem antes do FIFO por `criadoEm`, que é exatamente o que "escolhi este agora" quer dizer, com o desempate por `placeId` mantido.
+
+O portão de nicho ganhou um `if (!manual && ...)`. **`nichoBarrado` não conta quem furou** — quem não foi barrado não pode aparecer como barrado no funil. Quem fura o nicho segue para a etapa da janela como todo mundo, e um manual fechado agora conta em `janela.semNivel`.
+
+`CandidatoOrdenado`, `DiagnosticoSelecao` e a assinatura da função **não mudaram**, e `/api/fila/proximo` não mudou uma letra: o `manual` viaja só no array intermediário da ordenação. **Nenhuma ordenação nova foi escrita em lugar nenhum** — o painel da /config e o balão mostram o que esta função devolve, porque duas ordenações seriam duas verdades sobre quem é o próximo e divergiriam em silêncio.
+
+### O campo no pool: um booleano, e nada mais
+
+`CandidatoFila.manual?: boolean`, com a chave **omitida** quando é falsa (não `manual: false`): são até 2000 entradas no mesmo doc de 1 MiB, e a ausência já significa exatamente isso para quem lê. Ser opcional também é o que deixa o doc já gravado continuar válido sem migração nenhuma. Nome, motivo e qualquer outra coisa continuam fora dali — quem precisa deles lê o doc do lead POR ID, e só das linhas que a tela mostra.
+
+`LinhaFilaPainel` ganhou `manual: boolean` (sempre presente), lido do CANDIDATO do pool e não da seleção: é a mesma entrada que `ordenarCandidatos` usou para pôr o lead onde ele está, então o selo da tela e a ordem da fila não têm como discordar. O painel da /config passou a mostrar o selo "manual" nas linhas, pela mesma razão que a ficha mostra a tarja: um lead na frente de quem chegou antes, sem explicação, parece erro de ordenação.
+
+### Na ficha, e por que a pendência vem do servidor
+
+A ficha mostra duas tarjas possíveis: "na fila por seleção manual" (acento), ou "na fila por seleção manual, mas PENDENTE: sem demo" (aviso). O motivo chega em `GET /api/leads/{id}` como `filaPendencia`, calculado **sobre o lead que a rota já tem em mãos — zero leitura a mais** — e só quando o lead é manual E o motivo é físico. Decisão (descarte, status, número sem WhatsApp) não vira pendência: cada uma dessas já tem tarja própria, e duas tarjas para o mesmo fato confundem.
+
+Calcular no cliente seria a segunda cópia de `motivoEstrutural` no navegador, divergindo em silêncio da que de fato decide quem entra na fila — e `candidatos.ts` nem pode ser importado de um componente client (`node:crypto`). O PATCH não devolve a pendência (ela é do GET), então marcar um lead relê a ficha: uma leitura por clique, num botão que se clica uma vez por lead.
+
+### Permissão: o campo é do LEAD, a fila é do admin
+
+`filaManual` entra em `updateLeadExtras` e no `PATCH /api/leads/{id}` como `descartado` e `telefoneInvalido` — **qualquer sessão válida**, sem checagem de papel própria (quem barra anônimo é o proxy). É dado do lead, não comando sobre o aparelho: o que é restrito ao admin é a FILA — o painel da /config, o balão e as rotas dos dois. Um membro que marca um lead faz o mesmo tipo de coisa que já faz ao descartar um: muda dado compartilhado da base, visível e reversível por qualquer um.
+
 ### A VISÃO da fila no painel "Fila de envio" (/config)
 
 O diagnóstico acima responde "quantos pararam em cada etapa". Esta tela responde as outras quatro perguntas — **o que vai acontecer, quando, com quem, e por que os demais não entram** — sem ninguém precisar abrir log de aparelho. Bloco subordinado ao painel que já existia (mesma seção, separada por um filete, `<h3>` "O que vai acontecer"), ao lado da lista de print pendente.

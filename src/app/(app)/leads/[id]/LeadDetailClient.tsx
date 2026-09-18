@@ -39,7 +39,12 @@ import { argumentoForte, argumentoPenetracao } from "@/lib/leads/penetracao";
 import { VALID_TRANSITIONS, type Lead, type LeadStatus } from "@/lib/leads/types";
 import { useWhatsAppContato } from "@/lib/useWhatsAppContato";
 import { aplicarMarcadores, linkWhatsApp } from "@/lib/wa";
-import { filaParado as leadParadoNaFila, type FilaEnvioDoc } from "@/lib/fila/estado";
+import {
+  MOTIVO_FISICO_LABEL,
+  filaParado as leadParadoNaFila,
+  type FilaEnvioDoc,
+  type MotivoFisico,
+} from "@/lib/fila/estado";
 
 /**
  * Texto da confirmação da tradução: quantas chamadas e quanto custa, ANTES
@@ -103,7 +108,15 @@ export function LeadDetailClient({ id }: { id: string }) {
   const [vendedorErro, setVendedorErro] = useState<string | null>(null);
   const [descartando, setDescartando] = useState(false);
   const [marcandoTelefone, setMarcandoTelefone] = useState(false);
+  const [marcandoFila, setMarcandoFila] = useState(false);
   const [filaEnvio, setFilaEnvio] = useState<FilaEnvioDoc | null>(null);
+  /**
+   * A peça que falta para o lead MARCADO À MÃO virar entregável. Vem do
+   * servidor (`GET /api/leads/{id}`), nunca recalculada aqui: a regra que
+   * decide quem entra na fila é `motivoEstrutural`, e uma segunda cópia dela
+   * no navegador divergiria dela em silêncio. `null` = não há pendência.
+   */
+  const [filaPendencia, setFilaPendencia] = useState<MotivoFisico | null>(null);
   const [demoErro, setDemoErro] = useState<string | null>(null);
   const [demoAviso, setDemoAviso] = useState<string | null>(null);
   const [argumentoAviso, setArgumentoAviso] = useState<string | null>(null);
@@ -144,10 +157,11 @@ export function LeadDetailClient({ id }: { id: string }) {
       // normalmente — nunca vira página de erro por causa disto.
       api.listFrases().catch(() => null),
     ])
-      .then(([{ lead: leadData, filaEnvio: filaData }, { config: configData }, { buscas: buscasData }, frasesData]) => {
+      .then(([{ lead: leadData, filaEnvio: filaData, filaPendencia: pendenciaData }, { config: configData }, { buscas: buscasData }, frasesData]) => {
         if (ignore) return;
         setLead(leadData);
         setFilaEnvio(filaData ?? null);
+        setFilaPendencia(pendenciaData ?? null);
         setConfig(configData);
         setBuscas(buscasData);
         setFrases(frasesData);
@@ -389,6 +403,32 @@ export function LeadDetailClient({ id }: { id: string }) {
     }
   }
 
+  /**
+   * "Adicionar à fila" — a seleção DELIBERADA do operador. Reversível pelo
+   * mesmo botão, como o descarte e o "número sem WhatsApp" ao lado.
+   *
+   * A resposta do PATCH traz o lead, mas NÃO traz a pendência (ela é
+   * calculada no GET), então marcar um lead sem demo precisa reler a ficha
+   * para a tarja aparecer com o motivo certo. É uma leitura por clique, num
+   * botão que se clica uma vez por lead — e adivinhar o motivo aqui seria a
+   * cópia da regra que este campo existe para não ter.
+   */
+  async function handleFilaManual() {
+    if (!lead) return;
+    setMarcandoFila(true);
+    setErro(null);
+    try {
+      await api.patchLead(id, { filaManual: !lead.filaManual });
+      const { lead: atualizado, filaPendencia: pendencia } = await api.getLead(id);
+      setLead(atualizado);
+      setFilaPendencia(pendencia ?? null);
+    } catch (error) {
+      setErro(error instanceof ApiError ? error.message : "Falha ao mexer na fila.");
+    } finally {
+      setMarcandoFila(false);
+    }
+  }
+
   async function handleDescarte() {
     if (!lead) return;
     setDescartando(true);
@@ -524,6 +564,22 @@ export function LeadDetailClient({ id }: { id: string }) {
             Número sem WhatsApp — fora da fila de envio. Pode ser desmarcado abaixo.
           </p>
         )}
+        {/* A SELEÇÃO MANUAL, e o que falta quando falta. Sem esta tarja, um
+            lead marcado sem demo ficaria marcado e invisível: ele não entra
+            na fila de entrega (o `/proximo` nunca o vê) e não haveria onde
+            ler o porquê. */}
+        {lead.filaManual &&
+          (filaPendencia ? (
+            <p className="mt-2 inline-block rounded border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning">
+              Na fila por seleção manual, mas PENDENTE: {MOTIVO_FISICO_LABEL[filaPendencia]}. Não é
+              entregue enquanto faltar essa peça.
+            </p>
+          ) : (
+            <p className="mt-2 inline-block rounded border border-accent/40 bg-accent/10 px-2 py-1 text-xs text-accent">
+              Na fila por seleção manual — passa na frente da ordem natural, dentro da mesma janela
+              de horário.
+            </p>
+          ))}
         {filaParado && (
           <p className="mt-2 inline-block rounded border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning">
             Parado na fila de envio após {filaEnvio?.tentativas} tentativas
@@ -986,6 +1042,15 @@ export function LeadDetailClient({ id }: { id: string }) {
           aria-pressed={lead.telefoneInvalido === true}
         >
           {lead.telefoneInvalido ? "Número tem WhatsApp" : "Número sem WhatsApp"}
+        </Button>
+        <Button
+          variant={lead.filaManual ? "secondary" : "ghost"}
+          onClick={handleFilaManual}
+          loading={marcandoFila}
+          aria-pressed={lead.filaManual === true}
+          title="Seleção deliberada: fura o nicho permitido e a ordem natural da fila. Não fura demo, captura nem telefone."
+        >
+          {lead.filaManual ? "Tirar da fila manual" : "Adicionar à fila"}
         </Button>
       </div>
 

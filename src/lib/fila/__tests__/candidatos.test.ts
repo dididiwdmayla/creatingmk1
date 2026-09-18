@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MANUAIS_PENDENTES_MAX,
   MOTIVOS_ESTRUTURAIS,
   POOL_MAX,
   POOL_TTL_MS,
@@ -11,6 +12,7 @@ import {
   lerPoolBruto,
   motivoEstrutural,
 } from "../candidatos";
+import { MOTIVOS_FISICOS } from "../estado";
 import type { FilaEnvioDoc } from "../envios";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import type { AppDb } from "@/lib/firestore-like";
@@ -449,5 +451,169 @@ describe("lerPoolBruto — leitura para o diagnóstico, sem TTL e sem reconstrui
     db.seed("filaCandidatos/pool", { lixo: true });
 
     await expect(lerPoolBruto(db)).resolves.toBeUndefined();
+  });
+});
+
+describe("a SELEÇÃO MANUAL no pool (`Lead.filaManual`)", () => {
+  it("MOTIVOS_FISICOS é subconjunto de MOTIVOS_ESTRUTURAIS", () => {
+    // As duas listas vivem em módulos separados por necessidade (o
+    // client-safe não pode arrastar `node:crypto`). Separadas sem guarda,
+    // um motivo renomeado faria o lead pendente sumir da tela sem erro.
+    for (const motivo of MOTIVOS_FISICOS) {
+      expect(MOTIVOS_ESTRUTURAIS).toContain(motivo);
+    }
+  });
+
+  it("o candidato manual carrega a marca; o natural não carrega chave nenhuma", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/manual", lead("manual", { filaManual: true }) as unknown as Record<string, unknown>);
+    db.seed("leads/natural", lead("natural") as unknown as Record<string, unknown>);
+
+    const pool = await construirPool(db, AGORA);
+
+    const manual = pool.candidatos.find((c) => c.id === "manual");
+    const natural = pool.candidatos.find((c) => c.id === "natural");
+    expect(manual?.manual).toBe(true);
+    // Chave OMITIDA, não `false`: são até POOL_MAX entradas no mesmo doc.
+    expect(natural && "manual" in natural).toBe(false);
+  });
+
+  it("manual SEM DEMO não vira candidato, mas entra em manuaisPendentes com o motivo", async () => {
+    const db = new FakeFirestore();
+    db.seed(
+      "leads/pendente",
+      lead("pendente", { filaManual: true, demo: undefined }) as unknown as Record<string, unknown>,
+    );
+
+    const pool = await construirPool(db, AGORA);
+
+    expect(pool.candidatos).toEqual([]);
+    expect(pool.manuaisPendentes).toEqual([{ id: "pendente", motivo: "semDemo" }]);
+    expect(pool.manuaisPendentesTotal).toBe(1);
+    // E continua contando no funil estrutural, como qualquer outro.
+    expect(pool.estrutural.semDemo).toBe(1);
+  });
+
+  it("cada ausência de peça aparece com o próprio motivo", async () => {
+    const db = new FakeFirestore();
+    db.seed(
+      "leads/sem-telefone",
+      lead("sem-telefone", { filaManual: true, telefoneIntl: undefined }) as unknown as Record<string, unknown>,
+    );
+    db.seed(
+      "leads/sem-print",
+      lead("sem-print", {
+        filaManual: true,
+        capturas: { estado: "enfileirado", execucaoId: "e", pedidoEm: "2026-03-01T00:00:00.000Z", imagens: [] },
+      }) as unknown as Record<string, unknown>,
+    );
+    db.seed(
+      "leads/sem-fuso",
+      lead("sem-fuso", { filaManual: true, horarios: undefined, endereco: undefined }) as unknown as Record<string, unknown>,
+    );
+
+    const pool = await construirPool(db, AGORA);
+
+    expect(pool.manuaisPendentes).toEqual([
+      { id: "sem-fuso", motivo: "semFuso" },
+      { id: "sem-print", motivo: "capturaNaoPronta" },
+      { id: "sem-telefone", motivo: "semTelefone" },
+    ]);
+  });
+
+  it("DECISÃO não é pendência: descartado, status e número sem WhatsApp ficam de fora", async () => {
+    const db = new FakeFirestore();
+    db.seed(
+      "leads/descartado",
+      lead("descartado", { filaManual: true, descartado: true, demo: undefined }) as unknown as Record<string, unknown>,
+    );
+    db.seed(
+      "leads/contactado",
+      lead("contactado", { filaManual: true, status: "contactado" }) as unknown as Record<string, unknown>,
+    );
+    db.seed(
+      "leads/invalido",
+      lead("invalido", { filaManual: true, telefoneInvalido: true }) as unknown as Record<string, unknown>,
+    );
+
+    const pool = await construirPool(db, AGORA);
+
+    expect(pool.manuaisPendentes).toEqual([]);
+    expect(pool.manuaisPendentesTotal).toBe(0);
+  });
+
+  it("lead SEM a marca manual nunca vira pendência — a lista é só de quem foi escolhido", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/x", lead("x", { demo: undefined }) as unknown as Record<string, unknown>);
+
+    const pool = await construirPool(db, AGORA);
+
+    expect(pool.manuaisPendentes).toEqual([]);
+    expect(pool.estrutural.semDemo).toBe(1);
+  });
+
+  it("a lista é cortada em MANUAIS_PENDENTES_MAX, mas o TOTAL conta todos", async () => {
+    const db = new FakeFirestore();
+    for (let i = 0; i < MANUAIS_PENDENTES_MAX + 3; i += 1) {
+      const id = `p${String(i).padStart(3, "0")}`;
+      db.seed(
+        `leads/${id}`,
+        lead(id, { filaManual: true, demo: undefined }) as unknown as Record<string, unknown>,
+      );
+    }
+
+    const pool = await construirPool(db, AGORA);
+
+    expect(pool.manuaisPendentes).toHaveLength(MANUAIS_PENDENTES_MAX);
+    expect(pool.manuaisPendentesTotal).toBe(MANUAIS_PENDENTES_MAX + 3);
+  });
+
+  it("lerPoolBruto: doc pré-migração vira lista vazia; motivo desconhecido é descartado", async () => {
+    const db = new FakeFirestore();
+    db.seed("filaCandidatos/pool", {
+      geradoEm: AGORA.toISOString(),
+      candidatos: [],
+      lidos: 3,
+      truncado: false,
+      estrutural: estruturalVazio(),
+      // sem `manuaisPendentes` — doc escrito antes desta mudança existir.
+    });
+
+    expect((await lerPoolBruto(db))?.manuaisPendentes).toEqual([]);
+
+    db.seed("filaCandidatos/pool", {
+      geradoEm: AGORA.toISOString(),
+      candidatos: [],
+      lidos: 3,
+      truncado: false,
+      estrutural: estruturalVazio(),
+      manuaisPendentes: [
+        { id: "ok", motivo: "semDemo" },
+        { id: "decisao", motivo: "descartado" }, // não é ausência de peça
+        { id: "", motivo: "semDemo" },
+        "lixo",
+      ],
+      manuaisPendentesTotal: 1,
+    });
+
+    expect((await lerPoolBruto(db))?.manuaisPendentes).toEqual([{ id: "ok", motivo: "semDemo" }]);
+  });
+
+  it("total menor que a lista sobe para o tamanho dela — nunca 'e mais -1'", async () => {
+    const db = new FakeFirestore();
+    db.seed("filaCandidatos/pool", {
+      geradoEm: AGORA.toISOString(),
+      candidatos: [],
+      lidos: 0,
+      truncado: false,
+      estrutural: estruturalVazio(),
+      manuaisPendentes: [
+        { id: "a", motivo: "semDemo" },
+        { id: "b", motivo: "semDemo" },
+      ],
+      manuaisPendentesTotal: 0,
+    });
+
+    expect((await lerPoolBruto(db))?.manuaisPendentesTotal).toBe(2);
   });
 });

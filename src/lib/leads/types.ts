@@ -74,6 +74,28 @@ export interface Lead {
   favorito?: boolean;
   /** Descarte suave: não deleta; vai pro fim da lista com listra. Reversível. */
   descartado?: boolean;
+  /**
+   * SELEÇÃO DELIBERADA DO OPERADOR para a fila de envio — "adicionar à fila",
+   * na ficha. Ausente = false; reversível pela mesma ficha.
+   *
+   * O que ela FURA são os filtros de POLÍTICA: `nichosPermitidos` e a ordem
+   * natural (dentro do mesmo nível de janela, o manual vem antes do FIFO por
+   * `criadoEm` — ver `ordenarCandidatos` em `lib/fila/selecao.ts`).
+   *
+   * O que ela NÃO FURA são os filtros FÍSICOS — demo, captura pronta,
+   * telefone, fuso. Esses não são regra, são a AUSÊNCIA da coisa que seria
+   * enviada: sem captura não existe `printUrl` e o ciclo quebra no aparelho.
+   * Um lead marcado sem essas peças aparece na fila como PENDENTE, com o
+   * motivo visível (ver `MOTIVOS_FISICOS` em `lib/fila/estado.ts`), e nunca é
+   * entregue por `/api/fila/proximo`.
+   *
+   * Também não fura o resto da peneira estrutural (`status`,
+   * `contactadoForaDaFila`, `descartado`, `telefoneInvalido`): ali não falta
+   * peça, houve decisão. `descartado` em especial NÃO pode ser furado — a
+   * única ação do balão da fila é justamente descartar, e um descarte que o
+   * manual atropelasse não removeria nada.
+   */
+  filaManual?: boolean;
   enriquecido: boolean;
   detalhes?: DetalhesLugar & { enriquecidoEm: string; enriquecidoPor?: string };
   /**
