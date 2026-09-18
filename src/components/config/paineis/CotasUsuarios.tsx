@@ -17,7 +17,7 @@ import { SKU_LABELS } from "@/lib/sku-labels";
 import type { LimitesUsuario } from "@/lib/usuarios/types";
 
 /** Chave da persistência deste painel — ver `PainelColapsavel`. */
-const PAINEL_COTAS = "cotas-usuarios";
+export const PAINEL_COTAS = "cotas-usuarios";
 
 /** SKUs relevantes à cota individual — resumo compacto no topo da seção de cotas. */
 const SKUS_COTA_INDIVIDUAL: Sku[] = [

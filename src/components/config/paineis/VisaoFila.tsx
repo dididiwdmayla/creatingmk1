@@ -16,7 +16,7 @@ import { formatDateTime, formatInt, formatTempoAte, formatTempoRelativo } from "
 import type { NivelContato } from "@/lib/leads/janelaContato";
 
 /** Chave da persistência deste bloco — ver `PainelColapsavel`. */
-const PAINEL_VISAO_FILA = "fila-visao";
+export const PAINEL_VISAO_FILA = "fila-visao";
 
 /**
  * Rótulo de cada portão de ritmo — o motivo pelo qual NINGUÉM sai agora,

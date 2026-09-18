@@ -10,7 +10,7 @@ import { ApiError, api } from "@/lib/api-client";
 import type { Papel, UsuarioPublico } from "@/lib/usuarios/types";
 
 /** Chave da persistência deste painel — ver `PainelColapsavel`. */
-const PAINEL_USUARIOS = "usuarios";
+export const PAINEL_USUARIOS = "usuarios";
 
 /**
  * Gestão de usuários (admin): criar, renomear, ativar/desativar, trocar

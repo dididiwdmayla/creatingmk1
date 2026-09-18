@@ -20,7 +20,7 @@ import { formatInt } from "@/lib/format";
 import type { LinhaFilaPainel } from "@/lib/fila/estado";
 
 /** Chave da persistência deste painel — ver `PainelColapsavel`. */
-const PAINEL_FILA = "fila-envio";
+export const PAINEL_FILA = "fila-envio";
 
 const FILA_CAMPOS_NUMERO: Array<{
   campo: keyof Pick<

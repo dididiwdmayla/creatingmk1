@@ -20,7 +20,7 @@ import {
 import { formatDateTime, formatTempoAte, formatTempoRelativo } from "@/lib/format";
 
 /** Chave da persistência deste bloco — ver `PainelColapsavel`. */
-const PAINEL_DISPARO_TESTE = "fila-disparo-teste";
+export const PAINEL_DISPARO_TESTE = "fila-disparo-teste";
 
 /* ── Disparo de teste ──────────────────────────────────────────────────── */
 

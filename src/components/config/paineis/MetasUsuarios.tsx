@@ -9,7 +9,7 @@ import { ApiError, api, type MetasUsuariosResponse } from "@/lib/api-client";
 import type { MetasUsuario } from "@/lib/usuarios/types";
 
 /** Chave da persistência deste painel — ver `PainelColapsavel`. */
-const PAINEL_METAS = "metas-usuarios";
+export const PAINEL_METAS = "metas-usuarios";
 
 const JANELAS_META: Array<{ chave: "dia" | "semana"; label: string; campo: keyof MetasUsuario }> = [
   { chave: "dia", label: "Hoje", campo: "prospeccoesDia" },

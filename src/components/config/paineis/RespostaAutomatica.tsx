@@ -5,7 +5,7 @@ import { FilaNumeroInput } from "@/components/config/comum";
 import type { FilaConfig } from "@/lib/fila/config";
 
 /** Chave da persistência deste bloco — ver `PainelColapsavel`. */
-const PAINEL_RESPOSTA_AUTOMATICA = "fila-resposta-automatica";
+export const PAINEL_RESPOSTA_AUTOMATICA = "fila-resposta-automatica";
 
 /** Os números do ritmo humano da resposta — ver `FilaConfig`. */
 const RESPOSTA_CAMPOS_NUMERO: Array<{

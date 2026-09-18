@@ -10,7 +10,7 @@ import type { PendenciaEnvio } from "@/lib/fila/estado";
 import { formatDateTime } from "@/lib/format";
 
 /** Chave da persistência deste bloco — ver `PainelColapsavel`. */
-const PAINEL_PRINT_PENDENTE = "fila-print-pendente";
+export const PAINEL_PRINT_PENDENTE = "fila-print-pendente";
 
 /**
  * Lista de pendência de PRINT, subordinada ao painel "Fila de envio".

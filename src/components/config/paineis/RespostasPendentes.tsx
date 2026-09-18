@@ -11,7 +11,7 @@ import { formatDateTime } from "@/lib/format";
 import { linkWhatsAppBusinessAndroid, podeAbrirBusiness } from "@/lib/wa";
 
 /** Chave da persistência deste painel — ver `PainelColapsavel`. */
-const PAINEL_RESPOSTAS = "respostas-pendentes";
+export const PAINEL_RESPOSTAS = "respostas-pendentes";
 
 /* ── Painel "Respostas pendentes" ────────────────────────────────────── */
 
