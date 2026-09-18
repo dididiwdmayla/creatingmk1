@@ -13,6 +13,7 @@ import type {
   FilaEnvioDoc,
   FilaTesteDoc,
   LinhaFilaPainel,
+  LinhaPendenteManual,
   LinhaRetido,
   MotivoFisico,
   PendenciaEnvio,
@@ -194,6 +195,36 @@ export interface FilaDiagnosticoResponse {
  * por dia), e um teto esconderia justamente o lead que o operador quer
  * liberar.
  */
+/**
+ * `GET /api/config/fila/balao` — o BALÃO da fila, nos seus dois estados.
+ *
+ * Uma forma só para os dois, com TODAS as chaves sempre presentes: o estado
+ * fechado devolve as listas vazias em vez de omiti-las, porque ausência
+ * obrigaria a tela a distinguir "não pedi a lista" de "a lista está vazia".
+ * Quem diz qual é qual é `lista`.
+ *
+ * O custo de cada estado está no cabeçalho de `lib/fila/balao.ts`: 2
+ * leituras fechado, 4 + uma por linha aberto.
+ */
+export interface FilaBalaoResponse {
+  /** A resposta trouxe as listas (`?lista=1`), ou só o resumo barato? */
+  lista: boolean;
+  /** A fila está ligada — o botão de pausa. */
+  ativo: boolean;
+  /** Portão de ritmo agora (`pausado`, `meta_atingida`, `teto_hora`…), ou null. */
+  ritmo: string | null;
+  contador: ContadorPainel;
+  /** A sequência na ordem em que os leads SERÃO entregues. Vazia no estado fechado. */
+  fila: LinhaFilaPainel[];
+  /** Quantos elegíveis ao todo — `fila` é uma janela sobre ela. */
+  elegiveis: number;
+  /** Marcados à mão sem a peça que o envio exige, com o motivo visível. */
+  pendentes: LinhaPendenteManual[];
+  pendentesTotal: number;
+  /** Último rebuild do pool (ISO); null = o celular nunca pediu tarefa. */
+  poolGeradoEm: string | null;
+}
+
 export interface FilaRetidosResponse {
   total: number;
   linhas: LinhaRetido[];
@@ -559,6 +590,27 @@ export const api = {
    * o retrato do último rebuild, datado em `pool.geradoEm`).
    */
   getFilaDiagnostico: () => request<FilaDiagnosticoResponse>("/api/fila/diagnostico"),
+
+  /**
+   * O BALÃO da fila (admin). `comLista` é a diferença entre os dois custos:
+   * sem ela são 2 leituras de doc (o que o balão FECHADO mostra), com ela
+   * são 4 mais uma por linha — e por isso ela só é pedida quando o operador
+   * ABRE o balão, nunca na navegação.
+   */
+  getFilaBalao: (comLista = false) =>
+    request<FilaBalaoResponse>(`/api/config/fila/balao${comLista ? "?lista=1" : ""}`),
+
+  /**
+   * Tira um lead da fila pelo balão — o `descartado` de sempre, com a guarda
+   * que o resto não tem: 409 `claim_ativa` quando o aparelho está com o lead
+   * reservado NESTE momento. Remover não cancela envio em andamento, então a
+   * recusa é explícita em vez de fingir que interrompeu. Devolve o balão já
+   * relido (quem continua na fila é decisão do servidor).
+   */
+  deleteFilaBalaoLead: (leadId: string) =>
+    request<FilaBalaoResponse>(`/api/config/fila/balao/${encodeURIComponent(leadId)}`, {
+      method: "DELETE",
+    }),
 
   /**
    * O DISPARO DE TESTE (admin). `getFilaTeste` lê o estado; `postFilaTeste`
