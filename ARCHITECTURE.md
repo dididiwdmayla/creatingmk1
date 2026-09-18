@@ -618,6 +618,7 @@ Observações:
   "notas": "ligar depois das 18h",              // anotação curta (≤500), editável no card da lista
   "favorito": true,                             // estrela no card; filtro próprio na lista
   "descartado": false,                          // descarte suave: fim da lista, reversível — nunca deleta
+                                                // (a ÚNICA exclusão real de lead é a revisão "sem vestígio" — seção própria)
   "enriquecido": false,
   "detalhes": {                                 // só existe após enriquecimento (Details Enterprise)
     "telefone": "(44) 3264-0000",               // nationalPhoneNumber
@@ -931,7 +932,7 @@ Semântica fixa:
 - `/api/leads/[id]/enrich` grava `detalhes`, marca `enriquecido: true`. Lead já enriquecido **retorna do cache sempre** — re-enriquecimento não existe. **Horário de funcionamento é buscado JUNTO** (2 requests distintos ao Google, um por SKU: `detailsEnterprise` para `detalhes`, `detailsProHours` — tier Pro, cota grátis própria de 5.000/mês — para `horarios`). Falha no 2º request (teto do Pro estourado, erro do Google) não derruba o enriquecimento principal, já persistido — o lead fica sem `horarios` e o botão dedicado "buscar horários" da ficha cobre depois. `/api/leads/[id]/horarios` é a rota desse botão: busca só o SKU novo (idempotente — lead com `horarios` retorna do cache), pensada para leads enriquecidos ANTES desta feature (têm `detalhes`, não têm `horarios`).
 - **Estado atual e "melhor momento pra contatar"** (`src/lib/leads/horarios.ts`, funções puras `estadoAtual`/`melhorMomento` sobre `lead.horarios` + um `now`): os períodos do Google vêm em hora LOCAL do lugar, então o cálculo desloca `now` por `utcOffsetMinutes` em vez de depender do fuso da máquina — sem `utcOffsetMinutes` ou sem `faixas`, as duas funções devolvem `null` (nada é mostrado). `estadoAtual` monta "Aberto agora · fecha Xh" / "Fechado · abre Xh" (ficha e `LeadCard`); `melhorMomento` sugere **agora** se aberto (destaque verde no botão WhatsApp da ficha) ou a **próxima abertura + 1h** se fechado, com prefixo "hoje"/"amanhã"/dia da semana conforme a distância ("amanhã ~10h") — exibido na ficha e ao lado de cada item da fila em `/hoje`. Faixas que cruzam a meia-noite (madrugada) são representadas com o dia de fechamento podendo ser o seguinte; a implementação testa fusos diferentes, madrugada e fechamento num dia específico (domingo). **O destaque de "hora boa" no botão de WhatsApp não é mais dele**: passou para o nível da barra do dia quando o fuso do lead é conhecido (ver "Barra do dia por família") — `melhorMomento` só sabe dizer "está aberto", e ao lado de uma barra dizendo "agora: ruim" isso se contradizia.
 - O botão WhatsApp é montado **no cliente** a partir de dados já persistidos (`wa.me/<telefoneIntl sem símbolos>?text=<mensagem com os marcadores substituídos>`) — não há rota nem chamada externa. O telefone da **busca qualificada** já sustenta o botão sem enriquecer. A mensagem usada segue a precedência **frases da skin da demo → mensagem do grupo → mensagem global** (ver "Frases de prospecção por skin"): sem demo, ou sem nenhuma frase cadastrada naquela skin, o comportamento é exatamente o antigo — a do grupo (busca mais recente do lead que tiver `mensagemPadrao` própria) e, na falta, a global da config.
-- **Descarte suave** (`descartado: true` via PATCH): o lead não é deletado — vai pro fim da lista com marcação e pode ser restaurado. Reversível por design: apagar de verdade perderia o histórico de contato.
+- **Descarte suave** (`descartado: true` via PATCH): o lead não é deletado — vai pro fim da lista com marcação e pode ser restaurado. Reversível por design: apagar de verdade perderia o histórico de contato. A **única** exclusão real de lead no app é a da revisão "sem vestígio" (seção própria), e ela existe justamente porque lá não HÁ histórico de contato a perder — é o que o recorte daquela tela verifica antes de listar o lead, e o descarte suave continua sendo a ação padrão dela.
 - `/api/metrics`: "hoje" usa o dia corrente em UTC (mesma convenção do período de custos); "semana" é uma janela rolante dos últimos 7 dias (não semana de calendário). `taxaResposta` é `leads com respondeuEm ÷ leads com primeiroContatoEm`, `0` (não `NaN`) sem contatos.
 - `/api/hoje` é a única rota de leitura que **exige** sessão identificável (401 sem ela): o delta de "novos" depende do `ultimaVisitaEm` do usuário. A rota calcula a fila com o carimbo **anterior** e grava o novo ao responder — recarregar a página zera o delta por design ("novos desde a última visita" é literal).
 - `/api/cron` fica **fora da sessão** (exceção exata no proxy) e se protege sozinha com `Authorization: Bearer ${CRON_SECRET}` — exatamente o header que o Vercel Cron envia. Fail-closed: sem a env, 503 e nada roda. `/api/cron/status` é rota comum atrás da sessão.
@@ -3483,7 +3484,8 @@ piorava. Cada um virou um **bloco colapsável com cabeçalho próprio**, e a
 página passou a ser renderizada a partir de um **registro**, não de JSX
 escrito à mão painel a painel.
 
-Medido no laço: a página inteira cabe em **1299px com tudo fechado**;
+Medido no laço: a página inteira cabe em **1373px com tudo fechado**
+(eram 1299px antes de "Leads sem vestígio" entrar);
 abrir só "Fila de envio" já soma +660px no celular.
 
 ### Onde um painel NOVO nasce
@@ -3616,6 +3618,188 @@ desktop, escuro e claro. Os passos que já olhavam a página
 só passaram a DIZER qual painel estão olhando, com
 `definirPaineisAbertosNoDoc` — gêmeo de `definirTemaNoDoc`, inclusive na
 armadilha de `semear()` reescrever `usuarios/admin` inteiro.
+
+
+## Leads antigos sem vestígio de contato (`src/lib/leads/semVestigio.ts` + `exclusao.ts` + painel em /config)
+
+**O relato.** `seloContato` existe desde 2026-08-05 e `registrosEnvio` desde
+2026-08-10. Quem foi abordado **à mão** antes disso não deixou rastro nenhum:
+nem status, nem selo, nem registro. Esses leads são **irrecuperáveis por
+consulta** — não há como saber, olhando o doc, se alguém já falou com aquele
+negócio — e ficam para sempre no caminho do operador, como se fossem prospects
+frescos.
+
+**Por que não varrer por data.** A data de criação do lead NÃO é a data de
+contato. No mesmo conjunto antigo há leads que nunca foram abordados, e cada um
+custou uma chamada paga ao Google Places e pode ter demo e captura prontas.
+Apagar por data destruiria isso junto, sem volta. Daí a saída ser uma **tela de
+revisão**: o corte por data só REDUZ o conjunto ao que vale a pena olhar; quem
+decide é o operador, lead a lead, com as colunas na frente.
+
+### O recorte — e os dois vestígios que o pedido original não previa
+
+Entra na lista o lead que satisfaz **todas**:
+
+| cláusula | por quê |
+|---|---|
+| `status === "novo"` | o resto do funil já tem dono |
+| sem `seloContato`, sem `registrosEnvio`, sem `contato.primeiroContatoEm` | os três campos que `motivoEstrutural` lê em `contactadoForaDaFila` — **a mesma regra**, não uma segunda cópia dela |
+| **sem doc em `filaEnvios`** | ver abaixo |
+| `descartado !== true` | já está fora do caminho |
+| `leadDeTeste !== true` | de graça, via `listLeads`, que o exclui na origem |
+| `saoPauloDateKey(criadoEm) < corte` | fuso de **São Paulo**, não UTC — mesmo precedente de `agruparBuscas` |
+
+Quem tem vestígio **já é corretamente excluído da fila automática** pelo filtro
+do bloco anterior e está tratado. Listá-lo aqui faria o operador revisar — e
+possivelmente apagar — lead que já está resolvido.
+
+**DOC EM `filaEnvios` É VESTÍGIO, e essa foi a descoberta do bloco.** Todo doc
+daquela coleção nasce de uma RESERVA da fila (`reservadoEm` e `dispositivo` são
+obrigatórios). O envio confirmado carimba `seloContato` na MESMA transação —
+mas a claim que expira **sem** confirmação não carimba nada, e a retenção trata
+exatamente esse caso como *"provavelmente a mensagem saiu"*
+(`claimExpiradaSemConfirmacao`). Pelo recorte dos três campos do lead, esse lead
+entraria aqui como "sem vestígio nenhum" e poderia ser destruído — sendo
+justamente um que provavelmente recebeu mensagem. Lead que a fila já trabalhou
+tem vitrine própria (retidos, print pendente, `filaParado` na ficha) e não é
+assunto desta tela.
+
+### A coluna de compartilhamento: ter token NÃO é sinal de nada
+
+O pedido pressupunha uma subcoleção `leads/{leadId}/envios`. **Ela não existe**:
+os tokens moram no campo `demo.envios[]` do próprio doc do lead. E, mais
+importante, **a presença do token não prova compartilhamento**:
+`garantirEnviosCanais` gera um token de cada canal no `saveDemo` e faz self-heal
+na leitura da ficha (`garantirEnvioToken`), então **todo lead com demo tem
+token**. Uma coluna baseada nisso marcaria 100% dos leads com demo.
+
+O que de fato fica registrado é a **visita**: `registrarVisitaDemo` grava uma
+entrada por carregamento de `/demo/{leadId}` com `?t=` válido, e
+`interna: false` quer dizer que o navegador não tinha nem sessão nem marcador de
+dispositivo — não era preview do time. A coluna é `demoAbertaPorFora` e se chama
+**"aberta por fora"**, não "link compartilhado", porque é o que o banco sabe.
+
+O **falso-negativo é real e está escrito na tela**: "Copiar link" não grava nada,
+então um link copiado, colado numa conversa e nunca aberto é invisível aqui. Na
+prática o buscador de prévia do WhatsApp também abre a URL, então um link COLADO
+costuma acender a coluna mesmo sem o lead clicar — mas costumar não é garantir.
+
+### As duas ações
+
+- **Tirar da fila** (`POST .../descartar`) — a **padrão**, e a em destaque. Usa o
+  `descartado` que já existe: o lead continua na base inteiro, sai do pool da
+  fila automática e volta com "Restaurar lead" na ficha. Nada é destruído, então
+  não há confirmação a pedir.
+- **Excluir em definitivo** (`POST .../excluir`) — a única rota do app que
+  destrói doc de `/leads`. Confirmação explícita, com a contagem e a lista do que
+  vai junto, mais a palavra `EXCLUIR` digitada.
+
+**Dois CAMINHOS, e não um com `modo` no corpo.** Reversível e irreversível não
+são variantes do mesmo verbo: um endpoint único com `modo: "excluir"` é
+exatamente como um bug de cliente (ou um corpo remontado por engano) transforma
+um descarte em destruição. `POST` no excluir, e não `DELETE`, porque o corpo é
+uma lista de ids — `DELETE` com corpo é terreno em que proxy e cliente divergem
+demais para uma ação sem desfazer; `DELETE` continua sendo a forma de excluir UM
+recurso identificado pela URL (`/api/config/fila/retidos/{leadId}`).
+
+### O que a exclusão destrói — a mesma lista no código e na tela
+
+1. **`/demo/{leadId}` passa a dar 404.** Se o link já foi compartilhado, quem o
+   tiver vê página morta — daí a coluna "aberta por fora" existir.
+2. **As capturas e as imagens de demo saem do Storage junto**
+   (`demos/{leadId}/` e `capturas/{leadId}/`).
+3. **A penetração por nicho/cidade muda**, porque ela agrega o `temSite` salvo.
+4. **O doc em `filaEnvios` é removido junto** — senão fica lixo apontando para
+   lead inexistente, que as varreduras dos retidos e das pendências continuariam
+   lendo para sempre, com nome vazio.
+
+**Por que o Storage vai junto aqui, e não no "Excluir demo".** Aquelas rotas
+deixam órfão de propósito ("arquivo órfão custa centavos; demo meio-apagada
+confunde") — mas lá **o lead continua**, e a próxima geração sobrescreve o mesmo
+prefixo. Aqui o dono do arquivo deixa de existir: os dois prefixos viram bytes
+que nenhum caminho do app pode voltar a alcançar, pagos todo mês, para sempre.
+O que É copiado daquelas rotas é a ORDEM e a tolerância: a limpeza vem DEPOIS do
+doc apagado e **nunca derruba a operação** — falha vira log e o contador
+`storageFalhou` na resposta.
+
+**O cache de penetração NÃO é recalculado.** `/buscas/{id}.penetracao` já é, por
+desenho, "o agregado de quando aquela busca rodou por último"; recalcular na
+exclusão exigiria uma varredura de `/leads` por busca afetada e ainda deixaria as
+buscas irmãs defasadas do mesmo jeito. O número volta a ficar certo na próxima
+vez que a busca rodar. O que não podia era o operador não saber — e está na
+confirmação.
+
+### Tetos, e por que são recusa e não corte calado
+
+`SEM_VESTIGIO_MAX` (200) corta a LISTA, com `truncado` dizendo que cortou.
+`SEM_VESTIGIO_LOTE_MAX` (50) é o teto por chamada de ação, e a tela manda em
+levas sequenciais desse tamanho — um lote grande demais estoura o tempo da
+serverless **no meio da destruição**, o pior resultado possível; em levas, o que
+passou está gravado. Lote acima do teto é **400**, nunca um `slice` calado:
+responder "ok" tendo agido sobre parte da lista, na rota que destrói lead, é o
+pior tipo de resposta. Corte de data malformado é 400 pela mesma razão — cair no
+padrão em silêncio mostraria uma lista que não é a pedida, e é sobre ELA que o
+operador aperta "excluir".
+
+### O painel, e a quebra deliberada da convenção
+
+Painel autônomo (`posicao: "antes"`), na convenção de "Onde um painel NOVO
+nasce". Com uma diferença declarada: **ele NÃO busca ao montar.** A varredura lê
+`/leads` inteira MAIS `filaEnvios` inteira, e pagá-la a cada abertura da /config
+— com o painel fechado, que continua montado — seria custo de varredura por
+enfeite. É também o mais honesto: **não existe "a" lista até o operador escolher
+a data**. O resumo do cabeçalho continua saindo de estado que o painel já tem em
+mãos (nenhuma requisição por causa dele); só que começa vazio e diz isso
+("não procurado"), passando a "até 10/08/2026 · 5 leads" depois do "Procurar".
+
+Admin nos três verbos, **GET incluído**: a lista é a matéria-prima de uma ação
+destrutiva, e quem não pode apagar não precisa da lista de candidatos. 401 sem
+sessão, 403 para membro. Sob `/api/config/` e não `/api/fila/`, pelo motivo de
+sempre — aquele prefixo inteiro passa sem sessão de usuário.
+
+### Verificação visual (`--so=vestigio`) e as duas falhas que só a imagem mostrou
+
+`node scripts/qa-plataforma.mjs --so=vestigio` — lista cheia, o **diálogo da
+exclusão** e lista vazia, em celular e desktop, escuro e claro. Fixtures com
+datas **absolutas**, não `iso(n)`: o corte padrão do painel é fixo, e uma
+fixture relativa a "hoje" atravessaria esse dia com o tempo, fazendo o passo
+falhar sozinho. O passo cobra as cláusulas do recorte NA TELA (lead com selo,
+lead com doc em `filaEnvios` e lead descartado não podem aparecer) e que
+"aberta por fora" acenda **exatamente uma vez** — o lead com token dos dois
+canais e o com visita interna não podem acender. Filtro que passa no vitest e
+não chega à tela é filtro que o operador não tem.
+
+Duas falhas reais passaram por TODAS as asserções de conteúdo e só apareceram ao
+abrir as imagens. Cada uma virou portão:
+
+1. **O resumo do cabeçalho truncava em "an…".** O título era longo demais e
+   espremia a linha de resumo, que divide a mesma linha com ele. Resumo truncado
+   não diz o estado, e o operador volta a abrir tudo — a poluição que os painéis
+   colapsáveis vieram resolver. Título encurtado para "Leads sem vestígio", e
+   aferidor novo medindo `scrollWidth × clientWidth` do próprio nó.
+
+2. **No celular o diálogo da exclusão caía ABAIXO DA DOBRA** — o campo "digite
+   EXCLUIR" e os dois botões, inalcançáveis. Um diálogo destrutivo que não dá
+   para confirmar nem cancelar.
+
+   **A causa raiz não era o diálogo.** `.page-transition` — o invólucro de TODA
+   página do app — roda `radar-fade-in` com `animation-fill-mode: both`, e o
+   último quadro dela é `transform: translateY(0)`, que **fica aplicado depois
+   que a animação termina**. Transform em ancestral vira bloco de contenção, e
+   todo `position: fixed` descendente passa a se ancorar nele em vez de na
+   viewport: o `ConfirmModal` do app inteiro estava centralizado na PÁGINA, não
+   na tela. Os outros seis chamadores só não sofriam porque as mensagens deles
+   são curtas. Corrigido na raiz — **portal para o `<body>`** —, mais teto de
+   altura com rolagem. Portão novo: campo, "Confirmar" e "Cancelar" têm que ter
+   caixa DENTRO da viewport, medida.
+
+A confirmação é **lista, não parágrafo corrido**: são quatro consequências
+independentes, e em prosa elas viram um bloco que ninguém termina de ler —
+exatamente na tela em que ler é o ponto.
+
+Medido: o painel encolhe de 688px cheio para 232px vazio no celular (656→216 no
+desktop), e a /config com tudo fechado passou de 1299px para **1373px** — os
+74px do cabeçalho a mais.
 
 
 ## UI (implementada)
@@ -3980,7 +4164,7 @@ não por assunto.
 | laço | superfície | o que ele julga |
 |---|---|---|
 | `scripts/qa-visual.mjs` | **camada decorativa das DEMOS** (rota pública das skins do registro, via o harness `/interno/demo-qa`) | efeito × intensidade × tema, estilos de LED, modos de cor, animação por seção, **variante × modo de cor** (`--so=variante`), cor da barra do navegador, fps no celular com CPU 4× (`--so=fps`, com `--skin=` para escolher a skin e, quando ela tem variantes, variante no eixo das linhas) e o portão de foto colapsada (`--so=colapso`). **Não conhece `/leads` nem `/buscas`** — não há tela da plataforma nele |
-| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e os painéis da /config que ficam abaixo da dobra e por isso têm passos próprios — `--so=pendencias` (lista de print), `--so=fila` (a visão: funil, próximos, bloqueados) e `--so=respostas` (respostas pendentes, que além do estado vazio cobra a AÇÃO mudando com o aparelho: intent do Business no Android, copiar no desktop), todos cobrando os ESTADOS VAZIOS |
+| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e os painéis da /config que ficam abaixo da dobra e por isso têm passos próprios — `--so=pendencias` (lista de print), `--so=fila` (a visão: funil, próximos, bloqueados) e `--so=respostas` (respostas pendentes, que além do estado vazio cobra a AÇÃO mudando com o aparelho: intent do Business no Android, copiar no desktop) e `--so=vestigio` (leads antigos sem vestígio: lista cheia, o DIÁLOGO da exclusão definitiva e lista vazia), todos cobrando os ESTADOS VAZIOS |
 | `scripts/qa-cls.mjs` | **deslocamento de layout**, nas três | `--so=skins` (rota pública), `--so=editor` (o preview do editor) e `--so=app` (as 7 abas da plataforma). Portão 0.1, o mesmo piso "bom" do Core Web Vital real |
 
 Os outros são de recorte estreito e o nome já diz: `qa-aura.mjs`,
