@@ -1,6 +1,6 @@
 import type { NivelIA } from "@/lib/ai/nivel";
 import type { TemaApp } from "@/lib/tema";
-import type { PreferenciasListas } from "./preferencias";
+import type { PaineisConfigAbertos, PreferenciasListas } from "./preferencias";
 
 export const USUARIOS_COLLECTION = "usuarios";
 
@@ -113,6 +113,13 @@ export interface Usuario {
    * querystring da página. Ausente = PREFERENCIAS_LISTAS_PADRAO.
    */
   preferenciasListas?: PreferenciasListas;
+  /**
+   * Ids dos painéis ABERTOS da /config — self-service, gravado pelo próprio
+   * PUT /api/preferencias/paineis. Guarda os abertos porque a página nasce
+   * com TUDO fechado (um cabeçalho com resumo por painel); ausente ou vazio
+   * = nenhum aberto, que é o padrão. Ver "Painéis colapsáveis da /config".
+   */
+  paineisConfigAbertos?: PaineisConfigAbertos;
   /**
    * Tema da PLATAFORMA escolhido por ESTE usuário (ver lib/tema.ts) —
    * self-service, atualizado pelo próprio PUT /api/tema. É o que torna a

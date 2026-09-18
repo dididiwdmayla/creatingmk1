@@ -8,6 +8,7 @@ export {
   listUsuarios,
   salvarMetaFaixaMinimizada,
   salvarNivelIA,
+  salvarPaineisConfigAbertos,
   salvarPrecoBaseSlider,
   salvarPreferenciasListas,
   salvarTemaUsuario,
@@ -19,10 +20,15 @@ export {
 export {
   LISTAS,
   MAX_GRUPOS_FECHADOS,
+  MAX_PAINEIS_CONFIG_ABERTOS,
+  PAINEIS_CONFIG_ABERTOS_PADRAO,
   PREFERENCIAS_LISTAS_PADRAO,
   alternarGrupo,
+  alternarPainelConfig,
+  normalizaPaineisConfigAbertos,
   normalizaPreferenciasListas,
   type Lista,
+  type PaineisConfigAbertos,
   type PreferenciasListas,
 } from "./preferencias";
 export { hashSenha, verificarSenha } from "./senha";
