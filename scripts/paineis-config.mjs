@@ -23,6 +23,7 @@ export const PAINEIS_CONFIG = [
   { id: "fila-disparo-teste", titulo: "Disparo de teste", nivel: 3 },
   { id: "fila-print-pendente", titulo: "Print pendente", nivel: 3 },
   { id: "respostas-pendentes", titulo: "Respostas pendentes", nivel: 2 },
+  { id: "leads-sem-vestigio", titulo: "Leads antigos sem vestígio de contato", nivel: 2 },
   { id: "busca", titulo: "Busca", nivel: 2 },
   { id: "mensagem-padrao", titulo: "Mensagem padrão", nivel: 2 },
   { id: "operacao-diaria", titulo: "Operação diária", nivel: 2 },

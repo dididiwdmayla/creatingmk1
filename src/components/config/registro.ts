@@ -5,6 +5,7 @@ import { PAINEL_COTAS, CotasUsuariosSection } from "./paineis/CotasUsuarios";
 import { PAINEL_FILA, FilaEnvioSection } from "./paineis/FilaEnvio";
 import { PAINEL_FRASES, FrasesSection } from "./paineis/Frases";
 import { PAINEL_JANELAS, PainelJanelasContato } from "./paineis/JanelasContato";
+import { PAINEL_SEM_VESTIGIO, LeadsSemVestigioSection } from "./paineis/LeadsSemVestigio";
 import { PAINEL_MENSAGEM, PainelMensagemPadrao } from "./paineis/MensagemPadrao";
 import { PAINEL_METAS, MetasUsuariosSection } from "./paineis/MetasUsuarios";
 import { PAINEL_OPERACAO, PainelOperacaoDiaria } from "./paineis/OperacaoDiaria";
@@ -60,6 +61,7 @@ export const PAINEIS_CONFIG: PainelConfig[] = [
   { id: PAINEL_METAS, posicao: "antes", Componente: MetasUsuariosSection },
   { id: PAINEL_FILA, posicao: "antes", Componente: FilaEnvioSection },
   { id: PAINEL_RESPOSTAS, posicao: "antes", Componente: RespostasPendentesSection },
+  { id: PAINEL_SEM_VESTIGIO, posicao: "antes", Componente: LeadsSemVestigioSection },
   { id: PAINEL_BUSCA, posicao: "formulario", Componente: PainelBusca },
   { id: PAINEL_MENSAGEM, posicao: "formulario", Componente: PainelMensagemPadrao },
   { id: PAINEL_OPERACAO, posicao: "formulario", Componente: PainelOperacaoDiaria },
