@@ -108,3 +108,28 @@ export async function removerImagensDoLead(
 ): Promise<void> {
   await storage.deleteByPrefix(prefixoDoLead(leadId));
 }
+
+/**
+ * Prefixo das CAPTURAS do lead (prints de prospecção e imagem de prévia) —
+ * `capturas/{leadId}/`, a convenção que o motor grava em
+ * `scripts/capturas.mjs`. Fica aqui, ao lado do prefixo das imagens de
+ * demo, porque os dois são "o que existe no Storage por causa deste lead" e
+ * quem apaga um quase sempre apaga o outro.
+ */
+export function prefixoCapturasDoLead(leadId: string): string {
+  return `capturas/${leadId}/`;
+}
+
+/**
+ * Remove TODAS as capturas do lead. Diferente de `removerImagensDoLead`,
+ * que o "Excluir demo" usa com o lead de pé, este só é chamado quando o
+ * PRÓPRIO LEAD deixa de existir (ver `lib/leads/exclusao.ts`): enquanto o
+ * lead existe, a próxima geração sobrescreve o mesmo prefixo sozinha e não
+ * há nada a limpar.
+ */
+export async function removerCapturasDoLead(
+  storage: DemoStorage,
+  leadId: string,
+): Promise<void> {
+  await storage.deleteByPrefix(prefixoCapturasDoLead(leadId));
+}
