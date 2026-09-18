@@ -49,6 +49,8 @@
  *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil, próximos,
  *                                                 # bloqueados, RETIDOS (com e sem)
  *   node scripts/qa-plataforma.mjs --so=respostas # respostas pendentes em /config: cheia e VAZIA, celular e desktop
+ *   node scripts/qa-plataforma.mjs --so=vestigio  # leads antigos SEM VESTÍGIO em /config: lista cheia,
+ *                                                 # o diálogo da exclusão e a lista VAZIA
  *   node scripts/qa-plataforma.mjs --so=paineis   # PORTÃO dos blocos colapsáveis de /config: tudo fechado,
  *                                                 # um aberto e o estado PERSISTIDO entre recargas
  *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, repetições
@@ -876,6 +878,113 @@ function semear() {
   }
 
 
+  // ── LEADS ANTIGOS SEM VESTÍGIO (painel próprio em /config, --so=vestigio) ─
+  //
+  // O conjunto que motivou a tela: em "novo", criados ANTES do corte, e sem
+  // vestígio nenhum de contato (sem selo, sem registro, sem primeiro
+  // contato, sem doc em filaEnvios).
+  //
+  // Datas ABSOLUTAS, e não `iso(n)`: o corte padrão do painel é fixo
+  // (CORTE_PADRAO, 2026-08-10), então uma fixture relativa a "hoje"
+  // atravessaria esse dia com o tempo e o passo passaria a falhar sozinho,
+  // sem ninguém mexer em nada.
+  const emVestigio = (data, hora = "12:00") => `${data}T${hora}:00.000Z`;
+  const leadVestigio = (placeId, nome, criadoEm, extra = {}) => ({
+    placeId,
+    nome,
+    endereco: "Rua Antiga, 45 — Porto Alegre, RS",
+    status: "novo",
+    busca: { nicho: "dentista", regiao: "Porto Alegre RS", em: criadoEm },
+    temTelefone: true,
+    telefone: "(51) 95555-0000",
+    telefoneIntl: "5551955550000",
+    temSite: false,
+    siteProprio: false,
+    enriquecido: true,
+    criadoEm,
+    atualizadoEm: criadoEm,
+    ...extra,
+  });
+  const demoVestigio = (criadoEm) => ({
+    skinId: "barbearia-editorial",
+    themeId: "norte",
+    dados: {},
+    criadoEm,
+    atualizadoEm: criadoEm,
+    // Tokens dos DOIS canais, como `garantirEnviosCanais` grava em todo
+    // save — é justamente o que NÃO pode acender a coluna "aberta por fora".
+    envios: [
+      { token: "tok-link-qa", geradoEm: criadoEm, canal: "link" },
+      { token: "tok-wa-qa", geradoEm: criadoEm, canal: "whatsapp" },
+    ],
+  });
+  const vestigioLeads = [
+    // Cru: nada além do que a busca trouxe. O caso comum da lista.
+    leadVestigio("velho-1", "Consultório Santa Rita", emVestigio("2026-05-12")),
+    // NOME LONGO: é ele que prova que a linha TRUNCA no celular em vez de
+    // empurrar as etiquetas e a caixa de seleção para fora da tela.
+    leadVestigio(
+      "velho-2",
+      "Centro de Odontologia Estética e Implantodontia do Vale do Sol e Região Metropolitana",
+      emVestigio("2026-06-02"),
+      { demo: demoVestigio(emVestigio("2026-06-03")) },
+    ),
+    // Com demo E captura pronta, MAS com token e nenhuma visita: o lead que
+    // prova que ter token não acende "aberta por fora".
+    leadVestigio("velho-3", "Odonto Bela Vista", emVestigio("2026-06-19"), {
+      demo: demoVestigio(emVestigio("2026-06-20")),
+      capturas: capturaPronta,
+    }),
+    // ABERTA POR FORA: uma visita não-interna. É a linha que o operador tem
+    // que ver antes de apertar "excluir" — há link circulando.
+    leadVestigio("velho-4", "Clínica Odontológica Menino Deus", emVestigio("2026-07-08"), {
+      demo: demoVestigio(emVestigio("2026-07-09")),
+      capturas: capturaPronta,
+      demoVisitas: [
+        { id: "vis-qa-1", em: emVestigio("2026-07-15", "14:30"), interna: false, canal: "link" },
+      ],
+    }),
+    // Só visita INTERNA (preview do time): NÃO acende a coluna.
+    leadVestigio("velho-5", "Dental Cristal", emVestigio("2026-07-21"), {
+      demo: demoVestigio(emVestigio("2026-07-22")),
+      demoVisitas: [
+        { id: "vis-qa-2", em: emVestigio("2026-07-23", "10:00"), interna: true, canal: "link" },
+      ],
+    }),
+  ];
+  for (const lead of vestigioLeads) mapa[`leads/${lead.placeId}`] = lead;
+
+  // Os três que NÃO podem aparecer, um por cláusula do recorte — sem eles o
+  // passo mediria só o caminho feliz.
+  mapa["leads/velho-com-selo"] = leadVestigio(
+    "velho-com-selo",
+    "Sorriso Antigo (contactado à mão)",
+    emVestigio("2026-06-10"),
+    { seloContato: { userId: "admin", em: emVestigio("2026-06-11") } },
+  );
+  mapa["leads/velho-na-fila"] = leadVestigio(
+    "velho-na-fila",
+    "Odonto Reservado pela fila",
+    emVestigio("2026-06-12"),
+  );
+  mapa["filaEnvios/velho-na-fila"] = {
+    leadId: "velho-na-fila",
+    estado: "falhou",
+    claimId: "claim-qa-velho",
+    reservadoEm: emVestigio("2026-06-13"),
+    expiraEm: emVestigio("2026-06-13"),
+    dispositivo: "android",
+    tentativas: 3,
+    ultimoErro: "WhatsApp não abriu a conversa",
+    enviadoEm: null,
+  };
+  mapa["leads/velho-descartado"] = leadVestigio(
+    "velho-descartado",
+    "Implantes Já Descartados",
+    emVestigio("2026-06-14"),
+    { descartado: true },
+  );
+
   const conversa = [
     ["membro-1", "admin", "Fechei a Vale Verde hoje 🎉", 4],
     ["admin", "membro-1", "Boa! Manda o link da demo que eu reviso", 3],
@@ -1676,6 +1785,339 @@ async function medirPendencias(browser, secret) {
     throw new Error(`[pendencias] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
   }
   console.log("[pendencias] ok — lista cheia, resolvidas e VAZIA, sem vazamento nem caixa zerada.");
+  return gerados;
+}
+
+/* ── Item: leads antigos sem vestígio (`--so=vestigio`) ──────────────── */
+
+/**
+ * O painel "Leads antigos sem vestígio de contato" — a tela de revisão dos
+ * leads que ninguém sabe se já foram abordados (ver
+ * `lib/leads/semVestigio.ts`).
+ *
+ * Passo próprio, e não carona nas capturas de aba, pelos mesmos dois
+ * motivos do `--so=pendencias`: o painel fica muito abaixo da dobra de
+ * /config, e o ESTADO VAZIO não apareceria em captura nenhuma. Tem um
+ * terceiro só dele: o DIÁLOGO DE CONFIRMAÇÃO da exclusão, que é a única
+ * tela do app onde se destrói lead — o texto dela precisa caber e ser
+ * legível no celular, que é onde ele vai ser lido às onze da noite.
+ *
+ * O painel NÃO busca ao montar (é varredura de /leads inteira — ver o
+ * cabeçalho do componente), então cada carga aqui aperta "Procurar" de
+ * verdade. É o caminho do operador, e é o único que produz a lista.
+ *
+ * O tema CLARO entra pela mesma razão do `--so=pendencias`: é onde os
+ * tokens apagados (ink-muted nas etiquetas "sem demo", a borda do
+ * selecionado) têm menos contraste de sobra.
+ */
+const PAINEIS_VESTIGIO = ["leads-sem-vestigio"];
+
+/** Caixa do painel da revisão — altura e borda direita, em px. */
+const caixaDoPainelVestigio = (page) =>
+  page.evaluate(() => {
+    const secao = document.querySelector('[data-painel="leads-sem-vestigio"]');
+    if (!secao) return null;
+    const r = secao.getBoundingClientRect();
+    return { altura: Math.round(r.height), direita: Math.round(r.right) };
+  });
+
+/** Mesmas duas cobranças do painel da fila, no seletor deste painel. */
+async function conferirPainelVestigio(page, onde, largura, problemas) {
+  const caixa = await caixaDoPainelVestigio(page);
+  if (!caixa) {
+    problemas.push(`${onde}: painel da revisão não foi encontrado`);
+    return null;
+  }
+  if (caixa.direita > largura + 1) {
+    problemas.push(`${onde}: painel vaza da viewport (direita=${caixa.direita}, tela=${largura})`);
+  }
+  const zeradas = await page.evaluate(() => {
+    const secao = document.querySelector('[data-painel="leads-sem-vestigio"]');
+    if (!secao) return [];
+    return [...secao.querySelectorAll("*")]
+      .filter((el) => el.tagName !== "OPTION")
+      .filter((el) => !el.closest('[data-corpo="fechado"]'))
+      .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          altura: Math.round(r.height),
+          largura: Math.round(r.width),
+          texto: (el.textContent ?? "").trim().slice(0, 30),
+        };
+      })
+      .filter((s) => s.altura <= 0 || s.largura <= 0);
+  });
+  for (const s of zeradas) {
+    problemas.push(`${onde}: slot com caixa zerada ("${s.texto}") ${s.largura}×${s.altura}`);
+  }
+  return caixa;
+}
+
+/**
+ * O CABEÇALHO FECHADO TEM DE SER ÚTIL — a regra dos painéis colapsáveis,
+ * virada aferidor. O cabeçalho divide uma linha entre o título e a linha de
+ * resumo, e num título comprido o resumo é espremido até virar "an…": um
+ * resumo truncado não diz o estado, e o operador volta a abrir tudo para
+ * saber o que está acontecendo, que é a poluição que os painéis vieram
+ * resolver. Mede pelo próprio nó: `scrollWidth > clientWidth` é o truncar.
+ */
+async function conferirResumoLegivel(page, onde, problemas) {
+  const corte = await page.evaluate(() => {
+    const secao = document.querySelector('[data-painel="leads-sem-vestigio"]');
+    const resumo = secao?.querySelector("h2 button > span:nth-of-type(2)");
+    if (!resumo) return null;
+    return {
+      texto: (resumo.textContent ?? "").trim(),
+      scroll: Math.round(resumo.scrollWidth),
+      cliente: Math.round(resumo.clientWidth),
+    };
+  });
+  if (!corte) {
+    problemas.push(`${onde}: a linha de resumo do cabeçalho não foi encontrada`);
+    return;
+  }
+  if (corte.scroll > corte.cliente + 1) {
+    problemas.push(
+      `${onde}: resumo do cabeçalho truncado ("${corte.texto}": ${corte.scroll}px de texto em ${corte.cliente}px)`,
+    );
+  }
+}
+
+/**
+ * Some com os leads antigos do banco falso (um ARQUIVO — mesmo truque de
+ * `definirTemaNoDoc`) para capturar a LISTA VAZIA sem derrubar o servidor.
+ */
+let vestigioGuardados = null;
+function esvaziarSemVestigio() {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  vestigioGuardados = {};
+  for (const chave of Object.keys(mapa)) {
+    if (chave.startsWith("leads/velho-")) {
+      vestigioGuardados[chave] = mapa[chave];
+      delete mapa[chave];
+    }
+  }
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+function restaurarSemVestigio() {
+  if (!vestigioGuardados) return;
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  Object.assign(mapa, vestigioGuardados);
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+  vestigioGuardados = null;
+}
+
+async function medirSemVestigio(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", PAINEIS_VESTIGIO);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    const abrirPainel = async (onde) => {
+      await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `vestigio/${onde}`);
+      await page
+        .getByRole("heading", { name: "Leads sem vestígio" })
+        .scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+    };
+
+    // O painel não busca ao montar: quem produz a lista é o botão.
+    const procurar = async () => {
+      await page.getByRole("button", { name: "Procurar" }).click();
+      await page.waitForTimeout(800);
+    };
+
+    const capturarPainel = async (rotulo, arquivo) => {
+      const alvo = page.locator("section", {
+        has: page.getByRole("heading", { name: "Leads sem vestígio" }),
+      });
+      const png = path.join(SAIDA, `vestigio-${arquivo}-${sufixo}${marca}.png`);
+      // A nav é `fixed` no rodapé e pinta por cima da última faixa numa
+      // captura de ELEMENTO mais alto que a viewport — mesma razão (e mesmo
+      // remédio) do `--so=pendencias`.
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await alvo.first().screenshot({ path: png });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    // ── ANTES DE PROCURAR: o resumo do cabeçalho tem que DIZER que não
+    // procurou — é o preço de não buscar na montagem, e ele não pode
+    // parecer "lista vazia".
+    await abrirPainel(`inicial/${sufixo}`);
+    await conferirPainelVestigio(page, `inicial/${sufixo}`, viewport.width);
+    if ((await page.getByText(/não procurado/).count()) === 0) {
+      problemas.push(`inicial/${sufixo}: o cabeçalho não disse que ainda não procurou`);
+    }
+    await conferirResumoLegivel(page, `inicial/${sufixo}`, problemas);
+
+    // ── LISTA CHEIA: os cinco antigos, com nome longo e "aberta por fora".
+    await procurar();
+    const cheia = await conferirPainelVestigio(page, `cheia/${sufixo}`, viewport.width);
+    const linhas = await page.locator('[data-lista="sem-vestigio"] li').count();
+    if (linhas !== 5) {
+      problemas.push(`cheia/${sufixo}: esperava 5 linhas na revisão, achei ${linhas}`);
+    }
+    for (const [alvo, oque] of [
+      [/Consultório Santa Rita/, "o lead cru"],
+      [/Centro de Odontologia Estética/, "o nome longo"],
+      [/Clínica Odontológica Menino Deus/, "o lead com demo aberta por fora"],
+    ]) {
+      if ((await page.getByText(alvo).count()) === 0) {
+        problemas.push(`cheia/${sufixo}: ${oque} não apareceu`);
+      }
+    }
+    // As três cláusulas do recorte, cobradas na tela e não só no teste
+    // unitário: um filtro que passa no vitest e não chega à tela é um filtro
+    // que o operador não tem.
+    for (const [alvo, oque] of [
+      [/Sorriso Antigo/, "lead com seloContato"],
+      [/Odonto Reservado pela fila/, "lead com doc em filaEnvios"],
+      [/Implantes Já Descartados/, "lead já descartado"],
+    ]) {
+      if ((await page.getByText(alvo).count()) > 0) {
+        problemas.push(`cheia/${sufixo}: ${oque} apareceu na lista — o recorte furou`);
+      }
+    }
+    // "aberta por fora" acende UMA vez: só o lead com visita não-interna.
+    // Os outros têm token dos dois canais e (um deles) visita INTERNA — e é
+    // exatamente isso que não pode acender.
+    const abertas = await page.getByText("aberta por fora", { exact: true }).count();
+    if (abertas !== 1) {
+      problemas.push(
+        `cheia/${sufixo}: "aberta por fora" acendeu ${abertas}× (esperava 1 — token e visita interna não contam)`,
+      );
+    }
+    // O resumo do cabeçalho com a lista em mãos ("antes de … · 5 leads") —
+    // é ele que o operador lê com o painel fechado.
+    await conferirResumoLegivel(page, `cheia/${sufixo}`, problemas);
+    await capturarPainel("lista cheia (5 antigos, 1 aberta por fora)", "cheia");
+
+    // ── O DIÁLOGO DA EXCLUSÃO: seleção real, e o texto que promete o que o
+    // código faz. É a única tela do app onde se destrói lead.
+    await page.getByRole("button", { name: /marcar os 5/ }).click();
+    await page.waitForTimeout(200);
+    await page.getByRole("button", { name: /Excluir em definitivo/ }).click();
+    await page.waitForTimeout(400);
+    const dialogo = page.locator('[role="dialog"]');
+    if ((await dialogo.count()) === 0) {
+      problemas.push(`dialogo/${sufixo}: o modal de confirmação não abriu`);
+    } else {
+      // As quatro consequências, uma a uma. O diálogo não pode perder
+      // nenhuma: é a única coisa que o operador lê antes de destruir.
+      for (const [alvo, oque] of [
+        [/404/, "a rota pública virando 404"],
+        [/há link circulando/, "o aviso do link já compartilhado"],
+        [/Storage/, "as capturas e imagens saindo do Storage"],
+        [/penetração/i, "a penetração por nicho e cidade"],
+        [/filaEnvios/, "o doc de filaEnvios removido junto"],
+        [/5 leads em definitivo/, "a contagem no título"],
+      ]) {
+        if ((await dialogo.getByText(alvo).count()) === 0) {
+          problemas.push(`dialogo/${sufixo}: ${oque} não está escrito na confirmação`);
+        }
+      }
+      // O botão só libera com a palavra digitada — a trava, não o enfeite.
+      const confirmar = dialogo.getByRole("button", { name: "Excluir em definitivo" });
+      if (!(await confirmar.isDisabled())) {
+        problemas.push(`dialogo/${sufixo}: "Excluir" liberado ANTES de digitar a confirmação`);
+      }
+      const caixa = await dialogo.boundingBox();
+      if (caixa && caixa.x + caixa.width > viewport.width + 1) {
+        problemas.push(`dialogo/${sufixo}: o modal vaza da viewport`);
+      }
+      // O PORTÃO QUE PEGOU O BUG: a primeira versão deste diálogo passava em
+      // todas as asserções de TEXTO e mesmo assim era inutilizável no
+      // celular — a confirmação é longa, o modal não tinha teto de altura, e
+      // o campo "digite EXCLUIR" e os botões caíam ABAIXO da dobra. Um
+      // diálogo destrutivo que não dá para confirmar (nem cancelar) é pior
+      // que um diálogo feio, e nenhuma asserção de conteúdo o denunciaria.
+      for (const [alvo, oque] of [
+        [confirmar, "o botão de confirmar"],
+        [dialogo.getByRole("button", { name: "Cancelar" }), "o botão de cancelar"],
+        [dialogo.getByPlaceholder("EXCLUIR"), "o campo da palavra de confirmação"],
+      ]) {
+        const box = await alvo.boundingBox();
+        if (!box) {
+          problemas.push(`dialogo/${sufixo}: ${oque} não tem caixa (não está na tela)`);
+        } else if (box.y + box.height > viewport.height + 1 || box.y < -1) {
+          problemas.push(
+            `dialogo/${sufixo}: ${oque} está fora da viewport (y=${Math.round(box.y)}..${Math.round(box.y + box.height)}, tela=${viewport.height}) — inalcançável`,
+          );
+        }
+      }
+      const png = path.join(SAIDA, `vestigio-dialogo-${sufixo}${marca}.png`);
+      await page.screenshot({ path: png });
+      itens.push({ rotulo: `confirmação da exclusão · ${sufixo}`, png });
+      await dialogo.getByRole("button", { name: "Cancelar" }).click();
+      await page.waitForTimeout(300);
+    }
+
+    // ── LISTA VAZIA: o painel tem que ENCOLHER, sem caixa quebrada nem
+    // espaço morto — só a linha de estado no lugar da lista.
+    esvaziarSemVestigio();
+    await abrirPainel(`vazia/${sufixo}`);
+    await procurar();
+    const vazia = await conferirPainelVestigio(page, `vazia/${sufixo}`, viewport.width);
+    if ((await page.getByText(/Nenhum lead sem vestígio antes de/).count()) === 0) {
+      problemas.push(`vazia/${sufixo}: o estado vazio não disse nada`);
+    }
+    if ((await page.locator('[data-lista="sem-vestigio"] li').count()) > 0) {
+      problemas.push(`vazia/${sufixo}: sobrou linha de lista com a lista vazia`);
+    }
+    if (cheia && vazia) {
+      const encolheu = cheia.altura - vazia.altura;
+      console.log(
+        `  [vestigio] ${sufixo}: painel ${cheia.altura}px cheio → ${vazia.altura}px vazio (−${encolheu}px)`,
+      );
+      if (encolheu <= 0) {
+        problemas.push(
+          `vazia/${sufixo}: painel não encolheu sem leads (${cheia.altura} → ${vazia.altura})`,
+        );
+      }
+    }
+    await capturarPainel("lista vazia (nenhum lead no corte)", "vazia");
+
+    restaurarSemVestigio();
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(
+      folha,
+      "Leads antigos sem vestígio de contato (/config)",
+      "vestigio",
+      [
+        { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+        { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+        { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+        { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+      ],
+    ),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[vestigio] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log(
+    "[vestigio] ok — lista cheia, diálogo de confirmação e lista VAZIA, sem vazamento nem caixa zerada.",
+  );
   return gerados;
 }
 
@@ -3827,6 +4269,7 @@ async function main() {
     if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
     if (querido("respostas")) gerados.push(...(await medirRespostas(browser, secret)));
     if (querido("teste")) gerados.push(...(await medirDisparoTeste(browser, secret)));
+    if (querido("vestigio")) gerados.push(...(await medirSemVestigio(browser, secret)));
     if (querido("paineis")) gerados.push(...(await medirPaineisConfig(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
