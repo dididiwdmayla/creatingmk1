@@ -4,7 +4,7 @@ import type { AppDb } from "@/lib/firestore-like";
 import type { TemaApp } from "@/lib/tema";
 import { usageUsuariosCollection } from "@/lib/costs/userQuota";
 import { hashSenha } from "./senha";
-import type { PreferenciasListas } from "./preferencias";
+import type { PaineisConfigAbertos, PreferenciasListas } from "./preferencias";
 import {
   CAMPOS_LIMITE_USUARIO,
   CAMPOS_META_USUARIO,
@@ -216,6 +216,22 @@ export async function salvarPreferenciasListas(
   const usuario = await getUsuario(db, id);
   if (!usuario) return;
   await docRef(db, id).set(toDoc({ ...usuario, preferenciasListas: preferencias }));
+}
+
+/**
+ * Salva quais painéis da /config estão ABERTOS para este usuário
+ * (self-service, mesmo espírito de salvarPreferenciasListas: preferência
+ * de UI, não edição administrativa — não mexe em `atualizadoEm` nem em
+ * `sessao`, e portanto não derruba sessão nenhuma).
+ */
+export async function salvarPaineisConfigAbertos(
+  db: AppDb,
+  id: string,
+  paineis: PaineisConfigAbertos,
+): Promise<void> {
+  const usuario = await getUsuario(db, id);
+  if (!usuario) return;
+  await docRef(db, id).set(toDoc({ ...usuario, paineisConfigAbertos: paineis }));
 }
 
 /**

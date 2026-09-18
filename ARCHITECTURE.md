@@ -88,6 +88,7 @@ src/
       regioes/ajustar/route.ts      # ✅ PATCH indiceAjustado (admin; number seta, null limpa)
       precificacao/slider/route.ts  # ✅ GET/PUT última posição do slider da calculadora (self-service, por usuário)
       preferencias/listas/route.ts  # ✅ GET/PUT preferências das listas longas (/leads e /buscas): grupos dobrados por tela + modo compacto dos leads (self-service, por usuário)
+      preferencias/paineis/route.ts # ✅ GET/PUT ids dos painéis ABERTOS da /config (self-service, por usuário — ver "Painéis colapsáveis da /config")
       buscas/route.ts               # ✅ GET buscas salvas
       buscas/[id]/route.ts          # ✅ PATCH cor / mensagem do grupo
       frases/route.ts               # ✅ GET conjuntos de frases por nicho (qualquer sessão) / PUT um conjunto (admin)
@@ -474,6 +475,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
     "leadsCompacto": true,           //    lista de leads em modo linha (uma linha por lead)
     "gruposFechados": { "leads": ["<buscaId>"], "buscas": ["mes:2026-08", "<buscaId>"] }
   },
+  "paineisConfigAbertos": ["fila-envio"], // ✅ opcional: painéis ABERTOS da /config (self-service, ver "Painéis colapsáveis da /config"); ausente/vazio = todos fechados
   "criadoEm": "<ISO 8601>",
   "atualizadoEm": "<ISO 8601>"
 }
@@ -484,6 +486,7 @@ Tudo na árvore acima está implementado e testado (testes automatizados para tu
 - Hash de senha: PBKDF2 (Web Crypto, 100k iterações, salt aleatório) — sem dependência nova, roda em Node e Edge.
 - `limites`: cada campo é opcional e independente (ausente = sem limite naquela janela); editável só via `PATCH /api/usuarios/[id]` (admin) — nunca pelo próprio usuário, nenhum caminho client-side escreve nele. Não revoga sessão (não é credencial).
 - `preferenciasListas`: preferência de UI **self-service** (o próprio usuário grava, via `PUT /api/preferencias/listas`) — como `tema`, `ultimoNivelIA` e `metaFaixaMinimizada`, não mexe em `atualizadoEm` nem em `sessao`: compactar uma lista não é edição administrativa e não derruba sessão nenhuma. Ver "Compactação de /leads e /buscas".
+- `paineisConfigAbertos`: preferência de UI **self-service** (`PUT /api/preferencias/paineis`), mesmíssima semântica de `preferenciasListas` — não mexe em `atualizadoEm` nem em `sessao`. Guarda os painéis **abertos** (e não os fechados) porque na /config o padrão é o inverso do das listas: tudo nasce fechado. Ver "Painéis colapsáveis da /config".
 - `metas`: mesma semântica de edição de `limites` (só admin, `PATCH /api/usuarios/[id]`, não revoga sessão) mas indicador puro — nunca bloqueia uma busca. Ver "Metas de prospecção por integrante".
 
 ### `/config/app` — documento único de configuração

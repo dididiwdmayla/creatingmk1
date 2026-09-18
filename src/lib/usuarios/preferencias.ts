@@ -1,5 +1,9 @@
 /**
- * Preferências de LISTA por usuário (`/leads` e `/buscas`).
+ * Preferências de UI por usuário: a compactação das LISTAS longas
+ * (`/leads` e `/buscas`) e, no fim do arquivo, o aberto/fechado dos
+ * painéis da `/config`. Duas preferências sem nada em comum além do
+ * desenho — self-service, gravadas pelo próprio usuário, cada uma na sua
+ * rota — e é esse desenho que as mantém no mesmo módulo.
  *
  * Antes, o que dobrava um grupo vivia na querystring da página (`fechados=`
  * em /leads) — ou seja, era do NAVEGADOR e da NAVEGAÇÃO: recarregar a aba,
@@ -185,4 +189,56 @@ export function alternarBlocoAberto(
     ...preferencias,
     blocosAbertos: { ...preferencias.blocosAbertos, [bloco]: !preferencias.blocosAbertos[bloco] },
   };
+}
+
+/* ── Painéis da /config (aberto/fechado por usuário) ─────────────────── */
+
+/**
+ * Teto de ids guardados. A /config tem hoje 18 blocos colapsáveis; o teto
+ * folgado existe pela mesma razão de `MAX_GRUPOS_FECHADOS` — id que sobra
+ * de um painel renomeado não pode transformar o doc do usuário num
+ * acumulador. Ao passar do teto caem os ids mais ANTIGOS, e painel cujo id
+ * caiu volta a aparecer FECHADO, que é o padrão.
+ */
+export const MAX_PAINEIS_CONFIG_ABERTOS = 40;
+
+/**
+ * Ids dos painéis ABERTOS da /config, por usuário.
+ *
+ * Guarda os ABERTOS (e não os fechados, como `gruposFechados` das listas)
+ * porque o padrão aqui é o inverso do de lá: a /config nasce com TUDO
+ * fechado — um cabeçalho por painel, cada um com sua linha de resumo — e
+ * abrir é a exceção deliberada. Lista vazia é o estado de quem nunca mexeu,
+ * e é também o estado correto.
+ *
+ * Id desconhecido é tolerado (nada o lê), pelo mesmo motivo de uma chave de
+ * grupo de busca apagada: a tela ignora o que não reconhece em vez de o
+ * servidor precisar conhecer o registro de painéis da UI.
+ */
+export type PaineisConfigAbertos = string[];
+
+export const PAINEIS_CONFIG_ABERTOS_PADRAO: PaineisConfigAbertos = [];
+
+/**
+ * Normaliza o que veio do doc (ou do corpo de um PUT): descarta o que não
+ * é string não-vazia, deduplica preservando a ordem e corta os mais antigos
+ * no teto. Mesma ideia de `chavesValidas` — a normalização É a migração,
+ * sem código de migração à parte.
+ */
+export function normalizaPaineisConfigAbertos(valor: unknown): PaineisConfigAbertos {
+  if (!Array.isArray(valor)) return [];
+  const ids = valor.filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+  return [...new Set(ids)].slice(-MAX_PAINEIS_CONFIG_ABERTOS);
+}
+
+/** Abre/fecha um painel, devolvendo a lista nova (não muta a de entrada). */
+export function alternarPainelConfig(
+  abertos: PaineisConfigAbertos,
+  id: string,
+): PaineisConfigAbertos {
+  return abertos.includes(id)
+    ? abertos.filter((atual) => atual !== id)
+    : [...abertos, id].slice(-MAX_PAINEIS_CONFIG_ABERTOS);
 }
