@@ -49,6 +49,8 @@
  *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil, próximos,
  *                                                 # bloqueados, RETIDOS (com e sem)
  *   node scripts/qa-plataforma.mjs --so=respostas # respostas pendentes em /config: cheia e VAZIA, celular e desktop
+ *   node scripts/qa-plataforma.mjs --so=paineis   # PORTÃO dos blocos colapsáveis de /config: tudo fechado,
+ *                                                 # um aberto e o estado PERSISTIDO entre recargas
  *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, repetições
  *                                                 # (zerado/andamento/cancelado), barrado, confirmado,
  *                                                 # desligado, e os 5 estados da CAPTURA do lead fixo
@@ -65,6 +67,7 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
 
+import { PAINEIS_CONFIG, PAINEIS_CONFIG_TOPO } from "./paineis-config.mjs";
 import { lerPng } from "./png.mjs";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -911,6 +914,24 @@ function definirTemaNoDoc(userId, tema) {
 }
 
 /**
+ * Abre (ou fecha) painéis da /config NO DOC do usuário — o mesmo campo que
+ * o `PUT /api/preferencias/paineis` grava, e a mesma técnica de
+ * `definirTemaNoDoc`, pelo mesmo motivo: o estado que a página resolve no
+ * SERVIDOR não muda por cunhar cookie nenhum.
+ *
+ * É o que os passos que inspecionam um painel (`--so=pendencias`, `fila`,
+ * `respostas`, `teste`) chamam antes de navegar: a /config nasce com TUDO
+ * FECHADO, e um laço que mede a altura de um painel fechado mede zero. As
+ * asserções deles continuam iguais; o que mudou é que agora precisam DIZER
+ * qual painel estão olhando.
+ */
+function definirPaineisAbertosNoDoc(userId, ids) {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  mapa[`usuarios/${userId}`] = { ...mapa[`usuarios/${userId}`], paineisConfigAbertos: ids };
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+/**
  * Tira (e devolve) as pendências de print do banco falso, para capturar o
  * ESTADO VAZIO da lista sem derrubar o servidor — o banco é um ARQUIVO,
  * mesmo motivo de `definirTemaNoDoc` poder trocar o tema no meio da rodada.
@@ -1469,10 +1490,9 @@ async function medirListas(browser, secret) {
 /** Caixa do painel "Fila de envio" — altura e borda direita, em px. */
 const caixaDoPainelFila = (page) =>
   page.evaluate(() => {
-    const titulo = [...document.querySelectorAll("h2")].find(
-      (h) => h.textContent?.trim() === "Fila de envio",
-    );
-    const secao = titulo?.closest("section");
+    // Por `data-painel`, e não pelo texto do <h2>: o cabeçalho agora carrega
+    // também a linha de resumo do bloco fechado.
+    const secao = document.querySelector('[data-painel="fila-envio"]');
     if (!secao) return null;
     const r = secao.getBoundingClientRect();
     return { altura: Math.round(r.height), direita: Math.round(r.right) };
@@ -1495,10 +1515,9 @@ async function conferirPainelFila(page, onde, largura, problemas) {
     problemas.push(`${onde}: painel vaza da viewport (direita=${caixa.direita}, tela=${largura})`);
   }
   const zeradas = await page.evaluate(() => {
-    const titulo = [...document.querySelectorAll("h2")].find(
-      (h) => h.textContent?.trim() === "Fila de envio",
-    );
-    const secao = titulo?.closest("section");
+    // Por `data-painel`, e não pelo texto do <h2>: o cabeçalho agora carrega
+    // também a linha de resumo do bloco fechado.
+    const secao = document.querySelector('[data-painel="fila-envio"]');
     if (!secao) return [];
     return [...secao.querySelectorAll("*")]
       // `<option>` não tem caixa própria (quem desenha a lista é o SO), e o
@@ -1506,6 +1525,9 @@ async function conferirPainelFila(page, onde, largura, problemas) {
       // zerado" um seletor que funciona — o aferidor procura conteúdo
       // INVISÍVEL, não conteúdo fora do fluxo do documento.
       .filter((el) => el.tagName !== "OPTION")
+      // Pelo MESMO motivo: o corpo de um bloco colapsado está escondido
+      // porque alguém o fechou, não porque colapsou sozinho.
+      .filter((el) => !el.closest('[data-corpo="fechado"]'))
       .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
       .map((el) => {
         const r = el.getBoundingClientRect();
@@ -1522,6 +1544,14 @@ async function conferirPainelFila(page, onde, largura, problemas) {
   }
   return caixa;
 }
+
+/**
+ * A /config nasce com tudo FECHADO: sem abrir estes dois, a lista que o
+ * passo existe para medir não está na tela. Reaplicado a cada iteração
+ * porque `semear()` reescreve `usuarios/admin` inteiro — mesma armadilha
+ * (e mesmo remédio) do `definirTemaNoDoc`.
+ */
+const PAINEIS_PENDENCIAS = ["fila-envio", "fila-print-pendente"];
 
 async function medirPendencias(browser, secret) {
   const gerados = [];
@@ -1542,6 +1572,7 @@ async function medirPendencias(browser, secret) {
     [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
   ]) {
     definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", PAINEIS_PENDENCIAS);
     const ctx = await contextoLogado(browser, { viewport, secret, tema });
     const page = await ctx.newPage();
 
@@ -1684,6 +1715,9 @@ function editarBanco(fn) {
  * tokens apagados deste bloco têm menos contraste de sobra, e as capturas
  * de aba não o cobrem — o painel fica muito abaixo da dobra de /config.
  */
+/** Ver `PAINEIS_PENDENCIAS`: o painel e o bloco que este passo mede. */
+const PAINEIS_FILA = ["fila-envio", "fila-visao"];
+
 async function medirFila(browser, secret) {
   const gerados = [];
   const problemas = [];
@@ -1696,6 +1730,7 @@ async function medirFila(browser, secret) {
     [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
   ]) {
     definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", PAINEIS_FILA);
     const ctx = await contextoLogado(browser, { viewport, secret, tema });
     const page = await ctx.newPage();
 
@@ -1907,10 +1942,7 @@ async function medirFila(browser, secret) {
 /** Caixa do painel "Respostas pendentes" — altura e borda direita, em px. */
 const caixaDoPainelRespostas = (page) =>
   page.evaluate(() => {
-    const titulo = [...document.querySelectorAll("h2")].find(
-      (h) => h.textContent?.trim() === "Respostas pendentes",
-    );
-    const secao = titulo?.closest("section");
+    const secao = document.querySelector('[data-painel="respostas-pendentes"]');
     if (!secao) return null;
     const r = secao.getBoundingClientRect();
     return { altura: Math.round(r.height), direita: Math.round(r.right) };
@@ -1934,10 +1966,7 @@ async function conferirPainelRespostas(page, onde, largura, problemas) {
     problemas.push(`${onde}: painel vaza da viewport (direita=${caixa.direita}, tela=${largura})`);
   }
   const zeradas = await page.evaluate(() => {
-    const titulo = [...document.querySelectorAll("h2")].find(
-      (h) => h.textContent?.trim() === "Respostas pendentes",
-    );
-    const secao = titulo?.closest("section");
+    const secao = document.querySelector('[data-painel="respostas-pendentes"]');
     if (!secao) return [];
     return [...secao.querySelectorAll("*")]
       .filter((el) => el.tagName !== "OPTION" && el.tagName !== "TEXTAREA")
@@ -1962,10 +1991,7 @@ async function conferirPainelRespostas(page, onde, largura, problemas) {
   // vê. O aferidor: nada escondido, a menos que a caixa tenha batido no
   // teto (aí rolar é a resposta certa, e a captura não reprova).
   const cortadas = await page.evaluate(() => {
-    const titulo = [...document.querySelectorAll("h2")].find(
-      (h) => h.textContent?.trim() === "Respostas pendentes",
-    );
-    const secao = titulo?.closest("section");
+    const secao = document.querySelector('[data-painel="respostas-pendentes"]');
     if (!secao) return [];
     return [...secao.querySelectorAll("textarea")]
       .map((el) => ({
@@ -2040,6 +2066,9 @@ const UA_ANDROID =
  * sobra, e as capturas de aba não cobrem o painel — ele fica muito abaixo
  * da dobra de /config.
  */
+/** Ver `PAINEIS_PENDENCIAS`: o painel que este passo mede. */
+const PAINEIS_RESPOSTAS = ["respostas-pendentes"];
+
 async function medirRespostas(browser, secret) {
   const gerados = [];
   const problemas = [];
@@ -2053,6 +2082,7 @@ async function medirRespostas(browser, secret) {
   ]) {
     const ehAndroid = userAgent !== undefined;
     definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", PAINEIS_RESPOSTAS);
     const ctx = await contextoLogado(browser, { viewport, secret, tema, userAgent });
     const page = await ctx.newPage();
 
@@ -2291,6 +2321,9 @@ async function medirRespostas(browser, secret) {
  * gerando também conferem que "Disparar teste" fica DESABILITADO — a tarefa
  * não sai sem print pronto, e o operador não devia nem tentar.
  */
+/** Ver `PAINEIS_PENDENCIAS`: o painel e o bloco que este passo mede. */
+const PAINEIS_TESTE = ["fila-envio", "fila-disparo-teste"];
+
 async function medirDisparoTeste(browser, secret) {
   const gerados = [];
   const problemas = [];
@@ -2334,6 +2367,7 @@ async function medirDisparoTeste(browser, secret) {
     [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
   ]) {
     definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", PAINEIS_TESTE);
     const ctx = await contextoLogado(browser, { viewport, secret, tema });
     const page = await ctx.newPage();
 
@@ -2547,6 +2581,7 @@ async function medirDisparoTeste(browser, secret) {
     //    `esvaziarPendencias`/`repovoarPendencias`).
     semear();
     definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", PAINEIS_TESTE);
     await abrirPainel(`captura-pronta/${sufixo}`);
     await aguardarCaptura();
     await exigirTextos(`captura-pronta/${sufixo}`, [
@@ -2696,6 +2731,210 @@ async function medirDisparoTeste(browser, secret) {
   }
   console.log(
     "[teste] ok — pendente, repetições (zerado/andamento/cancelado), barrado, confirmado e desligado, sem vazamento nem caixa zerada.",
+  );
+  return gerados;
+}
+
+/* ── Item: os blocos colapsáveis de /config (`--so=paineis`) ─────────── */
+
+/**
+ * O PORTÃO dos painéis colapsáveis da /config.
+ *
+ * A página acumulou catorze painéis de origens diferentes e virou uma
+ * parede única de conteúdo. Cada um virou bloco que abre e fecha, e o
+ * ganho só existe se três coisas valerem ao mesmo tempo — nenhuma delas se
+ * julga por teste unitário:
+ *
+ * 1. **Tudo fechado por padrão**, e a página CABENDO: se sobrar corpo de
+ *    painel aberto, a parede continua lá.
+ * 2. **O cabeçalho fechado diz o ESTADO**, não só o título. É o ponto do
+ *    item: sem a linha de resumo o operador abre tudo para saber o que
+ *    está acontecendo, e a poluição só trocou de forma. O aferidor cobra
+ *    que os painéis com dado no banco falso mostrem algo ALÉM do título.
+ * 3. **O aberto/fechado sobrevive à recarga**, por usuário — é o que
+ *    separa esta preferência do estado de navegador que a querystring de
+ *    /leads era antes (ver "Compactação de /leads e /buscas").
+ *
+ * Celular e desktop, escuro e claro: o claro entra pela mesma razão do
+ * `--so=pendencias` — é onde os tokens apagados do cabeçalho (ink-muted no
+ * título, ink-secondary no resumo) têm menos contraste de sobra.
+ */
+
+/** Estado de cada bloco na tela: aberto? corpo visível? o que o cabeçalho diz? */
+const lerPaineis = (page) =>
+  page.evaluate(() => {
+    const visivel = (el) => {
+      const r = el.getBoundingClientRect();
+      return r.height > 0 && r.width > 0;
+    };
+    return [...document.querySelectorAll("[data-painel]")].map((secao) => {
+      const botao = secao.querySelector("button[aria-expanded]");
+      const corpo = botao?.getAttribute("aria-controls")
+        ? document.getElementById(botao.getAttribute("aria-controls"))
+        : null;
+      const titulo = botao?.querySelector("span")?.textContent?.trim() ?? "";
+      const cabecalho = botao?.textContent?.trim() ?? "";
+      return {
+        id: secao.dataset.painel,
+        aberto: botao?.getAttribute("aria-expanded") === "true",
+        corpoVisivel: Boolean(corpo && visivel(corpo)),
+        titulo,
+        // O resumo é o que o cabeçalho diz ALÉM do título (a seta ▸/▾ é
+        // `aria-hidden`, mas entra no textContent — some daqui).
+        resumo: cabecalho.replace(titulo, "").replace(/[▸▾]/g, "").trim(),
+      };
+    });
+  });
+
+async function medirPaineisConfig(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  // O estado que este passo mede é o PADRÃO: usuário que nunca mexeu.
+  definirPaineisAbertosNoDoc("admin", []);
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    const abrirConfig = async (onde) => {
+      await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `paineis/${onde}`);
+      await exigirTema(page, tema, `paineis/${onde}`);
+    };
+
+    const alturaDaPagina = () =>
+      page.evaluate(() => Math.round(document.body.getBoundingClientRect().height));
+
+    /* ── 1. TUDO FECHADO ──────────────────────────────────────────────── */
+    await abrirConfig("fechados");
+    const fechados = await lerPaineis(page);
+
+    // Todo painel do registro está na tela — um portão que não visita o
+    // painel novo passa sempre (a lista tem teste de contrato).
+    const naTela = new Set(fechados.map((p) => p.id));
+    for (const { id } of PAINEIS_CONFIG_TOPO) {
+      if (!naTela.has(id)) problemas.push(`fechados/${sufixo}: painel "${id}" não está na tela`);
+    }
+    for (const painel of fechados) {
+      if (painel.aberto || painel.corpoVisivel) {
+        problemas.push(
+          `fechados/${sufixo}: "${painel.id}" nasceu ABERTO (aria-expanded=${painel.aberto})`,
+        );
+      }
+      if (!painel.titulo) problemas.push(`fechados/${sufixo}: "${painel.id}" sem título no cabeçalho`);
+    }
+
+    // O ponto do item: cabeçalho fechado que diz o estado. O banco falso
+    // dá dado a estes quatro, então nenhum deles pode mostrar só o título.
+    for (const id of ["fila-envio", "respostas-pendentes", "usuarios", "busca"]) {
+      const painel = fechados.find((p) => p.id === id);
+      if (painel && !painel.resumo) {
+        problemas.push(`fechados/${sufixo}: "${id}" fechado mostra só o título, sem resumo`);
+      }
+    }
+
+    const alturaFechada = await alturaDaPagina();
+    const pngFechado = path.join(SAIDA, `paineis-fechados-${sufixo}${marca}.png`);
+    await page.screenshot({ path: pngFechado, fullPage: true });
+    gerados.push(pngFechado);
+    itens.push({ rotulo: `fechados · ${sufixo}`, png: pngFechado });
+
+    /* ── 2. UM ABERTO ─────────────────────────────────────────────────── */
+    await page
+      .locator('[data-painel="fila-envio"] button[aria-expanded]')
+      .first()
+      .click();
+    await assentar(page);
+    const abertoUm = await lerPaineis(page);
+    const fila = abertoUm.find((p) => p.id === "fila-envio");
+    if (!fila?.aberto || !fila.corpoVisivel) {
+      problemas.push(`aberto/${sufixo}: "fila-envio" não abriu ao clicar no cabeçalho`);
+    }
+    // Os quatro blocos da fila aparecem AO ABRIR o painel dela — cada um com
+    // cabeçalho e resumo próprios, e cada um ainda fechado. Um que sumisse na
+    // extração não apareceria como erro em captura nenhuma: a tela só ficaria
+    // um pouco mais curta.
+    for (const { id } of PAINEIS_CONFIG.filter((p) => p.nivel === 3)) {
+      const bloco = abertoUm.find((p) => p.id === id);
+      if (!bloco) problemas.push(`aberto/${sufixo}: bloco "${id}" não está dentro de "Fila de envio"`);
+      else if (bloco.corpoVisivel) problemas.push(`aberto/${sufixo}: "${id}" nasceu aberto`);
+      else if (!bloco.titulo) problemas.push(`aberto/${sufixo}: "${id}" sem título no cabeçalho`);
+    }
+    const outrosAbertos = abertoUm.filter((p) => p.id !== "fila-envio" && p.corpoVisivel);
+    if (outrosAbertos.length > 0) {
+      problemas.push(
+        `aberto/${sufixo}: abrir um painel abriu outros (${outrosAbertos.map((p) => p.id).join(", ")})`,
+      );
+    }
+
+    const alturaAberta = await alturaDaPagina();
+    if (alturaAberta <= alturaFechada) {
+      problemas.push(
+        `aberto/${sufixo}: a página não cresceu ao abrir (${alturaFechada} → ${alturaAberta})`,
+      );
+    } else {
+      console.log(
+        `  [paineis] ${sufixo}: ${alturaFechada}px com tudo fechado → ${alturaAberta}px com "Fila de envio" aberto (+${alturaAberta - alturaFechada}px)`,
+      );
+    }
+
+    const pngAberto = path.join(SAIDA, `paineis-um-aberto-${sufixo}${marca}.png`);
+    await page.screenshot({ path: pngAberto, fullPage: true });
+    gerados.push(pngAberto);
+    itens.push({ rotulo: `um aberto · ${sufixo}`, png: pngAberto });
+
+    /* ── 3. PERSISTIDO ENTRE RECARGAS ─────────────────────────────────── */
+    // Recarga de verdade, não `history.back()`: o que se prova aqui é que o
+    // PUT gravou no doc do usuário E que o servidor devolve o painel já
+    // aberto no PRIMEIRO desenho (é ele quem resolve, não o cliente).
+    await abrirConfig("recarga");
+    const depois = await lerPaineis(page);
+    const filaDepois = depois.find((p) => p.id === "fila-envio");
+    if (!filaDepois?.aberto || !filaDepois.corpoVisivel) {
+      problemas.push(`recarga/${sufixo}: "fila-envio" voltou fechado — a escolha não sobreviveu`);
+    }
+    const vazaram = depois.filter((p) => p.id !== "fila-envio" && p.corpoVisivel);
+    if (vazaram.length > 0) {
+      problemas.push(
+        `recarga/${sufixo}: painel que estava fechado voltou aberto (${vazaram.map((p) => p.id).join(", ")})`,
+      );
+    }
+
+    const pngRecarga = path.join(SAIDA, `paineis-recarga-${sufixo}${marca}.png`);
+    await page.screenshot({ path: pngRecarga, fullPage: true });
+    gerados.push(pngRecarga);
+    itens.push({ rotulo: `após recarga · ${sufixo}`, png: pngRecarga });
+
+    // Fecha de volta: o próximo tema começa do padrão, como o usuário novo.
+    definirPaineisAbertosNoDoc("admin", []);
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, "Painéis colapsáveis (/config)", "paineis", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[paineis] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log(
+    `  [paineis] ok — ${PAINEIS_CONFIG.length} blocos, todos fechados por padrão, resumo no cabeçalho e a escolha sobrevivendo à recarga.`,
   );
   return gerados;
 }
@@ -3588,6 +3827,7 @@ async function main() {
     if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
     if (querido("respostas")) gerados.push(...(await medirRespostas(browser, secret)));
     if (querido("teste")) gerados.push(...(await medirDisparoTeste(browser, secret)));
+    if (querido("paineis")) gerados.push(...(await medirPaineisConfig(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));

@@ -92,6 +92,7 @@ export function PainelColapsavel({
   titulo,
   resumo,
   nivel = 2,
+  tituloCls,
   acoes,
   dataBloco,
   children,
@@ -100,6 +101,14 @@ export function PainelColapsavel({
   titulo: string;
   resumo?: React.ReactNode;
   nivel?: 2 | 3;
+  /**
+   * Escapatória de ESTILO do título, e existe por um motivo só: "Resposta
+   * automática" já era um `<h3>` pintado com o peso de um painel (caixa
+   * alta, `ink-muted`) antes desta extração. Mover um bloco não é hora de
+   * repintá-lo — quem quiser uniformizar a tipografia dos blocos da fila
+   * faz isso como decisão própria, não de carona.
+   */
+  tituloCls?: string;
   acoes?: React.ReactNode;
   /** Gancho extra dos laços de QA que já existiam neste bloco. */
   dataBloco?: string;
@@ -109,10 +118,11 @@ export function PainelColapsavel({
   const corpoId = useId();
   const estaAberto = aberto(id);
 
-  const tituloCls =
-    nivel === 2
+  const cls =
+    tituloCls ??
+    (nivel === 2
       ? "text-xs font-semibold uppercase tracking-wide text-ink-muted"
-      : "text-xs font-medium text-ink-secondary";
+      : "text-xs font-medium text-ink-secondary");
 
   const cabecalho = (
     <div className="flex flex-wrap items-center gap-2">
@@ -123,7 +133,7 @@ export function PainelColapsavel({
         aria-controls={corpoId}
         className="flex min-w-0 flex-1 items-center gap-2 text-left"
       >
-        <span className={`shrink-0 ${tituloCls}`}>{titulo}</span>
+        <span className={`shrink-0 ${cls}`}>{titulo}</span>
         {resumo !== undefined && resumo !== null && resumo !== "" && (
           <span className="min-w-0 flex-1 truncate text-xs text-ink-secondary">{resumo}</span>
         )}
@@ -139,7 +149,15 @@ export function PainelColapsavel({
   // mesmo nó: as duas têm a mesma especificidade, e quem ganharia seria a
   // ordem do CSS gerado, não a ordem em que foram escritas.
   const corpo = (
-    <div id={corpoId} className={estaAberto ? undefined : "hidden"}>
+    // `data-corpo` é o gancho dos laços de captura: o aferidor de "slot com
+    // caixa zerada" existe para pegar conteúdo que SOME sem querer, e um
+    // corpo fechado é conteúdo escondido de propósito — sem esta marca, todo
+    // painel fechado viraria uma parede de falso positivo.
+    <div
+      id={corpoId}
+      data-corpo={estaAberto ? "aberto" : "fechado"}
+      className={estaAberto ? undefined : "hidden"}
+    >
       {children}
     </div>
   );

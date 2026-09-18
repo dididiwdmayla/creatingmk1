@@ -58,6 +58,7 @@ export function RespostaAutomaticaBloco({
       id={PAINEL_RESPOSTA_AUTOMATICA}
       titulo="Resposta automática"
       nivel={3}
+      tituloCls="text-xs font-semibold uppercase tracking-wide text-ink-muted"
       dataBloco="resposta-automatica"
       resumo={
         config.respostaAutomatica
