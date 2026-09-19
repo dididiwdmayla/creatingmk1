@@ -1,9 +1,9 @@
-import type { FilaConfig } from "@/lib/fila/config";
 import type { AppDb } from "@/lib/firestore-like";
 import { aplicarTransicao, toDoc as leadToDoc } from "@/lib/leads/repo";
 import { LEADS_COLLECTION, VALID_TRANSITIONS, type Lead } from "@/lib/leads/types";
 import { digitosTelefone } from "@/lib/wa";
 
+import type { FilaConfig } from "./config";
 import { adicionarMensagemAoGrupo } from "./respostasPendentes";
 
 /**
