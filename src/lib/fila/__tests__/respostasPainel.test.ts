@@ -71,6 +71,20 @@ function comDados() {
   return db;
 }
 
+describe("listarRespostasPendentes — rascunhos de TESTE (número de exceção) nunca aparecem", () => {
+  it("um rascunho com teste:true fica de fora, mesmo pendente — abrir o Business mandaria pro telefone real do lead de contexto", async () => {
+    const db = comDados();
+    db.seed(
+      "filaRespostas/r-teste",
+      resposta("r-teste", { leadId: "ChIJa", geradoEm: "2026-03-10T12:00:00.000Z", teste: true }),
+    );
+
+    const linhas = await listarRespostasPendentes(db, DESLIGADA, AGORA);
+
+    expect(linhas.map((l) => l.id)).toEqual(["r-2", "r-1"]);
+  });
+});
+
 describe("listarRespostasPendentes", () => {
   it("lista só as pendentes, da mais recente para a mais antiga", async () => {
     const linhas = await listarRespostasPendentes(comDados(), DESLIGADA, AGORA);

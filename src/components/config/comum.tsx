@@ -138,13 +138,16 @@ export function FilaNumeroInput({
 }
 
 /**
- * O número de destino do disparo de teste. Dígitos com DDI, vazio = disparo
- * desligado. Reverte o que não for dígito em vez de mandar ao servidor: a
- * validação de verdade está lá (`validateFilaConfigPatch`), mas o WhatsApp
- * do celular não resolve parêntese nem traço, e é melhor o campo dizer isso
- * na hora do que a mensagem falhar de madrugada.
+ * Um número de telefone da fila em dígitos com DDI — hoje usado por
+ * `numeroTeste` (destino do disparo de teste) e `numeroExcecao` (origem que
+ * dispara o rascunho de ensaio): o mesmo formato, os dois lados opostos da
+ * mesma fila. Vazio = desligado (disparo de teste, ou exceção nenhuma).
+ * Reverte o que não for dígito em vez de mandar ao servidor: a validação de
+ * verdade está lá (`validateFilaConfigPatch`), mas o WhatsApp do celular não
+ * resolve parêntese nem traço, e é melhor o campo dizer isso na hora do que
+ * a mensagem falhar de madrugada.
  */
-export function FilaNumeroTesteInput({
+export function FilaNumeroDigitosInput({
   valor,
   disabled,
   onSalvar,

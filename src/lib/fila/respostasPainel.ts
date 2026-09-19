@@ -79,7 +79,12 @@ export async function listarRespostasPendentes(
 
   const todas = snap.docs
     .map((d) => d.data() as unknown as FilaRespostaDoc)
-    .filter((doc) => doc.estado === "pendente")
+    // `!doc.teste` tira os rascunhos de ENSAIO do número de exceção: o
+    // `leadId` deles é só emprestado para dar contexto ao prompt (ver
+    // "Número de exceção" em ARCHITECTURE.md), e mostrá-los aqui deixaria o
+    // operador clicar "usar" achando que é uma resposta de verdade — abrindo
+    // o Business para o telefone REAL daquele lead, que nunca escreveu nada.
+    .filter((doc) => doc.estado === "pendente" && !doc.teste)
     .sort((a, b) => b.geradoEm.localeCompare(a.geradoEm) || a.id.localeCompare(b.id));
 
   if (todas.length === 0) return [];

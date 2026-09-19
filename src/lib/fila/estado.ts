@@ -510,6 +510,19 @@ export interface FilaRespostaDoc {
   rascunho: string;
   geradoEm: string;
   estado: RascunhoEstado;
+  /**
+   * Rascunho de ENSAIO gerado a partir do NÚMERO DE EXCEÇÃO (ver "Número de
+   * exceção" em ARCHITECTURE.md) — `leadId` é o `leadContextoExcecao`
+   * escolhido pelo operador, emprestado só para dar contexto ao prompt.
+   * Ausente/`false` nos rascunhos normais (todo o histórico anterior a este
+   * campo). SEMPRE `true` aqui nunca vira tarefa automática (mesmo com
+   * `respostaAutomatica` ligado — ver `salvarRascunho`), nunca conta como a
+   * "primeira resposta" do lead de contexto (`decidirAutomatica`) e nunca
+   * aparece no painel manual de aprovação (`listarRespostasPendentes`) —
+   * aquele lead não escreveu nada, e abrir o Business a partir dali mandaria
+   * o ensaio para um número real.
+   */
+  teste?: boolean;
 }
 
 /**

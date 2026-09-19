@@ -6,8 +6,8 @@ import { SkeletonRows } from "@/components/Skeleton";
 import { PainelColapsavel } from "@/components/config/PainelColapsavel";
 import {
   FilaNichosInput,
+  FilaNumeroDigitosInput,
   FilaNumeroInput,
-  FilaNumeroTesteInput,
   mensagemErroFila,
 } from "@/components/config/comum";
 import { DisparoTeste } from "@/components/config/paineis/DisparoTeste";
@@ -212,7 +212,7 @@ export function FilaEnvioSection() {
 
           <div className="flex items-center gap-2 text-xs text-ink-secondary">
             <span className="w-48 shrink-0">Número do teste</span>
-            <FilaNumeroTesteInput
+            <FilaNumeroDigitosInput
               valor={config.numeroTeste}
               disabled={ocupado === "numeroTeste"}
               onSalvar={(valor) => salvar({ numeroTeste: valor }, "numeroTeste")}
@@ -221,6 +221,33 @@ export function FilaEnvioSection() {
           <p className="text-xs text-ink-muted">
             Destino de TODO disparo de teste — nunca o telefone do lead. Dígitos com DDI; vazio
             desliga o disparo.
+          </p>
+
+          {/* ── Número de exceção — ver "Número de exceção" em ARCHITECTURE.md.
+              Fica junto do número do teste de propósito: os dois são a MESMA
+              fila de segurança, em direções opostas, e um interruptor ligado
+              longe do outro é o que fica esquecido ligado. */}
+          <div className="flex items-center gap-2 text-xs text-ink-secondary">
+            <span className="w-48 shrink-0">Número de exceção</span>
+            <FilaNumeroDigitosInput
+              valor={config.numeroExcecao}
+              disabled={ocupado === "numeroExcecao"}
+              onSalvar={(valor) => salvar({ numeroExcecao: valor }, "numeroExcecao")}
+            />
+          </div>
+          <div className="flex items-center gap-2 text-xs text-ink-secondary">
+            <span className="w-48 shrink-0">Lead de contexto (exceção)</span>
+            <LeadContextoExcecaoInput
+              valor={config.leadContextoExcecao}
+              disabled={ocupado === "leadContextoExcecao"}
+              onSalvar={(valor) => salvar({ leadContextoExcecao: valor }, "leadContextoExcecao")}
+            />
+          </div>
+          <p className="text-xs text-ink-muted">
+            Mensagem vinda deste número gera rascunho de TESTE usando o lead de contexto acima —
+            nunca vira tarefa de envio, mesmo com resposta automática ligada, e não toca no
+            histórico nem no status daquele lead. Não pode ser igual ao número do teste (direções
+            opostas: um é destino do disparo, o outro é origem da resposta). Vazio = sem exceção.
           </p>
         </div>
       )}
@@ -239,5 +266,47 @@ export function FilaEnvioSection() {
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </PainelColapsavel>
+  );
+}
+
+/**
+ * O leadId de contexto do número de exceção — texto livre (placeId do
+ * Google, ou `radar-lead-teste`), sem validação de formato aqui: quem
+ * confere se o lead existe é o flush, na hora de gerar o rascunho (lead
+ * sumido = mensagem perdida, mesmo tratamento de "lead sumiu" do resto da
+ * fila). Mesmo padrão de commit-no-blur de `FilaNumeroDigitosInput`, e mora
+ * SÓ neste arquivo (não em `comum.tsx`) porque só este painel usa.
+ */
+function LeadContextoExcecaoInput({
+  valor,
+  disabled,
+  onSalvar,
+}: {
+  valor: string;
+  disabled: boolean;
+  onSalvar: (valor: string) => void;
+}) {
+  const [texto, setTexto] = useState(valor);
+  const [ultimoValor, setUltimoValor] = useState(valor);
+  if (valor !== ultimoValor) {
+    setUltimoValor(valor);
+    setTexto(valor);
+  }
+
+  function commit() {
+    const limpo = texto.trim();
+    if (limpo !== valor) onSalvar(limpo);
+    else setTexto(valor);
+  }
+
+  return (
+    <input
+      value={texto}
+      placeholder="placeId do lead"
+      disabled={disabled}
+      onChange={(event) => setTexto(event.target.value)}
+      onBlur={commit}
+      className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+    />
   );
 }
