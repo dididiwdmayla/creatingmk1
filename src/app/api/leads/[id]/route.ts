@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { motivoEstrutural } from "@/lib/fila/candidatos";
 import { lerEnvioDoLead } from "@/lib/fila/envios";
+import { motivoEhFisico } from "@/lib/fila/estado";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, readJsonBody } from "@/lib/http";
 import {
@@ -38,7 +40,20 @@ export async function GET(_req: Request, { params }: Params) {
     // ficha o lead PARADO por tentativas esgotadas, que de outro modo só
     // sumiria da fila sem ninguém saber por quê (ver lib/fila/confirmar.ts).
     const filaEnvio = await lerEnvioDoLead(db, id);
-    return NextResponse.json({ lead, ...(filaEnvio && { filaEnvio }) });
+    // A PENDÊNCIA da seleção manual: o lead foi escolhido à mão mas falta a
+    // peça que o envio exige (demo, print, telefone, fuso). Calculada aqui,
+    // sobre o lead que esta rota já tem em mãos (ZERO leitura a mais), e não
+    // no cliente: a regra é `motivoEstrutural`, e uma segunda cópia dela no
+    // navegador divergiria da que de fato decide quem entra na fila. Só sai
+    // quando é manual E o motivo é ausência de peça — decisão (descarte,
+    // status, número sem WhatsApp) já tem vitrine própria na ficha.
+    const motivo = lead.filaManual === true ? motivoEstrutural(lead) : undefined;
+    const filaPendencia = motivoEhFisico(motivo) ? motivo : undefined;
+    return NextResponse.json({
+      lead,
+      ...(filaEnvio && { filaEnvio }),
+      ...(filaPendencia && { filaPendencia }),
+    });
   } catch (error) {
     return handleRouteError(error);
   }
@@ -56,17 +71,19 @@ export async function PATCH(req: Request, { params }: Params) {
     const body = await readJsonBody(req);
     const problemas: string[] = [];
 
-    const { status, notas, favorito, descartado, telefoneInvalido, vendidoPor } = body;
+    const { status, notas, favorito, descartado, telefoneInvalido, filaManual, vendidoPor } = body;
     if (
       status === undefined &&
       notas === undefined &&
       favorito === undefined &&
       descartado === undefined &&
       telefoneInvalido === undefined &&
+      filaManual === undefined &&
       vendidoPor === undefined
     ) {
       problemas.push(
-        "informe ao menos um de: status, notas, favorito, descartado, telefoneInvalido, vendidoPor",
+        "informe ao menos um de: status, notas, favorito, descartado, telefoneInvalido, " +
+          "filaManual, vendidoPor",
       );
     }
     if (
@@ -89,6 +106,9 @@ export async function PATCH(req: Request, { params }: Params) {
     if (telefoneInvalido !== undefined && typeof telefoneInvalido !== "boolean") {
       problemas.push("telefoneInvalido deve ser booleano");
     }
+    if (filaManual !== undefined && typeof filaManual !== "boolean") {
+      problemas.push("filaManual deve ser booleano");
+    }
     if (vendidoPor !== undefined && (typeof vendidoPor !== "string" || !vendidoPor.trim())) {
       problemas.push("vendidoPor deve ser string não vazia");
     }
@@ -108,13 +128,19 @@ export async function PATCH(req: Request, { params }: Params) {
       notas !== undefined ||
       favorito !== undefined ||
       descartado !== undefined ||
-      telefoneInvalido !== undefined
+      telefoneInvalido !== undefined ||
+      filaManual !== undefined
     ) {
       lead = await updateLeadExtras(db, id, {
         notas: notas as string | undefined,
         favorito: favorito as boolean | undefined,
         descartado: descartado as boolean | undefined,
         telefoneInvalido: telefoneInvalido as boolean | undefined,
+        // "Adicionar à fila" da ficha — qualquer sessão, como `descartado` e
+        // `telefoneInvalido` ao lado. É dado do LEAD, não comando sobre o
+        // aparelho: o que é restrito ao admin é a fila (o painel, o balão e
+        // as rotas dela). Ver "Seleção manual" em ARCHITECTURE.md.
+        filaManual: filaManual as boolean | undefined,
       });
     }
     if (vendidoPor !== undefined) {

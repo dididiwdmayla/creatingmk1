@@ -4,11 +4,11 @@ import { MIN_DIA, minutoDaSemanaLocal } from "@/lib/leads/horarios";
 import type { JanelasContatoConfig, NivelContato } from "@/lib/leads/janelaContato";
 import { getLead } from "@/lib/leads/repo";
 
-import { motivoEstrutural, type CandidatoFila } from "./candidatos";
+import { motivoEstrutural, type CandidatoFila, type PendenteManual } from "./candidatos";
 import type { FilaConfig } from "./config";
 import type { FilaContadorSnapshot } from "./contadores";
 import { diaOperacionalKey, proximaViradaDiaOperacional } from "./contadores";
-import type { ContadorPainel, LinhaFilaPainel } from "./estado";
+import { motivoEhFisico, type ContadorPainel, type LinhaFilaPainel, type LinhaPendenteManual } from "./estado";
 import { leadSinteticoDoCandidato } from "./selecao";
 
 /**
@@ -93,6 +93,11 @@ export async function linhasDoPainel(
         nicho: lead.busca?.nicho ?? candidato.nicho,
         nivel: nivel ?? null,
         horaLocal: horaLocalDoCandidato(candidato, opcoes.now),
+        // Vem do CANDIDATO (o pool), não da seleção: `ordenarCandidatos` já
+        // usou o mesmo booleano para pôr este lead onde ele está, e ler dos
+        // dois lados a mesma entrada é o que garante que o selo da tela e a
+        // ordem da fila não podem discordar.
+        manual: candidato.manual === true,
         proximaFaixa: proxima
           ? { rotuloDia: proxima.rotuloDia, hora: horaDoMinuto(proxima.inicioMin) }
           : null,
@@ -101,6 +106,45 @@ export async function linhasDoPainel(
   );
 
   return linhas.filter((linha): linha is LinhaFilaPainel => linha !== undefined);
+}
+
+/**
+ * As linhas dos PENDENTES — leads marcados à mão a que falta a peça que o
+ * envio exige (demo, print, telefone, fuso). Mesma regra de custo e de
+ * honestidade das linhas acima: nome por leitura POR ID, e a pendência
+ * RECONFERIDA contra o doc fresco.
+ *
+ * A reconferência é o que faz o lead sumir da lista no instante em que
+ * alguém gera a demo dele, em vez de ficar listado como pendente até o pool
+ * reconstruir. E ela pode TROCAR o motivo (o pool viu "sem demo", o doc
+ * fresco já tem demo e agora falta o print): quem manda é o doc, nunca o
+ * retrato.
+ *
+ * Some da lista quem deixou de ser manual, quem foi descartado, e quem não
+ * é mais pendência nenhuma — nos três casos o lead não pertence mais aqui.
+ */
+export async function linhasPendentesManuais(
+  db: AppDb,
+  pendentes: PendenteManual[],
+): Promise<LinhaPendenteManual[]> {
+  const linhas = await Promise.all(
+    pendentes.map(async ({ id }): Promise<LinhaPendenteManual | undefined> => {
+      const lead = await getLead(db, id);
+      if (!lead || lead.filaManual !== true) return undefined;
+      const motivo = motivoEstrutural(lead);
+      // Não é mais ausência de peça: ou virou candidato de verdade (motivo
+      // nenhum), ou parou numa DECISÃO (descarte, status, número sem
+      // WhatsApp) — e decisão não é pendência.
+      if (!motivoEhFisico(motivo)) return undefined;
+      return {
+        leadId: id,
+        nome: lead.nome,
+        nicho: lead.busca?.nicho ?? "",
+        motivo,
+      };
+    }),
+  );
+  return linhas.filter((linha): linha is LinhaPendenteManual => linha !== undefined);
 }
 
 /**

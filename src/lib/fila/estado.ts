@@ -175,6 +175,90 @@ export function retencaoMsDeHoras(horas: number): number {
 }
 
 /**
+ * A CLAIM ESTÁ VIVA: o aparelho pegou este lead e o prazo ainda não venceu —
+ * ele pode estar com o WhatsApp aberto NESTE segundo.
+ *
+ * Existe como função e não inline porque DUAS ações do painel a consultam
+ * para a mesma decisão — liberar um retido (`liberarRetido`) e remover um
+ * lead da fila pelo balão —, e as duas recusam pelo mesmo motivo: nenhuma
+ * delas cancela um envio em andamento, e mexer num lead reservado produziria
+ * exatamente a mensagem duplicada que a fila inteira existe para evitar.
+ * Duas cópias da comparação divergiriam em silêncio na primeira mudança.
+ *
+ * `undefined` (lead que nunca foi reservado) é claim nenhuma, nunca viva.
+ */
+export function claimAtiva(doc: FilaEnvioDoc | undefined | null, now: Date): boolean {
+  if (doc?.estado !== "reservado") return false;
+  const expiraEm = new Date(doc.expiraEm).getTime();
+  return Number.isFinite(expiraEm) && expiraEm > now.getTime();
+}
+
+/* ── SELEÇÃO MANUAL (`Lead.filaManual`) ────────────────────────────────
+ *
+ * O operador escolhe um lead na ficha e ele FURA os filtros de POLÍTICA
+ * (nicho permitido e a ordem natural). Não fura os FÍSICOS: demo, captura
+ * pronta, telefone, fuso. Esses não são regra, são a ausência da coisa que
+ * seria enviada — sem captura não existe `printUrl` e o ciclo quebra no
+ * aparelho.
+ */
+
+/**
+ * As peneiras estruturais que são AUSÊNCIA DE PEÇA — o subconjunto de
+ * `MotivoEstrutural` (`lib/fila/candidatos.ts`) que deixa um lead manual
+ * PENDENTE em vez de invisível: alguém gera a demo, roda a captura ou
+ * conserta o telefone, e ele entra sozinho.
+ *
+ * Mora aqui, e não junto de `MOTIVOS_ESTRUTURAIS`, pelo mesmo motivo de
+ * todo o resto deste módulo: quem desenha a lista de pendentes é componente
+ * client, e `candidatos.ts` arrasta `node:crypto` por `envios.ts`. Um teste
+ * trava que este conjunto é subconjunto daquele — duas listas que
+ * divergissem fariam um lead pendente sumir sem aviso.
+ *
+ * As demais peneiras (`status`, `contactadoForaDaFila`, `descartado`,
+ * `telefoneInvalido`) ficam de FORA de propósito: ali não falta peça, houve
+ * decisão — e `descartado` é a própria ação de remover da fila.
+ */
+export const MOTIVOS_FISICOS = ["semTelefone", "semDemo", "capturaNaoPronta", "semFuso"] as const;
+
+export type MotivoFisico = (typeof MOTIVOS_FISICOS)[number];
+
+/** `motivo` é uma ausência de peça (e não uma decisão)? */
+export function motivoEhFisico(motivo: string | undefined): motivo is MotivoFisico {
+  return (MOTIVOS_FISICOS as readonly string[]).includes(motivo ?? "");
+}
+
+/**
+ * O que cada pendência DIZ para quem lê — o motivo visível da linha. Fica
+ * junto da lista pelo mesmo motivo de a lista estar aqui: a ficha do lead e
+ * o balão da fila mostram a mesma pendência, e dois textos para o mesmo
+ * estado seriam duas explicações para o mesmo fato.
+ */
+export const MOTIVO_FISICO_LABEL: Record<MotivoFisico, string> = {
+  semTelefone: "sem telefone",
+  semDemo: "sem demo",
+  capturaNaoPronta: "print da demo não pronto",
+  semFuso: "sem fuso conhecido",
+};
+
+/**
+ * Uma linha da lista de PENDENTES — lead marcado à mão que ainda não tem a
+ * peça que o envio exige. Mora aqui pelo mesmo motivo de `LinhaFilaPainel`.
+ *
+ * Não tem nível de janela nem hora local de propósito: esse lead não está na
+ * fila de entrega, e prometer "entra às 14h" seria mentira enquanto faltar a
+ * peça.
+ */
+export interface LinhaPendenteManual {
+  leadId: string;
+  /** Nome do lead, ou "" se o doc sumiu entre o pool e esta leitura. */
+  nome: string;
+  /** Nicho CRU da busca que trouxe o lead. */
+  nicho: string;
+  /** A peça que falta — reconferida contra o doc FRESCO, não a do pool. */
+  motivo: MotivoFisico;
+}
+
+/**
  * Uma linha da lista "Retidos por envio recente não confirmado" do painel
  * "Fila de envio" (/config). Mora aqui, e não em `retidos.ts`, pelo mesmo
  * motivo de `PendenciaEnvio`: quem desenha a lista é componente client e o
@@ -231,6 +315,13 @@ export interface LinhaFilaPainel {
   nivel: NivelContato | null;
   /** Hora local DO LEAD agora ("14h30"), calculada do deslocamento dele. */
   horaLocal: string;
+  /**
+   * Entrou por SELEÇÃO MANUAL (`Lead.filaManual`) — furou o nicho e vem
+   * antes do FIFO dentro do mesmo nível de janela. Sempre presente (nunca
+   * opcional): a linha precisa poder dizer por que aquele lead está na
+   * frente de quem chegou antes.
+   */
+  manual: boolean;
   /**
    * Só nos bloqueados: a próxima faixa ACEITA — que com
    * `exigirJanelaBoa === false` vem antes do "próximo bom" (ver

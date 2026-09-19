@@ -319,6 +319,7 @@ describe("GET /api/fila/diagnostico — as listas da tela", () => {
         nicho: "Barbearia Masculina",
         nivel: "bom",
         horaLocal: "10h",
+        manual: false,
         proximaFaixa: null,
       },
     ]);
@@ -355,6 +356,7 @@ describe("GET /api/fila/diagnostico — as listas da tela", () => {
         nicho: "Barbearia Masculina",
         nivel: null,
         horaLocal: "0h",
+        manual: false,
         proximaFaixa: { rotuloDia: "hoje", hora: "9h" },
       },
     ]);

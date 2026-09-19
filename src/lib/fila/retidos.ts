@@ -9,7 +9,7 @@ import {
   retidoPorEnvio,
   type FilaEnvioDoc,
 } from "./envios";
-import type { LinhaRetido } from "./estado";
+import { claimAtiva, type LinhaRetido } from "./estado";
 
 /**
  * OS LEADS RETIDOS — a vitrine da retenção por claim não confirmada.
@@ -160,8 +160,14 @@ export async function liberarRetido(
     const ref = envioRef(db, leadId);
     const atual = (await tx.get(ref)).data() as unknown as FilaEnvioDoc | undefined;
 
-    if (atual?.estado === "reservado" && new Date(atual.expiraEm).getTime() > now.getTime()) {
-      return { ok: false as const, motivo: "claim_ativa" as const, expiraEm: atual.expiraEm };
+    // Mesma pergunta, mesma função que o balão faz antes de remover um lead
+    // da fila: nenhuma das duas ações cancela envio em andamento.
+    if (claimAtiva(atual, now)) {
+      return {
+        ok: false as const,
+        motivo: "claim_ativa" as const,
+        expiraEm: (atual as FilaEnvioDoc).expiraEm,
+      };
     }
     if (!atual || !retidoPorEnvio(atual, now, retencaoMs)) {
       throw new NotFoundError(`Lead "${leadId}" não está retido por envio não confirmado.`);

@@ -557,6 +557,85 @@ describe("GET /api/fila/proximo — o contrato achatado", () => {
   });
 });
 
+describe("GET /api/fila/proximo — a SELEÇÃO MANUAL (`filaManual`)", () => {
+  it("entrega o manual primeiro, ainda que ele seja o mais NOVO da base", async () => {
+    semear(
+      lead("ChIJvelho", { criadoEm: "2020-01-01T00:00:00.000Z" }),
+      lead("ChIJmanual", { criadoEm: "2026-03-09T00:00:00.000Z", filaManual: true }),
+    );
+
+    expect((await (await proximo()).json()).leadId).toBe("ChIJmanual");
+  });
+
+  it("entrega o manual mesmo com o nicho dele FORA de nichosPermitidos", async () => {
+    db.seed("config/fila", { nichosPermitidos: ["tatuagem"] });
+    semear(lead("ChIJmanual", { filaManual: true }));
+
+    expect((await (await proximo()).json())).toMatchObject({
+      temTarefa: true,
+      leadId: "ChIJmanual",
+    });
+  });
+
+  it("manual SEM DEMO nunca é entregue — e o motivo é sem_leads_elegiveis", async () => {
+    semear(lead("ChIJpendente", { filaManual: true, demo: undefined }));
+
+    const corpo = await (await proximo()).json();
+
+    expect(corpo).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
+    // Nem claim chegou a ser aberta: ele não é candidato.
+    expect(db.getDoc("filaEnvios/ChIJpendente")).toBeUndefined();
+    // Mas ele aparece como PENDENTE no pool, para o balão poder mostrá-lo.
+    expect(db.getDoc("filaCandidatos/pool")?.manuaisPendentes).toEqual([
+      { id: "ChIJpendente", motivo: "semDemo" },
+    ]);
+  });
+
+  it("manual sem PRINT também não é entregue, mesmo com a captura 'pronta'", async () => {
+    semear(
+      lead("ChIJsemPrint", {
+        filaManual: true,
+        capturas: {
+          estado: "pronto",
+          execucaoId: "exec-1",
+          pedidoEm: "2026-03-01T00:00:00.000Z",
+          // Só desktop: `printUrlDoLead` não acha imagem de celular.
+          imagens: [
+            { ancora: "hero", tela: "desktop", ordem: 1, url: "https://storage/d.png", largura: 1, altura: 1 },
+          ],
+        },
+      }),
+    );
+
+    const corpo = await (await proximo()).json();
+
+    expect(corpo.temTarefa).toBe(false);
+    expect(db.getDoc("filaCandidatos/pool")?.manuaisPendentes).toEqual([
+      { id: "ChIJsemPrint", motivo: "capturaNaoPronta" },
+    ]);
+  });
+
+  it("manual fora de janela continua fora — o nível não é furado", async () => {
+    vi.setSystemTime(TERCA_3H);
+    semear(lead("ChIJmanual", { filaManual: true }));
+
+    expect(await (await proximo()).json()).toEqual(semTarefaEsperado("fora_de_janela"));
+  });
+
+  it("o contrato do corpo não muda por causa do manual", async () => {
+    semear(lead("ChIJmanual", { filaManual: true }));
+
+    const corpo = await (await proximo()).json();
+
+    expect(Object.keys(corpo).sort()).toEqual([...CHAVES_RESPOSTA].sort());
+    for (const chave of CHAVES_RESPOSTA) {
+      const valor = corpo[chave];
+      expect(typeof valor).toBe(CHAVES_BOOLEANAS.includes(chave) ? "boolean" : "string");
+    }
+    expect(corpo).not.toHaveProperty("manual");
+  });
+});
+
 describe("GET /api/fila/proximo — flush do agrupamento de respostas (isolamento)", () => {
   const fetchMock = vi.fn();
 
