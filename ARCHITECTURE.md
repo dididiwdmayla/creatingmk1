@@ -2766,6 +2766,77 @@ Quatro partes:
 
 **A resposta inteira vem de `GET /api/fila/diagnostico`** — a rota que já calculava o funil —, e não de uma rota nova: as listas saem da MESMA chamada de `ordenarCandidatos` que produz as contagens. Duas rotas recomputando a seleção no mesmo segundo seriam duas respostas capazes de discordar entre si. Editar a config no painel acima recarrega a visão (`versao`), porque `exigirJanelaBoa` e `nichosPermitidos` mudam o funil inteiro — um funil que não reagisse à edição ao lado dele seria justamente o número defasado lido como se fosse agora.
 
+### O BALÃO da fila — indicador fixo, em toda tela (`src/components/BalaoFila.tsx`)
+
+O painel acima responde tudo, e só existe na /config. O balão responde as duas perguntas que o operador faz o dia inteiro, de qualquer tela: **quantas mensagens ainda saem hoje** e **se a fila está ativa ou pausada** — e, quando ele abre, **quem sai, nesta ordem**. ADMIN ONLY, como todo o resto da fila.
+
+**Nada nele dispara envio.** Quem entrega continua sendo o ciclo do aparelho consumindo `GET /api/fila/proximo`; o balão mostra o que ele vai encontrar quando pedir.
+
+#### O CUSTO é o projeto deste bloco
+
+Um indicador que existe em TODA tela não pode buscar a fila inteira a cada navegação: isso multiplicaria leitura por página aberta, que é o oposto do que o pool de candidatos existe para fazer. Daí dois estados com custos separados, servidos pela MESMA rota (`GET /api/config/fila/balao`, com `?lista=1`):
+
+| estado | leituras |
+|---|---|
+| **fechado** | **2 docs** — `config/fila` + `filaContadores/{dia operacional}` |
+| **aberto** | **4 docs + 1 por linha mostrada** — as 2 acima, mais `config/app` (as janelas) e `filaCandidatos/pool`, mais uma leitura POR ID de cada lead exibido (`BALAO_LINHAS` 10 + `BALAO_PENDENTES` 5) → **teto de 19** |
+
+Duas coisas tornam o número de cima o que a navegação normal paga: o componente mora no **layout** do app (`(app)/layout.tsx`), então não remonta ao trocar de aba — são 2 leituras por CARREGAMENTO de página, não por navegação —, e **não há polling** (o número muda quando o aparelho envia, não a cada segundo). Fechar e reabrir relê; navegar não.
+
+Os dois custos estão travados por teste, **nomeando cada doc lido** (`config-fila-balao.route.test.ts`): um balão que passasse a varrer `/leads` reprova na hora, e não daqui a três meses numa fatura.
+
+**Nunca reconstrói o pool** (`lerPoolBruto`, sem TTL): a varredura de `/leads` é justamente o custo que o pool existe para evitar, e um indicador global não pode ser quem a paga. A consequência é assumida e fica NA TELA — a fila vem com a data do retrato ao lado, no alto do painel.
+
+**Uma rota, e não duas**: "ativa/pausada" e "faltam N hoje" aparecem nos dois estados, e duas rotas calculando o mesmo par poderiam discordar no mesmo segundo. As chaves da resposta são as mesmas nos dois casos (as listas vêm vazias no fechado), então a tela nunca precisa checar a forma do que recebeu.
+
+**Sob `/api/config/`, e não sob `/api/fila/`**, mesmo o balão não sendo um painel da /config: aquele prefixo INTEIRO passa pelo proxy sem sessão (é onde o celular bate com a `RADAR_DEVICE_KEY`), e ali a rota dependeria só da própria checagem. Aqui a sessão é cobrada duas vezes — no proxy e no `requireAdmin`. `/api/fila/diagnostico` é a exceção que já existia, não o precedente a seguir.
+
+#### A ordem é a de `ordenarCandidatos`, e o balão não ordena nada
+
+A sequência é `ordenarCandidatos(...).escolhido`, a MESMA função de `/proximo` e do painel da /config. Três telas com três ordenações seriam três verdades sobre quem é o próximo. Cada linha traz os parâmetros que explicam a POSIÇÃO dela — nicho, nível da janela, hora local do lead e o selo **manual**, que é a resposta visível a "por que esse está na frente de quem chegou antes".
+
+Os **pendentes de demo** vêm ao final, com o motivo visível, e são reconferidos contra o doc FRESCO (`linhasPendentesManuais`): quem ganhou demo entre o último rebuild e agora some da lista em vez de continuar listado como pendente, e um motivo que mudou (o pool viu "sem demo", o doc fresco já tem demo e agora falta o print) aparece atualizado — quem manda é o doc, nunca o retrato.
+
+#### ARRASTAR PARA REORDENAR ESTÁ CORTADO
+
+Decisão tomada, e escrita na própria tela: **a ordem muda sozinha conforme as janelas de horário abrem e fecham**, então uma ordem arrastada à mão seria uma promessa que a rota não consegue honrar — o lead que o operador pôs em primeiro sairia em terceiro quinze minutos depois, sem ninguém ter mexido em nada. Não implementado, e sem alternativa de arrastar.
+
+#### A única ação: remover da fila, e a guarda da claim
+
+`DELETE /api/config/fila/balao/{leadId}` é o `descartado` que já existe (o mesmo do card, da ficha e da visão da /config) — nenhum campo novo, reversível pela ficha como sempre. O que ela acrescenta é a **guarda: 409 quando há claim ATIVA no lead**, com a hora em que a reserva morre sozinha.
+
+A razão é a mesma da liberação manual de um retido, e usa a MESMA função (`claimAtiva`, extraída para `estado.ts` e compartilhada com `liberarRetido`): **remover um lead da fila NÃO cancela um envio em andamento**. O aparelho pode estar com o WhatsApp aberto neste segundo, e nada do lado do servidor alcança a tela dele — então o servidor recusa e DIZ por quê, na própria linha, em vez de fingir que interrompeu algo.
+
+O que a guarda não promete: ela recusa o caso ÓBVIO, não é atômica entre coleções (a escrita é em `/leads`, a claim está em `filaEnvios`). Se `/proximo` reservar o lead entre a leitura e a escrita, o descarte acontece — e isso já é situação prevista: `POST /api/fila/confirmar` continua aceitando confirmação de lead removido pelo painel, porque recusar deixaria como não contactado quem recebeu a mensagem.
+
+`filaManual` fica INTACTO no descarte: restaurar pela ficha devolve o lead como ele estava. Apagar a escolha do operador junto seria decidir por ele.
+
+#### A GOTEIRA DA DIREITA — o preço de um elemento fixo, medido
+
+No desktop o balão é de graça: a coluna tem 512px centrados e sobram ~290px de margem vazia de cada lado. No **celular** a coluna ocupa a largura inteira — medido: conteúdo e controles chegam a **374px numa tela de 390** —, e ali um elemento fixo no canto inferior direito **cobre botão de verdade**. Não é hipótese: a varredura de colisão do `--so=balao` pegou o "★" do card de lead e o "▾" do cabeçalho da busca, na primeira rodada.
+
+Cobrir botão não é aceitável, e a única forma de PROMETER que isso não acontece é **reservar o espaço de verdade**: conteúdo que rola passa por baixo de qualquer posição, em algum ponto da rolagem. Então `<main>` ganha `pr-11 sm:pr-4` — goteira real, abaixo do `sm` e **só para quem tem o balão** (o membro continua com a coluna inteira). `pl-4`/`pr-4` explícitos em vez de `px-4` ao lado de `pr-11`: duas utilities do mesmo lado dependeriam da ordem no CSS gerado, não da ordem em que foram escritas.
+
+**O preço é 28px de largura no celular, para o admin**, e ele é consciente. Trocar a goteira pela sobreposição é uma linha no layout.
+
+**O tamanho da pílula é largura tirada do resto do app** — e isso deixou de ser teoria na segunda rodada: a primeira versão dela escrevia "pausada" por extenso, custava 40px de goteira, e o `--so=vestigio` reprovou porque o resumo de OUTRO painel da /config passou a truncar (138px de texto em 129px de caixa). A pílula encolheu para 36px e o estado pausado passou a ser **forma** (o glifo de duas barras) mais cor; a PALAVRA continua existindo onde não custa largura — no nome acessível, no `title` e no painel aberto. Forma resolve o que a cor sozinha não resolveria para quem não distingue as duas.
+
+#### Custo do cromo: o balão entra na mesma lista da nav
+
+`globals.custo.test.ts` passou a ler `BalaoFila.tsx` junto de `Nav.tsx` e `MetaFaixa.tsx`, e pelo mesmo motivo: é elemento fixo que fica na tela o dia inteiro, em toda aba. O ponto de estado é halo/glifo ESTÁTICO, nunca `animate-ping`. O teste também proíbe **desfoque** neste arquivo — a sobreposição que fecha o painel cobre a tela inteira, e um `backdrop-blur` entraria ali sem ninguém notar, que é exatamente a combinação que derrubou o editor a 9 fps.
+
+#### Verificação visual (`--so=balao`)
+
+`node scripts/qa-plataforma.mjs --so=balao` — celular e desktop × escuro e claro, com:
+
+- **fechado** (fila ativa) e **aberto** (7 na sequência, o manual em primeiro com o selo, 1 pendente com "sem demo", a data do retrato do pool);
+- **pausada**, fechado e aberto — a pílula muda de forma e de cor, e o nome acessível diz "pausada";
+- **vazia** (sem elegível, sem pendente, contador zerado) e **sem pool** (o celular nunca pediu tarefa, que tem texto próprio);
+- as duas **fichas** da seleção manual: a tarja normal e a de PENDENTE com o motivo;
+- **membro comum**: o balão não existe no HTML (não é `display:none` — o layout resolve o papel no servidor).
+
+E o passo que existe por causa do elemento ser global: **a varredura de colisão nas 8 abas que o laço já visita**. Em cada uma, com o balão fechado e em repouso, o retângulo da pílula é confrontado com o de todo controle visível (link, botão, campo) **e com o conteúdo do `<main>`** (folha com texto, caixa com fundo ou borda), mais o cabeçalho e a nav; e a página não pode ganhar rolagem horizontal. São 32 combinações de aba × viewport × tema por rodada. Numa captura isolada a colisão passaria despercebida — o balão está lá, bonito, em cima do botão de outra pessoa.
+
 #### Regras de segurança contra colapso
 
 Existem porque um humano edita esta tela enquanto o celular pode estar no meio de um ciclo:
@@ -4225,7 +4296,7 @@ não por assunto.
 | laço | superfície | o que ele julga |
 |---|---|---|
 | `scripts/qa-visual.mjs` | **camada decorativa das DEMOS** (rota pública das skins do registro, via o harness `/interno/demo-qa`) | efeito × intensidade × tema, estilos de LED, modos de cor, animação por seção, **variante × modo de cor** (`--so=variante`), cor da barra do navegador, fps no celular com CPU 4× (`--so=fps`, com `--skin=` para escolher a skin e, quando ela tem variantes, variante no eixo das linhas) e o portão de foto colapsada (`--so=colapso`). **Não conhece `/leads` nem `/buscas`** — não há tela da plataforma nele |
-| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e os painéis da /config que ficam abaixo da dobra e por isso têm passos próprios — `--so=pendencias` (lista de print), `--so=fila` (a visão: funil, próximos, bloqueados) e `--so=respostas` (respostas pendentes, que além do estado vazio cobra a AÇÃO mudando com o aparelho: intent do Business no Android, copiar no desktop) e `--so=vestigio` (leads antigos sem vestígio: lista cheia, o DIÁLOGO da exclusão definitiva e lista vazia), todos cobrando os ESTADOS VAZIOS |
+| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e os painéis da /config que ficam abaixo da dobra e por isso têm passos próprios — `--so=pendencias` (lista de print), `--so=fila` (a visão: funil, próximos, bloqueados) e `--so=respostas` (respostas pendentes, que além do estado vazio cobra a AÇÃO mudando com o aparelho: intent do Business no Android, copiar no desktop) e `--so=vestigio` (leads antigos sem vestígio: lista cheia, o DIÁLOGO da exclusão definitiva e lista vazia), todos cobrando os ESTADOS VAZIOS; e `--so=balao` (o balão da fila, que não é da /config e sim de TODA tela: os estados dele mais a VARREDURA DE COLISÃO em todas as abas — a cobrança que só um elemento fixo global precisa) |
 | `scripts/qa-cls.mjs` | **deslocamento de layout**, nas três | `--so=skins` (rota pública), `--so=editor` (o preview do editor) e `--so=app` (as 7 abas da plataforma). Portão 0.1, o mesmo piso "bom" do Core Web Vital real |
 
 Os outros são de recorte estreito e o nome já diz: `qa-aura.mjs`,

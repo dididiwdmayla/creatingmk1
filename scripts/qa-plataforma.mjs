@@ -48,6 +48,9 @@
  *   node scripts/qa-plataforma.mjs --so=pendencias # lista de print pendente em /config, cheia e VAZIA
  *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil, próximos,
  *                                                 # bloqueados, RETIDOS (com e sem)
+ *   node scripts/qa-plataforma.mjs --so=balao     # o BALÃO da fila (em toda tela): fechado e aberto,
+ *                                                 # cheia/vazia/pausada/pendente, e a VARREDURA DE
+ *                                                 # COLISÃO em todas as abas
  *   node scripts/qa-plataforma.mjs --so=respostas # respostas pendentes em /config: cheia e VAZIA, celular e desktop
  *   node scripts/qa-plataforma.mjs --so=vestigio  # leads antigos SEM VESTÍGIO em /config: lista cheia,
  *                                                 # o diálogo da exclusão e a lista VAZIA
@@ -657,12 +660,33 @@ function semear() {
     ["fila-5", "Clínica Veterinária Tristeza"],
     ["fila-6", "Agropet Cavalhada"],
   ];
+  // A SELEÇÃO MANUAL (--so=balao e --so=fila). O lead manual é o MAIS NOVO
+  // da base de propósito: pelo FIFO ele seria o último da fila, e aparecer
+  // em PRIMEIRO na captura é o que prova, na imagem, que a marca fura a
+  // ordem natural. O pendente é manual SEM DEMO — ele nunca é entregue, e
+  // existe justamente para a lista de pendentes não ser sempre vazia.
+  const MANUAL = ["fila-m1", "Casa do Pet Moinhos"];
+  const PENDENTE = ["fila-p1", "Pet Vila Nova"];
   const bloqueados = [
     ["fila-b1", "Multimarcas Farrapos"],
     ["fila-b2", "Loja Multimarcas Azenha"],
   ];
   for (const [id, nome] of elegiveis) mapa[`leads/${id}`] = leadDaFila(id, nome, "petshop");
   for (const [id, nome] of bloqueados) mapa[`leads/${id}`] = leadDaFila(id, nome, "multimarcas");
+  mapa[`leads/${MANUAL[0]}`] = {
+    ...leadDaFila(MANUAL[0], MANUAL[1], "petshop"),
+    filaManual: true,
+    criadoEm: iso(1),
+  };
+  // Sem `demo`: reprova em `motivoEstrutural` (semDemo), então NÃO é
+  // candidato — some do pool e aparece só como pendente, com o motivo.
+  mapa[`leads/${PENDENTE[0]}`] = {
+    ...leadDaFila(PENDENTE[0], PENDENTE[1], "petshop"),
+    filaManual: true,
+    demo: undefined,
+    criadoEm: iso(2),
+  };
+  delete mapa[`leads/${PENDENTE[0]}`].demo;
 
   // O POOL: o cache que a visão lê (ela NUNCA reconstrói — ver
   // `lerPoolBruto`). `geradoEm` uns minutos atrás de propósito: é o retrato
@@ -688,6 +712,8 @@ function semear() {
       ...bloqueados.map(([id], i) => candidatoPool(id, "multimarcas", 12 - i)),
       // Barrado pelo NICHO: a etapa 3 do funil não pode ser sempre zero.
       candidatoPool("lead-5", "dentista", 9),
+      // O MAIS NOVO de todos, e mesmo assim o primeiro da fila.
+      { ...candidatoPool(MANUAL[0], "petshop", 1), manual: true },
     ],
     lidos: 312,
     truncado: false,
@@ -700,6 +726,10 @@ function semear() {
       capturaNaoPronta: 30,
       semFuso: 2,
     },
+    // O pendente sai da MESMA varredura que o funil acima (é um dos
+    // `semDemo` dele), e é o balão que o mostra com nome e motivo.
+    manuaisPendentes: [{ id: PENDENTE[0], motivo: "semDemo" }],
+    manuaisPendentesTotal: 1,
   };
 
   // ── RETIDOS POR ENVIO NÃO CONFIRMADO (--so=fila) ───────────────────
@@ -2222,13 +2252,23 @@ async function medirFila(browser, secret) {
       [/fora dos nichos permitidos/, "etapa de nicho"],
       [/elegíveis agora/, "total de elegíveis"],
       [/Pet Center Ipiranga/, "primeiro lead elegível"],
-      [/e mais 1 na fila/, "aviso de que a lista é uma janela sobre a fila"],
+      [/e mais 2 na fila/, "aviso de que a lista é uma janela sobre a fila"],
+      [/Casa do Pet Moinhos/, "o lead MANUAL, em primeiro apesar de ser o mais novo"],
       [/Multimarcas Farrapos/, "lead bloqueado por janela"],
       [/sem faixa aceita nos próximos 7 dias/, "próxima faixa aceita do bloqueado"],
     ]);
     const proximos = await page.locator('[data-lista="proximos"] li').count();
     if (proximos !== 5) {
       problemas.push(`cheia/${sufixo}: esperava 5 próximos na tela, achei ${proximos}`);
+    }
+    // O manual é o PRIMEIRO da lista mesmo sendo o mais novo da base: a
+    // ordem da tela é a de `ordenarCandidatos`, e é aqui que a imagem
+    // prova isso em vez de o teste unitário sozinho.
+    const primeiro = (await page.locator('[data-lista="proximos"] li').first().textContent()) ?? "";
+    if (!primeiro.includes("Casa do Pet Moinhos") || !primeiro.includes("manual")) {
+      problemas.push(
+        `cheia/${sufixo}: o primeiro da fila devia ser o manual com o selo, veio "${primeiro.trim().slice(0, 60)}"`,
+      );
     }
     const tirar = await page.getByRole("button", { name: "tirar da fila" }).count();
     if (tirar !== 7) {
@@ -2375,6 +2415,402 @@ async function medirFila(browser, secret) {
   }
   console.log(
     "[fila] ok — cheia, SEM RETIDOS, vazia e sem pool, sem vazamento nem caixa zerada.",
+  );
+  return gerados;
+}
+
+/* ── Item: o BALÃO da fila, em toda tela (`--so=balao`) ──────────────── */
+
+/**
+ * O BALÃO — indicador FIXO na lateral direita, presente em todas as telas do
+ * app, admin only.
+ *
+ * Este passo existe por duas razões, e a segunda é a que mais importa:
+ *
+ *  1. os ESTADOS do balão não aparecem em captura nenhuma das outras — fila
+ *     cheia, fila vazia, fila pausada e a lista de PENDENTES DE DEMO só
+ *     existem aqui;
+ *  2. **ele é um elemento fixo global, e a regressão provável de um elemento
+ *     fixo é cobrir conteúdo.** Por isso o passo faz uma VARREDURA DE
+ *     COLISÃO em todas as abas que o laço já visita: a pílula fechada não
+ *     pode interceptar nenhum controle (link, botão, campo), nem o cabeçalho,
+ *     nem a barra de navegação, e não pode criar rolagem horizontal. Numa
+ *     captura isolada isso passaria despercebido — o balão está lá, bonito,
+ *     em cima do botão de outra pessoa.
+ *
+ * O tema claro entra pelo mesmo motivo das outras: é onde os tokens apagados
+ * têm menos contraste de sobra. O celular entra porque é o único lugar onde
+ * o conteúdo ocupa a largura inteira — no desktop a coluna é centrada em
+ * 512px e sobra margem vazia dos dois lados.
+ */
+
+/** A pílula fechada e o painel aberto, por `data-balao`. */
+const caixaDoBalao = (page) =>
+  page.evaluate(() => {
+    const balao = document.querySelector("[data-balao]");
+    if (!balao) return null;
+    const pilula = balao.querySelector("button[aria-expanded]");
+    const painel = balao.querySelector('[role="dialog"]');
+    const caixa = (el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return {
+        topo: Math.round(r.top),
+        base: Math.round(r.bottom),
+        esquerda: Math.round(r.left),
+        direita: Math.round(r.right),
+        altura: Math.round(r.height),
+        largura: Math.round(r.width),
+      };
+    };
+    return { estado: balao.getAttribute("data-balao"), pilula: caixa(pilula), painel: caixa(painel) };
+  });
+
+/**
+ * A COLISÃO: o retângulo da pílula contra o de todo controle visível da
+ * tela, mais o cabeçalho e a nav. Devolve a lista do que ela cobre — vazia
+ * é o resultado esperado.
+ */
+const colisoesDoBalao = (page) =>
+  page.evaluate(() => {
+    const balao = document.querySelector("[data-balao]");
+    const pilula = balao?.querySelector("button[aria-expanded]");
+    if (!pilula) return { erro: "pílula não encontrada" };
+    const p = pilula.getBoundingClientRect();
+    const cruza = (r) =>
+      r.width > 0 && r.height > 0 && r.left < p.right && r.right > p.left && r.top < p.bottom && r.bottom > p.top;
+
+    const alvos = [...document.querySelectorAll("a, button, input, select, textarea, [role='button']")]
+      .filter((el) => !balao.contains(el))
+      .filter((el) => {
+        const estilo = getComputedStyle(el);
+        return estilo.display !== "none" && estilo.visibility !== "hidden";
+      });
+
+    const cobertos = alvos
+      .filter((el) => cruza(el.getBoundingClientRect()))
+      .map((el) => `${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 30)}"`);
+
+    // CONTEÚDO, não só controle: a cobrança é "não cobre conteúdo NEM
+    // botão". Folhas de texto e caixas visíveis do <main> entram — é o que
+    // torna a goteira reservada uma promessa verificável, e não uma
+    // impressão de quem olhou a imagem.
+    const conteudo = [...(document.querySelector("main")?.querySelectorAll("*") ?? [])]
+      .filter((el) => !balao.contains(el))
+      .filter((el) => {
+        const estilo = getComputedStyle(el);
+        if (estilo.display === "none" || estilo.visibility === "hidden") return false;
+        // Só o que DESENHA: folha com texto, ou caixa com fundo/borda.
+        const temTexto = el.children.length === 0 && (el.textContent ?? "").trim().length > 0;
+        const temCaixa =
+          estilo.borderTopWidth !== "0px" ||
+          (estilo.backgroundColor !== "rgba(0, 0, 0, 0)" && estilo.backgroundColor !== "transparent");
+        return temTexto || temCaixa;
+      })
+      .filter((el) => cruza(el.getBoundingClientRect()))
+      .map((el) => `conteúdo ${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 30)}"`);
+    cobertos.push(...conteudo.slice(0, 5));
+
+    for (const seletor of ["header", "nav"]) {
+      const el = document.querySelector(seletor);
+      if (el && cruza(el.getBoundingClientRect())) cobertos.push(`o ${seletor} do cromo`);
+    }
+
+    return {
+      cobertos,
+      // Elemento fixo na borda direita é o jeito clássico de criar rolagem
+      // horizontal sem ninguém perceber até abrir no celular.
+      rolagemHorizontal: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      viewport: document.documentElement.clientWidth,
+      direitaDaPilula: Math.round(p.right),
+    };
+  });
+
+async function medirBalao(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    // O balão existe em TODA tela; `/leads` é a mais carregada de controles
+    // e por isso a mais dura para um elemento fixo.
+    const irPara = async (url, onde) => {
+      await page.goto(`${BASE}${url}`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `balao/${onde}`);
+    };
+
+    const capturar = async (rotulo, arquivo, seletor) => {
+      const png = path.join(SAIDA, `balao-${arquivo}-${sufixo}${marca}.png`);
+      if (seletor) {
+        await page.locator(seletor).first().screenshot({ path: png });
+      } else {
+        await page.screenshot({ path: png });
+      }
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    const exigirTextos = async (onde, alvos) => {
+      for (const [alvo, oque] of alvos) {
+        if ((await page.getByText(alvo).count()) === 0) {
+          problemas.push(`${onde}: ${oque} não apareceu`);
+        }
+      }
+    };
+
+    const abrirBalao = async (onde) => {
+      await page.getByRole("button", { name: /^Fila de envio/ }).click();
+      await page.waitForTimeout(600);
+      const caixa = await caixaDoBalao(page);
+      if (caixa?.estado !== "aberto" || !caixa.painel) {
+        problemas.push(`${onde}: o balão não abriu`);
+        return null;
+      }
+      if (caixa.painel.direita > viewport.width + 1 || caixa.painel.esquerda < -1) {
+        problemas.push(
+          `${onde}: o painel vaza da viewport (${caixa.painel.esquerda}…${caixa.painel.direita} em ${viewport.width})`,
+        );
+      }
+      // O painel tem rolagem própria: ele nunca pode passar do topo da tela
+      // nem entrar por baixo da nav.
+      if (caixa.painel.topo < 0) {
+        problemas.push(`${onde}: o painel sai pelo topo da tela (topo=${caixa.painel.topo})`);
+      }
+      return caixa;
+    };
+
+    const fecharBalao = async () => {
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(300);
+    };
+
+    // ── FECHADO, fila cheia: a pílula diz quantas ainda saem e que está
+    //    ativa. O banco semeado nasce com a fila PAUSADA, então este passo
+    //    liga antes.
+    editarBanco((mapa) => {
+      mapa["config/fila"] = { ...mapa["config/fila"], ativo: true };
+    });
+    await irPara("/leads", `fechado/${sufixo}`);
+    const fechado = await caixaDoBalao(page);
+    if (!fechado?.pilula) {
+      problemas.push(`fechado/${sufixo}: o balão não apareceu para o admin`);
+    } else if (fechado.pilula.altura <= 0 || fechado.pilula.largura <= 0) {
+      problemas.push(`fechado/${sufixo}: pílula com caixa zerada`);
+    }
+    await exigirTextos(`fechado/${sufixo}`, [[/hoje/, "o rótulo do contador na pílula"]]);
+    await capturar("fechado, fila ativa (tela inteira)", "fechado");
+
+    // ── A VARREDURA DE COLISÃO, em todas as abas que o laço já visita.
+    for (const aba of ABAS) {
+      await irPara(aba.url, `colisao/${aba.id}/${sufixo}`);
+      const colisao = await colisoesDoBalao(page);
+      if (colisao.erro) {
+        problemas.push(`colisao/${aba.id}/${sufixo}: ${colisao.erro}`);
+        continue;
+      }
+      if (colisao.cobertos.length > 0) {
+        problemas.push(
+          `colisao/${aba.id}/${sufixo}: a pílula cobre ${colisao.cobertos.length} elemento(s): ${colisao.cobertos.join(", ")}`,
+        );
+      }
+      if (colisao.rolagemHorizontal) {
+        problemas.push(`colisao/${aba.id}/${sufixo}: a página ganhou rolagem horizontal`);
+      }
+      if (colisao.direitaDaPilula > colisao.viewport) {
+        problemas.push(
+          `colisao/${aba.id}/${sufixo}: a pílula vaza pela direita (${colisao.direitaDaPilula} > ${colisao.viewport})`,
+        );
+      }
+    }
+    console.log(`  [balao] ${sufixo}: colisão conferida nas ${ABAS.length} abas`);
+
+    // ── ABERTO, fila cheia: a sequência, o selo manual em primeiro, e os
+    //    PENDENTES DE DEMO ao final com o motivo visível.
+    await irPara("/leads", `aberto/${sufixo}`);
+    await abrirBalao(`aberto/${sufixo}`);
+    await exigirTextos(`aberto/${sufixo}`, [
+      [/de 20 hoje/, "contador do dia"],
+      [/Ritmo liberado/, "linha de ritmo"],
+      [/nada aqui dispara envio/, "o aviso de que a tela é só leitura"],
+      [/A ordem muda sozinha/, "por que não há arrastar"],
+      [/Nesta ordem/, "título da sequência"],
+      [/Casa do Pet Moinhos/, "o lead manual"],
+      [/Pendentes de demo/, "título da lista de pendentes"],
+      [/Pet Vila Nova/, "o lead pendente"],
+      [/sem demo/, "o MOTIVO visível da pendência"],
+      [/Fila montada sobre o pool de/, "a data do retrato do pool"],
+    ]);
+    const naFila = await page.locator('[data-lista="balao-fila"] li').count();
+    if (naFila !== 7) {
+      problemas.push(`aberto/${sufixo}: esperava 7 na sequência, achei ${naFila}`);
+    }
+    const primeiro = (await page.locator('[data-lista="balao-fila"] li').first().textContent()) ?? "";
+    // O manual é o MAIS NOVO da base: em primeiro só porque foi escolhido à
+    // mão. É a prova visual de que a ordem é a de `ordenarCandidatos`.
+    if (!primeiro.includes("Casa do Pet Moinhos") || !primeiro.includes("manual")) {
+      problemas.push(
+        `aberto/${sufixo}: o primeiro da sequência devia ser o manual com o selo, veio "${primeiro.trim().slice(0, 60)}"`,
+      );
+    }
+    const pendentes = await page.locator('[data-lista="balao-pendentes"] li').count();
+    if (pendentes !== 1) {
+      problemas.push(`aberto/${sufixo}: esperava 1 pendente, achei ${pendentes}`);
+    }
+    // Arrastar está CORTADO: nada aqui pode virar alça de arrasto.
+    const arrastaveis = await page.locator('[data-balao] [draggable="true"]').count();
+    if (arrastaveis > 0) {
+      problemas.push(`aberto/${sufixo}: apareceu elemento arrastável no balão (${arrastaveis})`);
+    }
+    await capturar("aberto, fila cheia + pendente de demo", "aberto", '[data-balao]');
+    await fecharBalao();
+
+    // ── PAUSADA: a pílula muda de cor e de palavra, e o painel diz que nada
+    //    sai. É o estado que o operador precisa reconhecer de relance.
+    editarBanco((mapa) => {
+      mapa["config/fila"] = { ...mapa["config/fila"], ativo: false };
+    });
+    await irPara("/hoje", `pausada/${sufixo}`);
+    // A pílula tem 36px: "pausada" por extenso ali custaria largura que sai
+    // da coluna de conteúdo do app inteiro (ver a goteira no layout). Então
+    // o estado vem como FORMA (o glifo de pausa) e como cor, e a PALAVRA
+    // vive no nome acessível — que é o que esta asserção cobra, porque cor
+    // sozinha não é estado para quem não distingue as duas.
+    const nomeDaPilula = await page
+      .locator('[data-balao] button[aria-expanded]')
+      .getAttribute("aria-label");
+    if (!nomeDaPilula?.includes("pausada")) {
+      problemas.push(
+        `pausada/${sufixo}: o nome acessível da pílula não diz "pausada" (veio "${nomeDaPilula}")`,
+      );
+    }
+    const barras = await page.locator('[data-balao] button[aria-expanded] span[aria-hidden] span').count();
+    if (barras !== 2) {
+      problemas.push(`pausada/${sufixo}: o glifo de pausa não apareceu (${barras} barras)`);
+    }
+    await capturar("pausada, fechado (tela inteira)", "pausada-fechado");
+    await abrirBalao(`pausada/${sufixo}`);
+    await exigirTextos(`pausada/${sufixo}`, [
+      [/Nada sai agora: a fila está pausada/, "o motivo do ritmo — a PALAVRA, onde ela cabe"],
+      // Pausada e CHEIA é diferente de pausada e vazia: a fila continua ali.
+      [/Casa do Pet Moinhos/, "a fila continua visível com a fila pausada"],
+    ]);
+    await capturar("pausada, aberto", "pausada-aberto", '[data-balao]');
+    await fecharBalao();
+
+    // ── VAZIA: fila ativa, pool sem candidato nenhum, sem pendente e
+    //    contador zerado — os estados vazios todos de uma vez, que é onde um
+    //    painel costuma deixar caixa quebrada ou espaço morto.
+    editarBanco((mapa) => {
+      mapa["config/fila"] = { ...mapa["config/fila"], ativo: true };
+      mapa["filaCandidatos/pool"] = {
+        ...mapa["filaCandidatos/pool"],
+        candidatos: [],
+        manuaisPendentes: [],
+        manuaisPendentesTotal: 0,
+      };
+      for (const chave of Object.keys(mapa)) {
+        if (chave.startsWith("filaContadores/")) delete mapa[chave];
+      }
+    });
+    await irPara("/leads", `vazia/${sufixo}`);
+    await abrirBalao(`vazia/${sufixo}`);
+    await exigirTextos(`vazia/${sufixo}`, [
+      [/0 de 20 hoje/, "contador zerado"],
+      [/Nenhum lead elegível agora/, "estado vazio da sequência"],
+    ]);
+    const sobrou = await page
+      .locator('[data-lista="balao-fila"] li, [data-lista="balao-pendentes"] li')
+      .count();
+    if (sobrou > 0) {
+      problemas.push(`vazia/${sufixo}: sobrou linha de lead com as listas vazias`);
+    }
+    await capturar("vazia (sem elegível, sem pendente, contador zerado)", "vazia", '[data-balao]');
+    await fecharBalao();
+
+    // ── A FICHA, os dois lados da seleção manual. A tarja é a única
+    //    vitrine do estado no lugar onde ele é LIGADO: sem ela, marcar um
+    //    lead sem demo seria clicar e não acontecer nada visível.
+    await irPara("/leads/fila-m1", `ficha-manual/${sufixo}`);
+    await exigirTextos(`ficha-manual/${sufixo}`, [
+      [/Na fila por seleção manual/, "a tarja da seleção manual"],
+      [/passa na frente da ordem natural/, "o que a marca faz, dito na ficha"],
+      [/Tirar da fila manual/, "o botão no estado que DESFAZ a marcação"],
+    ]);
+    await capturar("ficha: na fila por seleção manual", "ficha-manual");
+
+    await irPara("/leads/fila-p1", `ficha-pendente/${sufixo}`);
+    await exigirTextos(`ficha-pendente/${sufixo}`, [
+      [/PENDENTE: sem demo/, "a pendência COM o motivo, na ficha"],
+      [/Não é entregue enquanto faltar essa peça/, "a consequência, dita na ficha"],
+    ]);
+    await capturar("ficha: manual PENDENTE (sem demo)", "ficha-pendente");
+
+    // ── SEM POOL: o celular nunca pediu tarefa. Texto próprio, não uma
+    //    lista vazia que se confundiria com "não tem ninguém".
+    editarBanco((mapa) => {
+      delete mapa["filaCandidatos/pool"];
+    });
+    await irPara("/leads", `sem-pool/${sufixo}`);
+    await abrirBalao(`sem-pool/${sufixo}`);
+    await exigirTextos(`sem-pool/${sufixo}`, [
+      [/O celular ainda não pediu tarefa nenhuma/, "texto próprio do pool inexistente"],
+    ]);
+    await capturar("sem pool (o celular nunca pediu tarefa)", "sem-pool", '[data-balao]');
+    await ctx.close();
+
+    // ── MEMBRO comum: o balão NÃO EXISTE no HTML, e não é `display:none`.
+    semear();
+    definirTemaNoDoc("membro-1", tema);
+    const ctxMembro = await contextoLogado(browser, {
+      viewport,
+      secret,
+      tema,
+      userId: "membro-1",
+      papel: "membro",
+    });
+    const pageMembro = await ctxMembro.newPage();
+    await pageMembro.goto(`${BASE}/leads`, { waitUntil: "domcontentloaded" });
+    await assentar(pageMembro);
+    await exigirLogado(pageMembro, `membro/${sufixo}`);
+    if ((await pageMembro.locator("[data-balao]").count()) > 0) {
+      problemas.push(`membro/${sufixo}: o balão apareceu para membro comum`);
+    }
+    // A prova pela AUSÊNCIA precisa de imagem: é a tela inteira, no mesmo
+    // lugar onde o admin vê a pílula, sem pílula nenhuma.
+    const pngMembro = path.join(SAIDA, `balao-membro-${sufixo}${marca}.png`);
+    await pageMembro.screenshot({ path: pngMembro });
+    itens.push({ rotulo: `membro comum: sem balão nenhum · ${sufixo}`, png: pngMembro });
+    await ctxMembro.close();
+
+    // Devolve o banco ao estado semeado para a próxima leva de viewport.
+    semear();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, "Balão da fila — indicador fixo, em toda tela", "balao", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[balao] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log(
+    "[balao] ok — fechado, aberto, pausada, vazia e sem pool; nenhuma colisão em nenhuma aba; membro não vê.",
   );
   return gerados;
 }
@@ -4267,6 +4703,7 @@ async function main() {
     if (querido("listas")) gerados.push(...(await medirListas(browser, secret)));
     if (querido("pendencias")) gerados.push(...(await medirPendencias(browser, secret)));
     if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
+    if (querido("balao")) gerados.push(...(await medirBalao(browser, secret)));
     if (querido("respostas")) gerados.push(...(await medirRespostas(browser, secret)));
     if (querido("teste")) gerados.push(...(await medirDisparoTeste(browser, secret)));
     if (querido("vestigio")) gerados.push(...(await medirSemVestigio(browser, secret)));

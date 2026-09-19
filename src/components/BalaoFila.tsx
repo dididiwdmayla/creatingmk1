@@ -264,7 +264,7 @@ export function BalaoFila() {
         // área segura do aparelho. À direita porque no desktop o conteúdo é
         // uma coluna centrada de 512px — ali sobra margem vazia e o balão
         // não encosta em nada.
-        className="fixed right-2 z-40 flex flex-col items-end"
+        className="fixed right-1 z-40 flex flex-col items-end"
         style={{ bottom: "calc(var(--app-nav-h) + env(safe-area-inset-bottom) + 0.5rem)" }}
       >
         {aberto && (
@@ -314,6 +314,18 @@ export function BalaoFila() {
                   Só leitura: nada aqui dispara envio. A ordem muda sozinha conforme as janelas de
                   horário abrem e fecham.
                 </p>
+                {/* O retrato é DATADO, e a data fica AQUI — no alto, junto do
+                    contador. Ela nasceu no rodapé e a captura do celular
+                    mostrou o problema: o painel tem rolagem própria, e lá
+                    embaixo ela ficava fora da vista justamente em quem mais
+                    precisa dela. Número defasado lido como se fosse agora é
+                    pior que número ausente. */}
+                {dados.poolGeradoEm && (
+                  <p className="mt-1 text-[10px] text-ink-muted">
+                    Fila montada sobre o pool de {formatDateTime(dados.poolGeradoEm)} (
+                    {formatTempoRelativo(dados.poolGeradoEm, agora)}).
+                  </p>
+                )}
 
                 <h3 className="mt-3 text-[10px] font-medium uppercase tracking-wide text-ink-secondary">
                   Nesta ordem
@@ -380,15 +392,6 @@ export function BalaoFila() {
                   </>
                 )}
 
-                {/* O retrato é DATADO: a fila sai do pool, que pode ter até
-                    dez minutos. Número defasado lido como se fosse agora é
-                    pior que número ausente. */}
-                {dados.poolGeradoEm && (
-                  <p className="mt-3 border-t border-line pt-1 text-[10px] text-ink-muted">
-                    Fila montada sobre o pool de {formatDateTime(dados.poolGeradoEm)} (
-                    {formatTempoRelativo(dados.poolGeradoEm, agora)}).
-                  </p>
-                )}
               </>
             )}
 
@@ -396,6 +399,24 @@ export function BalaoFila() {
           </div>
         )}
 
+        {/*
+          A PÍLULA: 36px, duas linhas curtas. Cada pixel de largura aqui sai
+          da coluna de conteúdo do admin no celular (ver a goteira no
+          `<main>` do layout), e isso não é teoria — a primeira versão, com
+          "pausada" escrito por extenso, custava 56px de goteira e o passo
+          `--so=vestigio` reprovou: o resumo de OUTRO painel da /config
+          passou a truncar. O tamanho da pílula é, literalmente, largura
+          tirada do resto do app.
+
+          Então o estado PAUSADA vem como FORMA (o glifo de pausa) e como
+          cor, não como palavra — e a palavra continua existindo onde não
+          custa largura: no nome acessível, no title e no painel aberto.
+          Forma resolve o que a cor sozinha não resolveria para quem não
+          distingue as duas.
+
+          "hoje" fica: sem ele o número seria ambíguo (16 enviadas? 16
+          restantes?), e ele cabe em 17px.
+        */}
         <button
           type="button"
           onClick={() => (aberto ? setAberto(false) : void abrir())}
@@ -406,21 +427,28 @@ export function BalaoFila() {
               : "Fila de envio"
           }
           title="Fila de envio — o que o celular vai encontrar quando pedir a próxima tarefa"
-          className={`flex items-center gap-1.5 rounded-full border bg-surface px-2.5 py-1 shadow-md ${
+          className={`flex w-9 flex-col items-center rounded-lg border bg-surface px-1 py-1 shadow-md ${
             pausada ? "border-warning/50" : "border-line"
           }`}
         >
-          {/* Halo ESTÁTICO, nunca `animate-ping`: este ponto fica na tela o
-              dia inteiro, em toda aba — a mesma regra do ponto do RADAR no
-              cabeçalho (ver "Custo" em ARCHITECTURE.md). */}
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${pausada ? "bg-warning" : "bg-accent"}`}
-            aria-hidden
-          />
-          <span className="font-mono text-xs text-foreground">
-            {dados ? formatInt(restante) : "–"}
+          <span className="flex items-center gap-1">
+            {/* Ponto ESTÁTICO quando ativa, duas barras quando pausada — e
+                nunca `animate-ping`: isto fica na tela o dia inteiro, em
+                toda aba, a mesma regra do ponto do RADAR no cabeçalho (ver
+                "Custo" em ARCHITECTURE.md). */}
+            {pausada ? (
+              <span className="flex gap-[1px]" aria-hidden>
+                <span className="h-2 w-[2px] rounded-[1px] bg-warning" />
+                <span className="h-2 w-[2px] rounded-[1px] bg-warning" />
+              </span>
+            ) : (
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+            )}
+            <span className="font-mono text-xs leading-none text-foreground">
+              {dados ? formatInt(restante) : "–"}
+            </span>
           </span>
-          <span className="text-[10px] text-ink-muted">{pausada ? "pausada" : "hoje"}</span>
+          <span className="text-[8px] leading-tight text-ink-muted">hoje</span>
         </button>
       </div>
     </>
