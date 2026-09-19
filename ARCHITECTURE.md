@@ -2351,12 +2351,16 @@ Um celular Android com MacroDroid é um EXECUTOR BURRO: pergunta "qual o próxim
   "respostasAutomaticasMaxDia": 30,  // teto próprio, contra filaContadores.respostasEnviadas
   "inicioDiaOperacionalHora": 0,     // hora (America/Sao_Paulo) em que o dia operacional começa; 0 = meia-noite
   "numeroTeste": "5544984570105",    // destino de TODO disparo de teste; vazio = disparo desligado
+  "numeroExcecao": "",               // ÚNICA origem, além de lead casado, que /mensagem-recebida aceita; vazio = sem exceção
+  "leadContextoExcecao": "",         // leadId que dá contexto ao rascunho gerado a partir do número de exceção
   "ativoAlteradoPor": "dispositivo", // "dispositivo" (POST /api/fila/pausar) ou o userId do admin (PUT); null = nunca mudou
   "ativoAlteradoEm": "<ISO>"         // quando — null junto com o campo acima
 }
 ```
 
 `numeroTeste` é dígitos puros com DDI (mesmo formato que `montarMensagemParaLead` entrega ao aparelho — nada de parêntese ou traço, que o WhatsApp do celular não resolve). Ver "Disparo de teste da fila" adiante: toda tarefa de teste sai para ELE, nunca para o telefone real do lead escolhido.
+
+`numeroExcecao`/`leadContextoExcecao` são o par que testa a metade RESPOSTA da fila — ver "Número de exceção" em "Fila de respostas" adiante. Mesmo formato de dígitos que `numeroTeste`, e `saveFilaConfig` recusa os dois iguais (direções opostas: destino de disparo × origem de resposta).
 
 `ativoAlteradoPor`/`ativoAlteradoEm` existem para o painel responder sozinho "pausada pelo aparelho às 03:12" em vez de exigir adivinhação. **Não são patcheáveis direto** — ficam fora de `TOP_LEVEL_KEYS`/`validateFilaConfigPatch`, então um PUT que tentasse setá-los cai em "chave desconhecida". Só duas escritas os tocam, cada uma com sua própria identidade: `POST /api/fila/pausar` (adiante) grava `"dispositivo"`; `saveFilaConfig` (usado por `PUT /api/config/fila`) grava o `userId` do admin — e só quando o patch de fato MUDA `ativo` (editar `metaDiaria` ao lado não pode fazer parecer que o admin acabou de mexer na pausa). `mergeFilaConfig` trata os dois campos como passthrough normal (`patch.campo ?? base.campo`) por uma razão não óbvia: é também o motor de `loadFilaConfig`, que o chama com o **doc cru do Firestore** como "patch" para reidratar o que está persistido — um passthrough especial (tipo "nunca vem do patch") quebraria essa releitura silenciosamente.
 
@@ -3011,6 +3015,7 @@ Contexto no prompt — o que separa um rascunho útil de um educado e genérico:
 - **A mensagem que o Radar mandou** — reconstruída via `montarMensagemParaLead(db, lead)` (a mesma função que a fila de envio usa): o app não guarda o texto literal que saiu, então reconstruir com a mesma regra de precedência (skin → grupo → global) é a fonte de verdade mais próxima do que o lead de fato recebeu.
 - **O que a demo mostra** — slogan, texto do hero e nomes dos serviços salvos em `lead.demo.dados` (ausência de qualquer um simplesmente omite a linha do prompt, nunca inventa).
 - **Posicionamento de preço** — índice de mercado da REGIÃO (leitura somente-cache de `/regioes`, via `regiaoCacheKey` — nunca gera/regenera aqui, isso é ação explícita do admin) × multiplicador do nicho × piso configurado (`config.precificacao`), com o mesmo `precoBase` de partida (R$2000, "Presença") que o card "Precificação" já assume antes do operador mexer no slider. Sem região cacheada, cai no índice NEUTRO (1.0) — ainda dá um número direcional, só sem a faixa de mercado local.
+- **Contexto comercial** — texto livre do operador sobre o que ESTE negócio vende (ver "Contexto comercial da IA" logo abaixo). Documento vazio simplesmente omite a seção do prompt — nunca um motivo para inventar.
 
 A IA de análise interna do Radar é sempre pt-BR; o rascunho sai no idioma do LEAD (`idiomaEfetivoDemo`, a mesma derivação país/cidade → idioma que a Forja de Demos já usa).
 
@@ -3029,6 +3034,23 @@ O rascunho vai para uma coleção PRÓPRIA, `filaRespostas/{id}` (id próprio, g
 ```
 
 Quem faz o estado sair de "pendente" é o painel abaixo — ou, com a RESPOSTA AUTOMÁTICA ligada, a confirmação do próprio aparelho (ver o bloco adiante). `usada` ganha junto `textoUsado` (o texto EDITADO pelo operador, ou o rascunho congelado quando quem mandou foi o aparelho) e `resolvidoEm`; `descartada` ganha só o carimbo.
+
+### Contexto comercial da IA (`src/lib/contextoComercial.ts` + painel "Contexto comercial" em /config)
+
+Antes deste bloco a IA do Radar não sabia NADA sobre o que o operador vende — os dois usos que já existiam (textos de demo dentro de schema estrito, e o índice regional de preço) não carregam contexto comercial nenhum. Sem isso o rascunho de resposta saía educado e vazio ("posso te explicar melhor por chamada de vídeo?"), ou pior, inventava preço e prazo que ninguém declarou.
+
+**Doc PRÓPRIO, `/config/contextoComercial`** (mesmo padrão de doc único de `/config/fila`): UM campo, `texto`, TEXTO LIVRE. De propósito, e não um formulário com campos fixos de preço/prazo/escopo: as perguntas de um lead não são previsíveis ("tem manutenção?", "faz loja virtual?", "atende aos sábados?"), e o operador precisa poder acrescentar uma linha nova a cada pergunta nova sem esperar deploy — modelar como formulário obrigaria a prever toda pergunta com antecedência.
+
+**Painel autônomo** (`ContextoComercialSection`, GET aberto a qualquer sessão / PUT admin — mesma divisão de "Frases de prospecção"): a caixa salva sozinha no blur, sem "Salvar" geral, seguindo a convenção já estabelecida pelos outros painéis de texto livre editável sem deploy (`capturas.ancoras`, `multiplicadoresNicho`). Registrado logo ANTES de "Fila de envio" — é o contexto que o operador preenche antes de testar a resposta.
+
+Esse texto entra no prompt de `gerarRascunhoResposta` (`lib/fila/rascunhoResposta.ts`) junto do contexto do lead que já é montado (nicho, mensagem enviada, demo, posicionamento de preço) — documento vazio simplesmente omite a seção, nunca é motivo para a IA inventar.
+
+**DUAS REGRAS DURAS, escritas no PRÓPRIO PROMPT e sempre presentes** (com ou sem o documento preenchido — sem contexto nenhum elas são o único freio contra o modelo chutar um número plausível):
+
+1. **A IA NUNCA inventa número absoluto.** Se o preço (ou desconto, ou prazo em dias/semanas) não estiver escrito no contexto comercial (nem no posicionamento de preço regional), o rascunho não chuta: troca o número que faltaria por uma marcação `[PREENCHER: o quê]` para o operador completar antes de mandar.
+2. **Nenhuma promessa de prazo, escopo ou condição** (o que está incluso, forma de pagamento, garantia, suporte) que não esteja escrita no documento. Mesma marcação em vez de inventar.
+
+Esta é a MESMA regra que o app já aplica ao índice regional ("LLM nunca é fonte de número absoluto" — ver `posicionamentoPrecoParaPrompt`, que já instrui "não prometa valor fechado") — está sendo ESTENDIDA para prazo/escopo/condição e para a fonte nova, não inventada. A marcação `[PREENCHER: ...]` (em vez de simplesmente omitir a resposta à pergunta do lead em silêncio) é o que faz a cautela ser PERCEBIDA pelo operador — um rascunho que só evita o assunto pareceria bug de IA, não um limite deliberado. Como é instrução de prompt (não validação de schema), não há como um teste automatizado travar o comportamento do modelo real; os testes travam o CONTRATO — o texto do documento entra no prompt tal como escrito, e as duas regras (com a marcação) estão sempre presentes, preenchido ou não.
 
 ### O painel "Respostas pendentes" (/config)
 
@@ -3085,6 +3107,31 @@ A detecção é `podeAbrirBusiness` (a string do agente — a única checagem qu
 **`montarMensagemParaLead` ganhou fontes pré-carregadas** (`carregarFontesDaMensagem`, parâmetro OPCIONAL). `listBuscas`/`listConjuntos` são varreduras de coleção, e pagá-las uma vez por linha multiplicaria a leitura pelo tamanho da lista. Ausente, a função carrega sozinha — nenhum chamador de UM lead só mudou —, e há teste contando as varreduras: uma para a lista inteira, não uma por linha.
 
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=respostas` captura o painel em três estados × celular e desktop × temas escuro e claro. Os estados: **cheia** (um grupo de três mensagens, e um rascunho longo com quebras de linha — o pior caso de layout da caixa editável), **editada** e **VAZIA**, que cobra o painel ENCOLHER (−731px no celular, −689px no desktop) em vez de trocar a lista por um vão. O passo existe por um motivo a mais que os vizinhos: **a ação muda com o aparelho**, e o Chromium do laço se apresenta como desktop — sem forçar um agente Android (`contextoLogado` ganhou `userAgent`), a captura do "celular" mostraria o caminho do desktop, provando o contrário do que existe para provar. No Android o passo exige âncora `intent://` com o pacote do Business, e reprova se o pacote do WhatsApp COMUM aparecer mirado; no desktop exige o inverso — nenhuma âncora, o aviso e os botões de copiar. Dois aferidores que só a tela real faz: o texto extraído do `href` tem que ser IDÊNTICO ao valor da caixa editável (com `%0A` nas quebras), e depois de digitar um texto com `#` e `;` dentro o URI ainda tem que ter exatamente um `#Intent;` e terminar em `;end`. O unitário prova a função; este prova que o que o operador digitou é o que entra no link.
+
+### Número de exceção — testar a resposta com um lead real, sem tocar nele
+
+`POST /api/fila/mensagem-recebida` descarta em silêncio remetente que não casa com lead (ver PRIVACIDADE acima) — proteção deliberada, e que NÃO muda: o aparelho é o celular pessoal do operador e manda toda notificação do Business. Mas isso deixava a metade "resposta" da fila sem forma de ensaiar: dava para testar o ENVIO (`numeroTeste`, ver "Disparo de teste" adiante), mas não dava para ver o que a IA responderia a uma pergunta real sem arriscar mandar alguma coisa para um negócio de verdade.
+
+**O operador tem três números**: o pessoal (roda a macro), o do Business (recebe as mensagens reais) e um terceiro que vira o número de EXCEÇÃO — ele manda uma mensagem dali como se fosse um lead, e o Business recebe exatamente como recebe produção (mesma macro, mesmo `POST /api/fila/mensagem-recebida`).
+
+**`numeroExcecao` em `config/fila`** — UM número só, nunca lista, nunca um modo "aceitar qualquer remetente" (a proteção contra remetente sem lead continua valendo para todo o resto). Dígitos puros com DDI, normalizado pela MESMA `digitosTelefone` que casa o telefone de um lead — sem isso o casamento nunca acontece, porque o que o aparelho manda vem com espaço e parêntese (`"+55 16 98213-3909"`). Vazio (o padrão) é comportamento IDÊNTICO ao de hoje.
+
+**RECUSADO igual a `numeroTeste`** — são direções opostas (um é DESTINO do disparo de teste, o outro é ORIGEM que dispara a resposta); iguais, o teste de envio geraria resposta automática para si mesmo. `saveFilaConfig` recusa nas DUAS direções (mudar `numeroExcecao` para o que já é `numeroTeste`, e vice-versa), com mensagem clara — não é checagem de formato (por isso não mora em `validateFilaConfigPatch`, que só vê o patch parcial): compara contra a config já persistida, porque cada campo do painel salva no próprio blur.
+
+**`leadContextoExcecao` — o campo companheiro**: o leadId que o operador escolhe no painel para dar contexto ao rascunho. Mensagem vinda do número de exceção gera rascunho usando ESSE lead como contexto — mesmo prompt, mesma reconstrução de `montarMensagemParaLead`, mesmo `gerarRascunhoResposta` — sem que o lead escolhido saiba de nada. É assim que o operador ensaia a resposta de um lead real sem mandar nada para ele.
+
+**O casamento com a exceção vem ANTES do casamento com lead**, em `processarMensagemRecebida` (`lib/fila/mensagemRecebida.ts`): é config explícita do admin, e deve vencer mesmo na coincidência remota de `numeroExcecao` bater com o telefone de um lead cadastrado.
+
+Quatro limites, cada um resolvido numa camada diferente para não colidir com o caminho real:
+
+1. **A mensagem recebida NUNCA vai para `leads/{leadContextoExcecao}/respostas`** — vai para `filaExcecaoLog/{chave}`, coleção PRÓPRIA (mesmo dedupe por `chave`-como-id-do-doc, de graça), só para não sujar o histórico permanente de um lead de verdade com uma conversa que ele nunca teve.
+2. **O agrupamento usa um leadId RESERVADO** (`EXCECAO_GRUPO_ID = "radar-excecao-resposta"`, mesmo espírito de `LEAD_TESTE_ID`): NUNCA o `leadContextoExcecao` escolhido. Se agrupasse sob o leadId real, uma mensagem de VERDADE daquele mesmo lead chegando ao mesmo tempo se misturaria no mesmo grupo pendente — o `leadContextoExcecao` só é lido, fresco, no FLUSH (`flushRespostas.ts`), na hora de decidir qual lead dá contexto ao prompt.
+3. **O rascunho nasce com `FilaRespostaDoc.teste = true`** e por isso NUNCA vira tarefa de envio automático — `salvarRascunho` pula `decidirAutomatica` inteiramente quando `teste`, mesmo com `respostaAutomatica` ligado. Pelo mesmo motivo, um rascunho `teste` é EXCLUÍDO da varredura que decide "é a primeira resposta deste lead?" (`decidirAutomatica`) — sem isso, um ensaio contaria como a primeira resposta do lead de contexto, e a resposta de VERDADE dele, depois, cairia na aprovação manual por engano.
+4. **Nunca aparece no painel "Respostas pendentes"** (`listarRespostasPendentes` filtra `!doc.teste`): aquele lead não escreveu nada, e mostrar o rascunho ali deixaria o operador clicar "usar" achando que é uma resposta real — abrindo o WhatsApp Business para o TELEFONE VERDADEIRO do lead de contexto. Excluir do painel manual é o que torna "sem mandar nada para ele" uma garantia estrutural, não uma questão de o operador prestar atenção.
+
+**Não move status de lead nenhum**: o caminho de exceção nunca chama `avancarParaRespondeuSeAplicavel` — só o casamento por telefone real faz isso.
+
+**No painel**, os dois campos ficam JUNTO de "Número do teste" em "Fila de envio" — não escondidos numa seção à parte —, exatamente para não ficar esquecido ligado: é a mesma fila de segurança, em direção oposta.
 
 ## Resposta automática — o rascunho que deixa de esperar aprovação
 

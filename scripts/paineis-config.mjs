@@ -17,6 +17,7 @@ export const PAINEIS_CONFIG = [
   { id: "usuarios", titulo: "Usuários", nivel: 2 },
   { id: "cotas-usuarios", titulo: "Cotas por usuário", nivel: 2 },
   { id: "metas-usuarios", titulo: "Metas por integrante", nivel: 2 },
+  { id: "contexto-comercial", titulo: "Contexto comercial", nivel: 2 },
   { id: "fila-envio", titulo: "Fila de envio", nivel: 2 },
   { id: "fila-resposta-automatica", titulo: "Resposta automática", nivel: 3 },
   { id: "fila-visao", titulo: "O que vai acontecer", nivel: 3 },

@@ -5,6 +5,7 @@ import type { Lead } from "@/lib/leads/types";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { DEFAULT_FILA_CONFIG } from "../config";
 import { flushGruposMaduros, FILA_RESPOSTAS_COLLECTION, type FilaRespostaDoc } from "../flushRespostas";
+import { EXCECAO_GRUPO_ID } from "../mensagemRecebida";
 import { listarTarefasResposta, type RespostaTarefaDoc } from "../respostaAutomatica";
 import { adicionarMensagemAoGrupo, listarGruposPendentes } from "../respostasPendentes";
 
@@ -276,5 +277,138 @@ describe("flushGruposMaduros — quando o rascunho vira TAREFA automática", () 
       (new Date(tarefa.disponivelEm).getTime() - new Date(tarefa.criadoEm).getTime()) / 1000;
     expect(atraso).toBeGreaterThanOrEqual(180);
     expect(atraso).toBeLessThanOrEqual(720);
+  });
+});
+
+describe("flushGruposMaduros — o grupo de EXCEÇÃO (número de teste da resposta)", () => {
+  const COM_CONTEXTO = {
+    ...DEFAULT_FILA_CONFIG,
+    numeroExcecao: "5544999998888",
+    leadContextoExcecao: "ChIJcontexto",
+  };
+
+  async function tarefas(db: FakeFirestore): Promise<RespostaTarefaDoc[]> {
+    return listarTarefasResposta(db);
+  }
+
+  it("gera rascunho usando o LEAD DE CONTEXTO, marcado como teste", async () => {
+    const db = new FakeFirestore();
+    db.seed(
+      "leads/ChIJcontexto",
+      baseLead({ placeId: "ChIJcontexto", nome: "Lead de Contexto" }) as unknown as Record<
+        string,
+        unknown
+      >,
+    );
+    await adicionarMensagemAoGrupo(
+      db,
+      EXCECAO_GRUPO_ID,
+      { texto: "quanto custa?", recebidoEm: T0.toISOString() },
+      T0,
+    );
+
+    await flushGruposMaduros(db, depois(JANELA), COM_CONTEXTO, DEFAULT_CONFIG);
+
+    const respostas = await todasAsRespostas(db);
+    expect(respostas).toHaveLength(1);
+    expect(respostas[0].leadId).toBe("ChIJcontexto");
+    expect(respostas[0].mensagens.map((m) => m.texto)).toEqual(["quanto custa?"]);
+    expect(respostas[0].teste).toBe(true);
+    // O prompt de fato usou o lead de contexto (nome no corpo da chamada).
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.contents[0].parts[0].text).toContain("Lead de Contexto");
+  });
+
+  it("NUNCA vira tarefa automática, mesmo com respostaAutomatica ligado", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJcontexto", baseLead({ placeId: "ChIJcontexto" }) as unknown as Record<string, unknown>);
+    await adicionarMensagemAoGrupo(
+      db,
+      EXCECAO_GRUPO_ID,
+      { texto: "Oi", recebidoEm: T0.toISOString() },
+      T0,
+    );
+
+    await flushGruposMaduros(
+      db,
+      depois(JANELA),
+      { ...COM_CONTEXTO, respostaAutomatica: true, respostaAutomaticaApenasPrimeira: false },
+      DEFAULT_CONFIG,
+    );
+
+    expect(await todasAsRespostas(db)).toHaveLength(1);
+    expect(await tarefas(db)).toHaveLength(0);
+  });
+
+  it("sem leadContextoExcecao configurado, as mensagens se perdem — mesmo tratamento de 'lead sumiu'", async () => {
+    const db = new FakeFirestore();
+    await adicionarMensagemAoGrupo(
+      db,
+      EXCECAO_GRUPO_ID,
+      { texto: "Oi", recebidoEm: T0.toISOString() },
+      T0,
+    );
+
+    await expect(
+      flushGruposMaduros(
+        db,
+        depois(JANELA),
+        { ...DEFAULT_FILA_CONFIG, numeroExcecao: "5544999998888", leadContextoExcecao: "" },
+        DEFAULT_CONFIG,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await todasAsRespostas(db)).toHaveLength(0);
+  });
+
+  it("um rascunho de exceção NÃO conta como 'primeira resposta' do lead de contexto para o automático real", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJcontexto", baseLead({ placeId: "ChIJcontexto" }) as unknown as Record<string, unknown>);
+    // Um ensaio primeiro...
+    await adicionarMensagemAoGrupo(
+      db,
+      EXCECAO_GRUPO_ID,
+      { texto: "ensaio", recebidoEm: T0.toISOString() },
+      T0,
+    );
+    await flushGruposMaduros(db, depois(JANELA), COM_CONTEXTO, DEFAULT_CONFIG);
+
+    // ...depois o lead de contexto responde DE VERDADE, com a automática ligada.
+    const t2 = depois(JANELA + 60);
+    await adicionarMensagemAoGrupo(db, "ChIJcontexto", { texto: "de verdade", recebidoEm: t2.toISOString() }, t2);
+    await flushGruposMaduros(
+      db,
+      new Date(t2.getTime() + (JANELA + 1) * 1000),
+      { ...COM_CONTEXTO, respostaAutomatica: true },
+      DEFAULT_CONFIG,
+    );
+
+    // A resposta de verdade ainda é tratada como "primeira" (o ensaio não conta) → vira tarefa.
+    const tarefasCriadas = await tarefas(db);
+    expect(tarefasCriadas).toHaveLength(1);
+    expect(tarefasCriadas[0].leadId).toBe("ChIJcontexto");
+  });
+
+  it("dois grupos maduros ao mesmo tempo — o de exceção e um lead real — geram dois rascunhos independentes", async () => {
+    const db = new FakeFirestore();
+    db.seed("leads/ChIJlead1", baseLead({ placeId: "ChIJlead1" }) as unknown as Record<string, unknown>);
+    db.seed("leads/ChIJcontexto", baseLead({ placeId: "ChIJcontexto" }) as unknown as Record<string, unknown>);
+    await adicionarMensagemAoGrupo(db, "ChIJlead1", { texto: "Oi real", recebidoEm: T0.toISOString() }, T0);
+    await adicionarMensagemAoGrupo(
+      db,
+      EXCECAO_GRUPO_ID,
+      { texto: "Oi ensaio", recebidoEm: T0.toISOString() },
+      T0,
+    );
+
+    await flushGruposMaduros(db, depois(JANELA), COM_CONTEXTO, DEFAULT_CONFIG);
+
+    const respostas = await todasAsRespostas(db);
+    expect(respostas).toHaveLength(2);
+    const doLead = respostas.find((r) => r.leadId === "ChIJlead1");
+    const doEnsaio = respostas.find((r) => r.leadId === "ChIJcontexto");
+    expect(doLead?.teste).toBeFalsy();
+    expect(doEnsaio?.teste).toBe(true);
   });
 });

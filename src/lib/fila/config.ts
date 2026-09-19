@@ -136,6 +136,34 @@ export interface FilaConfig {
    */
   numeroTeste: string;
   /**
+   * NÚMERO DE EXCEÇÃO — a ÚNICA origem que `POST /api/fila/mensagem-recebida`
+   * aceita além de um lead casado por telefone. Dígitos puros com DDI, UM
+   * número só (nunca lista, nunca modo "aceitar qualquer remetente" — a
+   * proteção que descarta remetente sem lead é deliberada e não muda).
+   *
+   * Direção OPOSTA de `numeroTeste`: aquele é DESTINO de disparo (o app
+   * manda para ele); este é ORIGEM de resposta (o app trata mensagem VINDA
+   * dele como se fosse um lead). Os dois iguais fariam o teste de envio
+   * gerar resposta automática para si mesmo — por isso `saveFilaConfig`
+   * RECUSA os dois iguais, nas duas direções.
+   *
+   * Vazio = comportamento de hoje, sem exceção nenhuma — mensagem de
+   * remetente sem lead correspondente continua descartada em silêncio. Ver
+   * "Número de exceção" em ARCHITECTURE.md.
+   */
+  numeroExcecao: string;
+  /**
+   * O leadId que dá CONTEXTO ao rascunho gerado a partir do número de
+   * exceção — escolhido pelo operador no painel, junto de `numeroExcecao`.
+   * Mensagem vinda do número de exceção gera rascunho como se fosse ESTE
+   * lead, sem tocar em nada dele (nem status, nem o histórico de
+   * `leads/{id}/respostas`): é assim que o operador ensaia a resposta de um
+   * lead real sem mandar nada para ele. Vazio junto com `numeroExcecao`
+   * preenchido faz a mensagem de exceção não gerar rascunho nenhum — sem
+   * lead de contexto não há para quem ensaiar.
+   */
+  leadContextoExcecao: string;
+  /**
    * Quem mudou `ativo` da última vez: `"dispositivo"` (POST /api/fila/pausar,
    * a macro do celular) ou o `userId` do admin (PUT /api/config/fila). `null`
    * = nunca mudou desde que o doc existe. NÃO é patcheável direto — só as
@@ -165,6 +193,8 @@ export const DEFAULT_FILA_CONFIG: FilaConfig = {
   respostasAutomaticasMaxDia: 30,
   inicioDiaOperacionalHora: 0,
   numeroTeste: "5544984570105",
+  numeroExcecao: "",
+  leadContextoExcecao: "",
   ativoAlteradoPor: null,
   ativoAlteradoEm: null,
 };
@@ -187,6 +217,8 @@ const TOP_LEVEL_KEYS = new Set<keyof FilaConfig>([
   "respostasAutomaticasMaxDia",
   "inicioDiaOperacionalHora",
   "numeroTeste",
+  "numeroExcecao",
+  "leadContextoExcecao",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -295,6 +327,20 @@ export function validateFilaConfigPatch(patch: unknown): asserts patch is Partia
     }
   }
 
+  if (patch.numeroExcecao !== undefined) {
+    // Mesmo formato de `numeroTeste` — dígitos puros com DDI, ou vazio (sem
+    // exceção). A recusa de igualdade com `numeroTeste` não é FORMATO, e por
+    // isso mora em `saveFilaConfig`: aqui só se vê o patch parcial, e o
+    // outro lado pode estar salvo de uma chamada anterior.
+    if (typeof patch.numeroExcecao !== "string" || !/^(\d{10,15})?$/.test(patch.numeroExcecao.trim())) {
+      problemas.push("numeroExcecao deve ser dígitos com DDI (10 a 15) ou vazio");
+    }
+  }
+
+  if (patch.leadContextoExcecao !== undefined && typeof patch.leadContextoExcecao !== "string") {
+    problemas.push("leadContextoExcecao deve ser string");
+  }
+
   if (patch.nichosPermitidos !== undefined) {
     if (
       !Array.isArray(patch.nichosPermitidos) ||
@@ -309,8 +355,13 @@ export function validateFilaConfigPatch(patch: unknown): asserts patch is Partia
   }
 }
 
-/** Dígitos do `numeroTeste`, ou `undefined` quando não veio string nenhuma. */
-function normalizarNumeroTeste(valor: unknown): string | undefined {
+/**
+ * Dígitos de um número de telefone da fila (`numeroTeste`/`numeroExcecao`),
+ * ou `undefined` quando não veio string nenhuma. Só `trim` — o FORMATO
+ * (dígitos com DDI, ou vazio) já foi checado por `validateFilaConfigPatch`
+ * antes de chegar aqui.
+ */
+function normalizarNumeroFila(valor: unknown): string | undefined {
   return typeof valor === "string" ? valor.trim() : undefined;
 }
 
@@ -344,7 +395,12 @@ export function mergeFilaConfig(base: FilaConfig, patch: Partial<FilaConfig>): F
     // `.trim()` só sobre string: `loadFilaConfig` faz este merge sobre o doc
     // CRU do Firestore, e um valor de tipo errado ali não pode derrubar
     // `/proximo` às duas da manhã.
-    numeroTeste: normalizarNumeroTeste(patch.numeroTeste) ?? base.numeroTeste,
+    numeroTeste: normalizarNumeroFila(patch.numeroTeste) ?? base.numeroTeste,
+    numeroExcecao: normalizarNumeroFila(patch.numeroExcecao) ?? base.numeroExcecao,
+    leadContextoExcecao:
+      typeof patch.leadContextoExcecao === "string"
+        ? patch.leadContextoExcecao.trim()
+        : base.leadContextoExcecao,
     // Passthrough normal, como o resto — `mergeFilaConfig` também é o motor
     // de `loadFilaConfig` (que chama isto com o doc CRU do Firestore como
     // "patch", para reidratar o que está persistido). `validateFilaConfigPatch`
@@ -388,6 +444,19 @@ export async function saveFilaConfig(
   validateFilaConfigPatch(patch);
   const base = await loadFilaConfig(db);
   let merged = mergeFilaConfig(base, patch);
+  // RECUSA numeroExcecao === numeroTeste, nas DUAS direções — não é checagem
+  // de FORMATO (por isso não mora em `validateFilaConfigPatch`, que só vê o
+  // patch parcial): um PUT que só toca `numeroExcecao` precisa comparar
+  // contra o `numeroTeste` já persistido, e vice-versa. São direções
+  // opostas (um é destino do disparo de teste, o outro é origem que dispara
+  // a resposta) — iguais, o teste de envio geraria resposta automática para
+  // si mesmo. Vazio nunca colide consigo mesmo: `numeroExcecao` vazio É "sem
+  // exceção", não um número igual a um `numeroTeste` também vazio.
+  if (merged.numeroExcecao && merged.numeroExcecao === merged.numeroTeste) {
+    throw new ValidationError([
+      "numeroExcecao não pode ser igual a numeroTeste — são direções opostas (destino do disparo de teste vs. origem que dispara a resposta)",
+    ]);
+  }
   if (alteradoPor && patch.ativo !== undefined && patch.ativo !== base.ativo) {
     merged = { ...merged, ativoAlteradoPor: alteradoPor, ativoAlteradoEm: new Date().toISOString() };
   }

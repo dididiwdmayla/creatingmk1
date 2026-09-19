@@ -30,6 +30,11 @@ import { handleRouteError, readJsonBody } from "@/lib/http";
  * silêncio — nada é persistido. E esta rota NUNCA loga `texto`, nem no
  * catch: `handleRouteError`/erros daqui não carregam o corpo da requisição.
  *
+ * ÚNICA EXCEÇÃO ao descarte por "sem lead": `filaConfig.numeroExcecao`, UM
+ * número de teste que o operador configura no painel — ver "Número de
+ * exceção" em ARCHITECTURE.md. Vazio (o padrão) não muda nada do que este
+ * comentário já descreve.
+ *
  * Flush no INÍCIO, antes de processar esta mensagem: libera grupos MADUROS
  * de OUTROS leads (a mesma varredura que `GET /proximo` faz — ver
  * `flushGruposMaduros`), isolado por `try/catch` interno — falha na geração
@@ -67,7 +72,7 @@ export async function POST(req: Request) {
     const [filaConfig, appConfig] = await Promise.all([loadFilaConfig(db), loadConfig(db)]);
     await flushGruposMaduros(db, now, filaConfig, appConfig);
 
-    await processarMensagemRecebida(db, corpo as unknown as CorpoMensagemRecebida, now);
+    await processarMensagemRecebida(db, corpo as unknown as CorpoMensagemRecebida, now, filaConfig);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

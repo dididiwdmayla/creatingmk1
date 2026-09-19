@@ -3,7 +3,32 @@ import { aplicarTransicao, toDoc as leadToDoc } from "@/lib/leads/repo";
 import { LEADS_COLLECTION, VALID_TRANSITIONS, type Lead } from "@/lib/leads/types";
 import { digitosTelefone } from "@/lib/wa";
 
+import type { FilaConfig } from "./config";
 import { adicionarMensagemAoGrupo } from "./respostasPendentes";
+
+/**
+ * O leadId RESERVADO sob o qual mensagens do NÚMERO DE EXCEÇÃO se agrupam
+ * em `/filaRespostasPendentes` (ver "Número de exceção" em ARCHITECTURE.md)
+ * — mesmo espírito de `LEAD_TESTE_ID` (`lib/fila/leadTeste.ts`): uma forma
+ * que NUNCA colide com um placeId real do Google (`ChIJ…`) nem com o lead
+ * fixo de teste, então o grupo de exceção nunca se mistura com o grupo
+ * pendente de um lead de verdade.
+ *
+ * Precisa ser um id PRÓPRIO, e não `leadContextoExcecao` direto: o lead de
+ * contexto pode estar, ao MESMO TEMPO, recebendo mensagens de verdade pelo
+ * número dele — usar o mesmo doc de `/filaRespostasPendentes` misturaria as
+ * duas conversas num grupo só.
+ */
+export const EXCECAO_GRUPO_ID = "radar-excecao-resposta";
+
+/**
+ * Log das mensagens vindas do NÚMERO DE EXCEÇÃO — coleção PRÓPRIA, nunca
+ * `leads/{leadContextoExcecao}/respostas`: aquela subcoleção é o histórico
+ * PERMANENTE de um lead real, e uma mensagem de ensaio ali sujaria a
+ * conversa de um negócio que nunca escreveu nada. Existe só para o dedupe
+ * por `chave` funcionar do mesmo jeito (id do doc = chave, de graça).
+ */
+export const FILA_EXCECAO_LOG_COLLECTION = "filaExcecaoLog";
 
 /**
  * `POST /api/fila/mensagem-recebida` — o terceiro pilar da fila: a macro do
@@ -70,6 +95,28 @@ async function respostaJaRegistrada(db: AppDb, leadId: string, chave: string): P
   return snap.exists;
 }
 
+async function respostaExcecaoJaRegistrada(db: AppDb, chave: string): Promise<boolean> {
+  const snap = await db.collection(FILA_EXCECAO_LOG_COLLECTION).doc(idResposta(chave)).get();
+  return snap.exists;
+}
+
+/** Mesmo formato do log real (`gravarResposta`), sem `leadId`: esta mensagem não é de lead nenhum. */
+async function gravarRespostaExcecao(
+  db: AppDb,
+  corpo: CorpoMensagemRecebida,
+  now: Date,
+): Promise<void> {
+  await db
+    .collection(FILA_EXCECAO_LOG_COLLECTION)
+    .doc(idResposta(corpo.chave))
+    .set({
+      texto: corpo.texto,
+      canal: corpo.canal,
+      recebidoEm: corpo.recebidoEm,
+      criadoEm: now.toISOString(),
+    });
+}
+
 async function gravarResposta(
   db: AppDb,
   leadId: string,
@@ -126,25 +173,69 @@ async function avancarParaRespondeuSeAplicavel(db: AppDb, lead: Lead, now: Date)
 }
 
 /**
- * Processa UMA notificação: canal → lead → dedupe → registro (log
+ * Processa uma notificação vinda do NÚMERO DE EXCEÇÃO (`config/fila.
+ * numeroExcecao`) — ver "Número de exceção" em ARCHITECTURE.md. Mesmo
+ * dedupe por `chave` do caminho real, mas em tudo o mais é deliberadamente
+ * MENOS: log em coleção PRÓPRIA (nunca `leads/{id}/respostas`, que é
+ * histórico permanente de um lead de verdade), sem tocar status de lead
+ * nenhum, e agrupada sob `EXCECAO_GRUPO_ID` — nunca sob o `leadContextoExcecao`
+ * escolhido, que pode estar recebendo mensagem de verdade ao mesmo tempo.
+ *
+ * Quem decide o que gerar a partir daqui é o FLUSH (`flushRespostas.ts`):
+ * este módulo só REGISTRA e AGRUPA, exatamente como faz para um lead real.
+ */
+async function processarMensagemExcecao(
+  db: AppDb,
+  corpo: CorpoMensagemRecebida,
+  now: Date,
+): Promise<ResultadoMensagemRecebida> {
+  if (await respostaExcecaoJaRegistrada(db, corpo.chave)) {
+    return { processada: false, motivo: "chave_repetida" };
+  }
+
+  await gravarRespostaExcecao(db, corpo, now);
+  await adicionarMensagemAoGrupo(
+    db,
+    EXCECAO_GRUPO_ID,
+    { texto: corpo.texto, recebidoEm: corpo.recebidoEm },
+    now,
+  );
+
+  return { processada: true };
+}
+
+/**
+ * Processa UMA notificação: canal → exceção OU lead → dedupe → registro (log
  * permanente em `leads/{leadId}/respostas/{chave}`, transição de status, e
  * entrada no grupo de agrupamento — ver `respostasPendentes.ts`).
+ *
+ * **O casamento com o número de exceção vem ANTES do casamento com lead**,
+ * de propósito: é config explícita do admin, e deve vencer mesmo na
+ * coincidência remota de `numeroExcecao` bater com o telefone de um lead
+ * real. `filaConfig.numeroExcecao` vazio (o padrão) pula esta checagem
+ * inteira — comportamento IDÊNTICO ao de antes deste bloco existir.
  *
  * `chave` como o próprio ID do doc de log é o que dá o dedupe de graça:
  * chave repetida encontra o doc já existente e devolve `chave_repetida` sem
  * tocar em mais nada (nem status, nem grupo pendente) — "sem reprocessar" é
- * literal.
+ * literal, nos dois caminhos.
  */
 export async function processarMensagemRecebida(
   db: AppDb,
   corpo: CorpoMensagemRecebida,
   now: Date,
+  filaConfig: FilaConfig,
 ): Promise<ResultadoMensagemRecebida> {
   if (corpo.canal !== CANAL_INDIVIDUAL) {
     return { processada: false, motivo: "canal_grupo" };
   }
 
   const remetenteDigitos = digitosTelefone(corpo.remetente);
+
+  if (filaConfig.numeroExcecao && remetenteDigitos === digitosTelefone(filaConfig.numeroExcecao)) {
+    return processarMensagemExcecao(db, corpo, now);
+  }
+
   const lead = await encontrarLeadPorTelefone(db, remetenteDigitos);
   if (!lead) {
     return { processada: false, motivo: "sem_lead" };

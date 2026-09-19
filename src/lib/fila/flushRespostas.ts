@@ -6,6 +6,7 @@ import { digitosTelefone } from "@/lib/wa";
 
 import type { FilaConfig } from "./config";
 import { FILA_RESPOSTAS_COLLECTION, type FilaRespostaDoc } from "./estado";
+import { EXCECAO_GRUPO_ID } from "./mensagemRecebida";
 import { gerarRascunhoResposta } from "./rascunhoResposta";
 import { criarTarefaResposta, sortearAtrasoSegundos } from "./respostaAutomatica";
 import {
@@ -55,7 +56,14 @@ async function decidirAutomatica(
   if (!filaConfig.respostaAutomaticaApenasPrimeira) return true;
 
   const snap = await db.collection(FILA_RESPOSTAS_COLLECTION).get();
-  return !snap.docs.some((doc) => (doc.data() as unknown as FilaRespostaDoc).leadId === leadId);
+  // `!doc.teste` exclui os rascunhos de ENSAIO do número de exceção: eles
+  // emprestam este `leadId` só para dar contexto ao prompt, e contá-los
+  // como "a primeira resposta" faria uma resposta de VERDADE, futura e do
+  // mesmo lead, cair na aprovação manual por engano.
+  return !snap.docs.some((doc) => {
+    const data = doc.data() as unknown as FilaRespostaDoc;
+    return data.leadId === leadId && !data.teste;
+  });
 }
 
 /**
@@ -73,6 +81,12 @@ async function decidirAutomatica(
  * O ATRASO é sorteado aqui, uma vez por resposta, e vira `disponivelEm` na
  * tarefa: o aparelho não sabe de atraso nenhum — ele pergunta, e a tarefa
  * está lá ou não está.
+ *
+ * `teste` (default false) é o rascunho de ENSAIO do número de exceção (ver
+ * "Número de exceção" em ARCHITECTURE.md): grava com `FilaRespostaDoc.teste
+ * = true` e NUNCA passa por `decidirAutomatica` — aquele lead não escreveu
+ * nada, e virar tarefa mandaria o ensaio para o número real dele mesmo com
+ * `respostaAutomatica` ligado.
  */
 async function salvarRascunho(
   db: AppDb,
@@ -81,11 +95,12 @@ async function salvarRascunho(
   rascunho: string,
   now: Date,
   filaConfig: FilaConfig,
+  teste = false,
 ): Promise<void> {
   // A decisão vem ANTES da gravação: `decidirAutomatica` pergunta se este
   // lead já tem rascunho, e o rascunho que está nascendo agora responderia
   // "já tem" a si mesmo.
-  const automatica = await decidirAutomatica(db, lead.placeId, filaConfig);
+  const automatica = teste ? false : await decidirAutomatica(db, lead.placeId, filaConfig);
 
   const id = crypto.randomUUID();
   const doc: FilaRespostaDoc = {
@@ -95,6 +110,7 @@ async function salvarRascunho(
     rascunho,
     geradoEm: now.toISOString(),
     estado: "pendente",
+    ...(teste && { teste: true }),
   };
   await db.collection(FILA_RESPOSTAS_COLLECTION).doc(id).set({ ...doc });
 
@@ -128,6 +144,14 @@ async function salvarRascunho(
  * em qualquer falha — devolve as mensagens ao grupo pendente marcadas com o
  * erro (`restaurarGrupoComErro`), retentável no próximo flush.
  *
+ * **O grupo de EXCEÇÃO é reconhecido pelo id reservado** (`EXCECAO_GRUPO_ID`
+ * — ver `mensagemRecebida.ts`), nunca por um campo próprio no doc: é o
+ * MESMO mecanismo de agrupamento por silêncio, só que o lead que dá contexto
+ * ao prompt vem de `filaConfig.leadContextoExcecao` (lido AGORA, no flush —
+ * não no instante em que a mensagem chegou) em vez do `leadId` do claim.
+ * Sem `leadContextoExcecao` configurado, as mensagens se perdem aqui mesmo,
+ * mesmo tratamento de "lead sumiu": não há para quem ensaiar.
+ *
  * Este `try/catch` é o ISOLAMENTO: nada daqui propaga para quem chamou
  * `flushGruposMaduros` — falha na geração de UM grupo nunca pode impedir os
  * outros grupos maduros de serem processados, nem a resposta de
@@ -141,14 +165,17 @@ async function processarGrupoReivindicado(
   appConfig: AppConfig,
 ): Promise<void> {
   try {
-    const lead = await getLead(db, claim.leadId);
+    const teste = claim.leadId === EXCECAO_GRUPO_ID;
+    const leadId = teste ? filaConfig.leadContextoExcecao : claim.leadId;
+    const lead = leadId ? await getLead(db, leadId) : undefined;
     // Lead sumiu no meio do caminho (nunca deveria acontecer — leads não são
-    // apagados neste app): sem para onde gerar o rascunho, as mensagens do
-    // claim se perdem aqui mesmo, de propósito (não há destino válido).
+    // apagados neste app), OU é o grupo de exceção sem `leadContextoExcecao`
+    // configurado: sem para onde gerar o rascunho, as mensagens do claim se
+    // perdem aqui mesmo, de propósito (não há destino válido).
     if (!lead) return;
 
     const rascunho = await gerarRascunhoResposta(db, lead, claim.mensagens, appConfig);
-    await salvarRascunho(db, lead, claim.mensagens, rascunho, now, filaConfig);
+    await salvarRascunho(db, lead, claim.mensagens, rascunho, now, filaConfig, teste);
   } catch (error) {
     const motivo = error instanceof Error ? error.message : "falha desconhecida na geração do rascunho";
     await restaurarGrupoComErro(db, claim, motivo);

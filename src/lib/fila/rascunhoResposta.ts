@@ -1,4 +1,5 @@
 import type { AppConfig } from "@/lib/config";
+import { loadContextoComercial } from "@/lib/contextoComercial";
 import { reserveQuota } from "@/lib/costs";
 import { idiomaEfetivoDemo } from "@/lib/demos/idioma";
 import type { AppDb } from "@/lib/firestore-like";
@@ -111,12 +112,32 @@ async function posicionamentoPrecoParaPrompt(
   );
 }
 
+/**
+ * As DUAS REGRAS DURAS do prompt — SEMPRE presentes, com ou sem contexto
+ * comercial preenchido. É a mesma regra que já vale para o índice regional
+ * de preço ("LLM nunca é fonte de número absoluto", ver
+ * `posicionamentoPrecoParaPrompt`), estendida para prazo/escopo/condição e
+ * para a fonte nova: sem contexto comercial nenhum, ela é o único freio
+ * contra o modelo preencher o vazio com um número plausível.
+ *
+ * A marcação (`[PREENCHER: ...]`) é o que faz "não invente" ser algo que o
+ * operador PERCEBE, em vez de um rascunho educado que simplesmente omite a
+ * resposta à pergunta do lead — omitir em silêncio pareceria bug de IA, não
+ * cautela deliberada.
+ */
+const REGRAS_DURAS_PROMPT = [
+  "REGRAS DURAS, sem exceção:",
+  '- NUNCA invente um número absoluto (preço, desconto, prazo em dias/semanas). Se o valor exato não estiver escrito acima (no contexto comercial ou no posicionamento de preço), não chute: escreva a frase normalmente e troque o número que faltaria por uma marcação "[PREENCHER: o quê]" para o operador completar antes de mandar.',
+  '- NUNCA prometa prazo, escopo (o que está incluso) ou condição (forma de pagamento, garantia, suporte) que não esteja escrito no contexto comercial acima. Sem essa informação, use a mesma marcação "[PREENCHER: ...]" em vez de inventar.',
+].join("\n");
+
 function montarPromptRascunho(
   lead: Lead,
   mensagens: MensagemGrupo[],
   mensagemEnviada: string,
   resumoDemo: string | undefined,
   posicionamentoPreco: string | undefined,
+  contextoComercial: string | undefined,
   idioma: string,
 ): string {
   const nicho = lead.busca?.nicho?.trim() || "negócio local";
@@ -129,6 +150,15 @@ function montarPromptRascunho(
     `Mensagem que você (o Radar) mandou originalmente para este lead: "${mensagemEnviada}"`,
     ...(resumoDemo ? ["", `O que a demo já mostra para ele: ${resumoDemo}.`] : []),
     ...(posicionamentoPreco ? ["", posicionamentoPreco] : []),
+    ...(contextoComercial
+      ? [
+          "",
+          "Contexto comercial declarado pelo operador (o que ESTE negócio vende, como funciona, preços e prazos — use isto como fonte, nunca contrarie):",
+          contextoComercial,
+        ]
+      : []),
+    "",
+    REGRAS_DURAS_PROMPT,
     "",
     "O lead respondeu com a(s) mensagem(ns) abaixo, na ordem em que chegaram (pode ser mais de uma, mandadas em sequência):",
     mensagensNumeradas,
@@ -161,11 +191,13 @@ export async function gerarRascunhoResposta(
   config: AppConfig,
 ): Promise<string> {
   const idioma = idiomaEfetivoDemo(lead);
-  const [mensagemEnviada, posicionamentoPreco] = await Promise.all([
+  const [mensagemEnviada, posicionamentoPreco, contexto] = await Promise.all([
     montarMensagemParaLead(db, lead),
     posicionamentoPrecoParaPrompt(db, lead, config),
+    loadContextoComercial(db),
   ]);
   const resumoDemo = resumoDemoParaPrompt(lead);
+  const contextoComercial = contexto.texto.trim() || undefined;
 
   const prompt = montarPromptRascunho(
     lead,
@@ -173,6 +205,7 @@ export async function gerarRascunhoResposta(
     mensagemEnviada.texto,
     resumoDemo,
     posicionamentoPreco,
+    contextoComercial,
     idioma,
   );
 

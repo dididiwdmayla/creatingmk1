@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CONFIG } from "@/lib/config";
 import { AiIndisponivelError } from "@/lib/ai/gemini";
 import { QuotaExceededError } from "@/lib/costs";
+import { saveContextoComercial } from "@/lib/contextoComercial";
 import type { Lead } from "@/lib/leads/types";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { gerarRascunhoResposta } from "../rascunhoResposta";
@@ -111,5 +112,59 @@ describe("gerarRascunhoResposta", () => {
       gerarRascunhoResposta(db, baseLead(), [{ texto: "oi", recebidoEm: "2026-03-01T10:00:00.000Z" }], DEFAULT_CONFIG),
     ).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("gerarRascunhoResposta — contexto comercial e as regras duras", () => {
+  async function prompt(db: FakeFirestore): Promise<string> {
+    await gerarRascunhoResposta(
+      db,
+      baseLead(),
+      [{ texto: "Quanto custa?", recebidoEm: "2026-03-01T10:00:00.000Z" }],
+      DEFAULT_CONFIG,
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    return body.contents[0].parts[0].text;
+  }
+
+  it("sem o documento preenchido, o prompt não traz seção de contexto comercial, mas traz a regra dura", async () => {
+    const db = new FakeFirestore();
+
+    const texto = await prompt(db);
+
+    expect(texto).not.toContain("Contexto comercial declarado");
+    expect(texto).toContain("NUNCA invente um número absoluto");
+    expect(texto).toContain("[PREENCHER:");
+  });
+
+  it("com o documento preenchido, o texto entra no prompt tal como escrito", async () => {
+    const db = new FakeFirestore();
+    await saveContextoComercial(db, {
+      texto: "Fazemos site institucional a partir de R$1.500, prazo de 10 dias úteis.",
+    });
+
+    const texto = await prompt(db);
+
+    expect(texto).toContain("Contexto comercial declarado");
+    expect(texto).toContain("Fazemos site institucional a partir de R$1.500, prazo de 10 dias úteis.");
+  });
+
+  it("a regra dura de não inventar prazo/escopo/condição está sempre no prompt", async () => {
+    const db = new FakeFirestore();
+    await saveContextoComercial(db, { texto: "Vendemos site institucional." });
+
+    const texto = await prompt(db);
+
+    expect(texto).toContain("NUNCA prometa prazo, escopo");
+  });
+
+  it("documento só com espaço em branco é tratado como vazio (nenhuma seção, mas a regra continua lá)", async () => {
+    const db = new FakeFirestore();
+    await saveContextoComercial(db, { texto: "   " });
+
+    const texto = await prompt(db);
+
+    expect(texto).not.toContain("Contexto comercial declarado");
+    expect(texto).toContain("REGRAS DURAS");
   });
 });

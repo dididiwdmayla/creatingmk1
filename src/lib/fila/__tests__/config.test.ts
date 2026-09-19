@@ -245,3 +245,79 @@ describe("numeroTeste — o destino do disparo de teste", () => {
     expect(config.numeroTeste).toBe(DEFAULT_FILA_CONFIG.numeroTeste);
   });
 });
+
+describe("numeroExcecao / leadContextoExcecao — a origem que ensaia a resposta", () => {
+  it("vêm vazios por default — comportamento de hoje, sem exceção nenhuma", () => {
+    expect(DEFAULT_FILA_CONFIG.numeroExcecao).toBe("");
+    expect(DEFAULT_FILA_CONFIG.leadContextoExcecao).toBe("");
+  });
+
+  it("aceita dígitos com DDI e guarda sem espaço", async () => {
+    const db = new FakeFirestore();
+    const salvo = await saveFilaConfig(db, { numeroExcecao: " 5511977778888 " });
+    expect(salvo.numeroExcecao).toBe("5511977778888");
+  });
+
+  it("aceita vazio — desliga a exceção, não é erro", async () => {
+    const db = new FakeFirestore();
+    await saveFilaConfig(db, { numeroExcecao: "5511977778888" });
+
+    const salvo = await saveFilaConfig(db, { numeroExcecao: "" });
+
+    expect(salvo.numeroExcecao).toBe("");
+  });
+
+  it("recusa número com máscara, curto demais ou comprido demais — mesmo formato de numeroTeste", async () => {
+    const db = new FakeFirestore();
+    await expect(saveFilaConfig(db, { numeroExcecao: "(11) 97777-8888" })).rejects.toThrow(
+      ValidationError,
+    );
+    await expect(saveFilaConfig(db, { numeroExcecao: "123" })).rejects.toThrow(ValidationError);
+    await expect(saveFilaConfig(db, { numeroExcecao: "1".repeat(16) })).rejects.toThrow(
+      ValidationError,
+    );
+  });
+
+  it("leadContextoExcecao aceita qualquer string (placeId ou o lead fixo de teste) e apara espaço", async () => {
+    const db = new FakeFirestore();
+    const salvo = await saveFilaConfig(db, { leadContextoExcecao: "  ChIJlead1  " });
+    expect(salvo.leadContextoExcecao).toBe("ChIJlead1");
+  });
+
+  it("rejeita leadContextoExcecao que não é string", async () => {
+    const db = new FakeFirestore();
+    await expect(saveFilaConfig(db, { leadContextoExcecao: 123 })).rejects.toThrow(ValidationError);
+  });
+
+  it("RECUSA numeroExcecao igual a numeroTeste — direções opostas", async () => {
+    const db = new FakeFirestore();
+    await expect(
+      saveFilaConfig(db, { numeroExcecao: DEFAULT_FILA_CONFIG.numeroTeste }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("RECUSA na outra direção também: mudar numeroTeste para o que já é numeroExcecao", async () => {
+    const db = new FakeFirestore();
+    await saveFilaConfig(db, { numeroExcecao: "5511977778888" });
+
+    await expect(saveFilaConfig(db, { numeroTeste: "5511977778888" })).rejects.toThrow(
+      ValidationError,
+    );
+    // Nada foi escrito: o numeroTeste antigo continua valendo.
+    expect((await loadFilaConfig(db)).numeroTeste).toBe(DEFAULT_FILA_CONFIG.numeroTeste);
+  });
+
+  it("dois vazios não colidem — numeroExcecao vazio nunca é 'igual' a numeroTeste vazio", async () => {
+    const db = new FakeFirestore();
+    const salvo = await saveFilaConfig(db, { numeroTeste: "", numeroExcecao: "" });
+    expect(salvo.numeroTeste).toBe("");
+    expect(salvo.numeroExcecao).toBe("");
+  });
+
+  it("a mensagem de erro é clara sobre qual é a regra", async () => {
+    const db = new FakeFirestore();
+    await expect(
+      saveFilaConfig(db, { numeroExcecao: DEFAULT_FILA_CONFIG.numeroTeste }),
+    ).rejects.toThrow(/numeroExcecao não pode ser igual a numeroTeste/);
+  });
+});

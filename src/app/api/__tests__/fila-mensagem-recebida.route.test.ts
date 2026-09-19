@@ -166,3 +166,49 @@ describe("POST /api/fila/mensagem-recebida — status", () => {
     expect(db.getDoc("leads/ChIJa/respostas/hash-1")).toBeDefined();
   });
 });
+
+describe("POST /api/fila/mensagem-recebida — número de exceção", () => {
+  const NUMERO_EXCECAO = "5544999998888";
+
+  it("numeroExcecao vazio (sem config/fila salvo): comportamento idêntico ao de hoje", async () => {
+    const res = await mensagemRecebida(corpoPadrao({ remetente: NUMERO_EXCECAO }));
+
+    expect(res.status).toBe(200);
+    expect(await listarGruposPendentes(db)).toEqual([]);
+  });
+
+  it("mensagem do número de exceção: 200, agrupa sob id reservado, e NÃO entra nas respostas do lead de contexto", async () => {
+    semear(lead("ChIJcontexto"));
+    db.seed("config/fila", { numeroExcecao: NUMERO_EXCECAO, leadContextoExcecao: "ChIJcontexto" });
+
+    const res = await mensagemRecebida(corpoPadrao({ remetente: NUMERO_EXCECAO }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(db.getDoc("leads/ChIJcontexto/respostas/hash-1")).toBeUndefined();
+    expect(db.getDoc("leads/ChIJcontexto")?.status).toBe("contactado");
+    const grupos = await listarGruposPendentes(db);
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0].leadId).not.toBe("ChIJcontexto");
+  });
+
+  it("número de exceção com espaços/formatação casa", async () => {
+    db.seed("config/fila", { numeroExcecao: NUMERO_EXCECAO, leadContextoExcecao: "ChIJcontexto" });
+
+    const res = await mensagemRecebida(corpoPadrao({ remetente: "+55 (44) 99999-8888" }));
+
+    expect(res.status).toBe(200);
+    expect(await listarGruposPendentes(db)).toHaveLength(1);
+  });
+
+  it("401 sem a RADAR_DEVICE_KEY continua valendo com exceção configurada", async () => {
+    db.seed("config/fila", { numeroExcecao: NUMERO_EXCECAO, leadContextoExcecao: "ChIJcontexto" });
+
+    const res = await mensagemRecebida(corpoPadrao({ remetente: NUMERO_EXCECAO }), {
+      authorization: "Bearer errada",
+    });
+
+    expect(res.status).toBe(401);
+    expect(await listarGruposPendentes(db)).toEqual([]);
+  });
+});
