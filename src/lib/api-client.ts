@@ -4,6 +4,7 @@ import type { ConteudoTraduzivel } from "@/lib/ai/traducaoDemo";
 import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
+import type { ContextoComercial } from "@/lib/contextoComercial";
 import type { DemoAvulsa } from "@/lib/demos/avulsas/types";
 import type { ImportacaoMaps } from "@/lib/demos/avulsas/googleMaps";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
@@ -434,6 +435,17 @@ export const api = {
   getConfig: () => request<{ config: AppConfig }>("/api/config"),
   putConfig: (patch: Partial<AppConfig>) =>
     request<{ config: AppConfig }>("/api/config", {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    }),
+
+  /**
+   * Contexto comercial da IA (doc `/config/contextoComercial`, próprio) —
+   * painel "Contexto comercial". GET aberto a qualquer sessão, PUT admin.
+   */
+  getContextoComercial: () => request<{ contexto: ContextoComercial }>("/api/config/contexto-comercial"),
+  putContextoComercial: (patch: Partial<ContextoComercial>) =>
+    request<{ contexto: ContextoComercial }>("/api/config/contexto-comercial", {
       method: "PUT",
       body: JSON.stringify(patch),
     }),

@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 
 import { PAINEL_BUSCA, PainelBusca } from "./paineis/Busca";
+import { PAINEL_CONTEXTO_COMERCIAL, ContextoComercialSection } from "./paineis/ContextoComercial";
 import { PAINEL_COTAS, CotasUsuariosSection } from "./paineis/CotasUsuarios";
 import { PAINEL_FILA, FilaEnvioSection } from "./paineis/FilaEnvio";
 import { PAINEL_FRASES, FrasesSection } from "./paineis/Frases";
@@ -59,6 +60,7 @@ export const PAINEIS_CONFIG: PainelConfig[] = [
   { id: PAINEL_USUARIOS, posicao: "antes", Componente: UsuariosSection },
   { id: PAINEL_COTAS, posicao: "antes", Componente: CotasUsuariosSection },
   { id: PAINEL_METAS, posicao: "antes", Componente: MetasUsuariosSection },
+  { id: PAINEL_CONTEXTO_COMERCIAL, posicao: "antes", Componente: ContextoComercialSection },
   { id: PAINEL_FILA, posicao: "antes", Componente: FilaEnvioSection },
   { id: PAINEL_RESPOSTAS, posicao: "antes", Componente: RespostasPendentesSection },
   { id: PAINEL_SEM_VESTIGIO, posicao: "antes", Componente: LeadsSemVestigioSection },

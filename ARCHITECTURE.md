@@ -3011,6 +3011,7 @@ Contexto no prompt — o que separa um rascunho útil de um educado e genérico:
 - **A mensagem que o Radar mandou** — reconstruída via `montarMensagemParaLead(db, lead)` (a mesma função que a fila de envio usa): o app não guarda o texto literal que saiu, então reconstruir com a mesma regra de precedência (skin → grupo → global) é a fonte de verdade mais próxima do que o lead de fato recebeu.
 - **O que a demo mostra** — slogan, texto do hero e nomes dos serviços salvos em `lead.demo.dados` (ausência de qualquer um simplesmente omite a linha do prompt, nunca inventa).
 - **Posicionamento de preço** — índice de mercado da REGIÃO (leitura somente-cache de `/regioes`, via `regiaoCacheKey` — nunca gera/regenera aqui, isso é ação explícita do admin) × multiplicador do nicho × piso configurado (`config.precificacao`), com o mesmo `precoBase` de partida (R$2000, "Presença") que o card "Precificação" já assume antes do operador mexer no slider. Sem região cacheada, cai no índice NEUTRO (1.0) — ainda dá um número direcional, só sem a faixa de mercado local.
+- **Contexto comercial** — texto livre do operador sobre o que ESTE negócio vende (ver "Contexto comercial da IA" logo abaixo). Documento vazio simplesmente omite a seção do prompt — nunca um motivo para inventar.
 
 A IA de análise interna do Radar é sempre pt-BR; o rascunho sai no idioma do LEAD (`idiomaEfetivoDemo`, a mesma derivação país/cidade → idioma que a Forja de Demos já usa).
 
@@ -3029,6 +3030,23 @@ O rascunho vai para uma coleção PRÓPRIA, `filaRespostas/{id}` (id próprio, g
 ```
 
 Quem faz o estado sair de "pendente" é o painel abaixo — ou, com a RESPOSTA AUTOMÁTICA ligada, a confirmação do próprio aparelho (ver o bloco adiante). `usada` ganha junto `textoUsado` (o texto EDITADO pelo operador, ou o rascunho congelado quando quem mandou foi o aparelho) e `resolvidoEm`; `descartada` ganha só o carimbo.
+
+### Contexto comercial da IA (`src/lib/contextoComercial.ts` + painel "Contexto comercial" em /config)
+
+Antes deste bloco a IA do Radar não sabia NADA sobre o que o operador vende — os dois usos que já existiam (textos de demo dentro de schema estrito, e o índice regional de preço) não carregam contexto comercial nenhum. Sem isso o rascunho de resposta saía educado e vazio ("posso te explicar melhor por chamada de vídeo?"), ou pior, inventava preço e prazo que ninguém declarou.
+
+**Doc PRÓPRIO, `/config/contextoComercial`** (mesmo padrão de doc único de `/config/fila`): UM campo, `texto`, TEXTO LIVRE. De propósito, e não um formulário com campos fixos de preço/prazo/escopo: as perguntas de um lead não são previsíveis ("tem manutenção?", "faz loja virtual?", "atende aos sábados?"), e o operador precisa poder acrescentar uma linha nova a cada pergunta nova sem esperar deploy — modelar como formulário obrigaria a prever toda pergunta com antecedência.
+
+**Painel autônomo** (`ContextoComercialSection`, GET aberto a qualquer sessão / PUT admin — mesma divisão de "Frases de prospecção"): a caixa salva sozinha no blur, sem "Salvar" geral, seguindo a convenção já estabelecida pelos outros painéis de texto livre editável sem deploy (`capturas.ancoras`, `multiplicadoresNicho`). Registrado logo ANTES de "Fila de envio" — é o contexto que o operador preenche antes de testar a resposta.
+
+Esse texto entra no prompt de `gerarRascunhoResposta` (`lib/fila/rascunhoResposta.ts`) junto do contexto do lead que já é montado (nicho, mensagem enviada, demo, posicionamento de preço) — documento vazio simplesmente omite a seção, nunca é motivo para a IA inventar.
+
+**DUAS REGRAS DURAS, escritas no PRÓPRIO PROMPT e sempre presentes** (com ou sem o documento preenchido — sem contexto nenhum elas são o único freio contra o modelo chutar um número plausível):
+
+1. **A IA NUNCA inventa número absoluto.** Se o preço (ou desconto, ou prazo em dias/semanas) não estiver escrito no contexto comercial (nem no posicionamento de preço regional), o rascunho não chuta: troca o número que faltaria por uma marcação `[PREENCHER: o quê]` para o operador completar antes de mandar.
+2. **Nenhuma promessa de prazo, escopo ou condição** (o que está incluso, forma de pagamento, garantia, suporte) que não esteja escrita no documento. Mesma marcação em vez de inventar.
+
+Esta é a MESMA regra que o app já aplica ao índice regional ("LLM nunca é fonte de número absoluto" — ver `posicionamentoPrecoParaPrompt`, que já instrui "não prometa valor fechado") — está sendo ESTENDIDA para prazo/escopo/condição e para a fonte nova, não inventada. A marcação `[PREENCHER: ...]` (em vez de simplesmente omitir a resposta à pergunta do lead em silêncio) é o que faz a cautela ser PERCEBIDA pelo operador — um rascunho que só evita o assunto pareceria bug de IA, não um limite deliberado. Como é instrução de prompt (não validação de schema), não há como um teste automatizado travar o comportamento do modelo real; os testes travam o CONTRATO — o texto do documento entra no prompt tal como escrito, e as duas regras (com a marcação) estão sempre presentes, preenchido ou não.
 
 ### O painel "Respostas pendentes" (/config)
 
