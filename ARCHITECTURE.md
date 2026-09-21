@@ -3116,7 +3116,9 @@ A detecção é `podeAbrirBusiness` (a string do agente — a única checagem qu
 
 **`numeroExcecao` em `config/fila`** — UM número só, nunca lista, nunca um modo "aceitar qualquer remetente" (a proteção contra remetente sem lead continua valendo para todo o resto). Dígitos puros com DDI, normalizado pela MESMA `digitosTelefone` que casa o telefone de um lead — sem isso o casamento nunca acontece, porque o que o aparelho manda vem com espaço e parêntese (`"+55 16 98213-3909"`). Vazio (o padrão) é comportamento IDÊNTICO ao de hoje.
 
-**RECUSADO igual a `numeroTeste`** — são direções opostas (um é DESTINO do disparo de teste, o outro é ORIGEM que dispara a resposta); iguais, o teste de envio geraria resposta automática para si mesmo. `saveFilaConfig` recusa nas DUAS direções (mudar `numeroExcecao` para o que já é `numeroTeste`, e vice-versa), com mensagem clara — não é checagem de formato (por isso não mora em `validateFilaConfigPatch`, que só vê o patch parcial): compara contra a config já persistida, porque cada campo do painel salva no próprio blur.
+**ACEITO igual a `numeroTeste`** — e é a configuração mais realista, não um conflito. Houve uma trava recusando os dois iguais, REMOVIDA de propósito porque o raciocínio que a sustentava estava errado: supunha-se que o disparo de teste para X geraria resposta automática para si mesmo. Não gera — o Business MANDANDO para X não produz notificação de mensagem RECEBIDA no Business; só X RESPONDENDO produz, e é exatamente esse o teste desejado. E mesmo aí não há laço possível: o rascunho do número de exceção nasce com `teste: true` e nunca vira tarefa de envio (limite 3 abaixo), com `respostaAutomatica` ligada ou não.
+
+Com os dois iguais, o ensaio cobre o ciclo inteiro em um aparelho só: o operador dispara o teste para X, responde de X, e a conversa no Business fica com as duas mensagens — como ficaria com um lead de verdade. `saveFilaConfig` não compara os dois campos; a única validação é de FORMATO (dígitos com DDI, ou vazio), em `validateFilaConfigPatch`.
 
 **`leadContextoExcecao` — o campo companheiro**: o leadId que o operador escolhe no painel para dar contexto ao rascunho. Mensagem vinda do número de exceção gera rascunho usando ESSE lead como contexto — mesmo prompt, mesma reconstrução de `montarMensagemParaLead`, mesmo `gerarRascunhoResposta` — sem que o lead escolhido saiba de nada. É assim que o operador ensaia a resposta de um lead real sem mandar nada para ele.
 
@@ -3131,7 +3133,7 @@ Quatro limites, cada um resolvido numa camada diferente para não colidir com o 
 
 **Não move status de lead nenhum**: o caminho de exceção nunca chama `avancarParaRespondeuSeAplicavel` — só o casamento por telefone real faz isso.
 
-**No painel**, os dois campos ficam JUNTO de "Número do teste" em "Fila de envio" — não escondidos numa seção à parte —, exatamente para não ficar esquecido ligado: é a mesma fila de segurança, em direção oposta.
+**No painel**, os dois campos ficam JUNTO de "Número do teste" em "Fila de envio" — não escondidos numa seção à parte —, exatamente para não ficar esquecido ligado: é a mesma fila de segurança, em direção oposta. O texto de ajuda diz que os dois PODEM ser o mesmo número, e por que isso é melhor.
 
 ## Resposta automática — o rascunho que deixa de esperar aprovação
 

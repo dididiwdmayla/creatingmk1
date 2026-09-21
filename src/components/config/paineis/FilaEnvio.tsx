@@ -246,8 +246,9 @@ export function FilaEnvioSection() {
           <p className="text-xs text-ink-muted">
             Mensagem vinda deste número gera rascunho de TESTE usando o lead de contexto acima —
             nunca vira tarefa de envio, mesmo com resposta automática ligada, e não toca no
-            histórico nem no status daquele lead. Não pode ser igual ao número do teste (direções
-            opostas: um é destino do disparo, o outro é origem da resposta). Vazio = sem exceção.
+            histórico nem no status daquele lead. Pode ser o MESMO número do teste, e aí o ensaio
+            fica mais parecido com o real: você dispara para ele, responde dele, e a conversa no
+            Business fica com as duas mensagens. Vazio = sem exceção.
           </p>
         </div>
       )}
