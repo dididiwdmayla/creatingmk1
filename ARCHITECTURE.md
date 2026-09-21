@@ -19,7 +19,7 @@ scripts/
   qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato; `--so=avulsa` compara identidade em branco × preenchida nas 8 skins (ver "Demos avulsas"); `--so=fps` é o PORTÃO: efeito × os 5 modos de cor, celular com CPU 4×, rolando a página — piso de 45 fps por CÉLULA (modo que reprova é desabilitado, não o efeito) + a superfície repintada em Mpx/s ao lado (ver "Verificação da UI")
   qa-editor.mjs                     # ✅ laço de captura do EDITOR (não da rota pública): digita num campo com o efeito ativo e reporta fps do preview + contagem de <style> antes/depois; exige o patch temporário de fake DB documentado no cabeçalho
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
-  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma"); `--so=listas` é o PORTÃO das duas listas longas (/leads e /buscas no celular, dirigindo os controles de verdade): nenhuma linha com altura zero, nada vazando da viewport e a compactação MEDIDA (ver "Compactação de /leads e /buscas"); `--so=paineis` é o PORTÃO dos blocos colapsáveis de /config — tudo fechado, um aberto e o estado PERSISTIDO entre recargas (ver "Painéis colapsáveis da /config"); `--so=comercial` cobre o painel "Contexto comercial" preenchido e VAZIO
+  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma"); `--so=listas` é o PORTÃO das duas listas longas (/leads e /buscas no celular, dirigindo os controles de verdade): nenhuma linha com altura zero, nada vazando da viewport e a compactação MEDIDA (ver "Compactação de /leads e /buscas"); `--so=paineis` é o PORTÃO dos blocos colapsáveis de /config — tudo fechado, um aberto e o estado PERSISTIDO entre recargas (ver "Painéis colapsáveis da /config"); `--so=comercial` cobre o painel "Contexto comercial" preenchido e VAZIO; `--so=seletor` cobre o SELETOR DE LEAD (fechado pelo nome, aberto, a busca filtrando sem ir à rede, "lead não encontrado") e o fim da ficha com o id
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
   qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia, prova que o seletor de fontes alcança o título, refaz tudo com ALINHAMENTO/ESCALA/ENTRE-LETRAS trocados POR CÓDIGO (sem remontar) e mede a FAIXA ACIMA do título depois do repique da rolagem contra a mesma faixa sem vídeo — desktop e celular (ver "Título hero: uma caixa de texto, a mídia como máscara" e "O rastro na borda superior")
   capturas-ci.mjs                   # ✅ orquestrador do workflow: move o estado no doc do lead e chama o motor como processo filho (não captura nada por conta própria)
@@ -2591,7 +2591,7 @@ A consequência aceita é que passam a existir **leads contactados com o texto m
 
 ### A lista de pendência no painel "Fila de envio" (/config)
 
-`detalheEnvio` guarda o rastro; esta lista é quem o mostra. Bloco **subordinado** ao painel que já existia (mesma seção, separado por um filete, título em `<h3>` — não uma seção nova competindo com ele), listando os leads com detalhe não vazio e ainda não resolvidos: leadId, nome, data do envio e o texto do detalhe.
+`detalheEnvio` guarda o rastro; esta lista é quem o mostra. Bloco **subordinado** ao painel que já existia (mesma seção, separado por um filete, título em `<h3>` — não uma seção nova competindo com ele), listando os leads com detalhe não vazio e ainda não resolvidos: nome (link para a ficha), data do envio e o texto do detalhe. O leadId CRU saiu daqui junto do seletor de lead (ver "O id, onde ele PODE aparecer"): o nome ao lado já é o link para `/leads/{leadId}` e cai no id quando o nome falta, então a linha em mono embaixo era o único lugar da /config onde um placeId aparecia — e ele agora tem UM lugar, que é o fim da ficha.
 
 É lista de trabalho **MANUAL**: o operador abre a conversa e anexa o print à mão. **Sem ação em massa e sem botão de reenvio** — reenviar produziria justamente a mensagem duplicada que reportar "enviado" existe para evitar.
 
@@ -3837,6 +3837,181 @@ só passaram a DIZER qual painel estão olhando, com
 armadilha de `semear()` reescrever `usuarios/admin` inteiro.
 
 
+## Seletor de lead (`src/lib/leads/selecao.ts` + `src/components/config/SeletorLead.tsx`)
+
+**O relato.** Vários campos da /config pediam um `leadId`, e o `leadId` é o
+placeId do Google — `"ChIJN1t_tDeuEmsRUsoyG83frY4"`, quase 30 caracteres —
+que **não aparece em lugar nenhum da interface**. O operador não tinha como
+preencher: o teste de resposta ficava travado num campo cujo valor a tela
+não dava. Eram três campos, achados varrendo `src/components` e
+`src/app/(app)` atrás de input, rótulo e placeholder de id:
+
+1. **`leadContextoExcecao`** ("Lead de contexto (exceção)", painel "Fila de
+   envio") — `<input>` de texto livre, `placeholder="placeId do lead"`.
+2. **O lead de contexto de "Simular mensagem"** (dentro de "Respostas
+   pendentes") — o mesmo `<input>`, semeado com o campo acima.
+3. **O "Lead alvo" do disparo de teste** — um `<select>` com o lead fixo
+   mais os poucos leads que a VISÃO ao lado tinha carregado, e a opção
+   "outro lead (por id)…", que abria um campo de placeId à mão.
+
+**A correção NÃO foi expor ids pela interface** — isso desfaria a arrumação
+que o colapso da /config acabou de fazer, e trocaria um campo impossível
+por catorze painéis poluídos. Foi o campo **parar de pedir id cru**: os
+três passaram a usar UM componente, que procura lead por NOME e grava o
+`leadId` escolhido. **Nenhuma mudança de modelo de dados**: `config/fila`
+continua guardando `leadContextoExcecao` como string de id, e
+`POST /api/fila/teste` continua recebendo `leadId`.
+
+### A linha do seletor — quatro campos, e por que a cidade
+
+`OpcaoLead { leadId, nome, nicho, cidade, temDemo }` (`lib/leads/selecao.ts`).
+O nome sozinho não serve: **dois leads de mesmo nome em cidades
+diferentes** ("Barbearia do Zé", em Maringá e em Porto Alegre) são
+indistinguíveis numa lista de nomes, e escolher o errado ali é ensaiar a
+resposta do negócio errado sem perceber. A cidade sai do ENDEREÇO
+(`cidadeDoEndereco`, o mesmo caminho da /mundo, da ficha e da montagem da
+demo) porque o endereço é onde o negócio FICA; `busca.regiao` é só o que
+alguém digitou ao procurar, e entra como reserva para o lead sem endereço
+não ficar sem nada ao lado do nome. `temDemo` está ali porque é ele que
+decide se o lead serve de alvo de disparo.
+
+O que a linha NÃO carrega é o ponto: o doc de um lead traz a demo inteira,
+capturas, horários e os detalhes do Places. Mandar a coleção para a tela
+por causa de um campo de escolha seriam megabytes para desenhar uma lista
+de nomes.
+
+### O CUSTO — uma requisição por abertura, nunca uma por tecla
+
+O `AppDb` não tem query. "Procurar por nome" no servidor seria a
+**varredura de `/leads` inteira a cada letra digitada** — o mesmo trabalho,
+repetido por caractere. Então a lista vem **UMA vez, quando o seletor
+abre** (`GET /api/config/leads-selecao`), fica em memória enquanto o
+componente vive, e o filtro é **local**, sem acento e sem caixa. Reabrir
+não busca de novo. Há teste que digita nove letras e exige que o contador
+de `fetch` não se mova, e o laço de captura conta as requisições no browser
+de verdade pelo mesmo motivo — é a regressão que um "já existe uma rota de
+busca" reintroduziria em silêncio.
+
+**A lista desenha no máximo 50 linhas** (o filtro enxerga todas), com
+"mostrando 50 de N — refine a busca" embaixo: a base cresce, e um popover
+de mil nós não fica mais útil que o campo que ele substituiu.
+
+### O id já GRAVADO aparece pelo NOME — e isso é uma rota separada
+
+Um painel com `leadContextoExcecao` salvo tem que mostrar o NOME daquele
+lead assim que abre. Buscar a lista para descobrir um nome seria pagar a
+varredura no carregamento da /config — e os corpos dos painéis continuam
+MONTADOS mesmo fechados (ver "O corpo fechado continua MONTADO"), então
+seria em toda visita à página, catorze painéis fechados inclusive.
+
+Daí `GET /api/config/leads-selecao/{leadId}`: **uma leitura de documento**,
+só quando o campo tem valor, e a varredura fica onde é inevitável — no
+instante em que a lista abre. Ela usa `getLead`, **não** `listLeads`, e é
+de propósito: assim o LEAD FIXO DE TESTE, excluído de toda listagem,
+continua resolvendo pelo nome quando é ele que está gravado. Quem lista é
+filtrado; quem busca por id, não — a mesma distinção que já vale para a
+ficha `/leads/{id}`.
+
+A resposta carrega o id que a pediu: trocar de lead com a anterior ainda no
+ar não pode fazer o nome antigo aparecer no lugar do novo.
+
+### Os três casos de borda, cada um num lugar diferente
+
+- **O lead fixo de teste continua FORA de `listLeads`.** O seletor do
+  disparo precisa oferecê-lo, e pré-selecionado — mas afrouxar aquela
+  exclusão o vazaria para /leads, /demos, /hoje, /mundo e para a penetração
+  de site por nicho, que é o inventário inteiro de "O LEAD FIXO DE TESTE"
+  acima. Quem trata o caso é o SELETOR, pela prop `extras`: opções
+  oferecidas mesmo não estando na lista. Nome e prontidão vêm do mesmo
+  `GET /api/fila/teste` que já desenha o bloco — nenhuma chamada a mais, e
+  **nenhuma requisição para desenhar o alvo padrão**.
+- **`""` = ninguém escolheu ainda**, e é aí que o disparo cai no fixo
+  (`alvoEfetivo`). Guardar a ausência, e não o id do fixo, é o que deixa o
+  campo nascer preenchido sem esperar resposta nenhuma.
+- **Id apontando para lead que não existe mais.** A limpeza de leads
+  antigos pode excluir justamente o lead escolhido como contexto. O campo
+  diz **"lead não encontrado"** e continua abrindo, para escolher outro; a
+  rota responde **200 com `lead: null`, nunca 404**, porque isso é estado
+  previsto da tela e não pedido malformado — 4xx faria um painel inteiro
+  quebrar por causa de um campo com valor velho. Requisição que FALHA diz
+  outra coisa ("não deu pra carregar o nome"): confundir as duas seria
+  mandar o operador trocar um valor que está certo.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=seletor`
+captura cinco estados × celular e desktop × escuro e claro: **fechado com
+id salvo** (mostrando o NOME), **aberto**, **a busca filtrando**, **"lead
+não encontrado"** e o **fim da ficha com o id**. Existe como passo próprio
+porque o que ele julga não tem teste unitário: um campo estreito de painel
+tem que caber nome + nicho + cidade + demo sem esmagar, e o painel
+flutuante é a única parte do app que desenha POR CIMA de outro conteúdo —
+sobreposição, largura no celular e a lista rolando são problema de layout.
+
+Três aferidores que só a tela real dá:
+
+1. **O placeId não aparece na página.** Com o campo preenchido, o passo lê
+   o `innerText` da /config inteira e reprova se algum dos ids semeados
+   estiver ali. É a regra do item virando aferição em vez de intenção.
+2. **Digitar não vai à rede.** `page.on("request")` conta as idas a
+   `/api/config/leads-selecao` e o passo digita TECLA A TECLA
+   (`pressSequentially`, nunca `fill` — um `fill` dispara um evento só e
+   passaria mesmo com uma busca de servidor por letra); o contador tem que
+   ficar parado. O unitário prova o componente; este prova o browser.
+3. **O valor velho não derruba o painel.** Com o `leadContextoExcecao`
+   apontando para um lead que não existe, o passo cobra que "Meta diária",
+   "Número do teste" e "Número de exceção" continuem desenhados ao lado — e
+   que o campo ainda ABRA para escolher outro.
+
+O corte da captura é a união da LINHA (rótulo + campo) com os filhos
+DIRETOS do seletor, e o "direto" ali é a correção de um erro que a primeira
+rodada mostrou: a lista rola dentro de um `max-h`, e o `<ul>` lá dentro tem
+caixa maior que a do painel que o recorta — unir com todo descendente
+esticava o corte até o fim da página. A semeadura põe **dois leads de mesmo
+nome em cidades diferentes** (o caso que a cidade existe para resolver, um
+com demo e outro sem) e reescreve os endereços dos fixtures no formato que
+o Google devolve: o atalho `"Av. Brasil, 100 — Porto Alegre, RS"` faz
+`cidadeDoEndereco` ler "100 — Porto Alegre", artefato da semeadura que
+encheria a folha de contato de ruído. Vale só dentro do passo — `semear()`
+devolve tudo ao fim.
+
+### O id, onde ele PODE aparecer — no FIM da ficha
+
+Esconder o id em toda parte cobra um preço: quem depura precisa dele para
+casar uma linha de log, um doc do Firestore ou uma URL de demo com o
+negócio que está olhando. Ele existe em **um** lugar: o último elemento do
+scroll da ficha `/leads/{id}`, pequeno, apagado, em fonte monoespaçada, com
+botão de copiar (`data-bloco="lead-id"`).
+
+O lugar é a decisão inteira. **No fim**, porque quem precisa dele sabe
+descer até lá e quem não precisa nunca o vê — no topo, ao lado do nome,
+ele seria ruído permanente para todo mundo por causa de um uso raro. **Na
+ficha**, porque é a única tela que já fala de UM lead só: numa lista, um
+id por linha é a poluição que o colapso da /config acabou de tirar.
+
+E em **nenhum outro lugar**: a linha em mono com o leadId da lista de print
+pendente saiu junto deste item. Ela era o único resto de id cru na /config,
+e o nome ao lado dela já leva para a mesma ficha.
+
+### Onde ele mora, e o que saiu junto
+
+Arquivo próprio (`components/config/SeletorLead.tsx`), e não `comum.tsx`,
+apesar de três painéis o usarem: aquele arquivo é de campos BURROS — um
+`<input>` controlado, commit no blur, nenhuma I/O —, e enterrar ali um
+componente que busca, guarda, filtra e abre painel flutuante tornaria
+ilegíveis as peças de uma linha que moram nele. O popover **desmonta**
+quando fechado (nunca `display:none`): o aferidor de "slot com caixa
+zerada" dos laços existe para pegar conteúdo que some SEM QUERER, e uma
+lista escondida dentro de um painel ABERTO viraria parede de falso
+positivo.
+
+Saiu junto o empréstimo `VisaoFila.onLeads → DisparoTeste.leadsDaVisao`: os
+leads da visão eram o atalho de escolha de alvo, e o seletor agora oferece
+a base inteira por nome. `onContador` fica — o resumo do cabeçalho fechado
+continua vindo de lá, pelo mesmo motivo de sempre. As rotas são **admin nos
+dois casos**, como os painéis que as usam: a lista é o retrato da base de
+leads num corpo só, e vive sob `/api/config/` porque o prefixo
+`/api/fila/*` passa sem sessão de usuário (é o celular com
+`RADAR_DEVICE_KEY`).
+
 ## Leads antigos sem vestígio de contato (`src/lib/leads/semVestigio.ts` + `exclusao.ts` + painel em /config)
 
 **O relato.** `seloContato` existe desde 2026-08-05 e `registrosEnvio` desde
@@ -4381,7 +4556,7 @@ não por assunto.
 | laço | superfície | o que ele julga |
 |---|---|---|
 | `scripts/qa-visual.mjs` | **camada decorativa das DEMOS** (rota pública das skins do registro, via o harness `/interno/demo-qa`) | efeito × intensidade × tema, estilos de LED, modos de cor, animação por seção, **variante × modo de cor** (`--so=variante`), cor da barra do navegador, fps no celular com CPU 4× (`--so=fps`, com `--skin=` para escolher a skin e, quando ela tem variantes, variante no eixo das linhas) e o portão de foto colapsada (`--so=colapso`). **Não conhece `/leads` nem `/buscas`** — não há tela da plataforma nele |
-| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e os painéis da /config que ficam abaixo da dobra e por isso têm passos próprios — `--so=pendencias` (lista de print), `--so=fila` (a visão: funil, próximos, bloqueados) e `--so=respostas` (respostas pendentes: além do estado vazio, a AÇÃO mudando com o aparelho — intent do Business no Android, copiar no desktop —, a LINHA DE ESTADO com grupo na janela e grupo em erro, e a SIMULAÇÃO com o resultado e o contexto enviado abertos) e `--so=comercial` (o contexto comercial preenchido e vazio) e `--so=vestigio` (leads antigos sem vestígio: lista cheia, o DIÁLOGO da exclusão definitiva e lista vazia), todos cobrando os ESTADOS VAZIOS; e `--so=balao` (o balão da fila, que não é da /config e sim de TODA tela: os estados dele mais a VARREDURA DE COLISÃO em todas as abas — a cobrança que só um elemento fixo global precisa) |
+| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e os painéis da /config que ficam abaixo da dobra e por isso têm passos próprios — `--so=pendencias` (lista de print), `--so=fila` (a visão: funil, próximos, bloqueados) e `--so=respostas` (respostas pendentes: além do estado vazio, a AÇÃO mudando com o aparelho — intent do Business no Android, copiar no desktop —, a LINHA DE ESTADO com grupo na janela e grupo em erro, e a SIMULAÇÃO com o resultado e o contexto enviado abertos) e `--so=comercial` (o contexto comercial preenchido e vazio) e `--so=vestigio` (leads antigos sem vestígio: lista cheia, o DIÁLOGO da exclusão definitiva e lista vazia) e `--so=seletor` (o seletor de lead fechado/aberto/filtrando, o "lead não encontrado" e o fim da ficha com o id — com o contador de requisições do browser cobrando que digitar não vá à rede), todos cobrando os ESTADOS VAZIOS; e `--so=balao` (o balão da fila, que não é da /config e sim de TODA tela: os estados dele mais a VARREDURA DE COLISÃO em todas as abas — a cobrança que só um elemento fixo global precisa) |
 | `scripts/qa-cls.mjs` | **deslocamento de layout**, nas três | `--so=skins` (rota pública), `--so=editor` (o preview do editor) e `--so=app` (as 7 abas da plataforma). Portão 0.1, o mesmo piso "bom" do Core Web Vital real |
 
 Os outros são de recorte estreito e o nome já diz: `qa-aura.mjs`,

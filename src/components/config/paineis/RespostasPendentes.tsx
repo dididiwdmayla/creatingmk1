@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { SkeletonRows } from "@/components/Skeleton";
 import { PainelColapsavel } from "@/components/config/PainelColapsavel";
+import { SeletorLead } from "@/components/config/SeletorLead";
 import { CAMPO_BASE_CLS, mensagemErroFila } from "@/components/config/comum";
 import { ApiError, api } from "@/lib/api-client";
 import type { RespostaPendente } from "@/lib/fila/estado";
@@ -530,7 +531,7 @@ function SimularMensagemBloco() {
     setGerando(true);
     setErro(null);
     try {
-      setResultado(await api.simularResposta(leadId.trim(), texto));
+      setResultado(await api.simularResposta(leadId, texto));
     } catch (error) {
       setErro(mensagemErroFila(error, "Falha ao simular"));
     } finally {
@@ -538,7 +539,7 @@ function SimularMensagemBloco() {
     }
   }
 
-  const podeSimular = leadId.trim().length > 0 && texto.trim().length > 0 && !gerando;
+  const podeSimular = leadId.length > 0 && texto.trim().length > 0 && !gerando;
 
   return (
     <PainelColapsavel id={PAINEL_SIMULAR} titulo="Simular mensagem" nivel={3}>
@@ -549,15 +550,17 @@ function SimularMensagemBloco() {
         lista acima, não vira tarefa de envio e não toca no lead.
       </p>
 
-      <div className="mt-3 flex items-center gap-2 text-xs text-ink-secondary">
+      {/* O MESMO seletor dos outros dois campos de lead da página: quem
+          ensaia uma resposta sabe de que NEGÓCIO está falando, não o
+          placeId dele. O que vai para a rota continua sendo o leadId. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
         <span className="w-32 shrink-0">Lead de contexto</span>
-        <input
-          value={leadId}
-          onChange={(event) => setLeadId(event.target.value)}
-          placeholder="placeId do lead"
+        <SeletorLead
+          nome="simular-contexto"
+          ariaLabel="Lead de contexto da simulação"
+          valor={leadId}
           disabled={gerando}
-          aria-label="Lead de contexto da simulação"
-          className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+          onEscolher={setLeadId}
         />
       </div>
 

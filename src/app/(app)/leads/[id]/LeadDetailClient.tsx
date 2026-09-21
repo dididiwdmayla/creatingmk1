@@ -120,6 +120,7 @@ export function LeadDetailClient({ id }: { id: string }) {
   const [demoErro, setDemoErro] = useState<string | null>(null);
   const [demoAviso, setDemoAviso] = useState<string | null>(null);
   const [argumentoAviso, setArgumentoAviso] = useState<string | null>(null);
+  const [idCopiado, setIdCopiado] = useState(false);
 
   // Tradução das frases (chamada PAGA, SKU aiTraducao): nunca dispara
   // sozinha — abre a confirmação com chamadas e custo, e só o OK chama.
@@ -370,6 +371,24 @@ export function LeadDetailClient({ id }: { id: string }) {
       setDemoErro(null);
     } catch {
       setDemoErro("Não deu pra copiar — copie da barra de endereço da demo.");
+    }
+  }
+
+  /**
+   * O ID DO LEAD, copiável — o único lugar da interface onde ele aparece.
+   *
+   * É para DEPURAÇÃO: casar uma linha de log, um doc do Firestore ou uma
+   * URL de demo com o negócio que se está olhando. Em todo o resto do app
+   * o id é escondido de propósito (ver "Seletor de lead"), e por isso ele
+   * vive no FIM do scroll desta ficha e em nenhum outro lugar: quem
+   * precisa dele sabe descer até aqui; quem não precisa nunca o vê.
+   */
+  async function handleCopyId() {
+    try {
+      await navigator.clipboard.writeText(id);
+      setIdCopiado(true);
+    } catch {
+      setIdCopiado(false);
     }
   }
 
@@ -1055,6 +1074,23 @@ export function LeadDetailClient({ id }: { id: string }) {
       </div>
 
       {erro && <p className="text-sm text-critical">{erro}</p>}
+
+      {/* O ID, no FIM do scroll e em lugar nenhum mais — ver handleCopyId. */}
+      <div
+        data-bloco="lead-id"
+        className="flex items-center gap-2 pb-1 text-[11px] text-ink-muted"
+      >
+        <span>id</span>
+        <code className="min-w-0 truncate font-mono text-ink-secondary">{id}</code>
+        <button
+          type="button"
+          onClick={handleCopyId}
+          title="Copiar o id do lead — para depuração"
+          className="shrink-0 rounded border border-line px-1.5 py-0.5 hover:border-accent/60 hover:text-accent"
+        >
+          {idCopiado ? "copiado" : "copiar"}
+        </button>
+      </div>
     </div>
   );
 }

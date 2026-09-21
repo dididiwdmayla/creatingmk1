@@ -63,6 +63,9 @@
  *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, repetições
  *                                                 # (zerado/andamento/cancelado), barrado, confirmado,
  *                                                 # desligado, e os 5 estados da CAPTURA do lead fixo
+ *   node scripts/qa-plataforma.mjs --so=seletor  # o SELETOR DE LEAD em /config: fechado com o nome,
+ *                                                 # aberto, a busca filtrando, "lead não encontrado",
+ *                                                 # e o FIM da ficha com o id
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
  *   node scripts/qa-plataforma.mjs --sem-build    # reusa o .next já buildado
  */
@@ -4172,6 +4175,401 @@ async function medirDisparoTeste(browser, secret) {
   return gerados;
 }
 
+/* ── Item: o seletor de lead (`--so=seletor`) ────────────────────────── */
+
+/** O painel que guarda o campo "Lead de contexto (exceção)". */
+const PAINEIS_SELETOR = ["fila-envio"];
+
+/** Os dois leads de MESMO NOME em cidades diferentes — o caso do item. */
+const SELETOR_HOMONIMOS = [
+  {
+    placeId: "ChIJseletorMaringa",
+    nome: "Barbearia do Zé",
+    endereco: "Rua Néo Alves Martins, 2820 - Zona 01, Maringá - PR, 87013-060, Brasil",
+    nicho: "barbearia",
+    comDemo: true,
+  },
+  {
+    placeId: "ChIJseletorPoa",
+    nome: "Barbearia do Zé",
+    endereco: "R. da Praia, 44 - Centro Histórico, Porto Alegre - RS, 90010-150, Brasil",
+    nicho: "barbearia",
+    comDemo: false,
+  },
+];
+
+/**
+ * O endereço dos fixtures no formato que o GOOGLE devolve.
+ *
+ * `cidadeDoEndereco` lê o segmento da cidade de um `formattedAddress` real
+ * ("R. da Praia, 100 - Centro, Porto Alegre - RS, 90010-150, Brasil"); o
+ * atalho de fixture "Av. Brasil, 100 — Porto Alegre, RS" faz a cidade sair
+ * como "100 — Porto Alegre". Isso é artefato da SEMEADURA, não do
+ * componente — e uma folha de contato cheia dele não deixaria julgar o que
+ * este passo existe para julgar. Vale só aqui dentro: `semear()` devolve
+ * tudo ao fim do passo.
+ */
+function enderecoComoOGoogleDevolve(endereco) {
+  const partes = /^(.+?),\s*(\d+)\s*—\s*(.+?),\s*([A-Z]{2})$/.exec(endereco ?? "");
+  return partes
+    ? `${partes[1]}, ${partes[2]} - Centro, ${partes[3]} - ${partes[4]}, 90010-150, Brasil`
+    : endereco;
+}
+
+/**
+ * A semeadura deste passo: os dois homônimos, os endereços em formato
+ * real, e um `leadContextoExcecao` JÁ GRAVADO — é o estado que prova que
+ * um id salvo aparece pelo nome.
+ */
+function prepararSeletor(contextoExcecao) {
+  editarBanco((mapa) => {
+    for (const chave of Object.keys(mapa)) {
+      if (!chave.startsWith("leads/")) continue;
+      const lead = mapa[chave];
+      if (lead?.endereco) {
+        mapa[chave] = { ...lead, endereco: enderecoComoOGoogleDevolve(lead.endereco) };
+      }
+    }
+    for (const homonimo of SELETOR_HOMONIMOS) {
+      mapa[`leads/${homonimo.placeId}`] = {
+        placeId: homonimo.placeId,
+        nome: homonimo.nome,
+        endereco: homonimo.endereco,
+        status: "novo",
+        busca: { nicho: homonimo.nicho, regiao: "Brasil", em: iso(4) },
+        temTelefone: true,
+        telefone: "(44) 99999-1234",
+        telefoneIntl: "5544999991234",
+        criadoEm: iso(4),
+        atualizadoEm: iso(1),
+        enriquecido: true,
+        ...(homonimo.comDemo && {
+          demo: { skinId: "barbearia-editorial", themeId: "norte", dados: {}, criadoEm: iso(3) },
+        }),
+      };
+    }
+    mapa["config/fila"] = { ...mapa["config/fila"], leadContextoExcecao: contextoExcecao };
+  });
+}
+
+/**
+ * O SELETOR DE LEAD — o componente que fez três campos da /config pararem
+ * de pedir um placeId por escrito (ver "Seletor de lead" no
+ * ARCHITECTURE.md).
+ *
+ * Existe como passo próprio por três coisas que nenhum teste unitário
+ * julga:
+ *
+ * 1. **O campo FECHADO tem que dizer QUEM é o lead** — nome, nicho, cidade
+ *    e demo, numa linha estreita de painel, sem o id em lugar nenhum. É o
+ *    estado em que ele passa 99% do tempo.
+ * 2. **O painel flutuante ABERTO**, que é a única parte do app que desenha
+ *    por cima de outro conteúdo: sobreposição, largura no celular e a
+ *    lista rolando são problema de layout, não de lógica.
+ * 3. **Os dois estados que não se encena com dado bonito**: a busca
+ *    filtrando (com o contador de requisições do BROWSER cobrando que
+ *    digitar não vai à rede) e o "lead não encontrado", que é o campo com
+ *    valor velho depois de a limpeza de leads apagar o alvo.
+ *
+ * O fim da ficha entra na mesma folha de propósito: é o único lugar onde o
+ * id PODE aparecer, e as duas decisões são a mesma decisão.
+ */
+async function medirSeletorLead(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  /** Id que NÃO existe no banco — o lead que a limpeza levou. */
+  const ID_SUMIDO = "ChIJlead-que-a-limpeza-levou";
+  /** O lead cuja ficha vai para a folha (item 3). */
+  const FICHA = "lead-nacional";
+
+  /**
+   * A caixa do seletor MAIS o painel flutuante dele. `locator.screenshot`
+   * recorta a caixa do elemento, e a lista é `absolute` — sairia de fora.
+   * União dos retângulos, em coordenadas do DOCUMENTO (a captura é
+   * `fullPage`), com folga para a borda não encostar no corte.
+   */
+  const caixaDoSeletor = (page, nome) =>
+    page.evaluate((alvo) => {
+      const raiz = document.querySelector(`[data-seletor="${alvo}"]`);
+      if (!raiz) return null;
+      // A LINHA inteira (rótulo + campo) mais os filhos DIRETOS do seletor
+      // — o gatilho e o painel flutuante. Filho direto, e não todo
+      // descendente: a lista rola dentro de um `max-h`, e o `<ul>` lá
+      // dentro tem caixa MAIOR que a do painel que o recorta; unir com ele
+      // esticaria o corte até o fim da página.
+      const caixas = [raiz.parentElement ?? raiz, raiz, ...raiz.children]
+        .map((el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0);
+      const folga = 10;
+      const esquerda = Math.min(...caixas.map((r) => r.left)) - folga;
+      const topo = Math.min(...caixas.map((r) => r.top)) - folga;
+      const direita = Math.max(...caixas.map((r) => r.right)) + folga;
+      const base = Math.max(...caixas.map((r) => r.bottom)) + folga;
+      return {
+        x: Math.max(0, Math.round(esquerda + window.scrollX)),
+        y: Math.max(0, Math.round(topo + window.scrollY)),
+        width: Math.round(direita - esquerda),
+        height: Math.round(base - topo),
+        // Em coordenadas de VIEWPORT, para o aferidor de vazamento.
+        direita: Math.round(direita),
+      };
+    }, nome);
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    // `semear()` reescreve `usuarios/admin` inteiro — tema e painéis
+    // abertos voltam a ser gravados depois dele (mesma armadilha do
+    // `--so=teste`).
+    semear();
+    definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", PAINEIS_SELETOR);
+    prepararSeletor(SELETOR_HOMONIMOS[0].placeId);
+
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    /** Toda ida à rota do seletor, contada no BROWSER. */
+    let requisicoes = [];
+    page.on("request", (req) => {
+      const caminho = new URL(req.url()).pathname;
+      if (caminho.startsWith("/api/config/leads-selecao")) requisicoes.push(caminho);
+    });
+
+    const seletor = page.locator('[data-seletor="fila-contexto-excecao"]');
+    const gatilho = seletor.locator("button").first();
+
+    const abrirPainel = async (onde) => {
+      await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `seletor/${onde}`);
+      await page.getByText("Lead de contexto (exceção)").scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+    };
+
+    const capturar = async (rotulo, arquivo) => {
+      const caixa = await caixaDoSeletor(page, "fila-contexto-excecao");
+      if (!caixa) {
+        problemas.push(`${arquivo}/${sufixo}: o seletor não está na tela`);
+        return null;
+      }
+      if (caixa.direita > viewport.width + 1) {
+        problemas.push(`${arquivo}/${sufixo}: o seletor vaza da viewport (${caixa.direita}px)`);
+      }
+      const png = path.join(SAIDA, `seletor-${arquivo}-${sufixo}${marca}.png`);
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await page.screenshot({
+        path: png,
+        fullPage: true,
+        clip: { x: caixa.x, y: caixa.y, width: caixa.width, height: caixa.height },
+      });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+      return caixa;
+    };
+
+    /** As linhas da lista aberta, como o operador as lê. */
+    const linhasDaLista = () =>
+      page.$$eval('[data-seletor="fila-contexto-excecao"] [data-lista="seletor-lead"] button', (bs) =>
+        bs.map((b) => b.textContent?.trim() ?? ""),
+      );
+
+    const abrirLista = async (onde) => {
+      await gatilho.click();
+      await page.waitForSelector('[data-seletor="fila-contexto-excecao"] [data-lista="seletor-lead"]', {
+        timeout: 5000,
+      });
+      await page.waitForTimeout(300);
+      if ((await linhasDaLista()).length === 0) {
+        problemas.push(`${onde}/${sufixo}: a lista abriu vazia`);
+      }
+    };
+
+    // ── FECHADO, com id salvo: o campo diz o NOME, e o id não aparece.
+    requisicoes = [];
+    await abrirPainel(`fechado/${sufixo}`);
+    const rotuloFechado = (await gatilho.textContent()) ?? "";
+    if (!rotuloFechado.includes("Barbearia do Zé")) {
+      problemas.push(
+        `fechado/${sufixo}: o id salvo não apareceu pelo NOME (li "${rotuloFechado.trim()}")`,
+      );
+    }
+    if (!rotuloFechado.includes("Maringá")) {
+      problemas.push(`fechado/${sufixo}: falta a cidade — é ela que separa os dois homônimos`);
+    }
+    // O ID CRU NÃO APARECE EM LUGAR NENHUM DA PÁGINA. É a regra do item
+    // inteiro, e é aqui que ela vira aferição e não intenção.
+    const textoDaPagina = await page.evaluate(() => document.body.innerText);
+    for (const id of [SELETOR_HOMONIMOS[0].placeId, SELETOR_HOMONIMOS[1].placeId]) {
+      if (textoDaPagina.includes(id)) {
+        problemas.push(`fechado/${sufixo}: o placeId "${id}" apareceu na /config`);
+      }
+    }
+    // A LISTA não foi buscada: fechado custa uma leitura de documento, só.
+    if (requisicoes.includes("/api/config/leads-selecao")) {
+      problemas.push(`fechado/${sufixo}: a varredura de /leads aconteceu sem ninguém abrir a lista`);
+    }
+    await capturar("fechado, com id salvo (mostra o NOME)", "fechado");
+
+    // ── ABERTO: a lista, com os dois homônimos distinguíveis.
+    await abrirLista("aberto");
+    const linhas = await linhasDaLista();
+    const doZe = linhas.filter((l) => l.includes("Barbearia do Zé"));
+    if (doZe.length !== 2) {
+      problemas.push(`aberto/${sufixo}: esperava os dois homônimos, achei ${doZe.length}`);
+    } else {
+      if (!doZe.some((l) => l.includes("Maringá")) || !doZe.some((l) => l.includes("Porto Alegre"))) {
+        problemas.push(`aberto/${sufixo}: os dois homônimos não se distinguem pela cidade`);
+      }
+      if (!doZe.some((l) => l.includes("com demo")) || !doZe.some((l) => l.includes("sem demo"))) {
+        problemas.push(`aberto/${sufixo}: a linha não diz se o lead tem demo`);
+      }
+    }
+    if (!linhas.every((l) => l.length > 0)) {
+      problemas.push(`aberto/${sufixo}: linha da lista sem texto nenhum`);
+    }
+    await capturar("aberto (a lista, com nicho · cidade · demo)", "aberto");
+
+    // ── BUSCA FILTRANDO: e o contador de requisições, no browser real.
+    const antesDeDigitar = requisicoes.length;
+    // TECLA A TECLA (`pressSequentially`, não `fill`): o que se mede aqui é
+    // justamente o que acontece A CADA LETRA — um `fill` dispararia um
+    // evento só e passaria mesmo com uma busca de servidor por tecla.
+    await seletor.locator("input").pressSequentially("barbearia do zé", { delay: 40 });
+    await page.waitForTimeout(400);
+    const depoisDeDigitar = requisicoes.length;
+    if (depoisDeDigitar !== antesDeDigitar) {
+      problemas.push(
+        `busca/${sufixo}: digitar foi à rede ${depoisDeDigitar - antesDeDigitar}× — o filtro é LOCAL`,
+      );
+    }
+    const filtradas = await linhasDaLista();
+    if (filtradas.length !== 2) {
+      problemas.push(`busca/${sufixo}: o filtro devia sobrar 2 linhas, sobraram ${filtradas.length}`);
+    }
+    await capturar("busca filtrando (sem uma requisição sequer)", "busca");
+
+    // ── LEAD NÃO ENCONTRADO: o valor velho, depois da limpeza de leads.
+    editarBanco((mapa) => {
+      mapa["config/fila"] = { ...mapa["config/fila"], leadContextoExcecao: ID_SUMIDO };
+    });
+    await abrirPainel(`sumido/${sufixo}`);
+    const rotuloSumido = (await gatilho.textContent()) ?? "";
+    if (!rotuloSumido.includes("lead não encontrado")) {
+      problemas.push(`sumido/${sufixo}: esperava "lead não encontrado", li "${rotuloSumido.trim()}"`);
+    }
+    // O PAINEL NÃO QUEBRA: os vizinhos continuam desenhados, e o campo
+    // continua abrindo para escolher outro.
+    for (const vizinho of ["Número do teste", "Número de exceção", "Meta diária"]) {
+      if ((await page.getByText(vizinho).count()) === 0) {
+        problemas.push(`sumido/${sufixo}: "${vizinho}" sumiu — o valor velho derrubou o painel`);
+      }
+    }
+    await abrirLista("sumido");
+    await capturar("id salvo apontando para lead que sumiu", "sumido");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+
+    // ── O FIM DA FICHA: o único lugar onde o id aparece (item 3).
+    await page.goto(`${BASE}/leads/${FICHA}`, { waitUntil: "domcontentloaded" });
+    await assentar(page);
+    await exigirLogado(page, `ficha/${sufixo}`);
+    const bloco = page.locator('[data-bloco="lead-id"]');
+    if ((await bloco.count()) !== 1) {
+      problemas.push(`ficha/${sufixo}: o bloco do id não está na ficha`);
+    } else {
+      const fim = await page.evaluate(() => {
+        const el = document.querySelector('[data-bloco="lead-id"]');
+        const codigo = el?.querySelector("code");
+        const r = el.getBoundingClientRect();
+        const pai = el.parentElement;
+        return {
+          texto: el.textContent ?? "",
+          fonte: codigo ? getComputedStyle(codigo).fontFamily : "",
+          tamanho: codigo ? parseFloat(getComputedStyle(codigo).fontSize) : 0,
+          ultimo: pai?.lastElementChild === el,
+          y: Math.round(r.top + window.scrollY),
+          alturaDoc: document.documentElement.scrollHeight,
+        };
+      });
+      if (!fim.texto.includes(FICHA)) {
+        problemas.push(`ficha/${sufixo}: o id não está escrito no bloco`);
+      }
+      if (!/mono/i.test(fim.fonte)) {
+        problemas.push(`ficha/${sufixo}: o id não está em fonte monoespaçada (${fim.fonte})`);
+      }
+      if (fim.tamanho > 12) {
+        problemas.push(`ficha/${sufixo}: o id está grande demais para ser discreto (${fim.tamanho}px)`);
+      }
+      // No FIM do scroll: quem precisa dele desce até lá, quem não precisa
+      // nunca o vê. Se ele subisse para o topo, viraria ruído permanente.
+      if (!fim.ultimo) {
+        problemas.push(`ficha/${sufixo}: o bloco do id não é o último elemento da ficha`);
+      }
+      if (fim.y < fim.alturaDoc * 0.6) {
+        problemas.push(
+          `ficha/${sufixo}: o id aparece cedo demais no scroll (${fim.y}px de ${fim.alturaDoc}px)`,
+        );
+      }
+      if ((await page.getByRole("button", { name: "copiar" }).count()) === 0) {
+        problemas.push(`ficha/${sufixo}: falta o botão de copiar`);
+      }
+    }
+    await bloco.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(250);
+    const fimDaFicha = await page.evaluate(() => {
+      const el = document.querySelector('[data-bloco="lead-id"]');
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const acima = el.previousElementSibling?.getBoundingClientRect();
+      const topo = Math.min(r.top, acima?.top ?? r.top) - 12;
+      return {
+        x: 0,
+        y: Math.max(0, Math.round(topo + window.scrollY)),
+        width: Math.round(document.documentElement.clientWidth),
+        height: Math.round(r.bottom - topo + 12),
+      };
+    });
+    if (fimDaFicha) {
+      const png = path.join(SAIDA, `seletor-ficha-${sufixo}${marca}.png`);
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await page.screenshot({ path: png, fullPage: true, clip: fimDaFicha });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `fim da ficha, com o id · ${sufixo}`, png });
+    }
+
+    await ctx.close();
+  }
+
+  // Devolve o banco ao estado semeado — os homônimos e os endereços em
+  // formato do Google valem só dentro deste passo.
+  semear();
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, "Seletor de lead (/config) e o id na ficha", "seletor", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[seletor] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log(
+    "[seletor] ok — fechado pelo nome, aberto, filtrando sem rede, lead sumido, e o id no fim da ficha.",
+  );
+  return gerados;
+}
+
 /* ── Item: os blocos colapsáveis de /config (`--so=paineis`) ─────────── */
 
 /**
@@ -5272,6 +5670,7 @@ async function main() {
     if (querido("comercial")) gerados.push(...(await medirContextoComercial(browser, secret)));
     if (querido("respostas")) gerados.push(...(await medirRespostas(browser, secret)));
     if (querido("teste")) gerados.push(...(await medirDisparoTeste(browser, secret)));
+    if (querido("seletor")) gerados.push(...(await medirSeletorLead(browser, secret)));
     if (querido("vestigio")) gerados.push(...(await medirSemVestigio(browser, secret)));
     if (querido("paineis")) gerados.push(...(await medirPaineisConfig(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));

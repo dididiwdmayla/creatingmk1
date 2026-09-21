@@ -130,7 +130,6 @@ export function PrintPendenteLista() {
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 font-mono text-[10px] text-ink-muted">{linha.leadId}</p>
                 <p className="mt-1 text-xs text-ink-secondary">{linha.detalhe}</p>
               </div>
               <button

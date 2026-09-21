@@ -30,6 +30,7 @@ import type {
 import type { UsageCounts, UsoUsuario } from "@/lib/costs";
 import type { DemoData, DemoDataPatch, TemaPatch } from "@/lib/demos/types";
 import type { Lead, LeadStatus } from "@/lib/leads/types";
+import type { OpcaoLead } from "@/lib/leads/selecao";
 import type { RevisaoSemVestigio } from "@/lib/leads/semVestigio";
 import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 import type { PenetracaoSite } from "@/lib/leads/penetracao";
@@ -608,6 +609,21 @@ export const api = {
   /** O lead que a simulação já vem preenchida — o `leadContextoExcecao` do painel da fila. */
   getLeadPadraoSimulacao: () =>
     request<{ leadPadrao: string }>("/api/config/fila/respostas/simular"),
+
+  /**
+   * O SELETOR DE LEAD (admin) — ver `lib/leads/selecao.ts`.
+   *
+   * `getLeadsSelecao` é a VARREDURA de `/leads`, e por isso o seletor a
+   * chama uma vez, quando a lista abre; filtrar por nome é do cliente.
+   * `getLeadSelecao` é UMA leitura de documento, e existe para um id já
+   * gravado aparecer pelo NOME sem custar a varredura — `lead: null` é o
+   * lead que não existe mais, estado previsto da tela, não erro.
+   */
+  getLeadsSelecao: () => request<{ leads: OpcaoLead[] }>("/api/config/leads-selecao"),
+  getLeadSelecao: (leadId: string) =>
+    request<{ lead: OpcaoLead | null }>(
+      `/api/config/leads-selecao/${encodeURIComponent(leadId)}`,
+    ),
 
   /**
    * Fecha uma pendência de resposta. `texto` é o que o operador de fato
