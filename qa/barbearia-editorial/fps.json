@@ -1,0 +1,1627 @@
+{
+  "skin": "barbearia-editorial",
+  "chromium": "153.0.8010.0",
+  "cpu": 4,
+  "cpuAck": {},
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "dpr": 2,
+  "cargas": 5,
+  "piso": 45,
+  "velocidade": 1800,
+  "janelaMs": 9000,
+  "celulas": {
+    "nenhum": {
+      "tema": {
+        "fps": 59.624891505339825,
+        "medidas": [
+          53.77626357237416,
+          57.926714215630774,
+          59.624891505339825,
+          59.81357787086306,
+          60.00226423638629
+        ],
+        "cargas": [
+          {
+            "fps": 53.77626357237416,
+            "ms": 5299.736000000001,
+            "piorMs": 116.60000000000036,
+            "quadros": 285,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 57.926714215630774,
+            "ms": 5299.8,
+            "piorMs": 116.59999999999945,
+            "quadros": 307,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00226423638629,
+            "ms": 5299.799999999999,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.81357787086306,
+            "ms": 5299.799999999999,
+            "piorMs": 33.29999999999927,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.624891505339825,
+            "ms": 5299.8,
+            "piorMs": 33.399999999999636,
+            "quadros": 316,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.399999999999636
+      },
+      "fixa": {
+        "fps": 59.81357787086305,
+        "medidas": [
+          59.058832408770144,
+          59.059946789440914,
+          59.81357787086305,
+          60.002264236386274,
+          60.00301147189651
+        ],
+        "cargas": [
+          {
+            "fps": 59.81357787086305,
+            "ms": 5299.8,
+            "piorMs": 33.30000000000018,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.058832408770144,
+            "ms": 5299.8,
+            "piorMs": 50,
+            "quadros": 313,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.059946789440914,
+            "ms": 5299.7,
+            "piorMs": 33.399999999999636,
+            "quadros": 313,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00301147189651,
+            "ms": 5299.734,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.002264236386274,
+            "ms": 5299.8,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 16.800000000000182
+      },
+      "transicao": {
+        "fps": 59.62489150533983,
+        "medidas": [
+          59.624891505339825,
+          59.62489150533983,
+          59.62489150533983,
+          60.002264236386274,
+          60.00339641866521
+        ],
+        "cargas": [
+          {
+            "fps": 60.002264236386274,
+            "ms": 5299.8,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00339641866521,
+            "ms": 5299.7,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.624891505339825,
+            "ms": 5299.8,
+            "piorMs": 33.400000000000546,
+            "quadros": 316,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.62489150533983,
+            "ms": 5299.799999999999,
+            "piorMs": 33.399999999999636,
+            "quadros": 316,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.62489150533983,
+            "ms": 5299.799999999999,
+            "piorMs": 33.30000000000018,
+            "quadros": 316,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.30000000000018
+      },
+      "iridescente": {
+        "fps": 59.43508368082417,
+        "medidas": [
+          58.11649716021662,
+          59.24751877429337,
+          59.43508368082417,
+          59.81357787086306,
+          60.0033964186652
+        ],
+        "cargas": [
+          {
+            "fps": 58.11649716021662,
+            "ms": 5299.7,
+            "piorMs": 66.69999999999982,
+            "quadros": 308,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.43508368082417,
+            "ms": 5299.9,
+            "piorMs": 50,
+            "quadros": 315,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.0033964186652,
+            "ms": 5299.700000000001,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.24751877429337,
+            "ms": 5299.8,
+            "piorMs": 33.40000000000009,
+            "quadros": 314,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.81357787086306,
+            "ms": 5299.799999999999,
+            "piorMs": 33.29999999999927,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.29999999999927
+      },
+      "arco-iris": {
+        "fps": 59.81357787086306,
+        "medidas": [
+          59.81357787086305,
+          59.81357787086305,
+          59.81357787086306,
+          60.001132096832016,
+          60.00226423638629
+        ],
+        "cargas": [
+          {
+            "fps": 59.81357787086305,
+            "ms": 5299.8,
+            "piorMs": 33.30000000000018,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.81357787086306,
+            "ms": 5299.799999999999,
+            "piorMs": 33.399999999999636,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00226423638629,
+            "ms": 5299.799999999999,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.001132096832016,
+            "ms": 5299.9,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.81357787086305,
+            "ms": 5299.8,
+            "piorMs": 33.400000000000546,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.400000000000546
+      }
+    },
+    "norte": {
+      "tema": {
+        "fps": 59.81470649282035,
+        "medidas": [
+          59.624891505339825,
+          59.62601656697548,
+          59.81470649282035,
+          60.00226423638629,
+          60.00339641866521
+        ],
+        "cargas": [
+          {
+            "fps": 60.00339641866521,
+            "ms": 5299.7,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00226423638629,
+            "ms": 5299.799999999999,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.81470649282035,
+            "ms": 5299.7,
+            "piorMs": 33.400000000000546,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.62601656697548,
+            "ms": 5299.700000000001,
+            "piorMs": 33.399999999999636,
+            "quadros": 316,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.624891505339825,
+            "ms": 5299.8,
+            "piorMs": 33.30000000000018,
+            "quadros": 316,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.30000000000018
+      },
+      "fixa": {
+        "fps": 59.43508368082417,
+        "medidas": [
+          55.28510509830559,
+          57.926714215630774,
+          59.43508368082417,
+          60.001132096832016,
+          60.00226423638629
+        ],
+        "cargas": [
+          {
+            "fps": 57.926714215630774,
+            "ms": 5299.8,
+            "piorMs": 50,
+            "quadros": 307,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 55.28510509830559,
+            "ms": 5299.8,
+            "piorMs": 83.30000000000018,
+            "quadros": 293,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.43508368082417,
+            "ms": 5299.9,
+            "piorMs": 33.30000000000018,
+            "quadros": 315,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00226423638629,
+            "ms": 5299.799999999999,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.001132096832016,
+            "ms": 5299.9,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 16.800000000000182
+      },
+      "transicao": {
+        "fps": 59.626016566975494,
+        "medidas": [
+          55.096418732782375,
+          59.62601656697548,
+          59.626016566975494,
+          59.81357787086305,
+          60.00226423638629
+        ],
+        "cargas": [
+          {
+            "fps": 59.62601656697548,
+            "ms": 5299.700000000001,
+            "piorMs": 33.30000000000018,
+            "quadros": 316,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00226423638629,
+            "ms": 5299.799999999999,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.81357787086305,
+            "ms": 5299.8,
+            "piorMs": 33.30000000000018,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.626016566975494,
+            "ms": 5299.7,
+            "piorMs": 33.400000000000546,
+            "quadros": 316,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 55.096418732782375,
+            "ms": 5299.799999999999,
+            "piorMs": 66.69999999999982,
+            "quadros": 292,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 66.69999999999982
+      },
+      "iridescente": {
+        "fps": 59.058832408770144,
+        "medidas": [
+          55.66352812423345,
+          56.98328238801464,
+          59.058832408770144,
+          59.05883240877015,
+          59.05918900600932
+        ],
+        "cargas": [
+          {
+            "fps": 59.058832408770144,
+            "ms": 5299.8,
+            "piorMs": 33.40000000000009,
+            "quadros": 313,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.05883240877015,
+            "ms": 5299.799999999999,
+            "piorMs": 83.30000000000018,
+            "quadros": 313,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.05918900600932,
+            "ms": 5299.768,
+            "piorMs": 33.40000000000009,
+            "quadros": 313,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 55.66352812423345,
+            "ms": 5299.7,
+            "piorMs": 133.40000000000055,
+            "quadros": 295,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 56.98328238801464,
+            "ms": 5299.8,
+            "piorMs": 116.59999999999991,
+            "quadros": 302,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 116.59999999999991
+      },
+      "arco-iris": {
+        "fps": 59.81357787086305,
+        "medidas": [
+          59.81357787086305,
+          59.81357787086305,
+          59.81357787086305,
+          59.81357787086306,
+          60.002264236386274
+        ],
+        "cargas": [
+          {
+            "fps": 59.81357787086305,
+            "ms": 5299.8,
+            "piorMs": 33.19999999999982,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.81357787086305,
+            "ms": 5299.8,
+            "piorMs": 33.19999999999982,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.81357787086306,
+            "ms": 5299.799999999999,
+            "piorMs": 33.29999999999927,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.002264236386274,
+            "ms": 5299.8,
+            "piorMs": 16.800000000000182,
+            "quadros": 318,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.81357787086305,
+            "ms": 5299.8,
+            "piorMs": 33.30000000000018,
+            "quadros": 317,
+            "scrollFinal": 9520,
+            "scrollMax": 9520,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.30000000000018
+      }
+    },
+    "meia-noite": {
+      "tema": {
+        "fps": 59.59230642774947,
+        "medidas": [
+          52.81074396570466,
+          59.38681571592964,
+          59.59230642774947,
+          59.7965683756293,
+          60.002054864892635
+        ],
+        "cargas": [
+          {
+            "fps": 59.7965683756293,
+            "ms": 4866.5,
+            "piorMs": 33.29999999999927,
+            "quadros": 291,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.38681571592964,
+            "ms": 4866.4,
+            "piorMs": 33.30000000000018,
+            "quadros": 289,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.002054864892635,
+            "ms": 4866.5,
+            "piorMs": 16.800000000000182,
+            "quadros": 292,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.59230642774947,
+            "ms": 4866.4,
+            "piorMs": 33.399999999999636,
+            "quadros": 290,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 52.81074396570466,
+            "ms": 4866.434,
+            "piorMs": 183.30000000000018,
+            "quadros": 257,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 183.30000000000018
+      },
+      "fixa": {
+        "fps": 60.00082192906752,
+        "medidas": [
+          59.79737935416365,
+          59.7977971395693,
+          60.00082192906752,
+          60.002054864892635,
+          60.003287851389125
+        ],
+        "cargas": [
+          {
+            "fps": 59.7977971395693,
+            "ms": 4866.4,
+            "piorMs": 33.40000000000009,
+            "quadros": 291,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.79737935416365,
+            "ms": 4866.433999999999,
+            "piorMs": 33.30000000000018,
+            "quadros": 291,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.002054864892635,
+            "ms": 4866.5,
+            "piorMs": 16.800000000000182,
+            "quadros": 292,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.003287851389125,
+            "ms": 4866.4,
+            "piorMs": 16.800000000000182,
+            "quadros": 292,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00082192906752,
+            "ms": 4866.6,
+            "piorMs": 16.800000000000182,
+            "quadros": 292,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 16.800000000000182
+      },
+      "transicao": {
+        "fps": 60.002054864892635,
+        "medidas": [
+          58.15346514511448,
+          60.002054864892635,
+          60.002054864892635,
+          60.003287851389125,
+          60.00410165023608
+        ],
+        "cargas": [
+          {
+            "fps": 60.002054864892635,
+            "ms": 4866.5,
+            "piorMs": 16.800000000000182,
+            "quadros": 292,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.15346514511448,
+            "ms": 4866.433999999999,
+            "piorMs": 50,
+            "quadros": 283,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00410165023608,
+            "ms": 4866.334000000001,
+            "piorMs": 16.800000000000182,
+            "quadros": 292,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.003287851389125,
+            "ms": 4866.4,
+            "piorMs": 16.800000000000182,
+            "quadros": 292,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.002054864892635,
+            "ms": 4866.5,
+            "piorMs": 16.800000000000182,
+            "quadros": 292,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 16.800000000000182
+      },
+      "iridescente": {
+        "fps": 58.56485286865033,
+        "medidas": [
+          57.947189972259324,
+          58.35936215683051,
+          58.56485286865033,
+          58.974622418575976,
+          59.7965683756293
+        ],
+        "cargas": [
+          {
+            "fps": 58.974622418575976,
+            "ms": 4866.5,
+            "piorMs": 50,
+            "quadros": 287,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.7965683756293,
+            "ms": 4866.5,
+            "piorMs": 33.30000000000018,
+            "quadros": 291,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.35936215683051,
+            "ms": 4866.400000000001,
+            "piorMs": 66.59999999999945,
+            "quadros": 284,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 57.947189972259324,
+            "ms": 4866.5,
+            "piorMs": 133.30000000000018,
+            "quadros": 282,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.56485286865033,
+            "ms": 4866.400000000001,
+            "piorMs": 66.69999999999982,
+            "quadros": 285,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 66.69999999999982
+      },
+      "arco-iris": {
+        "fps": 52.39905476214939,
+        "medidas": [
+          49.31742627147517,
+          52.24703049104045,
+          52.39905476214939,
+          55.481352101099354,
+          56.93993754974592
+        ],
+        "cargas": [
+          {
+            "fps": 55.481352101099354,
+            "ms": 4866.5,
+            "piorMs": 66.60000000000036,
+            "quadros": 270,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 49.31742627147517,
+            "ms": 4866.434,
+            "piorMs": 100,
+            "quadros": 240,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 52.24703049104045,
+            "ms": 4899.8,
+            "piorMs": 150,
+            "quadros": 256,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 52.39905476214939,
+            "ms": 4866.5,
+            "piorMs": 133.40000000000055,
+            "quadros": 255,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 56.93993754974592,
+            "ms": 4899.9,
+            "piorMs": 66.60000000000036,
+            "quadros": 279,
+            "scrollFinal": 8754,
+            "scrollMax": 8754,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 66.60000000000036
+      }
+    },
+    "creme": {
+      "tema": {
+        "fps": 59.65889553675814,
+        "medidas": [
+          58.45540196685235,
+          59.14276685680607,
+          59.65889553675814,
+          59.829794549987106,
+          60.00171924696983
+        ],
+        "cargas": [
+          {
+            "fps": 58.45540196685235,
+            "ms": 5816.4,
+            "piorMs": 50.099999999999454,
+            "quadros": 340,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.65889553675814,
+            "ms": 5816.4,
+            "piorMs": 50,
+            "quadros": 347,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.14276685680607,
+            "ms": 5816.434000000001,
+            "piorMs": 83.30000000000018,
+            "quadros": 344,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.00171924696983,
+            "ms": 5816.5,
+            "piorMs": 16.80000000000109,
+            "quadros": 349,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.829794549987106,
+            "ms": 5816.5,
+            "piorMs": 33.30000000000018,
+            "quadros": 348,
+            "scrollFinal": 10402,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.30000000000018
+      },
+      "fixa": {
+        "fps": 59.657869853004385,
+        "medidas": [
+          58.627329619696035,
+          58.971184925383405,
+          59.657869853004385,
+          59.83082318960181,
+          60.0027508424455
+        ],
+        "cargas": [
+          {
+            "fps": 58.971184925383405,
+            "ms": 5816.4,
+            "piorMs": 50.100000000000364,
+            "quadros": 343,
+            "scrollFinal": 10402,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.657869853004385,
+            "ms": 5816.5,
+            "piorMs": 33.399999999999636,
+            "quadros": 347,
+            "scrollFinal": 10402,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.83082318960181,
+            "ms": 5816.400000000001,
+            "piorMs": 33.30000000000018,
+            "quadros": 348,
+            "scrollFinal": 10402,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.627329619696035,
+            "ms": 5816.4,
+            "piorMs": 50.100000000000364,
+            "quadros": 341,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.0027508424455,
+            "ms": 5816.4,
+            "piorMs": 16.800000000000182,
+            "quadros": 349,
+            "scrollFinal": 10402,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 16.800000000000182
+      },
+      "transicao": {
+        "fps": 59.48696788391445,
+        "medidas": [
+          59.1441294293623,
+          59.31402045903893,
+          59.48696788391445,
+          60.0027508424455,
+          60.0027508424455
+        ],
+        "cargas": [
+          {
+            "fps": 60.0027508424455,
+            "ms": 5816.4,
+            "piorMs": 16.80000000000109,
+            "quadros": 349,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.31402045903893,
+            "ms": 5816.500000000001,
+            "piorMs": 50.100000000000364,
+            "quadros": 345,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.0027508424455,
+            "ms": 5816.4,
+            "piorMs": 16.800000000000182,
+            "quadros": 349,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.48696788391445,
+            "ms": 5816.4,
+            "piorMs": 66.59999999999991,
+            "quadros": 346,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.1441294293623,
+            "ms": 5816.300000000001,
+            "piorMs": 83.30000000000018,
+            "quadros": 344,
+            "scrollFinal": 10402,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 83.30000000000018
+      },
+      "iridescente": {
+        "fps": 58.11154666116498,
+        "medidas": [
+          49.201968078723155,
+          55.360704215666054,
+          58.11154666116498,
+          59.31504023107076,
+          60.0027508424455
+        ],
+        "cargas": [
+          {
+            "fps": 55.360704215666054,
+            "ms": 5816.4,
+            "piorMs": 100,
+            "quadros": 322,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 49.201968078723155,
+            "ms": 5833.099999999999,
+            "piorMs": 83.40000000000009,
+            "quadros": 287,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.11154666116498,
+            "ms": 5816.400000000001,
+            "piorMs": 50,
+            "quadros": 338,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.0027508424455,
+            "ms": 5816.4,
+            "piorMs": 16.800000000000182,
+            "quadros": 349,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.31504023107076,
+            "ms": 5816.400000000001,
+            "piorMs": 33.400000000000546,
+            "quadros": 345,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.400000000000546
+      },
+      "arco-iris": {
+        "fps": 60.002750842445494,
+        "medidas": [
+          57.07998074410288,
+          59.829794549987106,
+          60.002750842445494,
+          60.002750842445494,
+          60.00343171489119
+        ],
+        "cargas": [
+          {
+            "fps": 60.00343171489119,
+            "ms": 5816.334000000001,
+            "piorMs": 16.800000000000182,
+            "quadros": 349,
+            "scrollFinal": 10402,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.002750842445494,
+            "ms": 5816.400000000001,
+            "piorMs": 16.800000000000182,
+            "quadros": 349,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 57.07998074410288,
+            "ms": 5816.4,
+            "piorMs": 66.69999999999982,
+            "quadros": 332,
+            "scrollFinal": 10402,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.829794549987106,
+            "ms": 5816.5,
+            "piorMs": 33.30000000000018,
+            "quadros": 348,
+            "scrollFinal": 10403,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 60.002750842445494,
+            "ms": 5816.400000000001,
+            "piorMs": 16.80000000000109,
+            "quadros": 349,
+            "scrollFinal": 10402,
+            "scrollMax": 10444,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 16.80000000000109
+      }
+    },
+    "vinho": {
+      "tema": {
+        "fps": 58.95215603953469,
+        "medidas": [
+          55.45448184171856,
+          57.903575676999516,
+          58.95215603953469,
+          59.30409530640449,
+          59.82786369043454
+        ],
+        "cargas": [
+          {
+            "fps": 59.82786369043454,
+            "ms": 5716.4,
+            "piorMs": 33.30000000000018,
+            "quadros": 342,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.30409530640449,
+            "ms": 5716.3,
+            "piorMs": 33.30000000000018,
+            "quadros": 339,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 55.45448184171856,
+            "ms": 5716.400000000001,
+            "piorMs": 83.30000000000018,
+            "quadros": 317,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.95215603953469,
+            "ms": 5716.499999999999,
+            "piorMs": 100,
+            "quadros": 337,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 57.903575676999516,
+            "ms": 5716.4,
+            "piorMs": 66.69999999999982,
+            "quadros": 331,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 66.69999999999982
+      },
+      "fixa": {
+        "fps": 53.70512910223218,
+        "medidas": [
+          45.74231250869626,
+          48.981876705618916,
+          53.70512910223218,
+          56.154222937513126,
+          57.9035756769995
+        ],
+        "cargas": [
+          {
+            "fps": 56.154222937513126,
+            "ms": 5716.4,
+            "piorMs": 250,
+            "quadros": 321,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 57.9035756769995,
+            "ms": 5716.400000000001,
+            "piorMs": 50,
+            "quadros": 331,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 45.74231250869626,
+            "ms": 5749.599999999999,
+            "piorMs": 250,
+            "quadros": 263,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 48.981876705618916,
+            "ms": 5716.400000000001,
+            "piorMs": 133.40000000000055,
+            "quadros": 280,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 53.70512910223218,
+            "ms": 5716.4,
+            "piorMs": 66.69999999999982,
+            "quadros": 307,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 66.69999999999982
+      },
+      "transicao": {
+        "fps": 59.128122594639976,
+        "medidas": [
+          43.60616723767489,
+          59.12708825330184,
+          59.128122594639976,
+          59.477993142537265,
+          59.82786369043454
+        ],
+        "cargas": [
+          {
+            "fps": 43.60616723767489,
+            "ms": 5733.134,
+            "piorMs": 316.6999999999998,
+            "quadros": 250,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.12708825330184,
+            "ms": 5716.5,
+            "piorMs": 33.30000000000018,
+            "quadros": 338,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.82786369043454,
+            "ms": 5716.4,
+            "piorMs": 33.30000000000018,
+            "quadros": 342,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.128122594639976,
+            "ms": 5716.400000000001,
+            "piorMs": 33.5,
+            "quadros": 338,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.477993142537265,
+            "ms": 5716.4,
+            "piorMs": 33.400000000000546,
+            "quadros": 340,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.400000000000546
+      },
+      "iridescente": {
+        "fps": 59.3040953064045,
+        "medidas": [
+          42.333595731653986,
+          58.95318732069135,
+          59.3040953064045,
+          59.47799314253726,
+          59.477993142537265
+        ],
+        "cargas": [
+          {
+            "fps": 59.47799314253726,
+            "ms": 5716.400000000001,
+            "piorMs": 33.400000000000546,
+            "quadros": 340,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.477993142537265,
+            "ms": 5716.4,
+            "piorMs": 33.400000000000546,
+            "quadros": 340,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 42.333595731653986,
+            "ms": 5716.5,
+            "piorMs": 200,
+            "quadros": 242,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.95318732069135,
+            "ms": 5716.4,
+            "piorMs": 33.399999999999636,
+            "quadros": 337,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.3040953064045,
+            "ms": 5716.299999999999,
+            "piorMs": 33.400000000000546,
+            "quadros": 339,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.400000000000546
+      },
+      "arco-iris": {
+        "fps": 58.427359398233186,
+        "medidas": [
+          58.25242718446602,
+          58.25344622489679,
+          58.427359398233186,
+          58.42735939823319,
+          59.47695268083618
+        ],
+        "cargas": [
+          {
+            "fps": 58.42735939823319,
+            "ms": 5716.499999999999,
+            "piorMs": 66.69999999999982,
+            "quadros": 334,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 59.47695268083618,
+            "ms": 5716.5,
+            "piorMs": 33.399999999999636,
+            "quadros": 340,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.25344622489679,
+            "ms": 5716.4,
+            "piorMs": 33.400000000000546,
+            "quadros": 333,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.427359398233186,
+            "ms": 5716.5,
+            "piorMs": 50,
+            "quadros": 334,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          },
+          {
+            "fps": 58.25242718446602,
+            "ms": 5716.5,
+            "piorMs": 33.400000000000546,
+            "quadros": 333,
+            "scrollFinal": 10261,
+            "scrollMax": 10263,
+            "mpxs": 0,
+            "pinturasS": 0
+          }
+        ],
+        "mpxs": 0,
+        "piorMs": 33.400000000000546
+      }
+    }
+  }
+}

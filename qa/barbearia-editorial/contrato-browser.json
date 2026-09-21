@@ -1,0 +1,338 @@
+[
+  {
+    "id": "norte",
+    "viewportWidth": 390,
+    "js": false,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "filosofia",
+      "servicos",
+      "equipe",
+      "ritual",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 301.625,
+    "height": 86.375,
+    "overflow": false
+  },
+  {
+    "id": "norte",
+    "viewportWidth": 1100,
+    "js": false,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "filosofia",
+      "servicos",
+      "equipe",
+      "ritual",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 547.625,
+    "height": 158.375,
+    "overflow": false
+  },
+  {
+    "id": "meia-noite",
+    "viewportWidth": 390,
+    "js": false,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "servicos",
+      "agendamentoRapido",
+      "agendamento",
+      "equipe",
+      "depoimentos",
+      "filosofia",
+      "ritual",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 301.625,
+    "height": 86.375,
+    "overflow": false
+  },
+  {
+    "id": "meia-noite",
+    "viewportWidth": 1100,
+    "js": false,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "servicos",
+      "agendamentoRapido",
+      "agendamento",
+      "equipe",
+      "depoimentos",
+      "filosofia",
+      "ritual",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 442.9375,
+    "height": 128.6875,
+    "overflow": false
+  },
+  {
+    "id": "creme",
+    "viewportWidth": 390,
+    "js": false,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "equipe",
+      "filosofia",
+      "servicos",
+      "ritual",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 342,
+    "height": 127.171875,
+    "overflow": false
+  },
+  {
+    "id": "creme",
+    "viewportWidth": 1100,
+    "js": false,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "equipe",
+      "filosofia",
+      "servicos",
+      "ritual",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 556.5625,
+    "height": 116.59375,
+    "overflow": false
+  },
+  {
+    "id": "vinho",
+    "viewportWidth": 390,
+    "js": false,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "ritual",
+      "equipe",
+      "filosofia",
+      "servicos",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 320.21875,
+    "height": 92.15625,
+    "overflow": false
+  },
+  {
+    "id": "vinho",
+    "viewportWidth": 1100,
+    "js": false,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "ritual",
+      "equipe",
+      "filosofia",
+      "servicos",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 476.40625,
+    "height": 138.59375,
+    "overflow": false
+  },
+  {
+    "id": "norte",
+    "viewportWidth": 390,
+    "js": true,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "filosofia",
+      "servicos",
+      "equipe",
+      "ritual",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 301.625,
+    "height": 89.375,
+    "overflow": false
+  },
+  {
+    "id": "norte",
+    "viewportWidth": 1100,
+    "js": true,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "filosofia",
+      "servicos",
+      "equipe",
+      "ritual",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 547.625,
+    "height": 163.375,
+    "overflow": false
+  },
+  {
+    "id": "meia-noite",
+    "viewportWidth": 390,
+    "js": true,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "servicos",
+      "agendamentoRapido",
+      "agendamento",
+      "equipe",
+      "depoimentos",
+      "filosofia",
+      "ritual",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 301.625,
+    "height": 89.375,
+    "overflow": false
+  },
+  {
+    "id": "meia-noite",
+    "viewportWidth": 1100,
+    "js": true,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "servicos",
+      "agendamentoRapido",
+      "agendamento",
+      "equipe",
+      "depoimentos",
+      "filosofia",
+      "ritual",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 442.9375,
+    "height": 133.6875,
+    "overflow": false
+  },
+  {
+    "id": "creme",
+    "viewportWidth": 390,
+    "js": true,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "equipe",
+      "filosofia",
+      "servicos",
+      "ritual",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 342,
+    "height": 129.171875,
+    "overflow": false
+  },
+  {
+    "id": "creme",
+    "viewportWidth": 1100,
+    "js": true,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "equipe",
+      "filosofia",
+      "servicos",
+      "ritual",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 556.5625,
+    "height": 119.59375,
+    "overflow": false
+  },
+  {
+    "id": "vinho",
+    "viewportWidth": 390,
+    "js": true,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "ritual",
+      "equipe",
+      "filosofia",
+      "servicos",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 320.21875,
+    "height": 96.15625,
+    "overflow": false
+  },
+  {
+    "id": "vinho",
+    "viewportWidth": 1100,
+    "js": true,
+    "nome": "BARBEARIA CONTRATO REAL",
+    "secoes": [
+      "hero",
+      "agendamentoRapido",
+      "ritual",
+      "equipe",
+      "filosofia",
+      "servicos",
+      "depoimentos",
+      "agendamento",
+      "contato"
+    ],
+    "opacity": 1,
+    "width": 476.40625,
+    "height": 143.59375,
+    "overflow": false
+  }
+]

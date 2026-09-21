@@ -332,7 +332,7 @@ async function esperarTitulo(page) {
   if (SKIN !== "barbearia-editorial") return;
   await page.waitForFunction(() => {
     const h1 = document.querySelector("h1");
-    return h1 && [...h1.querySelectorAll("span:not([aria-hidden])")]
+    return h1 && !h1.querySelector('[aria-hidden="true"]') && [...h1.querySelectorAll("span:not([aria-hidden])")]
       .every(el => Number(getComputedStyle(el).opacity) === 1);
   }, undefined, { timeout: 15000 });
 }
@@ -433,7 +433,8 @@ async function medirFps(browser, pageDaFolha, secret) {
   ]);
   const page = await ctx.newPage();
   const cdp = await ctx.newCDPSession(page);
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: FPS_CPU_THROTTLE });
+  const cpuAck = await cdp.send("Emulation.setCPUThrottlingRate", { rate: FPS_CPU_THROTTLE });
+  console.log(`[fps] CPU ${FPS_CPU_THROTTLE}× confirmado pelo CDP: ${JSON.stringify(cpuAck)}`);
 
   // Superfície repintada: contada o tempo todo, zerada a cada medição.
   let pinturas = 0;
@@ -448,6 +449,8 @@ async function medirFps(browser, pageDaFolha, secret) {
   const medir = async () => {
     pinturas = 0;
     areaPintada = 0;
+    // Reafirma o throttle imediatamente antes de CADA rolagem medida.
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: FPS_CPU_THROTTLE });
     const r = await page.evaluate(
       ({ velocidade, maxMs }) =>
         new Promise((resolve) => {
@@ -474,12 +477,14 @@ async function medirFps(browser, pageDaFolha, secret) {
             window.scrollTo(0, Math.min(max, y));
             const decorrido = t - inicio;
             if (y < max && decorrido < maxMs) requestAnimationFrame(passo);
-            else resolve({ fps: (quadros * 1000) / decorrido, ms: decorrido, piorMs });
+            else resolve({ fps: (quadros * 1000) / decorrido, ms: decorrido, piorMs,
+              quadros, scrollFinal: window.scrollY, scrollMax: max });
           };
           requestAnimationFrame(passo);
         }),
       { velocidade: FPS_ROLAGEM_PXS, maxMs: FPS_JANELA_MS },
     );
+    if (r.scrollFinal < Math.min(100, r.scrollMax)) throw new Error("FPS sem rolagem ativa");
     return { ...r, mpxs: areaPintada / 1e6 / (r.ms / 1000), pinturasS: pinturas / (r.ms / 1000) };
   };
 
@@ -515,6 +520,7 @@ async function medirFps(browser, pageDaFolha, secret) {
     celulas[efeito] = {};
     for (const modo of FPS_MODOS) {
       const medidas = [];
+      const cargas = [];
       let ultima;
       const { efeito: efeitoUrl, preset: presetUrl } = alvoDaLinha(efeito);
       for (let carga = 0; carga < FPS_CARGAS; carga++) {
@@ -534,10 +540,11 @@ async function medirFps(browser, pageDaFolha, secret) {
         await page.waitForTimeout(1800);
         ultima = await medir();
         medidas.push(ultima.fps);
+        cargas.push(ultima);
       }
       medidas.sort((a, b) => a - b);
       const mediana = medidas[Math.floor(medidas.length / 2)];
-      celulas[efeito][modo] = { fps: mediana, medidas, mpxs: ultima.mpxs, piorMs: ultima.piorMs };
+      celulas[efeito][modo] = { fps: mediana, medidas, cargas, mpxs: ultima.mpxs, piorMs: ultima.piorMs };
       console.log(
         `  [fps] ${efeito.padEnd(18)} ${modo.padEnd(12)} mediana ${mediana.toFixed(1).padStart(5)} fps ` +
           `(${medidas.map((m) => m.toFixed(1)).join(" / ")}) · ` +
@@ -631,9 +638,19 @@ async function medirFps(browser, pageDaFolha, secret) {
       : "");
 
   const md = path.join(SAIDA, `_fps-mobile${marca}.md`);
-  await fs.writeFile(md, `${cabecalho}${tabelaFps}${tabelaMpx}${veredito}\n`);
+  const semEventosDePintura = Object.values(celulas).every(row =>
+    Object.values(row).every(cell => cell.cargas.every(c => c.pinturasS === 0)));
+  const notaPintura = semEventosDePintura
+    ? "\n\n**Limite da instrumentação:** LayerTree não retornou eventos de pintura nesta execução. Os zeros de Mpx/s não demonstram ausência de repintura. O veredito usa somente FPS durante rolagem ativa.\n"
+    : "";
+  await fs.writeFile(path.join(SAIDA, `_fps-mobile${marca}.json`), JSON.stringify({
+    skin: SKIN, chromium: browser.version(), cpu: FPS_CPU_THROTTLE, cpuAck,
+    viewport: FPS_VIEWPORT, dpr: 2, cargas: FPS_CARGAS, piso: FPS_MINIMO,
+    velocidade: FPS_ROLAGEM_PXS, janelaMs: FPS_JANELA_MS, celulas,
+  }, null, 2));
+  await fs.writeFile(md, `${cabecalho}${tabelaFps}${tabelaMpx}${veredito}${notaPintura}\n`);
   gerados.push(md);
-  console.log(`\n${cabecalho}${tabelaFps}${tabelaMpx}${veredito}\n`);
+  console.log(`\n${cabecalho}${tabelaFps}${tabelaMpx}${veredito}${notaPintura}\n`);
 
   // Folha de contato: a captura de cada efeito NA MESMA condição da tabela.
   const modoDaCaptura = FPS_MODOS[FPS_MODOS.length - 1];

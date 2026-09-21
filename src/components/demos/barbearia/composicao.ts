@@ -3,7 +3,7 @@
 export const BARBEARIA_COMPOSICAO_CSS = `
 .be { --be-textura:none; --be-title-size:clamp(3rem,8vw,6.5rem); }
 .be section { background-image:var(--be-textura); }
-.be [data-be-foto] { box-shadow:0 1rem 3rem color-mix(in srgb,var(--d-text) var(--be-sombra),transparent); }
+.be [data-be-foto] { box-shadow:0 1rem 3rem color-mix(in srgb,var(--d-border) var(--be-sombra),transparent); }
 .be img { filter:contrast(.98) saturate(var(--be-saturacao)); }
 .be [data-d-secao] { scroll-margin-top:6rem; }
 .be .be-hero-grid { grid-template-columns:minmax(0,1fr); }

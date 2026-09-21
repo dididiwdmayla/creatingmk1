@@ -1,0 +1,67 @@
+[barra] barbearia-editorial--norte
+  paleta: --d-bg #1A1411 · --d-bg-alt #2B2118 (contraste 17)
+  HTML servido (sem JS): meta #1A1411 · plano do body #1A1411
+  rampa: 239 passos de 40px · 39 cores distintas · amplitude 35 · maior salto 7 (teto 11)
+    platô y=   40–280   barra #1a1411  pixel rgb(26,20,17)      erro   0
+    platô y=  720–840   barra #3d3025  pixel rgb(61,48,36)      erro   1
+    platô y= 1280–3440  barra #1a1411  pixel rgb(26,20,17)      erro   0  (conteúdo na margem: rgb(29,23,19) — não conclusivo)
+    platô y= 3840–5920  barra #2b2118  pixel rgb(43,33,24)      erro   0  (conteúdo na margem: rgb(46,36,27) — não conclusivo)
+    platô y= 6320–6400  barra #1a1411  pixel rgb(26,20,17)      erro   0
+    platô y= 6800–7520  barra #2b2118  pixel rgb(43,33,24)      erro   0
+    platô y= 7920–8440  barra #1a1411  pixel rgb(26,20,17)      erro   0
+    platô y= 8880–9240  barra #3d3025  pixel rgb(60,47,37)      erro   1
+  modo fundo          HTML #1A1411 · topo #1A1411 · fim #1A1411 (imóvel)
+  modo destaque       HTML #B8862D · topo #B8862D · fim #B8862D (imóvel)
+  modo personalizada  HTML #00c2ff · topo #00c2ff · fim #00c2ff (imóvel)
+
+[barra] barbearia-editorial--meia-noite
+  paleta: --d-bg #10131A · --d-bg-alt #171C26 (contraste 12)
+  HTML servido (sem JS): meta #10131A · plano do body #10131A
+  rampa: 219 passos de 40px · 31 cores distintas · amplitude 32 · maior salto 6 (teto 10)
+    platô y=   40–1560  barra #10131a  pixel rgb(16,19,26)      erro   0
+    platô y= 2000–2120  barra #232b3a  pixel rgb(35,43,58)      erro   0
+    platô y= 2560–3000  barra #10131a  pixel rgb(16,19,26)      erro   0
+    platô y= 3400–6400  barra #171c26  pixel rgb(23,28,38)      erro   0
+    platô y= 6800–7760  barra #10131a  pixel rgb(16,19,26)      erro   0
+    platô y= 8160–8480  barra #232b3a  pixel rgb(34,42,56)      erro   2
+  modo fundo          HTML #10131A · topo #10131A · fim #10131A (imóvel)
+  modo destaque       HTML #A9BDD3 · topo #A9BDD3 · fim #A9BDD3 (imóvel)
+  modo personalizada  HTML #00c2ff · topo #00c2ff · fim #00c2ff (imóvel)
+
+[barra] barbearia-editorial--creme
+  paleta: --d-bg #F4EDE0 · --d-bg-alt #ECE1CC (contraste 20)
+  HTML servido (sem JS): meta #F4EDE0 · plano do body #F4EDE0
+  rampa: 262 passos de 40px · 40 cores distintas · amplitude 40 · maior salto 8 (teto 12)
+    platô y=   40–1000  barra #f4ede0  pixel rgb(244,237,224)   erro   0
+    platô y= 1400–3520  barra #ece1cc  pixel rgb(236,225,204)   erro   0
+    platô y= 3920–6960  barra #f4ede0  pixel rgb(244,237,224)   erro   0
+    platô y= 7400–8160  barra #ece1cc  pixel rgb(236,225,204)   erro   0
+    platô y= 8560–9200  barra #f4ede0  pixel rgb(244,237,224)   erro   0
+    platô y= 9640–10120 barra #e2d4b8  pixel rgb(222,208,181)   erro   4
+  modo fundo          HTML #F4EDE0 · topo #F4EDE0 · fim #F4EDE0 (imóvel)
+  modo destaque       HTML #8C4A2B · topo #8C4A2B · fim #8C4A2B (imóvel)
+  modo personalizada  HTML #00c2ff · topo #00c2ff · fim #00c2ff (imóvel)
+
+[barra] barbearia-editorial--vinho
+  paleta: --d-bg #160C10 · --d-bg-alt #241318 (contraste 14)
+  HTML servido (sem JS): meta #160C10 · plano do body #160C10
+  rampa: 257 passos de 40px · 34 cores distintas · amplitude 28 · maior salto 5 (teto 8)
+    platô y=   40–480   barra #160c10  pixel rgb(22,12,16)      erro   0
+    platô y=  880–1080  barra #241318  pixel rgb(38,20,25)      erro   2
+    platô y= 1480–1680  barra #160c10  pixel rgb(22,12,16)      erro   0
+    platô y= 2080–4200  barra #241318  pixel rgb(38,21,26)      erro   2
+    platô y= 4600–6960  barra #160c10  pixel rgb(24,14,18)      erro   2
+    platô y= 7360–8120  barra #241318  pixel rgb(36,19,24)      erro   0
+    platô y= 8520–9120  barra #160c10  pixel rgb(22,12,16)      erro   0
+    platô y= 9520–9960  barra #32191f  pixel rgb(49,24,30)      erro   1
+  modo fundo          HTML #160C10 · topo #160C10 · fim #160C10 (imóvel)
+  modo destaque       HTML #C5788E · topo #C5788E · fim #C5788E (imóvel)
+  modo personalizada  HTML #00c2ff · topo #00c2ff · fim #00c2ff (imóvel)
+
+[barra] sem divergências: barra == pixel no platô, rampa sem degrau, modos fixos imóveis.
+[colapso] barbearia-editorial--norte: 7 slot(s)
+[colapso] barbearia-editorial--meia-noite: 7 slot(s)
+[colapso] barbearia-editorial--creme: 7 slot(s)
+[colapso] barbearia-editorial--vinho: 7 slot(s)
+[colapso] 28 slot(s) de imagem checados em 4 combinações skin × tema.
+[colapso] ok — nenhum elemento com foto colapsado.
