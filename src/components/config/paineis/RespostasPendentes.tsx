@@ -9,7 +9,7 @@ import { ApiError, api } from "@/lib/api-client";
 import type { RespostaPendente } from "@/lib/fila/estado";
 import type { GrupoComErro } from "@/lib/fila/respostasPainel";
 import type { SimulacaoResposta } from "@/lib/fila/simularResposta";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatDuracao } from "@/lib/format";
 import { linkWhatsAppBusinessAndroid, podeAbrirBusiness } from "@/lib/wa";
 
 /** Chave da persistência deste painel — ver `PainelColapsavel`. */
@@ -204,7 +204,7 @@ export function RespostasPendentesSection() {
             {aguardando === 1 ? "1 conversa recebida" : `${aguardando} conversas recebidas`}
           </strong>{" "}
           esperando a janela de agrupamento
-          {janelaSegundos > 0 && ` (${janelaSegundos}s de silêncio)`} fechar. O rascunho aparece
+          {janelaSegundos > 0 && ` (${formatDuracao(janelaSegundos)} de silêncio)`} fechar. O rascunho aparece
           aqui na próxima vez que você abrir este painel.
         </p>
       )}

@@ -51,7 +51,11 @@
  *   node scripts/qa-plataforma.mjs --so=balao     # o BALÃO da fila (em toda tela): fechado e aberto,
  *                                                 # cheia/vazia/pausada/pendente, e a VARREDURA DE
  *                                                 # COLISÃO em todas as abas
- *   node scripts/qa-plataforma.mjs --so=respostas # respostas pendentes em /config: cheia e VAZIA, celular e desktop
+ *   node scripts/qa-plataforma.mjs --so=comercial # CONTEXTO COMERCIAL em /config: documento preenchido
+ *                                                 # e VAZIO, celular e desktop, escuro e claro
+ *   node scripts/qa-plataforma.mjs --so=respostas # respostas pendentes em /config: grupo AGUARDANDO a
+ *                                                 # janela, rascunho pronto, grupo em ERRO, e a SIMULAÇÃO
+ *                                                 # (resultado aberto + contexto enviado expandido)
  *   node scripts/qa-plataforma.mjs --so=vestigio  # leads antigos SEM VESTÍGIO em /config: lista cheia,
  *                                                 # o diálogo da exclusão e a lista VAZIA
  *   node scripts/qa-plataforma.mjs --so=paineis   # PORTÃO dos blocos colapsáveis de /config: tudo fechado,
@@ -64,6 +68,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
@@ -75,12 +80,15 @@ import { chromium } from "playwright-core";
 import { PAINEIS_CONFIG, PAINEIS_CONFIG_TOPO } from "./paineis-config.mjs";
 import { lerPng } from "./png.mjs";
 
+const require = createRequire(import.meta.url);
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SAIDA = path.join(RAIZ, "qa-shots");
 const CHROMIUM = process.env.QA_CHROMIUM ?? "/opt/pw-browsers/chromium";
 const PORTA = Number(process.env.QA_PORTA ?? 3141);
 const BASE = `http://127.0.0.1:${PORTA}`;
 const BANCO = "/tmp/radar-qa-plataforma.json";
+/** Porta do STUB da IA (ver `subirStubIa`) — parte do patch temporário. */
+const PORTA_IA = Number(process.env.QA_PORTA_IA ?? 3142);
 
 const VIEWPORT_DESKTOP = { width: 1100, height: 900 };
 const VIEWPORT_CELULAR = { width: 390, height: 844 };
@@ -154,6 +162,68 @@ async function exigirPortaLivre() {
     return;
   }
   throw new Error(`porta ${PORTA} ocupada (servidor de outra rodada?). Encerre-o ou use QA_PORTA=`);
+}
+
+/**
+ * STUB da IA — parte do PATCH TEMPORÁRIO (ver o cabeçalho): `gemini.ts`
+ * passa a ler o endpoint de `RADAR_FAKE_AI_URL`, e quem responde é este
+ * servidorzinho local.
+ *
+ * Por que um stub HTTP em vez de simplesmente não ter chave: sem
+ * `GEMINI_API_KEY` toda geração vira 503 e o painel da simulação nunca
+ * mostraria um resultado. E por que não devolver o rascunho pronto de
+ * outro jeito: assim o caminho inteiro é exercido de verdade — a montagem
+ * do prompt, o `fetch`, a validação de schema, a reserva de cota. O que
+ * está sendo substituído é o MODELO, não o código do app.
+ *
+ * Ele lê o PROMPT que chegou e responde de acordo, o que dá ao laço duas
+ * coisas que nenhum dado semeado dá sozinho: uma FALHA de geração real
+ * (para o estado "grupo com erro") e um rascunho que prova, no texto, que
+ * o contexto comercial chegou ao prompt.
+ */
+function subirStubIa() {
+  const http = require("node:http");
+  const servidor = http.createServer((req, res) => {
+    let corpo = "";
+    req.on("data", (pedaco) => (corpo += pedaco));
+    req.on("end", () => {
+      const prompt = (() => {
+        try {
+          return JSON.parse(corpo).contents[0].parts[0].text ?? "";
+        } catch {
+          return "";
+        }
+      })();
+
+      // A FALHA deliberada: o grupo maduro deste lead é o que produz o
+      // estado "com erro" no painel, pelo caminho real (o flush tenta, a
+      // geração recusa, `restaurarGrupoComErro` devolve as mensagens).
+      if (prompt.includes("Clínica Veterinária Tristeza")) {
+        res.writeHead(503, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: { message: "modelo sobrecarregado" } }));
+        return;
+      }
+
+      // O rascunho CITA o que só pode ter vindo do contexto comercial
+      // (prazo e forma de pagamento) — é assim que a imagem mostra que o
+      // documento chegou ao prompt, e não só que a tela desenha texto.
+      const temComercial = prompt.includes("Contexto comercial declarado pelo operador");
+      const rascunho = temComercial
+        ? "Oi! Atendemos sim. O site institucional sai a partir de R$1.500, pronto em 10 dias " +
+          "úteis depois que você aprovar os textos — e já vai com domínio e hospedagem do " +
+          "primeiro ano. Pagamento é 50% de sinal e 50% na entrega. Quer que eu te mande o link " +
+          "da demonstração pra você ver?"
+        : "Oi! Posso te explicar melhor. O valor fica em torno de [PREENCHER: preço] e o prazo é " +
+          "de [PREENCHER: prazo]. Te mando o link da demonstração?";
+
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ rascunho }) }] } }] }),
+      );
+    });
+  });
+  servidor.listen(PORTA_IA, "127.0.0.1");
+  return servidor;
 }
 
 async function esperarServidor(timeoutMs = 120000) {
@@ -829,6 +899,76 @@ function semear() {
     },
   ];
   for (const resposta of respostas) mapa[`filaRespostas/${resposta.id}`] = resposta;
+
+  // ── CONTEXTO COMERCIAL (--so=comercial) ─────────────────────────────
+  //
+  // O documento PREENCHIDO. O estado VAZIO é capturado removendo esta
+  // chave no meio da rodada (`esvaziarContextoComercial`), do mesmo jeito
+  // que as pendências e as respostas.
+  mapa["config/contextoComercial"] = {
+    texto: [
+      "Fazemos site institucional (one-page ou até 5 páginas) a partir de R$1.500.",
+      "Prazo: 10 dias úteis depois de aprovado o texto.",
+      "Inclui domínio e hospedagem do primeiro ano, e 1 rodada de ajustes.",
+      "NÃO fazemos loja virtual (e-commerce) nem sistema sob medida.",
+      "Manutenção depois do primeiro ano: R$90/mês, opcional.",
+      "Pagamento: 50% de sinal, 50% na entrega. Pix ou cartão em até 6x.",
+    ].join("\n"),
+    atualizadoEm: new Date(AGORA.getTime() - 3 * 86400000).toISOString(),
+  };
+
+  // ── GRUPOS PENDENTES (--so=respostas: a LINHA DE ESTADO) ────────────
+  //
+  // Dois estados que só existem ANTES de o rascunho nascer, e que o painel
+  // até então não mostrava de jeito nenhum:
+  //
+  //  - AGUARDANDO: mensagem chegou agora, a janela de agrupamento (45s)
+  //    ainda não venceu. É o "sim, a captura no celular funcionou" — sem
+  //    ele, o operador via "Nenhuma resposta esperando" e não sabia se a
+  //    captura falhou ou se era só a janela.
+  //  - COM ERRO: grupo MADURO cuja geração falha. O laço não finge isso: o
+  //    grupo é maduro de verdade, o flush roda de verdade na abertura do
+  //    painel, e quem recusa é o STUB de IA (ver `subirStubIa`), que
+  //    devolve 503 para o prompt deste lead. O caminho inteiro é exercido.
+  mapa["filaRespostasPendentes/fila-4"] = {
+    leadId: "fila-4",
+    mensagens: [
+      { texto: "oi, vi a mensagem de vocês", recebidoEm: new Date(AGORA.getTime() - 20000).toISOString() },
+    ],
+    primeiraMensagemEm: new Date(AGORA.getTime() - 20000).toISOString(),
+    // 20s atrás: DENTRO da janela de 45s — não pode ser gerado antes da hora.
+    ultimaMensagemEm: new Date(AGORA.getTime() - 20000).toISOString(),
+    tentativas: 0,
+    ultimoErro: null,
+  };
+  mapa["filaRespostasPendentes/fila-5"] = {
+    leadId: "fila-5",
+    mensagens: [
+      { texto: "bom dia, vocês atendem no sábado?", recebidoEm: new Date(AGORA.getTime() - 2 * 3600000).toISOString() },
+      { texto: "e quanto custa?", recebidoEm: new Date(AGORA.getTime() - 2 * 3600000).toISOString() },
+    ],
+    primeiraMensagemEm: new Date(AGORA.getTime() - 2 * 3600000).toISOString(),
+    // DUAS HORAS atrás: maduro com folga para qualquer janela. O flush vai
+    // tentar, e o stub vai recusar.
+    ultimaMensagemEm: new Date(AGORA.getTime() - 2 * 3600000).toISOString(),
+    tentativas: 0,
+    ultimoErro: null,
+  };
+
+  // O lead de contexto que a SIMULAÇÃO já vem preenchida (o campo
+  // `leadContextoExcecao` do painel "Fila de envio").
+  mapa["config/fila"] = {
+    ...(mapa["config/fila"] ?? {}),
+    leadContextoExcecao: "fila-1",
+    // JANELA FOLGADA, e não o default de 45s: entre repor o carimbo do
+    // grupo e o navegador de fato carregar a /config passam segundos
+    // imprevisíveis (build de produção, cinco painéis buscando, CPU do
+    // laço). Com 45s o grupo "recém-chegado" às vezes amadurecia no meio
+    // do caminho e virava rascunho — apagando o estado que a captura
+    // existe para mostrar. 10 minutos é uma configuração legítima do
+    // campo (ele é do operador) e tira a corrida do caminho.
+    respostaAgrupamentoSegundos: 600,
+  };
 
   // ── O LEAD FIXO DE TESTE (--so=teste) ───────────────────────────────
   //
@@ -1716,6 +1856,7 @@ async function medirPendencias(browser, secret) {
     const page = await ctx.newPage();
 
     const abrirPainel = async (onde) => {
+      reporGrupoNaJanela();
       await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
       await assentar(page);
       await exigirLogado(page, `pendencias/${onde}`);
@@ -2815,6 +2956,220 @@ async function medirBalao(browser, secret) {
   return gerados;
 }
 
+/* ── Item: contexto comercial em /config (`--so=comercial`) ──────────── */
+
+/** Ver `PAINEIS_RESPOSTAS`: o painel que este passo mede. */
+const PAINEIS_COMERCIAL = ["contexto-comercial"];
+
+/** Tira (e devolve) o documento comercial, para capturar o estado VAZIO. */
+let comercialGuardado = null;
+function esvaziarContextoComercial() {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  comercialGuardado = mapa["config/contextoComercial"];
+  delete mapa["config/contextoComercial"];
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+function restaurarContextoComercial() {
+  if (!comercialGuardado) return;
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  mapa["config/contextoComercial"] = comercialGuardado;
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+  comercialGuardado = null;
+}
+
+/**
+ * O painel "Contexto comercial" — o que a IA sabe sobre o que o operador
+ * VENDE (ver ARCHITECTURE.md).
+ *
+ * Existe como passo próprio pelos dois motivos de sempre, mais um terceiro
+ * que é só dele:
+ *
+ *  1. o ESTADO VAZIO é o estado INICIAL de qualquer instalação, e é o que
+ *     manda o rascunho pedir preenchimento em vez de inventar — se ele
+ *     ficar quebrado, quebra para todo mundo no primeiro dia;
+ *  2. o tema claro, onde os tokens apagados têm menos contraste de sobra, e
+ *     as capturas de aba não cobrem o painel (ele fica abaixo da dobra);
+ *  3. a CAIXA DE TEXTO LIVRE com várias linhas — o painel existe para o
+ *     operador acrescentar uma linha a cada pergunta nova, e uma caixa que
+ *     corta o texto no meio não serve para isso. O aferidor cobra que o
+ *     conteúdo caiba, ou que a caixa role.
+ */
+async function medirContextoComercial(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  const caixaDoPainel = (page) =>
+    page.evaluate(() => {
+      const secao = document.querySelector('[data-painel="contexto-comercial"]');
+      if (!secao) return null;
+      const r = secao.getBoundingClientRect();
+      return { altura: Math.round(r.height), direita: Math.round(r.right) };
+    });
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", PAINEIS_COMERCIAL);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    const abrir = async (onde) => {
+      await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `comercial/${onde}`);
+      await page.getByRole("heading", { name: "Contexto comercial" }).scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+    };
+
+    const capturar = async (rotulo, arquivo) => {
+      const alvo = page.locator("section", {
+        has: page.getByRole("heading", { name: "Contexto comercial" }),
+      });
+      const png = path.join(SAIDA, `comercial-${arquivo}-${sufixo}${marca}.png`);
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await alvo.first().screenshot({ path: png });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    const conferir = async (onde) => {
+      const caixa = await caixaDoPainel(page);
+      if (!caixa) {
+        problemas.push(`${onde}: painel "Contexto comercial" não foi encontrado`);
+        return null;
+      }
+      if (caixa.direita > viewport.width + 1) {
+        problemas.push(`${onde}: painel vaza da viewport (direita=${caixa.direita})`);
+      }
+      const zeradas = await page.evaluate(() => {
+        const secao = document.querySelector('[data-painel="contexto-comercial"]');
+        if (!secao) return [];
+        return [...secao.querySelectorAll("*")]
+          .filter((el) => el.tagName !== "OPTION" && el.tagName !== "TEXTAREA")
+          .filter((el) => !el.closest('[data-corpo="fechado"]'))
+          .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            return {
+              altura: Math.round(r.height),
+              largura: Math.round(r.width),
+              texto: (el.textContent ?? "").trim().slice(0, 30),
+            };
+          })
+          .filter((s) => s.altura <= 0 || s.largura <= 0);
+      });
+      for (const z of zeradas) {
+        problemas.push(`${onde}: slot com caixa zerada ("${z.texto}") ${z.largura}x${z.altura}`);
+      }
+      return caixa;
+    };
+
+    // ── PREENCHIDO: seis linhas de texto livre, o caso real.
+    await abrir(`preenchido/${sufixo}`);
+    const cheio = await conferir(`preenchido/${sufixo}`);
+
+    const campo = page.locator('[data-painel="contexto-comercial"] textarea');
+    if ((await campo.count()) !== 1) {
+      problemas.push(
+        `preenchido/${sufixo}: esperava UMA caixa de texto livre, achei ${await campo.count()}`,
+      );
+    } else {
+      const valor = await campo.inputValue();
+      // É TEXTO LIVRE, com as quebras de linha do operador — não um
+      // formulário de campos fixos, que é a decisão que este painel encarna.
+      if (!valor.includes("NÃO fazemos loja virtual")) {
+        problemas.push(`preenchido/${sufixo}: a caixa não nasceu com o documento dentro`);
+      }
+      if (valor.split("\n").length < 5) {
+        problemas.push(`preenchido/${sufixo}: as quebras de linha do documento não sobreviveram`);
+      }
+      // A CAIXA MOSTRA O DOCUMENTO INTEIRO — mesmo aferidor da caixa do
+      // rascunho, e pela mesma razão: com altura fixa ela terminava com
+      // meia fileira de letras fatiada na borda de baixo, que lê como
+      // quebrado mesmo dando para rolar. "Dá para rolar" NÃO é desculpa
+      // aqui; só bater num teto de altura seria (e esta caixa não tem).
+      const corte = await campo.evaluate((el) => ({
+        escondido: el.scrollHeight - el.clientHeight,
+        altura: el.clientHeight,
+        teto: parseFloat(getComputedStyle(el).maxHeight) || Infinity,
+      }));
+      if (corte.escondido > 2 && corte.altura < corte.teto - 2) {
+        problemas.push(`preenchido/${sufixo}: a caixa corta ${corte.escondido}px do documento`);
+      }
+    }
+    // As DUAS REGRAS DURAS ficam escritas na tela: são a promessa do painel.
+    for (const [alvo, oque] of [
+      [/nunca inventa um número/, "a regra de não inventar número"],
+      [/PREENCHER/, "a marcação que a IA usa no lugar do número"],
+      [/prazo, escopo ou condição/, "a regra de não prometer prazo/escopo"],
+    ]) {
+      if ((await page.getByText(alvo).count()) === 0) {
+        problemas.push(`preenchido/${sufixo}: ${oque} não aparece na tela`);
+      }
+    }
+    // O cabeçalho FECHADO diz o tamanho do documento.
+    if ((await page.getByText(/\d+ caracteres/).count()) === 0) {
+      problemas.push(`preenchido/${sufixo}: o resumo não diz o tamanho do documento`);
+    }
+    await capturar("documento preenchido (texto livre, 6 linhas)", "preenchido");
+
+    // ── VAZIO: o estado INICIAL de qualquer instalação.
+    esvaziarContextoComercial();
+    await abrir(`vazio/${sufixo}`);
+    const vazio = await conferir(`vazio/${sufixo}`);
+
+    if ((await page.getByText(/vazio/).count()) === 0) {
+      problemas.push(`vazio/${sufixo}: o resumo não diz que o documento está vazio`);
+    }
+    const campoVazio = page.locator('[data-painel="contexto-comercial"] textarea');
+    if ((await campoVazio.inputValue()) !== "") {
+      problemas.push(`vazio/${sufixo}: a caixa deveria estar vazia`);
+    }
+    // O PLACEHOLDER é o que ensina o que escrever ali — sem ele, a caixa
+    // vazia não diz que tipo de texto ela espera.
+    if (!(await campoVazio.getAttribute("placeholder"))?.includes("R$")) {
+      problemas.push(`vazio/${sufixo}: a caixa vazia não dá exemplo do que escrever`);
+    }
+    // As regras duras continuam ditas — é JUSTAMENTE sem o documento que
+    // elas são o único freio contra a IA chutar um número plausível.
+    if ((await page.getByText(/nunca inventa um número/).count()) === 0) {
+      problemas.push(`vazio/${sufixo}: sem documento, a regra dura sumiu da tela`);
+    }
+    await capturar("documento vazio (estado inicial)", "vazio");
+    restaurarContextoComercial();
+
+    if (cheio && vazio) {
+      console.log(
+        `  [comercial] ${sufixo}: painel ${cheio.altura}px preenchido -> ${vazio.altura}px vazio`,
+      );
+    }
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, "Contexto comercial (/config)", "comercial", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[comercial] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[comercial] ok — documento preenchido e VAZIO, com as duas regras duras na tela.");
+  return gerados;
+}
+
 /* ── Item: respostas pendentes em /config (`--so=respostas`) ─────────── */
 
 /** Caixa do painel "Respostas pendentes" — altura e borda direita, em px. */
@@ -2848,6 +3203,12 @@ async function conferirPainelRespostas(page, onde, largura, problemas) {
     if (!secao) return [];
     return [...secao.querySelectorAll("*")]
       .filter((el) => el.tagName !== "OPTION" && el.tagName !== "TEXTAREA")
+      // O corpo de um bloco COLAPSADO está escondido porque alguém o
+      // fechou, não porque colapsou sozinho — mesma regra do `--so=paineis`.
+      // Aqui passou a importar: "Simular mensagem" é um bloco de nível 3
+      // DENTRO deste painel, e fechado ele viraria uma parede de falso
+      // positivo.
+      .filter((el) => !el.closest('[data-corpo="fechado"]'))
       .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
       .map((el) => {
         const r = el.getBoundingClientRect();
@@ -2872,6 +3233,7 @@ async function conferirPainelRespostas(page, onde, largura, problemas) {
     const secao = document.querySelector('[data-painel="respostas-pendentes"]');
     if (!secao) return [];
     return [...secao.querySelectorAll("textarea")]
+      .filter((el) => !el.closest('[data-corpo="fechado"]'))
       .map((el) => ({
         escondido: el.scrollHeight - el.clientHeight,
         altura: el.clientHeight,
@@ -2888,13 +3250,23 @@ async function conferirPainelRespostas(page, onde, largura, problemas) {
   return caixa;
 }
 
-/** Tira (e devolve) as respostas pendentes, para capturar o estado VAZIO. */
+/**
+ * Tira (e devolve) as respostas pendentes, para capturar o estado VAZIO.
+ *
+ * Leva junto os GRUPOS pendentes: "Nenhuma resposta esperando" só é
+ * verdade quando não há nada a caminho, e a tela esconde essa linha de
+ * propósito enquanto houver grupo na janela ou em erro. Sem esvaziar os
+ * dois, o passo cobraria da tela uma frase que ela está certa em não
+ * mostrar.
+ */
 let respostasGuardadas = null;
 function esvaziarRespostas() {
   const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
   respostasGuardadas = {};
   for (const chave of Object.keys(mapa)) {
-    if (chave.startsWith("filaRespostas/") && mapa[chave].estado === "pendente") {
+    const pendenteViva = chave.startsWith("filaRespostas/") && mapa[chave].estado === "pendente";
+    const grupo = chave.startsWith("filaRespostasPendentes/");
+    if (pendenteViva || grupo) {
       respostasGuardadas[chave] = mapa[chave];
       delete mapa[chave];
     }
@@ -2946,6 +3318,47 @@ const UA_ANDROID =
  */
 /** Ver `PAINEIS_PENDENCIAS`: o painel que este passo mede. */
 const PAINEIS_RESPOSTAS = ["respostas-pendentes"];
+/** Espelha `PAINEL_SIMULAR` — o bloco de nível 3 dentro dele (ver o registro). */
+const PAINEL_SIMULAR_QA = "respostas-simular";
+
+/**
+ * REPÕE o estado "acabou de chegar, ainda na janela" do grupo de `fila-4`,
+ * imediatamente antes de cada carga da página.
+ *
+ * Três coisas conspiram contra esse estado sobreviver sozinho: a semeadura
+ * roda antes do `next build` (minutos antes da primeira captura), cada
+ * abertura do painel roda o flush de verdade, e o passo abre o painel
+ * várias vezes. Sem repor, o grupo amadurece no meio do caminho, vira
+ * rascunho, e a captura mostra o contrário do que ela existe para mostrar.
+ *
+ * Idempotente de propósito: reescreve a mensagem inteira, e não só o
+ * carimbo. Depois de um flush que o reivindicou, o doc fica como ÂNCORA
+ * vazia (`mensagens: []`, ver `reivindicarGrupoMaduro`) — renovar só a data
+ * de uma âncora vazia não devolveria estado nenhum.
+ *
+ * E apaga o rascunho que esse grupo porventura tenha gerado: sem isso, um
+ * amadurecimento acidental deixaria uma terceira pendência na lista para
+ * sempre, e as asserções das capturas seguintes passariam a medir outra
+ * coisa.
+ */
+function reporGrupoNaJanela() {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  const agora = new Date().toISOString();
+  mapa["filaRespostasPendentes/fila-4"] = {
+    leadId: "fila-4",
+    mensagens: [{ texto: "oi, vi a mensagem de vocês", recebidoEm: agora }],
+    primeiraMensagemEm: agora,
+    ultimaMensagemEm: agora,
+    tentativas: 0,
+    ultimoErro: null,
+  };
+  for (const chave of Object.keys(mapa)) {
+    if (chave.startsWith("filaRespostas/") && mapa[chave].leadId === "fila-4") {
+      delete mapa[chave];
+    }
+  }
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
 
 async function medirRespostas(browser, secret) {
   const gerados = [];
@@ -3093,6 +3506,55 @@ async function medirRespostas(browser, secret) {
 
     await capturarPainel("lista cheia (3 mensagens, rascunho longo)", "cheia");
 
+    // ── A LINHA DE ESTADO e o GRUPO EM ERRO ────────────────────────────
+    //
+    // Os dois estados que só existem ANTES de o rascunho nascer, e que o
+    // painel não mostrava de jeito nenhum. Nada aqui é fingido: o grupo de
+    // `fila-4` está DENTRO da janela de 45s e o de `fila-5` está maduro —
+    // abrir o painel rodou o flush de verdade, e quem recusou o segundo foi
+    // o stub de IA respondendo 503.
+    if ((await page.locator('[data-estado="aguardando"]').count()) === 0) {
+      problemas.push(`cheia/${sufixo}: a linha de "chegou, esperando a janela" não apareceu`);
+    } else if ((await page.getByText(/1 conversa recebida/).count()) === 0) {
+      problemas.push(`cheia/${sufixo}: a linha de estado não diz QUANTAS chegaram`);
+    }
+    const erro = page.locator('[data-estado="com-erro"]');
+    if ((await erro.count()) === 0) {
+      problemas.push(`cheia/${sufixo}: o grupo que falhou na geração não apareceu`);
+    } else {
+      // O grupo em erro precisa dizer de QUEM é, quantas mensagens e que
+      // não se perdeu — senão é só um vermelho sem providência.
+      for (const [alvo, oque] of [
+        [/Clínica Veterinária Tristeza/, "o nome do lead do grupo que falhou"],
+        [/2 mensagens/, "quantas mensagens esperam"],
+        [/voltaram para a fila/, "a promessa de que nada se perdeu"],
+      ]) {
+        if ((await erro.getByText(alvo).count()) === 0) {
+          problemas.push(`cheia/${sufixo}: ${oque} não aparece no bloco de erro`);
+        }
+      }
+      // PRIVACIDADE: a contagem basta — o texto da conversa nunca sai aqui.
+      if ((await erro.getByText(/vocês atendem no sábado/).count()) > 0) {
+        problemas.push(`cheia/${sufixo}: o bloco de erro VAZOU o texto da mensagem`);
+      }
+      if ((await erro.getByRole("button", { name: /tentar de novo/ }).count()) === 0) {
+        problemas.push(`cheia/${sufixo}: o grupo em erro não é retentável na tela`);
+      }
+    }
+    // O cabeçalho FECHADO carrega as duas contagens — é o único estado
+    // visível do painel recolhido.
+    const resumo = await page.evaluate(() => {
+      const secao = document.querySelector('[data-painel="respostas-pendentes"]');
+      return secao?.querySelector("h2 button span:nth-child(2)")?.textContent ?? "";
+    });
+    for (const trecho of ["na janela", "com erro"]) {
+      if (!resumo.includes(trecho)) {
+        problemas.push(`cheia/${sufixo}: o resumo do cabeçalho não diz "${trecho}" (é "${resumo}")`);
+      }
+    }
+    await capturarPainel("linha de estado: 1 na janela, 1 em erro", "estado");
+
+
     // ── EDITADA: a edição do operador é o que vai para o WhatsApp, não o
     //    original. No Android isso tem que aparecer no href, na hora.
     await caixas.first().fill("Texto que o operador escreveu #1; do jeito dele.\nCom duas linhas.");
@@ -3114,6 +3576,103 @@ async function medirRespostas(browser, secret) {
     }
     await conferirPainelRespostas(page, `editada/${sufixo}`, viewport.width, problemas);
     await capturarPainel("rascunho editado pelo operador", "editada");
+
+
+    // ── A SIMULAÇÃO ────────────────────────────────────────────────────
+    //
+    // O bloco que testa só a IA. A captura precisa mostrar as duas coisas
+    // que ele promete: o RESULTADO na hora, e o CONTEXTO ENVIADO aberto —
+    // é este segundo que diz, diante de um rascunho ruim, se faltou
+    // informação ou se a IA errou com informação suficiente.
+    definirPaineisAbertosNoDoc("admin", [...PAINEIS_RESPOSTAS, PAINEL_SIMULAR_QA]);
+    await abrirPainel(`simulacao/${sufixo}`);
+
+    const bloco = page.locator('[data-painel="respostas-simular"]');
+    if ((await bloco.count()) === 0) {
+      problemas.push(`simulacao/${sufixo}: o bloco "Simular mensagem" não apareceu`);
+    } else {
+      // O LEAD PADRÃO vem do `leadContextoExcecao` já escolhido na fila —
+      // o operador não digita o mesmo dado duas vezes.
+      const campoLead = bloco.getByLabel("Lead de contexto da simulação");
+      if ((await campoLead.inputValue()) !== "fila-1") {
+        problemas.push(
+          `simulacao/${sufixo}: o lead padrão não veio do leadContextoExcecao (veio "${await campoLead.inputValue()}")`,
+        );
+      }
+      // O PREÇO no botão: cada clique gasta uma geração da cota do mês.
+      const botao = bloco.locator('[data-acao="simular"]');
+      if (!(await botao.textContent())?.includes("1 geração de IA")) {
+        problemas.push(`simulacao/${sufixo}: o botão não diz o preço do clique`);
+      }
+      // Sem mensagem, o botão não pode disparar uma geração à toa.
+      if (!(await botao.isDisabled())) {
+        problemas.push(`simulacao/${sufixo}: o botão dispara com a mensagem vazia`);
+      }
+
+      const pendentesAntes = await page.locator('[data-lista="respostas"] > li').count();
+      const campoTexto = bloco.getByLabel("Mensagem que o lead mandaria");
+      await campoTexto.fill(
+        "Oi! Vi a demonstração, ficou bacana.\nVocês atendem no sábado? E quanto custa, com quanto tempo fica pronto?",
+      );
+      await botao.click();
+      await page.waitForTimeout(1200);
+
+      const resultado = bloco.locator('[data-bloco="simulacao"]');
+      if ((await resultado.count()) === 0) {
+        problemas.push(`simulacao/${sufixo}: o rascunho não apareceu`);
+      } else {
+        // MARCADO como simulação: sem isso, o operador confunde com uma
+        // pendência de verdade e tenta mandar.
+        if ((await resultado.getByText(/não entra na lista, não vira envio/).count()) === 0) {
+          problemas.push(`simulacao/${sufixo}: o resultado não está marcado como simulação`);
+        }
+        // A prova de que o CONTEXTO COMERCIAL chegou ao prompt: o stub só
+        // devolve prazo e forma de pagamento quando a seção está lá.
+        if ((await resultado.getByText(/10 dias úteis/).count()) === 0) {
+          problemas.push(`simulacao/${sufixo}: o rascunho não usou o contexto comercial`);
+        }
+        // A lista de pendentes NÃO cresceu — medida ANTES e DEPOIS do
+        // clique, e não contra um número fixo: o que o item promete é que
+        // a simulação não vira pendência, não que a lista tenha tamanho N.
+        const depois = await page.locator('[data-lista="respostas"] > li').count();
+        if (depois !== pendentesAntes) {
+          problemas.push(
+            `simulacao/${sufixo}: a lista de pendentes foi de ${pendentesAntes} para ${depois}`,
+          );
+        }
+        if ((await bloco.locator('[data-acao="regenerar"]').count()) === 0) {
+          problemas.push(`simulacao/${sufixo}: não há como regenerar para comparar variações`);
+        }
+      }
+      await conferirPainelRespostas(page, `simulacao/${sufixo}`, viewport.width, problemas);
+      await capturarPainel("simulação com resultado", "simulacao");
+
+      // ── CONTEXTO ENVIADO, EXPANDIDO.
+      const detalhes = bloco.locator('[data-bloco="contexto-enviado"]');
+      if ((await detalhes.count()) === 0) {
+        problemas.push(`simulacao/${sufixo}: não há seção "contexto enviado"`);
+      } else {
+        await detalhes.locator("summary").click();
+        await page.waitForTimeout(300);
+        for (const [alvo, oque] of [
+          [/Pet Center Ipiranga/, "o lead que deu contexto"],
+          [/petshop/, "o nicho do lead"],
+          [/preenchido — foi junto no prompt/, "se o documento comercial estava preenchido"],
+          [/Posicionamento de preço/, "o posicionamento de preço"],
+        ]) {
+          if ((await detalhes.getByText(alvo).count()) === 0) {
+            problemas.push(`contexto/${sufixo}: ${oque} não aparece na seção`);
+          }
+        }
+        // A mensagem que o Radar tinha mandado — o outro lado da conversa.
+        if ((await detalhes.getByText(/o Radar mandou/).count()) === 0) {
+          problemas.push(`contexto/${sufixo}: a mensagem que o Radar mandou não aparece`);
+        }
+        await conferirPainelRespostas(page, `contexto/${sufixo}`, viewport.width, problemas);
+        await capturarPainel("contexto enviado, expandido", "contexto");
+      }
+    }
+    definirPaineisAbertosNoDoc("admin", PAINEIS_RESPOSTAS);
 
     // ── VAZIA: nenhuma resposta esperando. O painel não pode ficar com
     //    caixa quebrada nem espaço morto — some a lista, fica a linha.
@@ -4669,11 +5228,16 @@ async function main() {
     APP_PASSWORD: secret,
     RADAR_FAKE_DB: "1",
     RADAR_FAKE_DB_FILE: BANCO,
+    // Patch temporário: o endpoint da IA aponta para o stub local.
+    RADAR_FAKE_AI_URL: `http://127.0.0.1:${PORTA_IA}/v1beta`,
+    GEMINI_API_KEY: "chave-de-laco",
     PORT: String(PORTA),
     NODE_ENV: "production",
   };
 
   if (!temFlag("sem-build")) await executar("npx", ["next", "build"], env);
+
+  const stubIa = subirStubIa();
 
   const servidor = spawn("npx", ["next", "start", "-p", String(PORTA)], {
     cwd: RAIZ,
@@ -4688,6 +5252,7 @@ async function main() {
     } catch {
       /* já morreu */
     }
+    stubIa.close();
   };
   process.on("exit", encerrar);
 
@@ -4704,6 +5269,7 @@ async function main() {
     if (querido("pendencias")) gerados.push(...(await medirPendencias(browser, secret)));
     if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
     if (querido("balao")) gerados.push(...(await medirBalao(browser, secret)));
+    if (querido("comercial")) gerados.push(...(await medirContextoComercial(browser, secret)));
     if (querido("respostas")) gerados.push(...(await medirRespostas(browser, secret)));
     if (querido("teste")) gerados.push(...(await medirDisparoTeste(browser, secret)));
     if (querido("vestigio")) gerados.push(...(await medirSemVestigio(browser, secret)));

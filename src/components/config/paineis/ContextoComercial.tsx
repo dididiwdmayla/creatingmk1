@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SkeletonRows } from "@/components/Skeleton";
 import { PainelColapsavel } from "@/components/config/PainelColapsavel";
@@ -94,7 +94,21 @@ export function ContextoComercialSection() {
   );
 }
 
-/** A caixa de texto livre: salva no blur, cresce com o conteúdo (sem teto: é o único lugar onde este texto existe). */
+/**
+ * A caixa de texto livre: salva no blur, e CRESCE COM O CONTEÚDO.
+ *
+ * O crescimento não é enfeite — é o mesmo defeito que a caixa do rascunho
+ * já tinha resolvido, e que a captura do celular pegou aqui: com altura
+ * fixa (`rows`), o documento de seis linhas terminava com meia fileira de
+ * letras fatiada na borda de baixo. Lê como quebrado mesmo dando para
+ * rolar, e este painel existe justamente para o operador ACRESCENTAR uma
+ * linha a cada pergunta nova — uma caixa que esconde o que ele acabou de
+ * escrever trabalha contra isso.
+ *
+ * Sem teto de altura, diferente da caixa do rascunho (que tem `max-h`):
+ * aqui não há lista de irmãos para empurrar, e este é o único lugar onde
+ * este texto existe.
+ */
 function TextoContextoComercial({
   valor,
   disabled,
@@ -114,17 +128,31 @@ function TextoContextoComercial({
     setTexto(valor);
   }
 
+  // Mexer no DOM dentro de um efeito é o uso para o qual efeito existe;
+  // não há estado aqui. Mesmo mecanismo da caixa do rascunho em
+  // `RespostasPendentes`.
+  const campo = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = campo.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [texto]);
+
   function commit() {
     if (texto !== valor) onSalvar(texto);
   }
 
   return (
     <textarea
+      ref={campo}
       value={texto}
       onChange={(event) => setTexto(event.target.value)}
       onBlur={commit}
       disabled={disabled}
-      rows={10}
+      // Piso, não teto: a caixa VAZIA precisa convidar a escrever, e o
+      // efeito acima cresce a partir daqui conforme o texto entra.
+      rows={8}
       placeholder={
         'Ex.: "Fazemos site institucional a partir de R$1.500, prazo de 10 dias úteis. ' +
         'Inclui 1 ano de hospedagem. Não fazemos loja virtual (e-commerce)."'
