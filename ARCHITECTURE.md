@@ -1131,8 +1131,9 @@ arquivos e relatórios. São 36 combinações no registro atual (9 × 4). O test
 sem sobreposição ou ID duplicado. `--skin=<id>` filtra explicitamente o alvo;
 sem filtro, o laço percorre todas as combinações.
 
-**Para as próximas sete migrações:** remover a entrada de `PRESETS_SEM_VARIANTES`,
-adicionar suas variantes em `VARIANTES_POR_SKIN` e manter o teste verde. Não
+**Para as próximas SEIS migrações** (a tatuagem foi a segunda): remover a
+entrada de `PRESETS_SEM_VARIANTES`, adicionar suas variantes em
+`VARIANTES_POR_SKIN` e manter o teste verde. Não
 reintroduzir uma lista só de skins nem confiar que quatro presets existem só
 porque o default passou. A matriz visual inclui os cinco modos de cor,
 inclusive `tema`, além da referência sem efeito. Capturas esperam o título
@@ -1148,12 +1149,15 @@ neste bloco, conforme escopo aprovado. `CAMPOS_IDENTIDADE_DEMO` não inclui
 | Skin | Endereço do exemplo que aparece no HTML sem dado do lead |
 |---|---|
 | `barbearia2-sul` | Av. Brasil, 500 — Zona 3 |
-| `tatuagem-editorial` | Rua das Palmeiras, 512 — Zona 07 |
 | `tatuagem-pigmento-vivo` | Rua das Aquarelas, 88 — Centro |
 | `lancheria-chapa-burger` | Av. Principal, 500 — Centro |
 | `imobiliaria-curada` | Rua Principal, 100 — Centro |
 | `multimarcas-vortice` | Av. Principal, 1000 — Centro |
 | `petshop-focinho-feliz` | Rua das Begônias, 240 — Jardim das Flores |
+
+A `tatuagem-editorial` saiu desta tabela na migração dela (ver abaixo):
+`TATUAGEM_EXEMPLO` não declara mais `endereco`, e o contrato SSR da skin
+cobre isso por variante. Restam SEIS skins nativas com o defeito.
 
 Na `barbearia-editorial`, o endereço fictício foi retirado de `BARBEARIA_EXEMPLO`;
 lead sem endereço não emite o slot nem o botão de rota. O teste específico
@@ -1167,6 +1171,113 @@ foto que divergira na Norte foi corrigido usando o token de borda na sombra,
 sem alterar o limiar do portão. Heroes com nome completo verificados sem JS em
 390/1100 px. Resultados, limitações da instrumentação e leituras brutas em
 [qa/barbearia-editorial/STATUS.md](qa/barbearia-editorial/STATUS.md).
+
+### Tatuagem Editorial — migração de presets para variantes
+
+`tatuagem-editorial` mantém uma entrada de skin, nove seções (`hero`,
+`sobre`, `statement`, `portfolio`, `investimento`, `depoimentos`, `marquee`,
+`processo`, `contato`), dez slots de imagem e os dez `imagensAlt`
+correspondentes. Só `hero` é fixa. As variantes Sangue, Vesperal, Cripta e
+Marfim vivem em `tatuagem/variantes.ts`; a composição é parametrizada por
+`Theme.tatuagem` (`TatuagemComposicao`), com o CSS em `tatuagem/composicao.ts`
+— sem quatro caminhos de render. O vídeo-no-título existe nas quatro.
+
+**IDs inalterados, nenhuma migração.** `sangue`/`vesperal`/`cripta`/`marfim`
+já eram o que `LeadDemo.themeId` gravava, e já são nomes próprios: não há
+`themeAliases` aqui, ao contrário da barbearia (que renomeou `oliva`). O
+default continua `sangue`, que é também a variante que preserva o desenho
+do material bruto — uma das quatro tem de carregar a conversão fiel, senão
+a migração troca o original por três mundos em vez de somar.
+
+**Quatro tipos de estúdio, e o público de cada um** — é o público que
+justifica a composição, não o contrário:
+
+| variante | estúdio | quem chega |
+|---|---|---|
+| Sangue (escuro) | casa de fechamento | fecha um projeto de meses; avalia compromisso, e o Processo vem antes do preço |
+| Vesperal (escuro) | ateliê autoral | já escolheu a MÃO e aceita a lista de espera; o preço não é argumento |
+| Cripta (escuro) | mural coletivo | quer UMA tatuagem em breve e compara: volume e preço na primeira varrida |
+| Marfim (**claro**) | arquivo claro | primeira tatuagem, escolhe por gosto, teme o clichê pesado |
+
+**Oito seções mudam de LAYOUT entre as quatro**, e é isso que separa
+variante de preset (paleta, fonte e espaçamento sozinhos são preset):
+
+| seção | sangue | vesperal | cripta | marfim |
+|---|---|---|---|---|
+| abertura | tela cheia | só tipografia | dividida com foto | ficha de catálogo |
+| galeria | mosaico | lista editorial | mural cerrado | carrossel |
+| artista | retrato 3/4 | dossiê longo | índice sem retrato | faixa sangrada |
+| preços | lista | prosa | tabela | cartões |
+| depoimentos | cartões | citação gigante | tira | autor/fala |
+| fecho | centralizado | cartaz | três colunas | tarja |
+| manifesto | alternado | marca | bloco | sussurro |
+| protocolo | linhas | escada | colunas | numerado |
+
+**Regras da composição** (topo de `composicao.ts`): o CSS sai no servidor
+(ordem e colunas são layout, e aplicá-los depois da hidratação é
+deslocamento, que `qa-cls.mjs` pega); especificidade em vez de
+`!important` (as regras competem com utilitárias do Tailwind, e `space-y-6`
+chega a 0,3,0); e **nenhuma composição esconde TEXTO** — a tabela de preços
+mantém a descrição em corpo menor, a citação mantém as estrelas.
+
+**Slot não desenhado avisa no editor.** Duas composições escondem IMAGEM: a
+abertura `cartaz` (Vesperal) não tem foto de fundo e o artista `indice`
+(Cripta) não tem retrato. `SkinVariante.imagensOcultas` declara o slot e o
+MOTIVO em enum fechado (`nenhum` | `so-titulo`) — o motivo, não a frase,
+que mora num lugar só no editor. A Vesperal é `so-titulo` e não `nenhum`
+porque `imagens.hero` continua preenchendo as letras do título: dizer "não
+aparece" ali seria pior que não avisar. A declaração é VERIFICADA no
+navegador, com JavaScript desligado, nas duas larguras: caixa zero para o
+declarado, maior que zero para o não declarado, e as duas direções
+reprovam.
+
+**O que era literal virou slot ou token.** A skin não tinha `<h1>` nenhum —
+o wordmark era um `<span>` solto, e é o `<h1>` na abertura que a trava
+exige e que a captura de identidade enquadra. Três cores cravadas
+quebravam a paleta clara e viraram token: o véu do hero (`rgba(0,0,0,.85)`
+deixava a abertura preta sob fundo creme), a sombra do título e a base do
+gradiente que preenche as letras (`--d-bg` pinta creme sobre creme). Os dez
+`alt` eram derivados da copy e viraram `imagensAlt`. O endereço de exemplo
+saiu — era a linha da tatuagem na tabela "Auditoria de endereço" acima.
+
+O knob `letra` (`vazada`/`solida`) nasceu de um defeito que só a paleta
+clara revela: `useNivelMidia` começa em `nenhum` quando há vídeo, então é o
+preenchimento de base que sai no HTML DO SERVIDOR — e `vazada` é a cor do
+fundo. A Marfim declara `solida`.
+
+#### O portão de drasticidade (`scripts/qa-tatuagem.mjs`)
+
+Variante que só muda paleta, fonte e espaçamento é preset. O portão que
+separa uma coisa da outra é uma IMAGEM, não um número: as quatro em página
+inteira no celular, convertidas para escala de cinza e postas lado a lado.
+Duas que custem a distinguir sem cor reprovam a variante.
+
+São DUAS folhas, porque uma só não serve: uma página de 390×11.400 não cabe
+ao lado de outras três num tamanho que se enxergue — reduzida ao ponto de
+caber, cada coluna vira uma tira de 60px e não se lê nada (a primeira
+tentativa saiu com 22.918px de altura e foi lida errada por quem a
+gerou). A folha de ABERTURA mostra as três primeiras telas em tamanho de
+leitura, que é o que decide; a de SILHUETA mostra a página inteira das
+quatro no mesmo fator de escala, e é o teste de apertar os olhos.
+
+O número dá ESCALA ao que a folha mostra e não aprova nada sozinho (mesma
+regra de `qa-diff.mjs`). São dois: a diferença média em cinza nas três
+primeiras telas — região CORRESPONDENTE nas quatro, ao contrário da página
+inteira, onde alturas de 5.920 a 11.425px fazem o mesmo `y` cair numa seção
+diferente em cada variante — e a altura de cada página, que já separa as
+composições de longe.
+
+O mesmo laço mede o que só o navegador prova: o contrato sem JavaScript
+(um `<h1>` com o nome inteiro na âncora hero, as nove seções sem duplicata,
+sem transbordo horizontal), as caixas dos slots declarados em
+`imagensOcultas`, e **o título da Cripta no celular** — a abertura dividida
+é a única que poderia espremer o título, então ela empilha abaixo de 768px
+e o teto é de três linhas, com piso de corpo.
+
+O nome no print da âncora hero também é medido, e dentro da caixa do
+título: `<h1>` presente não garante nome visível. O critério é a amplitude
+p95−p05 em cinza, com o contorno congelado em fase fixa (ele cicla entre
+três acentos em 12s, e medir sem congelar dá um número por rodada).
 
 ### Animação (`Theme.animacao` + `DemoSecao.animacaoEntrada`)
 
