@@ -2591,7 +2591,7 @@ A consequência aceita é que passam a existir **leads contactados com o texto m
 
 ### A lista de pendência no painel "Fila de envio" (/config)
 
-`detalheEnvio` guarda o rastro; esta lista é quem o mostra. Bloco **subordinado** ao painel que já existia (mesma seção, separado por um filete, título em `<h3>` — não uma seção nova competindo com ele), listando os leads com detalhe não vazio e ainda não resolvidos: leadId, nome, data do envio e o texto do detalhe.
+`detalheEnvio` guarda o rastro; esta lista é quem o mostra. Bloco **subordinado** ao painel que já existia (mesma seção, separado por um filete, título em `<h3>` — não uma seção nova competindo com ele), listando os leads com detalhe não vazio e ainda não resolvidos: nome (link para a ficha), data do envio e o texto do detalhe. O leadId CRU saiu daqui junto do seletor de lead (ver "O id, onde ele PODE aparecer"): o nome ao lado já é o link para `/leads/{leadId}` e cai no id quando o nome falta, então a linha em mono embaixo era o único lugar da /config onde um placeId aparecia — e ele agora tem UM lugar, que é o fim da ficha.
 
 É lista de trabalho **MANUAL**: o operador abre a conversa e anexa o print à mão. **Sem ação em massa e sem botão de reenvio** — reenviar produziria justamente a mensagem duplicada que reportar "enviado" existe para evitar.
 
@@ -3936,6 +3936,24 @@ ar não pode fazer o nome antigo aparecer no lugar do novo.
   quebrar por causa de um campo com valor velho. Requisição que FALHA diz
   outra coisa ("não deu pra carregar o nome"): confundir as duas seria
   mandar o operador trocar um valor que está certo.
+
+### O id, onde ele PODE aparecer — no FIM da ficha
+
+Esconder o id em toda parte cobra um preço: quem depura precisa dele para
+casar uma linha de log, um doc do Firestore ou uma URL de demo com o
+negócio que está olhando. Ele existe em **um** lugar: o último elemento do
+scroll da ficha `/leads/{id}`, pequeno, apagado, em fonte monoespaçada, com
+botão de copiar (`data-bloco="lead-id"`).
+
+O lugar é a decisão inteira. **No fim**, porque quem precisa dele sabe
+descer até lá e quem não precisa nunca o vê — no topo, ao lado do nome,
+ele seria ruído permanente para todo mundo por causa de um uso raro. **Na
+ficha**, porque é a única tela que já fala de UM lead só: numa lista, um
+id por linha é a poluição que o colapso da /config acabou de tirar.
+
+E em **nenhum outro lugar**: a linha em mono com o leadId da lista de print
+pendente saiu junto deste item. Ela era o único resto de id cru na /config,
+e o nome ao lado dela já leva para a mesma ficha.
 
 ### Onde ele mora, e o que saiu junto
 
