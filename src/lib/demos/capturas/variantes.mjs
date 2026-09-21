@@ -21,3 +21,20 @@ export const VARIANTES_POR_SKIN = /** @type {Record<string, string[]>} */ ({
     "lancheria-cantina",
   ],
 });
+
+/**
+ * Slots de imagem que a composição de uma variante NÃO desenha, em dado
+ * puro — `SkinVariante.imagensOcultas` visto de fora do TypeScript.
+ *
+ * Mora aqui pelo mesmo motivo da lista acima, e tem o mesmo teste de
+ * contrato: o laço (`scripts/qa-tatuagem.mjs`) mede a caixa de cada slot
+ * no navegador COM JAVASCRIPT DESLIGADO e exige zero para o que está
+ * declarado e maior que zero para o que não está. Sem a cópia, a
+ * declaração que o editor mostra ao operador seria só um comentário.
+ */
+export const IMAGENS_OCULTAS_POR_VARIANTE = /** @type {Record<string, Record<string, Record<string, string>>>} */ ({
+  "tatuagem-editorial": {
+    vesperal: { hero: "so-titulo" },
+    cripta: { sobre: "nenhum" },
+  },
+});
