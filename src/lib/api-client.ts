@@ -21,6 +21,7 @@ import type {
   RespostaPendente,
 } from "@/lib/fila/estado";
 import type { GrupoComErro } from "@/lib/fila/respostasPainel";
+import type { SimulacaoResposta } from "@/lib/fila/simularResposta";
 import type {
   ConjuntoSkin,
   FrasesProspeccao,
@@ -587,6 +588,26 @@ export const api = {
       /** A janela de silêncio em segundos, para a tela dizer quanto tempo é a espera. */
       janelaSegundos: number;
     }>("/api/config/fila/respostas"),
+
+  /**
+   * SIMULAR MENSAGEM — o ensaio que testa só a IA (ver "Simular mensagem"
+   * em ARCHITECTURE.md). Pula captura, casamento de número, dedupe e janela
+   * de agrupamento; NÃO pula a geração, que é a mesma função da produção.
+   *
+   * **Cada chamada custa uma geração de IA da cota do mês**, e não grava
+   * nada: o rascunho volta no corpo e some se ninguém olhar. O botão da
+   * tela diz esse preço, porque um clique barato de dar e caro de pagar é
+   * exatamente o que precisa estar escrito.
+   */
+  simularResposta: (leadId: string, texto: string) =>
+    request<SimulacaoResposta>("/api/config/fila/respostas/simular", {
+      method: "POST",
+      body: JSON.stringify({ leadId, texto }),
+    }),
+
+  /** O lead que a simulação já vem preenchida — o `leadContextoExcecao` do painel da fila. */
+  getLeadPadraoSimulacao: () =>
+    request<{ leadPadrao: string }>("/api/config/fila/respostas/simular"),
 
   /**
    * Fecha uma pendência de resposta. `texto` é o que o operador de fato

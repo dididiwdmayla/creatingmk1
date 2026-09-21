@@ -11,7 +11,10 @@
  * `nivel` distingue o painel de TOPO do bloco subordinado a um painel: o
  * aferidor do `--so=paineis` só cobra cabeçalho visível de primeiro nível
  * com a página recém-aberta — os de nível 3 estão dentro de um painel
- * fechado, e portanto escondidos junto com ele.
+ * fechado, e portanto escondidos junto com ele. Os subordinados não são só
+ * da "Fila de envio": "Simular mensagem" é subordinado a "Respostas
+ * pendentes" pela mesma razão (testa exatamente o que aquele painel
+ * mostra).
  */
 export const PAINEIS_CONFIG = [
   { id: "usuarios", titulo: "Usuários", nivel: 2 },
@@ -24,6 +27,7 @@ export const PAINEIS_CONFIG = [
   { id: "fila-disparo-teste", titulo: "Disparo de teste", nivel: 3 },
   { id: "fila-print-pendente", titulo: "Print pendente", nivel: 3 },
   { id: "respostas-pendentes", titulo: "Respostas pendentes", nivel: 2 },
+  { id: "respostas-simular", titulo: "Simular mensagem", nivel: 3 },
   { id: "leads-sem-vestigio", titulo: "Leads sem vestígio", nivel: 2 },
   { id: "busca", titulo: "Busca", nivel: 2 },
   { id: "mensagem-padrao", titulo: "Mensagem padrão", nivel: 2 },

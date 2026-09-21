@@ -8,6 +8,7 @@ import { CAMPO_BASE_CLS, mensagemErroFila } from "@/components/config/comum";
 import { ApiError, api } from "@/lib/api-client";
 import type { RespostaPendente } from "@/lib/fila/estado";
 import type { GrupoComErro } from "@/lib/fila/respostasPainel";
+import type { SimulacaoResposta } from "@/lib/fila/simularResposta";
 import { formatDateTime } from "@/lib/format";
 import { linkWhatsAppBusinessAndroid, podeAbrirBusiness } from "@/lib/wa";
 
@@ -270,6 +271,8 @@ export function RespostasPendentesSection() {
         </ul>
       )}
 
+      <SimularMensagemBloco />
+
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </PainelColapsavel>
   );
@@ -476,4 +479,200 @@ function LinhaResposta({
       </div>
     </li>
   );
+}
+
+/* ── Bloco "Simular mensagem" ────────────────────────────────────────── */
+
+/** Chave da persistência deste bloco — ver `PainelColapsavel`. */
+export const PAINEL_SIMULAR = "respostas-simular";
+
+/**
+ * O ensaio que testa a IA, e só a IA.
+ *
+ * O outro teste da fila de respostas é o NÚMERO DE EXCEÇÃO, e ele prova
+ * duas coisas ao mesmo tempo e devagar: o caminho do CELULAR (notificação,
+ * macro, rota, casamento, dedupe, agrupamento) e a QUALIDADE da IA
+ * (contexto do lead, documento comercial, prompt). São problemas de ritmo
+ * diferente — o primeiro se acerta uma vez e fica; no segundo o operador
+ * itera dezenas de vezes, muda uma linha do contexto comercial e olha o que
+ * mudou. Este bloco separa os dois.
+ *
+ * Bloco SUBORDINADO (nível 3) a "Respostas pendentes", e não painel próprio:
+ * ele testa exatamente o que aquele painel mostra, e um painel irmão o
+ * deixaria longe do resultado que explica. Mesma escolha do "Disparo de
+ * teste" dentro de "Fila de envio".
+ */
+function SimularMensagemBloco() {
+  const [leadId, setLeadId] = useState("");
+  const [texto, setTexto] = useState("");
+  const [resultado, setResultado] = useState<SimulacaoResposta | null>(null);
+  const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // O lead PADRÃO é o `leadContextoExcecao` já escolhido em "Fila de envio":
+  // o operador já disse ali qual lead usa para ensaiar, e perguntar de novo
+  // seria pedir o mesmo dado duas vezes. Falhar aqui não é erro de tela —
+  // o campo simplesmente nasce vazio e a pessoa digita.
+  useEffect(() => {
+    let ignore = false;
+    api
+      .getLeadPadraoSimulacao()
+      .then(({ leadPadrao }) => {
+        if (!ignore && leadPadrao) setLeadId(leadPadrao);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function simular() {
+    setGerando(true);
+    setErro(null);
+    try {
+      setResultado(await api.simularResposta(leadId.trim(), texto));
+    } catch (error) {
+      setErro(mensagemErroFila(error, "Falha ao simular"));
+    } finally {
+      setGerando(false);
+    }
+  }
+
+  const podeSimular = leadId.trim().length > 0 && texto.trim().length > 0 && !gerando;
+
+  return (
+    <PainelColapsavel id={PAINEL_SIMULAR} titulo="Simular mensagem" nivel={3}>
+      <p className="mt-1 text-xs text-ink-muted">
+        Escreva o que um lead escreveria e veja o rascunho na hora. Pula a captura no celular, o
+        casamento por telefone, o dedupe e a janela de agrupamento — mas NÃO pula a geração: é a
+        mesma montagem de prompt e a mesma chamada de IA da produção. O resultado não entra na
+        lista acima, não vira tarefa de envio e não toca no lead.
+      </p>
+
+      <div className="mt-3 flex items-center gap-2 text-xs text-ink-secondary">
+        <span className="w-32 shrink-0">Lead de contexto</span>
+        <input
+          value={leadId}
+          onChange={(event) => setLeadId(event.target.value)}
+          placeholder="placeId do lead"
+          disabled={gerando}
+          aria-label="Lead de contexto da simulação"
+          className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+        />
+      </div>
+
+      {/* MULTILINHA de propósito: um lead manda parágrafo, não uma linha —
+          e testar com uma linha só testaria uma pergunta que ninguém faz. */}
+      <textarea
+        value={texto}
+        onChange={(event) => setTexto(event.target.value)}
+        rows={3}
+        disabled={gerando}
+        aria-label="Mensagem que o lead mandaria"
+        placeholder="Ex.: “Oi, vi o site. Quanto custa? Tem manutenção depois?”"
+        className={`${CAMPO_BASE_CLS} mt-2 resize-y text-xs leading-relaxed disabled:opacity-50`}
+      />
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={simular}
+          disabled={!podeSimular}
+          data-acao="simular"
+          className={`${ACAO_RESPOSTA_CLS} border-accent bg-accent/15 text-accent disabled:opacity-50`}
+        >
+          {/* O PREÇO no próprio botão: cada clique gasta uma geração da cota
+              do mês, e um clique barato de dar e caro de pagar precisa
+              dizer isso antes, não num aviso depois. */}
+          {gerando ? "gerando…" : "simular (1 geração de IA)"}
+        </button>
+        {resultado && (
+          <button
+            type="button"
+            onClick={simular}
+            disabled={!podeSimular}
+            data-acao="regenerar"
+            title="Mesma mensagem, outra geração — para comparar variações"
+            className={`${ACAO_RESPOSTA_CLS} border-line bg-surface-2 text-ink-muted disabled:opacity-50`}
+          >
+            regenerar (mais 1)
+          </button>
+        )}
+      </div>
+
+      {resultado && <ResultadoSimulacao resultado={resultado} />}
+      {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
+    </PainelColapsavel>
+  );
+}
+
+/**
+ * O resultado, MARCADO como simulação — e o contexto que a IA recebeu.
+ *
+ * A seção recolhível existe por um motivo só: quando um rascunho sai ruim,
+ * o operador precisa saber se FALTOU informação no contexto ou se a IA
+ * errou com informação suficiente. Sem ela, as duas coisas parecem iguais —
+ * e a reação a cada uma é oposta (escrever mais no contexto comercial vs.
+ * mexer no prompt). Os campos saem de quem GEROU o prompt, nunca de um
+ * recálculo na tela: um recálculo pode divergir do real justamente no dia
+ * em que a pergunta importa.
+ */
+function ResultadoSimulacao({ resultado }: { resultado: SimulacaoResposta }) {
+  const { contexto } = resultado;
+
+  return (
+    <div data-bloco="simulacao" className="mt-2 rounded border border-accent/30 bg-accent/5 p-2">
+      <p className="text-[10px] uppercase tracking-wide text-accent">
+        simulação — não entra na lista, não vira envio
+      </p>
+      <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+        {resultado.rascunho}
+      </p>
+
+      <details data-bloco="contexto-enviado" className="mt-2">
+        <summary className="cursor-pointer text-[10px] text-ink-muted">contexto enviado</summary>
+        <dl className="mt-1 flex flex-col gap-1 border-l-2 border-line pl-2 text-[11px]">
+          <LinhaContexto rotulo="lead">
+            {contexto.nome || resultado.leadId}
+            {contexto.nicho && ` · ${contexto.nicho}`}
+            {` · responde em ${contexto.idioma}`}
+          </LinhaContexto>
+          <LinhaContexto rotulo="o Radar mandou">
+            {contexto.mensagemEnviada || <Ausente>não foi possível reconstruir</Ausente>}
+          </LinhaContexto>
+          <LinhaContexto rotulo="a demo mostra">
+            {contexto.resumoDemo || <Ausente>nada — o lead não tem demo com dados</Ausente>}
+          </LinhaContexto>
+          <LinhaContexto rotulo="preço">
+            {contexto.posicionamentoPreco || <Ausente>nenhum — o lead não tem nicho</Ausente>}
+          </LinhaContexto>
+          {/* A pergunta mais frequente diante de um rascunho vago, e por isso
+              é a que a linha responde direto: o documento estava preenchido? */}
+          <LinhaContexto rotulo="contexto comercial">
+            {contexto.contextoComercialPreenchido ? (
+              "preenchido — foi junto no prompt"
+            ) : (
+              <Ausente>
+                VAZIO — preencha o painel “Contexto comercial” para a IA saber o que você vende
+              </Ausente>
+            )}
+          </LinhaContexto>
+        </dl>
+      </details>
+    </div>
+  );
+}
+
+function LinhaContexto({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-ink-muted">{rotulo}</dt>
+      <dd className="whitespace-pre-wrap text-ink-secondary">{children}</dd>
+    </div>
+  );
+}
+
+/** O que NÃO foi ao prompt — dito como ausência, nunca como caixa vazia. */
+function Ausente({ children }: { children: React.ReactNode }) {
+  return <span className="text-ink-muted">{children}</span>;
 }

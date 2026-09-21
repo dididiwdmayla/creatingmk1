@@ -47,7 +47,7 @@ describe("gerarRascunhoResposta", () => {
     const db = new FakeFirestore();
     const lead = baseLead();
 
-    const rascunho = await gerarRascunhoResposta(
+    const { rascunho, contexto } = await gerarRascunhoResposta(
       db,
       lead,
       [{ texto: "Oi, tenho interesse!", recebidoEm: "2026-03-01T10:00:00.000Z" }],
@@ -56,6 +56,14 @@ describe("gerarRascunhoResposta", () => {
 
     expect(rascunho).toBe("Oi! Claro, posso te mostrar agora.");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    // O CONTEXTO volta junto do rascunho — quem monta o prompt é quem sabe
+    // o que foi para ele, e o painel de simulação mostra isso sem
+    // recomputar nada (ver `ContextoRascunho`).
+    expect(contexto.nome).toBe("Barbearia do Zé");
+    expect(contexto.contextoComercialPreenchido).toBe(false);
+    // Lead sem nicho: nem posicionamento de preço, nem a linha do nicho.
+    expect(contexto.nicho).toBe("");
+    expect(contexto.posicionamentoPreco).toBe("");
   });
 
   it("o prompt inclui a mensagem que o Radar mandou e as mensagens do grupo, na ordem", async () => {

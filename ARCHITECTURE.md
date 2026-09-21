@@ -3064,6 +3064,8 @@ Esta é a MESMA regra que o app já aplica ao índice regional ("LLM nunca é fo
 
 O bloco acima capta a resposta e produz o rascunho. Esta tela é onde alguém DECIDE o que fazer com ele — e é a única parte da fila de respostas que um humano opera.
 
+**O que o painel mostra, de cima para baixo**: a LINHA DE ESTADO (o que chegou e ainda não virou rascunho — ver "Quem dispara o flush" acima), os grupos que falharam na geração, a lista de pendentes, e o bloco recolhível "Simular mensagem" (ver adiante). Abrir o painel roda o esvaziamento dos grupos maduros antes de listar.
+
 **Seção PRÓPRIA, irmã de "Fila de envio", e não um bloco subordinado a ela** como a lista de print. A distinção não é de tamanho, é de pertencimento: a pendência de print é efeito colateral do ENVIO (mesma claim, mesmo doc de `filaEnvios`, mesmo ciclo de vida), então pertence àquele painel; a resposta do lead é o outro pilar, com coleção própria (`filaRespostas`), rota própria e ciclo próprio — e aqui neste documento "Fila de envio" e "Fila de respostas" já são seções irmãs, não uma dentro da outra. Nada de linguagem nova, porém: é o mesmo `<section>` de todo painel da página, os mesmos tokens, o mesmo estado vazio de uma linha.
 
 Cada item traz de uma vez as quatro coisas que a decisão exige — **nome e nicho do lead, TODAS as mensagens do grupo na ordem em que chegaram, o texto que o Radar tinha mandado, e o rascunho**. Mostrar só a última mensagem faria o operador responder à pergunta errada: o agrupamento existe justamente porque o lead manda três linhas seguidas, e a pergunta costuma estar na terceira. A mensagem do Radar fica recolhida num `<details>` — é contexto, não ação — e é RECONSTRUÍDA por `montarMensagemParaLead` (o app não guarda o literal que saiu; `rascunhoResposta.ts` já a reconstrói pelo mesmo caminho para montar o prompt). Reconstrução que falha apaga o bloco, nunca a pendência.
@@ -3142,6 +3144,24 @@ Quatro limites, cada um resolvido numa camada diferente para não colidir com o 
 **Não move status de lead nenhum**: o caminho de exceção nunca chama `avancarParaRespondeuSeAplicavel` — só o casamento por telefone real faz isso.
 
 **No painel**, os dois campos ficam JUNTO de "Número do teste" em "Fila de envio" — não escondidos numa seção à parte —, exatamente para não ficar esquecido ligado: é a mesma fila de segurança, em direção oposta. O texto de ajuda diz que os dois PODEM ser o mesmo número, e por que isso é melhor.
+
+### Simular mensagem — o ensaio que testa só a IA (`src/lib/fila/simularResposta.ts` + bloco em /config)
+
+O NÚMERO DE EXCEÇÃO acima testa duas coisas ao mesmo tempo e devagar: o caminho do CELULAR (notificação, macro, rota, casamento por telefone, dedupe, agrupamento) e a QUALIDADE da IA (contexto do lead, documento comercial, prompt). São problemas de natureza e de ritmo diferentes — o primeiro se acerta uma vez e fica; no segundo o operador itera dezenas de vezes, muda uma linha do contexto comercial e olha o que mudou. Este bloco separa os dois.
+
+**O botão "simular mensagem"** fica DENTRO do painel "Respostas pendentes" (bloco de nível 3, `respostas-simular`), e não como painel irmão: ele testa exatamente o que aquele painel mostra, e longe do resultado explicaria menos. O operador escolhe o LEAD de contexto (padrão: o `leadContextoExcecao` já escolhido em "Fila de envio" — perguntar de novo seria pedir o mesmo dado duas vezes), digita o que um lead escreveria em campo MULTILINHA (um lead manda parágrafo, não uma linha) e o rascunho sai na hora.
+
+**O que ela PULA**: captura no celular, casamento por telefone, dedupe e janela de agrupamento. A mensagem vem digitada.
+
+**O que ela NÃO pula: a GERAÇÃO.** `simularRespostaDeLead` chama `gerarRascunhoResposta` — a MESMA função de `flushRespostas.ts`, com a mesma montagem de prompt, a mesma reserva de cota e a mesma chamada de IA. Uma cópia "para testar" provaria apenas a si mesma, e divergiria justamente no dia em que a pergunta importasse. Há teste que compara o prompt que sai para o Gemini nos DOIS caminhos (o flush de produção e a simulação), com o mesmo lead, o mesmo texto e o relógio congelado, e exige que as duas strings sejam idênticas — não um mock de espião, que provaria só que um mock foi chamado.
+
+**Ela NÃO ESCREVE NADA.** Nem `filaRespostas` (não vira pendência de aprovação), nem `filaRespostasTarefas` (não vira tarefa de envio, com `respostaAutomatica` ligada ou não), nem `leads/{id}/respostas`, nem o status do lead, nem grupo pendente. O rascunho volta no corpo da resposta e morre ali se ninguém olhar. É garantia mais forte que a do número de exceção, que grava com `teste: true` e depende de TRÊS filtros para não vazar (`decidirAutomatica`, `listarRespostasPendentes`, `salvarRascunho`): aqui não há doc para vazar. A única marca no banco é a RESERVA DE COTA — a chamada de IA de fato aconteceu, e cobrar por ela é a regra de todo o resto do app.
+
+**O PREÇO está no botão** ("simular (1 geração de IA)", "regenerar (mais 1)"): um clique barato de dar e caro de pagar precisa dizer isso antes, não num aviso depois. Uma chamada por clique, sem retry de schema, como no flush.
+
+**A seção recolhível "contexto enviado"**, junto do resultado, mostra o que a IA recebeu: dados do lead (nome, nicho, idioma de saída), a mensagem que o Radar tinha mandado (reconstruída), o que a demo mostra, o posicionamento de preço, e se o documento comercial estava preenchido. Existe por um motivo só: quando um rascunho sai ruim, o operador precisa saber se FALTOU informação no contexto ou se a IA errou com informação suficiente — sem a seção, as duas coisas parecem iguais, e a reação a cada uma é oposta (escrever mais no contexto comercial vs. mexer no prompt). Os campos saem de `ContextoRascunho`, devolvido por QUEM GEROU o prompt, nunca de um recálculo na tela; `""`/`false` significa "esta seção não foi ao prompt", o mesmo vazio que o prompt omite.
+
+**Rota**: `POST /api/config/fila/respostas/simular`, ADMIN ONLY (401 sem sessão, 403 para membro — cada clique gasta cota, e o resultado carrega o contexto comercial e o preço). Sob `/api/config/` pelo mesmo motivo das irmãs: o proxy isenta todo o prefixo `/api/fila/` da sessão de usuário. O `GET` da mesma rota devolve só o `leadPadrao` (o `leadContextoExcecao`), para semear o formulário. É um POST que não cria recurso nenhum — o verbo acompanha o EFEITO (uma chamada de IA paga, com corpo de entrada), não a criação.
 
 ## Resposta automática — o rascunho que deixa de esperar aprovação
 
@@ -3797,7 +3817,9 @@ aquela.
   salva — dois donos da mesma escrita se sobrescrevem —, e o disparo de
   teste recebe da visão os leads já carregados, sem uma segunda chamada.
   Eles são blocos `nivel={3}` DENTRO de "Fila de envio", cada um com
-  cabeçalho e resumo próprios.
+  cabeçalho e resumo próprios. "Simular mensagem" é subordinado a
+  "Respostas pendentes" pela mesma lógica aplicada a outro painel: ele
+  testa exatamente o que aquele painel mostra.
 
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=paineis` —
 tudo fechado, um aberto (clique real, com os quatro blocos da fila

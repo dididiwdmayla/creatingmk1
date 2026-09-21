@@ -179,17 +179,56 @@ function validarRascunho(bruto: unknown): string {
 }
 
 /**
+ * O QUE A IA RECEBEU — cada campo é uma seção do prompt, na mesma ordem.
+ *
+ * Existe para o painel de SIMULAÇÃO (ver "Simular mensagem" em
+ * ARCHITECTURE.md) poder mostrar o contexto sem recomputá-lo: quando um
+ * rascunho sai ruim, o operador precisa saber se FALTOU informação no
+ * contexto ou se a IA errou com informação suficiente — sem isso as duas
+ * coisas parecem iguais. Recalcular aqui seria uma cópia do caminho real,
+ * e uma cópia pode divergir justamente no dia em que a pergunta importa;
+ * por isso quem gera é quem conta.
+ *
+ * `""`/`false` significa "esta seção NÃO foi ao prompt" (demo sem dados,
+ * lead sem nicho, documento comercial vazio) — o mesmo vazio que o prompt
+ * omite, nunca um placeholder inventado.
+ */
+export interface ContextoRascunho {
+  nome: string;
+  nicho: string;
+  /** Idioma do LEAD (a IA interna do Radar é pt-BR; o rascunho sai no dele). */
+  idioma: string;
+  /** Reconstruída com a MESMA precedência do envio — o app não guarda o literal que saiu. */
+  mensagemEnviada: string;
+  resumoDemo: string;
+  posicionamentoPreco: string;
+  /** O documento `/config/contextoComercial` tinha texto? */
+  contextoComercialPreenchido: boolean;
+}
+
+export interface RascunhoGerado {
+  rascunho: string;
+  contexto: ContextoRascunho;
+}
+
+/**
  * Geração completa: reserva de cota (SKU `aiGeneration`, ANTES do request) →
  * generateContent → validação. Uma chamada só — sem retry (ver o
  * comentário do topo do arquivo). Erro de qualquer etapa propaga para quem
  * chama (`flushRespostas.ts`), que isola a falha por grupo.
+ *
+ * **Esta é a ÚNICA porta de geração de rascunho do app**, e é de propósito:
+ * o flush (produção) e a simulação do painel entram pela mesma função, com
+ * a mesma montagem de prompt e a mesma chamada de IA. Uma segunda versão
+ * "para testar" provaria só a si mesma — o ponto da simulação é exercitar
+ * o caminho real. Há teste comparando os dois prompts byte a byte.
  */
 export async function gerarRascunhoResposta(
   db: AppDb,
   lead: Lead,
   mensagens: MensagemGrupo[],
   config: AppConfig,
-): Promise<string> {
+): Promise<RascunhoGerado> {
   const idioma = idiomaEfetivoDemo(lead);
   const [mensagemEnviada, posicionamentoPreco, contexto] = await Promise.all([
     montarMensagemParaLead(db, lead),
@@ -211,5 +250,17 @@ export async function gerarRascunhoResposta(
 
   await reserveQuota(db, "aiGeneration", config.caps);
   const bruto = await gerarJson(prompt, SCHEMA_RASCUNHO);
-  return validarRascunho(bruto);
+
+  return {
+    rascunho: validarRascunho(bruto),
+    contexto: {
+      nome: lead.nome,
+      nicho: lead.busca?.nicho?.trim() ?? "",
+      idioma,
+      mensagemEnviada: mensagemEnviada.texto,
+      resumoDemo: resumoDemo ?? "",
+      posicionamentoPreco: posicionamentoPreco ?? "",
+      contextoComercialPreenchido: contextoComercial !== undefined,
+    },
+  };
 }
