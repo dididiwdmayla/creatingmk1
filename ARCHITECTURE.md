@@ -19,7 +19,7 @@ scripts/
   qa-visual.mjs                     # ✅ laço de verificação VISUAL: sobe o app, cunha sessão assinada, percorre a matriz efeito×intensidade×tema, LED×nível×tema, modos de cor×fase e a fronteira de seção, salva PNG + folha de contato; `--so=avulsa` compara identidade em branco × preenchida nas 8 skins (ver "Demos avulsas"); `--so=fps` é o PORTÃO: efeito × os 5 modos de cor, celular com CPU 4×, rolando a página — piso de 45 fps por CÉLULA (modo que reprova é desabilitado, não o efeito) + a superfície repintada em Mpx/s ao lado (ver "Verificação da UI")
   qa-editor.mjs                     # ✅ laço de captura do EDITOR (não da rota pública): digita num campo com o efeito ativo e reporta fps do preview + contagem de <style> antes/depois; exige o patch temporário de fake DB documentado no cabeçalho
   qa-diff.mjs                       # ✅ diferença pixel a pixel entre dois PNGs (média/máxima/% acima de 2 níveis) — o "provado pixel a pixel" das rodadas visuais, sem dependência nova
-  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma"); `--so=listas` é o PORTÃO das duas listas longas (/leads e /buscas no celular, dirigindo os controles de verdade): nenhuma linha com altura zero, nada vazando da viewport e a compactação MEDIDA (ver "Compactação de /leads e /buscas"); `--so=paineis` é o PORTÃO dos blocos colapsáveis de /config — tudo fechado, um aberto e o estado PERSISTIDO entre recargas (ver "Painéis colapsáveis da /config"); `--so=comercial` cobre o painel "Contexto comercial" preenchido e VAZIO
+  qa-plataforma.mjs                 # ✅ laço de captura da PLATAFORMA (não das demos): tema × aba em desktop e celular, contraste lido do CSS computado, proporção de matiz do cromo e fps navegando entre as abas com CPU 4× (ver "Sistema de temas da plataforma"); `--so=listas` é o PORTÃO das duas listas longas (/leads e /buscas no celular, dirigindo os controles de verdade): nenhuma linha com altura zero, nada vazando da viewport e a compactação MEDIDA (ver "Compactação de /leads e /buscas"); `--so=paineis` é o PORTÃO dos blocos colapsáveis de /config — tudo fechado, um aberto e o estado PERSISTIDO entre recargas (ver "Painéis colapsáveis da /config"); `--so=comercial` cobre o painel "Contexto comercial" preenchido e VAZIO; `--so=seletor` cobre o SELETOR DE LEAD (fechado pelo nome, aberto, a busca filtrando sem ir à rede, "lead não encontrado") e o fim da ficha com o id
   qa-perfil-blur.mjs                # ✅ mede num <canvas> o perfil radial de um gradiente recortado e borrado — como a rampa de aura/estilo.ts foi derivada
   qa-titulo.mjs                     # ✅ PORTÃO do TÍTULO HERO, com a hidratação concluída: conta os PREENCHIMENTOS de glifo (dois = título duplicado), compara as quebras de linha da caixa de texto com as da máscara da mídia, prova que o seletor de fontes alcança o título, refaz tudo com ALINHAMENTO/ESCALA/ENTRE-LETRAS trocados POR CÓDIGO (sem remontar) e mede a FAIXA ACIMA do título depois do repique da rolagem contra a mesma faixa sem vídeo — desktop e celular (ver "Título hero: uma caixa de texto, a mídia como máscara" e "O rastro na borda superior")
   capturas-ci.mjs                   # ✅ orquestrador do workflow: move o estado no doc do lead e chama o motor como processo filho (não captura nada por conta própria)
@@ -3937,6 +3937,42 @@ ar não pode fazer o nome antigo aparecer no lugar do novo.
   outra coisa ("não deu pra carregar o nome"): confundir as duas seria
   mandar o operador trocar um valor que está certo.
 
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=seletor`
+captura cinco estados × celular e desktop × escuro e claro: **fechado com
+id salvo** (mostrando o NOME), **aberto**, **a busca filtrando**, **"lead
+não encontrado"** e o **fim da ficha com o id**. Existe como passo próprio
+porque o que ele julga não tem teste unitário: um campo estreito de painel
+tem que caber nome + nicho + cidade + demo sem esmagar, e o painel
+flutuante é a única parte do app que desenha POR CIMA de outro conteúdo —
+sobreposição, largura no celular e a lista rolando são problema de layout.
+
+Três aferidores que só a tela real dá:
+
+1. **O placeId não aparece na página.** Com o campo preenchido, o passo lê
+   o `innerText` da /config inteira e reprova se algum dos ids semeados
+   estiver ali. É a regra do item virando aferição em vez de intenção.
+2. **Digitar não vai à rede.** `page.on("request")` conta as idas a
+   `/api/config/leads-selecao` e o passo digita TECLA A TECLA
+   (`pressSequentially`, nunca `fill` — um `fill` dispara um evento só e
+   passaria mesmo com uma busca de servidor por letra); o contador tem que
+   ficar parado. O unitário prova o componente; este prova o browser.
+3. **O valor velho não derruba o painel.** Com o `leadContextoExcecao`
+   apontando para um lead que não existe, o passo cobra que "Meta diária",
+   "Número do teste" e "Número de exceção" continuem desenhados ao lado — e
+   que o campo ainda ABRA para escolher outro.
+
+O corte da captura é a união da LINHA (rótulo + campo) com os filhos
+DIRETOS do seletor, e o "direto" ali é a correção de um erro que a primeira
+rodada mostrou: a lista rola dentro de um `max-h`, e o `<ul>` lá dentro tem
+caixa maior que a do painel que o recorta — unir com todo descendente
+esticava o corte até o fim da página. A semeadura põe **dois leads de mesmo
+nome em cidades diferentes** (o caso que a cidade existe para resolver, um
+com demo e outro sem) e reescreve os endereços dos fixtures no formato que
+o Google devolve: o atalho `"Av. Brasil, 100 — Porto Alegre, RS"` faz
+`cidadeDoEndereco` ler "100 — Porto Alegre", artefato da semeadura que
+encheria a folha de contato de ruído. Vale só dentro do passo — `semear()`
+devolve tudo ao fim.
+
 ### O id, onde ele PODE aparecer — no FIM da ficha
 
 Esconder o id em toda parte cobra um preço: quem depura precisa dele para
@@ -4520,7 +4556,7 @@ não por assunto.
 | laço | superfície | o que ele julga |
 |---|---|---|
 | `scripts/qa-visual.mjs` | **camada decorativa das DEMOS** (rota pública das skins do registro, via o harness `/interno/demo-qa`) | efeito × intensidade × tema, estilos de LED, modos de cor, animação por seção, **variante × modo de cor** (`--so=variante`), cor da barra do navegador, fps no celular com CPU 4× (`--so=fps`, com `--skin=` para escolher a skin e, quando ela tem variantes, variante no eixo das linhas) e o portão de foto colapsada (`--so=colapso`). **Não conhece `/leads` nem `/buscas`** — não há tela da plataforma nele |
-| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e os painéis da /config que ficam abaixo da dobra e por isso têm passos próprios — `--so=pendencias` (lista de print), `--so=fila` (a visão: funil, próximos, bloqueados) e `--so=respostas` (respostas pendentes: além do estado vazio, a AÇÃO mudando com o aparelho — intent do Business no Android, copiar no desktop —, a LINHA DE ESTADO com grupo na janela e grupo em erro, e a SIMULAÇÃO com o resultado e o contexto enviado abertos) e `--so=comercial` (o contexto comercial preenchido e vazio) e `--so=vestigio` (leads antigos sem vestígio: lista cheia, o DIÁLOGO da exclusão definitiva e lista vazia), todos cobrando os ESTADOS VAZIOS; e `--so=balao` (o balão da fila, que não é da /config e sim de TODA tela: os estados dele mais a VARREDURA DE COLISÃO em todas as abas — a cobrança que só um elemento fixo global precisa) |
+| `scripts/qa-plataforma.mjs` | **a PLATAFORMA autenticada** (as 7 abas do Radar) | tema × aba, contraste, legibilidade, custo do cromo, iridescência medida por matiz; em `--so=listas`, o portão de `/leads` e `/buscas` no celular (caixa zerada, colunas da grade, escada de densidade, nada vazando); e os painéis da /config que ficam abaixo da dobra e por isso têm passos próprios — `--so=pendencias` (lista de print), `--so=fila` (a visão: funil, próximos, bloqueados) e `--so=respostas` (respostas pendentes: além do estado vazio, a AÇÃO mudando com o aparelho — intent do Business no Android, copiar no desktop —, a LINHA DE ESTADO com grupo na janela e grupo em erro, e a SIMULAÇÃO com o resultado e o contexto enviado abertos) e `--so=comercial` (o contexto comercial preenchido e vazio) e `--so=vestigio` (leads antigos sem vestígio: lista cheia, o DIÁLOGO da exclusão definitiva e lista vazia) e `--so=seletor` (o seletor de lead fechado/aberto/filtrando, o "lead não encontrado" e o fim da ficha com o id — com o contador de requisições do browser cobrando que digitar não vá à rede), todos cobrando os ESTADOS VAZIOS; e `--so=balao` (o balão da fila, que não é da /config e sim de TODA tela: os estados dele mais a VARREDURA DE COLISÃO em todas as abas — a cobrança que só um elemento fixo global precisa) |
 | `scripts/qa-cls.mjs` | **deslocamento de layout**, nas três | `--so=skins` (rota pública), `--so=editor` (o preview do editor) e `--so=app` (as 7 abas da plataforma). Portão 0.1, o mesmo piso "bom" do Core Web Vital real |
 
 Os outros são de recorte estreito e o nome já diz: `qa-aura.mjs`,
