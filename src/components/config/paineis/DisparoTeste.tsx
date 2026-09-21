@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { SkeletonRows } from "@/components/Skeleton";
 import { CapturaBadge } from "@/components/capturas/CapturaBadge";
 import { useEstadoCapturas } from "@/components/capturas/useEstadoCapturas";
 import { PainelColapsavel } from "@/components/config/PainelColapsavel";
+import { SeletorLead } from "@/components/config/SeletorLead";
 import { mensagemErroFila } from "@/components/config/comum";
 import { ApiError, api, type FilaTesteEstadoResponse } from "@/lib/api-client";
 import { estadoVisivel } from "@/lib/demos/capturas/estado";
@@ -15,7 +16,6 @@ import {
   repeticoesRestantesEfetivas,
   type EtapaTeste,
   type FilaTesteDoc,
-  type LinhaFilaPainel,
 } from "@/lib/fila/estado";
 import { formatDateTime, formatTempoAte, formatTempoRelativo } from "@/lib/format";
 
@@ -77,9 +77,6 @@ const RESULTADO_TESTE_LABEL: Record<string, string> = {
   falhou: "falhou",
 };
 
-/** Valor do seletor de alvo quando o operador vai digitar um id à mão. */
-const ALVO_OUTRO = "__outro__";
-
 /**
  * A linha de estado da tarefa atual — o que ela é AGORA, sem o operador
  * abrir log de aparelho. Pendente mostra o tempo restante; expirada diz
@@ -125,20 +122,17 @@ function estadoDoTeste(doc: FilaTesteDoc, agora: number): { texto: string; tom: 
  * do lead: é a rede de segurança de quando o alvo escolhido é um negócio
  * real.
  */
-export function DisparoTeste({
-  versao,
-  leadsDaVisao,
-}: {
-  versao: number;
-  leadsDaVisao: LinhaFilaPainel[];
-}) {
+export function DisparoTeste({ versao }: { versao: number }) {
   const [estado, setEstado] = useState<FilaTesteEstadoResponse | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [recarga, setRecarga] = useState(0);
   const [agora, setAgora] = useState(() => Date.now());
+  // `""` = ninguém escolheu ainda, e aí o alvo é o FIXO DE TESTE (ver
+  // `alvoEfetivo`). Guardar a ausência, e não o id do fixo, é o que deixa
+  // o seletor nascer preenchido sem esperar resposta nenhuma: o nome do
+  // fixo chega no mesmo `GET /api/fila/teste` que desenha o bloco.
   const [alvo, setAlvo] = useState("");
-  const [outroId, setOutroId] = useState("");
   const [pular, setPular] = useState<EtapaTeste[]>([]);
   const [repeticoes, setRepeticoes] = useState("1");
   const [cancelando, setCancelando] = useState(false);
@@ -175,10 +169,9 @@ export function DisparoTeste({
     setOcupado(true);
     setErro(null);
     setBarreira(null);
-    const leadId = alvo === ALVO_OUTRO ? outroId.trim() : alvo;
     try {
       const resposta = await api.postFilaTeste({
-        ...(leadId && { leadId }),
+        ...(alvoEfetivo && { leadId: alvoEfetivo }),
         ...(pular.length > 0 && { pular }),
         repeticoes: repeticoesNumero,
       });
@@ -213,6 +206,35 @@ export function DisparoTeste({
   }
 
   const fixo = estado?.leadDeTeste;
+  /**
+   * O alvo de fato: o que o operador escolheu, ou o LEAD FIXO DE TESTE
+   * enquanto ninguém escolheu nada. O fixo é o padrão de propósito — "o
+   * próximo elegível" seria justamente quem já passou por todos os
+   * filtros, e testá-lo não ensina nada.
+   */
+  const alvoEfetivo = alvo || fixo?.leadId || "";
+  /**
+   * O fixo entra no seletor como opção EXTRA porque `listLeads` o exclui
+   * na ORIGEM — e é assim que tem que ser: afrouxar aquela exclusão o
+   * vazaria para /leads, /demos, /hoje, /mundo e para a penetração por
+   * nicho. Nome e prontidão vêm do mesmo `GET /api/fila/teste` que desenha
+   * este bloco, sem chamada a mais.
+   */
+  const extrasSeletor = useMemo(
+    () =>
+      fixo
+        ? [
+            {
+              leadId: fixo.leadId,
+              nome: `${fixo.nome} (fixo de teste)`,
+              nicho: "",
+              cidade: "",
+              temDemo: fixo.pronto,
+            },
+          ]
+        : [],
+    [fixo],
+  );
   const linha = estado?.atual ? estadoDoTeste(estado.atual, agora) : null;
   const repeticoesMax = estado?.repeticoesMax ?? 10;
   // Teto do lado do CLIENTE é só UX (evita o clique óbvio); quem barra de
@@ -263,9 +285,9 @@ export function DisparoTeste({
   const capturasDoFixo = fixo ? (mapaCapturas[fixo.leadId] ?? undefined) : undefined;
   const visivelCaptura = capturasCarregadas ? estadoVisivel(capturasDoFixo, agoraCaptura) : null;
   const capturaEmAndamento = visivelCaptura?.acompanhar === true;
-  // Só bloqueia o disparo quando o alvo É o lead fixo (alvo "" = default) —
-  // outro lead escolhido nos interruptores não depende desta captura.
-  const injetarBloqueadoPelaCaptura = alvo === "" && capturaEmAndamento;
+  // Só bloqueia o disparo quando o alvo É o lead fixo — outro lead
+  // escolhido no seletor não depende desta captura.
+  const injetarBloqueadoPelaCaptura = alvoEfetivo === fixo?.leadId && capturaEmAndamento;
 
   function gerarCapturaTeste(forcar: boolean) {
     setGerandoCaptura(true);
@@ -319,37 +341,22 @@ export function DisparoTeste({
             <span className="text-ink-muted">— nunca o telefone do lead.</span>
           </p>
 
-          {/* ── Alvo ──────────────────────────────────────────────────── */}
+          {/* ── Alvo ──────────────────────────────────────────────────────
+              QUALQUER lead da base, procurado pelo NOME — antes eram os
+              poucos que a visão ao lado tinha carregado, mais um campo de
+              placeId à mão, que é um dado que a interface não mostra em
+              lugar nenhum. O fixo de teste entra como opção extra (ver
+              `extrasSeletor`) e continua sendo o padrão. */}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
             <span className="w-20 shrink-0">Lead alvo</span>
-            <select
-              value={alvo}
-              onChange={(event) => setAlvo(event.target.value)}
-              className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 text-xs text-foreground outline-none focus:border-accent"
-            >
-              <option value="">
-                {fixo?.nome ?? "lead fixo de teste"} (fixo de teste)
-                {fixo && !fixo.pronto ? " — sem print" : ""}
-              </option>
-              {leadsDaVisao.map((lead) => (
-                <option key={lead.leadId} value={lead.leadId}>
-                  {lead.nome}
-                </option>
-              ))}
-              <option value={ALVO_OUTRO}>outro lead (por id)…</option>
-            </select>
+            <SeletorLead
+              nome="disparo-alvo"
+              ariaLabel="Lead alvo do disparo de teste"
+              valor={alvoEfetivo}
+              extras={extrasSeletor}
+              onEscolher={setAlvo}
+            />
           </div>
-          {alvo === ALVO_OUTRO && (
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
-              <span className="w-20 shrink-0" />
-              <input
-                value={outroId}
-                placeholder="placeId do lead"
-                onChange={(event) => setOutroId(event.target.value)}
-                className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-accent"
-              />
-            </div>
-          )}
           {/* ── Captura do lead fixo — visível sem clicar, e re-disparável ─
               O painel dono do lead de teste é o dono da manutenção dele:
               a regra "sem captura pronta o teste não injeta" já existia

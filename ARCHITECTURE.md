@@ -3837,6 +3837,127 @@ só passaram a DIZER qual painel estão olhando, com
 armadilha de `semear()` reescrever `usuarios/admin` inteiro.
 
 
+## Seletor de lead (`src/lib/leads/selecao.ts` + `src/components/config/SeletorLead.tsx`)
+
+**O relato.** Vários campos da /config pediam um `leadId`, e o `leadId` é o
+placeId do Google — `"ChIJN1t_tDeuEmsRUsoyG83frY4"`, quase 30 caracteres —
+que **não aparece em lugar nenhum da interface**. O operador não tinha como
+preencher: o teste de resposta ficava travado num campo cujo valor a tela
+não dava. Eram três campos, achados varrendo `src/components` e
+`src/app/(app)` atrás de input, rótulo e placeholder de id:
+
+1. **`leadContextoExcecao`** ("Lead de contexto (exceção)", painel "Fila de
+   envio") — `<input>` de texto livre, `placeholder="placeId do lead"`.
+2. **O lead de contexto de "Simular mensagem"** (dentro de "Respostas
+   pendentes") — o mesmo `<input>`, semeado com o campo acima.
+3. **O "Lead alvo" do disparo de teste** — um `<select>` com o lead fixo
+   mais os poucos leads que a VISÃO ao lado tinha carregado, e a opção
+   "outro lead (por id)…", que abria um campo de placeId à mão.
+
+**A correção NÃO foi expor ids pela interface** — isso desfaria a arrumação
+que o colapso da /config acabou de fazer, e trocaria um campo impossível
+por catorze painéis poluídos. Foi o campo **parar de pedir id cru**: os
+três passaram a usar UM componente, que procura lead por NOME e grava o
+`leadId` escolhido. **Nenhuma mudança de modelo de dados**: `config/fila`
+continua guardando `leadContextoExcecao` como string de id, e
+`POST /api/fila/teste` continua recebendo `leadId`.
+
+### A linha do seletor — quatro campos, e por que a cidade
+
+`OpcaoLead { leadId, nome, nicho, cidade, temDemo }` (`lib/leads/selecao.ts`).
+O nome sozinho não serve: **dois leads de mesmo nome em cidades
+diferentes** ("Barbearia do Zé", em Maringá e em Porto Alegre) são
+indistinguíveis numa lista de nomes, e escolher o errado ali é ensaiar a
+resposta do negócio errado sem perceber. A cidade sai do ENDEREÇO
+(`cidadeDoEndereco`, o mesmo caminho da /mundo, da ficha e da montagem da
+demo) porque o endereço é onde o negócio FICA; `busca.regiao` é só o que
+alguém digitou ao procurar, e entra como reserva para o lead sem endereço
+não ficar sem nada ao lado do nome. `temDemo` está ali porque é ele que
+decide se o lead serve de alvo de disparo.
+
+O que a linha NÃO carrega é o ponto: o doc de um lead traz a demo inteira,
+capturas, horários e os detalhes do Places. Mandar a coleção para a tela
+por causa de um campo de escolha seriam megabytes para desenhar uma lista
+de nomes.
+
+### O CUSTO — uma requisição por abertura, nunca uma por tecla
+
+O `AppDb` não tem query. "Procurar por nome" no servidor seria a
+**varredura de `/leads` inteira a cada letra digitada** — o mesmo trabalho,
+repetido por caractere. Então a lista vem **UMA vez, quando o seletor
+abre** (`GET /api/config/leads-selecao`), fica em memória enquanto o
+componente vive, e o filtro é **local**, sem acento e sem caixa. Reabrir
+não busca de novo. Há teste que digita nove letras e exige que o contador
+de `fetch` não se mova, e o laço de captura conta as requisições no browser
+de verdade pelo mesmo motivo — é a regressão que um "já existe uma rota de
+busca" reintroduziria em silêncio.
+
+**A lista desenha no máximo 50 linhas** (o filtro enxerga todas), com
+"mostrando 50 de N — refine a busca" embaixo: a base cresce, e um popover
+de mil nós não fica mais útil que o campo que ele substituiu.
+
+### O id já GRAVADO aparece pelo NOME — e isso é uma rota separada
+
+Um painel com `leadContextoExcecao` salvo tem que mostrar o NOME daquele
+lead assim que abre. Buscar a lista para descobrir um nome seria pagar a
+varredura no carregamento da /config — e os corpos dos painéis continuam
+MONTADOS mesmo fechados (ver "O corpo fechado continua MONTADO"), então
+seria em toda visita à página, catorze painéis fechados inclusive.
+
+Daí `GET /api/config/leads-selecao/{leadId}`: **uma leitura de documento**,
+só quando o campo tem valor, e a varredura fica onde é inevitável — no
+instante em que a lista abre. Ela usa `getLead`, **não** `listLeads`, e é
+de propósito: assim o LEAD FIXO DE TESTE, excluído de toda listagem,
+continua resolvendo pelo nome quando é ele que está gravado. Quem lista é
+filtrado; quem busca por id, não — a mesma distinção que já vale para a
+ficha `/leads/{id}`.
+
+A resposta carrega o id que a pediu: trocar de lead com a anterior ainda no
+ar não pode fazer o nome antigo aparecer no lugar do novo.
+
+### Os três casos de borda, cada um num lugar diferente
+
+- **O lead fixo de teste continua FORA de `listLeads`.** O seletor do
+  disparo precisa oferecê-lo, e pré-selecionado — mas afrouxar aquela
+  exclusão o vazaria para /leads, /demos, /hoje, /mundo e para a penetração
+  de site por nicho, que é o inventário inteiro de "O LEAD FIXO DE TESTE"
+  acima. Quem trata o caso é o SELETOR, pela prop `extras`: opções
+  oferecidas mesmo não estando na lista. Nome e prontidão vêm do mesmo
+  `GET /api/fila/teste` que já desenha o bloco — nenhuma chamada a mais, e
+  **nenhuma requisição para desenhar o alvo padrão**.
+- **`""` = ninguém escolheu ainda**, e é aí que o disparo cai no fixo
+  (`alvoEfetivo`). Guardar a ausência, e não o id do fixo, é o que deixa o
+  campo nascer preenchido sem esperar resposta nenhuma.
+- **Id apontando para lead que não existe mais.** A limpeza de leads
+  antigos pode excluir justamente o lead escolhido como contexto. O campo
+  diz **"lead não encontrado"** e continua abrindo, para escolher outro; a
+  rota responde **200 com `lead: null`, nunca 404**, porque isso é estado
+  previsto da tela e não pedido malformado — 4xx faria um painel inteiro
+  quebrar por causa de um campo com valor velho. Requisição que FALHA diz
+  outra coisa ("não deu pra carregar o nome"): confundir as duas seria
+  mandar o operador trocar um valor que está certo.
+
+### Onde ele mora, e o que saiu junto
+
+Arquivo próprio (`components/config/SeletorLead.tsx`), e não `comum.tsx`,
+apesar de três painéis o usarem: aquele arquivo é de campos BURROS — um
+`<input>` controlado, commit no blur, nenhuma I/O —, e enterrar ali um
+componente que busca, guarda, filtra e abre painel flutuante tornaria
+ilegíveis as peças de uma linha que moram nele. O popover **desmonta**
+quando fechado (nunca `display:none`): o aferidor de "slot com caixa
+zerada" dos laços existe para pegar conteúdo que some SEM QUERER, e uma
+lista escondida dentro de um painel ABERTO viraria parede de falso
+positivo.
+
+Saiu junto o empréstimo `VisaoFila.onLeads → DisparoTeste.leadsDaVisao`: os
+leads da visão eram o atalho de escolha de alvo, e o seletor agora oferece
+a base inteira por nome. `onContador` fica — o resumo do cabeçalho fechado
+continua vindo de lá, pelo mesmo motivo de sempre. As rotas são **admin nos
+dois casos**, como os painéis que as usam: a lista é o retrato da base de
+leads num corpo só, e vive sob `/api/config/` porque o prefixo
+`/api/fila/*` passa sem sessão de usuário (é o celular com
+`RADAR_DEVICE_KEY`).
+
 ## Leads antigos sem vestígio de contato (`src/lib/leads/semVestigio.ts` + `exclusao.ts` + painel em /config)
 
 **O relato.** `seloContato` existe desde 2026-08-05 e `registrosEnvio` desde

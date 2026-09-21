@@ -224,16 +224,13 @@ function LinhaRetidoFila({
  */
 export function VisaoFila({
   versao,
-  onLeads,
   onContador,
 }: {
   versao: number;
-  /** Empresta ao disparo de teste os leads já carregados — sem outra chamada. */
-  onLeads: (linhas: LinhaFilaPainel[]) => void;
   /**
-   * Empresta ao cabeçalho do painel "Fila de envio" o contador do dia, pelo
-   * mesmo motivo de `onLeads`: ele já veio nesta resposta, e o resumo do
-   * bloco fechado não pode custar uma chamada a mais.
+   * Empresta ao cabeçalho do painel "Fila de envio" o contador do dia: ele
+   * já veio nesta resposta, e o resumo do bloco fechado não pode custar uma
+   * chamada a mais.
    */
   onContador: (contador: FilaDiagnosticoResponse["contador"] | null) => void;
 }) {
@@ -263,7 +260,6 @@ export function VisaoFila({
         if (ignore) return;
         setDados(resposta);
         setAgora(Date.now());
-        onLeads([...resposta.proximos, ...resposta.bloqueados]);
         onContador(resposta.contador);
       })
       .catch((error) => {
@@ -277,9 +273,9 @@ export function VisaoFila({
     return () => {
       ignore = true;
     };
-    // `onLeads`/`onContador` são setState do pai (identidade estável):
-    // entram na lista por exigência do lint, sem recarregar nada a mais.
-  }, [versao, recarga, onLeads, onContador]);
+    // `onContador` é setState do pai (identidade estável): entra na lista
+    // por exigência do lint, sem recarregar nada a mais.
+  }, [versao, recarga, onContador]);
 
   // Efeito SEPARADO do de cima de propósito: são duas rotas, e uma que falha
   // não pode apagar a outra da tela. O funil diz "—" no lugar do número

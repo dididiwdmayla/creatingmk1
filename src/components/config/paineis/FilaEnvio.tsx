@@ -10,6 +10,7 @@ import {
   FilaNumeroInput,
   mensagemErroFila,
 } from "@/components/config/comum";
+import { SeletorLead } from "@/components/config/SeletorLead";
 import { DisparoTeste } from "@/components/config/paineis/DisparoTeste";
 import { PrintPendenteLista } from "@/components/config/paineis/PrintPendente";
 import { RespostaAutomaticaBloco } from "@/components/config/paineis/RespostaAutomatica";
@@ -17,7 +18,6 @@ import { VisaoFila } from "@/components/config/paineis/VisaoFila";
 import { ApiError, api, type FilaDiagnosticoResponse } from "@/lib/api-client";
 import type { FilaConfig } from "@/lib/fila/config";
 import { formatInt } from "@/lib/format";
-import type { LinhaFilaPainel } from "@/lib/fila/estado";
 
 /** Chave da persistência deste painel — ver `PainelColapsavel`. */
 export const PAINEL_FILA = "fila-envio";
@@ -58,15 +58,10 @@ export function FilaEnvioSection() {
   // Sobe a cada config salva: o funil e as listas abaixo dependem dela
   // (exigirJanelaBoa e nichosPermitidos mudam quem é elegível AGORA).
   const [versaoConfig, setVersaoConfig] = useState(0);
-  // Os leads que a visão já carregou, emprestados ao disparo de teste como
-  // atalho de escolha de alvo. Vêm de lá em vez de uma segunda chamada: o
-  // funil e as listas saem da MESMA `ordenarCandidatos`, e recalculá-las
-  // aqui seriam duas respostas capazes de discordar entre si.
-  const [leadsDaVisao, setLeadsDaVisao] = useState<LinhaFilaPainel[]>([]);
   /**
-   * O contador do dia, emprestado da visão pelo mesmo motivo (e pelo mesmo
-   * caminho) dos leads acima: é o que a linha de resumo do cabeçalho
-   * FECHADO mostra, e ele já foi lido ali.
+   * O contador do dia, emprestado da visão por callback: é o que a linha de
+   * resumo do cabeçalho FECHADO mostra, e ele já foi lido ali — buscá-lo de
+   * novo aqui seriam duas respostas capazes de discordar entre si.
    */
   const [contador, setContador] = useState<FilaDiagnosticoResponse["contador"] | null>(null);
 
@@ -106,9 +101,8 @@ export function FilaEnvioSection() {
 
   /**
    * O estado do interruptor mais o andamento do dia — o par que decide se
-   * vale abrir. O contador vem da VISÃO (ela é quem lê o diagnóstico), pelo
-   * mesmo empréstimo que já entrega os leads ao disparo de teste: o número
-   * já está na página, e buscá-lo de novo aqui seriam duas respostas
+   * vale abrir. O contador vem da VISÃO (ela é quem lê o diagnóstico): o
+   * número já está na página, e buscá-lo de novo aqui seriam duas respostas
    * capazes de discordar entre si.
    */
   const resumo =
@@ -235,12 +229,20 @@ export function FilaEnvioSection() {
               onSalvar={(valor) => salvar({ numeroExcecao: valor }, "numeroExcecao")}
             />
           </div>
-          <div className="flex items-center gap-2 text-xs text-ink-secondary">
+          {/* O campo pede um LEAD, não um id: o placeId do Google não
+              aparece em lugar nenhum da interface, então pedi-lo por
+              escrito era pedir um dado que o operador não tinha como
+              saber. O valor gravado continua sendo o leadId. */}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
             <span className="w-48 shrink-0">Lead de contexto (exceção)</span>
-            <LeadContextoExcecaoInput
+            <SeletorLead
+              nome="fila-contexto-excecao"
+              ariaLabel="Lead de contexto do número de exceção"
               valor={config.leadContextoExcecao}
               disabled={ocupado === "leadContextoExcecao"}
-              onSalvar={(valor) => salvar({ leadContextoExcecao: valor }, "leadContextoExcecao")}
+              permiteVazio
+              rotuloVazio="nenhum — sem lead de contexto"
+              onEscolher={(valor) => salvar({ leadContextoExcecao: valor }, "leadContextoExcecao")}
             />
           </div>
           <p className="text-xs text-ink-muted">
@@ -257,57 +259,11 @@ export function FilaEnvioSection() {
         <RespostaAutomaticaBloco config={config} ocupado={ocupado} onSalvar={salvar} />
       )}
 
-      <VisaoFila
-        versao={versaoConfig}
-        onLeads={setLeadsDaVisao}
-        onContador={setContador}
-      />
-      <DisparoTeste versao={versaoConfig} leadsDaVisao={leadsDaVisao} />
+      <VisaoFila versao={versaoConfig} onContador={setContador} />
+      <DisparoTeste versao={versaoConfig} />
       <PrintPendenteLista />
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </PainelColapsavel>
-  );
-}
-
-/**
- * O leadId de contexto do número de exceção — texto livre (placeId do
- * Google, ou `radar-lead-teste`), sem validação de formato aqui: quem
- * confere se o lead existe é o flush, na hora de gerar o rascunho (lead
- * sumido = mensagem perdida, mesmo tratamento de "lead sumiu" do resto da
- * fila). Mesmo padrão de commit-no-blur de `FilaNumeroDigitosInput`, e mora
- * SÓ neste arquivo (não em `comum.tsx`) porque só este painel usa.
- */
-function LeadContextoExcecaoInput({
-  valor,
-  disabled,
-  onSalvar,
-}: {
-  valor: string;
-  disabled: boolean;
-  onSalvar: (valor: string) => void;
-}) {
-  const [texto, setTexto] = useState(valor);
-  const [ultimoValor, setUltimoValor] = useState(valor);
-  if (valor !== ultimoValor) {
-    setUltimoValor(valor);
-    setTexto(valor);
-  }
-
-  function commit() {
-    const limpo = texto.trim();
-    if (limpo !== valor) onSalvar(limpo);
-    else setTexto(valor);
-  }
-
-  return (
-    <input
-      value={texto}
-      placeholder="placeId do lead"
-      disabled={disabled}
-      onChange={(event) => setTexto(event.target.value)}
-      onBlur={commit}
-      className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
-    />
   );
 }
