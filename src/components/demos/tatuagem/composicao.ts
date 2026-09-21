@@ -55,6 +55,7 @@ export const TATUAGEM_COMPOSICAO_CSS = `
     color-mix(in srgb, var(--d-bg) var(--te-veu-base), transparent) 100%);
 }
 .te .d-gothic-bg span { opacity: calc(var(--te-letra-op, .08) * var(--te-letras)); }
+.te[data-te-letra="solida"] { --te-wordmark-base: var(--d-text); }
 .te[data-te-foto="cinza"] { --te-foto-filtro: grayscale(100%) contrast(1.02) brightness(.98); }
 .te[data-te-foto="suave"] { --te-foto-filtro: grayscale(62%) contrast(.95) brightness(1.03) sepia(10%); }
 
@@ -443,6 +444,7 @@ export const TATUAGEM_COMPOSICAO_PADRAO: TatuagemComposicao = {
   protocolo: "linhas",
   faixa: "rolante",
   foto: "duro",
+  letra: "vazada",
   letras: 100,
   veu: 85,
 };

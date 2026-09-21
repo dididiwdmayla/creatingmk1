@@ -692,6 +692,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
       data-te-protocolo={comp.protocolo}
       data-te-faixa={comp.faixa}
       data-te-foto={comp.foto}
+      data-te-letra={comp.letra}
       className="te relative min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
       <style>{TATUAGEM_COMPOSICAO_CSS}</style>

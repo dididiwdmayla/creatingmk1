@@ -425,6 +425,18 @@ export interface TatuagemComposicao {
   faixa: "rolante" | "estatica";
   /** Tratamento das fotos: contraste duro / cinza chapado / suave. */
   foto: "duro" | "cinza" | "suave";
+  /**
+   * Preenchimento das letras do título quando não há mídia por dentro:
+   * `vazada` pinta na cor do FUNDO (a letra recortada do material bruto,
+   * legível só pelo contorno) e `solida` pinta na cor do TEXTO.
+   *
+   * Não é gosto: `useNivelMidia` começa em `nenhum` quando há vídeo, então
+   * o HTML DO SERVIDOR sai com este preenchimento. Numa paleta clara,
+   * `vazada` é creme sobre creme — título invisível para quem lê o
+   * documento servido, que é exatamente o que a trava e a captura de
+   * prospecção leem.
+   */
+  letra: "vazada" | "solida";
   /** Opacidade das letras góticas de fundo, 0–100 (0 desliga a camada). */
   letras: number;
   /** Força do véu sobre a foto da abertura, 0–100. */
@@ -633,6 +645,25 @@ export interface SkinVariante {
   modosDeCorReprovados?: readonly string[];
   /** Por que os modos acima reprovaram — texto curto, mostrado no editor. */
   motivoModosReprovados?: string;
+  /**
+   * Slots de imagem que a COMPOSIÇÃO desta variante não desenha, e o aviso
+   * a mostrar na aba Imagens do editor.
+   *
+   * Existe porque uma variante decide EXIBIR, nunca se o slot existe (o
+   * contrato de slots é o mesmo nas quatro — ver a trava). Sem o aviso, o
+   * operador sobe uma foto, não vê nada mudar e conclui que está quebrado.
+   *
+   * O valor é o MOTIVO, fechado em enum, e não um texto livre por variante:
+   * a frase mora num lugar só (o editor) e não tem como divergir.
+   *   - `nenhum`     — a composição não desenha este slot em lugar nenhum;
+   *   - `so-titulo`  — não aparece como foto, mas segue preenchendo as
+   *                    letras do título (ver "Vídeo-no-título").
+   *
+   * É declaração VERIFICADA, não comentário: `scripts/qa-tatuagem.mjs` mede
+   * a caixa de cada slot no navegador COM JAVASCRIPT DESLIGADO e exige zero
+   * para o que está declarado aqui e maior que zero para o que não está.
+   */
+  imagensOcultas?: Readonly<Record<string, "nenhum" | "so-titulo">>;
 }
 
 /**
