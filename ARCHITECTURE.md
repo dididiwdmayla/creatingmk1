@@ -1159,6 +1159,15 @@ Na `barbearia-editorial`, o endereço fictício foi retirado de `BARBEARIA_EXEMP
 lead sem endereço não emite o slot nem o botão de rota. O teste específico
 cobre as quatro variantes e não depende da blocklist histórica incompleta.
 
+**Fechamento da validação (2026-09-21):** 20/20 células variante × modo de cor
+aprovadas em CPU 4×, celular 390×844/DPR 2, grão intensidade 3, cinco cargas por
+célula e rolagem ativa. Menor mediana: 52,4 FPS (piso 45); nenhum modo desabilitado.
+Barra sem divergências nas quatro variantes e 28 imagens sem colapso. O halo de
+foto que divergira na Norte foi corrigido usando o token de borda na sombra,
+sem alterar o limiar do portão. Heroes com nome completo verificados sem JS em
+390/1100 px. Resultados, limitações da instrumentação e leituras brutas em
+[qa/barbearia-editorial/STATUS.md](qa/barbearia-editorial/STATUS.md).
+
 ### Animação (`Theme.animacao` + `DemoSecao.animacaoEntrada`)
 
 Três níveis globais — `nenhuma` / `sutil` / `marcante` — definidos no contrato (`Theme.animacao`, override em `TemaPatch.animacao`) e resolvidos por `aplicarTema` como qualquer outro token. Cada preset da skin tem um default (`themes.ts`); o editor pode sobrescrever na aba Tema. A skin de barbearia consome o nível em três pontos:

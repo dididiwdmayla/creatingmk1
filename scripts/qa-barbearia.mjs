@@ -51,6 +51,9 @@ try {
         await page.locator('.be header').evaluate(el => { el.style.display='none'; });
         await hero.screenshot({path:path.join(saida,`${prefix}-hero.png`)});
         if(js) await page.screenshot({path:path.join(saida,`${prefix}-pagina.png`),fullPage:true});
+        if(js && id === 'vinho' && width === 1100) {
+          await page.locator('[data-d-secao="ritual"]').screenshot({path:path.join(saida,'vinho-ritual.png')});
+        }
         relatorio.push({id,viewportWidth:width,js,nome,secoes,...medida});
       }
     }
