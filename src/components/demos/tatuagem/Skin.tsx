@@ -112,7 +112,12 @@ function Placeholder({
   priority?: boolean;
   slot?: string;
   className?: string;
-  /** Filtro dark/dessaturado do original (`.image-dark-filter`) — hero NÃO usa (só o gradiente escuro por cima). */
+  /**
+   * Filtro dark/dessaturado do original (`.image-dark-filter`) — hero NÃO
+   * usa (só o véu por cima). O VALOR vem de `--te-foto-filtro`, não de uma
+   * string cravada aqui: ele é textura da variante (ver composicao.ts), e
+   * `grayscale(100%)` fixo tratava as quatro do mesmo jeito.
+   */
   filtro?: boolean;
 }) {
   return (
@@ -123,7 +128,7 @@ function Placeholder({
       unoptimized
       data-demo-slot={slot}
       className={`object-cover ${className}`}
-      style={filtro ? { filter: "grayscale(100%) contrast(1.25) brightness(0.75)" } : undefined}
+      style={filtro ? { filter: "var(--te-foto-filtro)" } : undefined}
       sizes={sizes}
       priority={priority}
     />
@@ -210,20 +215,18 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
         <div className="absolute inset-0 z-[1]">
           <Placeholder
             src={data.imagens.hero}
-            alt={`Ambiente de ${data.nome}`}
+            alt={data.imagensAlt?.hero ?? ""}
             sizes="100vw"
             priority
             slot="imagens.hero"
             filtro={false}
           />
         </div>
-        <div
-          className="absolute inset-0 z-[2]"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.75) 50%, rgba(0,0,0,0.90) 100%)",
-          }}
-        />
+        {/* Véu sobre a foto do hero. Era preto cravado
+            (`rgba(0,0,0,0.85)`) — o que deixava a abertura ESCURA mesmo na
+            paleta clara, enquanto o resto da página ficava creme. Agora sai
+            da própria paleta, e a força é knob da variante. */}
+        <div className="te-hero-veu absolute inset-0 z-[2]" />
 
         <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center text-center">
           <FadeUp animacao={theme.animacao} delay={0.2} className="mb-6">
@@ -237,15 +240,22 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
             )}
           </FadeUp>
 
-          <div className={`w-full max-w-[1200px] ${HERO_ALINHAMENTO_TEXT[theme.heroTitulo.alinhamento]}`}>
+          {/* O <h1> da página. A skin não tinha nenhum — o wordmark era um
+              <span> solto —, e é ele que a trava de variante exige dentro da
+              abertura e que a captura de identidade enquadra. A sombra é
+              token: `4px 6px 0 rgba(0,0,0,.9)` cravado pintava preto sob
+              paleta clara. */}
+          <h1
+            className={`te-hero-titulo w-full max-w-[1200px] ${HERO_ALINHAMENTO_TEXT[theme.heroTitulo.alinhamento]}`}
+          >
             <Wordmark
               nome={s.hero?.titulo ?? data.nome}
               slot="secoes.hero.titulo"
               videoSrc={data.videos?.titulo}
               imagemFallback={data.imagens.hero}
-              className="mb-8 block text-[calc(clamp(3rem,13vw,9rem)*var(--d-hero-escala))] leading-[0.9] drop-shadow-[4px_6px_0_rgba(0,0,0,0.9)]"
+              className="mb-8 block text-[calc(clamp(3rem,13vw,9rem)*var(--d-hero-escala))] leading-[0.9] [filter:drop-shadow(var(--te-titulo-sombra))]"
             />
-          </div>
+          </h1>
 
           {data.slogan && (
             <FadeUp animacao={theme.animacao} delay={0.4} className="mb-2">
@@ -289,7 +299,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
               <Parallax animacao={theme.animacao} className="h-full w-full">
                 <Placeholder
                   src={data.imagens.sobre}
-                  alt={s.sobre.titulo ?? data.nome}
+                  alt={data.imagensAlt?.sobre ?? ""}
                   sizes="(max-width: 1024px) 100vw, 40vw"
                   slot="imagens.sobre"
                 />
@@ -392,7 +402,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
                     <div className="relative aspect-[4/5] w-full overflow-hidden">
                       <Placeholder
                         src={data.imagens[`portfolio-${i + 1}`] ?? data.imagens.hero}
-                        alt={`${item.titulo} — ${item.detalhe ?? ""}`}
+                        alt={data.imagensAlt?.[`portfolio-${i + 1}`] ?? ""}
                         sizes="(max-width: 768px) 100vw, 33vw"
                         slot={`imagens.portfolio-${i + 1}`}
                         className="transition-transform duration-[var(--d-anim-duration)]"
@@ -508,7 +518,15 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
           <div className="d-marquee flex w-max">
             {repetido.map((item, i) => (
               <div key={i} className="flex items-center">
-                <span className="whitespace-nowrap font-[family-name:var(--d-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--d-muted)]">
+                <span
+                  // A faixa repete os itens 4x para o laço não ter costura;
+                  // só a PRIMEIRA cópia leva o slot, senão o editor teria
+                  // quatro alvos para o mesmo campo.
+                  data-demo-slot={
+                    i < itens.length ? `secoes.marquee.itens.${i}.titulo` : undefined
+                  }
+                  className="whitespace-nowrap font-[family-name:var(--d-mono)] text-[10px] uppercase tracking-[0.3em] text-[var(--d-muted)]"
+                >
                   {item.titulo}
                 </span>
                 <span className="mx-8 font-[family-name:var(--d-mono)] text-xs text-[var(--d-accent)]">•</span>
@@ -654,9 +672,35 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="relative min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
+      className="te relative min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
       <style>{`
+        /* ── Tokens de superfície ───────────────────────────────────────
+           Os quatro valores abaixo estavam cravados no JSX/CSS desta skin
+           (filtro da foto, véu do hero, sombra do título e a cor de base do
+           preenchimento do wordmark). Aqui eles nascem da PALETA e viram um
+           ponto único — é o que permite a uma variante clara não pintar
+           preto por cima de creme. */
+        .te {
+          --te-foto-filtro: grayscale(100%) contrast(1.25) brightness(0.75);
+          --te-veu-topo: 85%;
+          --te-veu-meio: 75%;
+          --te-veu-base: 90%;
+          --te-titulo-sombra: 4px 6px 0 color-mix(in srgb, var(--d-bg) 90%, transparent);
+          /* Base do gradiente que preenche as letras. É \`--d-bg\` porque o
+             efeito do material bruto é a letra "vazada" na cor do fundo,
+             com o contorno multicor por cima — numa paleta CLARA isso pinta
+             creme sobre creme e o título some, então a variante clara troca
+             esta base por tinta. */
+          --te-wordmark-base: var(--d-bg);
+        }
+        .te .te-hero-veu {
+          background: linear-gradient(180deg,
+            color-mix(in srgb, var(--d-bg) var(--te-veu-topo), transparent) 0%,
+            color-mix(in srgb, var(--d-bg) var(--te-veu-meio), transparent) 50%,
+            color-mix(in srgb, var(--d-bg) var(--te-veu-base), transparent) 100%);
+        }
+
         /* Assinatura tipográfica (Wordmark): preenchimento em gradiente +
            contorno multicor NO MESMO elemento (background-clip:text e
            -webkit-text-stroke coexistem numa única caixa) — ver
@@ -684,12 +728,12 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
              estreitas — nunca força overflow horizontal num título longo. */
           white-space: pre-line;
           background-image: linear-gradient(120deg,
-            var(--d-bg) 0%,
-            color-mix(in srgb, var(--d-accent) 35%, var(--d-bg)) 20%,
-            var(--d-bg) 40%,
-            color-mix(in srgb, var(--d-accent-2) 30%, var(--d-bg)) 60%,
-            var(--d-bg) 80%,
-            color-mix(in srgb, var(--d-accent-3) 30%, var(--d-bg)) 100%);
+            var(--te-wordmark-base) 0%,
+            color-mix(in srgb, var(--d-accent) 35%, var(--te-wordmark-base)) 20%,
+            var(--te-wordmark-base) 40%,
+            color-mix(in srgb, var(--d-accent-2) 30%, var(--te-wordmark-base)) 60%,
+            var(--te-wordmark-base) 80%,
+            color-mix(in srgb, var(--d-accent-3) 30%, var(--te-wordmark-base)) 100%);
           background-size: 260% 100%;
           -webkit-background-clip: text;
           background-clip: text;
@@ -860,7 +904,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
         <ScrollHeader
           nome={data.nome}
           ctaHref={agendar}
-          ctaLabel={s.hero?.cta ?? "Agendar"}
+          ctaLabel={s.hero?.cta ?? m.agendarHorario}
           links={[
             s.sobre?.rotulo && { href: "#sobre", label: s.sobre.rotulo },
             s.portfolio?.rotulo && { href: "#portfolio", label: s.portfolio.rotulo },

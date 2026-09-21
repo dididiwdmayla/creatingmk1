@@ -6,6 +6,11 @@ import type { DemoData } from "@/lib/demos/types";
  * material bruto (skins-raw/tatuagem), com marca e fotos genéricas: nada
  * aqui identifica o estúdio/cliente original.
  *
+ * NÃO declara `endereco`: um endereço de exemplo aqui aparece no HTML de
+ * todo lead que ainda não tem o dado (`dadosDoLead` omite o que falta, não
+ * apaga a camada de baixo) — era a linha da tatuagem na tabela "Auditoria de
+ * endereço" do ARCHITECTURE.md. Sem endereço, a skin não emite o slot.
+ *
  * `investimento` (preços) e `depoimentos` não existiam no material bruto
  * — são acréscimos exigidos pelo contrato universal de DemoData (ver
  * secoes.ts) — o resto segue a estrutura original (hero, sobre, manifesto,
@@ -14,7 +19,6 @@ import type { DemoData } from "@/lib/demos/types";
 export const TATUAGEM_EXEMPLO: DemoData = {
   nome: "ÓSSEA STUDIO",
   slogan: "A pele é o registro.",
-  endereco: "Rua das Palmeiras, 512 — Zona 07",
   servicos: [
     {
       nome: "SESSÃO — PEQUENA",
@@ -156,6 +160,22 @@ export const TATUAGEM_EXEMPLO: DemoData = {
       cta: "INICIAR CONVERSA",
       texto: "Todos os direitos reservados.",
     },
+  },
+  // Um alt por slot de imagem (opt-in por skin — ver DemoData.imagensAlt).
+  // Antes disso o alt era DERIVADO da copy ("Ambiente de " + nome, o título
+  // da seção, "titulo — detalhe"): texto em português cravado no componente
+  // e invisível para quem edita. Aqui ele é conteúdo, como qualquer outro.
+  imagensAlt: {
+    hero: "Ambiente do estúdio",
+    sobre: "Retrato do artista",
+    "portfolio-1": "Trabalho do arquivo, peça 1",
+    "portfolio-2": "Trabalho do arquivo, peça 2",
+    "portfolio-3": "Trabalho do arquivo, peça 3",
+    "portfolio-4": "Trabalho do arquivo, peça 4",
+    "portfolio-5": "Trabalho do arquivo, peça 5",
+    "portfolio-6": "Trabalho do arquivo, peça 6",
+    "portfolio-7": "Trabalho do arquivo, peça 7",
+    "portfolio-8": "Trabalho do arquivo, peça 8",
   },
   imagens: {
     hero: "/demos/tatuagem/hero.svg",
