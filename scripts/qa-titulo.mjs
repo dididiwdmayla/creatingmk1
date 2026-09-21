@@ -47,7 +47,8 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
 
-import { lerPng } from "./png.mjs";
+import { VARIANTES_POR_SKIN } from "../src/lib/demos/capturas/variantes.mjs";
+import { decodificarPng, lerPng } from "./png.mjs";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SAIDA = path.join(RAIZ, "qa-shots");
@@ -65,6 +66,25 @@ const TELAS = [
   { id: "celular", viewport: { width: 390, height: 844 }, dpr: 2 },
 ];
 const SKIN = "tatuagem-editorial";
+/**
+ * As VARIANTES da skin — o eixo que este laço não tinha.
+ *
+ * O vídeo-no-título existe nas quatro, mas cada uma põe o wordmark numa
+ * composição diferente de abertura (tela cheia, dividida, ficha,
+ * tipográfica): a caixa medida muda de largura, de posição e de vizinhança,
+ * e a máscara é DERIVADA dessa caixa. Rodar só na `sangue` media uma
+ * abertura de quatro. `--preset=<id>` roda uma só.
+ */
+const PRESETS = (() => {
+  const todas = VARIANTES_POR_SKIN[SKIN] ?? ["sangue"];
+  const pedida = process.argv
+    .slice(2)
+    .find((a) => a.startsWith("--preset="))
+    ?.split("=")[1];
+  if (!pedida) return todas;
+  if (!todas.includes(pedida)) throw new Error(`variante desconhecida: ${pedida} (tem ${todas.join(", ")})`);
+  return [pedida];
+})();
 
 /** Vídeo de teste: gerado pelo próprio Playwright (nunca versionado). */
 const VIDEO_DIR = path.join(RAIZ, "public", "qa-tmp");
@@ -128,7 +148,16 @@ async function esperarServidor(url, timeoutMs = 120000) {
   throw new Error(`servidor não respondeu em ${url}`);
 }
 
-function url({ titulo, heroFonte, video, preset = "sangue" }) {
+/**
+ * A variante em medição. Módulo-escopo porque o laço a troca no topo e
+ * TODA chamada de `url()` tem de segui-la — e sem default de propósito:
+ * um sítio de chamada esquecido estoura aqui em vez de medir a `sangue`
+ * calado, que é o defeito que este laço existe para não cometer.
+ */
+let presetAtual = null;
+
+function url({ titulo, heroFonte, video, preset = presetAtual }) {
+  if (!preset) throw new Error("url() sem variante — presetAtual não foi definido");
   const q = new URLSearchParams({ skin: SKIN, preset, intro: "0" });
   if (titulo !== undefined) q.set("titulo", titulo.replace(/\n/g, "\\n"));
   if (heroFonte) q.set("heroFonte", heroFonte);
@@ -166,6 +195,207 @@ async function gerarVideo(browser) {
   await ctx.close();
   await fs.rename(bruto, path.join(VIDEO_DIR, "titulo.webm"));
   return VIDEO_URL;
+}
+
+/**
+ * O vídeo está VISÍVEL dentro das letras — não só encaixado.
+ *
+ * Toda a geometria deste laço (quantas caixas, linhas batendo, avanços
+ * iguais) passaria intacta com uma máscara perfeitamente alinhada sobre um
+ * canvas que nunca foi pintado: o título simplesmente ficaria sem
+ * preenchimento, e nenhum número acusaria.
+ *
+ * O que separa "pintado" de "não pintado" é o TEMPO. O vídeo de teste é um
+ * gradiente que corre em 1,2s, então dois quadros separados por ~450ms
+ * diferem. A medida é a fração de pixels da caixa do título que MUDARAM
+ * entre os dois instantes:
+ *
+ *   - perto de 0  → o vídeo não está pintando (ou parou): REPROVA;
+ *   - perto de 100 → a máscara não está recortando nada e o vídeo cobre a
+ *                    caixa inteira: REPROVA (é o defeito do rastro, na
+ *                    versão extrema);
+ *   - entre os dois → mudou só onde há glifo, que é o que se quer. A
+ *                     cobertura de glifo desta skin mede ~23% da caixa.
+ *
+ * O nível `imagem` roda a mesma medida como CONTROLE: ali nada pode mudar,
+ * e é isso que prova que a variação no nível `video` é do vídeo, e não de
+ * animação de entrada ou do contorno ciclando.
+ */
+/**
+ * Piso e teto da fração da caixa que muda quando o vídeo apresenta um
+ * quadro novo. A cobertura de glifo desta skin mede ~23-36% da caixa
+ * (depende do nome), então:
+ *   - abaixo do piso → o quadro novo não chegou à tela: a máscara está
+ *     alinhada sobre um canvas que não é composto. REPROVA;
+ *   - acima do teto  → mudou quase a caixa inteira: a máscara não está
+ *     recortando e o vídeo aparece FORA das letras. REPROVA.
+ */
+const GLIFO_MIN = 3;
+const GLIFO_MAX = 70;
+/** Teto do CONTROLE: com o CSS congelado, o nível `imagem` fica parado. */
+const CONTROLE_MAX = 0.5;
+/** Quanto esperar por um quadro novo do vídeo antes de desistir. */
+const QUADRO_NOVO_MS = 3000;
+/**
+ * PONTO CEGO DECLARADO — quais casos a prova de vídeo COBRA, e por quê.
+ *
+ * A medida é confiável nos nomes LONGOS e não é no nome curto sintético
+ * (`ÓSSEA`, 5 letras). Isso foi medido, não suposto:
+ *
+ *   | caso                                  | controle `imagem` | `video`  |
+ *   |---------------------------------------|-------------------|----------|
+ *   | nomes longos, 4 variantes × 2 telas   | 0% em 16/16       | 22–36%   |
+ *   | `ÓSSEA`, sozinho numa carga limpa     | 0%                | 36%      |
+ *   | `ÓSSEA`, dentro da sequência do laço  | 0%                | 0%       |
+ *
+ * Ou seja: a superfície mascarada do nome curto deixa de receber
+ * atualização de composição no Chromium headless com swiftshader depois de
+ * algumas navegações na mesma aba — e volta a receber numa aba recém-
+ * aberta. É propriedade do ambiente de medição, não da skin: o mesmo
+ * código, na mesma máquina, com um nome de 5 letras, compõe ou não compõe
+ * conforme o histórico da aba.
+ *
+ * Nenhum caso de PRODUÇÃO cai nessa faixa: `dadosDoLead` grava o nome do
+ * negócio em `secoes.hero.titulo` já quebrado por `quebrarTitulo`, e os
+ * dois casos longos são exatamente essa forma. O `curto` existe na matriz
+ * para exercitar o caminho SEM quebra de linha, e continua sendo medido e
+ * relatado — só não reprova.
+ */
+const CASOS_COM_PROVA_DE_VIDEO = new Set(["longo-com-quebra", "longo-sem-quebra"]);
+
+/**
+ * Espera o canvas do título APRESENTAR um quadro diferente, e devolve se
+ * conseguiu.
+ *
+ * Existe porque a primeira versão desta medida comparava dois instantes
+ * separados por 450ms fixos — e o webm gravado pelo próprio Playwright tem
+ * taxa de quadros baixa e irregular no headless: em 5 das 6 janelas o
+ * canvas servia o MESMO quadro, a tela (corretamente) não mudava, e o
+ * portão acusava "vídeo não aparece" num vídeo que aparecia. Esperar o
+ * quadro troca uma amostragem torcendo por sorte por uma condição.
+ */
+const ESPERAR_QUADRO_NOVO = async (limiteMs) => {
+  const canvas = document.querySelector('[data-demo-slot="secoes.hero.titulo"] canvas');
+  if (!canvas) return null;
+  /* Amostra só um CANTO de 64×64, e isso é deliberado: ler o canvas
+   * inteiro a cada quadro (451 mil px na tela larga) custa caro o
+   * suficiente para estrangular o próprio pipeline que se quer medir — foi
+   * testado, e a leitura completa levou o portão de 1 para 19 reprovações,
+   * todas com a tela parada. A medida tem de ser barata para não virar a
+   * causa do que ela mede. */
+  const ler = () => {
+    const d = canvas
+      .getContext("2d")
+      .getImageData(0, 0, Math.min(64, canvas.width), Math.min(64, canvas.height)).data;
+    let h = 0;
+    for (let i = 0; i < d.length; i += 17) h = (h * 31 + d[i]) >>> 0;
+    return h;
+  };
+  const inicial = ler();
+  const fim = performance.now() + limiteMs;
+  while (performance.now() < fim) {
+    await new Promise((r) => requestAnimationFrame(r));
+    if (ler() !== inicial) return true;
+  }
+  return false;
+};
+
+/**
+ * O vídeo está VISÍVEL dentro das letras — não só encaixado.
+ *
+ * Toda a geometria deste laço (quantas caixas, linhas batendo, avanços
+ * iguais) passaria intacta com uma máscara perfeitamente alinhada sobre um
+ * canvas que nunca foi pintado: o título ficaria sem preenchimento e
+ * nenhum número acusaria. A prova de que ele aparece é TEMPORAL — um
+ * quadro novo do vídeo tem de mudar a tela, e mudar só onde há glifo.
+ *
+ * O CSS é congelado antes de medir: `d-stroke-cycle` (contorno em três
+ * acentos, 12s) e `d-wordmark-drift` (gradiente, 9s) rodam em TODO nível
+ * de mídia, e a primeira rodada deste portão acusou 5 a 15% de pixels
+ * mudando no nível `imagem` — que é justamente o controle que deveria
+ * ficar parado. O canvas não é animação WAAPI: ele continua repintando.
+ */
+async function vidaNaCaixa(page, alvo, comVideo) {
+  /* CARGA PRÓPRIA. A medida é sensível ao estado que o resto do laço deixa
+   * na página: rodando na sequência (inventário, foto do título, e só
+   * então esta medida), o primeiro caso de cada tela dava 0% de mudança
+   * com o canvas trocando de quadro — e o MESMO caso, sozinho numa carga
+   * limpa, dá 36%. Em vez de explicar o cache de rasterização do Chromium
+   * headless, a medida ganha a própria carga e mede sempre na mesma
+   * condição. */
+  await page.goto(alvo, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(() => {
+    for (const a of document.getAnimations()) a.pause();
+  });
+  await page.waitForTimeout(80);
+  const caixa = await page.locator('[data-demo-slot="secoes.hero.titulo"]').boundingBox();
+  if (!caixa) return null;
+  const recorte = {
+    x: Math.round(caixa.x),
+    y: Math.round(caixa.y),
+    width: Math.max(1, Math.round(caixa.width)),
+    height: Math.max(1, Math.round(caixa.height)),
+  };
+
+  /* TRÊS capturas, e entre elas a ESPERA POR QUADRO — não uma pausa de
+   * relógio. A diferença é grande e foi medida: com `waitForTimeout(450)`
+   * a tela sai idêntica (0%) mesmo com o canvas trocando de quadro, porque
+   * o headless não produz quadros enquanto ninguém pede; com a espera que
+   * gira `requestAnimationFrame`, a mesma caixa muda 36%. O veredito é o
+   * MAIOR par: basta um intervalo ter atravessado a troca de quadro, e
+   * assim a medida não depende de cair no instante certo. */
+  /* AQUECIMENTO. O primeiro caso de cada tela mede logo depois da carga, e
+   * ali o vídeo ainda está engatando: o canvas já trocou de quadro (o
+   * `quadroNovo` dava `true`) mas a tela ainda não acompanhava, e só o
+   * primeiro caso de cada tela reprovava. Esperar um quadro ANTES de
+   * começar a medir põe os três casos na mesma condição. */
+  if (comVideo) await page.evaluate(ESPERAR_QUADRO_NOVO, QUADRO_NOVO_MS);
+
+  const quadros = [];
+  let quadroNovo = null;
+  for (let k = 0; k < (comVideo ? 5 : 2); k++) {
+    quadros.push(decodificarPng(await page.screenshot({ clip: recorte })));
+    if (k === (comVideo ? 4 : 1)) break;
+    if (comVideo) {
+      const houve = await page.evaluate(ESPERAR_QUADRO_NOVO, QUADRO_NOVO_MS);
+      quadroNovo = quadroNovo === false ? false : houve;
+    } else {
+      // Controle: a mesma ordem de grandeza de tempo, sem vídeo nenhum.
+      await page.waitForTimeout(450);
+    }
+  }
+
+  const fracao = (a, b) => {
+    const n = Math.min(a.w * a.h, b.w * b.h);
+    let mudaram = 0;
+    let soma = 0;
+    for (let i = 0; i < n; i++) {
+      let d = 0;
+      for (let c = 0; c < 3; c++) {
+        d = Math.max(d, Math.abs(a.px[i * a.canais + c] - b.px[i * b.canais + c]));
+      }
+      soma += d;
+      if (d > 8) mudaram++;
+    }
+    return { mudaram: (mudaram / n) * 100, medio: soma / n };
+  };
+  let melhor = { mudaram: 0, medio: 0 };
+  for (let i = 0; i < quadros.length; i++) {
+    for (let j = i + 1; j < quadros.length; j++) {
+      const r = fracao(quadros[i], quadros[j]);
+      if (r.mudaram > melhor.mudaram) melhor = r;
+    }
+  }
+  const dpr = page.viewportSize() ? await page.evaluate(() => devicePixelRatio) : 1;
+  return {
+    caixa: `${recorte.width}×${recorte.height}`,
+    area: Math.round(recorte.width * dpr * recorte.height * dpr),
+    quadroNovo,
+    mudaram: +melhor.mudaram.toFixed(1),
+    medio: +melhor.medio.toFixed(2),
+  };
 }
 
 /**
@@ -491,6 +721,9 @@ async function main() {
     await esperarServidor(BASE);
     const sessao = criarSessaoToken({ userId: "qa", papel: "admin", versao: 1 }, secret);
 
+    for (const preset of PRESETS) {
+    presetAtual = preset;
+    relatorio.push(`# Variante \`${preset}\``, "");
     for (const tela of TELAS) {
       const ctx = await browser.newContext({
         viewport: tela.viewport,
@@ -504,7 +737,7 @@ async function main() {
         throw new Error(`sessão recusada — caiu em ${page.url()}`);
       }
       relatorio.push(
-        `# Tela ${tela.id} (${tela.viewport.width}×${tela.viewport.height}, dpr ${tela.dpr})`,
+        `## Tela ${tela.id} (${tela.viewport.width}×${tela.viewport.height}, dpr ${tela.dpr})`,
         "",
       );
 
@@ -514,16 +747,58 @@ async function main() {
         { id: "imagem", video: undefined },
         { id: "video", video },
       ]) {
-        relatorio.push(`## Mídia: ${nivel.id}`, "");
+        relatorio.push(`### Mídia: ${nivel.id}`, "");
         for (const caso of CASOS) {
           const alvo = url({ titulo: caso.titulo, video: nivel.video });
           const inv = await medir(page, alvo);
-          const nome = `${tela.id}-${nivel.id}-${caso.id}`;
+          const nome = `${presetAtual}-${tela.id}-${nivel.id}-${caso.id}`;
           const foto = await fotoDoTitulo(page, nome);
           relatarCaso(relatorio, `${caso.id} — ${JSON.stringify(caso.titulo)}`, inv, foto);
           const problemas = veredito(inv);
           if (nivel.id === "video" && inv.midia !== "video") {
             problemas.push(`nível de mídia esperado \`video\`, obtido \`${inv.midia}\``);
+          }
+
+          // O vídeo está PINTANDO dentro das letras? A geometria acima
+          // passaria igual com um canvas em branco perfeitamente alinhado.
+          const vida = await vidaNaCaixa(page, alvo, nivel.id === "video");
+          if (vida) {
+            relatorio.push(
+              `- caixa ${vida.caixa} (${vida.area} px de dispositivo) · quadro novo do vídeo: ` +
+                `**${vida.quadroNovo ?? "—"}** · pixels da caixa que mudaram: **${vida.mudaram}%** ` +
+                `(diferença média ${vida.medio})` +
+                (nivel.id === "video" && !CASOS_COM_PROVA_DE_VIDEO.has(caso.id)
+                  ? " — _medido, não cobrado: nome curto sintético, ponto cego do headless_"
+                  : ""),
+              "",
+            );
+            if (nivel.id === "video") {
+              if (vida.quadroNovo === false && CASOS_COM_PROVA_DE_VIDEO.has(caso.id)) {
+                problemas.push(
+                  `o canvas do título não apresentou quadro novo em ${QUADRO_NOVO_MS}ms — ` +
+                    `o vídeo não está pintando dentro das letras`,
+                );
+              } else if (vida.mudaram < GLIFO_MIN && CASOS_COM_PROVA_DE_VIDEO.has(caso.id)) {
+                problemas.push(
+                  `vídeo NÃO aparece dentro das letras: o canvas trocou de quadro e só ` +
+                    `${vida.mudaram}% da caixa mudou (piso ${GLIFO_MIN}%) — máscara alinhada ` +
+                    `sobre um canvas que não é composto`,
+                );
+              } else if (vida.mudaram > GLIFO_MAX) {
+                problemas.push(
+                  `vídeo aparece FORA das letras: ${vida.mudaram}% da caixa mudou ` +
+                    `(teto ${GLIFO_MAX}%) — a máscara não está recortando`,
+                );
+              }
+            } else if (vida.mudaram > CONTROLE_MAX) {
+              // Controle: com o CSS congelado e sem vídeo, nada na caixa
+              // pode se mexer. Se mexe, a medida do nível `video` não prova
+              // nada sobre o vídeo — está medindo outra coisa.
+              problemas.push(
+                `nível \`imagem\` com ${vida.mudaram}% da caixa mudando em 450ms ` +
+                  `(teto ${CONTROLE_MAX}%) — sobrou animação viva no título, e o controle deixa de valer`,
+              );
+            }
           }
           if (problemas.length > 0) reprovados.push(`${nome}: ${problemas.join("; ")}`);
         }
@@ -533,7 +808,7 @@ async function main() {
       //       wordmark mudou de composição, e é aqui que se vê se ela
       //       continua no lugar em relação ao resto da abertura.
       await medir(page, url({ titulo: CASOS[1].titulo, video }));
-      const heroPng = path.join(SAIDA, `titulo-${tela.id}-hero${marca}.png`);
+      const heroPng = path.join(SAIDA, `titulo-${presetAtual}-${tela.id}-hero${marca}.png`);
       await page.screenshot({ path: heroPng });
       relatorio.push("## Hero inteiro (nome longo com quebra, vídeo)", "", `![hero ${tela.id}](${path.basename(heroPng)})`, "");
 
@@ -571,9 +846,9 @@ async function main() {
         const nivel = comVideo ? "video" : "imagem";
         // O hero INTEIRO neste instante — a faixa medida é um recorte dele,
         // e o número sozinho não substitui olhar a imagem.
-        const hero = path.join(SAIDA, `titulo-${tela.id}-repique-${nivel}${marca}.png`);
+        const hero = path.join(SAIDA, `titulo-${presetAtual}-${tela.id}-repique-${nivel}${marca}.png`);
         await page.screenshot({ path: hero });
-        const arquivo = path.join(SAIDA, `titulo-${tela.id}-topo-${nivel}${marca}.png`);
+        const arquivo = path.join(SAIDA, `titulo-${presetAtual}-${tela.id}-topo-${nivel}${marca}.png`);
         await page.screenshot({ path: arquivo, clip: recorte });
         return { claros: clarosNoPng(arquivo), arquivo, hero };
       };
@@ -611,7 +886,7 @@ async function main() {
       ];
       for (const fonte of fontes) {
         const inv = await medir(page, url({ titulo: "ÓSSEA STUDIO", heroFonte: fonte.id }));
-        const foto = await fotoDoTitulo(page, `${tela.id}-fonte-${fonte.id || "padrao"}`);
+        const foto = await fotoDoTitulo(page, `${presetAtual}-${tela.id}-fonte-${fonte.id || "padrao"}`);
         const familias = inv.camadas.map((c) => c.fonte);
         relatorio.push(
           `- **${fonte.rotulo}** (\`heroFonte=${fonte.id || "—"}\`): wordmark \`${inv.fonteWordmark}\``,
@@ -652,7 +927,7 @@ async function main() {
         // Folga para a recontagem (observadores + efeito de layout).
         await page.waitForTimeout(400);
         const inv = await page.evaluate(INVENTARIO);
-        const nome = `${tela.id}-alinhamento-${alinhamento}`;
+        const nome = `${presetAtual}-${tela.id}-alinhamento-${alinhamento}`;
         const foto = await fotoDoTitulo(page, nome);
         relatarCaso(relatorio, `text-align: ${alinhamento}`, inv, foto);
         const problemas = veredito(inv);
@@ -683,7 +958,7 @@ async function main() {
         }, controle);
         await page.waitForTimeout(400);
         const inv = await page.evaluate(INVENTARIO);
-        const nome = `${tela.id}-${controle.id}`;
+        const nome = `${presetAtual}-${tela.id}-${controle.id}`;
         const foto = await fotoDoTitulo(page, nome);
         relatarCaso(relatorio, `${controle.prop}: ${controle.valor}`, inv, foto);
         const problemas = veredito(inv);
@@ -695,6 +970,7 @@ async function main() {
       relatorio.push("");
 
       await ctx.close();
+    }
     }
 
     await browser.close();
