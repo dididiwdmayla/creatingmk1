@@ -7,7 +7,9 @@ import { PainelColapsavel } from "@/components/config/PainelColapsavel";
 import { CAMPO_BASE_CLS, mensagemErroFila } from "@/components/config/comum";
 import { ApiError, api } from "@/lib/api-client";
 import type { RespostaPendente } from "@/lib/fila/estado";
-import { formatDateTime } from "@/lib/format";
+import type { GrupoComErro } from "@/lib/fila/respostasPainel";
+import type { SimulacaoResposta } from "@/lib/fila/simularResposta";
+import { formatDateTime, formatDuracao } from "@/lib/format";
 import { linkWhatsAppBusinessAndroid, podeAbrirBusiness } from "@/lib/wa";
 
 /** Chave da persistência deste painel — ver `PainelColapsavel`. */
@@ -41,8 +43,26 @@ export function RespostasPendentesSection() {
    * curta sem explicação é um estado que mente.
    */
   const [automatica, setAutomatica] = useState(false);
+  /**
+   * A LINHA DE ESTADO. Entre a mensagem do lead chegar e o rascunho existir
+   * corre a janela de agrupamento, e até este bloco não havia sinal nenhum
+   * de que algo tinha chegado: o operador via "Nenhuma resposta esperando"
+   * e não sabia se a captura no celular falhou ou se era só a janela ainda
+   * aberta. `aguardando` é o "sim, chegou"; `comErro` é o que a geração não
+   * conseguiu produzir, nomeado e retentável.
+   */
+  const [aguardando, setAguardando] = useState(0);
+  const [comErro, setComErro] = useState<GrupoComErro[]>([]);
+  const [janelaSegundos, setJanelaSegundos] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [restrito, setRestrito] = useState(false);
+  /**
+   * Só o "tentar de novo" liga isto, e não `carregar` — a carga da ABERTURA
+   * sai de um efeito, e `setState` síncrono no corpo de um efeito é render
+   * em cascata (o lint cobra, e tem razão: a tela já tem o esqueleto para
+   * dizer que está carregando).
+   */
+  const [recarregando, setRecarregando] = useState(false);
   /**
    * Só o Android abre o Business por URI de intent. Sai de
    * `useSyncExternalStore`, e não de estado num efeito, porque é
@@ -59,12 +79,23 @@ export function RespostasPendentesSection() {
     () => false,
   );
 
-  function carregar() {
-    api
+  /**
+   * ABRIR O PAINEL ESVAZIA OS GRUPOS MADUROS: este GET roda o MESMO
+   * `flushGruposMaduros` dos outros dois gatilhos antes de listar (ver o
+   * route handler). É por isso que ele é chamado na abertura e depois de
+   * cada decisão — e NUNCA em intervalo: cada chamada pode custar uma
+   * geração de IA por grupo vencido.
+   */
+  function carregar(): Promise<void> {
+    return api
       .getFilaRespostas()
-      .then(({ respostas, respostaAutomatica }) => {
+      .then(({ respostas, respostaAutomatica, aguardando, comErro, janelaSegundos }) => {
         setLinhas(respostas);
         setAutomatica(respostaAutomatica);
+        setAguardando(aguardando);
+        setComErro(comErro);
+        setJanelaSegundos(janelaSegundos);
+        setErro(null);
       })
       .catch((error) => {
         setLinhas([]);
@@ -76,12 +107,24 @@ export function RespostasPendentesSection() {
       });
   }
 
-  useEffect(carregar, []);
+  useEffect(() => {
+    void carregar();
+    // Uma vez, na montagem: as recargas seguintes são por AÇÃO (uma
+    // pendência resolvida, ou o "tentar de novo"), nunca por intervalo —
+    // esta rota esvazia os grupos maduros, e cada chamada pode custar uma
+    // geração de IA.
+  }, []);
+
+  /** O "tentar de novo" dos grupos com erro: mesma carga, com o botão travado. */
+  function tentarDeNovo() {
+    setRecarregando(true);
+    void carregar().finally(() => setRecarregando(false));
+  }
 
   /** Tira a linha da lista na hora; a relê depois, que é quem tem a verdade. */
   function resolvida(id: string) {
     setLinhas((atual) => atual?.filter((l) => l.id !== id) ?? null);
-    carregar();
+    void carregar();
   }
 
   /**
@@ -92,7 +135,17 @@ export function RespostasPendentesSection() {
   const resumo =
     linhas === null
       ? undefined
-      : `${linhas.length}${automatica ? " · automática ligada" : ""}`;
+      : [
+          `${linhas.length}`,
+          // O cabeçalho FECHADO precisa dizer que algo chegou: é o único
+          // lugar visível quando o painel está recolhido, e "0" sozinho
+          // mentiria sobre uma conversa que está na janela agora.
+          aguardando > 0 ? `${aguardando} na janela` : "",
+          comErro.length > 0 ? `${comErro.length} com erro` : "",
+          automatica ? "automática ligada" : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
   if (restrito) {
     return (
@@ -139,11 +192,68 @@ export function RespostasPendentesSection() {
         </p>
       )}
 
-      {linhas?.length === 0 && !erro && (
+      {/* ── A LINHA DE ESTADO ──────────────────────────────────────────
+          O que chegou e ainda não virou rascunho. Antes dela, entre a
+          mensagem do lead chegar e o rascunho existir não havia sinal
+          NENHUM na tela: "Nenhuma resposta esperando" cobria tanto "a
+          captura no celular falhou" quanto "chegou, a janela ainda está
+          aberta" — duas causas muito diferentes com a mesma cara. */}
+      {aguardando > 0 && (
+        <p data-estado="aguardando" className="mt-2 text-xs text-ink-secondary">
+          <strong className="font-medium text-foreground">
+            {aguardando === 1 ? "1 conversa recebida" : `${aguardando} conversas recebidas`}
+          </strong>{" "}
+          esperando a janela de agrupamento
+          {janelaSegundos > 0 && ` (${formatDuracao(janelaSegundos)} de silêncio)`} fechar. O rascunho aparece
+          aqui na próxima vez que você abrir este painel.
+        </p>
+      )}
+
+      {comErro.length > 0 && (
+        // A geração falhou e o grupo VOLTOU para o pendente, marcado — não
+        // se perdeu. Fica nomeado porque, diferente do que está na janela,
+        // este não se resolve sozinho se a causa persistir (IA fora do ar,
+        // cota estourada). Nunca o texto das mensagens: é conversa privada,
+        // e aqui basta quantas são.
+        <div data-estado="com-erro" className="mt-2 rounded border border-critical/40 bg-critical/10 p-2">
+          <p className="text-xs text-critical">
+            {comErro.length === 1
+              ? "1 conversa não virou rascunho"
+              : `${comErro.length} conversas não viraram rascunho`}
+            . As mensagens não se perderam — voltaram para a fila e são tentadas de novo a cada
+            abertura deste painel.
+          </p>
+          <ul data-lista="grupos-com-erro" className="mt-1.5 flex flex-col gap-1">
+            {comErro.map((grupo) => (
+              <li key={grupo.leadId} className="text-[11px] text-ink-secondary">
+                <span className="text-foreground">{grupo.nome || grupo.leadId}</span>
+                {" · "}
+                {grupo.mensagens === 1 ? "1 mensagem" : `${grupo.mensagens} mensagens`}
+                {" · "}
+                {grupo.tentativas === 1 ? "1 tentativa" : `${grupo.tentativas} tentativas`}
+                {grupo.ultimaMensagemEm && ` · ${formatDateTime(grupo.ultimaMensagemEm)}`}
+                <span className="block text-ink-muted">{grupo.ultimoErro}</span>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={tentarDeNovo}
+            disabled={recarregando}
+            title="Roda o esvaziamento de novo — custa uma geração de IA por grupo"
+            className={`${ACAO_RESPOSTA_CLS} mt-1.5 border-critical/40 bg-surface-2 text-critical disabled:opacity-50`}
+          >
+            {recarregando ? "tentando…" : "tentar de novo (1 geração por grupo)"}
+          </button>
+        </div>
+      )}
+
+      {linhas?.length === 0 && !erro && aguardando === 0 && comErro.length === 0 && (
         // Estado vazio de UMA linha: nada de caixa vazia ocupando o painel.
         // `!erro` porque falhar ao carregar não é "não há resposta": dizer
         // isso quando a lista nem chegou esconderia o que ela existe para
-        // mostrar.
+        // mostrar. E só quando não há NADA a caminho — com grupo na janela
+        // ou com erro, "nenhuma resposta esperando" seria mentira.
         <p className="mt-3 text-xs text-ink-muted">Nenhuma resposta esperando.</p>
       )}
 
@@ -160,6 +270,8 @@ export function RespostasPendentesSection() {
           ))}
         </ul>
       )}
+
+      <SimularMensagemBloco />
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </PainelColapsavel>
@@ -367,4 +479,200 @@ function LinhaResposta({
       </div>
     </li>
   );
+}
+
+/* ── Bloco "Simular mensagem" ────────────────────────────────────────── */
+
+/** Chave da persistência deste bloco — ver `PainelColapsavel`. */
+export const PAINEL_SIMULAR = "respostas-simular";
+
+/**
+ * O ensaio que testa a IA, e só a IA.
+ *
+ * O outro teste da fila de respostas é o NÚMERO DE EXCEÇÃO, e ele prova
+ * duas coisas ao mesmo tempo e devagar: o caminho do CELULAR (notificação,
+ * macro, rota, casamento, dedupe, agrupamento) e a QUALIDADE da IA
+ * (contexto do lead, documento comercial, prompt). São problemas de ritmo
+ * diferente — o primeiro se acerta uma vez e fica; no segundo o operador
+ * itera dezenas de vezes, muda uma linha do contexto comercial e olha o que
+ * mudou. Este bloco separa os dois.
+ *
+ * Bloco SUBORDINADO (nível 3) a "Respostas pendentes", e não painel próprio:
+ * ele testa exatamente o que aquele painel mostra, e um painel irmão o
+ * deixaria longe do resultado que explica. Mesma escolha do "Disparo de
+ * teste" dentro de "Fila de envio".
+ */
+function SimularMensagemBloco() {
+  const [leadId, setLeadId] = useState("");
+  const [texto, setTexto] = useState("");
+  const [resultado, setResultado] = useState<SimulacaoResposta | null>(null);
+  const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // O lead PADRÃO é o `leadContextoExcecao` já escolhido em "Fila de envio":
+  // o operador já disse ali qual lead usa para ensaiar, e perguntar de novo
+  // seria pedir o mesmo dado duas vezes. Falhar aqui não é erro de tela —
+  // o campo simplesmente nasce vazio e a pessoa digita.
+  useEffect(() => {
+    let ignore = false;
+    api
+      .getLeadPadraoSimulacao()
+      .then(({ leadPadrao }) => {
+        if (!ignore && leadPadrao) setLeadId(leadPadrao);
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function simular() {
+    setGerando(true);
+    setErro(null);
+    try {
+      setResultado(await api.simularResposta(leadId.trim(), texto));
+    } catch (error) {
+      setErro(mensagemErroFila(error, "Falha ao simular"));
+    } finally {
+      setGerando(false);
+    }
+  }
+
+  const podeSimular = leadId.trim().length > 0 && texto.trim().length > 0 && !gerando;
+
+  return (
+    <PainelColapsavel id={PAINEL_SIMULAR} titulo="Simular mensagem" nivel={3}>
+      <p className="mt-1 text-xs text-ink-muted">
+        Escreva o que um lead escreveria e veja o rascunho na hora. Pula a captura no celular, o
+        casamento por telefone, o dedupe e a janela de agrupamento — mas NÃO pula a geração: é a
+        mesma montagem de prompt e a mesma chamada de IA da produção. O resultado não entra na
+        lista acima, não vira tarefa de envio e não toca no lead.
+      </p>
+
+      <div className="mt-3 flex items-center gap-2 text-xs text-ink-secondary">
+        <span className="w-32 shrink-0">Lead de contexto</span>
+        <input
+          value={leadId}
+          onChange={(event) => setLeadId(event.target.value)}
+          placeholder="placeId do lead"
+          disabled={gerando}
+          aria-label="Lead de contexto da simulação"
+          className="min-w-0 flex-1 rounded border border-line bg-surface-2 px-2 py-1 font-mono text-xs text-foreground outline-none focus:border-accent disabled:opacity-50"
+        />
+      </div>
+
+      {/* MULTILINHA de propósito: um lead manda parágrafo, não uma linha —
+          e testar com uma linha só testaria uma pergunta que ninguém faz. */}
+      <textarea
+        value={texto}
+        onChange={(event) => setTexto(event.target.value)}
+        rows={3}
+        disabled={gerando}
+        aria-label="Mensagem que o lead mandaria"
+        placeholder="Ex.: “Oi, vi o site. Quanto custa? Tem manutenção depois?”"
+        className={`${CAMPO_BASE_CLS} mt-2 resize-y text-xs leading-relaxed disabled:opacity-50`}
+      />
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={simular}
+          disabled={!podeSimular}
+          data-acao="simular"
+          className={`${ACAO_RESPOSTA_CLS} border-accent bg-accent/15 text-accent disabled:opacity-50`}
+        >
+          {/* O PREÇO no próprio botão: cada clique gasta uma geração da cota
+              do mês, e um clique barato de dar e caro de pagar precisa
+              dizer isso antes, não num aviso depois. */}
+          {gerando ? "gerando…" : "simular (1 geração de IA)"}
+        </button>
+        {resultado && (
+          <button
+            type="button"
+            onClick={simular}
+            disabled={!podeSimular}
+            data-acao="regenerar"
+            title="Mesma mensagem, outra geração — para comparar variações"
+            className={`${ACAO_RESPOSTA_CLS} border-line bg-surface-2 text-ink-muted disabled:opacity-50`}
+          >
+            regenerar (mais 1)
+          </button>
+        )}
+      </div>
+
+      {resultado && <ResultadoSimulacao resultado={resultado} />}
+      {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
+    </PainelColapsavel>
+  );
+}
+
+/**
+ * O resultado, MARCADO como simulação — e o contexto que a IA recebeu.
+ *
+ * A seção recolhível existe por um motivo só: quando um rascunho sai ruim,
+ * o operador precisa saber se FALTOU informação no contexto ou se a IA
+ * errou com informação suficiente. Sem ela, as duas coisas parecem iguais —
+ * e a reação a cada uma é oposta (escrever mais no contexto comercial vs.
+ * mexer no prompt). Os campos saem de quem GEROU o prompt, nunca de um
+ * recálculo na tela: um recálculo pode divergir do real justamente no dia
+ * em que a pergunta importa.
+ */
+function ResultadoSimulacao({ resultado }: { resultado: SimulacaoResposta }) {
+  const { contexto } = resultado;
+
+  return (
+    <div data-bloco="simulacao" className="mt-2 rounded border border-accent/30 bg-accent/5 p-2">
+      <p className="text-[10px] uppercase tracking-wide text-accent">
+        simulação — não entra na lista, não vira envio
+      </p>
+      <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+        {resultado.rascunho}
+      </p>
+
+      <details data-bloco="contexto-enviado" className="mt-2">
+        <summary className="cursor-pointer text-[10px] text-ink-muted">contexto enviado</summary>
+        <dl className="mt-1 flex flex-col gap-1 border-l-2 border-line pl-2 text-[11px]">
+          <LinhaContexto rotulo="lead">
+            {contexto.nome || resultado.leadId}
+            {contexto.nicho && ` · ${contexto.nicho}`}
+            {` · responde em ${contexto.idioma}`}
+          </LinhaContexto>
+          <LinhaContexto rotulo="o Radar mandou">
+            {contexto.mensagemEnviada || <Ausente>não foi possível reconstruir</Ausente>}
+          </LinhaContexto>
+          <LinhaContexto rotulo="a demo mostra">
+            {contexto.resumoDemo || <Ausente>nada — o lead não tem demo com dados</Ausente>}
+          </LinhaContexto>
+          <LinhaContexto rotulo="preço">
+            {contexto.posicionamentoPreco || <Ausente>nenhum — o lead não tem nicho</Ausente>}
+          </LinhaContexto>
+          {/* A pergunta mais frequente diante de um rascunho vago, e por isso
+              é a que a linha responde direto: o documento estava preenchido? */}
+          <LinhaContexto rotulo="contexto comercial">
+            {contexto.contextoComercialPreenchido ? (
+              "preenchido — foi junto no prompt"
+            ) : (
+              <Ausente>
+                VAZIO — preencha o painel “Contexto comercial” para a IA saber o que você vende
+              </Ausente>
+            )}
+          </LinhaContexto>
+        </dl>
+      </details>
+    </div>
+  );
+}
+
+function LinhaContexto({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-ink-muted">{rotulo}</dt>
+      <dd className="whitespace-pre-wrap text-ink-secondary">{children}</dd>
+    </div>
+  );
+}
+
+/** O que NÃO foi ao prompt — dito como ausência, nunca como caixa vazia. */
+function Ausente({ children }: { children: React.ReactNode }) {
+  return <span className="text-ink-muted">{children}</span>;
 }

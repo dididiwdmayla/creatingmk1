@@ -174,7 +174,7 @@ async function processarGrupoReivindicado(
     // perdem aqui mesmo, de propósito (não há destino válido).
     if (!lead) return;
 
-    const rascunho = await gerarRascunhoResposta(db, lead, claim.mensagens, appConfig);
+    const { rascunho } = await gerarRascunhoResposta(db, lead, claim.mensagens, appConfig);
     await salvarRascunho(db, lead, claim.mensagens, rascunho, now, filaConfig, teste);
   } catch (error) {
     const motivo = error instanceof Error ? error.message : "falha desconhecida na geração do rascunho";

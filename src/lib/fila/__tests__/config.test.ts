@@ -289,35 +289,38 @@ describe("numeroExcecao / leadContextoExcecao — a origem que ensaia a resposta
     await expect(saveFilaConfig(db, { leadContextoExcecao: 123 })).rejects.toThrow(ValidationError);
   });
 
-  it("RECUSA numeroExcecao igual a numeroTeste — direções opostas", async () => {
+  /**
+   * ACEITA `numeroExcecao === numeroTeste`. Houve uma trava aqui, removida
+   * de propósito: o raciocínio que a sustentava (o disparo de teste geraria
+   * resposta automática para si mesmo) estava errado — o Business MANDANDO
+   * para X não produz notificação de mensagem RECEBIDA, só X respondendo
+   * produz. Com os dois iguais o ensaio fica mais realista, e é essa
+   * configuração que este teste protege de voltar a ser recusada.
+   */
+  it("ACEITA numeroExcecao igual a numeroTeste — é o ensaio mais realista, não um conflito", async () => {
     const db = new FakeFirestore();
-    await expect(
-      saveFilaConfig(db, { numeroExcecao: DEFAULT_FILA_CONFIG.numeroTeste }),
-    ).rejects.toThrow(ValidationError);
+    const salvo = await saveFilaConfig(db, { numeroExcecao: DEFAULT_FILA_CONFIG.numeroTeste });
+
+    expect(salvo.numeroExcecao).toBe(DEFAULT_FILA_CONFIG.numeroTeste);
+    expect(salvo.numeroTeste).toBe(DEFAULT_FILA_CONFIG.numeroTeste);
+    // E persistiu de verdade — não é só o retorno em memória.
+    const relido = await loadFilaConfig(db);
+    expect(relido.numeroExcecao).toBe(relido.numeroTeste);
   });
 
-  it("RECUSA na outra direção também: mudar numeroTeste para o que já é numeroExcecao", async () => {
+  it("aceita na outra direção também: mudar numeroTeste para o que já é numeroExcecao", async () => {
     const db = new FakeFirestore();
     await saveFilaConfig(db, { numeroExcecao: "5511977778888" });
 
-    await expect(saveFilaConfig(db, { numeroTeste: "5511977778888" })).rejects.toThrow(
-      ValidationError,
-    );
-    // Nada foi escrito: o numeroTeste antigo continua valendo.
-    expect((await loadFilaConfig(db)).numeroTeste).toBe(DEFAULT_FILA_CONFIG.numeroTeste);
+    const salvo = await saveFilaConfig(db, { numeroTeste: "5511977778888" });
+    expect(salvo.numeroTeste).toBe("5511977778888");
+    expect(salvo.numeroExcecao).toBe("5511977778888");
   });
 
-  it("dois vazios não colidem — numeroExcecao vazio nunca é 'igual' a numeroTeste vazio", async () => {
+  it("dois vazios continuam válidos — vazio é 'sem exceção', não um número", async () => {
     const db = new FakeFirestore();
     const salvo = await saveFilaConfig(db, { numeroTeste: "", numeroExcecao: "" });
     expect(salvo.numeroTeste).toBe("");
     expect(salvo.numeroExcecao).toBe("");
-  });
-
-  it("a mensagem de erro é clara sobre qual é a regra", async () => {
-    const db = new FakeFirestore();
-    await expect(
-      saveFilaConfig(db, { numeroExcecao: DEFAULT_FILA_CONFIG.numeroTeste }),
-    ).rejects.toThrow(/numeroExcecao não pode ser igual a numeroTeste/);
   });
 });

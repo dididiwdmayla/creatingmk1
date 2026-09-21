@@ -5,6 +5,7 @@ import { PAINEIS_ANTES, PAINEIS_CONFIG, PAINEIS_DEPOIS, PAINEIS_FORMULARIO } fro
 import { PAINEL_DISPARO_TESTE } from "../paineis/DisparoTeste";
 import { PAINEL_PRINT_PENDENTE } from "../paineis/PrintPendente";
 import { PAINEL_RESPOSTA_AUTOMATICA } from "../paineis/RespostaAutomatica";
+import { PAINEL_SIMULAR } from "../paineis/RespostasPendentes";
 import { PAINEL_VISAO_FILA } from "../paineis/VisaoFila";
 
 /** Os quatro blocos que vivem DENTRO do painel "Fila de envio". */
@@ -14,6 +15,17 @@ const SUBORDINADOS_DA_FILA = [
   PAINEL_DISPARO_TESTE,
   PAINEL_PRINT_PENDENTE,
 ];
+
+/**
+ * E o que vive dentro de "Respostas pendentes". Subordinado pela mesma
+ * razão dos de cima: "Simular mensagem" testa exatamente o que aquele
+ * painel mostra, e como painel irmão ficaria longe do resultado que
+ * explica.
+ */
+const SUBORDINADOS_DAS_RESPOSTAS = [PAINEL_SIMULAR];
+
+/** Todo bloco de nível 3 da página, seja de qual painel for. */
+const SUBORDINADOS = [...SUBORDINADOS_DA_FILA, ...SUBORDINADOS_DAS_RESPOSTAS];
 
 describe("registro de painéis da /config", () => {
   /**
@@ -48,15 +60,15 @@ describe("registro de painéis da /config", () => {
    * rodada inteira, ver "Padrão para adicionar uma nova skin").
    */
   it("a cópia `.mjs` que o laço de captura lê tem os MESMOS painéis", () => {
-    const noRegistro = [...PAINEIS_CONFIG.map((p) => p.id), ...SUBORDINADOS_DA_FILA].sort();
+    const noRegistro = [...PAINEIS_CONFIG.map((p) => p.id), ...SUBORDINADOS].sort();
     const noLaco = PAINEIS_MJS.map((p: { id: string }) => p.id).sort();
     expect(noLaco).toEqual(noRegistro);
   });
 
-  it("a cópia `.mjs` marca como nível 3 exatamente os blocos da fila", () => {
+  it("a cópia `.mjs` marca como nível 3 exatamente os blocos subordinados", () => {
     const nivel3 = PAINEIS_MJS.filter((p: { nivel: number }) => p.nivel === 3)
       .map((p: { id: string }) => p.id)
       .sort();
-    expect(nivel3).toEqual([...SUBORDINADOS_DA_FILA].sort());
+    expect(nivel3).toEqual([...SUBORDINADOS].sort());
   });
 });

@@ -143,9 +143,16 @@ export interface FilaConfig {
    *
    * Direção OPOSTA de `numeroTeste`: aquele é DESTINO de disparo (o app
    * manda para ele); este é ORIGEM de resposta (o app trata mensagem VINDA
-   * dele como se fosse um lead). Os dois iguais fariam o teste de envio
-   * gerar resposta automática para si mesmo — por isso `saveFilaConfig`
-   * RECUSA os dois iguais, nas duas direções.
+   * dele como se fosse um lead).
+   *
+   * IGUAL a `numeroTeste` é ACEITO, e é a configuração mais realista para
+   * quem tem um aparelho sobrando: o operador dispara o teste para X e
+   * responde DE X, e a conversa no Business fica com as duas mensagens,
+   * como ficaria com um lead de verdade. Não há laço possível — o Business
+   * MANDANDO para X não gera notificação de mensagem RECEBIDA (só X
+   * respondendo gera, que é exatamente o teste desejado), e o rascunho do
+   * número de exceção nasce com `teste: true`, que nunca vira tarefa de
+   * envio automático (ver `flushRespostas.ts#salvarRascunho`).
    *
    * Vazio = comportamento de hoje, sem exceção nenhuma — mensagem de
    * remetente sem lead correspondente continua descartada em silêncio. Ver
@@ -329,9 +336,8 @@ export function validateFilaConfigPatch(patch: unknown): asserts patch is Partia
 
   if (patch.numeroExcecao !== undefined) {
     // Mesmo formato de `numeroTeste` — dígitos puros com DDI, ou vazio (sem
-    // exceção). A recusa de igualdade com `numeroTeste` não é FORMATO, e por
-    // isso mora em `saveFilaConfig`: aqui só se vê o patch parcial, e o
-    // outro lado pode estar salvo de uma chamada anterior.
+    // exceção). E é só isto: igual ao `numeroTeste` é uma configuração
+    // VÁLIDA (ver `saveFilaConfig`), não um conflito a detectar.
     if (typeof patch.numeroExcecao !== "string" || !/^(\d{10,15})?$/.test(patch.numeroExcecao.trim())) {
       problemas.push("numeroExcecao deve ser dígitos com DDI (10 a 15) ou vazio");
     }
@@ -444,19 +450,16 @@ export async function saveFilaConfig(
   validateFilaConfigPatch(patch);
   const base = await loadFilaConfig(db);
   let merged = mergeFilaConfig(base, patch);
-  // RECUSA numeroExcecao === numeroTeste, nas DUAS direções — não é checagem
-  // de FORMATO (por isso não mora em `validateFilaConfigPatch`, que só vê o
-  // patch parcial): um PUT que só toca `numeroExcecao` precisa comparar
-  // contra o `numeroTeste` já persistido, e vice-versa. São direções
-  // opostas (um é destino do disparo de teste, o outro é origem que dispara
-  // a resposta) — iguais, o teste de envio geraria resposta automática para
-  // si mesmo. Vazio nunca colide consigo mesmo: `numeroExcecao` vazio É "sem
-  // exceção", não um número igual a um `numeroTeste` também vazio.
-  if (merged.numeroExcecao && merged.numeroExcecao === merged.numeroTeste) {
-    throw new ValidationError([
-      "numeroExcecao não pode ser igual a numeroTeste — são direções opostas (destino do disparo de teste vs. origem que dispara a resposta)",
-    ]);
-  }
+  // NÃO há recusa de `numeroExcecao === numeroTeste`. Houve uma, e o
+  // raciocínio que a sustentava estava errado: supunha que o disparo de
+  // teste para X geraria resposta automática para si mesmo. Não gera — o
+  // Business MANDANDO para X não produz notificação de mensagem RECEBIDA no
+  // Business; só X respondendo produz, e isso é exatamente o teste. Além
+  // disso o rascunho do número de exceção nasce com `teste: true` e nunca
+  // vira tarefa de envio (ver `flushRespostas.ts#salvarRascunho`), então não
+  // existe laço nem com `respostaAutomatica` ligada. Com os dois iguais o
+  // ensaio fica MAIS realista: o operador dispara para X, responde de X, e a
+  // conversa no Business tem as duas mensagens, como teria com um lead real.
   if (alteradoPor && patch.ativo !== undefined && patch.ativo !== base.ativo) {
     merged = { ...merged, ativoAlteradoPor: alteradoPor, ativoAlteradoEm: new Date().toISOString() };
   }

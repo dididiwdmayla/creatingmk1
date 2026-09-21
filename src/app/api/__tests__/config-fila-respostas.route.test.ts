@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { cookieDeSessao } from "@/lib/testing/sessao";
 
+import { DEFAULT_CONFIG } from "@/lib/config";
+import { DEFAULT_FILA_CONFIG } from "@/lib/fila/config";
 import { criarTarefaResposta } from "@/lib/fila/respostaAutomatica";
+import { FILA_RESPOSTAS_PENDENTES_COLLECTION } from "@/lib/fila/respostasPendentes";
 
 import { GET } from "../config/fila/respostas/route";
 import { PATCH } from "../config/fila/respostas/[id]/route";
@@ -101,8 +104,16 @@ describe("GET /api/config/fila/respostas (restrito ao admin)", () => {
 
     expect(res.status).toBe(200);
     // O estado do interruptor viaja junto da lista: é ele que explica um
-    // painel curto (ver `respostaAutomatica` em `lib/fila/config.ts`).
-    expect(await res.json()).toEqual({ respostas: [], respostaAutomatica: false });
+    // painel curto (ver `respostaAutomatica` em `lib/fila/config.ts`). E a
+    // LINHA DE ESTADO vem junto pela razão gêmea: sem ela, "nada chegou" e
+    // "chegou, a janela de agrupamento ainda está aberta" são o mesmo vazio.
+    expect(await res.json()).toEqual({
+      respostas: [],
+      respostaAutomatica: false,
+      aguardando: 0,
+      comErro: [],
+      janelaSegundos: DEFAULT_FILA_CONFIG.respostaAgrupamentoSegundos,
+    });
   });
 
   it("admin recebe lead, nicho, mensagens, o que o Radar mandou e o rascunho", async () => {
@@ -241,7 +252,13 @@ describe("GET /api/config/fila/respostas — com a resposta automática ligada",
 
     // Lista vazia com a razão ao lado — a tela usa isso para não mostrar um
     // painel vazio sem explicação.
-    expect(corpo).toEqual({ respostas: [], respostaAutomatica: true });
+    expect(corpo).toEqual({
+      respostas: [],
+      respostaAutomatica: true,
+      aguardando: 0,
+      comErro: [],
+      janelaSegundos: DEFAULT_FILA_CONFIG.respostaAgrupamentoSegundos,
+    });
   });
 
   it("desligar o interruptor devolve o mesmo rascunho à lista", async () => {
@@ -265,5 +282,188 @@ describe("GET /api/config/fila/respostas — com a resposta automática ligada",
 
     expect(corpo.respostaAutomatica).toBe(false);
     expect(corpo.respostas.map((r: { id: string }) => r.id)).toEqual(["r-1"]);
+  });
+});
+
+/**
+ * ABRIR O PAINEL ESVAZIA OS GRUPOS MADUROS — o terceiro gatilho do flush.
+ *
+ * Os outros dois dependem do APARELHO: a macro só chama `/proximo` com o
+ * celular parado, bloqueado e ocioso há mais de dez minutos, e o Radar não
+ * tem visão nenhuma do uso do aparelho. Um lead de VERDADE que responde
+ * enquanto o operador está com o celular na mão ficava sem rascunho até o
+ * aparelho ficar ocioso — problema de produção, não de teste.
+ *
+ * Relógio congelado e `fetch` mockado: o que se prova aqui é QUANDO a
+ * geração acontece, nunca o texto que um modelo real devolveria.
+ */
+describe("GET /api/config/fila/respostas — o esvaziamento ao ABRIR o painel", () => {
+  const AGORA = new Date("2026-03-10T12:00:00.000Z");
+  const fetchMock = vi.fn();
+
+  function semearGrupo(leadId: string, ultimaMensagemEm: string, extra: Record<string, unknown> = {}) {
+    db.seed(`${FILA_RESPOSTAS_PENDENTES_COLLECTION}/${leadId}`, {
+      leadId,
+      mensagens: [{ texto: "Quanto fica?", recebidoEm: ultimaMensagemEm }],
+      primeiraMensagemEm: ultimaMensagemEm,
+      ultimaMensagemEm,
+      tentativas: 0,
+      ultimoErro: null,
+      ...extra,
+    });
+  }
+
+  function semearLead() {
+    db.seed("config/app", { mensagemPadrao: "Oi {nome}, tudo bem?" });
+    db.seed("leads/ChIJa", {
+      placeId: "ChIJa",
+      nome: "Ink House",
+      status: "respondeu",
+      telefoneIntl: "+55 51 96666-0000",
+      busca: { nicho: "tatuagem", regiao: "Porto Alegre RS", em: "2026-03-01T10:00:00.000Z" },
+    });
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(AGORA);
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [
+              { content: { parts: [{ text: JSON.stringify({ rascunho: "Oi! Te explico." }) }] } },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("GEMINI_API_KEY", "chave-teste");
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("grupo MADURO vira rascunho na abertura — sem o aparelho ter chamado nada", async () => {
+    semearLead();
+    // 60s de silêncio, janela de 45s: já venceu.
+    semearGrupo("ChIJa", "2026-03-10T11:59:00.000Z");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await GET(getRequest(cookie))).json();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(corpo.respostas).toHaveLength(1);
+    expect(corpo.respostas[0].leadId).toBe("ChIJa");
+    expect(corpo.respostas[0].rascunho).toBe("Oi! Te explico.");
+    // O grupo foi esvaziado, e nada ficou "aguardando".
+    expect(corpo.aguardando).toBe(0);
+    expect(corpo.comErro).toEqual([]);
+  });
+
+  it("grupo DENTRO da janela não é gerado antes da hora — aparece como aguardando", async () => {
+    semearLead();
+    // 10s de silêncio, janela de 45s: ainda não venceu.
+    semearGrupo("ChIJa", "2026-03-10T11:59:50.000Z");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await GET(getRequest(cookie))).json();
+
+    // NENHUMA chamada de IA: gerar antes da hora quebraria o agrupamento
+    // (três linhas seguidas do lead virariam três rascunhos) e custaria
+    // cota à toa.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(corpo.respostas).toEqual([]);
+    // Mas a tela SABE que algo chegou — é o item inteiro desta linha.
+    expect(corpo.aguardando).toBe(1);
+    expect(corpo.janelaSegundos).toBe(DEFAULT_FILA_CONFIG.respostaAgrupamentoSegundos);
+  });
+
+  it("falha de IA NÃO derruba o painel: lista o que houver e mostra o grupo com erro, retentável", async () => {
+    semearLead();
+    // Uma pendente que já existia, e um grupo maduro cuja geração vai falhar.
+    semearResposta("r-ja-existia");
+    semearGrupo("ChIJa", "2026-03-10T11:59:00.000Z");
+    fetchMock.mockImplementation(async () => new Response("mal gateway", { status: 502 }));
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const res = await GET(getRequest(cookie));
+
+    // O painel CARREGA — 200, nunca 5xx.
+    expect(res.status).toBe(200);
+    const corpo = await res.json();
+    // E lista o que já havia: a falha de um grupo não apaga a lista.
+    expect(corpo.respostas.map((r: { id: string }) => r.id)).toEqual(["r-ja-existia"]);
+    // O grupo que falhou aparece NOMEADO, com a tentativa contada.
+    expect(corpo.comErro).toHaveLength(1);
+    expect(corpo.comErro[0]).toMatchObject({
+      leadId: "ChIJa",
+      nome: "Ink House",
+      mensagens: 1,
+      tentativas: 1,
+    });
+    expect(corpo.comErro[0].ultimoErro).toBeTruthy();
+    // PRIVACIDADE: a linha de estado conta as mensagens, nunca as transcreve.
+    expect(JSON.stringify(corpo.comErro)).not.toContain("Quanto fica?");
+    // E é RETENTÁVEL: as mensagens voltaram para o grupo pendente.
+    const grupo = db.getDoc(`${FILA_RESPOSTAS_PENDENTES_COLLECTION}/ChIJa`);
+    expect((grupo?.mensagens as unknown[]).length).toBe(1);
+  });
+
+  it("a abertura seguinte RETENTA o grupo que falhou, e ele vira rascunho", async () => {
+    semearLead();
+    semearGrupo("ChIJa", "2026-03-10T11:59:00.000Z");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    fetchMock.mockImplementationOnce(async () => new Response("mal gateway", { status: 502 }));
+    const primeira = await (await GET(getRequest(cookie))).json();
+    expect(primeira.comErro).toHaveLength(1);
+
+    const segunda = await (await GET(getRequest(cookie))).json();
+    expect(segunda.comErro).toEqual([]);
+    expect(segunda.respostas).toHaveLength(1);
+  });
+
+  it("cota de geração estourada também não derruba o painel", async () => {
+    semearLead();
+    semearGrupo("ChIJa", "2026-03-10T11:59:00.000Z");
+    // Teto de `aiGeneration` já consumido no mês corrente.
+    db.seed("usage/2026-03", { aiGeneration: DEFAULT_CONFIG.caps.aiGeneration });
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const res = await GET(getRequest(cookie));
+
+    expect(res.status).toBe(200);
+    const corpo = await res.json();
+    // Reserva ANTES do request: a IA nunca chega a ser chamada.
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(corpo.comErro).toHaveLength(1);
+  });
+
+  it("sem grupo nenhum, nenhuma chamada de IA — abrir o painel não custa por si só", async () => {
+    semearResposta();
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await GET(getRequest(cookie))).json();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(corpo.respostas).toHaveLength(1);
+    expect(corpo.aguardando).toBe(0);
+  });
+
+  it("MEMBRO continua barrado — o esvaziamento não roda para quem não é admin", async () => {
+    semearLead();
+    semearGrupo("ChIJa", "2026-03-10T11:59:00.000Z");
+    const cookie = await cookieDeSessao(db, { id: "membro-1", papel: "membro" });
+
+    const res = await GET(getRequest(cookie));
+
+    expect(res.status).toBe(403);
+    // `requireAdmin` vem ANTES do flush: um membro não gasta cota de IA.
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

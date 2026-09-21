@@ -6,6 +6,8 @@ import type { FilaConfig } from "./config";
 import type { RespostaPendente } from "./estado";
 import { FILA_RESPOSTAS_COLLECTION, type FilaRespostaDoc, type RascunhoEstado } from "./flushRespostas";
 import { carregarFontesDaMensagem, montarMensagemParaLead } from "./mensagem";
+import { EXCECAO_GRUPO_ID } from "./mensagemRecebida";
+import { listarGruposPendentes } from "./respostasPendentes";
 import {
   encerrarTarefaResposta,
   listarTarefasResposta,
@@ -216,4 +218,93 @@ export async function resolverResposta(
   );
 
   return id;
+}
+
+/**
+ * O SINAL DE QUE ALGO CHEGOU — a linha de estado do painel.
+ *
+ * Entre a mensagem do lead chegar e o rascunho existir há uma janela de
+ * silêncio (`respostaAgrupamentoSegundos`), e até este bloco não havia
+ * NENHUM sinal na tela de que ela estava correndo: o operador mandava a
+ * mensagem de ensaio, abria o painel, via "Nenhuma resposta esperando" e
+ * não tinha como saber se a captura no celular tinha funcionado ou se era
+ * só a janela ainda aberta. Duas causas muito diferentes com a mesma cara.
+ *
+ * Duas contagens, e a divisão é por QUEM resolve:
+ *
+ * - `aguardando` — mensagem recebida, grupo em aberto, sem erro. Resolve
+ *   sozinho: a próxima abertura do painel (ou o próximo ciclo do aparelho)
+ *   gera o rascunho. É o "sim, a captura funcionou".
+ * - `comErro` — a geração FALHOU e o grupo voltou ao pendente marcado
+ *   (`restaurarGrupoComErro`), retentável. Não resolve sozinho se a causa
+ *   persistir (IA fora do ar, cota estourada), e por isso aparece nomeado,
+ *   com a contagem de tentativas e o motivo.
+ *
+ * NUNCA o texto das mensagens: é conversa privada, e para esta linha basta
+ * quantas são (ver PRIVACIDADE no ARCHITECTURE.md). A contagem é a mesma
+ * varredura barata de `listarGruposPendentes` — a coleção só tem conversa
+ * recente ainda não rascunhada.
+ *
+ * Os docs ESVAZIADOS (`mensagens: []`) não contam em nenhuma das duas: são
+ * âncoras que `reivindicarGrupoMaduro` deixa para trás, não mensagem
+ * esperando.
+ *
+ * A divisão é pelo ERRO, não pela maturidade, e por isso não há relógio
+ * aqui: quem chama roda o flush ANTES (ver o route handler), então todo
+ * grupo maduro que sobrou é um que a geração não conseguiu produzir — ele
+ * tem `ultimoErro`. O que fica sem erro é o que ainda vai virar rascunho,
+ * esteja a janela aberta ou tenha uma mensagem chegado no meio do flush;
+ * nos dois casos a tela diz a mesma coisa verdadeira ("o rascunho aparece
+ * na próxima abertura").
+ */
+export interface GrupoComErro {
+  /** `EXCECAO_GRUPO_ID` para o grupo de ensaio; o placeId do lead no resto. */
+  leadId: string;
+  /** Nome do lead, `""` quando não resolve (lead sumido, ou o grupo de ensaio). */
+  nome: string;
+  /** Quantas mensagens esperam — nunca o texto delas. */
+  mensagens: number;
+  tentativas: number;
+  ultimoErro: string;
+  ultimaMensagemEm: string;
+}
+
+export interface ResumoGruposPendentes {
+  aguardando: number;
+  comErro: GrupoComErro[];
+}
+
+export async function resumirGruposPendentes(db: AppDb): Promise<ResumoGruposPendentes> {
+  const grupos = (await listarGruposPendentes(db)).filter(
+    (grupo) => (grupo.mensagens?.length ?? 0) > 0,
+  );
+
+  const comErro: GrupoComErro[] = [];
+  let aguardando = 0;
+  for (const grupo of grupos) {
+    if (!grupo.ultimoErro) {
+      aguardando++;
+      continue;
+    }
+    // Leitura POR ID dos poucos que falharam, nunca uma varredura de
+    // `/leads` — mesma regra do resto deste módulo. O grupo de ENSAIO não é
+    // um lead e nem se tenta buscar: o id dele é reservado.
+    const lead =
+      grupo.leadId === EXCECAO_GRUPO_ID ? undefined : await getLead(db, grupo.leadId);
+    comErro.push({
+      leadId: grupo.leadId,
+      nome: lead?.nome ?? "",
+      mensagens: grupo.mensagens.length,
+      tentativas: grupo.tentativas ?? 0,
+      ultimoErro: grupo.ultimoErro,
+      ultimaMensagemEm: grupo.ultimaMensagemEm ?? "",
+    });
+  }
+
+  // Mais tentativas primeiro: é o que está falhando de verdade, não o que
+  // acabou de tropeçar uma vez. Desempate por id, para a ordem não depender
+  // de em que ordem o Firestore devolveu os docs.
+  comErro.sort((a, b) => b.tentativas - a.tentativas || a.leadId.localeCompare(b.leadId));
+
+  return { aguardando, comErro };
 }
