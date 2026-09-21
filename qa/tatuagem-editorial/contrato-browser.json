@@ -1,0 +1,1190 @@
+{
+  "contrato": [
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Estúdio Contrato Real",
+      "h1NaAbertura": true,
+      "secoes": [
+        "hero",
+        "sobre",
+        "portfolio",
+        "processo",
+        "investimento",
+        "depoimentos",
+        "statement",
+        "marquee",
+        "contato"
+      ],
+      "transborda": false,
+      "linhas": 3,
+      "corpo": 50.7,
+      "tituloCaixa": {
+        "w": 342,
+        "h": 152
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Estúdio Contrato Real",
+      "h1NaAbertura": true,
+      "secoes": [
+        "hero",
+        "statement",
+        "sobre",
+        "portfolio",
+        "processo",
+        "depoimentos",
+        "investimento",
+        "marquee",
+        "contato"
+      ],
+      "transborda": false,
+      "linhas": 3,
+      "corpo": 50.7,
+      "tituloCaixa": {
+        "w": 342,
+        "h": 152
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Estúdio Contrato Real",
+      "h1NaAbertura": true,
+      "secoes": [
+        "hero",
+        "investimento",
+        "portfolio",
+        "marquee",
+        "sobre",
+        "depoimentos",
+        "processo",
+        "statement",
+        "contato"
+      ],
+      "transborda": false,
+      "linhas": 3,
+      "corpo": 50.7,
+      "tituloCaixa": {
+        "w": 342,
+        "h": 152
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Estúdio Contrato Real",
+      "h1NaAbertura": true,
+      "secoes": [
+        "hero",
+        "portfolio",
+        "sobre",
+        "statement",
+        "investimento",
+        "depoimentos",
+        "processo",
+        "marquee",
+        "contato"
+      ],
+      "transborda": false,
+      "linhas": 3,
+      "corpo": 50.7,
+      "tituloCaixa": {
+        "w": 342,
+        "h": 152
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Estúdio Contrato Real",
+      "h1NaAbertura": true,
+      "secoes": [
+        "hero",
+        "sobre",
+        "portfolio",
+        "processo",
+        "investimento",
+        "depoimentos",
+        "statement",
+        "marquee",
+        "contato"
+      ],
+      "transborda": false,
+      "linhas": 2,
+      "corpo": 143,
+      "tituloCaixa": {
+        "w": 976,
+        "h": 286
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Estúdio Contrato Real",
+      "h1NaAbertura": true,
+      "secoes": [
+        "hero",
+        "statement",
+        "sobre",
+        "portfolio",
+        "processo",
+        "depoimentos",
+        "investimento",
+        "marquee",
+        "contato"
+      ],
+      "transborda": false,
+      "linhas": 2,
+      "corpo": 143,
+      "tituloCaixa": {
+        "w": 976,
+        "h": 286
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Estúdio Contrato Real",
+      "h1NaAbertura": true,
+      "secoes": [
+        "hero",
+        "investimento",
+        "portfolio",
+        "marquee",
+        "sobre",
+        "depoimentos",
+        "processo",
+        "statement",
+        "contato"
+      ],
+      "transborda": false,
+      "linhas": 3,
+      "corpo": 143,
+      "tituloCaixa": {
+        "w": 527,
+        "h": 429
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Estúdio Contrato Real",
+      "h1NaAbertura": true,
+      "secoes": [
+        "hero",
+        "portfolio",
+        "sobre",
+        "statement",
+        "investimento",
+        "depoimentos",
+        "processo",
+        "marquee",
+        "contato"
+      ],
+      "transborda": false,
+      "linhas": 2,
+      "corpo": 143,
+      "tituloCaixa": {
+        "w": 976,
+        "h": 286
+      }
+    }
+  ],
+  "slots": [
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "sobre",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 456
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "portfolio-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 428
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "portfolio-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 428
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "portfolio-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 428
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "portfolio-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 428
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "portfolio-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 428
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "portfolio-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 428
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "portfolio-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 428
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "390",
+      "slot": "portfolio-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 428
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "sobre",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 128,
+        "h": 128
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "portfolio-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "portfolio-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "portfolio-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "portfolio-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "portfolio-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "portfolio-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "portfolio-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "390",
+      "slot": "portfolio-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 272
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "sobre",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "portfolio-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 170,
+        "h": 170
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "portfolio-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 170,
+        "h": 170
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "portfolio-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 170,
+        "h": 170
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "portfolio-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 170,
+        "h": 170
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "portfolio-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 170,
+        "h": 170
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "portfolio-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 170,
+        "h": 170
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "portfolio-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 170,
+        "h": 170
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "390",
+      "slot": "portfolio-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 170,
+        "h": 170
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 190
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "sobre",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 390,
+        "h": 219
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "portfolio-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 267,
+        "h": 356
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "portfolio-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 267,
+        "h": 356
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "portfolio-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 267,
+        "h": 356
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "portfolio-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 267,
+        "h": 356
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "portfolio-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 267,
+        "h": 356
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "portfolio-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 267,
+        "h": 356
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "portfolio-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 267,
+        "h": 356
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "390",
+      "slot": "portfolio-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 267,
+        "h": 356
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 1100,
+        "h": 740
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "sobre",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 384,
+        "h": 512
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "portfolio-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 335,
+        "h": 418
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "portfolio-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 335,
+        "h": 418
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "portfolio-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 335,
+        "h": 418
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "portfolio-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 335,
+        "h": 418
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "portfolio-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 335,
+        "h": 418
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "portfolio-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 335,
+        "h": 418
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "portfolio-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 335,
+        "h": 418
+      }
+    },
+    {
+      "variante": "sangue",
+      "tela": "1100",
+      "slot": "portfolio-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 335,
+        "h": 418
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "sobre",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 160,
+        "h": 160
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "portfolio-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 804,
+        "h": 503
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "portfolio-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 804,
+        "h": 503
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "portfolio-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 804,
+        "h": 503
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "portfolio-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 804,
+        "h": 503
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "portfolio-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 804,
+        "h": 503
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "portfolio-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 804,
+        "h": 503
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "portfolio-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 804,
+        "h": 503
+      }
+    },
+    {
+      "variante": "vesperal",
+      "tela": "1100",
+      "slot": "portfolio-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 804,
+        "h": 503
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 477,
+        "h": 659
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "sobre",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "portfolio-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 262,
+        "h": 262
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "portfolio-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 262,
+        "h": 262
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "portfolio-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 262,
+        "h": 262
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "portfolio-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 262,
+        "h": 262
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "portfolio-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 262,
+        "h": 262
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "portfolio-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 262,
+        "h": 262
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "portfolio-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 262,
+        "h": 262
+      }
+    },
+    {
+      "variante": "cripta",
+      "tela": "1100",
+      "slot": "portfolio-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 262,
+        "h": 262
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 1052,
+        "h": 238
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "sobre",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 1100,
+        "h": 471
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "portfolio-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 337,
+        "h": 449
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "portfolio-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 337,
+        "h": 449
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "portfolio-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 337,
+        "h": 449
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "portfolio-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 337,
+        "h": 449
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "portfolio-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 337,
+        "h": 449
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "portfolio-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 337,
+        "h": 449
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "portfolio-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 337,
+        "h": 449
+      }
+    },
+    {
+      "variante": "marfim",
+      "tela": "1100",
+      "slot": "portfolio-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 337,
+        "h": 449
+      }
+    }
+  ],
+  "titulo": [
+    {
+      "variante": "sangue",
+      "linhas": 3,
+      "corpo": 50.7,
+      "caixa": {
+        "w": 342,
+        "h": 152
+      }
+    },
+    {
+      "variante": "vesperal",
+      "linhas": 3,
+      "corpo": 50.7,
+      "caixa": {
+        "w": 342,
+        "h": 152
+      }
+    },
+    {
+      "variante": "cripta",
+      "linhas": 3,
+      "corpo": 50.7,
+      "caixa": {
+        "w": 342,
+        "h": 152
+      }
+    },
+    {
+      "variante": "marfim",
+      "linhas": 3,
+      "corpo": 50.7,
+      "caixa": {
+        "w": 342,
+        "h": 152
+      }
+    }
+  ],
+  "drasticidade": {
+    "folha": "/home/user/creatingmk1/qa-shots/tatuagem/_folha-cinza.png",
+    "silhueta": "/home/user/creatingmk1/qa-shots/tatuagem/_folha-silhueta.png",
+    "pares": [
+      {
+        "par": "sangue × vesperal",
+        "aberturaMedia": 13.94,
+        "alturas": "11425 / 9134"
+      },
+      {
+        "par": "vesperal × cripta",
+        "aberturaMedia": 22.81,
+        "alturas": "9134 / 5896"
+      },
+      {
+        "par": "sangue × cripta",
+        "aberturaMedia": 24.56,
+        "alturas": "11425 / 5896"
+      },
+      {
+        "par": "cripta × marfim",
+        "aberturaMedia": 162.28,
+        "alturas": "5896 / 7332"
+      },
+      {
+        "par": "vesperal × marfim",
+        "aberturaMedia": 173.8,
+        "alturas": "9134 / 7332"
+      },
+      {
+        "par": "sangue × marfim",
+        "aberturaMedia": 174.85,
+        "alturas": "11425 / 7332"
+      }
+    ],
+    "heros": [
+      {
+        "variante": "sangue",
+        "arquivo": "/home/user/creatingmk1/qa-shots/tatuagem/hero-sangue.png",
+        "amplitude": 24,
+        "p05": 8,
+        "p95": 32
+      },
+      {
+        "variante": "vesperal",
+        "arquivo": "/home/user/creatingmk1/qa-shots/tatuagem/hero-vesperal.png",
+        "amplitude": 46,
+        "p05": 9,
+        "p95": 55
+      },
+      {
+        "variante": "cripta",
+        "arquivo": "/home/user/creatingmk1/qa-shots/tatuagem/hero-cripta.png",
+        "amplitude": 83,
+        "p05": 9,
+        "p95": 92
+      },
+      {
+        "variante": "marfim",
+        "arquivo": "/home/user/creatingmk1/qa-shots/tatuagem/hero-marfim.png",
+        "amplitude": 230,
+        "p05": 9,
+        "p95": 239
+      }
+    ]
+  }
+}

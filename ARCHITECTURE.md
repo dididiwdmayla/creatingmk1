@@ -1279,6 +1279,20 @@ título: `<h1>` presente não garante nome visível. O critério é a amplitude
 p95−p05 em cinza, com o contorno congelado em fase fixa (ele cicla entre
 três acentos em 12s, e medir sem congelar dá um número por rodada).
 
+**Fechamento da validação (2026-09-21):** 20/20 células variante × modo de
+cor aprovadas em CPU 4×, celular 390×844/DPR 2, grão intensidade 3, cinco
+cargas por célula e rolagem ativa. Menor mediana: 55,7 FPS (piso 45);
+nenhum modo desabilitado, e `modosDeCorReprovados` fica vazio nas quatro.
+Superfície repintada entre 15,0 e 33,7 Mpx/s — todas ABAIXO da própria
+referência sem efeito. As quatro passam o portão de drasticidade: alturas
+de página de 5.920 a 11.425px e composição diferente em oito seções.
+Contrato sem JavaScript verde em 390 e 1100px nas quatro, com o título da
+Cripta em 3 linhas e corpo 50,7px — idêntico às outras. `qa-titulo.mjs`
+verde nas quatro variantes (42 capturas cada), com o vídeo provado dentro
+das letras: controle 0% em 24/24, vídeo 22 a 36% em 16/16. Resultados,
+limitações da instrumentação e leituras brutas em
+[qa/tatuagem-editorial/STATUS.md](qa/tatuagem-editorial/STATUS.md).
+
 ### Animação (`Theme.animacao` + `DemoSecao.animacaoEntrada`)
 
 Três níveis globais — `nenhuma` / `sutil` / `marcante` — definidos no contrato (`Theme.animacao`, override em `TemaPatch.animacao`) e resolvidos por `aplicarTema` como qualquer outro token. Cada preset da skin tem um default (`themes.ts`); o editor pode sobrescrever na aba Tema. A skin de barbearia consome o nível em três pontos:

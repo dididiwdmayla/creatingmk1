@@ -238,16 +238,20 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
         <div className="te-hero-veu absolute inset-0 z-[2]" />
 
         <div className="te-hero-corpo relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center text-center">
-          <FadeUp animacao={theme.animacao} delay={0.2} className="te-hero-cidade mb-6">
-            {data.cidade && (
+          {/* A condição envolve o WRAPPER, não só o texto. Sem cidade (que é
+              o normal numa demo avulsa), o wrapper vazio continuava no
+              fluxo — e na abertura `cartaz`, que desenha um fio embaixo
+              dele, sobrava um traço flutuando sem nada em cima. */}
+          {data.cidade && (
+            <FadeUp animacao={theme.animacao} delay={0.2} className="te-hero-cidade mb-6">
               <p
                 data-demo-slot="cidade"
                 className="font-[family-name:var(--d-mono)] text-xs uppercase tracking-[0.2em] text-[var(--d-muted)] md:text-sm"
               >
                 {data.cidade}
               </p>
-            )}
-          </FadeUp>
+            </FadeUp>
+          )}
 
           {/* O <h1> da página. A skin não tinha nenhum — o wordmark era um
               <span> solto —, e é ele que a trava de variante exige dentro da
