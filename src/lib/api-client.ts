@@ -20,6 +20,7 @@ import type {
   PendenciaEnvio,
   RespostaPendente,
 } from "@/lib/fila/estado";
+import type { GrupoComErro } from "@/lib/fila/respostasPainel";
 import type {
   ConjuntoSkin,
   FrasesProspeccao,
@@ -564,11 +565,28 @@ export const api = {
    * `respostaAutomatica` vem junto porque explica a lista: ligado, o que
    * está na fila do aparelho não aparece aqui, e a tela precisa dizer isso
    * em vez de mostrar um vazio sem motivo.
+   *
+   * **Este GET ESCREVE**: ele roda o esvaziamento dos grupos maduros antes
+   * de listar (ver o route handler), então cada chamada pode custar uma
+   * geração de IA por grupo vencido. Não é um `GET` puro, e quem o chama
+   * precisa saber disso — o painel chama na abertura e depois de cada
+   * decisão, nunca em intervalo.
+   *
+   * `aguardando`/`comErro` são a LINHA DE ESTADO: sem eles, "nada chegou" e
+   * "chegou e ainda está na janela de agrupamento" têm exatamente a mesma
+   * cara na tela.
    */
   getFilaRespostas: () =>
-    request<{ respostas: RespostaPendente[]; respostaAutomatica: boolean }>(
-      "/api/config/fila/respostas",
-    ),
+    request<{
+      respostas: RespostaPendente[];
+      respostaAutomatica: boolean;
+      /** Grupos RECEBIDOS ainda dentro da janela de agrupamento — o sinal de que a captura funcionou. */
+      aguardando: number;
+      /** Grupos cuja geração falhou e voltaram ao pendente, retentáveis. */
+      comErro: GrupoComErro[];
+      /** A janela de silêncio em segundos, para a tela dizer quanto tempo é a espera. */
+      janelaSegundos: number;
+    }>("/api/config/fila/respostas"),
 
   /**
    * Fecha uma pendência de resposta. `texto` é o que o operador de fato

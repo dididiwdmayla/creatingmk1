@@ -7,6 +7,7 @@ import { PainelColapsavel } from "@/components/config/PainelColapsavel";
 import { CAMPO_BASE_CLS, mensagemErroFila } from "@/components/config/comum";
 import { ApiError, api } from "@/lib/api-client";
 import type { RespostaPendente } from "@/lib/fila/estado";
+import type { GrupoComErro } from "@/lib/fila/respostasPainel";
 import { formatDateTime } from "@/lib/format";
 import { linkWhatsAppBusinessAndroid, podeAbrirBusiness } from "@/lib/wa";
 
@@ -41,8 +42,26 @@ export function RespostasPendentesSection() {
    * curta sem explicação é um estado que mente.
    */
   const [automatica, setAutomatica] = useState(false);
+  /**
+   * A LINHA DE ESTADO. Entre a mensagem do lead chegar e o rascunho existir
+   * corre a janela de agrupamento, e até este bloco não havia sinal nenhum
+   * de que algo tinha chegado: o operador via "Nenhuma resposta esperando"
+   * e não sabia se a captura no celular falhou ou se era só a janela ainda
+   * aberta. `aguardando` é o "sim, chegou"; `comErro` é o que a geração não
+   * conseguiu produzir, nomeado e retentável.
+   */
+  const [aguardando, setAguardando] = useState(0);
+  const [comErro, setComErro] = useState<GrupoComErro[]>([]);
+  const [janelaSegundos, setJanelaSegundos] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [restrito, setRestrito] = useState(false);
+  /**
+   * Só o "tentar de novo" liga isto, e não `carregar` — a carga da ABERTURA
+   * sai de um efeito, e `setState` síncrono no corpo de um efeito é render
+   * em cascata (o lint cobra, e tem razão: a tela já tem o esqueleto para
+   * dizer que está carregando).
+   */
+  const [recarregando, setRecarregando] = useState(false);
   /**
    * Só o Android abre o Business por URI de intent. Sai de
    * `useSyncExternalStore`, e não de estado num efeito, porque é
@@ -59,12 +78,23 @@ export function RespostasPendentesSection() {
     () => false,
   );
 
-  function carregar() {
-    api
+  /**
+   * ABRIR O PAINEL ESVAZIA OS GRUPOS MADUROS: este GET roda o MESMO
+   * `flushGruposMaduros` dos outros dois gatilhos antes de listar (ver o
+   * route handler). É por isso que ele é chamado na abertura e depois de
+   * cada decisão — e NUNCA em intervalo: cada chamada pode custar uma
+   * geração de IA por grupo vencido.
+   */
+  function carregar(): Promise<void> {
+    return api
       .getFilaRespostas()
-      .then(({ respostas, respostaAutomatica }) => {
+      .then(({ respostas, respostaAutomatica, aguardando, comErro, janelaSegundos }) => {
         setLinhas(respostas);
         setAutomatica(respostaAutomatica);
+        setAguardando(aguardando);
+        setComErro(comErro);
+        setJanelaSegundos(janelaSegundos);
+        setErro(null);
       })
       .catch((error) => {
         setLinhas([]);
@@ -76,12 +106,24 @@ export function RespostasPendentesSection() {
       });
   }
 
-  useEffect(carregar, []);
+  useEffect(() => {
+    void carregar();
+    // Uma vez, na montagem: as recargas seguintes são por AÇÃO (uma
+    // pendência resolvida, ou o "tentar de novo"), nunca por intervalo —
+    // esta rota esvazia os grupos maduros, e cada chamada pode custar uma
+    // geração de IA.
+  }, []);
+
+  /** O "tentar de novo" dos grupos com erro: mesma carga, com o botão travado. */
+  function tentarDeNovo() {
+    setRecarregando(true);
+    void carregar().finally(() => setRecarregando(false));
+  }
 
   /** Tira a linha da lista na hora; a relê depois, que é quem tem a verdade. */
   function resolvida(id: string) {
     setLinhas((atual) => atual?.filter((l) => l.id !== id) ?? null);
-    carregar();
+    void carregar();
   }
 
   /**
@@ -92,7 +134,17 @@ export function RespostasPendentesSection() {
   const resumo =
     linhas === null
       ? undefined
-      : `${linhas.length}${automatica ? " · automática ligada" : ""}`;
+      : [
+          `${linhas.length}`,
+          // O cabeçalho FECHADO precisa dizer que algo chegou: é o único
+          // lugar visível quando o painel está recolhido, e "0" sozinho
+          // mentiria sobre uma conversa que está na janela agora.
+          aguardando > 0 ? `${aguardando} na janela` : "",
+          comErro.length > 0 ? `${comErro.length} com erro` : "",
+          automatica ? "automática ligada" : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
   if (restrito) {
     return (
@@ -139,11 +191,68 @@ export function RespostasPendentesSection() {
         </p>
       )}
 
-      {linhas?.length === 0 && !erro && (
+      {/* ── A LINHA DE ESTADO ──────────────────────────────────────────
+          O que chegou e ainda não virou rascunho. Antes dela, entre a
+          mensagem do lead chegar e o rascunho existir não havia sinal
+          NENHUM na tela: "Nenhuma resposta esperando" cobria tanto "a
+          captura no celular falhou" quanto "chegou, a janela ainda está
+          aberta" — duas causas muito diferentes com a mesma cara. */}
+      {aguardando > 0 && (
+        <p data-estado="aguardando" className="mt-2 text-xs text-ink-secondary">
+          <strong className="font-medium text-foreground">
+            {aguardando === 1 ? "1 conversa recebida" : `${aguardando} conversas recebidas`}
+          </strong>{" "}
+          esperando a janela de agrupamento
+          {janelaSegundos > 0 && ` (${janelaSegundos}s de silêncio)`} fechar. O rascunho aparece
+          aqui na próxima vez que você abrir este painel.
+        </p>
+      )}
+
+      {comErro.length > 0 && (
+        // A geração falhou e o grupo VOLTOU para o pendente, marcado — não
+        // se perdeu. Fica nomeado porque, diferente do que está na janela,
+        // este não se resolve sozinho se a causa persistir (IA fora do ar,
+        // cota estourada). Nunca o texto das mensagens: é conversa privada,
+        // e aqui basta quantas são.
+        <div data-estado="com-erro" className="mt-2 rounded border border-critical/40 bg-critical/10 p-2">
+          <p className="text-xs text-critical">
+            {comErro.length === 1
+              ? "1 conversa não virou rascunho"
+              : `${comErro.length} conversas não viraram rascunho`}
+            . As mensagens não se perderam — voltaram para a fila e são tentadas de novo a cada
+            abertura deste painel.
+          </p>
+          <ul data-lista="grupos-com-erro" className="mt-1.5 flex flex-col gap-1">
+            {comErro.map((grupo) => (
+              <li key={grupo.leadId} className="text-[11px] text-ink-secondary">
+                <span className="text-foreground">{grupo.nome || grupo.leadId}</span>
+                {" · "}
+                {grupo.mensagens === 1 ? "1 mensagem" : `${grupo.mensagens} mensagens`}
+                {" · "}
+                {grupo.tentativas === 1 ? "1 tentativa" : `${grupo.tentativas} tentativas`}
+                {grupo.ultimaMensagemEm && ` · ${formatDateTime(grupo.ultimaMensagemEm)}`}
+                <span className="block text-ink-muted">{grupo.ultimoErro}</span>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={tentarDeNovo}
+            disabled={recarregando}
+            title="Roda o esvaziamento de novo — custa uma geração de IA por grupo"
+            className={`${ACAO_RESPOSTA_CLS} mt-1.5 border-critical/40 bg-surface-2 text-critical disabled:opacity-50`}
+          >
+            {recarregando ? "tentando…" : "tentar de novo (1 geração por grupo)"}
+          </button>
+        </div>
+      )}
+
+      {linhas?.length === 0 && !erro && aguardando === 0 && comErro.length === 0 && (
         // Estado vazio de UMA linha: nada de caixa vazia ocupando o painel.
         // `!erro` porque falhar ao carregar não é "não há resposta": dizer
         // isso quando a lista nem chegou esconderia o que ela existe para
-        // mostrar.
+        // mostrar. E só quando não há NADA a caminho — com grupo na janela
+        // ou com erro, "nenhuma resposta esperando" seria mentira.
         <p className="mt-3 text-xs text-ink-muted">Nenhuma resposta esperando.</p>
       )}
 
