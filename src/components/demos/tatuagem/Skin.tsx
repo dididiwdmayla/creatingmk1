@@ -13,6 +13,7 @@ import { LedEdges } from "./interactive/LedEdges";
 import { Parallax } from "./interactive/Parallax";
 import { ScrollHeader } from "./interactive/ScrollHeader";
 import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
+import { TATUAGEM_COMPOSICAO_CSS, TATUAGEM_COMPOSICAO_PADRAO } from "./composicao";
 import { TATUAGEM_SECOES } from "./secoes";
 import { Wordmark } from "./Wordmark";
 
@@ -89,8 +90,8 @@ function Titulo({ texto, slot, className = "" }: { texto?: string; slot?: string
   return (
     <h2
       data-demo-slot={slot}
-      className={`font-[family-name:var(--d-display)] tracking-tight text-[var(--d-text)] drop-shadow-sm ${className}`}
-      style={{ fontSize: "clamp(2.5rem, 6vw, 4.5rem)" }}
+      className={`te-titulo font-[family-name:var(--d-display)] tracking-tight text-[var(--d-text)] drop-shadow-sm ${className}`}
+      style={{ fontSize: "var(--te-titulo-tam, clamp(2.5rem, 6vw, 4.5rem))" }}
     >
       {texto}
     </h2>
@@ -137,6 +138,10 @@ function Placeholder({
 
 export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
+  // Composição da VARIANTE (ver composicao.ts). Ausente = o desenho do
+  // material bruto, que é o que a variante `sangue` declara — uma skin sem
+  // o eixo continua renderizando como sempre renderizou.
+  const comp = theme.tatuagem ?? TATUAGEM_COMPOSICAO_PADRAO;
   const m = microcopiaDemo(idioma);
   const vars = {
     "--d-bg": paleta.fundo,
@@ -172,6 +177,10 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     "--d-anim-ease": "cubic-bezier(0.16, 1, 0.3, 1)",
     "--d-hover-scale": ANIM_HOVER_SCALE[theme.animacao],
     "--d-hover-lift": ANIM_HOVER_LIFT[theme.animacao],
+    // Os dois knobs NUMÉRICOS da composição. Atributo só serve para valor
+    // fechado; estes são escala contínua, então entram como token.
+    "--te-letras": comp.letras / 100,
+    "--te-veu": comp.veu,
   } as CSSProperties;
 
   const s = data.secoes;
@@ -210,9 +219,9 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     hero: () => (
       <section
         id="topo"
-        className="relative flex min-h-[100svh] w-full items-center justify-center overflow-hidden px-6 pb-24 pt-32 md:min-h-[90svh]"
+        className="te-hero relative flex min-h-[100svh] w-full items-center justify-center overflow-hidden px-6 pb-24 pt-32 md:min-h-[90svh]"
       >
-        <div className="absolute inset-0 z-[1]">
+        <div className="te-hero-foto absolute inset-0 z-[1]">
           <Placeholder
             src={data.imagens.hero}
             alt={data.imagensAlt?.hero ?? ""}
@@ -228,8 +237,8 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
             da própria paleta, e a força é knob da variante. */}
         <div className="te-hero-veu absolute inset-0 z-[2]" />
 
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center text-center">
-          <FadeUp animacao={theme.animacao} delay={0.2} className="mb-6">
+        <div className="te-hero-corpo relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center text-center">
+          <FadeUp animacao={theme.animacao} delay={0.2} className="te-hero-cidade mb-6">
             {data.cidade && (
               <p
                 data-demo-slot="cidade"
@@ -258,7 +267,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
           </h1>
 
           {data.slogan && (
-            <FadeUp animacao={theme.animacao} delay={0.4} className="mb-2">
+            <FadeUp animacao={theme.animacao} delay={0.4} className="te-hero-slogan mb-2">
               <p
                 data-demo-slot="slogan"
                 className="font-[family-name:var(--d-destaque)] text-lg italic text-[var(--d-muted)] md:text-xl"
@@ -269,7 +278,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
           )}
 
           {s.hero?.texto && (
-            <FadeUp animacao={theme.animacao} delay={0.6} className="max-w-2xl">
+            <FadeUp animacao={theme.animacao} delay={0.6} className="te-hero-texto max-w-2xl">
               <p
                 data-demo-slot="secoes.hero.texto"
                 className="text-[15px] leading-relaxed text-[var(--d-muted)] md:text-[17px]"
@@ -280,7 +289,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
           )}
 
           {s.hero?.cta && (
-            <FadeUp animacao={theme.animacao} delay={0.8} className="mt-12">
+            <FadeUp animacao={theme.animacao} delay={0.8} className="te-hero-cta mt-12">
               <a href={agendar} data-demo-slot="secoes.hero.cta" className="d-cta-simple">
                 {s.hero.cta}
               </a>
@@ -293,9 +302,9 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     /* ── Sobre (O Artista) ──────────────────────────────────── */
     sobre: () =>
       s.sobre && (
-        <section id="sobre" className="px-6 py-[var(--d-sec-y)]">
-          <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-24">
-            <div className="relative mx-auto aspect-[3/4] w-full max-w-md lg:col-span-5 lg:mx-0">
+        <section id="sobre" className="te-artista px-6 py-[var(--d-sec-y)]">
+          <div className="te-artista-grid mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-24">
+            <div className="te-artista-foto relative mx-auto aspect-[3/4] w-full max-w-md lg:col-span-5 lg:mx-0">
               <Parallax animacao={theme.animacao} className="h-full w-full">
                 <Placeholder
                   src={data.imagens.sobre}
@@ -304,21 +313,21 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
                   slot="imagens.sobre"
                 />
               </Parallax>
-              <div className="pointer-events-none absolute -inset-4 z-0 hidden border border-[var(--d-border)] md:block" />
+              <div className="te-artista-moldura pointer-events-none absolute -inset-4 z-0 hidden border border-[var(--d-border)] md:block" />
             </div>
 
-            <div className="flex flex-col justify-center lg:col-span-7">
+            <div className="te-artista-copy flex flex-col justify-center lg:col-span-7">
               <FadeUp animacao={theme.animacao} delay={0.1}>
                 <Etiqueta texto={s.sobre.rotulo} slot="secoes.sobre.rotulo" />
               </FadeUp>
-              <div className="mb-8">
+              <div className="te-artista-nome mb-8">
                 <Titulo
                   texto={s.sobre.titulo}
                   slot="secoes.sobre.titulo"
                   className="text-5xl md:text-6xl"
                 />
               </div>
-              <div className="max-w-2xl space-y-6 font-[family-name:var(--d-corpo)] text-[15px] leading-relaxed text-[var(--d-muted)]">
+              <div className="te-artista-texto max-w-2xl space-y-6 font-[family-name:var(--d-corpo)] text-[15px] leading-relaxed text-[var(--d-muted)]">
                 {(s.sobre.texto ?? "")
                   .split(/\n{2,}/)
                   .filter(Boolean)
@@ -334,13 +343,13 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
                   ))}
               </div>
               {(s.sobre.itens?.length ?? 0) > 0 && (
-                <FadeUp animacao={theme.animacao} delay={0.6} className="mt-12 border-t border-[var(--d-border)] pt-8">
-                  <ul className="flex flex-wrap gap-2">
+                <FadeUp animacao={theme.animacao} delay={0.6} className="te-artista-tags mt-12 border-t border-[var(--d-border)] pt-8">
+                  <ul className="te-artista-tags-lista flex flex-wrap gap-2">
                     {(s.sobre.itens ?? []).map((tag, i) => (
-                      <li key={tag.titulo}>
+                      <li key={tag.titulo} className="te-artista-tag">
                         <span
                           data-demo-slot={`secoes.sobre.itens.${i}.titulo`}
-                          className="border border-[var(--d-border)] px-3 py-1.5 font-[family-name:var(--d-mono)] text-[9px] uppercase tracking-wider text-[var(--d-text)]"
+                          className="te-artista-tag-texto border border-[var(--d-border)] px-3 py-1.5 font-[family-name:var(--d-mono)] text-[9px] uppercase tracking-wider text-[var(--d-text)]"
                         >
                           {tag.titulo}
                         </span>
@@ -357,17 +366,17 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     /* ── Manifesto (statement) ──────────────────────────────── */
     statement: () =>
       s.statement?.texto && (
-        <section className="flex items-center justify-center overflow-hidden border-y border-[var(--d-border)] px-6 py-[calc(var(--d-sec-y)*1.3)]">
-          <div className="mx-auto max-w-7xl text-center">
+        <section className="te-manifesto flex items-center justify-center overflow-hidden border-y border-[var(--d-border)] px-6 py-[calc(var(--d-sec-y)*1.3)]">
+          <div className="te-manifesto-caixa mx-auto max-w-7xl text-center">
             <div
               data-demo-slot="secoes.statement.texto"
-              className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 font-[family-name:var(--d-citacao)] font-black leading-[0.85] tracking-tighter text-[var(--d-text)]"
-              style={{ fontSize: "clamp(3rem, 9vw, 7rem)" }}
+              className="te-manifesto-texto flex flex-wrap items-center justify-center gap-x-4 gap-y-2 font-[family-name:var(--d-citacao)] font-black leading-[0.85] tracking-tighter text-[var(--d-text)]"
+              style={{ fontSize: "var(--te-manifesto-tam, clamp(3rem, 9vw, 7rem))" }}
             >
               {s.statement.texto.split(" ").map((palavra, i) => (
                 <span
                   key={i}
-                  className={i % 2 !== 0 ? "font-light italic text-[var(--d-muted)]" : ""}
+                  className={`te-manifesto-palavra ${i % 2 !== 0 ? "te-manifesto-par font-light italic text-[var(--d-muted)]" : ""}`}
                 >
                   {palavra}
                 </span>
@@ -380,26 +389,26 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     /* ── Portfólio (Arquivo) ────────────────────────────────── */
     portfolio: () =>
       s.portfolio && (
-        <section id="portfolio" className="cursor-default px-6 py-[var(--d-sec-y)]">
-          <div className={`mx-auto max-w-[1400px] ${centro("portfolio") ? "text-center" : ""}`}>
-            <div className={`mb-20 flex flex-col ${centro("portfolio") ? "items-center" : "items-start"}`}>
+        <section id="portfolio" className="te-galeria cursor-default px-6 py-[var(--d-sec-y)]">
+          <div className={`te-galeria-caixa mx-auto max-w-[1400px] ${centro("portfolio") ? "text-center" : ""}`}>
+            <div className={`te-galeria-cabeca mb-20 flex flex-col ${centro("portfolio") ? "items-center" : "items-start"}`}>
               <Etiqueta texto={s.portfolio.rotulo} slot="secoes.portfolio.rotulo" />
               <Titulo texto={s.portfolio.titulo} slot="secoes.portfolio.titulo" className="text-5xl md:text-7xl" />
             </div>
 
-            <div className="columns-1 gap-6 space-y-6 text-left md:columns-2 lg:columns-3">
+            <div className="te-galeria-lista columns-1 gap-6 space-y-6 text-left md:columns-2 lg:columns-3">
               {(s.portfolio.itens ?? []).map((item, i) => (
                 <FadeUp
                   key={i}
                   animacao={theme.animacao}
                   delay={0.1 * (i % 3)}
-                  className="break-inside-avoid"
+                  className="te-galeria-item break-inside-avoid"
                 >
                   <div
                     data-cursor="portfolio"
-                    className="d-card-hover group relative overflow-hidden bg-[var(--d-bg-alt)]"
+                    className="te-galeria-peca d-card-hover group relative overflow-hidden bg-[var(--d-bg-alt)]"
                   >
-                    <div className="relative aspect-[4/5] w-full overflow-hidden">
+                    <div className="te-galeria-foto relative aspect-[4/5] w-full overflow-hidden">
                       <Placeholder
                         src={data.imagens[`portfolio-${i + 1}`] ?? data.imagens.hero}
                         alt={data.imagensAlt?.[`portfolio-${i + 1}`] ?? ""}
@@ -408,10 +417,10 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
                         className="transition-transform duration-[var(--d-anim-duration)]"
                       />
                     </div>
-                    <div className="pointer-events-none absolute inset-x-4 bottom-4 flex justify-start">
+                    <div className="te-galeria-legenda pointer-events-none absolute inset-x-4 bottom-4 flex justify-start">
                       <div
                         data-demo-slot={`secoes.portfolio.itens.${i}`}
-                        className="bg-[var(--d-bg)]/80 px-2 py-1 font-[family-name:var(--d-mono)] text-[9px] uppercase tracking-tighter text-[var(--d-text)] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        className="te-galeria-legenda-texto bg-[var(--d-bg)]/80 px-2 py-1 font-[family-name:var(--d-mono)] text-[9px] uppercase tracking-tighter text-[var(--d-text)] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                       >
                         {item.titulo} / {item.subtitulo} / {item.detalhe}
                       </div>
@@ -426,28 +435,28 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
 
     /* ── Investimento (preços) ──────────────────────────────── */
     investimento: () => (
-      <section id="investimento" className="border-t border-[var(--d-border)] bg-[var(--d-bg-alt)] px-6 py-[var(--d-sec-y)]">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-16">
+      <section id="investimento" className="te-precos border-t border-[var(--d-border)] bg-[var(--d-bg-alt)] px-6 py-[var(--d-sec-y)]">
+        <div className="te-precos-caixa mx-auto max-w-5xl">
+          <div className="te-precos-cabeca mb-16">
             <Etiqueta texto={s.investimento?.rotulo} slot="secoes.investimento.rotulo" />
             <Titulo texto={s.investimento?.titulo} slot="secoes.investimento.titulo" className="text-4xl md:text-6xl" />
           </div>
-          <div className="flex flex-col border-t border-[var(--d-border)]">
+          <div className="te-precos-lista flex flex-col border-t border-[var(--d-border)]">
             {data.servicos.map((servico, i) => (
               <div
                 key={servico.nome}
-                className="flex flex-col border-b border-[var(--d-border)] py-8 transition-colors duration-[var(--d-anim-duration)]"
+                className="te-preco flex flex-col border-b border-[var(--d-border)] py-8 transition-colors duration-[var(--d-anim-duration)]"
               >
-                <div className="mb-3 flex items-baseline justify-between gap-4">
+                <div className="te-preco-linha mb-3 flex items-baseline justify-between gap-4">
                   <h3
                     data-demo-slot={`servicos.${i}.nome`}
-                    className="font-[family-name:var(--d-display)] text-2xl tracking-tight text-[var(--d-text)] md:text-3xl"
+                    className="te-preco-nome font-[family-name:var(--d-display)] text-2xl tracking-tight text-[var(--d-text)] md:text-3xl"
                   >
                     {servico.nome}
                   </h3>
                   <span
                     data-demo-slot={`servicos.${i}.preco`}
-                    className="whitespace-nowrap font-[family-name:var(--d-mono)] text-sm font-medium tracking-wider text-[var(--d-accent)]"
+                    className="te-preco-valor whitespace-nowrap font-[family-name:var(--d-mono)] text-sm font-medium tracking-wider text-[var(--d-accent)]"
                   >
                     {formatarPrecoServico(servico, idioma, moeda)}
                   </span>
@@ -455,7 +464,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
                 {servico.descricao && (
                   <p
                     data-demo-slot={`servicos.${i}.descricao`}
-                    className="max-w-xl text-sm leading-relaxed text-[var(--d-muted)] md:text-base"
+                    className="te-preco-desc max-w-xl text-sm leading-relaxed text-[var(--d-muted)] md:text-base"
                   >
                     {servico.descricao}
                   </p>
@@ -470,34 +479,34 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     /* ── Depoimentos ─────────────────────────────────────────── */
     depoimentos: () =>
       data.depoimentos.length > 0 && (
-        <section className="px-6 py-[var(--d-sec-y)]">
-          <div className="mx-auto max-w-7xl">
-            <div className={`mb-16 ${centro("depoimentos") ? "text-center" : ""}`}>
+        <section className="te-provas px-6 py-[var(--d-sec-y)]">
+          <div className="te-provas-caixa mx-auto max-w-7xl">
+            <div className={`te-provas-cabeca mb-16 ${centro("depoimentos") ? "text-center" : ""}`}>
               <Etiqueta texto={s.depoimentos?.rotulo} slot="secoes.depoimentos.rotulo" />
               <Titulo texto={s.depoimentos?.titulo} slot="secoes.depoimentos.titulo" className="text-4xl md:text-6xl" />
             </div>
-            <div className="grid gap-8 md:grid-cols-3">
+            <div className="te-provas-lista grid gap-8 md:grid-cols-3">
               {data.depoimentos.map((dep, i) => (
                 <figure
                   key={dep.autor}
-                  className="d-card-hover flex h-full flex-col justify-between gap-6 border border-[var(--d-border)] bg-[var(--d-bg-alt)] p-8"
+                  className="te-prova d-card-hover flex h-full flex-col justify-between gap-6 border border-[var(--d-border)] bg-[var(--d-bg-alt)] p-8"
                 >
-                  <div>
+                  <div className="te-prova-corpo">
                     {dep.nota !== undefined && (
-                      <div className="mb-4 tracking-[0.3em] text-[var(--d-accent)]" aria-label={m.avaliacaoEstrelas(dep.nota)}>
+                      <div className="te-prova-nota mb-4 tracking-[0.3em] text-[var(--d-accent)]" aria-label={m.avaliacaoEstrelas(dep.nota)}>
                         {"★".repeat(Math.max(0, Math.min(5, Math.round(dep.nota))))}
                       </div>
                     )}
                     <blockquote
                       data-demo-slot={`depoimentos.${i}.texto`}
-                      className="font-[family-name:var(--d-serif)] text-lg italic leading-relaxed text-[var(--d-text)]"
+                      className="te-prova-texto font-[family-name:var(--d-serif)] text-lg italic leading-relaxed text-[var(--d-text)]"
                     >
                       &ldquo;{dep.texto}&rdquo;
                     </blockquote>
                   </div>
                   <figcaption
                     data-demo-slot={`depoimentos.${i}.autor`}
-                    className="font-[family-name:var(--d-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--d-muted)]"
+                    className="te-prova-autor font-[family-name:var(--d-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--d-muted)]"
                   >
                     — {dep.autor}
                   </figcaption>
@@ -514,8 +523,8 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
       if (itens.length === 0) return null;
       const repetido = [...itens, ...itens, ...itens, ...itens];
       return (
-        <div className="flex w-full items-center overflow-hidden border-y border-[var(--d-border)] py-8">
-          <div className="d-marquee flex w-max">
+        <div className="te-faixa flex w-full items-center overflow-hidden border-y border-[var(--d-border)] py-8">
+          <div className="te-faixa-trilho d-marquee flex w-max">
             {repetido.map((item, i) => (
               <div key={i} className="flex items-center">
                 <span
@@ -540,39 +549,40 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     /* ── Processo (Protocolo) ────────────────────────────────── */
     processo: () =>
       s.processo && (
-        <section id="processo" className="px-6 py-[var(--d-sec-y)]">
-          <div className={`mx-auto max-w-4xl ${centro("processo") ? "text-center" : ""}`}>
-            <div className="mb-20">
+        <section id="processo" className="te-protocolo px-6 py-[var(--d-sec-y)]">
+          <div className={`te-protocolo-caixa mx-auto max-w-4xl ${centro("processo") ? "text-center" : ""}`}>
+            <div className="te-protocolo-cabeca mb-20">
               <Etiqueta texto={s.processo.rotulo} slot="secoes.processo.rotulo" />
               <Titulo texto={s.processo.titulo} slot="secoes.processo.titulo" className="text-5xl md:text-7xl" />
             </div>
-            <div className="space-y-12 md:space-y-0">
+            <div className="te-protocolo-lista space-y-12 md:space-y-0">
               {(s.processo.itens ?? []).map((passo, i) => (
                 <FadeUp
                   key={passo.titulo}
                   animacao={theme.animacao}
                   delay={0.1 * i}
-                  className="items-start border-t border-[var(--d-border)] pb-8 pt-8 md:grid md:grid-cols-12 md:gap-8 md:pb-12"
+                  className="te-passo items-start border-t border-[var(--d-border)] pb-8 pt-8 md:grid md:grid-cols-12 md:gap-8 md:pb-12"
+                  style={{ "--te-passo-n": i } as CSSProperties}
                 >
-                  <div className="mb-4 md:col-span-2 md:mb-0">
+                  <div className="te-passo-num mb-4 md:col-span-2 md:mb-0">
                     <span
                       data-demo-slot={`secoes.processo.itens.${i}.subtitulo`}
-                      className="block font-[family-name:var(--d-display)] text-4xl text-[var(--d-accent)] drop-shadow-sm lg:text-5xl"
+                      className="te-passo-num-texto block font-[family-name:var(--d-display)] text-4xl text-[var(--d-accent)] drop-shadow-sm lg:text-5xl"
                     >
                       {passo.subtitulo}
                     </span>
                   </div>
-                  <div className="md:col-span-10">
+                  <div className="te-passo-corpo md:col-span-10">
                     <h3
                       data-demo-slot={`secoes.processo.itens.${i}.titulo`}
-                      className="mb-1 font-[family-name:var(--d-corpo)] text-[15px] font-medium text-[var(--d-text)]"
+                      className="te-passo-titulo mb-1 font-[family-name:var(--d-corpo)] text-[15px] font-medium text-[var(--d-text)]"
                     >
                       {passo.titulo}
                     </h3>
                     {passo.texto && (
                       <p
                         data-demo-slot={`secoes.processo.itens.${i}.texto`}
-                        className="text-[13px] leading-relaxed text-[var(--d-muted)]"
+                        className="te-passo-texto text-[13px] leading-relaxed text-[var(--d-muted)]"
                       >
                         {passo.texto}
                       </p>
@@ -589,10 +599,10 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
     contato: () => (
       <footer
         id="contato"
-        className="border-t border-[var(--d-border)] bg-[var(--d-bg-alt)] px-6 pb-12 pt-[var(--d-sec-y)] text-center"
+        className="te-fecho border-t border-[var(--d-border)] bg-[var(--d-bg-alt)] px-6 pb-12 pt-[var(--d-sec-y)] text-center"
       >
-        <div className="mx-auto flex max-w-4xl flex-col items-center">
-          <FadeUp animacao={theme.animacao}>
+        <div className="te-fecho-caixa mx-auto flex max-w-4xl flex-col items-center">
+          <FadeUp animacao={theme.animacao} className="te-fecho-titulo">
             <Titulo
               texto={s.contato?.titulo}
               slot="secoes.contato.titulo"
@@ -601,7 +611,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
           </FadeUp>
 
           {s.contato?.cta && (
-            <FadeUp animacao={theme.animacao} delay={0.2} className="mb-16">
+            <FadeUp animacao={theme.animacao} delay={0.2} className="te-fecho-cta mb-16">
               <a
                 href={agendar}
                 data-demo-slot="secoes.contato.cta"
@@ -614,7 +624,7 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
           )}
 
           {(data.endereco || data.horarios || (data.telefone && data.telefone !== data.whatsapp)) && (
-            <FadeUp animacao={theme.animacao} delay={0.3} className="mb-12 flex flex-col gap-1">
+            <FadeUp animacao={theme.animacao} delay={0.3} className="te-fecho-dados mb-12 flex flex-col gap-1">
               {data.endereco && (
                 <p data-demo-slot="endereco" className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]">
                   {data.endereco}
@@ -636,15 +646,15 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
           <FadeUp
             animacao={theme.animacao}
             delay={0.4}
-            className="flex w-full flex-col items-center justify-between border-t border-[var(--d-border)] pt-8 font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)] md:flex-row"
+            className="te-fecho-rodape flex w-full flex-col items-center justify-between border-t border-[var(--d-border)] pt-8 font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)] md:flex-row"
           >
-            <div className="mb-4 md:mb-0">
+            <div className="te-fecho-credito mb-4 md:mb-0">
               © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>.{" "}
               <span data-demo-slot="secoes.contato.texto">
                 {s.contato?.texto ?? m.direitosReservados}
               </span>
             </div>
-            <div className="flex gap-6">
+            <div className="te-fecho-redes flex gap-6">
               {data.instagram && (
                 <span data-demo-slot="instagram" className="transition-colors hover:text-[var(--d-text)]">
                   {data.instagram}
@@ -672,8 +682,19 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
+      data-te-abertura={comp.abertura}
+      data-te-galeria={comp.galeria}
+      data-te-artista={comp.artista}
+      data-te-precos={comp.precos}
+      data-te-provas={comp.provas}
+      data-te-fecho={comp.fecho}
+      data-te-manifesto={comp.manifesto}
+      data-te-protocolo={comp.protocolo}
+      data-te-faixa={comp.faixa}
+      data-te-foto={comp.foto}
       className="te relative min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
+      <style>{TATUAGEM_COMPOSICAO_CSS}</style>
       <style>{`
         /* ── Tokens de superfície ───────────────────────────────────────
            Os quatro valores abaixo estavam cravados no JSX/CSS desta skin
@@ -681,26 +702,6 @@ export function TatuagemEditorial({ data, theme, idioma, moeda }: SkinProps) {
            preenchimento do wordmark). Aqui eles nascem da PALETA e viram um
            ponto único — é o que permite a uma variante clara não pintar
            preto por cima de creme. */
-        .te {
-          --te-foto-filtro: grayscale(100%) contrast(1.25) brightness(0.75);
-          --te-veu-topo: 85%;
-          --te-veu-meio: 75%;
-          --te-veu-base: 90%;
-          --te-titulo-sombra: 4px 6px 0 color-mix(in srgb, var(--d-bg) 90%, transparent);
-          /* Base do gradiente que preenche as letras. É \`--d-bg\` porque o
-             efeito do material bruto é a letra "vazada" na cor do fundo,
-             com o contorno multicor por cima — numa paleta CLARA isso pinta
-             creme sobre creme e o título some, então a variante clara troca
-             esta base por tinta. */
-          --te-wordmark-base: var(--d-bg);
-        }
-        .te .te-hero-veu {
-          background: linear-gradient(180deg,
-            color-mix(in srgb, var(--d-bg) var(--te-veu-topo), transparent) 0%,
-            color-mix(in srgb, var(--d-bg) var(--te-veu-meio), transparent) 50%,
-            color-mix(in srgb, var(--d-bg) var(--te-veu-base), transparent) 100%);
-        }
-
         /* Assinatura tipográfica (Wordmark): preenchimento em gradiente +
            contorno multicor NO MESMO elemento (background-clip:text e
            -webkit-text-stroke coexistem numa única caixa) — ver

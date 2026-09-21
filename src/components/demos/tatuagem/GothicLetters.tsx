@@ -8,6 +8,8 @@
  * animação (o original também não anima essas letras). `aria-hidden` e
  * `user-select: none` — puramente decorativo.
  */
+import type { CSSProperties } from "react";
+
 const POSICOES = 40;
 
 export function GothicLetters({ nome }: { nome: string }) {
@@ -23,6 +25,8 @@ export function GothicLetters({ nome }: { nome: string }) {
         const top = (i * 29 + 11) % 100;
         const size = 3 + ((i * 13) % 15); // 3rem .. 17rem
         const rotate = ((i * 53) % 70) - 35; // -35deg .. 34deg
+        // Multiplicada por `--te-letras` na folha: a densidade da camada é
+        // knob da variante (0 desliga), e a distribuição continua a mesma.
         const opacity = 0.03 + ((i * 7) % 15) / 100; // 0.03 .. 0.17
         return (
           <span
@@ -32,8 +36,8 @@ export function GothicLetters({ nome }: { nome: string }) {
               top: `${top}%`,
               fontSize: `${size}rem`,
               transform: `rotate(${rotate}deg)`,
-              opacity,
-            }}
+              "--te-letra-op": opacity,
+            } as CSSProperties}
           >
             {char}
           </span>

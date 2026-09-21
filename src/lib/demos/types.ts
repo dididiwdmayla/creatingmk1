@@ -392,11 +392,51 @@ export interface BarbeariaComposicao {
   saturacao: number;
 }
 
+/**
+ * Composição editorial da tatuagem: knobs do DESENHO, nunca conteúdo do
+ * lead. Cada knob troca o layout de UMA seção — é o que faz as quatro
+ * variantes serem quatro tipos de estúdio e não quatro paletas.
+ *
+ * Existe como parâmetro tipado, e não como quatro caminhos de render, pela
+ * mesma razão da barbearia: o contrato de seções é da SKIN. A variante
+ * move, redimensiona e retexturiza; não renomeia, não remove, não inventa.
+ * O CSS derivado daqui sai NO SERVIDOR (ver composicao.ts) — aplicar
+ * layout depois da hidratação seria deslocamento de layout, que é o que o
+ * portão de CLS pega.
+ */
+export interface TatuagemComposicao {
+  /** Abertura: tela cheia / dividida com foto / ficha de catálogo / só tipografia. */
+  abertura: "monolito" | "cisao" | "ficha" | "cartaz";
+  /** Galeria: mosaico irregular / mural denso / carrossel horizontal / lista editorial. */
+  galeria: "mosaico" | "mural" | "tira" | "lista";
+  /** O artista: retrato 3/4 / índice de estilos sem retrato / faixa sangrada / dossiê longo. */
+  artista: "retrato" | "indice" | "faixa" | "dossie";
+  /** Investimento: lista com descrição / tabela densa / cartões / prosa sem fios. */
+  precos: "lista" | "tabela" | "cartoes" | "prosa";
+  /** Depoimentos: cartões / tira horizontal / linhas autor-fala / citação gigante. */
+  provas: "cartoes" | "tira" | "empilhado" | "citacao";
+  /** Fecho: centralizado / três colunas / tarja de dados / cartaz de CTA. */
+  fecho: "centralizado" | "colunas" | "tarja" | "cartaz";
+  /** Manifesto: pesos alternados / bloco sólido / marca à esquerda / sussurro em mono. */
+  manifesto: "alternado" | "bloco" | "marca" | "sussurro";
+  /** Protocolo: linhas / quatro colunas / escada / número dominante. */
+  protocolo: "linhas" | "colunas" | "escada" | "numerado";
+  /** A faixa corre ou fica parada. */
+  faixa: "rolante" | "estatica";
+  /** Tratamento das fotos: contraste duro / cinza chapado / suave. */
+  foto: "duro" | "cinza" | "suave";
+  /** Opacidade das letras góticas de fundo, 0–100 (0 desliga a camada). */
+  letras: number;
+  /** Força do véu sobre a foto da abertura, 0–100. */
+  veu: number;
+}
+
 /** Tokens visuais de um tema de skin. */
 export interface Theme {
   /** Knobs da identidade, injetados pela definição da skin. Nunca por URL pública. */
   lancheria?: TemaLancheria;
   barbearia?: BarbeariaComposicao;
+  tatuagem?: TatuagemComposicao;
   id: string;
   nome: string;
   paleta: ThemePaleta;

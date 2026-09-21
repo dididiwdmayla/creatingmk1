@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type { Animacao } from "@/lib/demos/types";
 
@@ -27,17 +27,24 @@ export function FadeUp({
   animacao,
   delay = 0,
   className,
+  style,
   children,
 }: {
   animacao: Animacao;
   delay?: number;
   className?: string;
+  /**
+   * Custom properties do item, quando a composição precisa da POSIÇÃO dele
+   * (ver `--te-passo-n` em composicao.ts). Não é estilo solto: contador de
+   * CSS conta, mas não serve para calcular margem.
+   */
+  style?: CSSProperties;
   children: ReactNode;
 }) {
   const reduzida = useReducedMotion();
 
   if (animacao === "nenhuma" || reduzida) {
-    return <div className={className}>{children}</div>;
+    return <div className={className} style={style}>{children}</div>;
   }
 
   const { dist, duration } = PRESETS[animacao];
@@ -49,6 +56,7 @@ export function FadeUp({
       viewport={{ once: true, margin: "-10%" }}
       transition={{ duration, delay, ease: [0.21, 0.47, 0.32, 0.98] }}
       className={className}
+      style={style}
     >
       {children}
     </motion.div>
