@@ -828,6 +828,7 @@ export function DemoEditorClient({ id, tipo = "lead" }: { id: string; tipo?: Tip
               <PainelImagens
                 dados={dados}
                 skin={skin}
+                themeId={themeId}
                 uploadSlot={uploadSlot}
                 erro={imgErro}
                 onUpload={handleUpload}

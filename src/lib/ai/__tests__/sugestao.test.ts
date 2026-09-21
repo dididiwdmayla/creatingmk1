@@ -159,7 +159,7 @@ describe("validarSugestao", () => {
     expect(sugestao).toBeUndefined();
     expect(problemas).toEqual([
       "chave desconhecida: extra",
-      "themeId deve ser um preset da skin: norte, meia-noite, creme, oliva",
+      "themeId deve ser um preset da skin: norte, meia-noite, creme, vinho",
       "destaque deve ser cor hex no formato #rrggbb",
       "animacao deve ser um de: nenhuma, sutil, marcante",
     ]);

@@ -85,7 +85,9 @@ export function CustomCursor({ accent }: { accent: string }) {
         width="24"
         height="24"
         viewBox="0 0 24 24"
-        fill="rgba(245,245,245,0.1)"
+        // Era `rgba(245,245,245,0.1)` cravado — o branco do preset escuro.
+        // Sob paleta clara isso some contra o fundo; sai da paleta.
+        fill="color-mix(in srgb, var(--d-text) 10%, transparent)"
         stroke={accent}
         strokeWidth="1.5"
         strokeLinecap="round"

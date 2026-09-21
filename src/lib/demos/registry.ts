@@ -39,13 +39,9 @@ import {
   PETSHOP_THEME_DEFAULT,
   PETSHOP_THEME_PRESETS,
 } from "@/components/demos/petshop/themes";
-import { TATUAGEM_EXEMPLO } from "@/components/demos/tatuagem/exemplo";
 import { TATUAGEM_SECOES } from "@/components/demos/tatuagem/secoes";
+import { TATUAGEM_VARIANTES } from "@/components/demos/tatuagem/variantes";
 import { TatuagemEditorial } from "@/components/demos/tatuagem/Skin";
-import {
-  TATUAGEM_THEME_DEFAULT,
-  TATUAGEM_THEME_PRESETS,
-} from "@/components/demos/tatuagem/themes";
 import { TATUAGEM2_EXEMPLO } from "@/components/demos/tatuagem2/exemplo";
 import { TATUAGEM2_SECOES } from "@/components/demos/tatuagem2/secoes";
 import { TatuagemPigmentoVivo } from "@/components/demos/tatuagem2/Skin";
@@ -103,11 +99,16 @@ export const SKINS: SkinDefinition[] = [
     id: "tatuagem-editorial",
     nicho: "tatuagem",
     nome: "Tatuagem Editorial Sombria",
-    descricao: "Preto profundo e sangue: blackletter gótica, manifesto editorial e portfólio em masonry.",
+    descricao:
+      "Quatro estúdios editoriais: Sangue (fechamento), Vesperal (ateliê autoral), Cripta (mural coletivo) e Marfim (arquivo claro). Vídeo dentro das letras do título nas quatro.",
     componente: TatuagemEditorial,
-    themeDefault: TATUAGEM_THEME_DEFAULT,
-    themePresets: TATUAGEM_THEME_PRESETS,
-    demoDataExemplo: TATUAGEM_EXEMPLO,
+    variantes: TATUAGEM_VARIANTES,
+    // Sem `themeAliases`: os quatro ids são os mesmos de antes da migração
+    // (`sangue`/`vesperal`/`cripta`/`marfim`), então nenhuma demo publicada
+    // precisa de tradução na leitura nem de migração no banco.
+    themeDefault: TATUAGEM_VARIANTES[0].theme,
+    themePresets: TATUAGEM_VARIANTES.map((v) => v.theme),
+    demoDataExemplo: TATUAGEM_VARIANTES[0].exemplo,
     secoes: TATUAGEM_SECOES,
     heroEscalaLimites: { min: 0.7, max: 1.7 },
     thumbnail: "/demos/tatuagem/thumb.svg",

@@ -16,7 +16,7 @@ import { PainelLancheria } from "./PainelLancheria";
 import { CAMPOS_IDENTIDADE_DEMO } from "@/lib/demos/patch";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import { SKINS } from "@/lib/demos/registry";
-import { temaCalibrado } from "@/lib/demos/variantes";
+import { getVariante, temaCalibrado } from "@/lib/demos/variantes";
 import { ESPACAMENTO_HERO_LIMITES, TEMA_RAIOS, inkPara } from "@/lib/demos/tema";
 import { IDIOMAS_SUPORTADOS, PAISES_COM_IDIOMA, idiomaLabel } from "@/lib/idioma";
 import type {
@@ -652,9 +652,22 @@ const IMAGENS_MODO_OPCOES: Array<{ id: ImagensModo; rotulo: string }> = [
   { id: "grafico", rotulo: "Placeholder gráfico" },
 ];
 
+/**
+ * O aviso de slot que a VARIANTE aberta não desenha (ver
+ * `SkinVariante.imagensOcultas`). A frase mora aqui, e não na variante,
+ * porque o que a variante declara é o MOTIVO — texto livre por variante
+ * divergiria na terceira.
+ */
+const AVISO_SLOT_OCULTO: Record<"nenhum" | "so-titulo", string> = {
+  nenhum: "Não aparece nesta variante. A imagem continua salva e volta a aparecer em outra.",
+  "so-titulo":
+    "Nesta variante não aparece como foto — é ela que preenche as letras do título.",
+};
+
 export function PainelImagens({
   dados,
   skin,
+  themeId,
   uploadSlot,
   erro,
   onUpload,
@@ -669,6 +682,8 @@ export function PainelImagens({
 }: {
   dados: DemoData;
   skin: SkinDefinition;
+  /** Variante/preset aberto — decide quais slots levam aviso de não exibido. */
+  themeId?: string;
   uploadSlot: string | null;
   erro: string | null;
   onUpload: (slot: string, file: File) => void;
@@ -683,6 +698,9 @@ export function PainelImagens({
 }) {
   const slots = Object.keys(skin.demoDataExemplo.imagens);
   const videoSlots = skin.videoSlots ?? [];
+  // Subir uma foto e não ver nada mudar parece defeito. A variante declara
+  // quais slots ela não desenha; aqui isso vira aviso ANTES do upload.
+  const ocultas = getVariante(skin, themeId)?.imagensOcultas ?? {};
   return (
     <div className="flex flex-col gap-2">
       <div>
@@ -722,6 +740,14 @@ export function PainelImagens({
             onUpload={onUpload}
             onRemover={onRemover}
           />
+          {ocultas[slot] && (
+            <p
+              data-editor-aviso={`imagens.${slot}`}
+              className="mt-1 border-l-2 border-warning pl-2 text-[11px] text-ink-muted"
+            >
+              {AVISO_SLOT_OCULTO[ocultas[slot]]}
+            </p>
+          )}
           {Object.hasOwn(skin.demoDataExemplo.imagensAlt ?? {}, slot) && (
             <label className="mt-2 flex flex-col gap-1 text-xs text-ink-muted">
               Texto alternativo
