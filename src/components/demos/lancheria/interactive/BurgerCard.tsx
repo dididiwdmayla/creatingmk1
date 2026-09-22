@@ -11,16 +11,10 @@ import {
   useSpring,
 } from "motion/react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Animacao, ChapaComposicao, DemoServico } from "@/lib/demos/types";
 import { OrderCta } from "./OrderCta";
-
-/** Chrome fixo do card — frases decorativas do hover, fiéis ao material bruto (nenhuma cita a marca). */
-const HOVER_PHRASES = [
-  "CUIDADO, LANCHE VICIANTE!",
-  "PEDE LOGO, É UMA DELÍCIA!",
-  "PEDE O SEU, QUE ESSE JÁ É MEU 😏",
-];
 
 const ENTRADA: Record<"sutil" | "marcante", { dist: number; duration: number }> = {
   sutil: { dist: 14, duration: 0.3 },
@@ -57,12 +51,18 @@ export function BurgerCard({
   idioma?: string;
   moeda?: string;
 }) {
+  const m = microcopiaDemo(idioma);
+  // Frases decorativas da lente: cromo, não conteúdo — não têm slot e
+  // ninguém as edita, então vêm do dicionário de microcópia (ver
+  // lib/demos/microcopy.ts). Fiéis ao material bruto em pt-BR; nenhuma cita
+  // a marca.
+  const frases = m.frasesDaLente;
   const shouldReduceMotion = useReducedMotion();
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const radius = useMotionValue(0);
   const [isLensActive, setIsLensActive] = useState(false);
-  const [currentPhrase, setCurrentPhrase] = useState(HOVER_PHRASES[0]);
+  const [currentPhrase, setCurrentPhrase] = useState(frases[0]);
   const lastPhraseIndex = useRef(0);
   const fotoRef = useRef<HTMLDivElement>(null);
 
@@ -109,10 +109,10 @@ export function BurgerCard({
   const shufflePhrase = () => {
     let nextIndex: number;
     do {
-      nextIndex = Math.floor(Math.random() * HOVER_PHRASES.length);
+      nextIndex = Math.floor(Math.random() * frases.length);
     } while (nextIndex === lastPhraseIndex.current);
     lastPhraseIndex.current = nextIndex;
-    setCurrentPhrase(HOVER_PHRASES[nextIndex]);
+    setCurrentPhrase(frases[nextIndex]);
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
@@ -229,12 +229,12 @@ export function BurgerCard({
         </span>
         <OrderCta
           whatsapp={whatsapp}
-          mensagem={`Olá! Quero pedir: ${servico.nome}.`}
+          mensagem={m.pedidoDoItem(servico.nome)}
           idioma={idioma}
-          aria-label={`Escolher ${servico.nome}`}
+          aria-label={m.escolherItem(servico.nome)}
           className="ch-prato-cta d-cta-pill"
         >
-          ESCOLHER
+          {m.escolher.toUpperCase()}
         </OrderCta>
       </div>
 

@@ -518,12 +518,12 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
                 data-demo-slot="secoes.contato.titulo"
                 className="ch-contato-titulo mb-4 font-[family-name:var(--d-display)] text-xl uppercase tracking-widest text-[var(--d-muted)]"
               >
-                {s.contato?.titulo ?? "Contato"}
+                {s.contato?.titulo ?? m.contato}
               </h3>
               {s.contato?.cta && (
                 <OrderCta
                   whatsapp={data.whatsapp}
-                  mensagem="Olá! Gostaria de fazer um pedido."
+                  mensagem={m.pedidoMensagem}
                   idioma={idioma}
                   slot="secoes.contato.cta"
                   className="ch-contato-cta d-cta-outline"
@@ -541,12 +541,18 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
             <p className="ch-copy font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]">
               © {new Date().getFullYear()} {data.nome}. {m.direitosReservados}
             </p>
-            <p
-              data-demo-slot="secoes.contato.texto"
-              className="ch-assinatura font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]/70"
-            >
-              {s.contato?.texto ?? "FEITO COM OBSESSÃO"}
-            </p>
+            {/* Sem fallback: "FEITO COM OBSESSÃO" era VOZ DE MARCA cravada no
+                componente — a assinatura de uma casa específica, inventada
+                pela skin para toda casa que abrisse a demo. Slot vazio não
+                desenha linha nenhuma, como qualquer outro. */}
+            {s.contato?.texto && (
+              <p
+                data-demo-slot="secoes.contato.texto"
+                className="ch-assinatura font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]/70"
+              >
+                {s.contato.texto}
+              </p>
+            )}
           </div>
         </Caixa>
       );

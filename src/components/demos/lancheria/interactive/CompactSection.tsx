@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { DemoItem } from "@/lib/demos/types";
 import { OrderCta } from "./OrderCta";
 
@@ -28,6 +29,7 @@ function CompactCard({
   whatsapp: string | undefined;
   idioma?: string;
 }) {
+  const m = microcopiaDemo(idioma);
   return (
     <div
       /* Borda em CLASSE pelo mesmo motivo do cartão do cardápio: a carta e a
@@ -64,9 +66,9 @@ function CompactCard({
           )}
           <OrderCta
             whatsapp={whatsapp}
-            mensagem={`Olá! Quero pedir: ${item.titulo}.`}
+            mensagem={m.pedidoDoItem(item.titulo)}
             idioma={idioma}
-            aria-label={`Adicionar ${item.titulo}`}
+            aria-label={m.adicionarItem(item.titulo)}
             className="ch-item-cta d-cta-round d-cta-round-sm"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

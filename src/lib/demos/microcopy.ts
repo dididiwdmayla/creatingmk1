@@ -12,9 +12,15 @@ import { IDIOMA_PADRAO } from "@/lib/idioma";
  * default de `IDIOMA_PADRAO`.
  *
  * Cada skin escolhe, entre estas chaves, só as que usa — nenhuma skin usa
- * todas. Textos de VENDA (taglines, CTAs com voz própria da skin, mensagens
- * de WhatsApp pré-preenchidas) continuam fora daqui: são conteúdo, e vivem
- * em `DemoData`/`exemplo.ts`, não nesta camada de apresentação.
+ * todas. Textos de VENDA (taglines, CTAs com voz própria da skin) continuam
+ * fora daqui: são conteúdo, e vivem em `DemoData`/`exemplo.ts`, não nesta
+ * camada de apresentação.
+ *
+ * A linha divisória é o SLOT, não o assunto. Uma mensagem de WhatsApp que a
+ * skin expõe como slot editável é conteúdo e fica em `DemoData`; uma que
+ * está cravada no componente, sem slot nenhum, é cromo e mora aqui — senão
+ * uma demo em de-CH manda o visitante abrir o WhatsApp com uma frase em
+ * português, e não há onde corrigir isso.
  */
 
 type RaizMicrocopia = "pt" | "en" | "es" | "fr" | "de" | "it" | "nl";
@@ -49,8 +55,27 @@ export interface DemoMicrocopia {
   horario: string;
   telefone: string;
   faleComAGente: string;
+  /** Rótulo neutro de uma seção de contato, quando o título dela está vazio. */
+  contato: string;
   navegue: string;
   redes: string;
+  /** Rótulo do botão que escolhe um item do cardápio; a CAIXA ALTA é do componente. */
+  escolher: string;
+  /** `aria-label` do botão de escolher um item nomeado. */
+  escolherItem: (item: string) => string;
+  /** `aria-label` do botão de somar um item nomeado ao pedido. */
+  adicionarItem: (item: string) => string;
+  /** Mensagem pronta de WhatsApp, sem item — o botão genérico de pedido. */
+  pedidoMensagem: string;
+  /** Mensagem pronta de WhatsApp para um item nomeado. */
+  pedidoDoItem: (item: string) => string;
+  /**
+   * As frases que aparecem sobre a foto quando a LENTE do cardápio da
+   * chapa burger abre. São decoração cravada no componente — não têm slot,
+   * ninguém as edita —, e por isso são cromo: numa demo em outro idioma,
+   * uma piada em português sobre a foto é só uma frase que ninguém lê.
+   */
+  frasesDaLente: readonly string[];
 }
 
 const PT: DemoMicrocopia = {
@@ -73,8 +98,19 @@ const PT: DemoMicrocopia = {
   horario: "Horário",
   telefone: "Telefone",
   faleComAGente: "Fale com a gente",
+  contato: "Contato",
   navegue: "Navegue",
   redes: "Redes",
+  escolher: "Escolher",
+  escolherItem: (item) => `Escolher ${item}`,
+  adicionarItem: (item) => `Adicionar ${item}`,
+  pedidoMensagem: "Olá! Gostaria de fazer um pedido.",
+  pedidoDoItem: (item) => `Olá! Quero pedir: ${item}.`,
+  frasesDaLente: [
+    "CUIDADO, LANCHE VICIANTE!",
+    "PEDE LOGO, É UMA DELÍCIA!",
+    "PEDE O SEU, QUE ESSE JÁ É MEU 😏",
+  ],
 };
 
 const EN: DemoMicrocopia = {
@@ -97,8 +133,19 @@ const EN: DemoMicrocopia = {
   horario: "Hours",
   telefone: "Phone",
   faleComAGente: "Get in touch",
+  contato: "Contact",
   navegue: "Explore",
   redes: "Social",
+  escolher: "Choose",
+  escolherItem: (item) => `Choose ${item}`,
+  adicionarItem: (item) => `Add ${item}`,
+  pedidoMensagem: "Hi! I'd like to place an order.",
+  pedidoDoItem: (item) => `Hi! I'd like to order: ${item}.`,
+  frasesDaLente: [
+    "CAREFUL, THIS ONE IS ADDICTIVE!",
+    "ORDER IT ALREADY, IT IS SO GOOD!",
+    "GET YOUR OWN, THIS ONE IS MINE 😏",
+  ],
 };
 
 const ES: DemoMicrocopia = {
@@ -121,8 +168,19 @@ const ES: DemoMicrocopia = {
   horario: "Horario",
   telefone: "Teléfono",
   faleComAGente: "Hablemos",
+  contato: "Contacto",
   navegue: "Explora",
   redes: "Redes",
+  escolher: "Elegir",
+  escolherItem: (item) => `Elegir ${item}`,
+  adicionarItem: (item) => `Añadir ${item}`,
+  pedidoMensagem: "¡Hola! Me gustaría hacer un pedido.",
+  pedidoDoItem: (item) => `¡Hola! Quiero pedir: ${item}.`,
+  frasesDaLente: [
+    "¡CUIDADO, ESTE ENGANCHA!",
+    "¡PÍDELO YA, ESTÁ BUENÍSIMO!",
+    "PIDE EL TUYO, QUE ESTE YA ES MÍO 😏",
+  ],
 };
 
 const FR: DemoMicrocopia = {
@@ -145,8 +203,19 @@ const FR: DemoMicrocopia = {
   horario: "Horaires",
   telefone: "Téléphone",
   faleComAGente: "Contactez-nous",
+  contato: "Contact",
   navegue: "Explorer",
   redes: "Réseaux",
+  escolher: "Choisir",
+  escolherItem: (item) => `Choisir ${item}`,
+  adicionarItem: (item) => `Ajouter ${item}`,
+  pedidoMensagem: "Bonjour ! Je voudrais passer une commande.",
+  pedidoDoItem: (item) => `Bonjour ! Je voudrais commander : ${item}.`,
+  frasesDaLente: [
+    "ATTENTION, C'EST ADDICTIF !",
+    "COMMANDE-LE VITE, C'EST UN DÉLICE !",
+    "PRENDS LE TIEN, CELUI-LÀ EST À MOI 😏",
+  ],
 };
 
 const DE: DemoMicrocopia = {
@@ -169,8 +238,19 @@ const DE: DemoMicrocopia = {
   horario: "Öffnungszeiten",
   telefone: "Telefon",
   faleComAGente: "Kontaktieren Sie uns",
+  contato: "Kontakt",
   navegue: "Entdecken",
   redes: "Social Media",
+  escolher: "Auswählen",
+  escolherItem: (item) => `${item} auswählen`,
+  adicionarItem: (item) => `${item} hinzufügen`,
+  pedidoMensagem: "Hallo! Ich möchte gerne bestellen.",
+  pedidoDoItem: (item) => `Hallo! Ich möchte bestellen: ${item}.`,
+  frasesDaLente: [
+    "VORSICHT, MACHT SÜCHTIG!",
+    "BESTELL IHN, ER IST EIN TRAUM!",
+    "HOL DIR DEINEN, DER HIER IST MEINER 😏",
+  ],
 };
 
 const IT: DemoMicrocopia = {
@@ -193,8 +273,19 @@ const IT: DemoMicrocopia = {
   horario: "Orario",
   telefone: "Telefono",
   faleComAGente: "Contattaci",
+  contato: "Contatti",
   navegue: "Esplora",
   redes: "Social",
+  escolher: "Scegli",
+  escolherItem: (item) => `Scegli ${item}`,
+  adicionarItem: (item) => `Aggiungi ${item}`,
+  pedidoMensagem: "Ciao! Vorrei fare un ordine.",
+  pedidoDoItem: (item) => `Ciao! Vorrei ordinare: ${item}.`,
+  frasesDaLente: [
+    "ATTENZIONE, CREA DIPENDENZA!",
+    "ORDINALO SUBITO, È UNA DELIZIA!",
+    "PRENDI IL TUO, QUESTO È GIÀ MIO 😏",
+  ],
 };
 
 const NL: DemoMicrocopia = {
@@ -217,8 +308,19 @@ const NL: DemoMicrocopia = {
   horario: "Openingstijden",
   telefone: "Telefoon",
   faleComAGente: "Neem contact op",
+  contato: "Contact",
   navegue: "Ontdek",
   redes: "Social",
+  escolher: "Kiezen",
+  escolherItem: (item) => `${item} kiezen`,
+  adicionarItem: (item) => `${item} toevoegen`,
+  pedidoMensagem: "Hallo! Ik wil graag een bestelling plaatsen.",
+  pedidoDoItem: (item) => `Hallo! Ik wil graag bestellen: ${item}.`,
+  frasesDaLente: [
+    "PAS OP, DIT IS VERSLAVEND!",
+    "BESTEL SNEL, HIJ IS HEERLIJK!",
+    "HAAL JE EIGEN, DEZE IS VAN MIJ 😏",
+  ],
 };
 
 const MICROCOPIA_POR_RAIZ: Record<RaizMicrocopia, DemoMicrocopia> = {
