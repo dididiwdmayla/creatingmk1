@@ -1,4 +1,4 @@
-import type { ChapaComposicao, SkinVariante, Theme } from "@/lib/demos/types";
+import type { ChapaComposicao, DemoData, DemoSecao, SkinVariante, Theme } from "@/lib/demos/types";
 import { criarVariante } from "@/lib/demos/variantes";
 
 import { LANCHERIA_EXEMPLO } from "./exemplo";
@@ -10,11 +10,23 @@ import { LANCHERIA_THEME_PRESETS } from "./themes";
  * não quatro paletas (ver "Critério de drasticidade" em
  * docs/plano-chapa-burger.md §4/§5).
  *
- * Etapa 1 (fiação mecânica mínima): composição, fundo, ordem e
- * `imagensOcultas` já vêm dos valores fechados no plano; o EXEMPLO ainda é
- * o mesmo das quatro — cópia própria por variante (slogan, textos de
- * seção, `imagensAlt`) é a etapa 2 (item 12). Só o arranjo de seções muda
- * por cima dele aqui.
+ * Cada declaração carrega TRÊS camadas, e só a primeira é obrigatória:
+ *
+ *   1. a COMPOSIÇÃO (os cinco knobs) + o arranjo de seções;
+ *   2. `tema` — o que acompanha o mundo visual e não é paleta: alinhamento
+ *      da abertura, densidade, hover, raio. Paleta e tipografia vêm do
+ *      preset (./themes.ts);
+ *   3. `slogan`/`textos` — a cópia de exemplo própria da variante, gravada
+ *      por cima do exemplo BASE. Chaves e slots continuam os mesmos: o
+ *      exemplo é um só contrato, e a trava (`__tests__/variantes.test.tsx`)
+ *      compara as quatro entre si.
+ *
+ * O ALINHAMENTO da abertura entra aqui, e não na folha de composição, de
+ * propósito: `heroTitulo.alinhamento` é controle do OPERADOR na aba Tema.
+ * A composição tem opinião (a ficha e a cisão são desenhos de leitura à
+ * esquerda; o cartaz e a pilha são cartazes centrados), mas ela é o VALOR
+ * INICIAL de um campo editável — não uma regra de folha que o operador não
+ * conseguiria vencer.
  *
  * Os PRESETS de paleta são os quatro de sempre (./themes.ts), só trocando
  * de id — `brasa`→`praca`, `diner`→`balcao`, `neon`→`sala`; `chapa` fica
@@ -38,7 +50,21 @@ interface Declaracao {
    * docs/plano-chapa-burger.md §6).
    */
   imagensOcultas?: Record<string, "nenhum" | "so-titulo">;
+  /** Ajustes de tema que acompanham o mundo — nunca paleta (essa é do preset). */
+  tema?: Partial<Theme>;
+  /** Cópia de exemplo própria da variante (item 12). */
+  slogan?: string;
+  /** Textos de seção próprios, gravados por cima do exemplo BASE (item 12). */
+  textos?: Record<string, Partial<DemoSecao>>;
 }
+
+/** Valor inicial do campo "alinhamento" da aba Tema, por abertura. */
+const ALINHAMENTO_DA_ABERTURA: Record<ChapaComposicao["abertura"], "esquerda" | "centro"> = {
+  cartaz: "centro",
+  ficha: "esquerda",
+  cisao: "esquerda",
+  pilha: "centro",
+};
 
 const DECLARACOES: Declaracao[] = [
   {
@@ -131,7 +157,28 @@ const DECLARACOES: Declaracao[] = [
  */
 export const LANCHERIA_VARIANTES: readonly SkinVariante[] = DECLARACOES.map((d) => {
   const preset = LANCHERIA_THEME_PRESETS.find((t) => t.id === d.presetId)!;
-  const theme: Theme = { ...preset, id: d.id, nome: d.nome, chapa: d.composicao };
+  const theme: Theme = {
+    ...preset,
+    ...d.tema,
+    id: d.id,
+    nome: d.nome,
+    chapa: d.composicao,
+    heroTitulo: {
+      ...preset.heroTitulo,
+      ...d.tema?.heroTitulo,
+      alinhamento: d.tema?.heroTitulo?.alinhamento ?? ALINHAMENTO_DA_ABERTURA[d.composicao.abertura],
+    },
+  };
+  const exemplo: DemoData = {
+    ...LANCHERIA_EXEMPLO,
+    ...(d.slogan && { slogan: d.slogan }),
+    secoes: Object.fromEntries(
+      Object.entries(LANCHERIA_EXEMPLO.secoes).map(([id, secao]) => [
+        id,
+        { ...secao, ...d.textos?.[id] },
+      ]),
+    ),
+  };
   return criarVariante(
     {
       id: d.id,
@@ -139,7 +186,7 @@ export const LANCHERIA_VARIANTES: readonly SkinVariante[] = DECLARACOES.map((d) 
       descricao: d.descricao,
       fundo: d.fundo,
       theme,
-      exemplo: LANCHERIA_EXEMPLO,
+      exemplo,
       arranjo: { ordem: d.ordem },
       thumbnail: `/demos/lancheria/${d.id}.jpg`,
       ...(d.imagensOcultas && { imagensOcultas: d.imagensOcultas }),
