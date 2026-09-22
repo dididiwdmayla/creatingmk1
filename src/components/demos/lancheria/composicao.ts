@@ -105,6 +105,8 @@ export const LANCHERIA_COMPOSICAO_CSS = `
 .ch .ch-contato-rodape { display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 1rem; }
 .ch .ch-dados { display: flex; flex-direction: column; gap: .75rem; }
 .ch .ch-dado { display: flex; flex-direction: column; gap: .15rem; }
+/* <dd> nasce com 40px de recuo no navegador; a escada alinha pelo rótulo. */
+.ch .ch-dado-valor { margin: 0; }
 
 /* ── ABERTURA ──────────────────────────────────────────────────────────
    cartaz: tela cheia, foto sangrada, nome contornado por cima (o desenho
@@ -148,6 +150,8 @@ export const LANCHERIA_COMPOSICAO_CSS = `
 .ch[data-ch-abertura="ficha"] .ch-ficha {
   width: 100%; border: 1px solid var(--d-border); background: var(--d-bg-elev);
   border-radius: calc(var(--d-radius) * .6); padding: 1.1rem 1.25rem;
+  /* Respiro do CTA: a sombra da pílula encostava na borda do cartão. */
+  margin-top: 1.75rem;
 }
 .ch[data-ch-abertura="ficha"] .ch-ficha .ch-dado + .ch-dado {
   border-top: 1px solid var(--d-border); padding-top: .7rem;

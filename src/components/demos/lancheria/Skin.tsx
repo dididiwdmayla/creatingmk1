@@ -4,7 +4,8 @@ import { type CSSProperties, type ReactNode } from "react";
 import { SecaoMarcada } from "@/lib/demos/animacao/SecaoMarcada";
 import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
-import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
+import type { DemoMicrocopia } from "@/lib/demos/microcopy";
+import type { Animacao, DemoData, Densidade, SkinProps } from "@/lib/demos/types";
 import { CategoryNav } from "./interactive/CategoryNav";
 import { CompactSection } from "./interactive/CompactSection";
 import { BurgerCard } from "./interactive/BurgerCard";
@@ -111,6 +112,98 @@ function Rotulo({ texto, slot }: { texto?: string; slot?: string }) {
   );
 }
 
+/** Uma linha de dado da escada de identidade (ver `Dados` abaixo). */
+type LinhaDeDado = {
+  chave: string;
+  rotulo: string;
+  valor: string;
+  slot: string;
+  href?: string;
+};
+
+/**
+ * A ESCADA DE IDENTIDADE, na ordem do plano (§7): endereço (ou cidade) →
+ * horário → telefone → instagram.
+ *
+ * **Cada linha só existe se o valor existe, e um rótulo nunca aparece sem o
+ * valor dele.** Não é borda rara: `horarios`, `telefone`, `whatsapp`,
+ * `instagram` e `cidade` nunca estiveram no exemplo desta skin, e o harness,
+ * a demo avulsa e o lead recém-criado chegam aqui com a lista VAZIA. É o
+ * caso normal, e é por isso que quem desenha o cartão é a lista, não o
+ * contrário.
+ *
+ * O telefone só entra quando é DIFERENTE do WhatsApp: repetir o mesmo número
+ * que já está atrás do botão de pedido é ocupar uma linha à toa.
+ */
+function escadaDeDados(data: DemoData, m: DemoMicrocopia): LinhaDeDado[] {
+  const linhas: LinhaDeDado[] = [];
+  const local = data.endereco ?? data.cidade;
+  if (local) {
+    linhas.push({
+      chave: "local",
+      rotulo: m.endereco,
+      valor: local,
+      slot: data.endereco ? "endereco" : "cidade",
+    });
+  }
+  if (data.horarios) {
+    linhas.push({ chave: "horario", rotulo: m.horario, valor: data.horarios, slot: "horarios" });
+  }
+  if (data.telefone && data.telefone !== data.whatsapp) {
+    linhas.push({ chave: "telefone", rotulo: m.telefone, valor: data.telefone, slot: "telefone" });
+  }
+  if (data.instagram) {
+    linhas.push({
+      chave: "instagram",
+      rotulo: m.redes,
+      valor: data.instagram,
+      slot: "instagram",
+      href: `https://instagram.com/${data.instagram.replace(/^@/, "")}`,
+    });
+  }
+  return linhas;
+}
+
+/**
+ * A REGRA DO VAZIO: com zero linhas, nada é renderizado — nem borda, nem
+ * fundo elevado, nem grade de rótulos, nem divisória. A ficha do balcão
+ * degrada para o tratamento tipográfico puro (nome + frase + CTA), que é
+ * exatamente o que a pilha faz. Nada de caixa vazia, nada de "Endereço não
+ * informado", nada de espaço reservado.
+ *
+ * Com UMA linha, o cartão tem uma linha e altura natural: quem manda no
+ * tamanho é o conteúdo.
+ */
+function Dados({ linhas, className }: { linhas: LinhaDeDado[]; className: string }) {
+  if (linhas.length === 0) return null;
+  return (
+    <dl className={`${className} font-[family-name:var(--d-corpo)] text-sm`}>
+      {linhas.map((linha) => (
+        <div key={linha.chave} className="ch-dado">
+          <dt className="ch-dado-rotulo font-[family-name:var(--d-display)] text-[11px] uppercase tracking-widest text-[var(--d-muted)]">
+            {linha.rotulo}
+          </dt>
+          <dd className="ch-dado-valor text-[var(--d-text)]">
+            {linha.href ? (
+              <a
+                href={linha.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-demo-slot={linha.slot}
+                className="transition-colors hover:text-[var(--d-accent-2)]"
+              >
+                {linha.valor}
+              </a>
+            ) : (
+              <span data-demo-slot={linha.slot}>{linha.valor}</span>
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
@@ -148,6 +241,16 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
    * nunca fica sem forma.
    */
   const comp = theme.chapa ?? LANCHERIA_COMPOSICAO_PADRAO;
+
+  /**
+   * A escada de dados aparece UMA vez por página, e quem a carrega é a
+   * ficha quando ela existe. Não é "esconder texto" do contato: é não
+   * imprimir o mesmo endereço duas vezes numa página de cinco seções. As
+   * outras três aberturas não têm bloco de identidade, então a escada fica
+   * onde sempre esteve — no contato.
+   */
+  const linhasDeDado = escadaDeDados(data, m);
+  const dadosNaAbertura = comp.abertura === "ficha";
 
   const s = data.secoes;
 
@@ -228,6 +331,8 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
               {s.hero.cta}
             </a>
           )}
+
+          {dadosNaAbertura && <Dados linhas={linhasDeDado} className="ch-ficha ch-dados" />}
         </div>
 
         <div className="ch-hero-role flex flex-col items-center gap-2 text-[var(--d-text)]/80">
@@ -390,45 +495,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
               )}
             </div>
 
-            <div className="ch-dados font-[family-name:var(--d-corpo)] text-sm">
-              {data.horarios && (
-                <div className="ch-dado">
-                  <span className="ch-dado-rotulo font-[family-name:var(--d-display)] text-xs uppercase tracking-widest text-[var(--d-muted)]">
-                    Horário
-                  </span>
-                  <span data-demo-slot="horarios" className="ch-dado-valor font-[family-name:var(--d-mono)] text-[var(--d-accent-2)]">
-                    {data.horarios}
-                  </span>
-                </div>
-              )}
-              {(data.endereco || data.cidade) && (
-                <div className="ch-dado">
-                  <span data-demo-slot={data.endereco ? "endereco" : "cidade"} className="ch-dado-valor text-[var(--d-text)]">
-                    {data.endereco ?? data.cidade}
-                  </span>
-                </div>
-              )}
-              {data.telefone && data.telefone !== data.whatsapp && (
-                <div className="ch-dado">
-                  <span data-demo-slot="telefone" className="ch-dado-valor text-[var(--d-text)]">
-                    {data.telefone}
-                  </span>
-                </div>
-              )}
-              {data.instagram && (
-                <div className="ch-dado">
-                  <a
-                    href={`https://instagram.com/${data.instagram.replace(/^@/, "")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-demo-slot="instagram"
-                    className="ch-dado-valor text-[var(--d-text)] transition-colors hover:text-[var(--d-accent-2)]"
-                  >
-                    {data.instagram}
-                  </a>
-                </div>
-              )}
-            </div>
+            {!dadosNaAbertura && <Dados linhas={linhasDeDado} className="ch-dados" />}
 
             <div className="ch-contato-acao flex flex-col items-center md:items-start">
               <h3
