@@ -1,4 +1,11 @@
-import type { ChapaComposicao, DemoData, DemoSecao, SkinVariante, Theme } from "@/lib/demos/types";
+import type {
+  ChapaComposicao,
+  DemoData,
+  DemoSecao,
+  DemoServico,
+  SkinVariante,
+  Theme,
+} from "@/lib/demos/types";
 import { criarVariante } from "@/lib/demos/variantes";
 
 import { LANCHERIA_EXEMPLO } from "./exemplo";
@@ -57,6 +64,14 @@ interface Declaracao {
   slogan?: string;
   /** Textos de seção próprios, gravados por cima do exemplo BASE (item 12). */
   textos?: Record<string, Partial<DemoSecao>>;
+  /**
+   * O cardápio de exemplo desta casa. **Sempre SEIS**, como o exemplo base:
+   * cada lanche desenha o slot `lanche-N`, e uma variante com cinco deixaria
+   * `lanche-6` sem caixa nenhuma — um slot que o editor oferece e a página
+   * nunca mostra. É a mesma razão pela qual bebidas continuam cinco e
+   * acompanhamentos, quatro.
+   */
+  servicos?: DemoServico[];
 }
 
 /** Valor inicial do campo "alinhamento" da aba Tema, por abertura. */
@@ -83,6 +98,7 @@ const DECLARACOES: Declaracao[] = [
       contato: "rodape",
     },
     ordem: ["hero", "cardapio", "bebidas", "acompanhamentos", "contato"],
+    // A cópia desta variante é a do material bruto — ela É o exemplo base.
   },
   {
     id: "balcao",
@@ -104,6 +120,79 @@ const DECLARACOES: Declaracao[] = [
       "flutuante-bacon": "nenhum",
       "flutuante-queijo": "nenhum",
       "flutuante-bebida": "nenhum",
+    },
+    slogan: "Smash na chapa, pronto em cinco minutos.",
+    servicos: [
+      {
+        nome: "Smash Duplo",
+        preco: "",
+        precoValor: 26,
+        descricao: "Dois discos de 90g prensados na chapa, cheddar, cebola e molho da casa no pão de batata.",
+      },
+      {
+        nome: "Smash Simples",
+        preco: "",
+        precoValor: 19,
+        descricao: "Um disco de 90g, cheddar derretido e picles. O de sempre, o de todo dia.",
+      },
+      {
+        nome: "Smash Bacon",
+        preco: "",
+        precoValor: 29,
+        descricao: "Dois discos, bacon crocante e cheddar duplo. Pra quem pulou o café da manhã.",
+      },
+      {
+        nome: "Smash Salada",
+        preco: "",
+        precoValor: 22,
+        descricao: "Disco de 90g, alface, tomate e maionese verde. Leve, mas ainda é smash.",
+      },
+      {
+        nome: "Frango na Chapa",
+        preco: "",
+        precoValor: 24,
+        descricao: "Filé de frango prensado, queijo prato e molho de mostarda com mel.",
+      },
+      {
+        nome: "Smash Veggie",
+        preco: "",
+        precoValor: 23,
+        descricao: "Disco de grão-de-bico prensado na chapa, queijo prato e rúcula.",
+      },
+    ],
+    textos: {
+      hero: {
+        texto: "Chapa quente das 11h às 15h. Pede no balcão, come em pé ou leva pro escritório.",
+        cta: "VER A COMANDA",
+      },
+      cardapio: { rotulo: "COMANDA", titulo: "Hoje na chapa" },
+      bebidas: {
+        rotulo: "BEBIDAS",
+        titulo: "Pra descer",
+        itens: [
+          { titulo: "Refrigerante lata", subtitulo: "R$ 6,00" },
+          { titulo: "Suco de laranja", subtitulo: "R$ 8,00" },
+          { titulo: "Água com gás", subtitulo: "R$ 5,00" },
+          { titulo: "Limonada suíça", subtitulo: "R$ 7,00" },
+          { titulo: "Café coado", subtitulo: "R$ 4,00" },
+        ],
+      },
+      acompanhamentos: {
+        rotulo: "PRA ACOMPANHAR",
+        titulo: "Fecha o combo",
+        itens: [
+          { titulo: "Batata frita", subtitulo: "R$ 12,00" },
+          { titulo: "Batata com cheddar", subtitulo: "R$ 18,00" },
+          { titulo: "Anéis de cebola", subtitulo: "R$ 14,00" },
+          { titulo: "Salada de repolho", subtitulo: "R$ 8,00" },
+        ],
+      },
+      contato: {
+        rotulo: "CONTATO",
+        titulo: "Onde fica o balcão",
+        cta: "Chamar no WhatsApp",
+        texto: "SEG A SEX, 11H ÀS 15H",
+      },
     },
   },
   {
@@ -132,6 +221,85 @@ const DECLARACOES: Declaracao[] = [
       "flutuante-queijo": "nenhum",
       "flutuante-bebida": "nenhum",
     },
+    slogan: "Blend próprio, maturado sete dias.",
+    servicos: [
+      {
+        nome: "Blend da Casa",
+        preco: "",
+        precoValor: 58,
+        descricao:
+          "Acém, peito e costela moídos na hora, 180g, selados na chapa de ferro. Queijo prato curado, cebola confitada no próprio gordura e maionese de ervas, no pão de leite assado aqui.",
+      },
+      {
+        nome: "Costela e Café",
+        preco: "",
+        precoValor: 72,
+        descricao:
+          "Costela desfiada em cocção lenta de seis horas, finalizada com um caramelo de café e melado. Queijo canastra, picles de cebola roxa e pão australiano.",
+      },
+      {
+        nome: "Brie e Pera",
+        preco: "",
+        precoValor: 68,
+        descricao:
+          "Blend de 180g, brie derretido na chapa, pera assada com tomilho e rúcula. O doce da fruta corta a gordura — é o lanche que costuma surpreender quem pede.",
+      },
+      {
+        nome: "Dry Aged 45",
+        preco: "",
+        precoValor: 89,
+        descricao:
+          "Maturação a seco de 45 dias, 200g, sal grosso e mais nada por cima. Queijo gruyère, cebola crua e pão de fermentação natural. Quantidade limitada por noite.",
+      },
+      {
+        nome: "Cordeiro e Hortelã",
+        preco: "",
+        precoValor: 76,
+        descricao:
+          "Paleta de cordeiro moída na hora, 180g, iogurte de hortelã, cebola roxa e pepino em conserva. Pão de azeite, levemente tostado na manteiga.",
+      },
+      {
+        nome: "Beterraba Defumada",
+        preco: "",
+        precoValor: 54,
+        descricao:
+          "Beterraba defumada no bafo e grão-de-bico, 160g, queijo de castanha, tomate confitado e agrião. Feito na mesma chapa, com o mesmo cuidado dos outros.",
+      },
+    ],
+    textos: {
+      hero: {
+        texto: "Casa com mesa, serviço e carta de cerveja artesanal. Reserva pelo WhatsApp.",
+        cta: "VER O MENU",
+      },
+      cardapio: { rotulo: "MENU", titulo: "Os nossos cortes" },
+      bebidas: {
+        rotulo: "CARTA",
+        titulo: "Cervejas e vinhos",
+        itens: [
+          { titulo: "IPA da casa, 500ml", subtitulo: "R$ 28,00" },
+          { titulo: "Pilsen tcheca, 500ml", subtitulo: "R$ 24,00" },
+          { titulo: "Stout de café, 330ml", subtitulo: "R$ 32,00" },
+          { titulo: "Tinto da casa, taça", subtitulo: "R$ 34,00" },
+          { titulo: "Kombucha de hibisco", subtitulo: "R$ 18,00" },
+        ],
+      },
+      acompanhamentos: {
+        rotulo: "ACOMPANHA",
+        titulo: "Para dividir",
+        itens: [
+          { titulo: "Batata rústica com alecrim", subtitulo: "R$ 26,00" },
+          { titulo: "Aipim frito com aioli", subtitulo: "R$ 24,00" },
+          { titulo: "Salada verde da estação", subtitulo: "R$ 22,00" },
+          { titulo: "Pão de alho na brasa", subtitulo: "R$ 19,00" },
+        ],
+      },
+      contato: {
+        rotulo: "CONTATO",
+        titulo: "Reservar uma mesa",
+        cta: "Falar com a casa",
+        texto: "COZINHA ABERTA ATÉ 23H",
+      },
+    },
   },
   {
     id: "praca",
@@ -148,6 +316,79 @@ const DECLARACOES: Declaracao[] = [
       contato: "bloco",
     },
     ordem: ["hero", "contato", "cardapio", "acompanhamentos", "bebidas"],
+    slogan: "O truck muda de praça. O lanche não.",
+    servicos: [
+      {
+        nome: "Truck Clássico",
+        preco: "",
+        precoValor: 28,
+        descricao: "160g na brasa, queijo prato, alface e tomate. O primeiro que a gente fez.",
+      },
+      {
+        nome: "Cheddar Melt",
+        preco: "",
+        precoValor: 34,
+        descricao: "160g, cheddar derretido por cima e por baixo, cebola caramelizada.",
+      },
+      {
+        nome: "Bacon na Brasa",
+        preco: "",
+        precoValor: 36,
+        descricao: "160g, bacon grelhado na hora e barbecue defumado no pão australiano.",
+      },
+      {
+        nome: "Duplo da Praça",
+        preco: "",
+        precoValor: 39,
+        descricao: "Dois discos de 120g, queijo duplo e picles. Não cabe numa mão só.",
+      },
+      {
+        nome: "Frango Empanado",
+        preco: "",
+        precoValor: 30,
+        descricao: "Sobrecoxa empanada na hora, maionese de limão e repolho crocante.",
+      },
+      {
+        nome: "Grão e Brasa",
+        preco: "",
+        precoValor: 27,
+        descricao: "Disco de grão-de-bico na brasa, queijo prato e tomate assado.",
+      },
+    ],
+    textos: {
+      hero: {
+        texto: "Sexta e sábado, de praça em praça. Segue pra saber onde a gente para hoje.",
+        cta: "VER O QUE TEM HOJE",
+      },
+      cardapio: { rotulo: "NA JANELA", titulo: "O que sai do truck" },
+      bebidas: {
+        rotulo: "GELADAS",
+        titulo: "Tirado do gelo",
+        itens: [
+          { titulo: "Cerveja long neck", subtitulo: "R$ 12,00" },
+          { titulo: "Refrigerante lata", subtitulo: "R$ 7,00" },
+          { titulo: "Suco de maracujá", subtitulo: "R$ 10,00" },
+          { titulo: "Água de coco", subtitulo: "R$ 9,00" },
+          { titulo: "Água mineral", subtitulo: "R$ 5,00" },
+        ],
+      },
+      acompanhamentos: {
+        rotulo: "PRA DIVIDIR",
+        titulo: "Vai junto",
+        itens: [
+          { titulo: "Fritas na caixa", subtitulo: "R$ 18,00" },
+          { titulo: "Fritas com bacon", subtitulo: "R$ 26,00" },
+          { titulo: "Anéis de cebola", subtitulo: "R$ 20,00" },
+          { titulo: "Nuggets caseiros", subtitulo: "R$ 16,00" },
+        ],
+      },
+      contato: {
+        rotulo: "CONTATO",
+        titulo: "Onde estamos hoje",
+        cta: "Ver a localização",
+        texto: "SIGA O TRUCK",
+      },
+    },
   },
 ];
 
@@ -173,6 +414,7 @@ export const LANCHERIA_VARIANTES: readonly SkinVariante[] = DECLARACOES.map((d) 
   const exemplo: DemoData = {
     ...LANCHERIA_EXEMPLO,
     ...(d.slogan && { slogan: d.slogan }),
+    ...(d.servicos && { servicos: d.servicos }),
     secoes: Object.fromEntries(
       Object.entries(LANCHERIA_EXEMPLO.secoes).map(([id, secao]) => [
         id,
