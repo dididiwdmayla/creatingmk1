@@ -5,11 +5,21 @@ import type { DemoData } from "@/lib/demos/types";
  * pré-preenche e sobrescreve. O copy vem do material bruto
  * (skins-raw/lancheria), com marca e fotos genéricas: nada aqui identifica
  * o cliente original (Ingarandi Burger, Sarandi/PR).
+ *
+ * **Sem `endereco`.** Um endereço fictício no exemplo não é conteúdo
+ * neutro: `dadosDoLead` omite campo ausente em vez de apagá-lo, então um
+ * lead SEM endereço herdava "Av. Principal, 500 — Centro" e a demo pública
+ * publicava uma rua inventada como se fosse a do negócio. `CAMPOS_IDENTIDADE`
+ * — endereço, cidade, telefone, whatsapp, instagram, horários — não tem
+ * default plausível: ou vem do lead, ou não existe.
+ *
+ * Com isso, a escada de identidade (ver `escadaDeDados` em ./Skin.tsx) nasce
+ * VAZIA no exemplo, e a regra do vazio da §7 do plano passa a ser o caminho
+ * NORMAL do harness e da demo avulsa, não uma borda que só um teste visita.
  */
 export const LANCHERIA_EXEMPLO: DemoData = {
   nome: "CHAPA BURGER",
   slogan: "Hambúrgueres artesanais feitos com obsessão.",
-  endereco: "Av. Principal, 500 — Centro",
   servicos: [
     {
       nome: "Smash Clássico",
