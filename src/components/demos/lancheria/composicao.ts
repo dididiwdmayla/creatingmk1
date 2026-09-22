@@ -49,7 +49,7 @@ export const LANCHERIA_COMPOSICAO_CSS = `
   --ch-foto-lavagem: color-mix(in srgb, var(--d-bg) 14%, transparent);
   --ch-hero-tam: clamp(3.25rem, 13vw, 9rem);
   --ch-hero-traco: 8px;
-  --ch-hero-sombra: 10px 10px 0px var(--d-bg);
+  --ch-hero-sombra: drop-shadow(10px 10px 0px var(--d-bg));
   --ch-hero-cor: var(--d-accent-2);
   --ch-campo: transparent;
   --ch-veu-dir: to right;
@@ -79,13 +79,28 @@ export const LANCHERIA_COMPOSICAO_CSS = `
 .ch .ch-prato-foto { position: relative; width: 100%; height: 12rem; overflow: hidden; }
 .ch .ch-prato-corpo { grid-area: corpo; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
 .ch .ch-prato-rodape { grid-area: rodape; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+/* A frase do hover ocupa a MESMA área de grade da foto: sobrepõe sem
+   coordenada e sem ficar presa ao \`overflow: hidden\` da caixa da foto. */
+.ch .ch-prato-frase {
+  grid-area: foto; align-self: start; justify-self: center; z-index: 30;
+  display: flex; justify-content: center; margin-top: .5rem;
+}
 
-.ch .ch-lista { display: flex; gap: 1rem; overflow-x: auto; }
+/* Sangra até a borda da tela no celular (o trilho do material bruto corre
+   de ponta a ponta); volta à caixa da seção no desktop. */
+.ch .ch-lista {
+  display: flex; gap: 1rem; overflow-x: auto;
+  width: calc(100% + 2rem); margin-inline: -1rem; padding-inline: 1rem;
+}
 .ch .ch-item { display: flex; flex-direction: column; flex: 0 0 auto; width: 150px; }
 .ch .ch-item-foto { position: relative; width: 100%; aspect-ratio: 1; margin-bottom: .75rem; }
 .ch .ch-item-corpo { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; }
 .ch .ch-item-rodape { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 
+/* A tarja de esmaecimento é a dica de que a lista CORRE. Composição que
+   não rola (chips, carta, grade4, quadros, linha) não tem o que esmaecer —
+   e a tarja ficava por cima do último item, comendo o botão dele. */
+.ch .ch-lista-fade { display: none; }
 .ch .ch-contato-caixa { display: flex; flex-direction: column; align-items: center; gap: 3rem; }
 .ch .ch-contato-rodape { display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 1rem; }
 .ch .ch-dados { display: flex; flex-direction: column; gap: .75rem; }
@@ -106,10 +121,14 @@ export const LANCHERIA_COMPOSICAO_CSS = `
 .ch[data-ch-abertura="ficha"] .ch-hero-fundo,
 .ch[data-ch-abertura="cisao"] .ch-hero-fundo,
 .ch[data-ch-abertura="pilha"] .ch-hero-fundo { position: relative; inset: auto; }
+/* \`order\` decide a colocação na grade, e o indicador de rolagem é o último
+   filho do hero — sem esta linha ele cai ANTES do corpo (order 0 < 1) e o
+   "ROLE" abre a abertura em vez de fechá-la. */
 .ch[data-ch-abertura="ficha"] .ch-hero-role,
 .ch[data-ch-abertura="cisao"] .ch-hero-role,
 .ch[data-ch-abertura="pilha"] .ch-hero-role {
-  position: static; transform: none; margin-top: 2rem; align-self: center;
+  position: static; transform: none; margin-top: 2rem; order: 3;
+  justify-self: center; align-self: center;
 }
 
 .ch[data-ch-abertura="ficha"] .ch-hero {
@@ -119,7 +138,7 @@ export const LANCHERIA_COMPOSICAO_CSS = `
 .ch[data-ch-abertura="ficha"] {
   --ch-hero-tam: clamp(2.25rem, 8vw, 4rem);
   --ch-hero-traco: 3px;
-  --ch-hero-sombra: 4px 4px 0px var(--d-bg);
+  --ch-hero-sombra: drop-shadow(4px 4px 0px var(--d-bg));
 }
 .ch[data-ch-abertura="ficha"] .ch-hero-fundo {
   order: 1; height: 10rem; width: 100%; overflow: hidden;
@@ -155,22 +174,31 @@ export const LANCHERIA_COMPOSICAO_CSS = `
   align-content: center; justify-items: center; padding: 7rem 1rem 3rem;
   background: var(--ch-campo);
 }
+/* O campo é a cor de AÇÃO e a tinta é o \`destaqueInk\` dela: esse par é o
+   único da paleta que a Forja garante legível um sobre o outro, em claro e
+   em escuro. Com \`acentoSecundario\` + \`fundo\` a pilha ficava amarelo sobre
+   creme numa variante clara. */
 .ch[data-ch-abertura="pilha"] {
-  --ch-campo: var(--d-accent-2);
-  --ch-hero-cor: var(--d-bg);
+  --ch-campo: var(--d-accent);
+  --ch-hero-cor: var(--d-accent-ink);
   --ch-hero-tam: clamp(3.5rem, 17vw, 8rem);
   --ch-hero-traco: 0px;
-  --ch-hero-sombra: 6px 6px 0px color-mix(in srgb, var(--d-bg) 22%, transparent);
+  --ch-hero-sombra: drop-shadow(6px 6px 0px color-mix(in srgb, var(--d-bg) 22%, transparent));
 }
 .ch[data-ch-abertura="pilha"] .ch-hero-corpo { order: 1; align-items: center; text-align: center; }
 .ch[data-ch-abertura="pilha"] .ch-hero-fundo {
   order: 2; width: 9rem; height: 9rem; border-radius: 9999px; overflow: hidden;
   border: 4px solid var(--d-bg);
 }
-/* O campo de cor come o texto de apoio e o indicador de rolagem: nesta
-   abertura eles ficam SOBRE o acento, não sobre o fundo. */
+/* Tudo que cai no campo de cor troca de tinta junto — inclusive o CTA,
+   que é da cor do campo e sumiria nele. */
 .ch[data-ch-abertura="pilha"] .ch-hero-texto,
-.ch[data-ch-abertura="pilha"] .ch-hero-role { color: var(--d-bg); opacity: .85; }
+.ch[data-ch-abertura="pilha"] .ch-hero-role { color: var(--d-accent-ink); opacity: .88; }
+.ch[data-ch-abertura="pilha"] .ch-hero-cta {
+  background: var(--d-accent-ink); color: var(--d-accent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--d-bg) 25%, transparent);
+}
+.ch[data-ch-abertura="pilha"] .ch-hero-fundo { border-color: var(--d-accent-ink); }
 
 /* ── CARDÁPIO ──────────────────────────────────────────────────────────
    grade:     três colunas de cards com lente no hover (material bruto).
@@ -220,19 +248,15 @@ export const LANCHERIA_COMPOSICAO_CSS = `
   height: auto; aspect-ratio: 1; border-radius: 0;
 }
 .ch[data-ch-cardapio="mural"] .ch-prato-corpo { padding: 0 .75rem; }
-.ch[data-ch-cardapio="mural"] .ch-prato-rodape {
-  position: absolute; inset: .5rem .5rem auto .5rem; z-index: 20;
-  align-items: flex-start; pointer-events: none;
-}
+.ch[data-ch-cardapio="mural"] .ch-prato-rodape { padding: 0 .75rem .9rem; }
+/* SÓ o preço vai pra cima da foto. O primeiro desenho levava o botão
+   junto, e num cartão de 170px (duas colunas no celular) a pílula
+   "ESCOLHER" saía pela borda direita, cortada pelo \`overflow: hidden\`. */
 .ch[data-ch-cardapio="mural"] .ch-prato-preco {
+  position: absolute; top: .5rem; left: .5rem; z-index: 20;
   background: color-mix(in srgb, var(--d-bg) 82%, transparent);
   border-radius: 9999px; padding: .15rem .6rem;
 }
-.ch[data-ch-cardapio="mural"] .ch-prato-cta { pointer-events: auto; }
-/* Sem esta linha o rodapé absoluto deixa uma faixa de grade vazia no fim
-   do cartão — a caixa continua reservando a linha dele. */
-.ch[data-ch-cardapio="mural"] .ch-prato { grid-template-areas: "foto" "corpo"; }
-.ch[data-ch-cardapio="mural"] .ch-prato-corpo { padding-bottom: .9rem; }
 
 /* ── BEBIDAS ───────────────────────────────────────────────────────────
    trilho: cards de 150/180px correndo na horizontal (material bruto).
@@ -283,6 +307,7 @@ export const LANCHERIA_COMPOSICAO_CSS = `
   gap: .5rem; overflow: visible;
 }
 .ch[data-ch-acomp="quadros"] .ch-acomp .ch-item { width: auto; padding: .5rem; }
+.ch[data-ch-acomp="quadros"] .ch-acomp .ch-lista-caixa { max-width: 34rem; }
 .ch[data-ch-acomp="quadros"] .ch-acomp .ch-item-foto { margin-bottom: .5rem; }
 
 .ch[data-ch-acomp="linha"] .ch-acomp .ch-lista {
@@ -336,9 +361,12 @@ export const LANCHERIA_COMPOSICAO_CSS = `
 .ch[data-ch-contato="bloco"] .ch-dados {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem;
 }
-/* A seção está no TOPO da página: a barra de copyright vira fita fina em
-   cima do bloco, senão o rodapé da casa abriria o site. */
-.ch[data-ch-contato="bloco"] .ch-contato-rodape { order: -1; margin-bottom: 1.5rem; padding-top: 0; }
+/* A seção ABRE a página: borda grossa em cima seria o segundo fio logo
+   abaixo do hero. Ela desce e vira o fio que separa o bloco do cardápio. */
+.ch[data-ch-contato="bloco"] .ch-contato {
+  border-top-width: 0; border-bottom: 8px solid var(--d-accent-2);
+  padding-top: 2.5rem;
+}
 
 @media (min-width: 640px) {
   .ch .ch-prato {
@@ -357,6 +385,10 @@ export const LANCHERIA_COMPOSICAO_CSS = `
 
 @media (min-width: 768px) {
   .ch .ch-cardapio-lista { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; }
+  .ch .ch-lista { width: auto; margin-inline: 0; padding-inline: 0; }
+  .ch[data-ch-bebidas="trilho"] .ch-bebidas .ch-lista-fade,
+  .ch[data-ch-acomp="trilho"] .ch-acomp .ch-lista-fade,
+  .ch[data-ch-acomp="tira"] .ch-acomp .ch-lista-fade { display: block; }
   .ch .ch-item { width: 180px; }
   .ch .ch-contato-caixa { flex-direction: row; justify-content: space-between; align-items: flex-start; }
   .ch .ch-contato-rodape { flex-direction: row; align-items: center; }
@@ -402,7 +434,9 @@ export const LANCHERIA_COMPOSICAO_CSS = `
   }
   .ch[data-ch-cardapio="editorial"] .ch-prato-rodape { align-self: start; }
 
-  .ch[data-ch-cardapio="mural"] .ch-cardapio-lista { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+  /* DUAS colunas também no desktop: em três, o mural viraria a grade da
+     chapa e o eixo de drasticidade do cardápio perderia um dos quatro. */
+  .ch[data-ch-cardapio="mural"] .ch-cardapio-lista { gap: 1rem; }
 
   .ch[data-ch-bebidas="grade4"] .ch-bebidas .ch-lista { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .ch[data-ch-acomp="quadros"] .ch-acomp .ch-lista { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -417,7 +451,6 @@ export const LANCHERIA_COMPOSICAO_CSS = `
   .ch .ch-cardapio-lista { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .ch[data-ch-cardapio="comanda"] .ch-cardapio-lista,
   .ch[data-ch-cardapio="editorial"] .ch-cardapio-lista { grid-template-columns: minmax(0, 1fr); }
-  .ch[data-ch-cardapio="mural"] .ch-cardapio-lista { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 /* ── Alinhamento da abertura (aba Tema) ────────────────────────────────
    \`heroTitulo.alinhamento\` é escolha do OPERADOR, e a composição também

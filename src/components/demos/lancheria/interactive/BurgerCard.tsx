@@ -111,35 +111,18 @@ export function BurgerCard({
       whileInView={entradaAtiva ? { opacity: 1, y: 0 } : undefined}
       viewport={{ once: true, margin: "-50px" }}
       transition={{ duration: preset.duration, ease: "easeOut" }}
-      className="d-card-hover group relative flex flex-col gap-4 overflow-hidden rounded-[var(--d-radius)] bg-[var(--d-bg-elev)] p-4 shadow-2xl sm:flex-row"
-      style={{ border: "1px solid var(--d-border)" }}
+      /* A borda é CLASSE, não `style` inline: inline vence folha de estilo,
+         e a comanda/o editorial precisam trocá-la por um fio só embaixo
+         (ver ../composicao.ts). */
+      className="ch-prato d-card-hover group overflow-hidden rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg-elev)] p-4 shadow-2xl"
     >
       <div
-        className="relative h-48 w-full shrink-0 cursor-crosshair overflow-hidden rounded-[calc(var(--d-radius)*0.7)] bg-black/10 sm:h-28 sm:w-28"
+        className="ch-prato-foto shrink-0 cursor-crosshair rounded-[calc(var(--d-radius)*0.7)] bg-black/10"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
-        <AnimatePresence>
-          {isLensActive && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.2 }}
-              className="pointer-events-none absolute top-2 z-20 flex w-full justify-center"
-            >
-              <span
-                className="rotate-[-6deg] font-[family-name:var(--d-display)] text-sm text-[var(--d-accent-2)] md:text-base"
-                style={{ WebkitTextStroke: "1px var(--d-bg)" } as React.CSSProperties}
-              >
-                {currentPhrase}
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         <div className="absolute inset-0">
           <Image
             src={imageSrc}
@@ -152,7 +135,7 @@ export function BurgerCard({
           />
         </div>
 
-        <motion.div className="pointer-events-none absolute inset-0 z-10" style={{ clipPath }}>
+        <motion.div className="ch-prato-lente pointer-events-none absolute inset-0 z-10" style={{ clipPath }}>
           <Image
             src={platoVazioSrc}
             alt=""
@@ -165,39 +148,64 @@ export function BurgerCard({
         </motion.div>
       </div>
 
-      <div className="flex flex-1 flex-col justify-center">
+      <div className="ch-prato-corpo">
         <h3
           data-demo-slot={`servicos.${index}.nome`}
-          className="font-[family-name:var(--d-display)] text-xl uppercase italic text-[var(--d-text)]"
+          className="ch-prato-nome font-[family-name:var(--d-display)] text-xl uppercase italic text-[var(--d-text)]"
         >
           {servico.nome}
         </h3>
         {servico.descricao && (
           <p
             data-demo-slot={`servicos.${index}.descricao`}
-            className="mb-3 flex-grow font-[family-name:var(--d-corpo)] text-xs leading-tight text-[var(--d-muted)]"
+            className="ch-prato-desc mt-1 font-[family-name:var(--d-corpo)] text-xs leading-tight text-[var(--d-muted)]"
           >
             {servico.descricao}
           </p>
         )}
-        <div className="mt-auto flex items-center justify-between gap-3">
-          <span
-            data-demo-slot={`servicos.${index}.preco`}
-            className="font-[family-name:var(--d-mono)] text-lg font-bold text-[var(--d-accent-3)]"
-          >
-            {formatarPrecoServico(servico, idioma, moeda)}
-          </span>
-          <OrderCta
-            whatsapp={whatsapp}
-            mensagem={`Olá! Quero pedir: ${servico.nome}.`}
-            idioma={idioma}
-            aria-label={`Escolher ${servico.nome}`}
-            className="d-cta-pill"
-          >
-            ESCOLHER
-          </OrderCta>
-        </div>
       </div>
+
+      <div className="ch-prato-rodape">
+        <span
+          data-demo-slot={`servicos.${index}.preco`}
+          className="ch-prato-preco font-[family-name:var(--d-mono)] text-lg font-bold text-[var(--d-accent-3)]"
+        >
+          {formatarPrecoServico(servico, idioma, moeda)}
+        </span>
+        <OrderCta
+          whatsapp={whatsapp}
+          mensagem={`Olá! Quero pedir: ${servico.nome}.`}
+          idioma={idioma}
+          aria-label={`Escolher ${servico.nome}`}
+          className="ch-prato-cta d-cta-pill"
+        >
+          ESCOLHER
+        </OrderCta>
+      </div>
+
+      {/* A frase do hover é irmã da foto, não filha: na comanda ela precisa
+          sair de uma miniatura de 64px e ir para o lado da linha, e a caixa
+          da foto tem `overflow: hidden`. Ela ocupa a MESMA área de grade da
+          foto (ver .ch-prato-frase em ../composicao.ts), então sobrepõe sem
+          depender de coordenada. */}
+      <AnimatePresence>
+        {isLensActive && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.2 }}
+            className="ch-prato-frase pointer-events-none"
+          >
+            <span
+              className="rotate-[-6deg] font-[family-name:var(--d-display)] text-sm text-[var(--d-accent-2)] md:text-base"
+              style={{ WebkitTextStroke: "1px var(--d-bg)" } as React.CSSProperties}
+            >
+              {currentPhrase}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

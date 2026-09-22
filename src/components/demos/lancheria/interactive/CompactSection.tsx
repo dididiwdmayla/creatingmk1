@@ -28,10 +28,12 @@ function CompactCard({
 }) {
   return (
     <div
-      className="d-card-hover flex w-[150px] shrink-0 flex-col rounded-[var(--d-radius)] bg-[var(--d-bg-elev)] p-3 shadow-lg md:w-[180px]"
-      style={{ border: "1px solid var(--d-border)" }}
+      /* Borda em CLASSE pelo mesmo motivo do cartão do cardápio: a carta e a
+         linha discreta trocam o cartão por um fio só (ver ../composicao.ts),
+         e `style` inline não deixaria. */
+      className="ch-item d-card-hover rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg-elev)] p-3 shadow-lg"
     >
-      <div className="relative mb-3 aspect-square w-full shrink-0 rounded-[calc(var(--d-radius)*0.7)] bg-black/10 p-2">
+      <div className="ch-item-foto shrink-0 rounded-[calc(var(--d-radius)*0.7)] bg-black/10 p-2">
         <Image
           src={imageSrc}
           alt={item.titulo}
@@ -42,18 +44,18 @@ function CompactCard({
           sizes="(max-width: 768px) 150px, 180px"
         />
       </div>
-      <div className="flex flex-1 flex-col">
+      <div className="ch-item-corpo">
         <h3
           data-demo-slot={`${textSlot}.titulo`}
-          className="mb-2 line-clamp-2 font-[family-name:var(--d-corpo)] text-sm font-bold leading-tight text-[var(--d-text)]"
+          className="ch-item-titulo mb-2 line-clamp-2 font-[family-name:var(--d-corpo)] text-sm font-bold leading-tight text-[var(--d-text)]"
         >
           {item.titulo}
         </h3>
-        <div className="mt-auto flex items-center justify-between">
+        <div className="ch-item-rodape">
           {item.subtitulo && (
             <span
               data-demo-slot={`${textSlot}.subtitulo`}
-              className="font-[family-name:var(--d-mono)] text-sm font-bold text-[var(--d-accent-3)]"
+              className="ch-item-sub font-[family-name:var(--d-mono)] text-sm font-bold text-[var(--d-accent-3)]"
             >
               {item.subtitulo}
             </span>
@@ -63,7 +65,7 @@ function CompactCard({
             mensagem={`Olá! Quero pedir: ${item.titulo}.`}
             idioma={idioma}
             aria-label={`Adicionar ${item.titulo}`}
-            className="d-cta-round d-cta-round-sm"
+            className="ch-item-cta d-cta-round d-cta-round-sm"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -96,10 +98,10 @@ export function CompactSection({
   if (itens.length === 0) return null;
 
   return (
-    <div className="relative">
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-12 bg-gradient-to-l from-[var(--d-bg)] to-transparent md:block" />
+    <div className="ch-lista-caixa relative">
+      <div className="ch-lista-fade pointer-events-none absolute inset-y-0 right-0 z-10 hidden w-12 bg-gradient-to-l from-[var(--d-bg)] to-transparent md:block" />
       <div
-        className="scrollbar-hide flex w-[calc(100%+2rem)] -mx-4 snap-x snap-mandatory gap-4 overflow-x-auto py-2 pb-6 pl-4 pr-10 md:mx-0 md:w-auto md:px-0 md:pr-0"
+        className="ch-lista scrollbar-hide snap-x snap-mandatory py-2 pb-6"
         id={`${id}-scroll`}
       >
         {itens.map((item, i) => (

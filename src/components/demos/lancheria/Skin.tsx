@@ -14,6 +14,7 @@ import { IntroExperience } from "./interactive/IntroExperience";
 import { LedEdges } from "./interactive/LedEdges";
 import { OrderCta } from "./interactive/OrderCta";
 import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
+import { LANCHERIA_COMPOSICAO_CSS, LANCHERIA_COMPOSICAO_PADRAO } from "./composicao";
 import { LANCHERIA_DECORATIVE_FLOATS } from "./decorativeFloats";
 import { LANCHERIA_SECOES } from "./secoes";
 
@@ -33,6 +34,18 @@ import { LANCHERIA_SECOES } from "./secoes";
  * Componente PURO: todo texto/imagem vem de `data`, toda cor/fonte/raio/
  * densidade vem de `theme` (aplicado como CSS vars no wrapper). Estrutura
  * editável igual às demais skins — ver lib/demos/estrutura.ts.
+ *
+ * As CINCO seções têm um caminho de render só, parametrizado por
+ * `theme.chapa` (`ChapaComposicao`): o JSX emite sempre a mesma árvore, com
+ * as mesmas classes `ch-*`, e quem decide a FORMA é a folha de
+ * ./composicao.ts, lida pelos `data-ch-*` do wrapper. É por isso que as
+ * quatro variantes conseguem ser quatro tipos de casa sem que `data-d-secao`
+ * deixe de ser garantia (ver __tests__/variantes.test.tsx).
+ *
+ * A única decisão de composição que o JSX toma — e toma porque folha de
+ * estilo não muda nome de tag — é `contato` virar `<section>` na `praca`:
+ * lá o bloco "onde estamos hoje" abre a página, e um `<footer>` no topo
+ * seria mentira semântica. Mesmo `data-d-secao`, mesmos slots, mesma âncora.
  */
 
 const SECTION_PAD: Record<Densidade, string> = {
@@ -129,11 +142,12 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
     "--d-hover-lift": ANIM_HOVER_LIFT[theme.animacao],
   } as CSSProperties;
 
-  const HERO_ALINHAMENTO: Record<string, string> = {
-    esquerda: "items-start text-left",
-    centro: "items-center text-center",
-    direita: "items-end text-right",
-  };
+  /**
+   * A composição desta variante. Tema sem `chapa` (demo antiga, preset
+   * cru, harness sem preset) cai no desenho do material bruto — a skin
+   * nunca fica sem forma.
+   */
+  const comp = theme.chapa ?? LANCHERIA_COMPOSICAO_PADRAO;
 
   const s = data.secoes;
 
@@ -164,9 +178,9 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
     hero: () => (
       <section
         id="topo"
-        className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden pt-16"
+        className="ch-hero relative min-h-screen w-full overflow-hidden pt-16"
       >
-        <div className="absolute inset-0 z-0 bg-[var(--d-bg)]">
+        <div className="ch-hero-fundo bg-[var(--d-bg)]">
           <Placeholder
             src={data.imagens.hero}
             alt={`Ambiente de ${data.nome}`}
@@ -174,21 +188,20 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
             priority
             slot="imagens.hero"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[var(--d-bg)] via-[var(--d-bg)]/70 to-[var(--d-bg)]/30" />
+          <div className="ch-hero-veu" />
         </div>
 
-        <div
-          className={`relative z-20 flex w-full flex-col px-4 pt-16 ${HERO_ALINHAMENTO[theme.heroTitulo.alinhamento]}`}
-        >
+        <div className="ch-hero-corpo px-4 pt-16">
           <div className="mb-6 flex flex-col leading-[0.9]">
             <h1
               data-demo-slot="secoes.hero.titulo"
-              className="w-full whitespace-pre-line font-[family-name:var(--d-hero-font)] uppercase leading-[0.85] tracking-tight text-[var(--d-accent-2)]"
+              className="ch-hero-titulo w-full whitespace-pre-line font-[family-name:var(--d-hero-font)] uppercase leading-[0.85] tracking-tight"
               style={
                 {
-                  fontSize: "calc(clamp(3.25rem, 13vw, 9rem) * var(--d-hero-escala))",
-                  WebkitTextStroke: "8px var(--d-bg)",
-                  filter: "drop-shadow(10px 10px 0px var(--d-bg))",
+                  fontSize: "calc(var(--ch-hero-tam) * var(--d-hero-escala))",
+                  color: "var(--ch-hero-cor)",
+                  WebkitTextStroke: "var(--ch-hero-traco) var(--d-bg)",
+                  filter: "var(--ch-hero-sombra)",
                   paintOrder: "stroke fill",
                 } as CSSProperties
               }
@@ -200,7 +213,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
           {s.hero?.texto && (
             <p
               data-demo-slot="secoes.hero.texto"
-              className="mb-10 max-w-xl font-[family-name:var(--d-corpo)] text-lg font-light leading-relaxed text-[var(--d-text)]/85 md:text-2xl"
+              className="ch-hero-texto mb-10 max-w-xl font-[family-name:var(--d-corpo)] text-lg font-light leading-relaxed text-[var(--d-text)]/85 md:text-2xl"
             >
               {s.hero.texto}
             </p>
@@ -210,14 +223,14 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
             <a
               href="#cardapio"
               data-demo-slot="secoes.hero.cta"
-              className="d-cta-pill d-cta-pill-lg"
+              className="ch-hero-cta d-cta-pill d-cta-pill-lg"
             >
               {s.hero.cta}
             </a>
           )}
         </div>
 
-        <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2 text-[var(--d-text)]/80">
+        <div className="ch-hero-role flex flex-col items-center gap-2 text-[var(--d-text)]/80">
           <span className="font-[family-name:var(--d-display)] text-sm uppercase tracking-widest">
             {m.role}
           </span>
@@ -233,20 +246,20 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Cardápio (lanches) ─────────────────────────────────── */
     cardapio: () =>
       data.servicos.length > 0 && (
-        <section id="cardapio" className="relative z-10 mx-auto max-w-7xl px-4 pb-8 pt-16">
-          <div className="mb-12 flex items-end justify-between gap-4 border-b border-[var(--d-border)] pb-4">
+        <section id="cardapio" className="ch-cardapio relative z-10 mx-auto max-w-7xl px-4 pb-8 pt-16">
+          <div className="ch-cabeca mb-12 flex items-end justify-between gap-4 border-b border-[var(--d-border)] pb-4">
             <div>
               <Rotulo texto={s.cardapio?.rotulo} slot="secoes.cardapio.rotulo" />
               <h2
                 data-demo-slot="secoes.cardapio.titulo"
-                className="font-[family-name:var(--d-display)] text-4xl uppercase italic text-[var(--d-accent-2)] md:text-5xl"
+                className="ch-titulo font-[family-name:var(--d-display)] text-4xl uppercase italic text-[var(--d-accent-2)] md:text-5xl"
               >
                 {s.cardapio?.titulo}
               </h2>
             </div>
           </div>
 
-          <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
+          <div className="ch-cardapio-lista mb-8">
             {data.servicos.map((servico, i) => (
               <BurgerCard
                 key={servico.nome}
@@ -274,12 +287,12 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Bebidas ────────────────────────────────────────────── */
     bebidas: () =>
       (s.bebidas?.itens?.length ?? 0) > 0 && (
-        <section id="bebidas" className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8">
-          <div className="mb-6 flex items-center border-b border-[var(--d-border)] pb-3">
+        <section id="bebidas" className="ch-bebidas relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8">
+          <div className="ch-cabeca mb-6 flex items-center border-b border-[var(--d-border)] pb-3">
             <div>
               <h2
                 data-demo-slot="secoes.bebidas.titulo"
-                className="font-[family-name:var(--d-display)] text-2xl uppercase italic tracking-tight text-[var(--d-accent-2)] md:text-3xl"
+                className="ch-titulo font-[family-name:var(--d-display)] text-2xl uppercase italic tracking-tight text-[var(--d-accent-2)] md:text-3xl"
               >
                 {s.bebidas?.titulo}
               </h2>
@@ -306,12 +319,12 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Acompanhamentos ────────────────────────────────────── */
     acompanhamentos: () =>
       (s.acompanhamentos?.itens?.length ?? 0) > 0 && (
-        <section id="acompanhamentos" className="relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8">
-          <div className="mb-6 flex items-center border-b border-[var(--d-border)] pb-3">
+        <section id="acompanhamentos" className="ch-acomp relative z-10 mx-auto max-w-7xl px-4 pb-12 pt-8">
+          <div className="ch-cabeca mb-6 flex items-center border-b border-[var(--d-border)] pb-3">
             <div>
               <h2
                 data-demo-slot="secoes.acompanhamentos.titulo"
-                className="font-[family-name:var(--d-display)] text-2xl uppercase italic tracking-tight text-[var(--d-accent-2)] md:text-3xl"
+                className="ch-titulo font-[family-name:var(--d-display)] text-2xl uppercase italic tracking-tight text-[var(--d-accent-2)] md:text-3xl"
               >
                 {s.acompanhamentos?.titulo}
               </h2>
@@ -335,110 +348,125 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
         </section>
       ),
 
-    /* ── Contato (rodapé) ──────────────────────────────────── */
-    contato: () => (
-      <footer
-        id="contato"
-        className={`relative overflow-hidden border-t-8 border-[var(--d-accent-2)] px-4 pb-8 pt-16 ${
-          centro("contato") ? "text-center" : "text-center md:text-left"
-        }`}
-        style={{ backgroundColor: "var(--d-bg)" }}
-      >
-        <div
-          className={`relative z-10 mx-auto mb-16 flex w-full max-w-4xl flex-col items-center gap-12 md:flex-row md:justify-between ${
-            centro("contato") ? "" : "md:items-start"
+    /* ── Contato ───────────────────────────────────────────── */
+    contato: () => {
+      /**
+       * `<section>` na `praca`, `<footer>` nas outras três: lá o bloco
+       * "onde estamos hoje" é a PRIMEIRA coisa da página (ver a ordem da
+       * variante), e rodapé no topo seria mentira semântica. É a única
+       * decisão de composição que o JSX toma — folha de estilo não troca
+       * nome de tag.
+       */
+      const Caixa = comp.contato === "bloco" ? "section" : "footer";
+      return (
+        <Caixa
+          id="contato"
+          className={`ch-contato relative overflow-hidden border-t-8 border-[var(--d-accent-2)] px-4 pb-8 pt-16 ${
+            centro("contato") ? "text-center" : "text-center md:text-left"
           }`}
+          style={{ backgroundColor: "var(--d-bg)" }}
         >
-          <div className="flex max-w-xs flex-col items-center md:items-start">
-            <h2
-              data-demo-slot="nome"
-              className="mb-4 font-[family-name:var(--d-deco)] text-3xl uppercase tracking-tight text-[var(--d-accent-2)]"
-              style={{
-                WebkitTextStroke: "1px var(--d-accent-2)",
-                filter: "drop-shadow(2px 2px 0px var(--d-accent))",
-              } as CSSProperties}
-            >
-              {data.nome}
-            </h2>
-            {data.slogan && (
-              <p data-demo-slot="slogan" className="font-[family-name:var(--d-corpo)] text-sm leading-relaxed text-[var(--d-muted)]">
-                {data.slogan}
-              </p>
-            )}
-          </div>
-
-          {data.horarios && (
-            <div className="flex flex-col items-center md:items-start">
-              <h3 className="mb-4 font-[family-name:var(--d-display)] text-xl uppercase tracking-widest text-[var(--d-muted)]">
-                Horário
-              </h3>
-              <p
-                data-demo-slot="horarios"
-                className="inline-block rounded bg-[var(--d-accent-2)]/10 px-3 py-1 font-[family-name:var(--d-mono)] text-[var(--d-accent-2)]"
-              >
-                {data.horarios}
-              </p>
-            </div>
-          )}
-
-          <div className="flex flex-col items-center md:items-start">
-            <h3
-              data-demo-slot="secoes.contato.titulo"
-              className="mb-4 font-[family-name:var(--d-display)] text-xl uppercase tracking-widest text-[var(--d-muted)]"
-            >
-              {s.contato?.titulo ?? "Contato"}
-            </h3>
-            {(data.endereco || data.cidade) && (
-              <p data-demo-slot={data.endereco ? "endereco" : "cidade"} className="mb-4 font-[family-name:var(--d-corpo)] text-sm text-[var(--d-text)]">
-                {data.endereco ?? data.cidade}
-              </p>
-            )}
-            {data.telefone && data.telefone !== data.whatsapp && (
-              <p data-demo-slot="telefone" className="mb-4 font-[family-name:var(--d-corpo)] text-sm text-[var(--d-text)]">
-                {data.telefone}
-              </p>
-            )}
-            {data.instagram && (
-              <a
-                href={`https://instagram.com/${data.instagram.replace(/^@/, "")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-demo-slot="instagram"
-                className="mb-4 font-[family-name:var(--d-corpo)] text-sm text-[var(--d-text)] transition-colors hover:text-[var(--d-accent-2)]"
-              >
-                {data.instagram}
-              </a>
-            )}
-            {s.contato?.cta && (
-              <OrderCta
-                whatsapp={data.whatsapp}
-                mensagem="Olá! Gostaria de fazer um pedido."
-                idioma={idioma}
-                slot="secoes.contato.cta"
-                className="d-cta-outline"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
-                </svg>
-                {s.contato.cta}
-              </OrderCta>
-            )}
-          </div>
-        </div>
-
-        <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-col items-center justify-between gap-4 border-t border-[var(--d-border)] pt-8 md:flex-row">
-          <p className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]">
-            © {new Date().getFullYear()} {data.nome}. {m.direitosReservados}
-          </p>
-          <p
-            data-demo-slot="secoes.contato.texto"
-            className="font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]/70"
+          <div
+            className={`ch-contato-caixa relative z-10 mx-auto mb-16 w-full max-w-4xl ${
+              centro("contato") ? "" : "md:items-start"
+            }`}
           >
-            {s.contato?.texto ?? "FEITO COM OBSESSÃO"}
-          </p>
-        </div>
-      </footer>
-    ),
+            <div className="ch-contato-marca flex max-w-xs flex-col items-center md:items-start">
+              <h2
+                data-demo-slot="nome"
+                className="ch-contato-nome mb-4 font-[family-name:var(--d-deco)] text-3xl uppercase tracking-tight text-[var(--d-accent-2)]"
+                style={{
+                  WebkitTextStroke: "1px var(--d-accent-2)",
+                  filter: "drop-shadow(2px 2px 0px var(--d-accent))",
+                } as CSSProperties}
+              >
+                {data.nome}
+              </h2>
+              {data.slogan && (
+                <p data-demo-slot="slogan" className="ch-contato-slogan font-[family-name:var(--d-corpo)] text-sm leading-relaxed text-[var(--d-muted)]">
+                  {data.slogan}
+                </p>
+              )}
+            </div>
+
+            <div className="ch-dados font-[family-name:var(--d-corpo)] text-sm">
+              {data.horarios && (
+                <div className="ch-dado">
+                  <span className="ch-dado-rotulo font-[family-name:var(--d-display)] text-xs uppercase tracking-widest text-[var(--d-muted)]">
+                    Horário
+                  </span>
+                  <span data-demo-slot="horarios" className="ch-dado-valor font-[family-name:var(--d-mono)] text-[var(--d-accent-2)]">
+                    {data.horarios}
+                  </span>
+                </div>
+              )}
+              {(data.endereco || data.cidade) && (
+                <div className="ch-dado">
+                  <span data-demo-slot={data.endereco ? "endereco" : "cidade"} className="ch-dado-valor text-[var(--d-text)]">
+                    {data.endereco ?? data.cidade}
+                  </span>
+                </div>
+              )}
+              {data.telefone && data.telefone !== data.whatsapp && (
+                <div className="ch-dado">
+                  <span data-demo-slot="telefone" className="ch-dado-valor text-[var(--d-text)]">
+                    {data.telefone}
+                  </span>
+                </div>
+              )}
+              {data.instagram && (
+                <div className="ch-dado">
+                  <a
+                    href={`https://instagram.com/${data.instagram.replace(/^@/, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-demo-slot="instagram"
+                    className="ch-dado-valor text-[var(--d-text)] transition-colors hover:text-[var(--d-accent-2)]"
+                  >
+                    {data.instagram}
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="ch-contato-acao flex flex-col items-center md:items-start">
+              <h3
+                data-demo-slot="secoes.contato.titulo"
+                className="ch-contato-titulo mb-4 font-[family-name:var(--d-display)] text-xl uppercase tracking-widest text-[var(--d-muted)]"
+              >
+                {s.contato?.titulo ?? "Contato"}
+              </h3>
+              {s.contato?.cta && (
+                <OrderCta
+                  whatsapp={data.whatsapp}
+                  mensagem="Olá! Gostaria de fazer um pedido."
+                  idioma={idioma}
+                  slot="secoes.contato.cta"
+                  className="ch-contato-cta d-cta-outline"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+                  </svg>
+                  {s.contato.cta}
+                </OrderCta>
+              )}
+            </div>
+          </div>
+
+          <div className="ch-contato-rodape relative z-10 mx-auto w-full max-w-4xl border-t border-[var(--d-border)] pt-8">
+            <p className="ch-copy font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]">
+              © {new Date().getFullYear()} {data.nome}. {m.direitosReservados}
+            </p>
+            <p
+              data-demo-slot="secoes.contato.texto"
+              className="ch-assinatura font-[family-name:var(--d-mono)] text-xs text-[var(--d-muted)]/70"
+            >
+              {s.contato?.texto ?? "FEITO COM OBSESSÃO"}
+            </p>
+          </div>
+        </Caixa>
+      );
+    },
   };
 
   return (
@@ -447,8 +475,15 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)] selection:bg-[var(--d-accent)] selection:text-[var(--d-accent-ink)]"
+      data-ch-abertura={comp.abertura}
+      data-ch-cardapio={comp.cardapio}
+      data-ch-bebidas={comp.bebidas}
+      data-ch-acomp={comp.acompanhamentos}
+      data-ch-contato={comp.contato}
+      data-ch-hero-al={theme.heroTitulo.alinhamento}
+      className="ch min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)] selection:bg-[var(--d-accent)] selection:text-[var(--d-accent-ink)]"
     >
+      <style>{LANCHERIA_COMPOSICAO_CSS}</style>
       <style>{`
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
