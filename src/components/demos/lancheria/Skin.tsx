@@ -295,7 +295,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
         <div className="ch-hero-fundo bg-[var(--d-bg)]">
           <Placeholder
             src={data.imagens.hero}
-            alt={`Ambiente de ${data.nome}`}
+            alt={data.imagensAlt?.hero ?? ""}
             sizes="100vw"
             priority
             slot="imagens.hero"
@@ -382,6 +382,8 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
                 composicao={comp.cardapio}
                 imageSrc={data.imagens[`lanche-${i + 1}`] ?? data.imagens.hero}
                 platoVazioSrc={data.imagens["prato-vazio"]}
+                imageAlt={data.imagensAlt?.[`lanche-${i + 1}`] ?? ""}
+                platoVazioAlt={data.imagensAlt?.["prato-vazio"] ?? ""}
                 animacao={theme.animacao}
                 whatsapp={data.whatsapp}
                 idioma={idioma}
@@ -394,6 +396,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
             <DecorativeFloat
               def={floatDe("cardapio")!}
               src={data.imagens[floatDe("cardapio")!.slot] ?? data.imagens.hero}
+              alt={data.imagensAlt?.[floatDe("cardapio")!.slot] ?? ""}
             />
           )}
         </section>
@@ -418,6 +421,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
             secaoId="bebidas"
             itens={s.bebidas?.itens ?? []}
             imagens={data.imagens}
+            alts={data.imagensAlt}
             slotPrefix="bebida"
             whatsapp={data.whatsapp}
             idioma={idioma}
@@ -426,6 +430,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
             <DecorativeFloat
               def={floatDe("bebidas")!}
               src={data.imagens[floatDe("bebidas")!.slot] ?? data.imagens.hero}
+              alt={data.imagensAlt?.[floatDe("bebidas")!.slot] ?? ""}
             />
           )}
         </section>
@@ -450,6 +455,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
             secaoId="acompanhamentos"
             itens={s.acompanhamentos?.itens ?? []}
             imagens={data.imagens}
+            alts={data.imagensAlt}
             slotPrefix="acompanhamento"
             whatsapp={data.whatsapp}
             idioma={idioma}
@@ -458,6 +464,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
             <DecorativeFloat
               def={floatDe("acompanhamentos")!}
               src={data.imagens[floatDe("acompanhamentos")!.slot] ?? data.imagens.hero}
+              alt={data.imagensAlt?.[floatDe("acompanhamentos")!.slot] ?? ""}
             />
           )}
         </section>

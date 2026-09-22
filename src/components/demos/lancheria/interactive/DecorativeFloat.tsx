@@ -18,7 +18,22 @@ import type { DecorativeFloatDef } from "@/lib/demos/types";
  * `overflow-x-clip` da raiz da skin (ver Skin.tsx), que evita o vazamento
  * lateral vira scroll horizontal no mobile.
  */
-export function DecorativeFloat({ def, src }: { def: DecorativeFloatDef; src: string }) {
+export function DecorativeFloat({
+  def,
+  src,
+  alt,
+}: {
+  def: DecorativeFloatDef;
+  src: string;
+  /**
+   * Alt do slot, vindo de `DemoData.imagensAlt` — vazio por default, que é
+   * o que diz "decoração" a um leitor de tela. O contêiner deixou de ser
+   * `aria-hidden` justamente por causa dele: com `aria-hidden`, um alt
+   * preenchido pelo operador não chegaria a ninguém, e o campo no editor
+   * seria enfeite.
+   */
+  alt: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
   const y = useTransform(scrollYProgress, [0, 1], [24, -24]);
@@ -27,7 +42,6 @@ export function DecorativeFloat({ def, src }: { def: DecorativeFloatDef; src: st
   return (
     <div
       ref={ref}
-      aria-hidden="true"
       className={`pointer-events-none absolute -z-10 bottom-0 translate-y-1/2 select-none ${sideClass}`}
       style={{ width: `clamp(70px, 14vw, ${def.tamanho}px)`, height: `clamp(70px, 14vw, ${def.tamanho}px)` }}
     >
@@ -37,7 +51,7 @@ export function DecorativeFloat({ def, src }: { def: DecorativeFloatDef; src: st
       >
         <Image
           src={src}
-          alt=""
+          alt={alt}
           fill
           unoptimized
           data-demo-slot={`imagens.${def.slot}`}

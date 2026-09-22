@@ -89,6 +89,47 @@ export const LANCHERIA_EXEMPLO: DemoData = {
       texto: "FEITO COM OBSESSÃO",
     },
   },
+  /**
+   * Um alt por slot de imagem — os VINTE (opt-in por skin, ver
+   * `DemoData.imagensAlt`). Antes disso o alt era DERIVADO da copy
+   * (`"Ambiente de " + nome`, o nome do serviço, o título do item, `""` no
+   * prato vazio e nos flutuantes): texto em português cravado no
+   * componente, invisível para quem edita e impossível de traduzir. Aqui
+   * ele é conteúdo, como qualquer outro.
+   *
+   * Os três flutuantes nascem VAZIOS de propósito: são decoração, e alt
+   * vazio é o que diz isso a um leitor de tela. O campo existe no editor
+   * para quem troca a imagem por algo que signifique alguma coisa — e é
+   * por isso que o elemento deixou de ser `aria-hidden` (ver
+   * ./interactive/DecorativeFloat.tsx): com `aria-hidden`, um alt
+   * preenchido não chegaria a ninguém.
+   *
+   * As quatro variantes compartilham estes alts: as FOTOS são as mesmas nas
+   * quatro (a trava de `variantes.test.tsx` exige chave e valor iguais), e
+   * um alt descreve a foto, não a cópia em volta dela.
+   */
+  imagensAlt: {
+    hero: "Ambiente da casa",
+    "prato-vazio": "Prato vazio, revelado sob a foto do lanche",
+    "lanche-1": "Foto do 1º lanche do cardápio",
+    "lanche-2": "Foto do 2º lanche do cardápio",
+    "lanche-3": "Foto do 3º lanche do cardápio",
+    "lanche-4": "Foto do 4º lanche do cardápio",
+    "lanche-5": "Foto do 5º lanche do cardápio",
+    "lanche-6": "Foto do 6º lanche do cardápio",
+    "bebida-1": "Foto da 1ª bebida",
+    "bebida-2": "Foto da 2ª bebida",
+    "bebida-3": "Foto da 3ª bebida",
+    "bebida-4": "Foto da 4ª bebida",
+    "bebida-5": "Foto da 5ª bebida",
+    "acompanhamento-1": "Foto do 1º acompanhamento",
+    "acompanhamento-2": "Foto do 2º acompanhamento",
+    "acompanhamento-3": "Foto do 3º acompanhamento",
+    "acompanhamento-4": "Foto do 4º acompanhamento",
+    "flutuante-bacon": "",
+    "flutuante-queijo": "",
+    "flutuante-bebida": "",
+  },
   ordemSecoes: ["cardapio", "bebidas", "acompanhamentos", "contato"],
   imagens: {
     hero: "/demos/lancheria/hero.svg",

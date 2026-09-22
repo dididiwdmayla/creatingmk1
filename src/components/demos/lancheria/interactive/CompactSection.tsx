@@ -14,6 +14,7 @@ import { OrderCta } from "./OrderCta";
 function CompactCard({
   item,
   imageSrc,
+  imageAlt,
   imageSlot,
   textSlot,
   whatsapp,
@@ -21,6 +22,7 @@ function CompactCard({
 }: {
   item: DemoItem;
   imageSrc: string;
+  imageAlt: string;
   imageSlot: string;
   textSlot: string;
   whatsapp: string | undefined;
@@ -36,7 +38,7 @@ function CompactCard({
       <div className="ch-item-foto shrink-0 rounded-[calc(var(--d-radius)*0.7)] bg-[var(--ch-foto-lavagem)] p-2">
         <Image
           src={imageSrc}
-          alt={item.titulo}
+          alt={imageAlt}
           fill
           unoptimized
           data-demo-slot={`imagens.${imageSlot}`}
@@ -83,6 +85,7 @@ export function CompactSection({
   secaoId,
   itens,
   imagens,
+  alts,
   slotPrefix,
   whatsapp,
   idioma,
@@ -91,6 +94,7 @@ export function CompactSection({
   secaoId: string;
   itens: DemoItem[];
   imagens: Record<string, string>;
+  alts: Record<string, string> | undefined;
   slotPrefix: string;
   whatsapp: string | undefined;
   idioma?: string;
@@ -109,6 +113,7 @@ export function CompactSection({
             key={item.titulo}
             item={item}
             imageSrc={imagens[`${slotPrefix}-${i + 1}`] ?? imagens.hero}
+            imageAlt={alts?.[`${slotPrefix}-${i + 1}`] ?? ""}
             imageSlot={`${slotPrefix}-${i + 1}`}
             textSlot={`secoes.${secaoId}.itens.${i}`}
             whatsapp={whatsapp}

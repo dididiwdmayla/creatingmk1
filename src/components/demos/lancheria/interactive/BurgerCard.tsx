@@ -35,7 +35,9 @@ export function BurgerCard({
   index,
   composicao,
   imageSrc,
+  imageAlt,
   platoVazioSrc,
+  platoVazioAlt,
   animacao,
   whatsapp,
   idioma,
@@ -46,7 +48,10 @@ export function BurgerCard({
   /** Knob do cardápio: decide o ALVO do ponteiro (ver `naLinha` abaixo). */
   composicao: ChapaComposicao["cardapio"];
   imageSrc: string;
+  /** Alt do slot `lanche-N` — conteúdo do lead, não derivado do nome. */
+  imageAlt: string;
   platoVazioSrc: string;
+  platoVazioAlt: string;
   animacao: Animacao;
   whatsapp: string | undefined;
   idioma?: string;
@@ -176,7 +181,7 @@ export function BurgerCard({
         <div className="absolute inset-0">
           <Image
             src={imageSrc}
-            alt={servico.nome}
+            alt={imageAlt}
             fill
             unoptimized
             data-demo-slot={`imagens.lanche-${index + 1}`}
@@ -188,7 +193,7 @@ export function BurgerCard({
         <motion.div className="ch-prato-lente pointer-events-none absolute inset-0 z-10" style={{ clipPath }}>
           <Image
             src={platoVazioSrc}
-            alt=""
+            alt={platoVazioAlt}
             fill
             unoptimized
             data-demo-slot="imagens.prato-vazio"
