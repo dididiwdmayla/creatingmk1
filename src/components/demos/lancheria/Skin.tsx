@@ -15,7 +15,12 @@ import { IntroExperience } from "./interactive/IntroExperience";
 import { LedEdges } from "./interactive/LedEdges";
 import { OrderCta } from "./interactive/OrderCta";
 import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
-import { LANCHERIA_COMPOSICAO_CSS, LANCHERIA_COMPOSICAO_PADRAO } from "./composicao";
+import {
+  floatsVisiveis,
+  LANCHERIA_COMPOSICAO_CSS,
+  LANCHERIA_COMPOSICAO_PADRAO,
+  navVisivel,
+} from "./composicao";
 import { LANCHERIA_DECORATIVE_FLOATS } from "./decorativeFloats";
 import { LANCHERIA_SECOES } from "./secoes";
 
@@ -256,8 +261,12 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
 
   // Um flutuante decorativo por seção que o declara (ver decorativeFloats.ts);
   // a imagem em si é um slot normal de DemoData.imagens, com placeholder.
+  // Composição que não usa decoração flutuante NÃO RENDERIZA o elemento —
+  // esconder por CSS deixaria caixa medível, e o portão de `imagensOcultas`
+  // exige zero (ver `floatsVisiveis` em ./composicao.ts).
+  const comFloats = floatsVisiveis(comp);
   const floatDe = (secaoId: string) =>
-    LANCHERIA_DECORATIVE_FLOATS.find((f) => f.secaoId === secaoId);
+    comFloats ? LANCHERIA_DECORATIVE_FLOATS.find((f) => f.secaoId === secaoId) : undefined;
 
   const visiveis = secoesVisiveis(LANCHERIA_SECOES, data);
   const centro = (id: string): boolean => s[id]?.alinhamento === "centro";
@@ -657,7 +666,9 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
       >
         <Header nome={data.nome} whatsapp={data.whatsapp} idioma={idioma} />
 
-        {visiveis.includes("cardapio") && <CategoryNav categorias={categorias} />}
+        {navVisivel(comp) && visiveis.includes("cardapio") && (
+          <CategoryNav categorias={categorias} />
+        )}
 
         {visiveis.map((id) => {
           const animada = secaoAnimada(data, id);

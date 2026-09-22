@@ -493,6 +493,40 @@ export const LANCHERIA_COMPOSICAO_CSS = `
 `;
 
 /**
+ * A DECORAÇÃO FLUTUANTE (bacon, queijo e bebida caindo pela borda das
+ * seções) é linguagem de cartaz: existe onde a foto é grande e a página
+ * brinca — a grade da casa de bairro e o mural do truck. Um balcão de
+ * azulejo e uma sala com serviço não têm comida flutuando pela parede.
+ *
+ * As duas composições que ela dispensa são EXATAMENTE as duas variantes que
+ * declaram os três slots em `SkinVariante.imagensOcultas` (etapa 1). A
+ * função e a declaração dizem a mesma coisa de propósito: quem mede é o
+ * portão de caixa zerada da etapa 3, com JavaScript desligado, e ele exige
+ * caixa ZERO para o declarado — por isso o flutuante não é escondido por
+ * CSS, e sim não renderizado.
+ */
+export function floatsVisiveis(comp: ChapaComposicao): boolean {
+  return comp.cardapio === "grade" || comp.cardapio === "mural";
+}
+
+/**
+ * A NAV DE CATEGORIAS (pílulas grudadas no topo) serve pra percorrer uma
+ * LISTA longa: a grade de três colunas e a comanda de uma coluna, onde
+ * alguém rola procurando a categoria.
+ *
+ * No editorial ela atrapalha — a leitura é contínua, uma peça por linha, e
+ * uma barra grudada no topo corta a foto grande a cada rolagem. No mural,
+ * a página é curta e o bloco "onde estamos hoje" já ocupa o topo; a nav
+ * seria uma segunda barra competindo com ele.
+ *
+ * É CROMO, não seção: `CategoryNav` nunca emitiu `data-d-secao` nem
+ * `data-demo-slot`, e ligar ou desligar aqui não mexe no contrato.
+ */
+export function navVisivel(comp: ChapaComposicao): boolean {
+  return comp.cardapio === "grade" || comp.cardapio === "comanda";
+}
+
+/**
  * A composição do material bruto — o que a skin renderiza quando o tema não
  * declara `chapa`. É exatamente o desenho que existia antes do eixo de
  * variante, e é o que a variante `chapa` declara.
