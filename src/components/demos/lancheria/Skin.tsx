@@ -48,6 +48,12 @@ import { LANCHERIA_SECOES } from "./secoes";
  * quatro variantes conseguem ser quatro tipos de casa sem que `data-d-secao`
  * deixe de ser garantia (ver __tests__/variantes.test.tsx).
  *
+ * Fallback de slot de texto usa `||` com `trim()`, nunca `??`: `??` só
+ * cobre `undefined`, e o editor grava STRING VAZIA quando o operador limpa
+ * o campo. Com `??`, um `secoes.hero.titulo` salvo vazio fazia o `<h1>`
+ * renderizar em branco — e a captura de prospecção do hero, que é a
+ * miniatura que chega no WhatsApp, saía sem o nome do negócio.
+ *
  * A única decisão de composição que o JSX toma — e toma porque folha de
  * estilo não muda nome de tag — é `contato` virar `<section>` na `praca`:
  * lá o bloco "onde estamos hoje" abre a página, e um `<footer>` no topo
@@ -318,7 +324,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
                 } as CSSProperties
               }
             >
-              {s.hero?.titulo ?? data.nome}
+              {s.hero?.titulo?.trim() || data.nome}
             </h1>
           </div>
 
@@ -518,7 +524,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
                 data-demo-slot="secoes.contato.titulo"
                 className="ch-contato-titulo mb-4 font-[family-name:var(--d-display)] text-xl uppercase tracking-widest text-[var(--d-muted)]"
               >
-                {s.contato?.titulo ?? m.contato}
+                {s.contato?.titulo?.trim() || m.contato}
               </h3>
               {s.contato?.cta && (
                 <OrderCta
