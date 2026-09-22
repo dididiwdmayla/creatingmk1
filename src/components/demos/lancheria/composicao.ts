@@ -401,8 +401,11 @@ export const LANCHERIA_COMPOSICAO_CSS = `
     align-items: center;
   }
   .ch .ch-prato-foto { grid-area: foto; height: 7rem; }
+  /* As TRÊS áreas, não duas: sem "rodape" no mapa, o botão era colocado
+     automaticamente numa coluna implícita e abria uma faixa branca ao lado
+     da foto (item11/praca--desktop--pagina.png). */
   .ch[data-ch-cardapio="mural"] .ch-prato {
-    grid-template-columns: minmax(0, 1fr); grid-template-areas: "foto" "corpo";
+    grid-template-columns: minmax(0, 1fr); grid-template-areas: "foto" "corpo" "rodape";
   }
   .ch[data-ch-cardapio="mural"] .ch-prato-foto { height: auto; }
   .ch[data-ch-cardapio="editorial"] .ch-prato-foto { height: auto; }

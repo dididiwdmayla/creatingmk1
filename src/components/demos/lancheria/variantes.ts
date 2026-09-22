@@ -28,10 +28,11 @@ import { LANCHERIA_THEME_PRESETS } from "./themes";
  * INICIAL de um campo editável — não uma regra de folha que o operador não
  * conseguiria vencer.
  *
- * Os PRESETS de paleta são os quatro de sempre (./themes.ts), só trocando
- * de id — `brasa`→`praca`, `diner`→`balcao`, `neon`→`sala`; `chapa` fica
- * inalterado e continua o default (ver "IDs e aliases" §4, espelhado em
- * `themeAliases` no registro).
+ * Cada variante tem o SEU preset de paleta e tipografia (./themes.ts), com
+ * o mesmo id dela. Os ids antigos (`brasa`, `diner`, `neon`) continuam
+ * abrindo, na variante de mesma LUMINÂNCIA, por `themeAliases` no registro
+ * (ver "IDs e aliases" §4 do plano) — nenhuma demo publicada troca de
+ * claro para escuro.
  */
 interface Declaracao {
   id: string;
@@ -89,7 +90,7 @@ const DECLARACOES: Declaracao[] = [
     descricao:
       "Balcão de smash no centro, azulejo e aço, cardápio curto, fila na calçada. Quem chega: trabalhador no almoço, decide em 40 segundos, quer preço, horário e endereço antes de sair da mesa.",
     fundo: "claro",
-    presetId: "diner",
+    presetId: "balcao",
     composicao: {
       abertura: "ficha",
       cardapio: "comanda",
@@ -111,7 +112,7 @@ const DECLARACOES: Declaracao[] = [
     descricao:
       "Casa com mesa e serviço, blend assinado, carta de cerveja artesanal. Quem chega: casal jantando fora, ticket alto, lê a descrição inteira antes de escolher.",
     fundo: "escuro",
-    presetId: "neon",
+    presetId: "sala",
     composicao: {
       abertura: "cisao",
       cardapio: "editorial",
@@ -138,7 +139,7 @@ const DECLARACOES: Declaracao[] = [
     descricao:
       "Truck que muda de praça, fim de semana, fila em pé. Quem chega: quem está no evento agora, decide pela foto, com o celular numa mão e a cerveja na outra.",
     fundo: "claro",
-    presetId: "brasa",
+    presetId: "praca",
     composicao: {
       abertura: "pilha",
       cardapio: "mural",
