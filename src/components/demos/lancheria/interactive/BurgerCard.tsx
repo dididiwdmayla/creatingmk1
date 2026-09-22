@@ -170,7 +170,7 @@ export function BurgerCard({
     >
       <div
         ref={fotoRef}
-        className="ch-prato-foto shrink-0 cursor-crosshair rounded-[calc(var(--d-radius)*0.7)] bg-black/10"
+        className="ch-prato-foto shrink-0 cursor-crosshair rounded-[calc(var(--d-radius)*0.7)] bg-[var(--ch-foto-lavagem)]"
         {...(naLinha ? {} : gatilho)}
       >
         <div className="absolute inset-0">

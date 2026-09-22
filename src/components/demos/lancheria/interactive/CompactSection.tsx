@@ -33,7 +33,7 @@ function CompactCard({
          e `style` inline não deixaria. */
       className="ch-item d-card-hover rounded-[var(--d-radius)] border border-[var(--d-border)] bg-[var(--d-bg-elev)] p-3 shadow-lg"
     >
-      <div className="ch-item-foto shrink-0 rounded-[calc(var(--d-radius)*0.7)] bg-black/10 p-2">
+      <div className="ch-item-foto shrink-0 rounded-[calc(var(--d-radius)*0.7)] bg-[var(--ch-foto-lavagem)] p-2">
         <Image
           src={imageSrc}
           alt={item.titulo}

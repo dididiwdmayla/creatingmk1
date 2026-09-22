@@ -61,11 +61,14 @@ export const LANCHERIA_COMPOSICAO_CSS = `
    que as outras três sobrescrevem. */
 .ch .ch-hero { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .ch .ch-hero-fundo { position: absolute; inset: 0; z-index: 0; }
+/* A rampa é a do material bruto (\`from\` cheio → \`via\` 70% em 50% → \`to\`
+   30%); o que a composição troca é a DIREÇÃO, porque uma abertura dividida
+   não se resolve com o mesmo gradiente de um cartaz de tela cheia. */
 .ch .ch-hero-veu {
   position: absolute; inset: 0;
   background: linear-gradient(var(--ch-veu-dir),
     var(--d-bg) 0%,
-    color-mix(in srgb, var(--d-bg) 70%, transparent) 55%,
+    color-mix(in srgb, var(--d-bg) 70%, transparent) 50%,
     color-mix(in srgb, var(--d-bg) 30%, transparent) 100%);
 }
 .ch .ch-hero-corpo { position: relative; z-index: 20; display: flex; flex-direction: column; width: 100%; }
@@ -162,15 +165,16 @@ export const LANCHERIA_COMPOSICAO_CSS = `
   align-content: center; padding: 7rem 1rem 3.5rem;
 }
 .ch[data-ch-abertura="cisao"] {
+  /* A foto é uma COLUNA, não um fundo: a rampa desce de baixo para cima e
+     costura a borda inferior dela na página. Na horizontal, o mesmo véu
+     apagaria metade da coluna. */
+  --ch-veu-dir: to top;
   --ch-hero-tam: clamp(2.5rem, 9vw, 5rem);
   --ch-hero-traco: 0px;
   --ch-hero-sombra: none;
   --ch-hero-cor: var(--d-text);
 }
 .ch[data-ch-abertura="cisao"] .ch-hero-fundo { order: 2; height: 17rem; width: 100%; overflow: hidden; }
-.ch[data-ch-abertura="cisao"] .ch-hero-veu {
-  background: linear-gradient(to top, color-mix(in srgb, var(--d-bg) 55%, transparent), transparent 60%);
-}
 .ch[data-ch-abertura="cisao"] .ch-hero-corpo { order: 1; align-items: flex-start; text-align: left; }
 
 .ch[data-ch-abertura="pilha"] .ch-hero {
