@@ -205,9 +205,31 @@ export const LANCHERIA_COMPOSICAO_CSS = `
    comanda:   uma coluna, miniatura de 64px, preço à direita.
    editorial: um por linha, foto grande alternando de lado, descrição longa.
    mural:     duas colunas, preço sobre a foto. */
+/* O raio acompanha a CAIXA da foto: 56px dentro de uma miniatura de 64px
+   cobriria tudo de uma vez, e 56px numa foto editorial de 16/10 seria um
+   furo de alfinete. Quem lê o token de volta é o card (ver
+   ./interactive/BurgerCard.tsx). */
 .ch[data-ch-cardapio="comanda"] { --d-lente-raio: 26px; }
 .ch[data-ch-cardapio="editorial"] { --d-lente-raio: 110px; }
 .ch[data-ch-cardapio="mural"] { --d-lente-raio: 72px; }
+
+/* Onde a frase do hover abre, por composição. Na comanda ela NÃO cabe
+   dentro da miniatura, então vai para o lado da linha; nas outras três
+   fica dentro da caixa da foto, em cantos diferentes. */
+.ch[data-ch-cardapio="comanda"] .ch-prato { cursor: crosshair; }
+/* A frase sobe para a linha do NOME e ganha fundo: sem isso ela caía em
+   cima da descrição, e duas linhas de texto uma sobre a outra não se leem
+   (ver item9/balcao--desktop--lente.png). */
+.ch[data-ch-cardapio="comanda"] .ch-prato-frase {
+  grid-area: corpo; justify-self: end; align-self: start; margin-top: 0;
+  background: var(--d-bg); border-radius: 9999px; padding: .1rem .6rem;
+}
+/* O giro de -6deg joga a ponta esquerda da frase para fora, e a caixa do
+   cartão tem \`overflow: hidden\`: a margem cobre o que o giro rouba. */
+.ch[data-ch-cardapio="editorial"] .ch-prato-frase {
+  justify-self: start; margin: 1rem 0 0 1.4rem;
+}
+.ch[data-ch-cardapio="mural"] .ch-prato-frase { margin-top: 2.4rem; }
 
 .ch[data-ch-cardapio="comanda"] .ch-cardapio-lista {
   gap: 0; max-width: 46rem; margin-inline: auto;

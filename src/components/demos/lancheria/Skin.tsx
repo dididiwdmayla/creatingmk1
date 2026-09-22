@@ -265,6 +265,7 @@ export function LancheriaChapaBurger({ data, theme, idioma, moeda }: SkinProps) 
                 key={servico.nome}
                 servico={servico}
                 index={i}
+                composicao={comp.cardapio}
                 imageSrc={data.imagens[`lanche-${i + 1}`] ?? data.imagens.hero}
                 platoVazioSrc={data.imagens["prato-vazio"]}
                 animacao={theme.animacao}
