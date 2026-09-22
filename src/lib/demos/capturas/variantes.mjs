@@ -38,4 +38,21 @@ export const IMAGENS_OCULTAS_POR_VARIANTE = /** @type {Record<string, Record<str
     vesperal: { hero: "so-titulo" },
     cripta: { sobre: "nenhum" },
   },
+  "lancheria-chapa-burger": {
+    balcao: {
+      "flutuante-bacon": "nenhum",
+      "flutuante-queijo": "nenhum",
+      "flutuante-bebida": "nenhum",
+    },
+    sala: {
+      "bebida-1": "nenhum",
+      "bebida-2": "nenhum",
+      "bebida-3": "nenhum",
+      "bebida-4": "nenhum",
+      "bebida-5": "nenhum",
+      "flutuante-bacon": "nenhum",
+      "flutuante-queijo": "nenhum",
+      "flutuante-bebida": "nenhum",
+    },
+  },
 });
