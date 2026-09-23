@@ -76,6 +76,14 @@ export interface DemoMicrocopia {
    * uma piada em português sobre a foto é só uma frase que ninguém lê.
    */
   frasesDaLente: readonly string[];
+  /** Faixa de preço aberta embaixo (multimarcas): `"Até R$ 60.000"`; o valor já vem formatado. */
+  faixaAte: (valor: string) => string;
+  /** Faixa de preço fechada: `"R$ 60.000 a R$ 90.000"`. */
+  faixaEntre: (de: string, ate: string) => string;
+  /** Faixa de preço aberta em cima: `"Acima de R$ 120.000"`. */
+  faixaAcima: (valor: string) => string;
+  /** `aria-label` do grupo de filtros por faixa de preço. */
+  faixaDePreco: string;
 }
 
 const PT: DemoMicrocopia = {
@@ -111,6 +119,10 @@ const PT: DemoMicrocopia = {
     "PEDE LOGO, É UMA DELÍCIA!",
     "PEDE O SEU, QUE ESSE JÁ É MEU 😏",
   ],
+  faixaAte: (v) => `Até ${v}`,
+  faixaEntre: (de, ate) => `${de} a ${ate}`,
+  faixaAcima: (v) => `Acima de ${v}`,
+  faixaDePreco: "Faixa de preço",
 };
 
 const EN: DemoMicrocopia = {
@@ -146,6 +158,10 @@ const EN: DemoMicrocopia = {
     "ORDER IT ALREADY, IT IS SO GOOD!",
     "GET YOUR OWN, THIS ONE IS MINE 😏",
   ],
+  faixaAte: (v) => `Up to ${v}`,
+  faixaEntre: (de, ate) => `${de} to ${ate}`,
+  faixaAcima: (v) => `Over ${v}`,
+  faixaDePreco: "Price range",
 };
 
 const ES: DemoMicrocopia = {
@@ -181,6 +197,10 @@ const ES: DemoMicrocopia = {
     "¡PÍDELO YA, ESTÁ BUENÍSIMO!",
     "PIDE EL TUYO, QUE ESTE YA ES MÍO 😏",
   ],
+  faixaAte: (v) => `Hasta ${v}`,
+  faixaEntre: (de, ate) => `De ${de} a ${ate}`,
+  faixaAcima: (v) => `Más de ${v}`,
+  faixaDePreco: "Rango de precio",
 };
 
 const FR: DemoMicrocopia = {
@@ -216,6 +236,10 @@ const FR: DemoMicrocopia = {
     "COMMANDE-LE VITE, C'EST UN DÉLICE !",
     "PRENDS LE TIEN, CELUI-LÀ EST À MOI 😏",
   ],
+  faixaAte: (v) => `Jusqu’à ${v}`,
+  faixaEntre: (de, ate) => `De ${de} à ${ate}`,
+  faixaAcima: (v) => `Plus de ${v}`,
+  faixaDePreco: "Fourchette de prix",
 };
 
 const DE: DemoMicrocopia = {
@@ -251,6 +275,10 @@ const DE: DemoMicrocopia = {
     "BESTELL IHN, ER IST EIN TRAUM!",
     "HOL DIR DEINEN, DER HIER IST MEINER 😏",
   ],
+  faixaAte: (v) => `Bis ${v}`,
+  faixaEntre: (de, ate) => `${de} bis ${ate}`,
+  faixaAcima: (v) => `Über ${v}`,
+  faixaDePreco: "Preisspanne",
 };
 
 const IT: DemoMicrocopia = {
@@ -286,6 +314,10 @@ const IT: DemoMicrocopia = {
     "ORDINALO SUBITO, È UNA DELIZIA!",
     "PRENDI IL TUO, QUESTO È GIÀ MIO 😏",
   ],
+  faixaAte: (v) => `Fino a ${v}`,
+  faixaEntre: (de, ate) => `Da ${de} a ${ate}`,
+  faixaAcima: (v) => `Oltre ${v}`,
+  faixaDePreco: "Fascia di prezzo",
 };
 
 const NL: DemoMicrocopia = {
@@ -321,6 +353,10 @@ const NL: DemoMicrocopia = {
     "BESTEL SNEL, HIJ IS HEERLIJK!",
     "HAAL JE EIGEN, DEZE IS VAN MIJ 😏",
   ],
+  faixaAte: (v) => `Tot ${v}`,
+  faixaEntre: (de, ate) => `${de} tot ${ate}`,
+  faixaAcima: (v) => `Boven ${v}`,
+  faixaDePreco: "Prijsklasse",
 };
 
 const MICROCOPIA_POR_RAIZ: Record<RaizMicrocopia, DemoMicrocopia> = {

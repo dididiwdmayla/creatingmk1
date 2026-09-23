@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
+
 import {
   categoriasDoEstoque,
+  faixaDoHash,
+  faixasDePreco,
   formatarNumeroBR,
   linhaDeApoio,
   linhasDoNome,
   parseNumeroFormatado,
+  rotuloFaixa,
   TODAS_CATEGORIAS,
+  valorNaFaixa,
   waHref,
 } from "../logic";
 
@@ -130,5 +136,55 @@ describe("linhasDoNome", () => {
     expect(linhasDoNome("Auto Center Silva")).toEqual([["Auto", "Center"], ["Silva"]]);
     expect(linhasDoNome("Vórtice")).toEqual([["Vórtice"], []]);
     expect(linhasDoNome(" Garagem\n77 ")).toEqual([["Garagem"], ["77"]]);
+  });
+});
+
+describe("faixasDePreco (busca por faixa — §5 do plano)", () => {
+  const estoque = [39900, 49900, 59900, 69900, 79900, 89900, 99900, 119900, 149900].map((precoValor) => ({
+    precoValor,
+  }));
+
+  it("quatro faixas a partir de oito carros, cortes arredondados, nenhuma vazia", () => {
+    expect(faixasDePreco(estoque)).toEqual([
+      { id: "faixa-1", max: 60000 },
+      { id: "faixa-2", min: 60000, max: 80000 },
+      { id: "faixa-3", min: 80000, max: 100000 },
+      { id: "faixa-4", min: 100000 },
+    ]);
+  });
+
+  it("cada carro cai em exatamente uma faixa", () => {
+    const faixas = faixasDePreco(estoque);
+    for (const { precoValor } of estoque) {
+      expect(faixas.filter((f) => valorNaFaixa(precoValor, f))).toHaveLength(1);
+    }
+  });
+
+  it("três faixas abaixo de oito carros; derivadas do estoque, não de tabela fixa", () => {
+    const faixas = faixasDePreco([{ precoValor: 380000 }, { precoValor: 520000 }, { precoValor: 690000 }, { precoValor: 900000 }]);
+    expect(faixas.length).toBeGreaterThanOrEqual(2);
+    expect(faixas.length).toBeLessThanOrEqual(3);
+    expect(faixas[0].max).toBeGreaterThan(380000);
+  });
+
+  it("menos de três preços distintos (ou sem precoValor): sem busca", () => {
+    expect(faixasDePreco([{ precoValor: 50000 }, { precoValor: 50000 }, { precoValor: 90000 }])).toEqual([]);
+    expect(faixasDePreco([{}, {}, {}])).toEqual([]);
+  });
+
+  it("rótulo pelo locale/moeda da demo, sem centavos", () => {
+    const [ate, meio, , acima] = faixasDePreco(estoque);
+    const pt = microcopiaDemo("pt-BR");
+    const en = microcopiaDemo("en-US");
+    expect(rotuloFaixa(ate, pt, "pt-BR", "BRL").replace(/\s/g, " ")).toBe("Até R$ 60.000");
+    expect(rotuloFaixa(meio, pt, "pt-BR", "BRL").replace(/\s/g, " ")).toBe("R$ 60.000 a R$ 80.000");
+    expect(rotuloFaixa(acima, en, "en-US", "USD")).toBe("Over $100,000");
+  });
+
+  it("o hash só escolhe faixa que existe", () => {
+    const faixas = faixasDePreco(estoque);
+    expect(faixaDoHash("#faixa-2", faixas)).toBe("faixa-2");
+    expect(faixaDoHash("#faixa-9", faixas)).toBeUndefined();
+    expect(faixaDoHash("#estoque", faixas)).toBeUndefined();
   });
 });
