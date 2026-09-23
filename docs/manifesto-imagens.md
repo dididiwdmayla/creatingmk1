@@ -266,12 +266,14 @@ Total: **12 slots**.
 
 **Tema padrão:** `vortice` — **claro**. `--d-bg: #F5F0E6` (creme) · `--d-accent: #D40000` (vermelho).
 
-**Tratamento CSS:** nenhum. `object-cover` puro, sem filtro. **A skin não trata: entregar em cor natural.** Sem slot de hero — o hero é só texto + velocímetro decorativo (fiel ao material bruto); só o Estoque tem fotos.
+**Tratamento CSS:** nenhum. `object-cover` puro, sem filtro. **A skin não trata: entregar em cor natural.** A partir da etapa 1 do eixo de variantes (docs/plano-multimarcas.md), o contrato ganhou dois slots — `hero` (abertura, desenhado só nas variantes Garagem e Campo; Vórtice e Pátio continuam com a abertura tipográfica original e declaram `imagensOcultas`) e `destaque` (a ficha técnica do carro da semana). O restante do Estoque continua com fotos de veículo.
 
-Total: **9 slots**.
+Total: **11 slots**.
 
 | Slot (`imagens.*`) | Arquivo a criar | Alt atual | Proporção CSS | Seção |
 |---|---|---|---|---|
+| `hero` | `hero.webp` | "Ambiente do showroom de {nome}" | sem aspect fixo — abertura de tela cheia (só Garagem/Campo) | Hero |
+| `destaque` | `destaque.webp` | nome do veículo em destaque | varia por variante (cartão/tira/catálogo/ficha) | Destaque |
 | `carro-1` | `carro-1.webp` | nome do veículo (ex.: "Hyundai HB20 Platinum") | `aspect-[16/10]` | Estoque |
 | `carro-2` | `carro-2.webp` | nome do veículo (ex.: "VW Polo GTS") | `aspect-[16/10]` | Estoque |
 | `carro-3` | `carro-3.webp` | nome do veículo (ex.: "Honda Civic Touring") | `aspect-[16/10]` | Estoque |
@@ -286,6 +288,8 @@ Total: **9 slots**.
 
 | Arquivo a criar | Assunto da foto | Orientação e proporção | Largura recomendada | Tonalidade |
 |---|---|---|---|---|
+| `hero.webp` | Showroom de seminovos vazio, carros alinhados sob luz de estúdio, sem pessoas nem placas legíveis | Paisagem ampla | 2400px | Clara/neutra (harmoniza com o fundo #F5F0E6) |
+| `destaque.webp` | Veículo isolado em estúdio, ângulo 3/4 frontal, enquadramento mais próximo que os do estoque (é o carro "da semana") | Paisagem/quadrada, varia por variante | 1600px | Clara/neutra |
 | `carro-1.webp` | Hatch compacto em estúdio, ângulo 3/4 frontal, fundo neutro, placa não legível | Paisagem 16:10 | 1600px | Clara/neutra (harmoniza com o fundo #F5F0E6) |
 | `carro-2.webp` | Hatch esportivo em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
 | `carro-3.webp` | Sedan executivo em estúdio, ângulo 3/4 frontal, fundo neutro | Paisagem 16:10 | 1600px | Clara/neutra |
@@ -356,9 +360,9 @@ Total: **15 slots**.
 | `tatuagem-pigmento-vivo` | 8 |
 | `lancheria-chapa-burger` | 20 |
 | `imobiliaria-curada` | 12 |
-| `multimarcas-vortice` | 9 |
+| `multimarcas-vortice` | 11 |
 | `petshop-focinho-feliz` | 15 |
-| **Total geral** | **88** |
+| **Total geral** | **90** |
 
 ---
 
@@ -463,6 +467,8 @@ Um prompt autocontido por slot, em português, pronto para uso em uma ferramenta
 
 ### Multimarcas Vórtice (`multimarcas-vortice`)
 
+- **`hero`** — Showroom de concessionária de seminovos vazio, carros alinhados sob luz de estúdio, sem pessoas nem placas ou logotipos legíveis. Enquadramento amplo, câmera na altura dos olhos. Luz uniforme de estúdio. Paleta clara e neutra (harmoniza com o fundo #F5F0E6).
+- **`destaque`** — Veículo isolado em estúdio fotográfico, ângulo três quartos frontal, fundo neutro, enquadramento mais fechado que os do estoque — é o carro "da semana". Luz de estúdio suave, leve reflexo na lataria. Tonalidade clara e neutra.
 - **`carro-1`** — Hatch compacto em estúdio fotográfico, ângulo três quartos frontal, fundo neutro cinza-claro, placa do veículo desfocada/ilegível. Enquadramento médio. Luz de estúdio suave e uniforme, com leve reflexo na lataria. Tonalidade clara e neutra.
 - **`carro-2`** — Hatch esportivo em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave. Tonalidade clara e neutra.
 - **`carro-3`** — Sedan executivo em estúdio fotográfico, ângulo três quartos frontal, fundo neutro. Enquadramento médio. Luz de estúdio suave. Tonalidade clara e neutra.

@@ -163,6 +163,18 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
         { titulo: "15 anos", detalhe: "de estrada" },
       ],
     },
+    destaque: {
+      rotulo: "DESTAQUE DA SEMANA",
+      titulo: "Toyota Hilux SRX 2021",
+      texto: "Único dono, revisões na concessionária e laudo cautelar sem restrição — o veículo que mais recebe visita esta semana.",
+      cta: "Tenho interesse",
+      itens: [
+        { titulo: "Motor", texto: "2.8 Diesel" },
+        { titulo: "Câmbio", texto: "Automático" },
+        { titulo: "Quilometragem", texto: "58.400 km" },
+        { titulo: "Cor", texto: "Vermelho Volcano" },
+      ],
+    },
     simulador: {
       rotulo: "SIMULADOR",
       titulo: "Quanto fica por mês?",
@@ -200,8 +212,10 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
       texto: "Conteúdo ilustrativo.",
     },
   },
-  ordemSecoes: ["estoque", "vantagens", "numeros", "simulador", "avaliacao", "depoimentos", "contato"],
+  ordemSecoes: ["estoque", "vantagens", "numeros", "destaque", "simulador", "avaliacao", "depoimentos", "contato"],
   imagens: {
+    hero: "/demos/multimarcas/hero.svg",
+    destaque: "/demos/multimarcas/destaque.svg",
     "carro-1": "/demos/multimarcas/carro-1.svg",
     "carro-2": "/demos/multimarcas/carro-2.svg",
     "carro-3": "/demos/multimarcas/carro-3.svg",

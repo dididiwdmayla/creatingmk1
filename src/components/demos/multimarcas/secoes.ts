@@ -24,6 +24,7 @@ export const MULTIMARCAS_SECOES: SkinSecaoDef[] = [
   { id: "estoque", nome: "Estoque (veículos)", entradaOptions: ENTRADAS },
   { id: "vantagens", nome: "Por que escolher", entradaOptions: ENTRADAS },
   { id: "numeros", nome: "Números (contadores)", entradaOptions: ENTRADAS },
+  { id: "destaque", nome: "Destaque (ficha técnica)", entradaOptions: ENTRADAS },
   { id: "simulador", nome: "Simulador de financiamento", entradaOptions: ENTRADAS },
   {
     id: "avaliacao",

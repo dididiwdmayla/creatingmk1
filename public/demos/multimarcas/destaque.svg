@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-label="Placeholder: veículo em destaque">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="0%" r="120%">
+      <stop offset="0%" stop-color="#F1E8D4"/>
+      <stop offset="60%" stop-color="#E9DEC4"/>
+      <stop offset="100%" stop-color="#E1D4B4"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#bg)"/>
+  <g transform="translate(120,220)" opacity="0.88" stroke="#1E1712" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M40 380 C40 348 66 320 128 306 L182 292 C226 208 300 172 396 158 L560 148 C660 148 736 178 792 250 L826 292 C908 304 968 322 990 348 L996 380"/>
+    <path d="M356 216 L420 158 L688 166 L788 250"/>
+    <circle cx="288" cy="380" r="76"/><circle cx="288" cy="380" r="30"/>
+    <circle cx="848" cy="380" r="76"/><circle cx="848" cy="380" r="30"/>
+  </g>
+</svg>

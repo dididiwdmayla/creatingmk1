@@ -12,12 +12,15 @@ import type { ImagensModo } from "./types";
  * Slots sem foto de produção disponível, por skinId — caem no SVG mesmo em
  * `imagensModo: "foto"` (ver `baseImagemSlot`). Mesmo padrão de
  * `DEFAULTS_HISTORICOS` (./legado.ts): mapa plano por skinId, para não
- * acoplar esta função ao registro de skins. Hoje toda skin do registro tem
- * foto para 100% dos slots (ver docs/manifesto-imagens.md) — a lista fica
- * vazia e pronta para quando um slot novo entrar antes da foto correspondente
- * ser produzida.
+ * acoplar esta função ao registro de skins.
+ *
+ * `hero` e `destaque` da multimarcas nasceram na etapa 1 do plano de
+ * variantes (docs/plano-multimarcas.md) — slots novos do contrato, sem foto
+ * de produção ainda (ver docs/manifesto-imagens.md).
  */
-export const SLOTS_SEM_FOTO: Record<string, readonly string[]> = {};
+export const SLOTS_SEM_FOTO: Record<string, readonly string[]> = {
+  "multimarcas-vortice": ["hero", "destaque"],
+};
 
 /**
  * Deriva o caminho da foto de produção a partir do placeholder SVG do
