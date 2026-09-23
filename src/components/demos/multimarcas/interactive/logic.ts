@@ -31,28 +31,51 @@ export interface NumeroFormatado {
   casas: number;
 }
 
-/**
- * Extrai {prefixo, alvo, casas, sufixo} de um texto formatado no padrão
- * pt-BR (ponto = milhar, vírgula = decimal) — usado tanto pelos contadores
- * da seção "Números" ("+1.200", "4,9★", "15 anos") quanto pelo preço dos
- * veículos ("R$ 89.900"), pra animar a contagem no scroll (StatCounter/
- * CarCard) sem exigir um campo numérico extra no contrato: o texto exibido
- * JÁ carrega tudo que a animação precisa.
- */
-export function parseNumeroFormatado(texto: string): NumeroFormatado | null {
-  const m = /^([^\d]*)([\d.,]+)(.*)$/.exec(texto.trim());
-  if (!m) return null;
-  const [, prefixo, numero, sufixo] = m;
-  const casas = numero.includes(",") ? numero.split(",")[1]?.length ?? 0 : 0;
-  const normalizado = numero.replace(/\./g, "").replace(",", ".");
-  const alvo = Number.parseFloat(normalizado);
-  if (!Number.isFinite(alvo)) return null;
-  return { prefixo, sufixo, alvo, casas };
+/** Separadores de milhar e decimal do locale ("." e "," em pt-BR, "’" e "." em de-CH). */
+function separadores(idioma: string | undefined): { milhar: string; decimal: string } {
+  const partes = new Intl.NumberFormat(idioma ?? IDIOMA_PADRAO).formatToParts(12345.6);
+  return {
+    milhar: partes.find((p) => p.type === "group")?.value ?? ".",
+    decimal: partes.find((p) => p.type === "decimal")?.value ?? ",",
+  };
 }
 
-/** Formata um valor intermediário da animação de contagem no padrão pt-BR. */
-export function formatarNumeroBR(valor: number, casas: number): string {
-  return valor.toLocaleString("pt-BR", {
+const escapar = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Extrai {prefixo, alvo, casas, sufixo} de um texto formatado no padrão do
+ * LOCALE da demo — pt-BR por default (ponto = milhar, vírgula = decimal),
+ * mas "+1,200" em en-US e "1’200" em de-CH também são 1200: o contador da
+ * seção "Números" é conteúdo, e a IA o escreve no idioma do lead. Usado
+ * pelos contadores ("+1.200", "15 anos") e pelo preço dos veículos, pra
+ * animar a contagem sem exigir um campo numérico extra no contrato: o
+ * texto exibido JÁ carrega tudo que a animação precisa.
+ */
+export function parseNumeroFormatado(texto: string, idioma?: string): NumeroFormatado | null {
+  const { milhar, decimal } = separadores(idioma);
+  // Milhar que é espaço (fr, de-CH antigo…) aceita qualquer espaço: quem
+  // digita não escolhe entre U+0020, U+00A0 e U+202F.
+  // Apóstrofo idem (de-CH sai com ' ou ’ conforme a versão do ICU).
+  const grupo = /\s/.test(milhar)
+    ? "\\s\u00a0\u202f"
+    : /['’]/.test(milhar)
+      ? "'’"
+      : escapar(milhar);
+  // O separador de milhar só conta ENTRE dígitos: "15 anos" não come o
+  // espaço antes de "anos" num locale cujo milhar é espaço.
+  const re = new RegExp(`^(\\D*?)(\\d(?:[${grupo}]?\\d)*(?:${escapar(decimal)}\\d+)?)(.*)$`, "u");
+  const m = re.exec(texto.trim());
+  if (!m) return null;
+  const [, prefixo, numero, sufixo] = m;
+  const [inteiro, fracao = ""] = numero.split(decimal);
+  const alvo = Number.parseFloat(`${inteiro.replace(/\D/g, "")}${fracao ? `.${fracao}` : ""}`);
+  if (!Number.isFinite(alvo)) return null;
+  return { prefixo, sufixo, alvo, casas: fracao.length };
+}
+
+/** Formata um valor (intermediário da contagem ou final) pelo locale da demo. */
+export function formatarNumero(valor: number, casas: number, idioma?: string): string {
+  return valor.toLocaleString(idioma ?? IDIOMA_PADRAO, {
     minimumFractionDigits: casas,
     maximumFractionDigits: casas,
   });

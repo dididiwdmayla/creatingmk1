@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { formatarNumeroBR, parseNumeroFormatado } from "./logic";
+import { formatarNumero, parseNumeroFormatado } from "./logic";
 
 /**
  * Contador que sobe do zero até o valor alvo quando entra no viewport
@@ -23,14 +23,17 @@ export function StatCounter({
   valor,
   className,
   corDestaque,
+  idioma,
 }: {
   valor: string;
   className?: string;
   corDestaque?: string;
+  /** Locale da demo: lê o separador do texto e formata a contagem com o dele. */
+  idioma?: string;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const parsed = parseNumeroFormatado(valor);
-  const final = parsed ? formatarNumeroBR(parsed.alvo, parsed.casas) : valor;
+  const parsed = parseNumeroFormatado(valor, idioma);
+  const final = parsed ? formatarNumero(parsed.alvo, parsed.casas, idioma) : valor;
   const [numero, setNumero] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export function StatCounter({
     if (el.getBoundingClientRect().top < window.innerHeight) return;
     const { alvo, casas } = parsed;
     let raf = 0;
-    const armar = setTimeout(() => setNumero(formatarNumeroBR(0, casas)), 0);
+    const armar = setTimeout(() => setNumero(formatarNumero(0, casas, idioma)), 0);
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return;
@@ -50,7 +53,7 @@ export function StatCounter({
         const tick = (t: number) => {
           const p = Math.min((t - t0) / duracao, 1);
           const eased = 1 - Math.pow(1 - p, 4);
-          setNumero(p < 1 ? formatarNumeroBR(alvo * eased, casas) : null);
+          setNumero(p < 1 ? formatarNumero(alvo * eased, casas, idioma) : null);
           if (p < 1) raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
@@ -65,7 +68,7 @@ export function StatCounter({
       setNumero(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [valor]);
+  }, [valor, idioma]);
 
   if (!parsed) {
     return (

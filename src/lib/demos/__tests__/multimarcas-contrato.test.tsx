@@ -226,3 +226,70 @@ describe.each(alvos)("multimarcas §7 — a regra do vazio: %s", (id) => {
     expect(soTel.getAttribute("href")).toBe("tel:4432221111");
   });
 });
+
+describe("multimarcas: cromo pela microcópia (item 13)", () => {
+  // Literais que ESTAVAM cravados no componente (docs/plano-multimarcas.md
+  // §1). Comparação sem caixa: o componente põe vários em caixa alta, e o
+  // contrato genérico de microcópia compara com a caixa do dicionário.
+  // ("Falar no WhatsApp" e "Tenho interesse" sozinhos NÃO entram: são o
+  // CTA secundário da abertura e o do estoque — conteúdo, traduzido pela
+  // IA. O literal cravado era o do menu, e ele só monta no cliente.)
+  const CRAVADOS = [
+    "Valor do veículo",
+    "Parcela estimada",
+    "Valores simulados",
+    "Solicitar proposta",
+    "Abrir no Waze",
+    "Abrir no Google Maps",
+    "Conteúdo ilustrativo",
+    "Vim pelo site",
+    "Olá! Tenho interesse",
+    "VEGLIA",
+    "GIRI",
+    "/mês",
+  ];
+  const cheio = montarDemoDataAvulsa(
+    exemploDaSkin(skin, "vortice"),
+    patchIdentidadeAvulsa({ nome: lead.nome, endereco: "Bahnhofstrasse 1", whatsapp: "+41 79 123 45 67" }),
+    skin.id,
+  );
+
+  it.each(["de-CH", "fr-CH", "en-US"])("%s: nenhum literal de cromo em português no HTML", (idioma) => {
+    const bruto = renderToStaticMarkup(
+        createElement(skin.componente, {
+          // CTA do simulador e texto do rodapé VAZIOS: é quando o fallback
+          // cravado aparecia ("Solicitar proposta", "Conteúdo ilustrativo.").
+          data: {
+            ...cheio,
+            secoes: {
+              ...cheio.secoes,
+              simulador: { ...cheio.secoes.simulador, cta: "" },
+              contato: { ...cheio.secoes.contato, texto: "" },
+            },
+          },
+          theme: { ...getTheme(skin, "vortice"), intro: true },
+          idioma,
+          moeda: "CHF",
+        }),
+      ).replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
+    // As mensagens de WhatsApp vão codificadas no href: decodifica só eles.
+    const hrefs = [...bruto.matchAll(/href="([^"]*)"/g)].map((m) => decodeURIComponent(m[1]));
+    const html = [bruto, ...hrefs].join("\n").toLowerCase();
+    for (const literal of CRAVADOS) expect(html, literal).not.toContain(literal.toLowerCase());
+  });
+
+  it("nav sem rótulo cai no rótulo da microcópia, não num mapa em português", () => {
+    const semRotulo = {
+      ...cheio,
+      secoes: Object.fromEntries(Object.entries(cheio.secoes).map(([k, v]) => [k, { ...v, rotulo: "" }])),
+    };
+    const doc = new JSDOM(
+      renderToStaticMarkup(
+        createElement(skin.componente, { data: semRotulo, theme: getTheme(skin, "vortice"), idioma: "de-CH" }),
+      ),
+    ).window.document;
+    const nav = [...doc.querySelectorAll("nav a[href^='#']")].map((a) => a.textContent);
+    expect(nav).toContain("BESTAND");
+    expect(nav).not.toContain("ESTOQUE");
+  });
+});

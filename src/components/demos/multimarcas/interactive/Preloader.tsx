@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
+
 /**
  * Preloader "velocímetro" — ponteiro sobe de -120° a 120° em ~1.5s com uma
  * mola simples (mesma física do `spring(t)` do material bruto: velocidade
@@ -13,12 +15,15 @@ import { useEffect, useRef, useState } from "react";
 export function Preloader({
   nome,
   accent,
+  idioma,
   onComplete,
 }: {
   nome: string;
   accent: string;
+  idioma?: string;
   onComplete: () => void;
 }) {
+  const m = microcopiaDemo(idioma);
   const needleRef = useRef<SVGGElement>(null);
   const pctRef = useRef<HTMLSpanElement>(null);
   const [saindo, setSaindo] = useState(false);
@@ -99,22 +104,13 @@ export function Preloader({
           fill="var(--d-muted)"
           style={{ font: "500 9px var(--d-mono)", letterSpacing: "3px" }}
         >
-          GIRI ×1000
+          {m.rpm}
         </text>
         <g ref={needleRef} transform="rotate(-120 100 100)">
           <line x1="100" y1="100" x2="100" y2="34" stroke={accent} strokeWidth="4" strokeLinecap="round" />
         </g>
         <circle cx="100" cy="100" r="8" fill="var(--d-text)" />
         <circle cx="100" cy="100" r="3" fill={accent} />
-        <text
-          x="100"
-          y="130"
-          textAnchor="middle"
-          fill="var(--d-muted)"
-          style={{ font: "500 8px var(--d-mono)", letterSpacing: "2px" }}
-        >
-          VEGLIA · MILANO
-        </text>
       </svg>
       <div className="font-[family-name:var(--d-display)] text-2xl font-extrabold tracking-[5px] text-[var(--d-text)]">
         {nome.toUpperCase()}

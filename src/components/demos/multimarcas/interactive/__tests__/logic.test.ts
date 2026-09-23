@@ -7,7 +7,7 @@ import {
   faixaDoHash,
   faixasDePreco,
   faixaDoSimulador,
-  formatarNumeroBR,
+  formatarNumero,
   linhaDeApoio,
   linhasDoNome,
   mensagemTroca,
@@ -61,13 +61,13 @@ describe("parseNumeroFormatado", () => {
   });
 });
 
-describe("formatarNumeroBR", () => {
+describe("formatarNumero", () => {
   it("formata inteiro com separador de milhar", () => {
-    expect(formatarNumeroBR(1200, 0)).toBe("1.200");
+    expect(formatarNumero(1200, 0)).toBe("1.200");
   });
 
   it("formata com casas decimais fixas", () => {
-    expect(formatarNumeroBR(4.9, 1)).toBe("4,9");
+    expect(formatarNumero(4.9, 1)).toBe("4,9");
   });
 });
 
@@ -250,5 +250,20 @@ describe("mensagemTroca (formulário de troca)", () => {
     expect(mensagemTroca({ marca: "VW", km: "12000" }, microcopiaDemo("en-US"), "en-US")).toBe(
       "Hi! I'd like to trade in my car: VW, 12,000 km.",
     );
+  });
+});
+
+describe("parseNumeroFormatado/formatarNumero pelo locale da demo (item 13)", () => {
+  it("o milhar do locale: +1,200 em en-US, 1’200 em de-CH, 1 200 em fr", () => {
+    expect(parseNumeroFormatado("+1,200", "en-US")).toMatchObject({ prefixo: "+", alvo: 1200, casas: 0 });
+    expect(parseNumeroFormatado("1’200 Autos", "de-CH")).toMatchObject({ alvo: 1200, sufixo: " Autos" });
+    expect(parseNumeroFormatado("1 200 voitures", "fr-FR")).toMatchObject({ alvo: 1200, sufixo: " voitures" });
+    expect(parseNumeroFormatado("15 ans", "fr-FR")).toMatchObject({ alvo: 15, sufixo: " ans" });
+  });
+
+  it("formata com o separador do locale", () => {
+    expect(formatarNumero(39900, 0, "en-US")).toBe("39,900");
+    expect(formatarNumero(39900, 0, "de-CH")).toMatch(/^39['’]900$/);
+    expect(formatarNumero(39900, 0)).toBe("39.900");
   });
 });

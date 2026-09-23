@@ -50,10 +50,7 @@ export function CarCard({
   const m = microcopiaDemo(idioma);
   const [aberto, setAberto] = useState(false);
   // Sem WhatsApp digitado, o CTA de interesse do card some (ver waHref).
-  const linkInteresse = waHref(
-    whatsapp,
-    `Olá! Tenho interesse no ${servico.nome} (${formatarPrecoServico(servico, idioma, moeda)}). Ainda está disponível?`,
-  );
+  const linkInteresse = waHref(whatsapp, m.interesseNoCarro(servico.nome, formatarPrecoServico(servico, idioma, moeda)));
 
   return (
     <article
@@ -116,6 +113,7 @@ export function CarCard({
                 ? String(servico.precoValor)
                 : servico.preco.replace(/^R\$\s*/, "")
             }
+            idioma={idioma}
             className="font-[family-name:var(--d-mono)] text-[30px] font-semibold leading-none tabular-nums tracking-[0.5px] text-[var(--d-text)]"
           />
         </div>

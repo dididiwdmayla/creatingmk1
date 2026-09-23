@@ -28,11 +28,13 @@ export function IntroExperience({
   nome,
   accent,
   ativa,
+  idioma,
   children,
 }: {
   nome: string;
   accent: string;
   ativa: boolean;
+  idioma?: string;
   children: React.ReactNode;
 }) {
   const [preloader, setPreloader] = useState(false);
@@ -56,7 +58,7 @@ export function IntroExperience({
   return (
     <>
       <CustomCursor accent={accent} />
-      {preloader && <Preloader nome={nome} accent={accent} onComplete={completar} />}
+      {preloader && <Preloader nome={nome} accent={accent} idioma={idioma} onComplete={completar} />}
       <IntroDoneProvider value={!preloader}>{children}</IntroDoneProvider>
     </>
   );

@@ -95,6 +95,45 @@ export interface DemoMicrocopia {
   trocaMensagem: string;
   /** Mensagem de WhatsApp de avaliação com a descrição do carro já montada. */
   trocaMensagemCarro: (carro: string) => string;
+  /*
+   * ── Multimarcas: rótulos de seção da nav (fallback quando a seção não
+   * tem `rotulo`), do simulador, das rotas e das mensagens de WhatsApp
+   * cravadas no componente (sem slot — por isso cromo, ver o topo).
+   */
+  navEstoque: string;
+  navVantagens: string;
+  navDestaque: string;
+  navSimulador: string;
+  navAvaliacao: string;
+  navDepoimentos: string;
+  simValorDoVeiculo: string;
+  /** Rótulo da entrada com o percentual: `"ENTRADA · 20%"` (a caixa alta é do componente). */
+  simEntrada: (pct: number) => string;
+  simParcelas: string;
+  simParcelaEstimada: string;
+  /** Sufixo da parcela: `"/mês"`. */
+  simPorMes: string;
+  /** `"Financiado: R$ 96.000 em 48× · taxa ref. 1,49% a.m."` — valores já formatados. */
+  simFinanciado: (valor: string, parcelas: number, taxa: string) => string;
+  simAviso: string;
+  /** Rótulo do botão quando o slot do CTA está vazio. */
+  simSolicitarProposta: string;
+  /** Mensagem de WhatsApp da simulação — valores já formatados com a moeda. */
+  simMensagem: (veiculo: string, entrada: string, parcelas: number, parcela: string) => string;
+  abrirNoWaze: string;
+  abrirNoMaps: string;
+  /** Mensagem genérica de WhatsApp (nav, botão flutuante). */
+  maisInformacoes: string;
+  /** Mensagem de WhatsApp do contato, com o nome do negócio. */
+  maisInformacoesDe: (nome: string) => string;
+  /** Interesse num carro do estoque — nome e preço já formatado. */
+  interesseNoCarro: (carro: string, preco: string) => string;
+  /** Interesse no veículo em destaque — carro e nome do negócio. */
+  interesseNoDestaque: (carro: string, nome: string) => string;
+  /** Carro genérico quando o destaque não tem título. */
+  veiculoEmDestaque: string;
+  /** Legenda do mostrador do velocímetro (conta-giros): `"RPM ×1000"`. */
+  rpm: string;
 }
 
 const PT: DemoMicrocopia = {
@@ -141,6 +180,29 @@ const PT: DemoMicrocopia = {
   trocaKm: "Quilometragem",
   trocaMensagem: "Olá! Quero uma avaliação do meu carro.",
   trocaMensagemCarro: (carro) => `Olá! Quero avaliar meu carro na troca: ${carro}.`,
+  navEstoque: "Estoque",
+  navVantagens: "Vantagens",
+  navDestaque: "Destaque",
+  navSimulador: "Simulador",
+  navAvaliacao: "Avaliação",
+  navDepoimentos: "Depoimentos",
+  simValorDoVeiculo: "Valor do veículo",
+  simEntrada: (pct) => `Entrada · ${pct}%`,
+  simParcelas: "Parcelas",
+  simParcelaEstimada: "Parcela estimada",
+  simPorMes: "/mês",
+  simFinanciado: (valor, n, taxa) => `Financiado: ${valor} em ${n}× · taxa ref. ${taxa}% a.m.`,
+  simAviso: "Valores simulados, sujeitos a análise de crédito.",
+  simSolicitarProposta: "Solicitar proposta",
+  simMensagem: (v, e, n, p) => `Olá! Simulei no site: veículo ${v}, entrada ${e}, ${n}x de ${p}. Quero uma proposta.`,
+  abrirNoWaze: "Abrir no Waze",
+  abrirNoMaps: "Abrir no Google Maps",
+  maisInformacoes: "Olá! Vim pelo site e quero mais informações.",
+  maisInformacoesDe: (nome) => `Olá! Vim pelo site da ${nome} e quero mais informações.`,
+  interesseNoCarro: (carro, preco) => `Olá! Tenho interesse no ${carro} (${preco}). Ainda está disponível?`,
+  interesseNoDestaque: (carro, nome) => `Olá! Tenho interesse no ${carro} que vi no site da ${nome}.`,
+  veiculoEmDestaque: "veículo em destaque",
+  rpm: "RPM ×1000",
 };
 
 const EN: DemoMicrocopia = {
@@ -187,6 +249,29 @@ const EN: DemoMicrocopia = {
   trocaKm: "Mileage",
   trocaMensagem: "Hi! I'd like my car appraised.",
   trocaMensagemCarro: (carro) => `Hi! I'd like to trade in my car: ${carro}.`,
+  navEstoque: "Inventory",
+  navVantagens: "Why us",
+  navDestaque: "Featured",
+  navSimulador: "Finance",
+  navAvaliacao: "Trade-in",
+  navDepoimentos: "Reviews",
+  simValorDoVeiculo: "Vehicle price",
+  simEntrada: (pct) => `Down payment · ${pct}%`,
+  simParcelas: "Term",
+  simParcelaEstimada: "Estimated payment",
+  simPorMes: "/mo",
+  simFinanciado: (valor, n, taxa) => `Financed: ${valor} over ${n} months · ref. rate ${taxa}%/mo`,
+  simAviso: "Simulated figures, subject to credit approval.",
+  simSolicitarProposta: "Request a quote",
+  simMensagem: (v, e, n, p) => `Hi! I ran the numbers on your site: vehicle ${v}, down payment ${e}, ${n} payments of ${p}. I'd like a quote.`,
+  abrirNoWaze: "Open in Waze",
+  abrirNoMaps: "Open in Google Maps",
+  maisInformacoes: "Hi! I found you through your website and would like more information.",
+  maisInformacoesDe: (nome) => `Hi! I found ${nome} through your website and would like more information.`,
+  interesseNoCarro: (carro, preco) => `Hi! I'm interested in the ${carro} (${preco}). Is it still available?`,
+  interesseNoDestaque: (carro, nome) => `Hi! I'm interested in the ${carro} I saw on the ${nome} website.`,
+  veiculoEmDestaque: "featured vehicle",
+  rpm: "RPM ×1000",
 };
 
 const ES: DemoMicrocopia = {
@@ -233,6 +318,29 @@ const ES: DemoMicrocopia = {
   trocaKm: "Kilometraje",
   trocaMensagem: "¡Hola! Quiero una tasación de mi auto.",
   trocaMensagemCarro: (carro) => `¡Hola! Quiero tasar mi auto como parte de pago: ${carro}.`,
+  navEstoque: "Inventario",
+  navVantagens: "Ventajas",
+  navDestaque: "Destacado",
+  navSimulador: "Simulador",
+  navAvaliacao: "Tasación",
+  navDepoimentos: "Opiniones",
+  simValorDoVeiculo: "Valor del vehículo",
+  simEntrada: (pct) => `Pie · ${pct}%`,
+  simParcelas: "Cuotas",
+  simParcelaEstimada: "Cuota estimada",
+  simPorMes: "/mes",
+  simFinanciado: (valor, n, taxa) => `Financiado: ${valor} en ${n} cuotas · tasa ref. ${taxa}% mensual`,
+  simAviso: "Valores simulados, sujetos a aprobación de crédito.",
+  simSolicitarProposta: "Solicitar propuesta",
+  simMensagem: (v, e, n, p) => `¡Hola! Simulé en el sitio: vehículo ${v}, pie ${e}, ${n} cuotas de ${p}. Quiero una propuesta.`,
+  abrirNoWaze: "Abrir en Waze",
+  abrirNoMaps: "Abrir en Google Maps",
+  maisInformacoes: "¡Hola! Vengo del sitio web y quiero más información.",
+  maisInformacoesDe: (nome) => `¡Hola! Vengo del sitio de ${nome} y quiero más información.`,
+  interesseNoCarro: (carro, preco) => `¡Hola! Me interesa el ${carro} (${preco}). ¿Sigue disponible?`,
+  interesseNoDestaque: (carro, nome) => `¡Hola! Me interesa el ${carro} que vi en el sitio de ${nome}.`,
+  veiculoEmDestaque: "vehículo destacado",
+  rpm: "RPM ×1000",
 };
 
 const FR: DemoMicrocopia = {
@@ -279,6 +387,29 @@ const FR: DemoMicrocopia = {
   trocaKm: "Kilométrage",
   trocaMensagem: "Bonjour ! Je voudrais faire estimer ma voiture.",
   trocaMensagemCarro: (carro) => `Bonjour ! Je voudrais faire reprendre ma voiture : ${carro}.`,
+  navEstoque: "Stock",
+  navVantagens: "Nos atouts",
+  navDestaque: "À la une",
+  navSimulador: "Simulateur",
+  navAvaliacao: "Reprise",
+  navDepoimentos: "Avis",
+  simValorDoVeiculo: "Prix du véhicule",
+  simEntrada: (pct) => `Apport · ${pct} %`,
+  simParcelas: "Mensualités",
+  simParcelaEstimada: "Mensualité estimée",
+  simPorMes: "/mois",
+  simFinanciado: (valor, n, taxa) => `Financé : ${valor} sur ${n} mois · taux de réf. ${taxa} %/mois`,
+  simAviso: "Montants simulés, sous réserve d’acceptation du crédit.",
+  simSolicitarProposta: "Demander une offre",
+  simMensagem: (v, e, n, p) => `Bonjour ! J’ai fait une simulation sur le site : véhicule ${v}, apport ${e}, ${n} mensualités de ${p}. Je voudrais une offre.`,
+  abrirNoWaze: "Ouvrir dans Waze",
+  abrirNoMaps: "Ouvrir dans Google Maps",
+  maisInformacoes: "Bonjour ! Je viens du site et je voudrais plus d’informations.",
+  maisInformacoesDe: (nome) => `Bonjour ! Je viens du site de ${nome} et je voudrais plus d’informations.`,
+  interesseNoCarro: (carro, preco) => `Bonjour ! Le ${carro} (${preco}) m’intéresse. Est-il toujours disponible ?`,
+  interesseNoDestaque: (carro, nome) => `Bonjour ! Le ${carro} vu sur le site de ${nome} m’intéresse.`,
+  veiculoEmDestaque: "véhicule à la une",
+  rpm: "TR/MIN ×1000",
 };
 
 const DE: DemoMicrocopia = {
@@ -325,6 +456,29 @@ const DE: DemoMicrocopia = {
   trocaKm: "Kilometerstand",
   trocaMensagem: "Hallo! Ich möchte mein Auto bewerten lassen.",
   trocaMensagemCarro: (carro) => `Hallo! Ich möchte mein Auto in Zahlung geben: ${carro}.`,
+  navEstoque: "Bestand",
+  navVantagens: "Vorteile",
+  navDestaque: "Highlight",
+  navSimulador: "Rechner",
+  navAvaliacao: "Inzahlungnahme",
+  navDepoimentos: "Bewertungen",
+  simValorDoVeiculo: "Fahrzeugpreis",
+  simEntrada: (pct) => `Anzahlung · ${pct} %`,
+  simParcelas: "Laufzeit",
+  simParcelaEstimada: "Geschätzte Rate",
+  simPorMes: "/Monat",
+  simFinanciado: (valor, n, taxa) => `Finanziert: ${valor} über ${n} Monate · Ref.-Zins ${taxa} %/Monat`,
+  simAviso: "Simulierte Werte, vorbehaltlich Bonitätsprüfung.",
+  simSolicitarProposta: "Angebot anfordern",
+  simMensagem: (v, e, n, p) => `Hallo! Ich habe auf der Website gerechnet: Fahrzeug ${v}, Anzahlung ${e}, ${n} Raten à ${p}. Ich möchte ein Angebot.`,
+  abrirNoWaze: "In Waze öffnen",
+  abrirNoMaps: "In Google Maps öffnen",
+  maisInformacoes: "Hallo! Ich komme von der Website und hätte gerne mehr Informationen.",
+  maisInformacoesDe: (nome) => `Hallo! Ich komme von der Website von ${nome} und hätte gerne mehr Informationen.`,
+  interesseNoCarro: (carro, preco) => `Hallo! Ich interessiere mich für den ${carro} (${preco}). Ist er noch verfügbar?`,
+  interesseNoDestaque: (carro, nome) => `Hallo! Ich interessiere mich für den ${carro} von der Website von ${nome}.`,
+  veiculoEmDestaque: "Fahrzeug im Highlight",
+  rpm: "U/MIN ×1000",
 };
 
 const IT: DemoMicrocopia = {
@@ -371,6 +525,29 @@ const IT: DemoMicrocopia = {
   trocaKm: "Chilometraggio",
   trocaMensagem: "Ciao! Vorrei una valutazione della mia auto.",
   trocaMensagemCarro: (carro) => `Ciao! Vorrei dare la mia auto in permuta: ${carro}.`,
+  navEstoque: "Parco auto",
+  navVantagens: "Vantaggi",
+  navDestaque: "In evidenza",
+  navSimulador: "Simulatore",
+  navAvaliacao: "Valutazione",
+  navDepoimentos: "Recensioni",
+  simValorDoVeiculo: "Prezzo del veicolo",
+  simEntrada: (pct) => `Anticipo · ${pct}%`,
+  simParcelas: "Rate",
+  simParcelaEstimada: "Rata stimata",
+  simPorMes: "/mese",
+  simFinanciado: (valor, n, taxa) => `Finanziato: ${valor} in ${n} rate · tasso rif. ${taxa}% mensile`,
+  simAviso: "Valori simulati, soggetti ad approvazione del credito.",
+  simSolicitarProposta: "Richiedi un preventivo",
+  simMensagem: (v, e, n, p) => `Ciao! Ho fatto una simulazione sul sito: veicolo ${v}, anticipo ${e}, ${n} rate da ${p}. Vorrei un preventivo.`,
+  abrirNoWaze: "Apri in Waze",
+  abrirNoMaps: "Apri in Google Maps",
+  maisInformacoes: "Ciao! Vengo dal sito e vorrei più informazioni.",
+  maisInformacoesDe: (nome) => `Ciao! Vengo dal sito di ${nome} e vorrei più informazioni.`,
+  interesseNoCarro: (carro, preco) => `Ciao! Mi interessa la ${carro} (${preco}). È ancora disponibile?`,
+  interesseNoDestaque: (carro, nome) => `Ciao! Mi interessa la ${carro} vista sul sito di ${nome}.`,
+  veiculoEmDestaque: "veicolo in evidenza",
+  rpm: "GIRI ×1000",
 };
 
 const NL: DemoMicrocopia = {
@@ -417,6 +594,29 @@ const NL: DemoMicrocopia = {
   trocaKm: "Kilometerstand",
   trocaMensagem: "Hallo! Ik wil mijn auto laten taxeren.",
   trocaMensagemCarro: (carro) => `Hallo! Ik wil mijn auto inruilen: ${carro}.`,
+  navEstoque: "Voorraad",
+  navVantagens: "Voordelen",
+  navDestaque: "Uitgelicht",
+  navSimulador: "Rekentool",
+  navAvaliacao: "Inruil",
+  navDepoimentos: "Reviews",
+  simValorDoVeiculo: "Prijs van de auto",
+  simEntrada: (pct) => `Aanbetaling · ${pct}%`,
+  simParcelas: "Looptijd",
+  simParcelaEstimada: "Geschat maandbedrag",
+  simPorMes: "/maand",
+  simFinanciado: (valor, n, taxa) => `Gefinancierd: ${valor} in ${n} maanden · ref.-rente ${taxa}%/maand`,
+  simAviso: "Gesimuleerde bedragen, onder voorbehoud van kredietgoedkeuring.",
+  simSolicitarProposta: "Offerte aanvragen",
+  simMensagem: (v, e, n, p) => `Hallo! Ik heb op de site gerekend: auto ${v}, aanbetaling ${e}, ${n} termijnen van ${p}. Graag een offerte.`,
+  abrirNoWaze: "Openen in Waze",
+  abrirNoMaps: "Openen in Google Maps",
+  maisInformacoes: "Hallo! Ik kom via de website en wil graag meer informatie.",
+  maisInformacoesDe: (nome) => `Hallo! Ik kom via de website van ${nome} en wil graag meer informatie.`,
+  interesseNoCarro: (carro, preco) => `Hallo! Ik heb interesse in de ${carro} (${preco}). Is hij nog beschikbaar?`,
+  interesseNoDestaque: (carro, nome) => `Hallo! Ik heb interesse in de ${carro} op de website van ${nome}.`,
+  veiculoEmDestaque: "uitgelichte auto",
+  rpm: "TPM ×1000",
 };
 
 const MICROCOPIA_POR_RAIZ: Record<RaizMicrocopia, DemoMicrocopia> = {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { simboloMoeda } from "@/lib/demos/precos";
 import { IDIOMA_PADRAO } from "@/lib/idioma";
 import type { DemoServico } from "@/lib/demos/types";
@@ -62,6 +63,7 @@ export function Simulador({
   const [entrada, setEntrada] = useState(() => entradaDe(faixa.inicial));
   const [parcelas, setParcelas] = useState(48);
 
+  const m = microcopiaDemo(idioma);
   const fmt = (n: number) => formatarInteiro(n, idioma);
   const simbolo = simboloMoeda(idioma, moeda);
   const entradaMax = Math.round(valor * ENTRADA_RATIO_MAX);
@@ -94,7 +96,7 @@ export function Simulador({
   const linkProposta =
     waHref(
       whatsapp,
-      `Olá! Simulei no site: veículo ${simbolo} ${fmt(valor)}, entrada ${simbolo} ${fmt(entrada)}, ${parcelas}x de ${simbolo} ${pmtStr}. Quero uma proposta.`,
+      m.simMensagem(`${simbolo} ${fmt(valor)}`, `${simbolo} ${fmt(entrada)}`, parcelas, `${simbolo} ${pmtStr}`),
     ) ?? (telDigitos ? `tel:${telDigitos}` : undefined);
   const externo = linkProposta?.startsWith("https:");
 
@@ -107,7 +109,7 @@ export function Simulador({
         <div>
           <div className="mb-1.5 flex items-baseline justify-between">
             <span className="font-[family-name:var(--d-corpo)] text-[11px] font-semibold tracking-[2px] text-[var(--d-muted)]">
-              VALOR DO VEÍCULO
+              {m.simValorDoVeiculo.toUpperCase()}
             </span>
             <span className="font-[family-name:var(--d-mono)] text-2xl font-semibold tabular-nums text-[var(--d-text)]">
               {simbolo} {fmt(valor)}
@@ -135,7 +137,7 @@ export function Simulador({
         <div>
           <div className="mb-1.5 flex items-baseline justify-between">
             <span className="font-[family-name:var(--d-corpo)] text-[11px] font-semibold tracking-[2px] text-[var(--d-muted)]">
-              ENTRADA · {Math.round((entrada / valor) * 100)}%
+              {m.simEntrada(Math.round((entrada / valor) * 100)).toUpperCase()}
             </span>
             <span className="font-[family-name:var(--d-mono)] text-2xl font-semibold tabular-nums text-[var(--d-text)]">
               {simbolo} {fmt(entrada)}
@@ -154,7 +156,7 @@ export function Simulador({
         </div>
         <div>
           <p className="mb-3 font-[family-name:var(--d-corpo)] text-[11px] font-semibold tracking-[2px] text-[var(--d-muted)]">
-            PARCELAS
+            {m.simParcelas.toUpperCase()}
           </p>
           <div className="flex gap-2">
             {PARCELAS_OPCOES.map((n) => {
@@ -190,7 +192,7 @@ export function Simulador({
         }}
       >
         <p className="font-[family-name:var(--d-corpo)] text-[11px] font-semibold tracking-[2px] text-[var(--d-muted)]">
-          PARCELA ESTIMADA
+          {m.simParcelaEstimada.toUpperCase()}
         </p>
         <div className="flex flex-wrap items-baseline gap-2">
           <span className="font-[family-name:var(--d-mono)] text-xl font-semibold text-[var(--d-accent)]">{simbolo}</span>
@@ -206,13 +208,15 @@ export function Simulador({
             )}
           </span>
           <span className="font-[family-name:var(--d-corpo)] text-base font-semibold text-[var(--d-muted)]">
-            /mês
+            {m.simPorMes}
           </span>
         </div>
         <p className="font-[family-name:var(--d-corpo)] text-[13px] font-medium tabular-nums text-[var(--d-muted)]">
-          Financiado: {simbolo} {financiadoFmt} em {parcelas}× · taxa ref.{" "}
-          {TAXA_JUROS_MENSAL.toLocaleString(idioma ?? IDIOMA_PADRAO, { minimumFractionDigits: 2 })}
-          % a.m.
+          {m.simFinanciado(
+            `${simbolo} ${financiadoFmt}`,
+            parcelas,
+            TAXA_JUROS_MENSAL.toLocaleString(idioma ?? IDIOMA_PADRAO, { minimumFractionDigits: 2 }),
+          )}
         </p>
         {linkProposta && (
         <a
@@ -226,11 +230,11 @@ export function Simulador({
             boxShadow: "0 10px 26px color-mix(in srgb, var(--d-accent) 28%, transparent)",
           }}
         >
-          {(ctaLabel?.trim() || "Solicitar proposta").toUpperCase()}
+          {(ctaLabel?.trim() || m.simSolicitarProposta).toUpperCase()}
         </a>
         )}
         <p className="font-[family-name:var(--d-corpo)] text-[11px] text-[var(--d-muted)]">
-          Valores simulados, sujeitos a análise de crédito.
+          {m.simAviso}
         </p>
       </div>
     </div>

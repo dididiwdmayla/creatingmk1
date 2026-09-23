@@ -65,22 +65,24 @@ const ANIM_HOVER_LIFT: Record<Animacao, string> = {
 };
 
 /**
- * Rótulo curto DEFAULT da nav por seção — estrutura do template (como a
- * numeração "01/FILOSOFIA" de outras skins), usado só quando a seção não
- * tem `rotulo` próprio definido (DemoSecao.rotulo, a etiqueta editorial em
- * cima do título, ex.: "POR QUE A VÓRTICE"). `rotulo` vence este default
- * quando presente — é conteúdo (slot da IA/editor, traduzível pro idioma
- * do lead — ver "Idioma da IA na demo"), enquanto este mapa é só o
- * fallback fiel ao material bruto para quem nunca editou a seção.
+ * Rótulo curto DEFAULT da nav por seção — estrutura do template, usado só
+ * quando a seção não tem `rotulo` próprio (DemoSecao.rotulo, a etiqueta
+ * editorial em cima do título). `rotulo` vence quando presente — é
+ * conteúdo, traduzido pela IA —, e este fallback é cromo: sai da
+ * microcópia no idioma da demo, não de um mapa em português.
  */
-const NAV_LABEL: Record<string, string> = {
-  estoque: "Estoque",
-  vantagens: "Vantagens",
-  simulador: "Simulador",
-  avaliacao: "Avaliação",
-  depoimentos: "Depoimentos",
-  contato: "Contato",
-};
+function rotuloNavPadrao(id: string, m: DemoMicrocopia): string | undefined {
+  const mapa: Record<string, string> = {
+    estoque: m.navEstoque,
+    vantagens: m.navVantagens,
+    destaque: m.navDestaque,
+    simulador: m.navSimulador,
+    avaliacao: m.navAvaliacao,
+    depoimentos: m.navDepoimentos,
+    contato: m.contato,
+  };
+  return mapa[id];
+}
 
 /**
  * Rótulo editorial acima do título. Vazio ou só espaço: não existe — o
@@ -214,15 +216,15 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
 
   const navLinks: NavLink[] = visiveis
     .filter((id) => id !== "hero" && id !== "numeros")
-    .map((id) => ({ id, rotulo: s[id]?.rotulo?.trim() || NAV_LABEL[id] || s[id]?.titulo?.trim() || id }));
+    .map((id) => ({ id, rotulo: s[id]?.rotulo?.trim() || rotuloNavPadrao(id, m) || s[id]?.titulo?.trim() || id }));
 
   // `waHref` devolve undefined sem número — cada CTA de WhatsApp some
   // junto, em vez de virar link morto (ver interactive/logic.ts).
-  const linkWaMain = waHref(data.whatsapp, `Olá! Vim pelo site da ${data.nome} e quero mais informações.`);
+  const linkWaMain = waHref(data.whatsapp, m.maisInformacoesDe(data.nome));
   const linkWaAvaliacao = waHref(data.whatsapp, m.trocaMensagem);
   const linkWaDestaque = waHref(
     data.whatsapp,
-    `Olá! Tenho interesse no ${s.destaque?.titulo?.trim() || "veículo em destaque"} que vi no site da ${data.nome}.`,
+    m.interesseNoDestaque(s.destaque?.titulo?.trim() || m.veiculoEmDestaque, data.nome),
   );
 
   const secoes: Record<string, () => ReactNode> = {
@@ -316,7 +318,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             {s.numeros?.itens?.map((item, i) => (
               <div key={i}>
                 <p className="font-[family-name:var(--d-mono)] text-[clamp(38px,4.6vw,56px)] font-semibold leading-none tabular-nums text-[var(--d-text)]">
-                  <StatCounter valor={item.titulo} corDestaque={paleta.destaque} />
+                  <StatCounter valor={item.titulo} corDestaque={paleta.destaque} idioma={idioma} />
                 </p>
                 {item.detalhe && (
                   <p className="mt-2 font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[1px] text-[var(--d-muted)]">
@@ -553,7 +555,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                       className="d-press flex items-center justify-between rounded-lg border px-6 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)] transition-colors"
                       style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)" }}
                     >
-                      <span>Abrir no Waze</span>
+                      <span>{m.abrirNoWaze}</span>
                       <span style={{ color: "var(--d-accent)" }}>→</span>
                     </a>
                   )}
@@ -565,7 +567,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                       className="d-press flex items-center justify-between rounded-lg border px-6 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)] transition-colors"
                       style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)" }}
                     >
-                      <span>Abrir no Google Maps</span>
+                      <span>{m.abrirNoMaps}</span>
                       <span style={{ color: "var(--d-accent)" }}>→</span>
                     </a>
                   )}
@@ -621,10 +623,15 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                 </a>
               )}
               <p className="w-full font-[family-name:var(--d-corpo)] text-xs text-[var(--d-muted)]">
-                © {new Date().getFullYear()} {data.nome}.{" "}
-                <span data-demo-slot="secoes.contato.texto">
-                  {s.contato?.texto?.trim() || "Conteúdo ilustrativo."}
-                </span>
+                © {new Date().getFullYear()} {data.nome}.
+                {/* Sem fallback: "Conteúdo ilustrativo." cravado aqui saía em
+                    português em toda demo, em qualquer idioma. */}
+                {s.contato?.texto?.trim() && (
+                  <>
+                    {" "}
+                    <span data-demo-slot="secoes.contato.texto">{s.contato.texto.trim()}</span>
+                  </>
+                )}
               </p>
             </div>
           </section>
@@ -697,7 +704,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
       />
       <ProgressBar accent={paleta.destaque} />
 
-      <IntroExperience nome={data.nome} accent={paleta.destaque} ativa={theme.intro === true}>
+      <IntroExperience nome={data.nome} accent={paleta.destaque} ativa={theme.intro === true} idioma={idioma}>
         <Nav nome={data.nome} links={navLinks} whatsapp={data.whatsapp} idioma={idioma} />
 
         {/* O hero é renderizado FORA do `visiveis.map` (é fixo e vem antes
@@ -750,7 +757,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
           })}
       </IntroExperience>
 
-      <WhatsAppFloat whatsapp={data.whatsapp} />
+      <WhatsAppFloat whatsapp={data.whatsapp} idioma={idioma} />
     </div>
   );
 }
