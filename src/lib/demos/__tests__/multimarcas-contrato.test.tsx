@@ -345,3 +345,23 @@ describe("multimarcas: o painel de instrumentos nas quatro escalas (§3, item 18
     expect(mostradores[0].closest('[data-d-secao="hero"]')).not.toBeNull();
   });
 });
+
+describe("multimarcas: as quatro declarações (item 19)", () => {
+  const variantes = skin.variantes!;
+  it("a intro nasce ligada só na vortice (§6, Intro)", () => {
+    expect(variantes.filter((v) => v.theme.intro).map((v) => v.id)).toEqual(["vortice"]);
+  });
+  it("cada variante tem a sua composição, e as quatro diferem em TODOS os nove knobs", () => {
+    const comps = variantes.map((v) => v.theme.multimarcas!);
+    for (const knob of Object.keys(comps[0]) as (keyof typeof comps[0])[]) {
+      expect(new Set(comps.map((c) => c[knob])).size, knob).toBe(4);
+    }
+  });
+  it("o alinhamento inicial da abertura segue a composição (a sangrada centra)", () => {
+    const al = Object.fromEntries(variantes.map((v) => [v.id, v.theme.heroTitulo.alinhamento]));
+    expect(al).toEqual({ vortice: "esquerda", patio: "esquerda", garagem: "centro", campo: "esquerda" });
+  });
+  it("nenhuma variante nasce com seção oculta", () => {
+    for (const v of variantes) expect(v.arranjo.ocultas ?? []).toEqual([]);
+  });
+});

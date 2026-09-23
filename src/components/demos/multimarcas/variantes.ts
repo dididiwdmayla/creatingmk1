@@ -1,4 +1,11 @@
-import type { DemoData, MultimarcasComposicao, SkinVariante, Theme } from "@/lib/demos/types";
+import type {
+  DemoData,
+  DemoSecao,
+  DemoServico,
+  MultimarcasComposicao,
+  SkinVariante,
+  Theme,
+} from "@/lib/demos/types";
 import { criarVariante } from "@/lib/demos/variantes";
 
 import { MULTIMARCAS_EXEMPLO } from "./exemplo";
@@ -7,23 +14,35 @@ import { MULTIMARCAS_THEME_PRESETS } from "./themes";
 
 /**
  * As quatro VARIANTES da `multimarcas-vortice` — quatro TIPOS DE LOJA, não
- * quatro paletas (ver "As quatro variantes" em docs/plano-multimarcas.md
- * §4). Nesta etapa (1 — contrato e fiação) cada declaração carrega o
- * MÍNIMO que fecha o contrato: o preset de paleta/tipografia que já
- * existia (renomeado com o id novo), o arranjo default de seções (§6
- * "Ordem default") e os slots que a variante não desenha (§8). A
- * composição visual por variante (`MultimarcasComposicao`, os cinco
- * desenhos de cada seção) e a cópia de exemplo própria entram na etapa 3 —
- * até lá as quatro variantes compartilham a MESMA camada de exemplo
- * (`MULTIMARCAS_EXEMPLO`), o que a trava de variantes
- * (`__tests__/variantes.test.tsx`) aceita: o contrato de slots é o mesmo
- * por definição quando o exemplo é o mesmo objeto.
+ * quatro paletas (ver "As quatro variantes" e "Critério de drasticidade"
+ * em docs/plano-multimarcas.md §4/§6).
+ *
+ * Cada declaração carrega TRÊS camadas (o molde da chapa burger):
+ *
+ *   1. a COMPOSIÇÃO (os nove knobs de `MultimarcasComposicao`) + o arranjo
+ *      de seções + os slots que ela não desenha (`imagensOcultas`, §8);
+ *   2. `tema` — o que acompanha o mundo visual e não é paleta: intro,
+ *      hover, densidade, raio, alinhamento da abertura. Paleta e
+ *      tipografia vêm do preset (./themes.ts);
+ *   3. `slogan`/`textos`/`servicos` — a cópia de exemplo própria da
+ *      variante, gravada por cima do exemplo BASE. Chaves e slots
+ *      continuam os mesmos: o exemplo é um só contrato, e a trava
+ *      (`__tests__/variantes.test.tsx`) compara as quatro entre si.
+ *
+ * O ALINHAMENTO da abertura entra aqui, e não na folha de composição, de
+ * propósito: `heroTitulo.alinhamento` é controle do OPERADOR na aba Tema.
+ * A composição tem opinião (a sangrada é um cartaz centrado; as outras três
+ * leem da esquerda), mas ela é o VALOR INICIAL de um campo editável.
+ *
+ * A INTRO (o preloader do velocímetro) nasce ligada só na `vortice`, fiel
+ * ao material bruto; o Pátio vende pressa, e as outras duas também abrem
+ * direto (§6, "Intro"). Continua editável na aba Tema.
  *
  * IDs e aliases (§4): os ids ANTIGOS de preset (`azul-classico`, `grafite`,
  * `meia-noite`) viram os ids NOVOS de variante (`patio`, `garagem`,
  * `campo`) por `SkinDefinition.themeAliases`, mapeados por FUNDO — nenhuma
  * demo publicada troca de luminância. `vortice` fica com o mesmo id (é o
- * default, inalterado).
+ * default e a conversão fiel do material bruto).
  */
 interface Declaracao {
   /** Id novo da variante (§4). */
@@ -39,7 +58,32 @@ interface Declaracao {
   /** Permutação COMPLETA dos ids de MULTIMARCAS_SECOES, incluindo "hero" (ver VarianteArranjo). */
   ordem: readonly string[];
   imagensOcultas?: Record<string, "nenhum" | "so-titulo">;
+  /** Ajustes de tema que acompanham o mundo — nunca paleta (essa é do preset). */
+  tema?: Partial<Theme>;
+  /** Cópia de exemplo própria da variante (item 21). */
+  slogan?: string;
+  /** Textos de seção próprios, gravados por cima do exemplo BASE (item 21). */
+  textos?: Record<string, Partial<DemoSecao>>;
+  /**
+   * O estoque de exemplo desta loja. **Sempre NOVE carros**, como o exemplo
+   * base: cada um desenha o slot `carro-N`, e uma variante com oito
+   * deixaria `carro-9` sem caixa — um slot que o editor oferece e a página
+   * nunca mostra.
+   */
+  servicos?: DemoServico[];
+  /** Depoimentos próprios (o `contexto` é o carro, e o carro é da loja). */
+  depoimentos?: DemoData["depoimentos"];
+  /** Alts próprios — os carros mudam, e o alt descreve o carro. */
+  imagensAlt?: Record<string, string>;
 }
+
+/** Valor inicial do campo "alinhamento" da aba Tema, por abertura. */
+const ALINHAMENTO_DA_ABERTURA: Record<MultimarcasComposicao["abertura"], "esquerda" | "centro"> = {
+  tipografica: "esquerda",
+  busca: "esquerda",
+  sangrada: "centro",
+  dividida: "esquerda",
+};
 
 const DECLARACOES: readonly Declaracao[] = [
   {
@@ -49,6 +93,7 @@ const DECLARACOES: readonly Declaracao[] = [
       "Loja de seminovos de 80–150 mil com laudo e garantia. Quem chega: comprador racional que compara três lojas e decide por procedência. Conversão fiel do material bruto; continua o default.",
     fundo: "claro",
     presetId: "vortice",
+    tema: { intro: true },
     composicao: {
       abertura: "tipografica",
       estoque: "grade",
@@ -71,6 +116,8 @@ const DECLARACOES: readonly Declaracao[] = [
       "Pátio de populares e primeiro carro, até 70 mil, faixa na calçada. Quem chega: quem compra pela parcela e não pelo preço, no celular, entre um compromisso e outro.",
     fundo: "claro",
     presetId: "azul-classico",
+    // O Pátio vende pressa: sem intro, sem hover que distrai, página densa.
+    tema: { intro: false, hover: "lift", densidade: "compacta", animacao: "sutil" },
     composicao: {
       abertura: "busca",
       estoque: "lista",
@@ -93,6 +140,8 @@ const DECLARACOES: readonly Declaracao[] = [
       "Poucos carros, cada um um evento: esportivos, importados, clássicos. Quem chega: entusiasta que lê a ficha técnica inteira antes de mandar a primeira mensagem.",
     fundo: "escuro",
     presetId: "grafite",
+    // Cada carro um evento: página arejada, hover que brilha, raio seco.
+    tema: { intro: false, hover: "brilho", densidade: "arejada", animacao: "sutil" },
     composicao: {
       abertura: "sangrada",
       estoque: "vitrine",
@@ -114,6 +163,7 @@ const DECLARACOES: readonly Declaracao[] = [
       "Loja de picape, SUV 4×4 e utilitário no interior. Quem chega: produtor ou empresa que troca a caminhonete velha na compra da nova — a troca é o assunto.",
     fundo: "escuro",
     presetId: "meia-noite",
+    tema: { intro: false, hover: "lift", densidade: "confortavel", animacao: "sutil" },
     composicao: {
       abertura: "dividida",
       estoque: "tabela",
@@ -130,10 +180,35 @@ const DECLARACOES: readonly Declaracao[] = [
   },
 ];
 
+/**
+ * Mesmo contrato de seções, mesmo contrato de slots (chaves E valores de
+ * `imagens`). A variante só troca defaults — e a trava
+ * (`__tests__/variantes.test.tsx`) é quem prova isso, no HTML do servidor.
+ */
 export const MULTIMARCAS_VARIANTES: readonly SkinVariante[] = DECLARACOES.map((d) => {
   const preset = MULTIMARCAS_THEME_PRESETS.find((t) => t.id === d.presetId)!;
-  const theme: Theme = { ...preset, id: d.id, nome: d.nome, multimarcas: d.composicao };
-  const exemplo: DemoData = MULTIMARCAS_EXEMPLO;
+  const theme: Theme = {
+    ...preset,
+    ...d.tema,
+    id: d.id,
+    nome: d.nome,
+    multimarcas: d.composicao,
+    heroTitulo: {
+      ...preset.heroTitulo,
+      ...d.tema?.heroTitulo,
+      alinhamento: d.tema?.heroTitulo?.alinhamento ?? ALINHAMENTO_DA_ABERTURA[d.composicao.abertura],
+    },
+  };
+  const exemplo: DemoData = {
+    ...MULTIMARCAS_EXEMPLO,
+    ...(d.slogan && { slogan: d.slogan }),
+    ...(d.servicos && { servicos: d.servicos }),
+    ...(d.depoimentos && { depoimentos: d.depoimentos }),
+    ...(d.imagensAlt && { imagensAlt: { ...MULTIMARCAS_EXEMPLO.imagensAlt, ...d.imagensAlt } }),
+    secoes: Object.fromEntries(
+      Object.entries(MULTIMARCAS_EXEMPLO.secoes).map(([id, secao]) => [id, { ...secao, ...d.textos?.[id] }]),
+    ),
+  };
   return criarVariante(
     {
       id: d.id,
