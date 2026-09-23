@@ -44,7 +44,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 import { ALVOS_QA } from "../src/lib/demos/capturas/temas.mjs";
-import { VARIANTES_POR_SKIN } from "../src/lib/demos/capturas/variantes.mjs";
+import { IMAGENS_OCULTAS_POR_VARIANTE, VARIANTES_POR_SKIN } from "../src/lib/demos/capturas/variantes.mjs";
 import { lerPng } from "./png.mjs";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -1040,7 +1040,19 @@ async function verificarColapsoDeImagem(browser, secret) {
       problemas.push(`${skin}: nenhum slot de imagem — o portão não mediu nada nesta skin`);
     }
 
+    // Slots que ESTA variante declara não desenhar (ver
+    // `SkinVariante.imagensOcultas`): caixa zero é o CORRETO ali, não o
+    // bug que este portão caça. A direção inversa (declarado ⇒ zero, não
+    // declarado ⇒ maior que zero) já é verificada, por skin, em
+    // `qa-tatuagem.mjs`/`qa-chapa.mjs` — este laço genérico existe pra
+    // pegar colapso ACIDENTAL (a foto real atrás de um `<div>` sem altura
+    // própria), então só precisa saber o que ignorar.
+    const ocultos = new Set(
+      Object.keys(IMAGENS_OCULTAS_POR_VARIANTE[skinId]?.[preset] ?? {}).map((s) => `imagens.${s}`),
+    );
+
     for (const nome of nomes) {
+      if (ocultos.has(nome)) continue;
       totalSlots++;
       const loc = page.locator(`[data-demo-slot="${nome}"]`).first();
       // scrollIntoView: alguns slots só ganham dimensão real depois do
@@ -1055,7 +1067,7 @@ async function verificarColapsoDeImagem(browser, secret) {
   }
 
   await ctx.close();
-  console.log(`[colapso] ${totalSlots} slot(s) de imagem checados em ${ALVOS_DE_LACO.length} combinações skin × tema.`);
+  console.log(`[colapso] ${totalSlots} slot(s) de imagem checados (com foto esperada) em ${ALVOS_DE_LACO.length} combinações skin × tema.`);
   if (problemas.length > 0) {
     throw new Error(
       `[colapso] ${problemas.length} elemento(s) com foto renderizando com largura ou altura zero:\n  ${problemas.join("\n  ")}`,
