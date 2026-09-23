@@ -1131,8 +1131,8 @@ arquivos e relatórios. São 36 combinações no registro atual (9 × 4). O test
 sem sobreposição ou ID duplicado. `--skin=<id>` filtra explicitamente o alvo;
 sem filtro, o laço percorre todas as combinações.
 
-**Para as próximas CINCO migrações** (a tatuagem foi a segunda, a chapa
-burger a terceira): remover a
+**Para as próximas QUATRO migrações** (a tatuagem foi a segunda, a chapa
+burger a terceira, a multimarcas a quarta): remover a
 entrada de `PRESETS_SEM_VARIANTES`, adicionar suas variantes em
 `VARIANTES_POR_SKIN` e manter o teste verde. Não
 reintroduzir uma lista só de skins nem confiar que quatro presets existem só
@@ -1152,14 +1152,16 @@ neste bloco, conforme escopo aprovado. `CAMPOS_IDENTIDADE_DEMO` não inclui
 | `barbearia2-sul` | Av. Brasil, 500 — Zona 3 |
 | `tatuagem-pigmento-vivo` | Rua das Aquarelas, 88 — Centro |
 | `imobiliaria-curada` | Rua Principal, 100 — Centro |
-| `multimarcas-vortice` | Av. Principal, 1000 — Centro |
 | `petshop-focinho-feliz` | Rua das Begônias, 240 — Jardim das Flores |
 
 A `tatuagem-editorial` saiu desta tabela na migração dela (ver abaixo):
 `TATUAGEM_EXEMPLO` não declara mais `endereco`, e o contrato SSR da skin
 cobre isso por variante. A `lancheria-chapa-burger` saiu na migração dela
-(ver "Lancheria Chapa Burger" abaixo), pelo mesmo motivo. Restam CINCO
-skins nativas com o defeito.
+(ver "Lancheria Chapa Burger" abaixo), pelo mesmo motivo. A
+`multimarcas-vortice` saiu na migração dela (ver "Multimarcas Vórtice"
+abaixo) — o endereço fictício aqui era pior que texto: ligava os botões
+Waze e Google Maps, exclusivos desta skin, para um lugar inventado.
+Restam QUATRO skins nativas com o defeito.
 
 Na `barbearia-editorial`, o endereço fictício foi retirado de `BARBEARIA_EXEMPLO`;
 lead sem endereço não emite o slot nem o botão de rota. O teste específico
@@ -1443,6 +1445,164 @@ primeiras telas vai de 45,6 (as duas escuras, chapa × sala) a 178,5
 para a skin. Resultados completos, a tabela de fps e os dados brutos do
 navegador em
 [qa/lancheria-chapa-burger/STATUS.md](qa/lancheria-chapa-burger/STATUS.md).
+
+### Multimarcas Vórtice — migração de presets para variantes
+
+`multimarcas-vortice` mantém uma entrada de skin, NOVE seções (`hero`,
+`estoque`, `vantagens`, `numeros`, `destaque`, `simulador`, `avaliacao`,
+`depoimentos`, `contato`), onze slots de imagem e os onze `imagensAlt`
+correspondentes. Só `hero` é fixa. As variantes Vórtice, Pátio, Garagem
+e Campo vivem em `multimarcas/variantes.ts`; a composição é
+parametrizada por `Theme.multimarcas` (`MultimarcasComposicao`), com o
+CSS em `multimarcas/composicao.ts` — sem quatro caminhos de render. O
+painel de instrumentos (agulha do velocímetro que segue o scroll,
+parcela e preço que contam como odômetro) existe nas quatro, em escalas
+e lugares diferentes.
+
+**O contrato CRESCEU nesta migração** (única das quatro até agora): uma
+seção nova (`destaque` — ficha técnica do carro em destaque) e dois
+slots de imagem (`hero`, `destaque`), de nove para onze slots e de oito
+para nove seções. `ordemEfetiva` (`lib/demos/estrutura.ts`) passou a
+inserir seção não listada antes da primeira sucessora do CONTRATO, não
+no fim — sem isso, `destaque` nasceria depois do rodapé em toda demo já
+reordenada pelo operador antes desta migração.
+
+**IDs trocados, com alias por LUMINÂNCIA.** `azul-classico → patio`,
+`grafite → garagem`, `meia-noite → campo`; `vortice` fica inalterado e
+continua o default — é a variante que preserva a conversão fiel do
+material bruto. `SkinDefinition.themeAliases` mapeia SÓ por fundo
+(claro→claro, escuro→escuro), mesmo precedente da chapa burger e da
+barbearia; sem migração de banco.
+
+**Quatro tipos de loja, e quem chega em cada uma** — é o tipo de loja
+que justifica a composição, não o contrário:
+
+| variante | loja | quem chega |
+|---|---|---|
+| Vórtice (**claro**) | seminovos premium, 80–150 mil | comparador racional; decide por procedência |
+| Pátio (**claro**) | populares e primeiro carro, até 70 mil | compra pela parcela, no celular, com pressa |
+| Garagem (escuro) | boutique de esportivos e importados | entusiasta; lê a ficha técnica inteira antes de escrever |
+| Campo (escuro) | picapes, SUV 4×4 e utilitários | produtor/empresa; a troca da usada é o assunto |
+
+**As nove seções mudam de LAYOUT entre as quatro** (o portão pede
+quatro; quatro delas — abertura, estoque, destaque, avaliação — seguram
+a drasticidade mesmo se alguma linha escorregar na execução):
+
+| seção | vortice | patio | garagem | campo |
+|---|---|---|---|---|
+| abertura | tipográfica, diagonal, velocímetro selo | busca por faixa de preço, velocímetro pequeno | foto sangrada, véu, velocímetro grande | dividida: texto + foto emoldurada, velocímetro no canto |
+| estoque | grade 3 colunas, filtro por categoria | lista densa, parcela em destaque, filtro por faixa | vitrine, um carro por linha, sem filtro | tabela com colunas ano/km/câmbio/combustível |
+| destaque | cartão horizontal | tira "oferta da semana" | catálogo de página inteira | ficha de pátio, tabela larga |
+| simulador | dois cartões lado a lado | uma coluna, resultado acima | painel horizontal compacto | cartão único ao lado do texto |
+| avaliação/troca | faixa no acento + marquee | tarja com CTA | linha discreta + marquee lenta | formulário de troca em cartão grande |
+
+**Regras da composição** (mesmas da chapa burger): o CSS sai no servidor
+(`qa-cls.mjs --so=skins` mede **CLS 0,0011**, bem abaixo do piso de
+0,1 — nenhum deslocamento perceptível pós-hidratação); especificidade em
+vez de `!important`; **nenhuma composição esconde TEXTO** — a tabela do
+Campo mantém a descrição em corpo menor, a linha discreta da Garagem
+mantém o subtítulo.
+
+**Slot não desenhado avisa no editor**, sempre com o motivo `nenhum`
+(sem uma composição "abertura sem foto de fundo" que precise do motivo
+`so-titulo` da tatuagem): `vortice` e `patio` escondem `hero` — a
+abertura tipográfica e a busca não têm foto; `garagem` e `campo`
+desenham os onze. Verificado nas duas direções, no navegador com
+JavaScript desligado.
+
+**A escada de identidade em dois lugares, um componente só.**
+`Dados`/`.mm-dados` monta a lista de endereço/horário/telefone/Instagram
+com zero linhas = o bloco NÃO existe (nem borda, nem fundo, nem grade de
+rótulos) — o mesmo componente na barra de identidade da abertura do
+Pátio (`comp.abertura === "busca"`) e no bloco "onde fica o pátio" do
+contato do Campo. Verificado nas QUATRO variantes (não só duas, como na
+chapa burger): o rodapé compartilhado desenha `.mm-dados` nas quatro
+quando há dado, e nenhuma delas deixa cromo vazio quando não há.
+
+**O que era literal virou slot ou token.** Sete cores cravadas do avatar
+de depoimento (`CORES_AVATAR`, uma delas a 4,19:1 com iniciais brancas —
+reprovava nas quatro paletas por não depender de paleta nenhuma)
+passaram a derivar da paleta com o ink medido por contraste
+(`coresDoAvatar`, `logic.ts`); as sombras marrons cravadas viraram
+`--mm-sombra`. Metade do chrome em português (rótulos do simulador,
+`NAV_LABEL`, "Abrir no Waze"/"Abrir no Google Maps", as mensagens de
+WhatsApp, as duas legendas do velocímetro — saiu "VEGLIA · MILANO", nome
+de fabricante real cravado no componente) ganhou chave própria em
+`microcopiaDemo`, nas sete raízes de idioma; o fallback `"Conteúdo
+ilustrativo."` não virou chave — saiu, o slot vazio agora não desenha
+linha nenhuma. Os onze `alt` eram derivados da copy e viraram
+`imagensAlt`. A nota "4,9★ avaliação no Google" saiu do exemplo — fato
+verificável sobre o negócio do lead, não conteúdo de demonstração; não
+virou slot. O endereço de exemplo saiu — era a linha desta skin na
+tabela "Auditoria de endereço" acima, e aqui o defeito era pior que
+texto: o endereço fictício LIGAVA os botões Waze e Google Maps,
+exclusivos desta skin, para um lugar inventado.
+
+**Guarda do `<h1>` vazio, e um terceiro papel para o mesmo campo.** Os
+quatro `??` que deixavam `<h1>`/rótulo/CTA em branco com string vazia
+(`hero?.titulo ?? nome`, o rótulo de nav, o texto do contato, o CTA do
+simulador) viraram `?.trim() || …`, mesma família de defeito da chapa
+burger. Mas aqui o campo `secoes.hero.titulo` ganhou um papel NOVO: o
+`<h1>` passa a ser SEMPRE `data.nome`, nas quatro variantes — e o
+título, se preenchido, vira uma LINHA DE APOIO logo abaixo dele
+(`linhaDeApoio`, `logic.ts`), sem perder o texto de nenhuma demo já
+salva e sem migração de banco. Vazio, ou igual ao nome sem caixa/
+espaços, a linha não é desenhada. Provado em três camadas: JSDOM
+(`multimarcas-contrato.test.tsx`), e no NAVEGADOR — com a linha
+efetivamente VISÍVEL (estilo computado, não só caixa), nas quatro
+variantes (`qa-multimarcas.mjs`, ver STATUS.md abaixo).
+
+**A exceção `SKINS_COM_PRECO_ANIMADO` caiu.** O preço do carro
+(`CarCard.tsx`) animava em dois nós — símbolo estático fora do contador
++ `StatCounter` só com o número, sem centavos — nunca a string contígua
+que `formatarPrecoServico` devolve, e por isso `precos-locale.test.tsx`
+media a multimarcas com uma verificação mais fraca (só o símbolo/código
+da moeda). O preço passou a animar JÁ FORMATADO por inteiro (símbolo,
+milhar e centavos, mesmo formato das outras sete skins); `StatCounter`
+só embrulha prefixo/sufixo num `<span>` quando `corDestaque` é passado
+(o caso dos contadores de "Números" — "+1.200", que ganham cor no `+`),
+senão sai como texto solto, contíguo com o número no HTML do servidor.
+A lista de exceção cai a zero entradas — nenhum comentário morto no
+lugar dela.
+
+#### O portão de drasticidade (`scripts/qa-multimarcas.mjs`)
+
+Mesmo critério das outras três: variante que só muda paleta, fonte e
+espaçamento é preset; o portão que separa uma coisa da outra é uma
+IMAGEM. Duas folhas em cinza (abertura de leitura + silhueta em escala),
+com toda animação e contagem de preço pausadas antes do print.
+
+O mesmo laço mede o que só o navegador prova: o contrato sem JavaScript
+(um `<h1>` com o nome inteiro, caixa não-zero E VISÍVEL, na âncora hero;
+as nove seções sem duplicata; sem transbordo horizontal), as caixas dos
+onze slots declarados em `imagensOcultas`, o AFERIDOR DE CAIXA ZERADA da
+regra do vazio (`.mm-dados` medindo `null` nas QUATRO variantes, não só
+duas), **a linha de apoio do §6.1 visível** (não só com caixa) nas
+quatro, e uma captura dedicada do defeito 3 do §1 — a `vortice` com a
+intro LIGADA (o default dela) e JavaScript DESLIGADO, confirmando ao
+vivo que o preloader não sai no documento servido e nenhum preço do
+estoque sai zerado.
+
+**Fechamento da validação:** 20/20 células variante × modo de cor
+aprovadas em CPU 4×, celular 390×844/DPR 2, grão intensidade 3, cinco
+cargas por célula e rolagem ativa. Menor mediana: 53,0 fps (`campo` ×
+`fixa`, piso 45); nenhum modo desabilitado, `modosDeCorReprovados` fica
+vazio nas quatro. Superfície repintada entre 41,0 e 78,7 Mpx/s — todas
+abaixo do limiar de marcação. Contrato sem JavaScript verde em 390 e
+1100px nas quatro, com a linha de apoio visível e o defeito 3
+confirmado ao vivo na `vortice`. As quatro passam o portão de
+drasticidade: alturas de página de 7.207 a 10.371px e composição
+diferente em cinco das nove seções (abertura, estoque, destaque,
+simulador, avaliação/troca); a diferença média em cinza nas três
+primeiras telas vai de 48,7 (as duas claras, vortice × patio) a 181,8
+(patio × campo, a mais distante). `qa-cls.mjs --so=skins` mede CLS
+0,0011 para a skin. `--so=colapso` mede 42/42 slots OK; `--so=barra`
+sai limpa em três das quatro variantes, com um achado de instrumentação
+documentado (não um defeito de produto) na `garagem` — o marquee de
+marcas cruza a coluna amostrada nas duas bordas ao mesmo tempo, por ser
+um trilho duplicado sem costura. Resultados completos, a tabela de fps
+e os dados brutos do navegador em
+[qa/multimarcas-vortice/STATUS.md](qa/multimarcas-vortice/STATUS.md).
 
 ### Animação (`Theme.animacao` + `DemoSecao.animacaoEntrada`)
 
