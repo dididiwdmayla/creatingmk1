@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { formatarPrecoServico, simboloMoeda } from "../precos";
+import { formatarPrecoServico } from "../precos";
 import { montarDemoData } from "../montar";
 import { getTheme, SKINS } from "../registry";
 import { aplicarTema } from "../tema";
@@ -48,15 +48,6 @@ function renderComLocale(skin: (typeof SKINS)[number], idioma: string, moeda: st
   return { html, data };
 }
 
-/**
- * A multimarcas anima o preço (`StatCounter`/`CarCard.tsx`): o HTML
- * server-rendered mostra o contador no valor INICIAL (zero), não o preço
- * final formatado — a string completa só existe depois da animação no
- * cliente. Testada à parte, só pelo símbolo/código da moeda (o badge fixo
- * que ANTES tinha "R$" cravado — a violação de verdade).
- */
-const SKINS_COM_PRECO_ANIMADO = new Set(["multimarcas-vortice"]);
-
 describe("preços: precoValor formatado pelo locale/moeda da demo, nunca hardcoded — TODA skin do registro", () => {
   for (const skin of SKINS) {
     if (skin.localeFixo) {
@@ -66,7 +57,7 @@ describe("preços: precoValor formatado pelo locale/moeda da demo, nunca hardcod
         expect(data.lancheria!.lanches.length).toBeGreaterThan(0);
         for(const lanche of data.lancheria!.lanches.filter(l=>skin.themeDefault.lancheria!.filtroInicial==='todos'||l.forma===data.lancheria!.lanches[0].forma))expect(html).toContain(`R$ ${(lanche.precoCent/100).toFixed(2).replace('.',',')}`);
       });
-    } else if (!SKINS_COM_PRECO_ANIMADO.has(skin.id)) {
+    } else {
       for (const { idioma, moeda } of LOCALES) {
         it(`${skin.id}: cada serviço com precoValor aparece formatado em ${idioma}/${moeda}`, () => {
           const { html, data } = renderComLocale(skin, idioma, moeda);
@@ -82,21 +73,6 @@ describe("preços: precoValor formatado pelo locale/moeda da demo, nunca hardcod
           }
         });
       }
-    } else {
-      it(`${skin.id}: badge de moeda usa CHF em de-CH/fr-CH (nunca "R$" fixo)`, () => {
-        const deCH = renderComLocale(skin, "de-CH", "CHF");
-        const frCH = renderComLocale(skin, "fr-CH", "CHF");
-        expect(deCH.html).toContain(simboloMoeda("de-CH", "CHF"));
-        expect(frCH.html).toContain(simboloMoeda("fr-CH", "CHF"));
-
-        const comValor = deCH.data.servicos.filter((s) => s.precoValor !== undefined);
-        expect(comValor.length).toBeGreaterThan(0);
-      });
-
-      it(`${skin.id}: pt-BR/BRL segue mostrando "R$" (comportamento default inalterado)`, () => {
-        const { html } = renderComLocale(skin, "pt-BR", "BRL");
-        expect(html).toContain(simboloMoeda("pt-BR", "BRL"));
-      });
     }
   }
 });

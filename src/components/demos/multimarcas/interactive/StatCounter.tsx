@@ -78,11 +78,16 @@ export function StatCounter({
     );
   }
 
+  // Sem `corDestaque`, prefixo/sufixo saem como texto solto, sem `<span>`
+  // ao redor: é o preço do carro (`CarCard.tsx`), onde o HTML precisa trazer
+  // a MESMA string contígua que `formatarPrecoServico` devolve — um `<span>`
+  // no meio quebraria a comparação por substring do teste genérico de preços
+  // (`precos-locale.test.tsx`).
   return (
     <span ref={ref} className={className}>
-      {parsed.prefixo && <span style={corDestaque ? { color: corDestaque } : undefined}>{parsed.prefixo}</span>}
+      {parsed.prefixo && (corDestaque ? <span style={{ color: corDestaque }}>{parsed.prefixo}</span> : parsed.prefixo)}
       {numero ?? final}
-      {parsed.sufixo && <span style={corDestaque ? { color: corDestaque } : undefined}>{parsed.sufixo}</span>}
+      {parsed.sufixo && (corDestaque ? <span style={{ color: corDestaque }}>{parsed.sufixo}</span> : parsed.sufixo)}
     </span>
   );
 }

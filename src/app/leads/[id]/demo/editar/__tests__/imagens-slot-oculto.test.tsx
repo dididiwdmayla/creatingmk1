@@ -131,3 +131,34 @@ describe("aviso de slot não exibido — lancheria-chapa-burger", () => {
     expect(avisoDe(html(chapa, "chapa"), "bebida-1")).toBeUndefined();
   });
 });
+
+/**
+ * A multimarcas também só oculta `hero` — nas outras duas (garagem, campo) a
+ * abertura desenha foto e os onze slots aparecem (docs/plano-multimarcas.md
+ * §8). Mesma frase genérica da chapa burger, então o que precisa provar é a
+ * lista completa por variante, não uma frase especial.
+ */
+describe("aviso de slot não exibido — multimarcas-vortice", () => {
+  const multimarcas = getSkin("multimarcas-vortice")!;
+  const SLOTS = ["hero", "destaque", ...Array.from({ length: 9 }, (_, i) => `carro-${i + 1}`)];
+
+  it.each(["vortice", "patio"])("%s avisa só sobre o hero", (id) => {
+    const markup = html(multimarcas, id);
+    expect(avisoDe(markup, "hero"), "hero").toContain("Não aparece nesta variante");
+    for (const slot of SLOTS.filter((s) => s !== "hero")) {
+      expect(avisoDe(markup, slot), slot).toBeUndefined();
+    }
+  });
+
+  it("garagem e campo desenham os onze — nenhum aviso", () => {
+    for (const id of ["garagem", "campo"]) {
+      expect(html(multimarcas, id), id).not.toContain("data-editor-aviso");
+    }
+  });
+
+  it("o aviso é da variante aberta: hero avisa na vortice, não na garagem nem na campo", () => {
+    expect(avisoDe(html(multimarcas, "vortice"), "hero")).toContain("Não aparece nesta variante");
+    expect(avisoDe(html(multimarcas, "garagem"), "hero")).toBeUndefined();
+    expect(avisoDe(html(multimarcas, "campo"), "hero")).toBeUndefined();
+  });
+});

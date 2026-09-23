@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 
-import { formatarPrecoServico, simboloMoeda } from "@/lib/demos/precos";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { DemoServico } from "@/lib/demos/types";
 import { StatCounter } from "./StatCounter";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
@@ -116,15 +116,17 @@ export function CarCard({
             </p>
           )}
         <div className="mm-carro-preco">
-          <span className="font-[family-name:var(--d-mono)] text-sm font-medium text-[var(--d-accent)]">
-            {simboloMoeda(idioma, moeda)}
-          </span>
+          {/*
+            Preço inteiro numa StatCounter só (símbolo + valor): o HTML do
+            servidor precisa trazer a MESMA string contígua que
+            `formatarPrecoServico` devolve — é o que fecha o item 23 do
+            plano, tirando a skin de `SKINS_COM_PRECO_ANIMADO`
+            (precos-locale.test.tsx). O prefixo (símbolo/código da moeda)
+            sai sem `<span>` (ver StatCounter) exatamente por isso; a
+            animação continua no valor.
+          */}
           <StatCounter
-            valor={
-              servico.precoValor !== undefined
-                ? String(servico.precoValor)
-                : servico.preco.replace(/^R\$\s*/, "")
-            }
+            valor={formatarPrecoServico(servico, idioma, moeda)}
             idioma={idioma}
             className="mm-carro-valor font-[family-name:var(--d-mono)] font-semibold leading-none tabular-nums tracking-[0.5px] text-[var(--d-text)]"
           />
