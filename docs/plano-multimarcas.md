@@ -1,9 +1,22 @@
 # Plano — `multimarcas-vortice`: de quatro presets para quatro variantes
 
-Rascunho de 2026-09-23, **aguardando aprovação**. Nenhum item foi executado.
-As etapas rodam em sessões separadas; este documento é a fonte única entre
-elas. **O contrato de seções CRESCE nesta migração** (§5), e cresce na
-etapa 1 — depois que ela fechar, não cresce mais.
+Aprovado em 2026-09-23. Nenhum item foi executado ainda. As etapas rodam
+em sessões separadas; este documento é a fonte única entre elas. **O
+contrato de seções CRESCE nesta migração** (§5), e cresce na etapa 1 —
+depois que ela fechar, não cresce mais.
+
+**Decisões da aprovação:**
+- Crescer o contrato: seção `destaque` e slots `imagens.hero` e
+  `imagens.destaque` (§5).
+- `ANCORAS_PADRAO` da skin passa a `hero, destaque, simulador`.
+- O `<h1>` é sempre o nome do negócio. Demo já salva com título **não perde
+  o texto**: ele vira a linha de apoio, provado por teste (§6.1).
+- A nota "4,9★ no Google" **sai do exemplo** — não vira slot. Nota de
+  avaliação é fato verificável sobre o negócio do lead; inventá-la é pior
+  que deixar vazio. Mesma lógica dos botões Waze e Maps: sem endereço do
+  lead, não desenha (§7).
+- Os dois achados acima foram verificados nas outras skins não migradas e
+  ficam registrados como pendência, sem correção nesta migração (§10).
 
 ---
 
@@ -87,11 +100,17 @@ Facebook/YouTube em `DemoData`: saem. Instagram só com `instagram`.
 
 **A marca do exemplo vaza para o lead.** `vantagens.rotulo` é
 `"POR QUE A VÓRTICE"` e um depoimento diz `"Terceira compra na Vórtice"`.
-Um lead chamado "Auto Center Silva" recebe a demo falando "Vórtice". E
-`numeros` afirma `"4,9★ avaliação no Google"` — uma nota atribuída ao
-negócio do lead, que pode ter 3,8. A cópia de cada variante nasce sem nome
-de marca e sem nota de terceiros (números sobre a OFERTA — itens revisados,
-meses de garantia, minutos de aprovação — não sobre reputação).
+Um lead chamado "Auto Center Silva" recebe a demo falando "Vórtice". A
+cópia de cada variante nasce sem nome de marca.
+
+**Nota de avaliação inventada.** `numeros` afirma `"4,9★ avaliação no
+Google"` — um fato verificável atribuído ao negócio do lead, que pode ter
+3,8, num site que vai para o dono. **O item sai do exemplo; não vira
+slot.** Nenhuma variante declara nota, contagem de avaliações ou selo de
+plataforma de terceiros (Google, Reclame Aqui, Webmotors…) na cópia de
+exemplo. `numeros` fica com os itens sobre a OFERTA (itens revisados,
+meses de garantia, minutos de aprovação). Se um dia a nota vier, vem do
+dado real do lead, não do exemplo — fora do escopo desta migração.
 
 ### O `<h1>` existe, e tem três defeitos
 
@@ -102,9 +121,9 @@ meses de garantia, minutos de aprovação — não sobre reputação).
 2. **Quando há título, o nome sai do `<h1>`.** O exemplo não declara
    `hero.titulo` (então hoje cai no nome), mas qualquer título digitado —
    ou o default histórico `"Seu próximo carro já está aqui"` em
-   `legado.ts` — tira o nome da abertura. Proposta (§6): o `<h1>` é SEMPRE
-   o `nome`; `secoes.hero.titulo`, se preenchido, vira a linha de apoio
-   logo abaixo.
+   `legado.ts` — tira o nome da abertura. Aprovado (§6.1): o `<h1>` é
+   SEMPRE o `nome`; `secoes.hero.titulo`, se preenchido, vira a linha de
+   apoio logo abaixo, sem perder o texto de nenhuma demo já salva.
 3. **Sem JavaScript o nome não aparece** (lido no código; a confirmar no
    laço da etapa 4). `IntroExperience` começa com `introDone=false` no
    servidor, então cada palavra do `<h1>` sai em `translateY(115%)` dentro
@@ -299,7 +318,7 @@ então `destaque` entra sozinho e o Gemini passa a escrever as linhas da
 ficha. É o mesmo regime do estoque de exemplo (nove carros fictícios): a
 ficha de exemplo é conteúdo de demonstração. Aceito, sem mecanismo novo.
 
-### Recomendação
+### Recomendação (aprovada)
 
 **Crescer: uma seção (`destaque`) e dois slots de imagem (`hero`,
 `destaque`), na etapa 1.** As outras três necessidades são mecânica dentro
@@ -337,10 +356,44 @@ execução são as em negrito da primeira coluna: abertura, estoque,
 destaque, avaliação. `numeros` ganha padding próprio por composição (não
 depende mais de estar abaixo de `vantagens`).
 
-O nome do negócio é o maior elemento da primeira tela nas quatro: o `<h1>`
-é sempre `data.nome`; `secoes.hero.titulo`, se preenchido, é a linha de
-apoio abaixo dele. Na Garagem o nome fica sobre a foto com véu tokenizado
-(`--mm-veu`), medido por contraste como texto.
+O nome do negócio é o maior elemento da primeira tela nas quatro. Na
+Garagem o nome fica sobre a foto com véu tokenizado (`--mm-veu`), medido
+por contraste como texto.
+
+### 6.1 O `<h1>` e o título já salvo
+
+- O `<h1>` é sempre `data.nome`, nas quatro variantes.
+- `secoes.hero.titulo` continua sendo o mesmo slot, no mesmo caminho do
+  patch — **nenhuma migração de banco, nenhum texto descartado**. Se
+  `titulo?.trim()` não é vazio, ele renderiza como linha de apoio logo
+  abaixo do `<h1>` (um `<p>` com `data-demo-slot="secoes.hero.titulo"`,
+  dentro da âncora `hero`), em corpo menor que o nome e maior que o
+  `hero.texto`. Vazio ou só espaço: a linha não existe.
+- Título igual ao nome (comparação sem caixa e sem espaços nas pontas):
+  a linha não é desenhada — o nome não aparece duas vezes.
+- A linha de apoio aparece no HTML do servidor e é visível sem
+  JavaScript, como o `<h1>` (item 7).
+- O default histórico `"Seu próximo carro já está aqui"` continua sendo
+  descartado na leitura por `legado.ts`, como hoje: não é edição do
+  operador, então não vira linha de apoio. O teste usa um título que o
+  operador de fato digitou.
+- O editor continua mostrando o campo "Título" da abertura; só o que ele
+  alimenta muda de papel. O mapa clique-no-preview → campo segue o
+  `data-demo-slot`.
+
+**Prova (item 24):** para cada uma das quatro variantes, monta-se a demo
+pelo caminho real — `montarDemoData` com exemplo da variante ← lead com
+`nome` ← `lead.demo.dados` com `secoes.hero.titulo` salvo (ex.:
+`"Seminovos com garantia de fábrica"`) — e renderiza-se o HTML do
+servidor. O teste exige: um único `<h1>` dentro de `data-d-secao="hero"`,
+cujo texto é o nome inteiro e não contém o título; o título inteiro num
+elemento `data-demo-slot="secoes.hero.titulo"` dentro da mesma âncora,
+**depois** do `<h1>` na ordem do documento; e esse elemento sem
+`hidden`, `aria-hidden`, `display:none`, `opacity:0` ou `translateY`
+inline. Os casos de controle no mesmo arquivo: título vazio (sem linha),
+título igual ao nome (sem linha). No navegador, `qa-multimarcas.mjs`
+(item 25) repete com JavaScript desligado em 390 e 1100px e mede caixa
+maior que zero para o `<h1>` e para a linha de apoio.
 
 ### Intro
 
@@ -368,12 +421,13 @@ O exemplo não tem `telefone`, `whatsapp`, `instagram`, `cidade` nem
 | lugar | com dado | sem dado |
 |---|---|---|
 | barra de identidade (abertura do Pátio) e bloco do pátio (contato do Campo) | escada da chapa: endereço/cidade → horário → telefone → Instagram, cada linha com rótulo de `microcopiaDemo`, só se o valor existe | **zero linhas = o bloco não renderiza**: nem borda, nem fundo, nem grade de rótulos. A abertura degrada para nome + faixas; o contato para título + CTA |
-| contato (rodapé das quatro) | coluna de endereço, Waze/Maps (só com `endereco`), WhatsApp | sem nenhuma linha e sem `whatsapp`: a grade de duas colunas não é desenhada; título + um link `secoes.hero.cta` para `#estoque` (se o estoque estiver visível) |
+| contato (rodapé das quatro) | coluna de endereço, Waze/Maps (só com `endereco` do lead — o exemplo não tem mais endereço, então não há outra fonte), WhatsApp | sem nenhuma linha e sem `whatsapp`: a grade de duas colunas não é desenhada; título + um link `secoes.hero.cta` para `#estoque` (se o estoque estiver visível) |
 | ícones sociais | Instagram com `instagram` | nenhum ícone; a fileira some. Facebook e YouTube saem sempre (não há campo) |
 | CTA de interesse do card | WhatsApp com carro e preço | o painel expande só com a descrição (hoje) |
 | CTA do simulador | WhatsApp com a simulação | com `telefone`: `tel:`; sem os dois: sem botão, a simulação continua |
 | formulário de troca (Campo) | monta a mensagem | **não renderiza** — formulário que não envia para lugar nenhum é pior que nenhum; a seção fica com título, texto e marcas. Sem JavaScript, o formulário envia para o `wa.me` com a mensagem genérica |
 | `Nav` e `WhatsAppFloat` | botão WhatsApp | somem (hoje) |
+| nota de avaliação | — (não existe campo; a skin não desenha nota nenhuma) | nada: nenhum `★`, nenhuma contagem de avaliações, nenhum selo de plataforma. O item saiu do exemplo (§1) |
 
 Verificação (etapa 4): SSR com lead vazio nas quatro — nenhum rótulo órfão,
 nenhum container vazio, nenhum `href="#topo"` de rede social, nenhum link
@@ -425,8 +479,9 @@ miniatura — caixa maior que zero, não declarado).
 7. [M] SSR sem JavaScript: `Preloader` não sai no HTML do servidor;
    revelação do título, do hero e de `SectionReveal` só ativada no cliente;
    preço servido já formatado (o contador anima a partir do cliente).
-8. [M] `<h1>` sempre `data.nome`; `hero.titulo` vira linha de apoio.
-   Os quatro `??` → `?.trim() ||`; `<h2>`/rótulos vazios não renderizam.
+8. [M] `<h1>` sempre `data.nome`; `hero.titulo` vira linha de apoio pelas
+   regras do §6.1 (vazio e igual ao nome não desenham). Os quatro `??` →
+   `?.trim() ||`; `<h2>`/rótulos vazios não renderizam.
 9. [M] Busca por faixa de preço em `logic.ts` (faixas do `precoValor`,
    rótulo por locale/moeda) + modo de filtro no `CarFilterGrid` + âncora
    por hash.
@@ -442,8 +497,9 @@ miniatura — caixa maior que zero, não declarado).
     `"Conteúdo ilustrativo."`. Separador de milhar pelo locale.
 14. [M] Tokens: `CORES_AVATAR` passa a derivar da paleta (com o ink medido);
     sombras marrons viram `--mm-sombra`.
-15. [M] Tirar `endereco` do exemplo; cópia sem nome de marca e sem nota do
-    Google.
+15. [M] Tirar `endereco` do exemplo (sem endereço do lead: nem texto, nem
+    Waze, nem Maps); tirar o item "4,9★ avaliação no Google" de `numeros`
+    — removido, não convertido em slot; cópia sem nome de marca.
 
 ### Etapa 3 — composição visual
 
@@ -470,11 +526,14 @@ de captura que confirma cada item.
     `lead-data-contract`, `imagens-slot-oculto`, `precos-locale` (a exceção
     `SKINS_COM_PRECO_ANIMADO` cai se o item 7 servir o preço formatado).
 24. [M] `multimarcas-contrato.test.tsx`: nove `data-d-secao` sem duplicata,
-    um `<h1>` com o nome inteiro na âncora hero, por variante; o §7 com lead
-    vazio nas quatro; o `destaque` numa demo com `ordemSecoes` antigo cai
-    antes de `contato`.
+    um `<h1>` com o nome inteiro na âncora hero, por variante; **a prova do
+    §6.1** (demo com título salvo: nome no `<h1>`, título visível abaixo,
+    mais os dois controles); o §7 com lead vazio nas quatro — incluindo
+    nenhum `href` de Waze ou Maps e nenhuma nota com `★`/"Google" no HTML;
+    o `destaque` numa demo com `ordemSecoes` antigo cai antes de `contato`.
 25. [M] `scripts/qa-multimarcas.mjs`: contrato sem JavaScript em 390 e 1100
-    px (nome VISÍVEL, não só caixa); caixas de `imagensOcultas` nas duas
+    px (nome VISÍVEL, não só caixa; linha de apoio visível na demo com
+    título salvo); caixas de `imagensOcultas` nas duas
     direções; aferidor de caixa zerada; portão de drasticidade em duas folhas
     em cinza + diferença média nas três primeiras telas e altura de página.
 26. [M] `qa-cls.mjs --so=skins` sem deslocamento.
@@ -488,3 +547,43 @@ de captura que confirma cada item.
 29. [M] `qa/multimarcas-vortice/{STATUS.md,FPS.md,contrato-browser.json}` +
     seção no ARCHITECTURE.md; tirar a linha da tabela de auditoria de
     endereço (sobram quatro) e "as próximas CINCO migrações" vira QUATRO.
+
+---
+
+## 10. Pendência fora desta migração: os dois achados nas outras skins
+
+Verificado em 2026-09-23 por leitura do `exemplo.ts` e do `Skin.tsx` de
+cada skin ainda com presets. **Nada foi corrigido** — conforme escopo
+aprovado. São quatro skins além desta (`PRESETS_SEM_VARIANTES` tem cinco
+entradas, contando a própria multimarcas).
+
+**Nota de avaliação inventada no exemplo**
+
+| skin | onde | o que afirma |
+|---|---|---|
+| `petshop-focinho-feliz` | `petshop/exemplo.ts:70` (`secoes.hero.itens[0]`) | `"4,9★"` · `"480 avaliações no Google"` — na abertura |
+| `petshop-focinho-feliz` | `petshop/exemplo.ts:88` (`secoes.numeros.itens[2]`) | `"4,9★"` · `"de nota no Google"` |
+| `barbearia2-sul`, `tatuagem-pigmento-vivo`, `imobiliaria-curada` | — | nenhuma nota nem menção a Google no exemplo |
+
+Caso vizinho, de natureza diferente: `tatuagem-pigmento-vivo` desenha
+`★★★★★` a partir de `depoimentos[].nota: 5` (`tatuagem2/Skin.tsx:517`), e
+o `petshop` declara `nota: 5` nos depoimentos. É nota de um depoimento
+fictício, não do negócio — não afirma nada verificável sobre o lead, mas
+é do mesmo gênero e vale decidir junto.
+
+**Rota para endereço fictício**
+
+| skin | endereço fictício no exemplo | botão de rota/mapa |
+|---|---|---|
+| `barbearia2-sul` | `"Av. Brasil, 500 — Zona 3"` (`exemplo.ts:13`) | nenhum — só texto (`Skin.tsx:541`) |
+| `tatuagem-pigmento-vivo` | `"Rua das Aquarelas, 88 — Centro"` (`exemplo.ts:21`) | nenhum — só texto (`Skin.tsx:650`) |
+| `imobiliaria-curada` | `"Rua Principal, 100 — Centro"` (`exemplo.ts:20`) | nenhum — só texto (`Skin.tsx:686`) |
+| `petshop-focinho-feliz` | `"Rua das Begônias, 240 — Jardim das Flores"` (`exemplo.ts:13`) | nenhum — só texto (`Skin.tsx:859`) |
+
+Nenhuma das quatro tem Waze, Google Maps ou mapa embutido: o botão que
+navega para lugar inventado é exclusivo da multimarcas. O endereço
+fictício como TEXTO continua nas quatro — é a tabela "Auditoria de
+endereço" do ARCHITECTURE.md, que já as lista. Nas skins já migradas, a
+`barbearia-editorial` tem link de Maps (`barbearia/Skin.tsx:852`), mas o
+exemplo dela não tem endereço desde a migração, então só aparece com o
+dado do lead.
