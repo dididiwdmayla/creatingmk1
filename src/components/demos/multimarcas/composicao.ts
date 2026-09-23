@@ -43,7 +43,7 @@ export const MULTIMARCAS_COMPOSICAO_CSS = `
   padding: 120px max(24px, 5vw) 90px;
 }
 .mm .mm-hero-corpo { position: relative; z-index: 2; display: flex; flex-direction: column; width: 100%; max-width: 1200px; margin-inline: auto; }
-.mm .mm-hero-h1 { font-size: calc(clamp(42px, 9.6vw, 124px) * var(--d-hero-escala)); }
+.mm .mm-hero-h1 { font-size: calc(clamp(42px, 9.6vw, 124px) * var(--d-hero-escala)); font-weight: 700; }
 .mm .mm-hero-diagonal { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .mm .mm-hero-gauge {
   position: absolute; z-index: 3; display: flex; align-items: center; gap: .625rem; opacity: .9;

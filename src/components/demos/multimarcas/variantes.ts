@@ -51,7 +51,7 @@ interface Declaracao {
   /** O tipo de loja e o público dela — é o que justifica a composição futura. */
   descricao: string;
   fundo: "claro" | "escuro";
-  /** Id do preset ANTIGO em ./themes.ts que esta variante herda (paleta/tipografia). */
+  /** Id do preset de paleta/tipografia em ./themes.ts (o mesmo da variante). */
   presetId: string;
   /** Os nove knobs de desenho (§6 do plano) — o que faz a variante ser um TIPO DE LOJA. */
   composicao: MultimarcasComposicao;
@@ -115,9 +115,9 @@ const DECLARACOES: readonly Declaracao[] = [
     descricao:
       "Pátio de populares e primeiro carro, até 70 mil, faixa na calçada. Quem chega: quem compra pela parcela e não pelo preço, no celular, entre um compromisso e outro.",
     fundo: "claro",
-    presetId: "azul-classico",
-    // O Pátio vende pressa: sem intro, sem hover que distrai, página densa.
-    tema: { intro: false, hover: "lift", densidade: "compacta", animacao: "sutil" },
+    presetId: "patio",
+    // O Pátio vende pressa: sem intro (a página densa vem do preset).
+    tema: { intro: false, hover: "lift" },
     composicao: {
       abertura: "busca",
       estoque: "lista",
@@ -139,9 +139,9 @@ const DECLARACOES: readonly Declaracao[] = [
     descricao:
       "Poucos carros, cada um um evento: esportivos, importados, clássicos. Quem chega: entusiasta que lê a ficha técnica inteira antes de mandar a primeira mensagem.",
     fundo: "escuro",
-    presetId: "grafite",
-    // Cada carro um evento: página arejada, hover que brilha, raio seco.
-    tema: { intro: false, hover: "brilho", densidade: "arejada", animacao: "sutil" },
+    presetId: "garagem",
+    // Cada carro um evento: hover que brilha, clique que pulsa.
+    tema: { intro: false, hover: "brilho", clique: "pulso" },
     composicao: {
       abertura: "sangrada",
       estoque: "vitrine",
@@ -162,8 +162,8 @@ const DECLARACOES: readonly Declaracao[] = [
     descricao:
       "Loja de picape, SUV 4×4 e utilitário no interior. Quem chega: produtor ou empresa que troca a caminhonete velha na compra da nova — a troca é o assunto.",
     fundo: "escuro",
-    presetId: "meia-noite",
-    tema: { intro: false, hover: "lift", densidade: "confortavel", animacao: "sutil" },
+    presetId: "campo",
+    tema: { intro: false, hover: "lift" },
     composicao: {
       abertura: "dividida",
       estoque: "tabela",

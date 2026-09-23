@@ -1,17 +1,26 @@
 import type { Theme, ThemeFontes } from "@/lib/demos/types";
 
 /**
- * Presets de tema da skin "Multimarcas Vórtice". As fontes referenciam as
- * CSS vars carregadas via next/font em src/app/demo/fonts/core.ts
+ * Paleta e tipografia das quatro variantes da `multimarcas-vortice` — uma
+ * por TIPO DE LOJA (docs/plano-multimarcas.md §4), com o mesmo id da
+ * variante. As fontes referenciam as CSS vars de src/app/demo/fonts/core.ts
  * (--font-demo-*), com fallback de sistema.
  *
- * O material bruto usa três famílias (display serifada dramática, corpo
- * sans editorial, mono condensado tabular para preços/contadores) —
- * `serif`/`decorativa` reaproveitam `display` (o wordmark "VÓRTICE." usa a
- * mesma serifada do H1) e `citacao`/`destaque` reaproveitam `corpo` (não
- * existe família separada pra citação/subtítulo no original).
+ * CONTRASTE pelas regras do §2 (três dos quatro presets antigos
+ * reprovavam): `textoSuave` medido COMPOSTO sobre fundo, fundoAlt,
+ * fundoElevado e sobre o chip (elevado + 3% de texto); todo acento usado
+ * como texto medido contra as três superfícies, não só contra o fundo; e
+ * nada de opacidade em texto sobre o acento — a avaliação usa o ink
+ * inteiro. As quatro passam 4,5:1 em todos os pares (o teste de contrato
+ * refaz a conta).
+ *
+ * Os ids antigos (`azul-classico`, `grafite`, `meia-noite`) continuam
+ * abrindo pela `SkinDefinition.themeAliases` do registro, na variante de
+ * mesma luminância (§4).
  */
-const FONTES_MULTIMARCAS: ThemeFontes = {
+
+/** Vórtice: a tipografia do material bruto — Bodoni dramática, Archivo, Oswald tabular. */
+const FONTES_VORTICE: ThemeFontes = {
   display: "var(--font-demo-bodoni), Georgia, 'Times New Roman', serif",
   corpo: "var(--font-demo-archivo), Arial, sans-serif",
   mono: "var(--font-demo-oswald), 'Arial Narrow', sans-serif",
@@ -21,12 +30,44 @@ const FONTES_MULTIMARCAS: ThemeFontes = {
   destaque: "var(--font-demo-archivo), Arial, sans-serif",
 };
 
+/** Pátio: letreiro de loja de bairro — grotesca pesada, Inter para ler rápido. */
+const FONTES_PATIO: ThemeFontes = {
+  display: "var(--font-demo-archivo), 'Arial Black', Arial, sans-serif",
+  corpo: "var(--font-demo-inter), Arial, sans-serif",
+  mono: "var(--font-demo-oswald), 'Arial Narrow', sans-serif",
+  serif: "var(--font-demo-archivo), Arial, sans-serif",
+  decorativa: "var(--font-demo-archivo), Arial, sans-serif",
+  citacao: "var(--font-demo-inter), Arial, sans-serif",
+  destaque: "var(--font-demo-inter), Arial, sans-serif",
+};
+
+/** Garagem: catálogo de boutique — Playfair Black editorial, Instrument Sans. */
+const FONTES_GARAGEM: ThemeFontes = {
+  display: "var(--font-demo-playfair-black), Georgia, serif",
+  corpo: "var(--font-demo-instrument-sans), Arial, sans-serif",
+  mono: "var(--font-demo-oswald), 'Arial Narrow', sans-serif",
+  serif: "var(--font-demo-playfair-black), Georgia, serif",
+  decorativa: "var(--font-demo-playfair-black), Georgia, serif",
+  citacao: "var(--font-demo-playfair-black), Georgia, serif",
+  destaque: "var(--font-demo-instrument-sans), Arial, sans-serif",
+};
+
+/** Campo: letra de caçamba — Oswald condensada, Hanken para o corpo. */
+const FONTES_CAMPO: ThemeFontes = {
+  display: "var(--font-demo-oswald), 'Arial Narrow', sans-serif",
+  corpo: "var(--font-demo-hanken), Arial, sans-serif",
+  mono: "var(--font-demo-oswald), 'Arial Narrow', sans-serif",
+  serif: "var(--font-demo-oswald), 'Arial Narrow', sans-serif",
+  decorativa: "var(--font-demo-oswald), 'Arial Narrow', sans-serif",
+  citacao: "var(--font-demo-hanken), Arial, sans-serif",
+  destaque: "var(--font-demo-hanken), Arial, sans-serif",
+};
+
 /**
- * Micro-interações fiéis ao original: intro ligada (o preloader do
- * velocímetro SEMPRE aparece no material bruto), hover com lift (cards
- * sobem 8px), clique com leve pressão (`data-press` = scale .96) e sem
- * efeito de fundo/LED extra (recursos só da Forja). Hero nasce alinhado
- * à esquerda, fiel ao layout original.
+ * Micro-interações de base, fiéis ao original: hover com lift, clique com
+ * pressão, sem efeito de fundo nem LED extra. A intro, o hover e a
+ * densidade de cada variante são ajustados na declaração dela
+ * (./variantes.ts, camada `tema`).
  */
 const INTERACOES_ORIGINAIS = {
   intro: true,
@@ -38,7 +79,11 @@ const INTERACOES_ORIGINAIS = {
   ledEstilo: "barra",
 } as const;
 
-/** Paleta original do material bruto: creme quente, vermelho de ação, tinta escura. */
+/**
+ * Vórtice (claro): creme e vermelho do material bruto. O vermelho desce de
+ * #D40000 para #C10000 — o original media 4,41 contra o `fundoAlt` (rótulo
+ * de vantagens e contato); o `textoSuave` sobe de 65% para 68%.
+ */
 const VORTICE: Theme = {
   id: "vortice",
   nome: "Vórtice (creme e vermelho)",
@@ -47,98 +92,91 @@ const VORTICE: Theme = {
     fundo: "#F5F0E6",
     fundoAlt: "#EDE5D2",
     fundoElevado: "#FBF6EA",
-    destaque: "#D40000",
-    destaqueInk: "#F5F0E6",
+    destaque: "#C10000",
+    destaqueInk: "#FBF6EA",
     texto: "#1E1712",
-    textoSuave: "rgba(30, 23, 18, 0.65)",
+    textoSuave: "rgba(30, 23, 18, 0.68)",
     borda: "rgba(30, 23, 18, 0.16)",
     acentoSecundario: "#1B5E3B",
-    acentoTerciario: "#A0741F",
+    acentoTerciario: "#7A5716",
   },
-  fontes: FONTES_MULTIMARCAS,
+  fontes: FONTES_VORTICE,
   raio: "8px",
   densidade: "arejada",
   animacao: "marcante",
 };
 
-/** Variante "meia-noite": showroom fechado à noite, verde-esmeralda no lugar do vermelho de ação. */
-const MEIA_NOITE: Theme = {
-  id: "meia-noite",
-  nome: "Meia-noite (escuro e esmeralda)",
+/** Pátio (claro): branco de vitrine, azul de placa e amarelo de faixa na calçada. */
+const PATIO: Theme = {
+  id: "patio",
+  nome: "Pátio (branco, azul e amarelo)",
   ...INTERACOES_ORIGINAIS,
-  fundoEfeito: "gradiente",
-  led: "sutil",
-  ledEstilo: "barra",
   paleta: {
-    fundo: "#15110D",
-    fundoAlt: "#1E1712",
-    fundoElevado: "#241C15",
-    destaque: "#0C6B44",
-    destaqueInk: "#FBF6EA",
-    texto: "#F5F0E6",
-    textoSuave: "rgba(245, 240, 230, 0.62)",
-    borda: "rgba(245, 240, 230, 0.12)",
-    acentoSecundario: "#D40000",
-    acentoTerciario: "#C9A227",
+    fundo: "#F3F4F1",
+    fundoAlt: "#E4E7E0",
+    fundoElevado: "#FFFFFF",
+    destaque: "#1446A0",
+    destaqueInk: "#FFFFFF",
+    texto: "#14171C",
+    textoSuave: "rgba(20, 23, 28, 0.72)",
+    borda: "rgba(20, 23, 28, 0.14)",
+    acentoSecundario: "#F2C300",
+    acentoTerciario: "#0F5C3A",
   },
-  fontes: FONTES_MULTIMARCAS,
-  raio: "10px",
-  densidade: "confortavel",
-  animacao: "marcante",
+  fontes: FONTES_PATIO,
+  raio: "6px",
+  densidade: "compacta",
+  animacao: "sutil",
 };
 
-/** Variante "grafite": premium noturno com destaque em dourado, vermelho vira acento. */
-const GRAFITE: Theme = {
-  id: "grafite",
-  nome: "Grafite (preto e dourado)",
+/** Garagem (escuro): grafite de estúdio e ouro velho. */
+const GARAGEM: Theme = {
+  id: "garagem",
+  nome: "Garagem (grafite e ouro)",
   ...INTERACOES_ORIGINAIS,
-  hover: "brilho",
-  clique: "pulso",
-  fundoEfeito: "particulas",
-  led: "marcante",
-  ledEstilo: "barra",
-  heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "centro" },
   paleta: {
-    fundo: "#131313",
-    fundoAlt: "#1C1C1C",
-    fundoElevado: "#242424",
-    destaque: "#C9A227",
-    destaqueInk: "#131313",
+    fundo: "#0E0E0F",
+    fundoAlt: "#17171A",
+    fundoElevado: "#202024",
+    destaque: "#D6B04C",
+    destaqueInk: "#0E0E0F",
     texto: "#F2F0EC",
-    textoSuave: "rgba(242, 240, 236, 0.6)",
+    textoSuave: "rgba(242, 240, 236, 0.68)",
     borda: "rgba(242, 240, 236, 0.12)",
-    acentoSecundario: "#D40000",
-    acentoTerciario: "#1B5E3B",
+    acentoSecundario: "#B3262B",
+    acentoTerciario: "#8C8F96",
   },
-  fontes: FONTES_MULTIMARCAS,
-  raio: "4px",
+  fontes: FONTES_GARAGEM,
+  raio: "2px",
   densidade: "arejada",
   animacao: "sutil",
 };
 
-/** Variante "azul-classico": showroom clássico, destaque em azul-aço sobre creme. */
-const AZUL_CLASSICO: Theme = {
-  id: "azul-classico",
-  nome: "Azul Clássico (creme e aço)",
+/**
+ * Campo (escuro): terra batida e âmbar de farol. Substitui a Meia-noite,
+ * cujo verde #0C6B44 media 2,6–2,9 como texto sobre o marrom (§2).
+ */
+const CAMPO: Theme = {
+  id: "campo",
+  nome: "Campo (terra e âmbar)",
   ...INTERACOES_ORIGINAIS,
-  hover: "zoom",
   paleta: {
-    fundo: "#F3F1EA",
-    fundoAlt: "#E7E4D8",
-    fundoElevado: "#FAF8F1",
-    destaque: "#1D4E89",
-    destaqueInk: "#FFFFFF",
-    texto: "#1B1F26",
-    textoSuave: "rgba(27, 31, 38, 0.62)",
-    borda: "rgba(27, 31, 38, 0.14)",
-    acentoSecundario: "#1B5E3B",
-    acentoTerciario: "#A0741F",
+    fundo: "#15130E",
+    fundoAlt: "#1F1C14",
+    fundoElevado: "#29251B",
+    destaque: "#E8962F",
+    destaqueInk: "#15130E",
+    texto: "#F4EFE3",
+    textoSuave: "rgba(244, 239, 227, 0.68)",
+    borda: "rgba(244, 239, 227, 0.13)",
+    acentoSecundario: "#8FA14A",
+    acentoTerciario: "#C8B89A",
   },
-  fontes: FONTES_MULTIMARCAS,
-  raio: "12px",
+  fontes: FONTES_CAMPO,
+  raio: "4px",
   densidade: "confortavel",
   animacao: "sutil",
 };
 
 export const MULTIMARCAS_THEME_DEFAULT: Theme = VORTICE;
-export const MULTIMARCAS_THEME_PRESETS: Theme[] = [VORTICE, MEIA_NOITE, GRAFITE, AZUL_CLASSICO];
+export const MULTIMARCAS_THEME_PRESETS: Theme[] = [VORTICE, PATIO, GARAGEM, CAMPO];

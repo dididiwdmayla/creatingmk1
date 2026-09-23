@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Lead } from "@/lib/leads/types";
 import { montarDemoDataAvulsa, patchIdentidadeAvulsa } from "../avulsas/identidade";
+import { contrasteWcag } from "../contraste";
 import { montarDemoData } from "../montar";
 import { getSkin, getTheme } from "../registry";
 import type { DemoData } from "../types";
@@ -363,5 +364,44 @@ describe("multimarcas: as quatro declarações (item 19)", () => {
   });
   it("nenhuma variante nasce com seção oculta", () => {
     for (const v of variantes) expect(v.arranjo.ocultas ?? []).toEqual([]);
+  });
+});
+
+/**
+ * §2 do plano — as regras de contraste das paletas novas, refeitas aqui
+ * (item 20): `textoSuave` COMPOSTO sobre fundo, alt, elevado e chip
+ * (elevado + 3% de texto); o acento como texto contra as três superfícies;
+ * o ink inteiro sobre o acento. Mistura linear por canal, fórmula WCAG.
+ */
+describe("multimarcas §2 — contraste das quatro paletas (item 20)", () => {
+  const canais = (cor: string): [number, number, number, number] => {
+    const m = /rgba?\(([^)]+)\)/.exec(cor);
+    if (m) {
+      const [r, g, b, a = 1] = m[1].split(",").map(Number);
+      return [r, g, b, a];
+    }
+    const h = cor.replace("#", "");
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).concat(1) as [number, number, number, number];
+  };
+  const hex = (r: number, g: number, b: number) =>
+    "#" + [r, g, b].map((c) => Math.round(c).toString(16).padStart(2, "0")).join("");
+  const sobre = (frente: string, fundo: string) => {
+    const [r, g, b, a] = canais(frente);
+    const [R, G, B] = canais(fundo);
+    return hex(r * a + R * (1 - a), g * a + G * (1 - a), b * a + B * (1 - a));
+  };
+
+  it.each(skin.variantes!.map((v) => [v.id, v.theme.paleta] as const))("%s: todo par de leitura a ≥ 4,5:1", (_id, p) => {
+    const [tr, tg, tb] = canais(p.texto);
+    const chip = sobre(`rgba(${tr}, ${tg}, ${tb}, 0.03)`, p.fundoElevado);
+    const superficies = { fundo: p.fundo, alt: p.fundoAlt, elevado: p.fundoElevado, chip };
+    for (const [nome, sup] of Object.entries(superficies)) {
+      expect(contrasteWcag(p.texto, sup), `texto/${nome}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrasteWcag(sobre(p.textoSuave, sup), sup), `suave/${nome}`).toBeGreaterThanOrEqual(4.5);
+    }
+    for (const nome of ["fundo", "alt", "elevado"] as const) {
+      expect(contrasteWcag(p.destaque, superficies[nome]), `destaque/${nome}`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrasteWcag(p.destaqueInk, p.destaque), "ink/destaque").toBeGreaterThanOrEqual(4.5);
   });
 });
