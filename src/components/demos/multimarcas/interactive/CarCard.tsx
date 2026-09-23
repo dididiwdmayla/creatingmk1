@@ -6,7 +6,8 @@ import { useState } from "react";
 import { formatarPrecoServico, simboloMoeda } from "@/lib/demos/precos";
 import type { DemoServico } from "@/lib/demos/types";
 import { StatCounter } from "./StatCounter";
-import { waHref } from "./logic";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { EVENTO_SIMULAR, waHref } from "./logic";
 
 /**
  * Card de veículo: imagem do slot, badge de categoria, botão "Detalhes"
@@ -26,6 +27,7 @@ export function CarCard({
   whatsapp,
   idioma,
   moeda,
+  simulavel = false,
 }: {
   servico: DemoServico;
   index: number;
@@ -38,7 +40,14 @@ export function CarCard({
   whatsapp?: string;
   idioma?: string;
   moeda?: string;
+  /**
+   * A seção `simulador` está visível nesta demo? Só então o card oferece
+   * "simular este carro" — um botão que leva a uma seção oculta seria link
+   * morto.
+   */
+  simulavel?: boolean;
 }) {
+  const m = microcopiaDemo(idioma);
   const [aberto, setAberto] = useState(false);
   // Sem WhatsApp digitado, o CTA de interesse do card some (ver waHref).
   const linkInteresse = waHref(
@@ -138,6 +147,22 @@ export function CarCard({
                 <p className="font-[family-name:var(--d-corpo)] text-sm text-[var(--d-muted)]">
                   {[servico.descricao, textoGarantia].filter(Boolean).join(" · ")}
                 </p>
+              )}
+              {simulavel && servico.precoValor !== undefined && (
+                <a
+                  href="#simulador"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent(EVENTO_SIMULAR, { detail: servico.precoValor }));
+                  }}
+                  className="d-press flex items-center justify-center gap-2 rounded-lg border py-[13px] font-[family-name:var(--d-corpo)] text-[13px] font-bold tracking-[1px] text-[var(--d-text)]"
+                  style={{ borderColor: "color-mix(in srgb, var(--d-accent) 45%, transparent)" }}
+                >
+                  {m.simularEsteCarro}
+                  <span aria-hidden="true" style={{ color: "var(--d-accent)" }}>
+                    →
+                  </span>
+                </a>
               )}
               {ctaInteresse && linkInteresse && (
                 <a

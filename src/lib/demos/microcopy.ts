@@ -84,6 +84,8 @@ export interface DemoMicrocopia {
   faixaAcima: (valor: string) => string;
   /** `aria-label` do grupo de filtros por faixa de preço. */
   faixaDePreco: string;
+  /** Botão do card de veículo que leva o preço dele ao simulador (multimarcas). */
+  simularEsteCarro: string;
 }
 
 const PT: DemoMicrocopia = {
@@ -123,6 +125,7 @@ const PT: DemoMicrocopia = {
   faixaEntre: (de, ate) => `${de} a ${ate}`,
   faixaAcima: (v) => `Acima de ${v}`,
   faixaDePreco: "Faixa de preço",
+  simularEsteCarro: "Simular este carro",
 };
 
 const EN: DemoMicrocopia = {
@@ -162,6 +165,7 @@ const EN: DemoMicrocopia = {
   faixaEntre: (de, ate) => `${de} to ${ate}`,
   faixaAcima: (v) => `Over ${v}`,
   faixaDePreco: "Price range",
+  simularEsteCarro: "Simulate this car",
 };
 
 const ES: DemoMicrocopia = {
@@ -201,6 +205,7 @@ const ES: DemoMicrocopia = {
   faixaEntre: (de, ate) => `De ${de} a ${ate}`,
   faixaAcima: (v) => `Más de ${v}`,
   faixaDePreco: "Rango de precio",
+  simularEsteCarro: "Simular este auto",
 };
 
 const FR: DemoMicrocopia = {
@@ -240,6 +245,7 @@ const FR: DemoMicrocopia = {
   faixaEntre: (de, ate) => `De ${de} à ${ate}`,
   faixaAcima: (v) => `Plus de ${v}`,
   faixaDePreco: "Fourchette de prix",
+  simularEsteCarro: "Simuler ce véhicule",
 };
 
 const DE: DemoMicrocopia = {
@@ -279,6 +285,7 @@ const DE: DemoMicrocopia = {
   faixaEntre: (de, ate) => `${de} bis ${ate}`,
   faixaAcima: (v) => `Über ${v}`,
   faixaDePreco: "Preisspanne",
+  simularEsteCarro: "Dieses Auto berechnen",
 };
 
 const IT: DemoMicrocopia = {
@@ -318,6 +325,7 @@ const IT: DemoMicrocopia = {
   faixaEntre: (de, ate) => `Da ${de} a ${ate}`,
   faixaAcima: (v) => `Oltre ${v}`,
   faixaDePreco: "Fascia di prezzo",
+  simularEsteCarro: "Simula questa auto",
 };
 
 const NL: DemoMicrocopia = {
@@ -357,6 +365,7 @@ const NL: DemoMicrocopia = {
   faixaEntre: (de, ate) => `${de} tot ${ate}`,
   faixaAcima: (v) => `Boven ${v}`,
   faixaDePreco: "Prijsklasse",
+  simularEsteCarro: "Deze auto berekenen",
 };
 
 const MICROCOPIA_POR_RAIZ: Record<RaizMicrocopia, DemoMicrocopia> = {

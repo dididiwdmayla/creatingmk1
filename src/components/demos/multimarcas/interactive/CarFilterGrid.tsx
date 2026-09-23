@@ -39,6 +39,7 @@ export function CarFilterGrid({
   idioma,
   moeda,
   modoFiltro = "categoria",
+  simulavel = false,
 }: {
   servicos: DemoServico[];
   imagens: Record<string, string>;
@@ -51,6 +52,8 @@ export function CarFilterGrid({
   idioma?: string;
   moeda?: string;
   modoFiltro?: ModoFiltro;
+  /** Seção `simulador` visível — liga "simular este carro" nos cards. */
+  simulavel?: boolean;
 }) {
   const m = microcopiaDemo(idioma);
   const faixas = faixasDePreco(servicos);
@@ -166,6 +169,7 @@ export function CarFilterGrid({
                 whatsapp={whatsapp}
                 idioma={idioma}
                 moeda={moeda}
+                simulavel={simulavel}
               />
             </motion.div>
           ))}

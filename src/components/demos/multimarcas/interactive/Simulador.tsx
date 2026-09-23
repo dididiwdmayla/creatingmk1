@@ -1,21 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { waHref } from "./logic";
+import { simboloMoeda } from "@/lib/demos/precos";
+import { IDIOMA_PADRAO } from "@/lib/idioma";
+import type { DemoServico } from "@/lib/demos/types";
+import { EVENTO_SIMULAR, faixaDoSimulador, formatarInteiro, parcelaMensal, waHref } from "./logic";
 
-/** Opções fixas do mecanismo do simulador — parte da MECÂNICA do widget, não conteúdo do lead. */
-const VALOR_MIN = 60_000;
-const VALOR_MAX = 400_000;
-const VALOR_STEP = 5_000;
-const ENTRADA_STEP = 1_000;
+/**
+ * Opções fixas do mecanismo do simulador — parte da MECÂNICA do widget, não
+ * conteúdo do lead. A FAIXA do valor não está aqui: ela vem do estoque
+ * (`faixaDoSimulador`), senão o carro mais barato ficava fora do slider.
+ */
 const ENTRADA_RATIO_MAX = 0.8;
+const ENTRADA_RATIO_INICIAL = 0.2;
 const TAXA_JUROS_MENSAL = 1.49; // % a.m., taxa de referência exibida junto ao resultado
 const PARCELAS_OPCOES = [24, 36, 48, 60];
-
-function fmt(n: number): string {
-  return Math.round(n).toLocaleString("pt-BR");
-}
 
 const DIGITOS = "0123456789".split("");
 
@@ -41,26 +41,55 @@ function DigitoOdometro({ digito }: { digito: string }) {
 export function Simulador({
   whatsapp,
   ctaLabel,
+  servicos,
+  idioma,
+  moeda,
 }: {
   whatsapp?: string;
   ctaLabel?: string;
+  /** O estoque: dele sai a faixa do slider e o valor de partida. */
+  servicos: readonly DemoServico[];
+  idioma?: string;
+  moeda?: string;
 }) {
-  const [valor, setValor] = useState(120_000);
-  const [entrada, setEntrada] = useState(24_000);
+  const faixa = faixaDoSimulador(servicos);
+  const passoEntrada = Math.max(1, faixa.passo / 5);
+  const entradaDe = (v: number) => Math.round((v * ENTRADA_RATIO_INICIAL) / passoEntrada) * passoEntrada;
+  const [valor, setValor] = useState(faixa.inicial);
+  const [entrada, setEntrada] = useState(() => entradaDe(faixa.inicial));
   const [parcelas, setParcelas] = useState(48);
 
+  const fmt = (n: number) => formatarInteiro(n, idioma);
+  const simbolo = simboloMoeda(idioma, moeda);
   const entradaMax = Math.round(valor * ENTRADA_RATIO_MAX);
 
+  // "Simular este carro" (card do estoque): o valor do carro chega por
+  // evento, porque o estoque e o simulador são seções independentes.
+  useEffect(() => {
+    const simular = (e: Event) => {
+      const alvo = Number((e as CustomEvent<number>).detail);
+      if (!Number.isFinite(alvo)) return;
+      // O preço EXATO do carro, não o passo mais próximo: "simular este
+      // carro" que mostra 40.000 para um carro de 39.900 é outra conta. O
+      // slider só se alinha ao passo quando a pessoa o arrasta.
+      const v = Math.min(faixa.max, Math.max(faixa.min, alvo));
+      setValor(v);
+      setEntrada(entradaDe(v));
+    };
+    window.addEventListener(EVENTO_SIMULAR, simular);
+    return () => window.removeEventListener(EVENTO_SIMULAR, simular);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faixa.min, faixa.max, faixa.passo]);
+
   const { pmtStr, financiadoFmt } = useMemo(() => {
-    const taxa = TAXA_JUROS_MENSAL / 100;
     const financiado = Math.max(valor - entrada, 0);
-    const pmt = financiado > 0 ? (financiado * taxa) / (1 - Math.pow(1 + taxa, -parcelas)) : 0;
-    return { pmtStr: fmt(pmt), financiadoFmt: fmt(financiado) };
-  }, [valor, entrada, parcelas]);
+    const pmt = parcelaMensal(financiado, TAXA_JUROS_MENSAL, parcelas);
+    return { pmtStr: formatarInteiro(pmt, idioma), financiadoFmt: formatarInteiro(financiado, idioma) };
+  }, [valor, entrada, parcelas, idioma]);
 
   const linkProposta = waHref(
     whatsapp,
-    `Olá! Simulei no site: veículo R$ ${fmt(valor)}, entrada R$ ${fmt(entrada)}, ${parcelas}x de R$ ${pmtStr}. Quero uma proposta.`,
+    `Olá! Simulei no site: veículo ${simbolo} ${fmt(valor)}, entrada ${simbolo} ${fmt(entrada)}, ${parcelas}x de ${simbolo} ${pmtStr}. Quero uma proposta.`,
   );
 
   return (
@@ -75,14 +104,14 @@ export function Simulador({
               VALOR DO VEÍCULO
             </span>
             <span className="font-[family-name:var(--d-mono)] text-2xl font-semibold tabular-nums text-[var(--d-text)]">
-              R$ {fmt(valor)}
+              {simbolo} {fmt(valor)}
             </span>
           </div>
           <input
             type="range"
-            min={VALOR_MIN}
-            max={VALOR_MAX}
-            step={VALOR_STEP}
+            min={faixa.min}
+            max={faixa.max}
+            step={faixa.passo}
             value={valor}
             onChange={(e) => {
               const v = Number(e.target.value);
@@ -92,7 +121,7 @@ export function Simulador({
             className="d-range w-full"
             style={
               {
-                "--fill": `${(((valor - VALOR_MIN) / (VALOR_MAX - VALOR_MIN)) * 100).toFixed(1)}%`,
+                "--fill": `${(((valor - faixa.min) / (faixa.max - faixa.min)) * 100).toFixed(1)}%`,
               } as React.CSSProperties
             }
           />
@@ -103,14 +132,14 @@ export function Simulador({
               ENTRADA · {Math.round((entrada / valor) * 100)}%
             </span>
             <span className="font-[family-name:var(--d-mono)] text-2xl font-semibold tabular-nums text-[var(--d-text)]">
-              R$ {fmt(entrada)}
+              {simbolo} {fmt(entrada)}
             </span>
           </div>
           <input
             type="range"
             min={0}
             max={entradaMax}
-            step={ENTRADA_STEP}
+            step={passoEntrada}
             value={entrada}
             onChange={(e) => setEntrada(Number(e.target.value))}
             className="d-range w-full"
@@ -158,7 +187,7 @@ export function Simulador({
           PARCELA ESTIMADA
         </p>
         <div className="flex flex-wrap items-baseline gap-2">
-          <span className="font-[family-name:var(--d-mono)] text-xl font-semibold text-[var(--d-accent)]">R$</span>
+          <span className="font-[family-name:var(--d-mono)] text-xl font-semibold text-[var(--d-accent)]">{simbolo}</span>
           <span className="flex font-[family-name:var(--d-mono)] text-[clamp(48px,6.5vw,66px)] font-semibold leading-[1.1] tabular-nums tracking-[1px] text-[var(--d-text)]">
             {[...pmtStr].map((ch, i) =>
               /\d/.test(ch) ? (
@@ -175,7 +204,8 @@ export function Simulador({
           </span>
         </div>
         <p className="font-[family-name:var(--d-corpo)] text-[13px] font-medium tabular-nums text-[var(--d-muted)]">
-          Financiado: R$ {financiadoFmt} em {parcelas}× · taxa ref. {TAXA_JUROS_MENSAL.toFixed(2).replace(".", ",")}
+          Financiado: {simbolo} {financiadoFmt} em {parcelas}× · taxa ref.{" "}
+          {TAXA_JUROS_MENSAL.toLocaleString(idioma ?? IDIOMA_PADRAO, { minimumFractionDigits: 2 })}
           % a.m.
         </p>
         {linkProposta && (

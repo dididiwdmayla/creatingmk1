@@ -182,6 +182,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             whatsapp={data.whatsapp}
             idioma={idioma}
             moeda={moeda}
+            simulavel={visiveis.includes("simulador")}
           />
         </section>
       ),
@@ -356,7 +357,13 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             </p>
           )}
         </div>
-        <Simulador whatsapp={data.whatsapp} ctaLabel={s.simulador?.cta} />
+        <Simulador
+          whatsapp={data.whatsapp}
+          ctaLabel={s.simulador?.cta}
+          servicos={data.servicos}
+          idioma={idioma}
+          moeda={moeda}
+        />
       </section>
     ),
 
@@ -578,6 +585,9 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
     >
       <style>{`
         html { scroll-behavior: smooth; }
+        /* A nav é fixa: sem margem, um salto de âncora (#simulador, #faixa-N)
+           deixava o rótulo da seção embaixo dela. */
+        section[id], footer[id] { scroll-margin-top: 88px; }
         ::selection { background: var(--d-accent); color: var(--d-accent-ink); }
 
         .d-press { transition: transform var(--d-anim-duration) var(--d-anim-ease); }

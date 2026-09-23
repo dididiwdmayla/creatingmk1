@@ -6,9 +6,11 @@ import {
   categoriasDoEstoque,
   faixaDoHash,
   faixasDePreco,
+  faixaDoSimulador,
   formatarNumeroBR,
   linhaDeApoio,
   linhasDoNome,
+  parcelaMensal,
   parseNumeroFormatado,
   rotuloFaixa,
   TODAS_CATEGORIAS,
@@ -186,5 +188,39 @@ describe("faixasDePreco (busca por faixa — §5 do plano)", () => {
     expect(faixaDoHash("#faixa-2", faixas)).toBe("faixa-2");
     expect(faixaDoHash("#faixa-9", faixas)).toBeUndefined();
     expect(faixaDoHash("#estoque", faixas)).toBeUndefined();
+  });
+});
+
+describe("faixaDoSimulador (o simulador alcança o estoque — §5)", () => {
+  const estoque = [39900, 49900, 59900, 69900, 79900, 89900, 99900, 119900, 149900].map((precoValor) => ({
+    precoValor,
+  }));
+
+  it("cerca o carro mais barato e o mais caro; parte da mediana", () => {
+    expect(faixaDoSimulador(estoque)).toEqual({ min: 38000, max: 150000, passo: 2000, inicial: 80000 });
+  });
+
+  it("todo carro do estoque é simulável (dentro da faixa)", () => {
+    for (const lista of [estoque, [{ precoValor: 19 }, { precoValor: 26 }], [{ precoValor: 389000 }, { precoValor: 1250000 }]]) {
+      const f = faixaDoSimulador(lista);
+      for (const { precoValor } of lista) {
+        expect(precoValor).toBeGreaterThanOrEqual(f.min);
+        expect(precoValor).toBeLessThanOrEqual(f.max);
+      }
+      expect(f.inicial).toBeGreaterThanOrEqual(f.min);
+      expect(f.inicial).toBeLessThanOrEqual(f.max);
+    }
+  });
+
+  it("estoque sem preço: a faixa histórica", () => {
+    expect(faixaDoSimulador([{}, {}])).toEqual({ min: 60000, max: 400000, passo: 5000, inicial: 120000 });
+  });
+});
+
+describe("parcelaMensal", () => {
+  it("tabela Price; zero financiado é zero; taxa zero divide igual", () => {
+    expect(Math.round(parcelaMensal(96000, 1.49, 48))).toBe(2814);
+    expect(parcelaMensal(0, 1.49, 48)).toBe(0);
+    expect(parcelaMensal(4800, 0, 48)).toBe(100);
   });
 });

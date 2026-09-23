@@ -195,3 +195,61 @@ export function rotuloFaixa(
   if (faixa.max === undefined && faixa.min !== undefined) return m.faixaAcima(v(faixa.min));
   return m.faixaEntre(v(faixa.min ?? 0), v(faixa.max ?? 0));
 }
+
+/** Faixa, passo e ponto de partida do slider de valor do simulador. */
+export interface FaixaSimulador {
+  min: number;
+  max: number;
+  passo: number;
+  inicial: number;
+}
+
+/** Sem estoque com preço: a faixa histórica do material bruto. */
+const SIMULADOR_SEM_ESTOQUE: FaixaSimulador = { min: 60_000, max: 400_000, passo: 5_000, inicial: 120_000 };
+
+/**
+ * A faixa do simulador DERIVADA do estoque (§5 do plano: "o simulador não
+ * alcança o estoque" — `VALOR_MIN` fixo em 60.000 deixava de fora o HB20 de
+ * 39.900, e o teto de 400.000 sobrava para um estoque que para em 149.900).
+ * O passo é ~1/60 da amplitude, arredondado para valor de vitrine; o piso e
+ * o teto cercam o carro mais barato e o mais caro; o ponto de partida é a
+ * mediana do estoque. Todo carro do estoque é simulável.
+ */
+export function faixaDoSimulador(servicos: readonly { precoValor?: number }[]): FaixaSimulador {
+  const valores = servicos
+    .map((s) => s.precoValor)
+    .filter((v): v is number => v !== undefined && Number.isFinite(v) && v > 0)
+    .sort((a, b) => a - b);
+  if (valores.length === 0) return SIMULADOR_SEM_ESTOQUE;
+  const menor = valores[0];
+  const maior = valores[valores.length - 1];
+  const bruto = Math.max((maior - menor) / 60, maior / 200);
+  const ordem = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const passo = [1, 2, 5, 10].map((f) => f * ordem).find((p) => p >= bruto) ?? 10 * ordem;
+  const min = Math.max(passo, Math.floor(menor / passo) * passo);
+  const max = Math.max(min + passo, Math.ceil(maior / passo) * passo);
+  const mediana = valores[Math.floor((valores.length - 1) / 2)];
+  const inicial = Math.min(max, Math.max(min, Math.round(mediana / passo) * passo));
+  return { min, max, passo, inicial };
+}
+
+/** Parcela de um financiamento pela tabela Price (taxa em % a.m.). */
+export function parcelaMensal(financiado: number, taxaPct: number, parcelas: number): number {
+  if (financiado <= 0 || parcelas <= 0) return 0;
+  const taxa = taxaPct / 100;
+  if (taxa === 0) return financiado / parcelas;
+  return (financiado * taxa) / (1 - Math.pow(1 + taxa, -parcelas));
+}
+
+/** Número inteiro pelo locale da demo, sem símbolo ("39.900", "39,900", "39’900"). */
+export function formatarInteiro(valor: number, idioma: string | undefined): string {
+  return Math.round(valor).toLocaleString(idioma ?? IDIOMA_PADRAO, { maximumFractionDigits: 0 });
+}
+
+/**
+ * Evento que o botão "simular este carro" do card dispara para o
+ * simulador, que mora em OUTRA seção (reordenável e ocultável à parte).
+ * `detail` é o `precoValor` do carro. Sem JavaScript o botão é só um link
+ * para `#simulador`.
+ */
+export const EVENTO_SIMULAR = "multimarcas:simular";

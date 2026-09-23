@@ -131,3 +131,36 @@ describe("multimarcas: rótulos e títulos vazios não viram elemento vazio", ()
     }
   });
 });
+
+describe("multimarcas: o simulador (item 10)", () => {
+  const base = montarDemoData(exemploDaSkin(skin, "vortice"), lead, undefined, skin.id);
+  const valorDoSlider = (doc: Document) => doc.querySelector('#simulador input[type="range"]')!;
+
+  it("a faixa do slider cobre os nove carros do estoque (39.900 a 149.900)", () => {
+    const slider = valorDoSlider(documento("vortice", base));
+    const precos = base.servicos.map((s) => s.precoValor!);
+    expect(Number(slider.getAttribute("min"))).toBeLessThanOrEqual(Math.min(...precos));
+    expect(Number(slider.getAttribute("max"))).toBeGreaterThanOrEqual(Math.max(...precos));
+  });
+
+  it("em en-US/USD não sobra R$ nem separador pt-BR no simulador", () => {
+    const html = renderToStaticMarkup(
+      createElement(skin.componente, { data: base, theme: getTheme(skin, "vortice"), idioma: "en-US", moeda: "USD" }),
+    );
+    const doc = new JSDOM(html).window.document;
+    const sim = doc.getElementById("simulador")!.textContent!;
+    expect(sim).not.toContain("R$");
+    expect(sim).toContain("$");
+    expect(sim).toMatch(/\d{2},\d{3}/);
+  });
+
+  it("'simular este carro' só existe com a seção simulador visível", () => {
+    const com = documento("vortice", base);
+    expect(com.querySelectorAll('[data-car] a[href="#simulador"]')).toHaveLength(base.servicos.length);
+    const semSimulador = {
+      ...base,
+      secoes: { ...base.secoes, simulador: { ...base.secoes.simulador, oculta: true } },
+    };
+    expect(documento("vortice", semSimulador).querySelectorAll('a[href="#simulador"]')).toHaveLength(0);
+  });
+});
