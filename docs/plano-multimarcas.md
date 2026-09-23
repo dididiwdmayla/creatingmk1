@@ -34,6 +34,36 @@ execução, não previstas em detalhe pelo texto original do plano:
   só aparece quando a etapa 3 (item 17/18) desenhar a abertura `sangrada`/
   `dividida`.
 
+**Etapa 2 — concluída em 2026-09-23** (itens 7–15). **Etapa 3 — concluída
+em 2026-09-23** (itens 16–22). Um commit por item, cada um citando as
+capturas em `qa-shots/multimarcas/` (fora do repositório). Decisões de
+execução que a etapa 4 precisa saber:
+
+- **`multimarcas-contrato.test.tsx` já existe** (nasceu no item 7 e cresceu
+  a cada item): SSR sem JS, a prova do §6.1 com os dois controles, o §7
+  com lead vazio e cheio, o item 15 (sem endereço/★/"Google"/"Vórtice"),
+  slots × `imagensOcultas`, um mostrador por página, o §2 refeito por
+  teste, a cópia por loja e as miniaturas. O item 24 COMPLETA este
+  arquivo — falta o `destaque` numa demo com `ordemSecoes` antigo.
+- **`SKINS_COM_PRECO_ANIMADO`** (`precos-locale.test.tsx`) ainda lista a
+  skin. O preço agora sai formatado no servidor (item 7), mas pelo
+  `formatarNumero` + `simboloMoeda` separados, não pelo
+  `formatarPrecoServico` que o teste genérico procura — tirar a exceção é
+  o item 23 decidir e medir.
+- **As composições foram declaradas no item 17**, não no 19: sem elas não
+  havia o que olhar. O item 19 completou as declarações (as três camadas
+  da chapa: composição, `tema`, cópia).
+- **Os presets ganharam ids novos** (`patio`/`garagem`/`campo`) no item 20;
+  os antigos só existem como `themeAliases`.
+- **As faixas de preço arredondam a dois algarismos significativos**
+  (achado do item 21: a meio algarismo, o Pátio saía "55 / 60").
+- **Não há foto de produção** para `hero` e `destaque`
+  (`SLOTS_SEM_FOTO`); a Garagem e a Campo mostram o SVG de linha.
+- **Ficou para a etapa 4/5**, sem tocar aqui: `scripts/qa-multimarcas.mjs`
+  (o laço usado nesta sessão foi um script descartável — ver os commits),
+  `qa-cls`, a matriz de fps, a linha da auditoria de endereço no
+  ARCHITECTURE.md (item 29) e a seção da skin nele.
+
 **Decisões da aprovação:**
 - Crescer o contrato: seção `destaque` e slots `imagens.hero` e
   `imagens.destaque` (§5).
