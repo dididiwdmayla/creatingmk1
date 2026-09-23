@@ -144,9 +144,14 @@ export interface FaixaDePreco {
   max?: number;
 }
 
-/** Arredonda um corte para um número "de vitrine": 59.900 → 60.000, 26 → 25. */
+/**
+ * Arredonda um corte para um número "de vitrine", a dois algarismos
+ * significativos: 59.900 → 60.000, 61.900 → 62.000, 449.900 → 450.000.
+ * (Meio algarismo — passo de 5.000 num estoque de 40 a 70 mil — juntava
+ * dois cortes no mesmo valor e deixava as faixas do Pátio tortas.)
+ */
 function arredondarCorte(valor: number): number {
-  const passo = Math.pow(10, Math.floor(Math.log10(valor))) / 2;
+  const passo = Math.max(1, Math.pow(10, Math.floor(Math.log10(valor)) - 1));
   return Math.max(passo, Math.round(valor / passo) * passo);
 }
 

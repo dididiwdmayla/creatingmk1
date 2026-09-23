@@ -405,3 +405,33 @@ describe("multimarcas §2 — contraste das quatro paletas (item 20)", () => {
     expect(contrasteWcag(p.destaqueInk, p.destaque), "ink/destaque").toBeGreaterThanOrEqual(4.5);
   });
 });
+
+describe("multimarcas: a cópia de cada loja (item 21)", () => {
+  const exemplo = (id: string) => skin.variantes!.find((v) => v.id === id)!.exemplo;
+
+  it.each(alvos)("%s: nove carros (um por slot carro-N), todos com preço, ano/km/câmbio/combustível", (id) => {
+    const carros = exemplo(id).servicos;
+    expect(carros).toHaveLength(9);
+    for (const c of carros) {
+      expect(c.precoValor, c.nome).toBeGreaterThan(0);
+      expect(c.destaques, c.nome).toHaveLength(4);
+    }
+  });
+
+  it.each(alvos)("%s: todo depoimento fala de um carro do próprio estoque", (id) => {
+    const nomes = exemplo(id).servicos.map((c) => c.nome.split(" ").slice(0, 2).join(" "));
+    for (const d of exemplo(id).depoimentos) {
+      expect(nomes.some((n) => d.contexto?.startsWith(n)), `${d.autor}: ${d.contexto}`).toBe(true);
+    }
+  });
+
+  it("o Pátio vende até 70 mil; a Garagem, nenhum carro abaixo dos seminovos premium", () => {
+    expect(Math.max(...exemplo("patio").servicos.map((c) => c.precoValor!))).toBeLessThanOrEqual(70000);
+    expect(Math.min(...exemplo("garagem").servicos.map((c) => c.precoValor!))).toBeGreaterThan(150000);
+  });
+
+  it("as quatro lojas não repetem o mesmo estoque", () => {
+    const estoques = alvos.map((id) => exemplo(id).servicos.map((c) => c.nome).join("|"));
+    expect(new Set(estoques).size).toBe(4);
+  });
+});

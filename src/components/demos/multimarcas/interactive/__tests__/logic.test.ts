@@ -168,6 +168,16 @@ describe("faixasDePreco (busca por faixa — §5 do plano)", () => {
     }
   });
 
+  it("estoque de populares (40 a 70 mil): quatro faixas, cortes distintos", () => {
+    const patio = [42900, 39900, 64900, 61900, 67900, 69900, 68900, 58900, 54900].map((precoValor) => ({ precoValor }));
+    expect(faixasDePreco(patio)).toEqual([
+      { id: "faixa-1", max: 55000 },
+      { id: "faixa-2", min: 55000, max: 62000 },
+      { id: "faixa-3", min: 62000, max: 68000 },
+      { id: "faixa-4", min: 68000 },
+    ]);
+  });
+
   it("três faixas abaixo de oito carros; derivadas do estoque, não de tabela fixa", () => {
     const faixas = faixasDePreco([{ precoValor: 380000 }, { precoValor: 520000 }, { precoValor: 690000 }, { precoValor: 900000 }]);
     expect(faixas.length).toBeGreaterThanOrEqual(2);
