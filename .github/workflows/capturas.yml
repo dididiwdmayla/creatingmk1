@@ -104,6 +104,12 @@ jobs:
           # também para quem já cadastrou tudo lá. Ausente, a pastilha de
           # endereço sai vazia — a moldura nunca inventa domínio.
           APP_PUBLIC_URL: ${{ vars.APP_PUBLIC_URL || secrets.APP_PUBLIC_URL }}
+          # Header que o motor manda pra pular a intro da demo pública (ver
+          # "Intro e captura" em ARCHITECTURE.md) — chega ao `next start`
+          # deste job por `subirServidor` espalhar `process.env`. OPCIONAL,
+          # fail-closed: ausente, a intro renderiza normalmente (só volta a
+          # cobrir a captura quando alguém ligar a intro no editor).
+          CAPTURA_SECRET: ${{ secrets.CAPTURA_SECRET }}
           # `subirServidor` sorteia um APP_PASSWORD efêmero por rodada e
           # assina o cookie de sessão com ele — o app do runner nunca usa a
           # senha de produção, e o cookie só serve pra ler /api/leads e

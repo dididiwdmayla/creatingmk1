@@ -7,6 +7,7 @@ import { BarraNavegador } from "@/lib/demos/barra/BarraNavegador";
 import { barraModoEfetivo, corDaBarra } from "@/lib/demos/barra/modos";
 import { cssPlanoDaPagina } from "@/lib/demos/barra/plano";
 import { montarDemoDataAvulsa } from "@/lib/demos/avulsas/identidade";
+import { CAPTURA_HEADER } from "@/lib/demos/capturas/seguranca.mjs";
 import type { CapturaComposta } from "@/lib/demos/capturas/estado";
 import { PREVIA_ALTURA, PREVIA_LARGURA } from "@/lib/demos/capturas/previa.mjs";
 import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
@@ -20,6 +21,7 @@ import { exemploDaSkin, temaCalibrado, varianteEfetiva } from "@/lib/demos/varia
 import type { LeadDemo } from "@/lib/demos/types";
 import type { AppDb } from "@/lib/firestore-like";
 import type { Lead } from "@/lib/leads/types";
+import { compararEmTempoConstante } from "@/lib/seguranca";
 import { getUsuario } from "@/lib/usuarios/repo";
 
 import { demoCoreFontsClassName, resolveExtraFontClassNames } from "./fonts";
@@ -60,6 +62,26 @@ export interface FonteDemo {
 export type DemoResolvida = NonNullable<Awaited<ReturnType<typeof resolverDemo>>>;
 
 /**
+ * A intro é suprimida quando o header de captura bate com `CAPTURA_SECRET`
+ * — ver "Intro e captura" em ARCHITECTURE.md. Função PURA (não lê
+ * `headers()` sozinha) de propósito: assim o fail-closed e o caminho feliz
+ * se testam sem precisar mockar `next/headers` — ver
+ * __tests__/comum.test.tsx.
+ *
+ * **Fail-closed**: sem `CAPTURA_SECRET` configurada no servidor, o header
+ * é ignorado (mesmo que alguém mande um valor) e a intro renderiza como
+ * sempre. O header só desliga uma animação — vazá-lo não dá acesso a nada,
+ * mas ele nunca é ecoado em resposta, log ou print daqui pra frente.
+ */
+export function introSuprimidaPelaCaptura(
+  headerRecebido: string | null,
+  segredoConfigurado: string | undefined,
+): boolean {
+  if (!segredoConfigurado || !headerRecebido) return false;
+  return compararEmTempoConstante(headerRecebido, segredoConfigurado);
+}
+
+/**
  * Skin, tema, conteúdo, fontes e camada decorativa a partir da fonte.
  * `undefined` quando a skin salva saiu do registro — a rota responde 404,
  * mesmo tratamento de "demo não existe".
@@ -69,11 +91,18 @@ export async function resolverDemo(fonte: FonteDemo) {
   if (!skin) return undefined;
   if (skin.localeFixo) fonte={...fonte,...skin.localeFixo};
 
-  const theme = aplicarTema(
+  const temaBase = aplicarTema(
     getTheme(skin, fonte.demo.themeId),
     fonte.demo.tema,
     skin.heroEscalaLimites,
   );
+  // Decisão da camada de RESOLUÇÃO, nada gravado no banco — mesma
+  // filosofia de SKINS_MIGRADAS/EFEITOS_MIGRADOS: a skin nunca sabe que
+  // captura existe, só o `theme.intro` que chega até ela muda.
+  const h = await headers();
+  const theme = introSuprimidaPelaCaptura(h.get(CAPTURA_HEADER), process.env.CAPTURA_SECRET)
+    ? { ...temaBase, intro: false }
+    : temaBase;
   // A ÚNICA bifurcação de conteúdo entre as duas famílias: com lead, a
   // camada `dadosDoLead` entra no meio; sem ele, a identidade em branco
   // toma o lugar dela (nada de texto de template se passando por dado do

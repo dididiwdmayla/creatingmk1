@@ -1861,6 +1861,19 @@ Daí a sequência do motor, cada passo com um defeito por trás: `prepararPagina
 
 **Onde rodar** (decidido antes de implementar, com os custos na mesa): laço local/CI em lote, custo R$ 0, ~25–40s por lead, nenhum request pago e zero risco pro deploy do app. As alternativas avaliadas foram Vercel sob demanda (exige `@sparticuz/chromium`, ~170MB contra o teto de 250MB do bundle, `maxDuration` apertado no Hobby) e GitHub Actions (sem limite, mas latência de minutos). O motor foi escrito com o miolo em `capturas/dom.mjs`, então ligar a rota serverless depois é escrever o adaptador, não reescrever o motor.
 
+#### Intro e captura (`CAPTURA_SECRET`)
+
+A intro/splash de abertura (`Theme.intro`) **não é desligada por causa da captura** — ela nasce desligada no preset de cada skin (fiel ao material bruto de cada uma) e continua disponível no editor, aba Tema, como qualquer outra skin. Quem resolve o conflito entre "o editor pode ligá-la" e "a captura de prospecção não pode sair da tela de splash" é a CAPTURA, não a skin: a `IntroExperience` de cada skin é `"use client"`, e o estado inicial do primeiro render (antes do `useEffect` que checa `sessionStorage` rodar) é `ativa` — então o **documento servido** (o que a captura mede) mostra a splash sempre que `theme.intro` é `true`, e o motor precisa de um jeito de pedir "sem ela" sem mexer no dado salvo.
+
+`intro=0` na query string do harness (`scripts/capturas.mjs`, modo `--skin`) já cobria esse caso desde sempre — mas só o harness. A rota pública (`--lead`/`--leads`) não tinha escape nenhum: uma demo publicada com a intro ligada saía da tela de splash na captura de prospecção, não da seção pedida. O buraco era de **todas** as skins, não de uma.
+
+Precedente `CRON_SECRET` (`app/api/cron/route.ts`), com uma diferença: aqui não é uma rota inteira atrás do segredo, é um ÚNICO campo de tema, resolvido na camada certa:
+
+- **Env `CAPTURA_SECRET`** (`.env.example`), opcional. **Fail-closed**: sem ela no servidor, o header é ignorado — mesmo que alguém mande um valor — e a intro renderiza como sempre. O header só desliga uma animação; vazá-lo não dá acesso a nada, mas ele nunca é ecoado em resposta, log ou print (`app/demo/comum.tsx#introSuprimidaPelaCaptura`).
+- **O motor manda o header** `x-radar-captura: ${CAPTURA_SECRET}` (nome em `lib/demos/capturas/seguranca.mjs`, `.mjs` pelo mesmo motivo de `previa.mjs`/`alvo.mjs` — lido tanto pela rota TypeScript quanto pelo script que não compila TS) em toda navegação de `capturas.mjs`, não só na rota pública: a `/interno/*` não olha pra ele, então não custa nada mandar sempre. `capturas-ci.mjs` não navega nada sozinho (chama `capturas.mjs` como processo filho com `env: process.env`) — a variável só precisa estar no ambiente de UM processo, e o workflow (`.github/workflows/capturas.yml`) a passa como `secrets.CAPTURA_SECRET`.
+- **A rota pública resolve, nunca grava.** `resolverDemo` (`app/demo/comum.tsx`, compartilhado pelas duas rotas públicas — lead e avulsa) lê `headers()`, compara em TEMPO CONSTANTE (`lib/seguranca.ts#compararEmTempoConstante`, a mesma função que `RADAR_DEVICE_KEY` usa — o algoritmo não é segredo, só o valor comparado é, e cada consumidor guarda o seu) e, no caso positivo, substitui só `theme.intro` por `false` antes de passar o tema para `<Skin>`. **Decisão da camada de RESOLUÇÃO, nada gravado no banco** — mesma filosofia de `SKINS_MIGRADAS`/`EFEITOS_MIGRADOS`: a skin nunca sabe que uma captura existe, só recebe um `theme.intro` diferente.
+- **NUNCA reaproveitar `CRON_SECRET`/`RADAR_DEVICE_KEY`**: raio de explosão próprio, mesmo critério dos outros dois segredos do app.
+
 #### Disparo pela plataforma (GitHub Actions + `lead.capturas`)
 
 A geração deixou de ser só laço local: a ficha do lead tem **"Gerar capturas"** e o grupo de busca tem a ação equivalente em lote. O motor NÃO mudou de dono — quem enquadra continua sendo `scripts/capturas.mjs`, chamado como processo filho pelo orquestrador.

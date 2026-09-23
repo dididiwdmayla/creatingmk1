@@ -1,8 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
-
 import { NextResponse } from "next/server";
 
 import { jsonError } from "@/lib/http";
+import { compararEmTempoConstante } from "@/lib/seguranca";
 
 /**
  * Autenticação das rotas /api/fila/* (o celular Android com MacroDroid,
@@ -11,23 +10,13 @@ import { jsonError } from "@/lib/http";
  * diferentes — o cron dispara buscas pagas, o celular dispara mensagens de
  * WhatsApp para negócios reais.
  *
- * Comparação em tempo constante: o header errado por 1 caractere não pode
- * responder mais rápido que o certo. Corpo do 401 é `{ erro: "..." }` —
- * formato próprio desta fila, não o `{ error: { code, message } }` do
- * resto do app (o executor no celular só precisa checar uma chave).
+ * Comparação em tempo constante (`compararEmTempoConstante`, compartilhada
+ * com outros segredos do app — ver lib/seguranca.ts): o header errado por
+ * 1 caractere não pode responder mais rápido que o certo. Corpo do 401 é
+ * `{ erro: "..." }` — formato próprio desta fila, não o
+ * `{ error: { code, message } }` do resto do app (o executor no celular só
+ * precisa checar uma chave).
  */
-
-function compararEmTempoConstante(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) {
-    // Gasta o tempo de uma comparação mesmo assim — não vaza o tamanho da
-    // chave por timing.
-    timingSafeEqual(bufA, bufA);
-    return false;
-  }
-  return timingSafeEqual(bufA, bufB);
-}
 
 /**
  * Confere o header `Authorization: Bearer ${RADAR_DEVICE_KEY}`. Devolve
