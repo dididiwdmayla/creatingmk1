@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
@@ -433,5 +435,13 @@ describe("multimarcas: a cópia de cada loja (item 21)", () => {
   it("as quatro lojas não repetem o mesmo estoque", () => {
     const estoques = alvos.map((id) => exemplo(id).servicos.map((c) => c.nome).join("|"));
     expect(new Set(estoques).size).toBe(4);
+  });
+});
+
+describe("multimarcas: miniaturas das variantes (item 22)", () => {
+  it.each(alvos)("%s: a miniatura declarada existe em public/", (id) => {
+    const v = skin.variantes!.find((x) => x.id === id)!;
+    expect(v.thumbnail).toBe(`/demos/multimarcas/${id}.jpg`);
+    expect(existsSync(path.join(process.cwd(), "public", v.thumbnail!))).toBe(true);
   });
 });
