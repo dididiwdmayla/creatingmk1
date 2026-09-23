@@ -21,13 +21,9 @@ import { LANCHERIA_DECORATIVE_FLOATS } from "@/components/demos/lancheria/decora
 import { LANCHERIA_SECOES } from "@/components/demos/lancheria/secoes";
 import { LancheriaChapaBurger } from "@/components/demos/lancheria/Skin";
 import { LANCHERIA_VARIANTES } from "@/components/demos/lancheria/variantes";
-import { MULTIMARCAS_EXEMPLO } from "@/components/demos/multimarcas/exemplo";
 import { MULTIMARCAS_SECOES } from "@/components/demos/multimarcas/secoes";
 import { MultimarcasVortice } from "@/components/demos/multimarcas/Skin";
-import {
-  MULTIMARCAS_THEME_DEFAULT,
-  MULTIMARCAS_THEME_PRESETS,
-} from "@/components/demos/multimarcas/themes";
+import { MULTIMARCAS_VARIANTES } from "@/components/demos/multimarcas/variantes";
 import { PETSHOP_EXEMPLO } from "@/components/demos/petshop/exemplo";
 import { PETSHOP_SECOES } from "@/components/demos/petshop/secoes";
 import { PetshopFocinhoFeliz } from "@/components/demos/petshop/Skin";
@@ -180,9 +176,15 @@ export const SKINS: SkinDefinition[] = [
     descricao:
       "Concessionária de seminovos premium: estoque filtrável por categoria, simulador de financiamento com odômetro de dígitos, velocímetro no preloader e carrossel de depoimentos arrastável.",
     componente: MultimarcasVortice,
-    themeDefault: MULTIMARCAS_THEME_DEFAULT,
-    themePresets: MULTIMARCAS_THEME_PRESETS,
-    demoDataExemplo: MULTIMARCAS_EXEMPLO,
+    variantes: MULTIMARCAS_VARIANTES,
+    // azul-classico/grafite/meia-noite trocam de id (patio/garagem/campo);
+    // vortice é o default e fica inalterado (ver "IDs e aliases" em
+    // docs/plano-multimarcas.md §4). Sem migração de banco: uma demo
+    // publicada com o id antigo continua abrindo, na variante certa.
+    themeAliases: { "azul-classico": "patio", grafite: "garagem", "meia-noite": "campo" },
+    themeDefault: MULTIMARCAS_VARIANTES[0].theme,
+    themePresets: MULTIMARCAS_VARIANTES.map((v) => v.theme),
+    demoDataExemplo: MULTIMARCAS_VARIANTES[0].exemplo,
     secoes: MULTIMARCAS_SECOES,
     heroEscalaLimites: { min: 0.75, max: 1.25 },
     thumbnail: "/demos/multimarcas/thumb.svg",

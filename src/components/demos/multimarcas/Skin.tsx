@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
@@ -139,6 +140,10 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
   // junto, em vez de virar link morto (ver interactive/logic.ts).
   const linkWaMain = waHref(data.whatsapp, `Olá! Vim pelo site da ${data.nome} e quero mais informações.`);
   const linkWaAvaliacao = waHref(data.whatsapp, "Olá! Quero uma avaliação do meu carro.");
+  const linkWaDestaque = waHref(
+    data.whatsapp,
+    `Olá! Tenho interesse no ${s.destaque?.titulo ?? "veículo em destaque"} que vi no site da ${data.nome}.`,
+  );
 
   const secoes: Record<string, () => ReactNode> = {
     /* ── Estoque ─────────────────────────────────────────────── */
@@ -244,6 +249,82 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
           </div>
         </section>
       ),
+
+    /* ── Destaque (ficha técnica) ───────────────────────────────
+       Desenho único por enquanto — a composição por variante (knobs
+       cartao/tira/catalogo/ficha, ver MultimarcasComposicao) chega na
+       etapa 3 de docs/plano-multimarcas.md; aqui a seção já é real e
+       editável, só ainda sem a drasticidade por loja. */
+    destaque: () => (
+      <section id="destaque" className="mx-auto max-w-[1200px] px-[max(24px,5vw)] py-[var(--d-sec-y)]">
+        <div className="grid gap-10 md:grid-cols-2 md:items-center">
+          <div className="relative aspect-[4/3] overflow-hidden border" style={{ borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}>
+            <Image
+              src={data.imagens.destaque}
+              alt={data.imagensAlt?.destaque ?? ""}
+              fill
+              unoptimized
+              data-demo-slot="imagens.destaque"
+              className="object-cover"
+              sizes="(min-width: 768px) 50vw, 100vw"
+            />
+          </div>
+          <div>
+            <Rotulo texto={s.destaque?.rotulo} slot="secoes.destaque.rotulo" />
+            <h2
+              data-demo-slot="secoes.destaque.titulo"
+              className="font-[family-name:var(--d-display)] text-[clamp(30px,4.6vw,48px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
+            >
+              {s.destaque?.titulo}
+            </h2>
+            {s.destaque?.texto && (
+              <p
+                data-demo-slot="secoes.destaque.texto"
+                className="mt-3 font-[family-name:var(--d-corpo)] text-[15px] leading-relaxed text-[var(--d-muted)]"
+              >
+                {s.destaque.texto}
+              </p>
+            )}
+            {(s.destaque?.itens?.length ?? 0) > 0 && (
+              <dl className="mt-6 flex flex-col gap-2.5 border-t pt-5" style={{ borderColor: "var(--d-border)" }}>
+                {s.destaque?.itens?.map((item, i) => (
+                  <div key={i} className="flex items-baseline justify-between gap-4">
+                    <dt
+                      data-demo-slot={`secoes.destaque.itens.${i}.titulo`}
+                      className="font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[1px] text-[var(--d-muted)]"
+                    >
+                      {item.titulo}
+                    </dt>
+                    <dd
+                      data-demo-slot={`secoes.destaque.itens.${i}.texto`}
+                      className="m-0 font-[family-name:var(--d-mono)] text-[15px] text-[var(--d-text)]"
+                    >
+                      {item.texto}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {s.destaque?.cta && linkWaDestaque && (
+              <a
+                href={linkWaDestaque}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-demo-slot="secoes.destaque.cta"
+                className="d-press mt-7 inline-flex items-center justify-center gap-2.5 rounded-lg px-7 py-4 font-[family-name:var(--d-corpo)] text-sm font-bold tracking-[1px]"
+                style={{
+                  background: "var(--d-accent)",
+                  color: "var(--d-accent-ink)",
+                  boxShadow: "0 8px 22px color-mix(in srgb, var(--d-accent) 25%, transparent)",
+                }}
+              >
+                {s.destaque.cta}
+              </a>
+            )}
+          </div>
+        </div>
+      </section>
+    ),
 
     /* ── Simulador de financiamento ─────────────────────────── */
     simulador: () => (
