@@ -3,10 +3,11 @@
 import Image from "next/image";
 import { useState } from "react";
 
-import { formatarPrecoServico, simboloMoeda } from "@/lib/demos/precos";
+import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { DemoServico } from "@/lib/demos/types";
 import { StatCounter } from "./StatCounter";
-import { waHref } from "./logic";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { EVENTO_SIMULAR, waHref } from "./logic";
 
 /**
  * Card de veículo: imagem do slot, badge de categoria, botão "Detalhes"
@@ -19,45 +20,54 @@ export function CarCard({
   servico,
   index,
   imagem,
+  alt,
   ctaDetalhes,
   ctaInteresse,
   textoGarantia,
   whatsapp,
   idioma,
   moeda,
+  simulavel = false,
+  parcela,
 }: {
   servico: DemoServico;
   index: number;
   imagem: string;
+  /** Texto alternativo do slot (ver DemoData.imagensAlt); ausente = decorativo. */
+  alt?: string;
   ctaDetalhes?: string;
   ctaInteresse?: string;
   textoGarantia?: string;
   whatsapp?: string;
   idioma?: string;
   moeda?: string;
+  /**
+   * A seção `simulador` está visível nesta demo? Só então o card oferece
+   * "simular este carro" — um botão que leva a uma seção oculta seria link
+   * morto.
+   */
+  simulavel?: boolean;
+  /**
+   * A parcela já montada ("48× R$ 1.876") e a premissa dela — só na lista
+   * do Pátio, onde quem compra pela parcela lê a parcela primeiro (§6).
+   */
+  parcela?: { valor: string; legenda: string };
 }) {
+  const m = microcopiaDemo(idioma);
   const [aberto, setAberto] = useState(false);
   // Sem WhatsApp digitado, o CTA de interesse do card some (ver waHref).
-  const linkInteresse = waHref(
-    whatsapp,
-    `Olá! Tenho interesse no ${servico.nome} (${formatarPrecoServico(servico, idioma, moeda)}). Ainda está disponível?`,
-  );
+  const linkInteresse = waHref(whatsapp, m.interesseNoCarro(servico.nome, formatarPrecoServico(servico, idioma, moeda)));
 
   return (
     <article
       data-car
-      className="d-card-hover flex cursor-pointer flex-col overflow-hidden border"
-      style={{
-        background: "var(--d-bg-elev)",
-        borderColor: "var(--d-border)",
-        borderRadius: "var(--d-radius)",
-      }}
+      className="mm-carro d-card-hover cursor-pointer"
       onClick={() => setAberto((v) => !v)}
     >
-      <div className="group/img relative aspect-[16/10] overflow-hidden border-b" style={{ borderColor: "var(--d-border)" }}>
+      <div className="mm-carro-foto group/img border-b" style={{ borderColor: "var(--d-border)" }}>
         <Image
           src={imagem}
-          alt={servico.nome}
+          alt={alt ?? ""}
           fill
           unoptimized
           data-demo-slot={`imagens.carro-${index + 1}`}
@@ -66,7 +76,7 @@ export function CarCard({
         />
         {servico.categoria && (
           <span
-            className="absolute left-3.5 top-3.5 rounded-full border px-3 py-1.5 font-[family-name:var(--d-mono)] text-[11px] font-medium tracking-[2.5px] backdrop-blur-[6px]"
+            className="mm-carro-cat rounded-full border font-[family-name:var(--d-mono)] font-medium backdrop-blur-[6px]"
             style={{
               background: "color-mix(in srgb, var(--d-bg-elev) 85%, transparent)",
               borderColor: "var(--d-border)",
@@ -90,25 +100,45 @@ export function CarCard({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 p-[18px] pb-5">
-        <h3 className="font-[family-name:var(--d-display)] text-xl font-bold uppercase tracking-tight text-[var(--d-text)]">
+      <div className="mm-carro-corpo">
+        <h3 className="mm-carro-nome font-[family-name:var(--d-display)] text-xl font-bold uppercase tracking-tight text-[var(--d-text)]">
           {servico.nome}
         </h3>
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-[family-name:var(--d-mono)] text-sm font-medium text-[var(--d-accent)]">
-            {simboloMoeda(idioma, moeda)}
-          </span>
+        <div className="mm-carro-valores">
+          {parcela && (
+            <p className="mm-carro-parcela m-0">
+              <span className="block font-[family-name:var(--d-mono)] font-semibold tabular-nums text-[var(--d-accent)]">
+                {parcela.valor}
+              </span>
+              <span className="block font-[family-name:var(--d-corpo)] text-[11px] font-semibold tracking-[1px] text-[var(--d-muted)]">
+                {parcela.legenda}
+              </span>
+            </p>
+          )}
+        <div className="mm-carro-preco">
+          {/*
+            Preço inteiro numa StatCounter só (símbolo + valor): o HTML do
+            servidor precisa trazer a MESMA string contígua que
+            `formatarPrecoServico` devolve — é o que fecha o item 23 do
+            plano, tirando a skin de `SKINS_COM_PRECO_ANIMADO`
+            (precos-locale.test.tsx). O prefixo (símbolo/código da moeda)
+            sai sem `<span>` (ver StatCounter) exatamente por isso; a
+            animação continua no valor.
+          */}
           <StatCounter
-            valor={
-              servico.precoValor !== undefined
-                ? String(servico.precoValor)
-                : servico.preco.replace(/^R\$\s*/, "")
-            }
-            className="font-[family-name:var(--d-mono)] text-[30px] font-semibold leading-none tabular-nums tracking-[0.5px] text-[var(--d-text)]"
+            valor={formatarPrecoServico(servico, idioma, moeda)}
+            idioma={idioma}
+            className="mm-carro-valor font-[family-name:var(--d-mono)] font-semibold leading-none tabular-nums tracking-[0.5px] text-[var(--d-text)]"
           />
+          {parcela && (
+            <span className="font-[family-name:var(--d-corpo)] text-[11px] font-semibold text-[var(--d-muted)]">
+              {m.aVista}
+            </span>
+          )}
+        </div>
         </div>
         {servico.destaques && servico.destaques.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="mm-carro-chips">
             {servico.destaques.map((chip, i) => (
               <span
                 key={i}
@@ -126,7 +156,7 @@ export function CarCard({
         )}
 
         <div
-          className="grid transition-[grid-template-rows] duration-[550ms] ease-[cubic-bezier(.3,1.3,.4,1)]"
+          className="mm-carro-painel grid transition-[grid-template-rows] duration-[550ms] ease-[cubic-bezier(.3,1.3,.4,1)]"
           style={{ gridTemplateRows: aberto ? "1fr" : "0fr" }}
         >
           <div className="min-h-0 overflow-hidden">
@@ -135,6 +165,22 @@ export function CarCard({
                 <p className="font-[family-name:var(--d-corpo)] text-sm text-[var(--d-muted)]">
                   {[servico.descricao, textoGarantia].filter(Boolean).join(" · ")}
                 </p>
+              )}
+              {simulavel && servico.precoValor !== undefined && (
+                <a
+                  href="#simulador"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent(EVENTO_SIMULAR, { detail: servico.precoValor }));
+                  }}
+                  className="d-press flex items-center justify-center gap-2 rounded-lg border py-[13px] font-[family-name:var(--d-corpo)] text-[13px] font-bold tracking-[1px] text-[var(--d-text)]"
+                  style={{ borderColor: "color-mix(in srgb, var(--d-accent) 45%, transparent)" }}
+                >
+                  {m.simularEsteCarro}
+                  <span aria-hidden="true" style={{ color: "var(--d-accent)" }}>
+                    →
+                  </span>
+                </a>
               )}
               {ctaInteresse && linkInteresse && (
                 <a

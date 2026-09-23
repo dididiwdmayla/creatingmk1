@@ -1,23 +1,22 @@
 "use client";
 
-import { motion, useReducedMotion } from "motion/react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import type { Animacao } from "@/lib/demos/types";
 
 /**
  * Entrada de seção por scroll, intensidade conforme `theme.animacao` e
  * direção conforme o override por seção (`DemoSecao.animacaoEntrada`).
- * Idêntico ao SectionReveal das outras skins (mesmo componente, mesmo
- * contrato) — ver src/components/demos/barbearia/interactive/SectionReveal.tsx
- * para a explicação completa do porquê de `viewport.amount: "some"`.
+ *
+ * **O HTML servido é sempre visível** — mesmo desenho do SectionReveal da
+ * barbearia. A versão anterior (motion, `initial={{opacity:0}}`) saía no
+ * documento do servidor com as sete seções transparentes: sem JavaScript,
+ * ou até a hidratação, a página era só a abertura. Aqui a entrada só é
+ * ARMADA no cliente, e só para o que está fora da tela na montagem — o que
+ * já está à vista não pisca. O IntersectionObserver usa threshold 0, então
+ * seções mais altas que a tela também entram.
  */
 export type RevealTipo = "padrao" | "fade" | "esquerda" | "direita";
-
-const PRESETS: Record<"sutil" | "marcante", { dist: number; duration: number }> = {
-  sutil: { dist: 20, duration: 0.5 },
-  marcante: { dist: 56, duration: 0.8 },
-};
 
 export function SectionReveal({
   animacao,
@@ -27,35 +26,55 @@ export function SectionReveal({
 }: {
   animacao: Animacao;
   tipo?: RevealTipo;
+  /** Atraso da entrada, em segundos (escalonamento de itens de uma grade). */
   delay?: number;
   children: ReactNode;
 }) {
-  const reduzida = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
 
-  if (animacao === "nenhuma" || reduzida || !children) {
-    return <>{children}</>;
-  }
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || animacao === "nenhuma" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (el.getBoundingClientRect().top < innerHeight) return;
+    const dist = animacao === "marcante" ? 56 : 20;
+    const transform =
+      tipo === "fade"
+        ? undefined
+        : tipo === "esquerda"
+          ? `translateX(${-dist}px)`
+          : tipo === "direita"
+            ? `translateX(${dist}px)`
+            : `translateY(${dist}px)`;
+    el.style.opacity = "0";
+    let animation: Animation | undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        el.style.opacity = "";
+        animation = el.animate(
+          [
+            { opacity: 0, ...(transform && { transform }) },
+            { opacity: 1, ...(transform && { transform: "none" }) },
+          ],
+          {
+            duration: animacao === "marcante" ? 800 : 500,
+            delay: delay * 1000,
+            easing: "cubic-bezier(0.16,1,0.3,1)",
+            fill: "backwards",
+          },
+        );
+        observer.disconnect();
+      },
+      { threshold: 0 },
+    );
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      animation?.cancel();
+      el.style.opacity = "";
+    };
+  }, [animacao, tipo, delay]);
 
-  const preset = PRESETS[animacao];
-  const inicial =
-    tipo === "fade"
-      ? { opacity: 0 }
-      : tipo === "esquerda"
-        ? { opacity: 0, x: -preset.dist }
-        : tipo === "direita"
-          ? { opacity: 0, x: preset.dist }
-          : { opacity: 0, y: preset.dist };
-  const final =
-    tipo === "fade" ? { opacity: 1 } : tipo === "padrao" ? { opacity: 1, y: 0 } : { opacity: 1, x: 0 };
-
-  return (
-    <motion.div
-      initial={inicial}
-      whileInView={final}
-      viewport={{ once: true, amount: "some" }}
-      transition={{ duration: preset.duration, ease: [0.16, 1, 0.3, 1], delay }}
-    >
-      {children}
-    </motion.div>
-  );
+  if (!children) return null;
+  return <div ref={ref}>{children}</div>;
 }

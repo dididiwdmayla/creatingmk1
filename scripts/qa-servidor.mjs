@@ -76,7 +76,17 @@ async function esperarServidor(url, timeoutMs = 120000) {
 export async function subirServidor({ porta = Number(process.env.QA_PORTA ?? 3123), build = true } = {}) {
   const base = `http://127.0.0.1:${porta}`;
   const secret = crypto.randomBytes(16).toString("hex");
-  const env = { ...process.env, APP_PASSWORD: secret, PORT: String(porta), NODE_ENV: undefined };
+  const env = {
+    ...process.env,
+    APP_PASSWORD: secret,
+    PORT: String(porta),
+    NODE_ENV: undefined,
+    // `next build` busca as fontes do Google via `fetch` nativo do Node, que
+    // ignora HTTPS_PROXY por padrão (Node ≥22.21) — atrás de um proxy
+    // corporativo/sandbox sem isto o build quebra com "Module not found:
+    // .../internal/font/google/font", sem erro de rede nenhum à vista.
+    NODE_USE_ENV_PROXY: "1",
+  };
 
   await exigirPortaLivre(base, porta);
   if (build) await executar("npx", ["next", "build"], env);

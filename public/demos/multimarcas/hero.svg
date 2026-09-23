@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-label="Placeholder: showroom de seminovos">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBF6EA"/>
+      <stop offset="1" stop-color="#E9DEC4"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="30%" r="65%">
+      <stop offset="0" stop-color="#D40000" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#D40000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect width="1600" height="1000" fill="url(#glow)"/>
+  <rect x="0" y="700" width="1600" height="300" fill="#E1D4B4"/>
+  <g opacity="0.9" stroke="#1E1712" stroke-width="4" stroke-linecap="round" fill="none">
+    <path d="M260 720 C260 690 290 660 360 650 L430 640 C480 560 550 520 640 508 L820 496 C930 496 1020 526 1090 590 L1130 640 C1230 650 1300 668 1320 690 L1326 720"/>
+    <path d="M600 550 L680 500 L960 506 L1060 590"/>
+    <circle cx="500" cy="720" r="66"/><circle cx="500" cy="720" r="26"/>
+    <circle cx="1090" cy="720" r="66"/><circle cx="1090" cy="720" r="26"/>
+  </g>
+</svg>

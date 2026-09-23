@@ -32,7 +32,7 @@ export function Nav({
 }) {
   const m = microcopiaDemo(idioma);
   // Sem WhatsApp digitado o item do menu some, em vez de virar link morto.
-  const linkWa = waHref(whatsapp, "Olá! Vim pelo site e quero mais informações.");
+  const linkWa = waHref(whatsapp, m.maisInformacoes);
   const [scrolled, setScrolled] = useState(false);
   const [aberto, setAberto] = useState(false);
 
@@ -70,7 +70,7 @@ export function Nav({
           <span className="text-[var(--d-accent)]">.</span>
         </a>
 
-        <div className="hidden items-center gap-[34px] md:flex">
+        <div className="hidden items-center gap-[30px] xl:flex">
           {links.map((l, i) => {
             const ultimo = i === links.length - 1;
             return (
@@ -79,8 +79,8 @@ export function Nav({
                 href={`#${l.id}`}
                 className={
                   ultimo
-                    ? "d-press rounded-full border px-5 py-2.5 font-[family-name:var(--d-corpo)] text-xs font-semibold tracking-[2.5px] text-[var(--d-text)] transition-colors hover:bg-[var(--d-accent)] hover:text-[var(--d-accent-ink)]"
-                    : "font-[family-name:var(--d-corpo)] text-xs font-semibold tracking-[2.5px] text-[var(--d-text)]/70 transition-colors hover:text-[var(--d-accent)]"
+                    ? "d-press whitespace-nowrap rounded-full border px-5 py-2.5 font-[family-name:var(--d-corpo)] text-xs font-semibold tracking-[2.5px] text-[var(--d-text)] transition-colors hover:bg-[var(--d-accent)] hover:text-[var(--d-accent-ink)]"
+                    : "whitespace-nowrap font-[family-name:var(--d-corpo)] text-xs font-semibold tracking-[2.5px] text-[var(--d-text)]/70 transition-colors hover:text-[var(--d-accent)]"
                 }
                 style={ultimo ? { borderColor: "color-mix(in srgb, var(--d-accent) 55%, transparent)" } : undefined}
               >
@@ -94,7 +94,7 @@ export function Nav({
           type="button"
           aria-label={aberto ? m.fecharMenu : m.menu}
           onClick={() => setAberto((v) => !v)}
-          className="relative z-[960] block h-11 w-11 p-2.5 md:hidden"
+          className="relative z-[960] block h-11 w-11 p-2.5 xl:hidden"
         >
           <span
             className="block h-0.5 w-6 origin-center bg-[var(--d-text)] transition-transform duration-300"
@@ -153,7 +153,7 @@ export function Nav({
                 transition={{ duration: 0.55, delay: 0.08 + links.length * 0.065, ease: [0.2, 0.9, 0.25, 1] }}
                 className="mt-6 inline-flex items-center gap-2.5 font-[family-name:var(--d-corpo)] text-sm font-semibold text-[var(--d-accent)]"
               >
-                Falar no WhatsApp →
+                {m.conversarNoWhatsapp} →
               </motion.a>
               )}
             </div>

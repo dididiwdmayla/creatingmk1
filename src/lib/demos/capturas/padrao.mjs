@@ -24,7 +24,11 @@ export const ANCORAS_PADRAO = /** @type {Record<string, string[]>} */ ({
   "barbearia2-sul": ["hero", "servicos", "galeria"],
   "imobiliaria-curada": ["hero", "imoveis", "depoimento"],
   "lancheria-chapa-burger": ["hero", "cardapio", "contato"],
-  "multimarcas-vortice": ["hero", "estoque", "simulador"],
+  // "estoque" saiu: o estoque de nove carros é a seção mais alta da página
+  // no celular (o caso ruim da moldura de captura); "destaque" mostra um
+  // carro só e lê melhor numa conversa (aprovado em
+  // docs/plano-multimarcas.md §5/§9 item 6).
+  "multimarcas-vortice": ["hero", "destaque", "simulador"],
   "petshop-focinho-feliz": ["hero", "servicos", "depoimentos"],
   "tatuagem-editorial": ["hero", "portfolio", "investimento"],
   // Sem "portfolio": é galeria rolável com altura calculada em JS,

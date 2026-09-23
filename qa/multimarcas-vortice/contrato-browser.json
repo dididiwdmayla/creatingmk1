@@ -1,0 +1,1309 @@
+{
+  "contrato": [
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Garagem Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 342,
+        "h": 132
+      },
+      "h1Visivel": true,
+      "secoes": [
+        "hero",
+        "estoque",
+        "vantagens",
+        "numeros",
+        "destaque",
+        "simulador",
+        "avaliacao",
+        "depoimentos",
+        "contato"
+      ],
+      "transborda": false,
+      "dados": null,
+      "rotuloOrfao": false,
+      "carrosSemPreco": []
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Garagem Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 342,
+        "h": 126
+      },
+      "h1Visivel": true,
+      "secoes": [
+        "hero",
+        "estoque",
+        "simulador",
+        "avaliacao",
+        "destaque",
+        "numeros",
+        "vantagens",
+        "depoimentos",
+        "contato"
+      ],
+      "transborda": false,
+      "dados": null,
+      "rotuloOrfao": false,
+      "carrosSemPreco": []
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Garagem Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 342,
+        "h": 132
+      },
+      "h1Visivel": true,
+      "secoes": [
+        "hero",
+        "destaque",
+        "estoque",
+        "depoimentos",
+        "vantagens",
+        "numeros",
+        "avaliacao",
+        "simulador",
+        "contato"
+      ],
+      "transborda": false,
+      "dados": null,
+      "rotuloOrfao": false,
+      "carrosSemPreco": []
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Garagem Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 342,
+        "h": 126
+      },
+      "h1Visivel": true,
+      "secoes": [
+        "hero",
+        "avaliacao",
+        "estoque",
+        "destaque",
+        "numeros",
+        "simulador",
+        "vantagens",
+        "depoimentos",
+        "contato"
+      ],
+      "transborda": false,
+      "dados": null,
+      "rotuloOrfao": false,
+      "carrosSemPreco": []
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Garagem Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 990,
+        "h": 332
+      },
+      "h1Visivel": true,
+      "secoes": [
+        "hero",
+        "estoque",
+        "vantagens",
+        "numeros",
+        "destaque",
+        "simulador",
+        "avaliacao",
+        "depoimentos",
+        "contato"
+      ],
+      "transborda": false,
+      "dados": null,
+      "rotuloOrfao": false,
+      "carrosSemPreco": []
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Garagem Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 990,
+        "h": 276
+      },
+      "h1Visivel": true,
+      "secoes": [
+        "hero",
+        "estoque",
+        "simulador",
+        "avaliacao",
+        "destaque",
+        "numeros",
+        "vantagens",
+        "depoimentos",
+        "contato"
+      ],
+      "transborda": false,
+      "dados": null,
+      "rotuloOrfao": false,
+      "carrosSemPreco": []
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Garagem Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 990,
+        "h": 332
+      },
+      "h1Visivel": true,
+      "secoes": [
+        "hero",
+        "destaque",
+        "estoque",
+        "depoimentos",
+        "vantagens",
+        "numeros",
+        "avaliacao",
+        "simulador",
+        "contato"
+      ],
+      "transborda": false,
+      "dados": null,
+      "rotuloOrfao": false,
+      "carrosSemPreco": []
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Garagem Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 490,
+        "h": 289
+      },
+      "h1Visivel": true,
+      "secoes": [
+        "hero",
+        "avaliacao",
+        "estoque",
+        "destaque",
+        "numeros",
+        "simulador",
+        "vantagens",
+        "depoimentos",
+        "contato"
+      ],
+      "transborda": false,
+      "dados": null,
+      "rotuloOrfao": false,
+      "carrosSemPreco": []
+    }
+  ],
+  "slots": [
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "destaque",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 255
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "carro-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 212
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "carro-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 212
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "carro-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 212
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "carro-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 212
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "carro-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 212
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "carro-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 212
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "carro-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 212
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "carro-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 212
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "390",
+      "slot": "carro-9",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 212
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "destaque",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 94,
+        "h": 94
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "carro-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "carro-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "carro-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "carro-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "carro-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "carro-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "carro-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "carro-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "390",
+      "slot": "carro-9",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "destaque",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 340,
+        "h": 190
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "carro-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "carro-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "carro-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "carro-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "carro-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "carro-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "carro-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "carro-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "390",
+      "slot": "carro-9",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 342,
+        "h": 214
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 330,
+        "h": 245
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "destaque",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 118,
+        "h": 118
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "carro-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 76,
+        "h": 57
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "carro-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 76,
+        "h": 57
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "carro-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 76,
+        "h": 57
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "carro-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 76,
+        "h": 57
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "carro-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 76,
+        "h": 57
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "carro-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 76,
+        "h": 57
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "carro-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 76,
+        "h": 57
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "carro-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 76,
+        "h": 57
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "390",
+      "slot": "carro-9",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 76,
+        "h": 57
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "destaque",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 473,
+        "h": 354
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "carro-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 313,
+        "h": 195
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "carro-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 313,
+        "h": 195
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "carro-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 313,
+        "h": 195
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "carro-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 313,
+        "h": 195
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "carro-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 313,
+        "h": 195
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "carro-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 313,
+        "h": 195
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "carro-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 313,
+        "h": 195
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "carro-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 313,
+        "h": 195
+      }
+    },
+    {
+      "variante": "vortice",
+      "tela": "1100",
+      "slot": "carro-9",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 313,
+        "h": 195
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "destaque",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 158,
+        "h": 158
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "carro-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 126
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "carro-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 126
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "carro-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 126
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "carro-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 126
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "carro-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 126
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "carro-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 126
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "carro-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 126
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "carro-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 126
+      }
+    },
+    {
+      "variante": "patio",
+      "tela": "1100",
+      "slot": "carro-9",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 126
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 1100,
+        "h": 800
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "destaque",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 988,
+        "h": 555
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "carro-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 990,
+        "h": 424
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "carro-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 990,
+        "h": 424
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "carro-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 990,
+        "h": 424
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "carro-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 990,
+        "h": 424
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "carro-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 990,
+        "h": 424
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "carro-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 990,
+        "h": 424
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "carro-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 990,
+        "h": 424
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "carro-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 990,
+        "h": 424
+      }
+    },
+    {
+      "variante": "garagem",
+      "tela": "1100",
+      "slot": "carro-9",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 990,
+        "h": 424
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 432,
+        "h": 543
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "destaque",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 218,
+        "h": 218
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "carro-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "carro-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "carro-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "carro-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "carro-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "carro-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "carro-7",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "carro-8",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    },
+    {
+      "variante": "campo",
+      "tela": "1100",
+      "slot": "carro-9",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 84
+      }
+    }
+  ],
+  "identidade": [
+    {
+      "variante": "vortice",
+      "dados": null
+    },
+    {
+      "variante": "patio",
+      "dados": null
+    },
+    {
+      "variante": "garagem",
+      "dados": null
+    },
+    {
+      "variante": "campo",
+      "dados": null
+    }
+  ],
+  "apoio": [
+    {
+      "variante": "vortice",
+      "caixa": {
+        "w": 342,
+        "h": 51
+      },
+      "visivel": true,
+      "texto": "Seminovos com garantia de fábrica",
+      "nomeNoH1": "Garagem Contrato Real"
+    },
+    {
+      "variante": "patio",
+      "caixa": {
+        "w": 342,
+        "h": 51
+      },
+      "visivel": true,
+      "texto": "Seminovos com garantia de fábrica",
+      "nomeNoH1": "Garagem Contrato Real"
+    },
+    {
+      "variante": "garagem",
+      "caixa": {
+        "w": 342,
+        "h": 51
+      },
+      "visivel": true,
+      "texto": "Seminovos com garantia de fábrica",
+      "nomeNoH1": "Garagem Contrato Real"
+    },
+    {
+      "variante": "campo",
+      "caixa": {
+        "w": 305,
+        "h": 25
+      },
+      "visivel": true,
+      "texto": "Seminovos com garantia de fábrica",
+      "nomeNoH1": "Garagem Contrato Real"
+    }
+  ],
+  "introReal": {
+    "preloaderNoDom": false,
+    "textoGiri": false,
+    "precosDoEstoque": [
+      "R$ 39.900,00",
+      "R$ 49.900,00",
+      "R$ 89.900,00",
+      "R$ 79.900,00",
+      "R$ 69.900,00",
+      "R$ 59.900,00",
+      "R$ 119.900,00",
+      "R$ 99.900,00",
+      "R$ 149.900,00"
+    ],
+    "carrosSemPreco": [],
+    "captura": "/home/user/creatingmk1/qa-shots/multimarcas/intro-vortice.png"
+  },
+  "drasticidade": {
+    "folha": "/home/user/creatingmk1/qa-shots/multimarcas/_folha-cinza.png",
+    "silhueta": "/home/user/creatingmk1/qa-shots/multimarcas/_folha-silhueta.png",
+    "pares": [
+      {
+        "par": "vortice × patio",
+        "aberturaMedia": 48.68,
+        "alturas": "10371 / 7207"
+      },
+      {
+        "par": "garagem × campo",
+        "aberturaMedia": 56.86,
+        "alturas": "10237 / 8142"
+      },
+      {
+        "par": "vortice × garagem",
+        "aberturaMedia": 158.76,
+        "alturas": "10371 / 10237"
+      },
+      {
+        "par": "vortice × campo",
+        "aberturaMedia": 160.66,
+        "alturas": "10371 / 8142"
+      },
+      {
+        "par": "patio × garagem",
+        "aberturaMedia": 179.14,
+        "alturas": "7207 / 10237"
+      },
+      {
+        "par": "patio × campo",
+        "aberturaMedia": 181.78,
+        "alturas": "7207 / 8142"
+      }
+    ],
+    "heros": [
+      {
+        "variante": "vortice",
+        "arquivo": "/home/user/creatingmk1/qa-shots/multimarcas/hero-vortice.png"
+      },
+      {
+        "variante": "patio",
+        "arquivo": "/home/user/creatingmk1/qa-shots/multimarcas/hero-patio.png"
+      },
+      {
+        "variante": "garagem",
+        "arquivo": "/home/user/creatingmk1/qa-shots/multimarcas/hero-garagem.png"
+      },
+      {
+        "variante": "campo",
+        "arquivo": "/home/user/creatingmk1/qa-shots/multimarcas/hero-campo.png"
+      }
+    ]
+  }
+}

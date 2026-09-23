@@ -68,40 +68,12 @@ export const ESPACAMENTO_HERO_LIMITES = { min: -0.05, max: 0.3 };
 export const TEMA_RAIOS: readonly string[] = ["0px", "4px", "8px", "12px", "16px", "24px"];
 
 /** #rgb ou #rrggbb (o editor grava sempre #rrggbb; leitura é tolerante). */
-export const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+// HEX_RE, luminância, contraste e `inkPara` moram em ./contraste.ts (módulo
+// puro, sem o registro de efeitos que este arquivo importa — as skins os
+// usam em componentes de cliente). Reexportados aqui pelos chamadores antigos.
+import { HEX_RE, inkPara } from "./contraste";
 
-function hexParaRgb(hex: string): { r: number; g: number; b: number } {
-  const puro = hex.slice(1);
-  const cheio =
-    puro.length === 3 ? puro.split("").map((c) => c + c).join("") : puro;
-  return {
-    r: parseInt(cheio.slice(0, 2), 16),
-    g: parseInt(cheio.slice(2, 4), 16),
-    b: parseInt(cheio.slice(4, 6), 16),
-  };
-}
-
-/** Luminância relativa (WCAG) de uma cor #hex. */
-function luminancia(hex: string): number {
-  const { r, g, b } = hexParaRgb(hex);
-  const [lr, lg, lb] = [r, g, b].map((canal) => {
-    const s = canal / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
-}
-
-/**
- * Ink (cor de texto) sobre um destaque customizado: preto ou branco, o que
- * tiver mais contraste — o preset garante o ink do destaque DELE, mas uma
- * cor escolhida a dedo precisa do cálculo.
- */
-export function inkPara(destaque: string): string {
-  const l = luminancia(destaque);
-  const contrasteBranco = 1.05 / (l + 0.05);
-  const contrastePreto = (l + 0.05) / 0.05;
-  return contrastePreto >= contrasteBranco ? "#111111" : "#ffffff";
-}
+export { contrasteWcag, HEX_RE, inkPara, luminancia } from "./contraste";
 
 /**
  * Tema efetivo do lead: preset ← ajustes do TemaPatch. Sem patch, o

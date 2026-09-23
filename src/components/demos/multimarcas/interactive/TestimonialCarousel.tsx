@@ -3,15 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Animacao, DemoDepoimento } from "@/lib/demos/types";
-
-/** Paleta fixa dos avatares (mecânica de exibição, não conteúdo do lead) — rotação determinística por autor. */
-const CORES_AVATAR = ["#8C2B1E", "#1B5E3B", "#A0741F", "#4A3B2E", "#5E1E14", "#2B4A6B", "#6B3B5E"];
-
-function corDoAutor(autor: string): string {
-  let h = 0;
-  for (let i = 0; i < autor.length; i++) h = (h * 31 + autor.charCodeAt(i)) | 0;
-  return CORES_AVATAR[Math.abs(h) % CORES_AVATAR.length];
-}
+import type { MultimarcasComposicao } from "@/lib/demos/types";
+import { corDoAutor, type CorDeAvatar } from "./logic";
 
 function iniciais(autor: string): string {
   const partes = autor.trim().split(/\s+/);
@@ -29,10 +22,21 @@ function iniciais(autor: string): string {
 export function TestimonialCarousel({
   depoimentos,
   animacao,
+  coresAvatar,
+  desenho = "carrossel",
 }: {
   depoimentos: DemoDepoimento[];
   animacao: Animacao;
+  /** Fundo+tinta dos avatares, derivados da paleta (ver `coresDoAvatar`). */
+  coresAvatar: readonly CorDeAvatar[];
+  /**
+   * O desenho (knob `depoimentos`). Só o carrossel e a citação correm — um
+   * de cada vez, arrastável, com autoplay; empilhado e tira são listas
+   * paradas, e nelas o trilho não recebe transform nenhum.
+   */
+  desenho?: MultimarcasComposicao["depoimentos"];
 }) {
+  const corre = desenho === "carrossel" || desenho === "citacao";
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
@@ -42,7 +46,7 @@ export function TestimonialCarousel({
   const n = depoimentos.length;
   const reduzida =
     typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const autoplayOk = !reduzida && animacao !== "nenhuma";
+  const autoplayOk = corre && !reduzida && animacao !== "nenhuma";
 
   const irPara = (i: number, animar = true) => {
     const track = trackRef.current;
@@ -74,20 +78,23 @@ export function TestimonialCarousel({
   if (n === 0) return null;
 
   return (
-    <div>
-      <div
-        className="mb-3 h-[3px] w-[min(220px,40vw)] overflow-hidden rounded-full"
-        style={{ background: "var(--d-border)" }}
-      >
+    <div className="mm-dep">
+      {corre && (
         <div
-          className="h-full origin-left transition-transform duration-500"
-          style={{ background: "var(--d-accent)", transform: `scaleX(${(idx + 1) / n})` }}
-        />
-      </div>
+          className="mm-dep-progresso mb-3 h-[3px] w-[min(220px,40vw)] overflow-hidden rounded-full"
+          style={{ background: "var(--d-border)" }}
+        >
+          <div
+            className="h-full origin-left transition-transform duration-500"
+            style={{ background: "var(--d-accent)", transform: `scaleX(${(idx + 1) / n})` }}
+          />
+        </div>
+      )}
       <div
         ref={viewportRef}
-        className="cursor-grab overflow-hidden [touch-action:pan-y] select-none"
+        className={`mm-dep-janela ${corre ? "cursor-grab select-none [touch-action:pan-y]" : ""}`}
         onPointerDown={(e) => {
+          if (!corre) return;
           arrastoRef.current = { x0: e.clientX, dx: 0 };
           if (trackRef.current) trackRef.current.style.transition = "none";
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -108,29 +115,28 @@ export function TestimonialCarousel({
           irPara(idx);
         }}
       >
-        <div ref={trackRef} className="flex gap-5 will-change-transform">
+        <div ref={trackRef} className="mm-dep-trilho will-change-transform">
           {depoimentos.map((d, i) => (
-            <figure
-              key={i}
-              className="m-0 flex w-[min(360px,82vw)] flex-none flex-col gap-[18px] border p-7"
-              style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}
-            >
-              <p className="font-[family-name:var(--d-corpo)] text-[15.5px] leading-[1.65] text-[var(--d-text)]/80">
+            <figure key={i} className="mm-dep-item">
+              <p className="mm-dep-texto font-[family-name:var(--d-corpo)] text-[var(--d-text)]/80">
                 &ldquo;{d.texto}&rdquo;
               </p>
-              <figcaption className="mt-auto flex items-center gap-3.5">
+              <figcaption className="mm-dep-autor">
                 <span
-                  className="flex h-[46px] w-[46px] flex-none items-center justify-center rounded-full font-[family-name:var(--d-mono)] text-[15px] font-semibold tracking-[1px] text-white"
-                  style={{ background: corDoAutor(d.autor) }}
+                  className="flex h-[46px] w-[46px] flex-none items-center justify-center rounded-full font-[family-name:var(--d-mono)] text-[15px] font-semibold tracking-[1px]"
+                  style={{
+                    background: corDoAutor(d.autor, coresAvatar)?.fundo ?? "var(--d-text)",
+                    color: corDoAutor(d.autor, coresAvatar)?.tinta ?? "var(--d-bg)",
+                  }}
                 >
                   {iniciais(d.autor)}
                 </span>
-                <span>
+                <span className="mm-dep-quem">
                   <span className="block font-[family-name:var(--d-corpo)] text-sm font-bold text-[var(--d-text)]">
                     {d.autor}
                   </span>
                   {d.contexto && (
-                    <span className="mt-0.5 block font-[family-name:var(--d-corpo)] text-xs font-medium text-[var(--d-accent)]">
+                    <span className="mm-dep-contexto mt-0.5 block font-[family-name:var(--d-corpo)] text-xs font-medium text-[var(--d-accent)]">
                       {d.contexto}
                     </span>
                   )}

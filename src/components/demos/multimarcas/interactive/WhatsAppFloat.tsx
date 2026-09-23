@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { waHref } from "./logic";
 
 /**
@@ -9,10 +10,10 @@ import { waHref } from "./logic";
  * (`scrollY > 75vh`) e pulsa um anel a cada 8s enquanto visível — fiel ao
  * `loop`/`setupWaPulse` do material bruto.
  */
-export function WhatsAppFloat({ whatsapp }: { whatsapp?: string }) {
+export function WhatsAppFloat({ whatsapp, idioma }: { whatsapp?: string; idioma?: string }) {
   const [visivel, setVisivel] = useState(false);
   const ringRef = useRef<HTMLSpanElement>(null);
-  const href = waHref(whatsapp, "Olá! Vim pelo site e quero mais informações.");
+  const href = waHref(whatsapp, microcopiaDemo(idioma).maisInformacoes);
 
   useEffect(() => {
     let raf = 0;

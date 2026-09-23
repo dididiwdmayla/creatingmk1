@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import Image from "next/image";
+import { Fragment, useEffect, useRef, type ReactNode } from "react";
 
 import { microcopiaDemo } from "@/lib/demos/microcopy";
-import type { Alinhamento, DemoSecao } from "@/lib/demos/types";
+import type { Alinhamento, DemoSecao, MultimarcasComposicao } from "@/lib/demos/types";
 import { useIntroDone } from "./introContext";
+import { Mostrador, type EscalaDoMostrador } from "./Mostrador";
+import { linhaDeApoio, linhasDoNome } from "./logic";
 
 const HERO_ALINHAMENTO: Record<Alinhamento, string> = {
   esquerda: "items-start text-left",
@@ -13,7 +16,7 @@ const HERO_ALINHAMENTO: Record<Alinhamento, string> = {
 };
 
 /**
- * Hero: kicker, título revelado palavra a palavra (só depois do preloader
+ * Hero: kicker, o NOME do negócio no `<h1>` revelado palavra a palavra (só depois do preloader
  * terminar — `useIntroDone`), texto, CTAs e o velocímetro decorativo que
  * reage à velocidade do scroll. Fiel ao `heroIntro()`/`loop()` (needle) do
  * material bruto; a linha diagonal ganha um parallax sutil no scroll.
@@ -24,6 +27,11 @@ export function Hero({
   alinhamento,
   waHref,
   idioma,
+  abertura = "tipografica",
+  foto,
+  faixas = [],
+  identidade,
+  ctaTroca,
 }: {
   nome: string;
   hero: DemoSecao | undefined;
@@ -31,6 +39,20 @@ export function Hero({
   /** Link do wa.me — ausente quando não há WhatsApp; o CTA some junto. */
   waHref?: string;
   idioma?: string;
+  /** O desenho da abertura (knob `abertura` da composição, §6). */
+  abertura?: MultimarcasComposicao["abertura"];
+  /**
+   * A foto de abertura (`imagens.hero`). Só a abertura sangrada e a
+   * dividida a desenham; a tipográfica e a busca declaram o slot em
+   * `imagensOcultas` e ele nem chega ao HTML (§8).
+   */
+  foto?: { src: string; alt: string };
+  /** Busca: as faixas de preço do estoque, como links `#faixa-N`. */
+  faixas?: readonly { id: string; rotulo: string }[];
+  /** Busca: a barra de identidade (a escada da §7, já renderizada). */
+  identidade?: ReactNode;
+  /** Dividida: o CTA de troca, que é o assunto da loja de picape. */
+  ctaTroca?: { rotulo: string; href: string };
 }) {
   const m = microcopiaDemo(idioma);
   const revelado = useIntroDone();
@@ -57,18 +79,49 @@ export function Hero({
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const titulo = hero?.titulo ?? nome;
-  const palavras = titulo.split(" ");
-  const meio = Math.ceil(palavras.length / 2);
-  const linha1 = palavras.slice(0, meio);
-  const linha2 = palavras.slice(meio);
+  // O `<h1>` é SEMPRE o nome do negócio (§6.1 do plano). O título salvo
+  // continua sendo o mesmo slot, e vira a linha de apoio logo abaixo — uma
+  // demo já salva com título não perde o texto, só o papel dele muda.
+  const [linha1, linha2] = linhasDoNome(nome);
+  const desenhaFoto = foto && (abertura === "sangrada" || abertura === "dividida");
+  // Um mostrador só por página, e a escala dele acompanha a abertura. A
+  // busca sem faixas (estoque oculto ou sem preços) e a dividida sem foto
+  // caem no selo, para o painel de instrumentos nunca sumir.
+  const escala: EscalaDoMostrador =
+    abertura === "busca" && faixas.length > 0
+      ? "marcador"
+      : abertura === "sangrada"
+        ? "mostrador"
+        : abertura === "dividida" && desenhaFoto
+          ? "canto"
+          : "selo";
+  const apoio = linhaDeApoio(hero?.titulo, nome);
 
   return (
-    <header
-      id="topo"
-      className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden px-[max(24px,5vw)] pb-[90px] pt-[120px]"
-    >
-      <div ref={linhaRef} className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+    <header id="topo" className="mm-hero">
+      {desenhaFoto && (
+        <div className="mm-hero-foto">
+          <Image
+            src={foto.src}
+            alt={foto.alt}
+            fill
+            unoptimized
+            priority
+            data-demo-slot="imagens.hero"
+            className="object-cover"
+            sizes={abertura === "sangrada" ? "100vw" : "(min-width: 768px) 50vw, 100vw"}
+          />
+          {/* O véu é o que deixa o nome ler sobre a foto — tokenizado
+              (--mm-veu, na folha) e medido como texto sobre fundo. */}
+          {abertura === "sangrada" && <div className="mm-hero-veu" aria-hidden="true" />}
+          {escala === "canto" && (
+            <div className="mm-hero-gauge" data-escala="canto" aria-hidden="true">
+              <Mostrador escala="canto" agulha={needleRef} legenda={m.rpm} />
+            </div>
+          )}
+        </div>
+      )}
+      <div ref={linhaRef} className="mm-hero-diagonal" aria-hidden="true">
         <div
           className="absolute left-[-12%] top-[34%] h-[7px] w-[126%] rotate-[-7deg]"
           style={{
@@ -78,32 +131,25 @@ export function Hero({
         />
       </div>
 
-      <div
-        className="absolute flex items-center gap-2.5 opacity-90"
-        style={{ top: "calc(86px + env(safe-area-inset-top))", right: "max(24px, 5vw)" }}
-        aria-hidden="true"
-      >
-        <svg width="54" height="42" viewBox="0 0 100 78" fill="none">
-          <path d="M14 70 A44 44 0 1 1 86 70" stroke="var(--d-border)" strokeWidth="5" strokeLinecap="round" />
-          <path d="M79 30 A44 44 0 0 1 86 70" stroke="var(--d-accent)" strokeWidth="5" strokeLinecap="round" />
-          <g ref={needleRef} transform="rotate(-115 50 46)">
-            <line x1="50" y1="46" x2="50" y2="12" stroke="var(--d-text)" strokeWidth="4" strokeLinecap="round" />
-          </g>
-          <circle cx="50" cy="46" r="5" fill="var(--d-accent)" />
-        </svg>
-        <span
-          className="font-[family-name:var(--d-mono)] text-[10px] tracking-[2px] text-[var(--d-muted)]"
-          style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
-        >
-          {m.scrollEstilizado}
-        </span>
-      </div>
+      {(escala === "selo" || escala === "mostrador") && (
+        <div className="mm-hero-gauge" data-escala={escala} aria-hidden="true">
+          <Mostrador escala={escala} agulha={needleRef} legenda={m.rpm} />
+          {escala === "selo" && (
+            <span
+              className="font-[family-name:var(--d-mono)] text-[10px] tracking-[2px] text-[var(--d-muted)]"
+              style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+            >
+              {m.scrollEstilizado}
+            </span>
+          )}
+        </div>
+      )}
 
-      <div className={`relative mx-auto flex w-full max-w-[1200px] flex-col ${HERO_ALINHAMENTO[alinhamento]}`}>
-        {hero?.rotulo && (
+      <div className={`mm-hero-corpo ${HERO_ALINHAMENTO[alinhamento]}`}>
+        {hero?.rotulo?.trim() && (
           <p
             data-demo-slot="secoes.hero.rotulo"
-            className="mb-6 flex flex-wrap items-center gap-3 pr-[90px] font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px] text-[var(--d-accent)]"
+            className="mm-hero-rotulo mb-6 flex flex-wrap items-center gap-3 pr-[90px] font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px] text-[var(--d-accent)]"
             style={{ transition: "opacity 800ms ease 400ms", opacity: revelado ? 1 : 0 }}
           >
             <span className="inline-block h-0.5 w-[34px]" style={{ background: "var(--d-accent)" }} />
@@ -112,43 +158,61 @@ export function Hero({
         )}
 
         <h1
-          data-demo-slot="secoes.hero.titulo"
-          className="mb-[30px] font-[family-name:var(--d-hero-font)] uppercase leading-none tracking-[0.5px]"
-          style={{ fontSize: "calc(clamp(42px, 9.6vw, 124px) * var(--d-hero-escala))" }}
+          data-demo-slot="nome"
+          className="mm-hero-h1 mb-[30px] font-[family-name:var(--d-hero-font)] uppercase leading-none tracking-[0.5px]"
         >
+          {/* Espaço de TEXTO entre as palavras (não margem): sem ele o nome
+              acessível e o `textContent` do <h1> saíam colados. */}
           <span className="block overflow-hidden pb-[0.06em]">
             {linha1.map((p, i) => (
-              <span key={i} className="mr-[0.25em] inline-block overflow-hidden align-bottom">
-                <span
-                  className="inline-block"
-                  style={{
-                    transition: `transform 850ms cubic-bezier(.2,.9,.2,1) ${150 + i * 95}ms`,
-                    transform: revelado ? "translateY(0)" : "translateY(115%)",
-                  }}
-                >
-                  {p}
-                </span>
-              </span>
+              <Fragment key={i}>
+                <span className="inline-block overflow-hidden align-bottom">
+                  <span
+                    className="inline-block"
+                    style={{
+                      transition: `transform 850ms cubic-bezier(.2,.9,.2,1) ${150 + i * 95}ms`,
+                      transform: revelado ? "translateY(0)" : "translateY(115%)",
+                    }}
+                  >
+                    {p}
+                  </span>
+                </span>{" "}
+              </Fragment>
             ))}
           </span>
-          <span className="block overflow-hidden pb-[0.08em] text-[var(--d-accent)]">
-            {linha2.map((p, i) => (
-              <span key={i} className="mr-[0.25em] inline-block overflow-hidden align-bottom">
-                <span
-                  className="inline-block"
-                  style={{
-                    transition: `transform 850ms cubic-bezier(.2,.9,.2,1) ${150 + (linha1.length + i) * 95}ms`,
-                    transform: revelado ? "translateY(0)" : "translateY(115%)",
-                  }}
-                >
-                  {p}
-                </span>
-              </span>
-            ))}
-          </span>
+          {linha2.length > 0 && (
+            <span className="block overflow-hidden pb-[0.08em] text-[var(--d-accent)]">
+              {linha2.map((p, i) => (
+                <Fragment key={i}>
+                  <span className="inline-block overflow-hidden align-bottom">
+                    <span
+                      className="inline-block"
+                      style={{
+                        transition: `transform 850ms cubic-bezier(.2,.9,.2,1) ${150 + (linha1.length + i) * 95}ms`,
+                        transform: revelado ? "translateY(0)" : "translateY(115%)",
+                      }}
+                    >
+                      {p}
+                    </span>
+                  </span>
+                  {i < linha2.length - 1 && " "}
+                </Fragment>
+              ))}
+            </span>
+          )}
         </h1>
 
-        {hero?.texto && (
+        {apoio && (
+          <p
+            data-demo-slot="secoes.hero.titulo"
+            className="-mt-3 mb-7 max-w-[760px] text-balance font-[family-name:var(--d-display)] text-[clamp(22px,3vw,34px)] font-bold leading-[1.15] text-[var(--d-text)]"
+            style={{ transition: "opacity 800ms ease 460ms", opacity: revelado ? 1 : 0 }}
+          >
+            {apoio}
+          </p>
+        )}
+
+        {hero?.texto?.trim() && (
           <p
             data-demo-slot="secoes.hero.texto"
             className="mb-[38px] max-w-[520px] text-pretty font-[family-name:var(--d-corpo)] text-[clamp(15px,1.8vw,18px)] leading-relaxed text-[var(--d-muted)]"
@@ -158,20 +222,51 @@ export function Hero({
           </p>
         )}
 
+        {abertura === "busca" && faixas.length > 0 && (
+          <div className="mm-hero-busca">
+            <div className="mm-hero-gauge" data-escala="marcador" aria-hidden="true">
+              <Mostrador escala="marcador" agulha={needleRef} />
+              <span className="font-[family-name:var(--d-mono)] text-[9px] tracking-[1.5px] text-[var(--d-muted)]">
+                {m.rpm}
+              </span>
+            </div>
+            <nav className="mm-hero-faixas" aria-label={m.faixaDePreco}>
+              {faixas.map((f) => (
+                <a
+                  key={f.id}
+                  href={`#${f.id}`}
+                  className="mm-faixa d-press rounded-lg border font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)]"
+                >
+                  {f.rotulo}
+                </a>
+              ))}
+            </nav>
+          </div>
+        )}
+
         <div
-          className="flex flex-wrap gap-3.5"
+          className="mm-hero-ctas flex flex-wrap gap-3.5"
           style={{ transition: "opacity 800ms ease 640ms", opacity: revelado ? 1 : 0 }}
         >
-          {hero?.cta && (
+          {ctaTroca && (
+            <a
+              href={ctaTroca.href}
+              data-demo-slot="secoes.avaliacao.cta"
+              className="d-press d-cta-gradiente inline-flex items-center justify-center rounded-full px-[34px] py-[18px] font-[family-name:var(--d-corpo)] text-sm font-bold tracking-[1.5px]"
+            >
+              {ctaTroca.rotulo.toUpperCase()}
+            </a>
+          )}
+          {hero?.cta?.trim() && (
             <a
               href="#estoque"
               data-demo-slot="secoes.hero.cta"
-              className="d-press d-cta-gradiente inline-flex items-center justify-center rounded-full px-[34px] py-[18px] font-[family-name:var(--d-corpo)] text-sm font-bold tracking-[1.5px]"
+              className="mm-hero-cta d-press d-cta-gradiente inline-flex items-center justify-center rounded-full px-[34px] py-[18px] font-[family-name:var(--d-corpo)] text-sm font-bold tracking-[1.5px]"
             >
               {hero.cta.toUpperCase()}
             </a>
           )}
-          {hero?.ctaSecundaria && waHref && (
+          {hero?.ctaSecundaria?.trim() && waHref && (
             <a
               href={waHref}
               target="_blank"
@@ -184,10 +279,12 @@ export function Hero({
             </a>
           )}
         </div>
+
+        {identidade && <div className="mm-hero-identidade">{identidade}</div>}
       </div>
 
       <div
-        className="absolute bottom-[calc(22px+env(safe-area-inset-bottom))] left-1/2 flex -translate-x-1/2 flex-col items-center"
+        className="mm-hero-chev"
         style={{ transition: "opacity 800ms ease 760ms", opacity: revelado ? 1 : 0 }}
         aria-hidden="true"
       >

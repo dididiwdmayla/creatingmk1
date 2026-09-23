@@ -31,12 +31,31 @@ describe("ordemEfetiva", () => {
     expect(ordemEfetiva(SECOES, ["c", "a", "b"])).toEqual(["hero", "c", "a", "b"]);
   });
 
-  it("ignora ids desconhecidos e completa com as não listadas no fim", () => {
-    expect(ordemEfetiva(SECOES, ["c", "zzz"])).toEqual(["hero", "c", "a", "b"]);
+  it("ignora ids desconhecidos; não listadas entram antes da sucessora listada no contrato", () => {
+    // Nenhuma pedida sucede "a" nem "b" no contrato (só "c" está listada, e
+    // "c" é a última do contrato) — as duas entram antes dela, na ordem do
+    // contrato.
+    expect(ordemEfetiva(SECOES, ["c", "zzz"])).toEqual(["hero", "a", "b", "c"]);
   });
 
   it("id de seção fixa na ordem é ignorado", () => {
-    expect(ordemEfetiva(SECOES, ["hero", "b"])).toEqual(["hero", "b", "a", "c"]);
+    // "a" sucede antes de "b" (a pedida) no contrato → entra antes dela;
+    // "c" vem DEPOIS de "b" no contrato → sem sucessora listada, vai pro fim.
+    expect(ordemEfetiva(SECOES, ["hero", "b"])).toEqual(["hero", "a", "b", "c"]);
+  });
+
+  it("seção não listada entra antes da primeira sucessora listada no contrato, não no fim", () => {
+    // Contrato: hero, a, b, c. Só "c" foi pedida — "a" e "b" (não listadas,
+    // ambas ANTES de "c" no contrato) entram coladas antes dela, na ordem em
+    // que aparecem no contrato — e não depois: é o defeito que uma seção
+    // nova no meio do contrato causaria se a regra continuasse "sempre no
+    // fim" (ver docs/plano-multimarcas.md §5).
+    expect(ordemEfetiva(SECOES, ["c"])).toEqual(["hero", "a", "b", "c"]);
+  });
+
+  it("seção não listada sem sucessora pedida vai para o fim", () => {
+    // "c" é a última do contrato: nenhuma pedida a sucede.
+    expect(ordemEfetiva(SECOES, ["b", "a"])).toEqual(["hero", "b", "a", "c"]);
   });
 });
 
