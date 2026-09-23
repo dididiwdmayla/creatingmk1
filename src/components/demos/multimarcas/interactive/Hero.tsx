@@ -149,7 +149,7 @@ export function Hero({
         {hero?.rotulo?.trim() && (
           <p
             data-demo-slot="secoes.hero.rotulo"
-            className="mb-6 flex flex-wrap items-center gap-3 pr-[90px] font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px] text-[var(--d-accent)]"
+            className="mm-hero-rotulo mb-6 flex flex-wrap items-center gap-3 pr-[90px] font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px] text-[var(--d-accent)]"
             style={{ transition: "opacity 800ms ease 400ms", opacity: revelado ? 1 : 0 }}
           >
             <span className="inline-block h-0.5 w-[34px]" style={{ background: "var(--d-accent)" }} />

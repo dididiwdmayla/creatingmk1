@@ -44,6 +44,12 @@ export const MULTIMARCAS_COMPOSICAO_CSS = `
 }
 .mm .mm-hero-corpo { position: relative; z-index: 2; display: flex; flex-direction: column; width: 100%; max-width: 1200px; margin-inline: auto; }
 .mm .mm-hero-h1 { font-size: calc(clamp(42px, 9.6vw, 124px) * var(--d-hero-escala)); font-weight: 700; }
+/* Abertura centrada (a sangrada, ou o operador na aba Tema): o traço do
+   rótulo acompanha o texto — com \`justify-content\` no início, ele ficava
+   sozinho à esquerda quando o rótulo quebrava em duas linhas. O recuo de
+   90px (que desvia do selo no canto) só faz sentido alinhado à esquerda. */
+.mm .mm-hero-corpo.items-center .mm-hero-rotulo { justify-content: center; text-align: center; padding-right: 0; }
+.mm .mm-hero-corpo.items-end .mm-hero-rotulo { justify-content: flex-end; }
 .mm .mm-hero-diagonal { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .mm .mm-hero-gauge {
   position: absolute; z-index: 3; display: flex; align-items: center; gap: .625rem; opacity: .9;
