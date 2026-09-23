@@ -14,6 +14,7 @@
 export const VARIANTES_POR_SKIN = /** @type {Record<string, string[]>} */ ({
   "barbearia-editorial": ["norte", "meia-noite", "creme", "vinho"],
   "tatuagem-editorial": ["sangue", "vesperal", "cripta", "marfim"],
+  "lancheria-chapa-burger": ["chapa", "balcao", "sala", "praca"],
   "lancheria-2": [
     "lancheria-meia-noite",
     "lancheria-diner",
@@ -36,5 +37,22 @@ export const IMAGENS_OCULTAS_POR_VARIANTE = /** @type {Record<string, Record<str
   "tatuagem-editorial": {
     vesperal: { hero: "so-titulo" },
     cripta: { sobre: "nenhum" },
+  },
+  "lancheria-chapa-burger": {
+    balcao: {
+      "flutuante-bacon": "nenhum",
+      "flutuante-queijo": "nenhum",
+      "flutuante-bebida": "nenhum",
+    },
+    sala: {
+      "bebida-1": "nenhum",
+      "bebida-2": "nenhum",
+      "bebida-3": "nenhum",
+      "bebida-4": "nenhum",
+      "bebida-5": "nenhum",
+      "flutuante-bacon": "nenhum",
+      "flutuante-queijo": "nenhum",
+      "flutuante-bebida": "nenhum",
+    },
   },
 });

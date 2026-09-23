@@ -66,7 +66,7 @@ export function Header({
 
         <OrderCta
           whatsapp={whatsapp}
-          mensagem="Olá! Gostaria de fazer um pedido."
+          mensagem={m.pedidoMensagem}
           idioma={idioma}
           aria-label={m.fazerPedido}
           className="d-cta-round d-cta-round-alt"

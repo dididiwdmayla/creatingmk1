@@ -443,12 +443,42 @@ export interface TatuagemComposicao {
   veu: number;
 }
 
+/**
+ * Composição editorial da `lancheria-chapa-burger`: knobs do DESENHO,
+ * nunca conteúdo do lead. Cada knob troca o layout de UMA seção — é o que
+ * faz as quatro variantes serem quatro TIPOS DE CASA (recorrência, pressa,
+ * ocasião, impulso) e não quatro paletas.
+ *
+ * Existe como parâmetro tipado, e não como quatro caminhos de render, pela
+ * mesma razão da tatuagem e da barbearia: o contrato de seções é da SKIN.
+ * A variante move, redimensiona e retextura; não renomeia, não remove, não
+ * inventa. Ver "Critério de drasticidade" em docs/plano-chapa-burger.md §5.
+ *
+ * Chama-se `chapa` e não `lancheria`: esse campo já existe (`TemaLancheria`)
+ * e é o que `temaCalibrado()` (./variantes.ts) testa para decidir se a skin
+ * vem de pacote calibrado — usar o mesmo nome esconderia os controles de
+ * tipografia do editor por engano.
+ */
+export interface ChapaComposicao {
+  /** Abertura: cartaz de tela cheia / ficha de balcão / cisão foto+tipografia / pilha sobre campo de cor. */
+  abertura: "cartaz" | "ficha" | "cisao" | "pilha";
+  /** Cardápio: grade de 3 colunas / comanda de uma coluna / editorial alternado / mural de 2 colunas. */
+  cardapio: "grade" | "comanda" | "editorial" | "mural";
+  /** Bebidas: trilho horizontal / chips em linha / carta tipográfica sem foto / grade 4-up. */
+  bebidas: "trilho" | "chips" | "carta" | "grade4";
+  /** Acompanhamentos: trilho horizontal / quadros pequenos em grade / linha discreta sob o cardápio / tira sangrada rolante. */
+  acompanhamentos: "trilho" | "quadros" | "linha" | "tira";
+  /** Contato: rodapé em três colunas / tarja de uma linha / fecho centralizado / bloco "onde estamos hoje". */
+  contato: "rodape" | "tarja" | "fecho" | "bloco";
+}
+
 /** Tokens visuais de um tema de skin. */
 export interface Theme {
   /** Knobs da identidade, injetados pela definição da skin. Nunca por URL pública. */
   lancheria?: TemaLancheria;
   barbearia?: BarbeariaComposicao;
   tatuagem?: TatuagemComposicao;
+  chapa?: ChapaComposicao;
   id: string;
   nome: string;
   paleta: ThemePaleta;

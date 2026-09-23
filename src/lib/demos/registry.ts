@@ -18,13 +18,9 @@ import {
   IMOBILIARIA_THEME_PRESETS,
 } from "@/components/demos/imobiliaria/themes";
 import { LANCHERIA_DECORATIVE_FLOATS } from "@/components/demos/lancheria/decorativeFloats";
-import { LANCHERIA_EXEMPLO } from "@/components/demos/lancheria/exemplo";
 import { LANCHERIA_SECOES } from "@/components/demos/lancheria/secoes";
 import { LancheriaChapaBurger } from "@/components/demos/lancheria/Skin";
-import {
-  LANCHERIA_THEME_DEFAULT,
-  LANCHERIA_THEME_PRESETS,
-} from "@/components/demos/lancheria/themes";
+import { LANCHERIA_VARIANTES } from "@/components/demos/lancheria/variantes";
 import { MULTIMARCAS_EXEMPLO } from "@/components/demos/multimarcas/exemplo";
 import { MULTIMARCAS_SECOES } from "@/components/demos/multimarcas/secoes";
 import { MultimarcasVortice } from "@/components/demos/multimarcas/Skin";
@@ -142,9 +138,15 @@ export const SKINS: SkinDefinition[] = [
     descricao:
       "Lanchonete artesanal bem-humorada: tipografia poster com contorno, cardápio com efeito de lente no hover e listas compactas de bebidas/acompanhamentos.",
     componente: LancheriaChapaBurger,
-    themeDefault: LANCHERIA_THEME_DEFAULT,
-    themePresets: LANCHERIA_THEME_PRESETS,
-    demoDataExemplo: LANCHERIA_EXEMPLO,
+    variantes: LANCHERIA_VARIANTES,
+    // brasa/diner/neon trocam de id (praca/balcao/sala); chapa é o
+    // default e fica inalterado (ver "IDs e aliases" em
+    // docs/plano-chapa-burger.md §4). Sem migração de banco: uma demo
+    // publicada com o id antigo continua abrindo, na variante certa.
+    themeAliases: { brasa: "praca", diner: "balcao", neon: "sala" },
+    themeDefault: LANCHERIA_VARIANTES[0].theme,
+    themePresets: LANCHERIA_VARIANTES.map((v) => v.theme),
+    demoDataExemplo: LANCHERIA_VARIANTES[0].exemplo,
     secoes: LANCHERIA_SECOES,
     heroEscalaLimites: { min: 0.7, max: 1.25 },
     thumbnail: "/demos/lancheria/thumb.svg",

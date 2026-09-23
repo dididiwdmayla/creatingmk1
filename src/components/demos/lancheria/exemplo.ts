@@ -5,11 +5,21 @@ import type { DemoData } from "@/lib/demos/types";
  * pré-preenche e sobrescreve. O copy vem do material bruto
  * (skins-raw/lancheria), com marca e fotos genéricas: nada aqui identifica
  * o cliente original (Ingarandi Burger, Sarandi/PR).
+ *
+ * **Sem `endereco`.** Um endereço fictício no exemplo não é conteúdo
+ * neutro: `dadosDoLead` omite campo ausente em vez de apagá-lo, então um
+ * lead SEM endereço herdava "Av. Principal, 500 — Centro" e a demo pública
+ * publicava uma rua inventada como se fosse a do negócio. `CAMPOS_IDENTIDADE`
+ * — endereço, cidade, telefone, whatsapp, instagram, horários — não tem
+ * default plausível: ou vem do lead, ou não existe.
+ *
+ * Com isso, a escada de identidade (ver `escadaDeDados` em ./Skin.tsx) nasce
+ * VAZIA no exemplo, e a regra do vazio da §7 do plano passa a ser o caminho
+ * NORMAL do harness e da demo avulsa, não uma borda que só um teste visita.
  */
 export const LANCHERIA_EXEMPLO: DemoData = {
   nome: "CHAPA BURGER",
   slogan: "Hambúrgueres artesanais feitos com obsessão.",
-  endereco: "Av. Principal, 500 — Centro",
   servicos: [
     {
       nome: "Smash Clássico",
@@ -88,6 +98,47 @@ export const LANCHERIA_EXEMPLO: DemoData = {
       cta: "Fazer Pedido",
       texto: "FEITO COM OBSESSÃO",
     },
+  },
+  /**
+   * Um alt por slot de imagem — os VINTE (opt-in por skin, ver
+   * `DemoData.imagensAlt`). Antes disso o alt era DERIVADO da copy
+   * (`"Ambiente de " + nome`, o nome do serviço, o título do item, `""` no
+   * prato vazio e nos flutuantes): texto em português cravado no
+   * componente, invisível para quem edita e impossível de traduzir. Aqui
+   * ele é conteúdo, como qualquer outro.
+   *
+   * Os três flutuantes nascem VAZIOS de propósito: são decoração, e alt
+   * vazio é o que diz isso a um leitor de tela. O campo existe no editor
+   * para quem troca a imagem por algo que signifique alguma coisa — e é
+   * por isso que o elemento deixou de ser `aria-hidden` (ver
+   * ./interactive/DecorativeFloat.tsx): com `aria-hidden`, um alt
+   * preenchido não chegaria a ninguém.
+   *
+   * As quatro variantes compartilham estes alts: as FOTOS são as mesmas nas
+   * quatro (a trava de `variantes.test.tsx` exige chave e valor iguais), e
+   * um alt descreve a foto, não a cópia em volta dela.
+   */
+  imagensAlt: {
+    hero: "Ambiente da casa",
+    "prato-vazio": "Prato vazio, revelado sob a foto do lanche",
+    "lanche-1": "Foto do 1º lanche do cardápio",
+    "lanche-2": "Foto do 2º lanche do cardápio",
+    "lanche-3": "Foto do 3º lanche do cardápio",
+    "lanche-4": "Foto do 4º lanche do cardápio",
+    "lanche-5": "Foto do 5º lanche do cardápio",
+    "lanche-6": "Foto do 6º lanche do cardápio",
+    "bebida-1": "Foto da 1ª bebida",
+    "bebida-2": "Foto da 2ª bebida",
+    "bebida-3": "Foto da 3ª bebida",
+    "bebida-4": "Foto da 4ª bebida",
+    "bebida-5": "Foto da 5ª bebida",
+    "acompanhamento-1": "Foto do 1º acompanhamento",
+    "acompanhamento-2": "Foto do 2º acompanhamento",
+    "acompanhamento-3": "Foto do 3º acompanhamento",
+    "acompanhamento-4": "Foto do 4º acompanhamento",
+    "flutuante-bacon": "",
+    "flutuante-queijo": "",
+    "flutuante-bebida": "",
   },
   ordemSecoes: ["cardapio", "bebidas", "acompanhamentos", "contato"],
   imagens: {

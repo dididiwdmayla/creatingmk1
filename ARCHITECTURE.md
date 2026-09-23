@@ -1131,7 +1131,8 @@ arquivos e relatórios. São 36 combinações no registro atual (9 × 4). O test
 sem sobreposição ou ID duplicado. `--skin=<id>` filtra explicitamente o alvo;
 sem filtro, o laço percorre todas as combinações.
 
-**Para as próximas SEIS migrações** (a tatuagem foi a segunda): remover a
+**Para as próximas CINCO migrações** (a tatuagem foi a segunda, a chapa
+burger a terceira): remover a
 entrada de `PRESETS_SEM_VARIANTES`, adicionar suas variantes em
 `VARIANTES_POR_SKIN` e manter o teste verde. Não
 reintroduzir uma lista só de skins nem confiar que quatro presets existem só
@@ -1150,14 +1151,15 @@ neste bloco, conforme escopo aprovado. `CAMPOS_IDENTIDADE_DEMO` não inclui
 |---|---|
 | `barbearia2-sul` | Av. Brasil, 500 — Zona 3 |
 | `tatuagem-pigmento-vivo` | Rua das Aquarelas, 88 — Centro |
-| `lancheria-chapa-burger` | Av. Principal, 500 — Centro |
 | `imobiliaria-curada` | Rua Principal, 100 — Centro |
 | `multimarcas-vortice` | Av. Principal, 1000 — Centro |
 | `petshop-focinho-feliz` | Rua das Begônias, 240 — Jardim das Flores |
 
 A `tatuagem-editorial` saiu desta tabela na migração dela (ver abaixo):
 `TATUAGEM_EXEMPLO` não declara mais `endereco`, e o contrato SSR da skin
-cobre isso por variante. Restam SEIS skins nativas com o defeito.
+cobre isso por variante. A `lancheria-chapa-burger` saiu na migração dela
+(ver "Lancheria Chapa Burger" abaixo), pelo mesmo motivo. Restam CINCO
+skins nativas com o defeito.
 
 Na `barbearia-editorial`, o endereço fictício foi retirado de `BARBEARIA_EXEMPLO`;
 lead sem endereço não emite o slot nem o botão de rota. O teste específico
@@ -1292,6 +1294,155 @@ verde nas quatro variantes (42 capturas cada), com o vídeo provado dentro
 das letras: controle 0% em 24/24, vídeo 22 a 36% em 16/16. Resultados,
 limitações da instrumentação e leituras brutas em
 [qa/tatuagem-editorial/STATUS.md](qa/tatuagem-editorial/STATUS.md).
+
+### Lancheria Chapa Burger — migração de presets para variantes
+
+`lancheria-chapa-burger` mantém uma entrada de skin, CINCO seções (`hero`,
+`cardapio`, `bebidas`, `acompanhamentos`, `contato`), vinte slots de imagem
+e os vinte `imagensAlt` correspondentes. Só `hero` é fixa. As variantes
+Chapa, Balcão, Sala e Praça vivem em `lancheria/variantes.ts`; a
+composição é parametrizada por `Theme.chapa` (`ChapaComposicao`), com o CSS
+em `lancheria/composicao.ts` — sem quatro caminhos de render. A lente do
+cardápio (hover/toque revela o prato vazio sob a foto) existe nas quatro.
+
+**Chama-se `chapa`, não `lancheria`.** Esse segundo nome já é campo de
+`Theme` (`TemaLancheria`, da `lancheria-2`) e é o que `temaCalibrado()`
+testa para decidir se a skin vem de pacote calibrado — usá-lo esconderia os
+controles de tipografia do editor por engano.
+
+**IDs trocados, com alias por LUMINÂNCIA.** Os quatro presets antigos já
+invadiam o território das quatro variantes novas (existia um `diner` e um
+`neon`), e viraram nomes de casa: `brasa → praca`, `diner → balcao`,
+`neon → sala`; `chapa` fica inalterado e continua o default — é a variante
+que preserva a conversão fiel do material bruto. `SkinDefinition.
+themeAliases` mapeia SÓ por fundo (claro→claro, escuro→escuro): nenhuma
+demo já publicada troca de luminância por causa da migração. Mesmo
+precedente `oliva: vinho` da barbearia; sem migração de banco.
+
+**Quatro tipos de casa, e a lógica de pedido de cada um** — é a lógica de
+pedido que justifica a composição, não o contrário:
+
+| variante | casa | quem chega |
+|---|---|---|
+| Chapa (escuro) | hamburgueria de bairro | recorrente, já sabe o lanche, pede na sexta à noite |
+| Balcão (**claro**) | smash de almoço | pressa: decide em 40s, quer preço/horário/endereço antes de sair da mesa |
+| Sala (escuro) | hamburgueria autoral | ocasião: ticket alto, lê a descrição inteira antes de escolher |
+| Praça (**claro**) | food truck | impulso: está no evento agora, decide pela foto |
+
+**As cinco seções mudam de LAYOUT entre as quatro** (a exigência do plano
+era quatro, sobrou uma de margem):
+
+| seção | chapa | balcão | sala | praça |
+|---|---|---|---|---|
+| abertura | cartaz de tela cheia | ficha de balcão | cisão foto+tipografia | pilha sobre campo de cor |
+| cardápio | grade de 3 colunas | comanda de 1 coluna | editorial alternado | mural de 2 colunas |
+| bebidas | trilho horizontal | chips em linha | carta tipográfica | grade 4-up |
+| acompanhamentos | trilho horizontal | quadros em grade | linha discreta | tira sangrada |
+| contato | rodapé 3 colunas | tarja de 1 linha | fecho centralizado | bloco "onde estamos hoje", NO TOPO |
+
+**Regras da composição** (topo de `composicao.ts`, mesmas da tatuagem, mais
+uma própria desta skin): o CSS sai no servidor (`qa-cls.mjs --so=skins`
+mede **CLS 0,0000** — nenhum deslocamento pós-hidratação); especificidade
+em vez de `!important`; **nenhuma composição esconde TEXTO** — a comanda
+mantém a descrição em corpo menor, a linha discreta mantém o subtítulo; e
+**o layout DEFAULT também mora na folha, não em utilitária do Tailwind** —
+`.ch .ch-prato`/`.ch .ch-lista`/`.ch .ch-hero` (sem atributo nenhum) são o
+desenho do material bruto escrito em CSS, para as regras de knob
+competirem com ele em especificidade (0,3,0) em vez de precisar de
+`!important` contra uma classe Tailwind (0,1,0).
+
+**Slot não desenhado avisa no editor**, sempre com o motivo `nenhum` (esta
+skin não tem uma composição "hero sem foto de fundo" como a `cartaz` da
+tatuagem, então não usa `so-titulo`): a `balcao` esconde os três
+FLUTUANTES decorativos (comida flutuando não cabe num balcão de azulejo) e
+a `sala` esconde as cinco fotos de BEBIDA além dos três flutuantes (a
+carta é tipográfica; a casa é sóbria). Os flutuantes ficam AUSENTES do
+DOM quando ocultos (o `<DecorativeFloat>` nem monta — `floatsVisiveis` em
+`composicao.ts`); as bebidas ficam no DOM com caixa ZERO por CSS. As duas
+formas passam pela mesma verificação: caixa zero para o declarado, maior
+que zero para o não declarado, no navegador com JavaScript desligado.
+
+**A lente nas quatro.** O raio de 56px hardcoded virou `--d-lente-raio`,
+porque as caixas de foto mudam de tamanho entre as quatro (26px na
+miniatura de 64px da comanda, 110px na foto grande do editorial). Na
+`balcao` o alvo do ponteiro é a LINHA inteira da comanda, não só a
+miniatura — e quando o toque cai fora dela, a origem do círculo é o centro
+da miniatura, senão um toque na descrição abriria a lente num ponto sem
+foto.
+
+**Identidade no topo sem bloco oco (Balcão e Praça).** As duas dependem de
+campos que o exemplo NUNCA teve (`horarios`, `telefone`, `whatsapp`,
+`instagram`, `cidade`) e que `endereco` deixou de ter nesta migração (ver
+"Auditoria de endereço" acima — zero linhas de dado é o caso NORMAL do
+harness, da avulsa e de um lead recém-criado, não uma borda rara.
+`escadaDeDados` (Skin.tsx) monta a lista só com os campos presentes, cada
+um com o rótulo de `microcopiaDemo`; com zero linhas, `Dados` devolve
+`null` e NEM a borda, nem o fundo elevado, nem a grade de rótulos
+renderizam — a ficha degrada para nome + frase + CTA, que é exatamente o
+que a `pilha` já faz. Verificado nas duas direções: teste SSR com lead sem
+dado (`lancheria-contrato.test.tsx`) e aferidor de caixa zerada no
+navegador (`qa-chapa.mjs`, `.ch-ficha`/`.ch-dados` medindo `null`).
+
+**O que era literal virou slot ou token.** A lavagem sob a foto do cardápio
+era `bg-black/10` cravado em dois componentes — sujeira cinza em paleta
+clara — e virou `--ch-foto-lavagem`, a própria cor de fundo da variante
+diluída a 14%. O gradiente do hero tinha direção fixa `to-r`; agora é
+`--ch-veu-dir`, e a `sala` (abertura em coluna, não em tela cheia) usa
+`to top`. Metade do chrome em português já passava por `microcopiaDemo`
+(`m.role`, `m.direitosReservados`); a outra metade — `"Horário"`,
+`"Contato"`, `"ESCOLHER"`, as três frases da lente, as mensagens de
+WhatsApp e os `aria-label` de escolher/adicionar — ganhou chave própria no
+dicionário, nas sete raízes de idioma. O fallback `"FEITO COM OBSESSÃO"`
+não virou chave: era voz de marca inventada pela skin, e SAIU — o slot
+`secoes.contato.texto` vazio agora não desenha linha nenhuma. Os vinte
+`alt` eram derivados da copy (`` `Ambiente de ${nome}` ``, `servico.nome`)
+e viraram `imagensAlt`. O endereço de exemplo saiu — era a linha desta
+skin na tabela "Auditoria de endereço" acima.
+
+**Guarda do `<h1>` vazio.** `s.hero?.titulo ?? data.nome` usava `??`, que
+só cai no fallback quando o campo é `undefined` — um `titulo` salvo como
+STRING VAZIA (o que o editor grava quando o operador limpa o campo)
+renderizava um `<h1>` em branco, e o print da âncora hero saía sem o nome
+do negócio. Trocado por `?.trim() || data.nome`, e o mesmo defeito, mesma
+forma, existia no título do contato (`?? m.contato`) três blocos abaixo —
+corrigido junto.
+
+**A intro e a captura**: ver "Intro e captura (`CAPTURA_SECRET`)" acima —
+mecanismo geral, não específico desta skin, mas foi durante esta migração
+que o buraco (a rota pública não tinha como pular a splash) foi fechado.
+
+#### O portão de drasticidade (`scripts/qa-chapa.mjs`)
+
+Mesmo critério da tatuagem: variante que só muda paleta, fonte e
+espaçamento é preset; o portão que separa uma coisa da outra é uma
+IMAGEM. Duas folhas em cinza (abertura de leitura + silhueta em escala),
+com toda animação pausada antes do print — o `<h1>` desta skin é texto
+simples (sem vídeo-no-título), então o portão não precisa de fase
+congelada de wordmark, só de `getAnimations().pause()`.
+
+O mesmo laço mede o que só o navegador prova: o contrato sem JavaScript
+(um `<h1>` com o nome inteiro e caixa não-zero na âncora hero, as cinco
+seções sem duplicata, sem transbordo horizontal), as caixas dos vinte
+slots declarados em `imagensOcultas`, e o AFERIDOR DE CAIXA ZERADA da
+regra do vazio — `.ch-ficha`/`.ch-dados` medindo `null` na `balcao` e na
+`praca`, com `avulsa=1` sem `identidade=cheia` (zero campo de identidade,
+o estado normal do harness).
+
+**Fechamento da validação:** 20/20 células variante × modo de cor
+aprovadas em CPU 4×, celular 390×844/DPR 2, grão intensidade 3, cinco
+cargas por célula e rolagem ativa. Menor mediana: 55,0 fps (`balcao` ×
+`transicao`, piso 45); nenhum modo desabilitado, `modosDeCorReprovados`
+fica vazio nas quatro. Superfície repintada entre 2,9 e 16,8 Mpx/s — a
+`praca` (mural de duas colunas + flutuantes) repinta mais que as outras
+três, mas longe do limiar de marcação (+40 Mpx/s sobre a referência).
+Contrato sem JavaScript verde em 390 e 1100px nas quatro. As quatro passam
+o portão de drasticidade: alturas de página de 3.342 a 4.996px e
+composição diferente nas cinco seções; a diferença média em cinza nas três
+primeiras telas vai de 45,6 (as duas escuras, chapa × sala) a 178,5
+(balcao × sala, a mais distante). `qa-cls.mjs --so=skins` mede CLS 0,0000
+para a skin. Resultados completos, a tabela de fps e os dados brutos do
+navegador em
+[qa/lancheria-chapa-burger/STATUS.md](qa/lancheria-chapa-burger/STATUS.md).
 
 ### Animação (`Theme.animacao` + `DemoSecao.animacaoEntrada`)
 
@@ -1860,6 +2011,19 @@ Daí a sequência do motor, cada passo com um defeito por trás: `prepararPagina
 - **Estado da última rodada**: 46 de 48 aprovadas. As 2 reprovadas são a `portfolio` da tatuagem2 nas duas telas — galeria rolada por scroll cuja altura é calculada em JS e **recomputada a cada resize** (9580px no desktop, 11608 no celular), então nenhum congelamento de CSS a segura. O motor reprova em vez de gerar imagem errada; a saída é remarcar a âncora em `/interno/capturas`, sem deploy.
 
 **Onde rodar** (decidido antes de implementar, com os custos na mesa): laço local/CI em lote, custo R$ 0, ~25–40s por lead, nenhum request pago e zero risco pro deploy do app. As alternativas avaliadas foram Vercel sob demanda (exige `@sparticuz/chromium`, ~170MB contra o teto de 250MB do bundle, `maxDuration` apertado no Hobby) e GitHub Actions (sem limite, mas latência de minutos). O motor foi escrito com o miolo em `capturas/dom.mjs`, então ligar a rota serverless depois é escrever o adaptador, não reescrever o motor.
+
+#### Intro e captura (`CAPTURA_SECRET`)
+
+A intro/splash de abertura (`Theme.intro`) **não é desligada por causa da captura** — ela nasce desligada no preset de cada skin (fiel ao material bruto de cada uma) e continua disponível no editor, aba Tema, como qualquer outra skin. Quem resolve o conflito entre "o editor pode ligá-la" e "a captura de prospecção não pode sair da tela de splash" é a CAPTURA, não a skin: a `IntroExperience` de cada skin é `"use client"`, e o estado inicial do primeiro render (antes do `useEffect` que checa `sessionStorage` rodar) é `ativa` — então o **documento servido** (o que a captura mede) mostra a splash sempre que `theme.intro` é `true`, e o motor precisa de um jeito de pedir "sem ela" sem mexer no dado salvo.
+
+`intro=0` na query string do harness (`scripts/capturas.mjs`, modo `--skin`) já cobria esse caso desde sempre — mas só o harness. A rota pública (`--lead`/`--leads`) não tinha escape nenhum: uma demo publicada com a intro ligada saía da tela de splash na captura de prospecção, não da seção pedida. O buraco era de **todas** as skins, não de uma.
+
+Precedente `CRON_SECRET` (`app/api/cron/route.ts`), com uma diferença: aqui não é uma rota inteira atrás do segredo, é um ÚNICO campo de tema, resolvido na camada certa:
+
+- **Env `CAPTURA_SECRET`** (`.env.example`), opcional. **Fail-closed**: sem ela no servidor, o header é ignorado — mesmo que alguém mande um valor — e a intro renderiza como sempre. O header só desliga uma animação; vazá-lo não dá acesso a nada, mas ele nunca é ecoado em resposta, log ou print (`app/demo/comum.tsx#introSuprimidaPelaCaptura`).
+- **O motor manda o header** `x-radar-captura: ${CAPTURA_SECRET}` (nome em `lib/demos/capturas/seguranca.mjs`, `.mjs` pelo mesmo motivo de `previa.mjs`/`alvo.mjs` — lido tanto pela rota TypeScript quanto pelo script que não compila TS) em toda navegação de `capturas.mjs`, não só na rota pública: a `/interno/*` não olha pra ele, então não custa nada mandar sempre. `capturas-ci.mjs` não navega nada sozinho (chama `capturas.mjs` como processo filho com `env: process.env`) — a variável só precisa estar no ambiente de UM processo, e o workflow (`.github/workflows/capturas.yml`) a passa como `secrets.CAPTURA_SECRET`.
+- **A rota pública resolve, nunca grava.** `resolverDemo` (`app/demo/comum.tsx`, compartilhado pelas duas rotas públicas — lead e avulsa) lê `headers()`, compara em TEMPO CONSTANTE (`lib/seguranca.ts#compararEmTempoConstante`, a mesma função que `RADAR_DEVICE_KEY` usa — o algoritmo não é segredo, só o valor comparado é, e cada consumidor guarda o seu) e, no caso positivo, substitui só `theme.intro` por `false` antes de passar o tema para `<Skin>`. **Decisão da camada de RESOLUÇÃO, nada gravado no banco** — mesma filosofia de `SKINS_MIGRADAS`/`EFEITOS_MIGRADOS`: a skin nunca sabe que uma captura existe, só recebe um `theme.intro` diferente.
+- **NUNCA reaproveitar `CRON_SECRET`/`RADAR_DEVICE_KEY`**: raio de explosão próprio, mesmo critério dos outros dois segredos do app.
 
 #### Disparo pela plataforma (GitHub Actions + `lead.capturas`)
 

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { montarDemoData } from "@/lib/demos/montar";
-import { getSkin } from "@/lib/demos/registry";
+import { getSkin, SKINS } from "@/lib/demos/registry";
 import { exemploDaSkin } from "@/lib/demos/variantes";
 import type { SkinDefinition } from "@/lib/demos/types";
 
@@ -67,13 +67,17 @@ describe("aviso de slot não exibido na variante", () => {
     }
   });
 
-  it("todo slot declarado existe no contrato de imagens da skin", () => {
+  it("todo slot declarado existe no contrato de imagens da skin — TODA skin do registro", () => {
     // Um typo em `imagensOcultas` avisaria sobre um slot que não existe, e
-    // ninguém veria — o aviso simplesmente nunca apareceria.
-    const contrato = new Set(Object.keys(skin.demoDataExemplo.imagens));
-    for (const variante of skin.variantes ?? []) {
-      for (const slot of Object.keys(variante.imagensOcultas ?? {})) {
-        expect(contrato.has(slot), `variante "${variante.id}": slot "${slot}"`).toBe(true);
+    // ninguém veria — o aviso simplesmente nunca apareceria. Generalizado
+    // pra todo o registro (não só tatuagem): sem isso, um typo na chapa
+    // burger só apareceria olhando ESTE arquivo, e ele nunca olha pra lá.
+    for (const s of SKINS) {
+      const contrato = new Set(Object.keys(s.demoDataExemplo.imagens));
+      for (const variante of s.variantes ?? []) {
+        for (const slot of Object.keys(variante.imagensOcultas ?? {})) {
+          expect(contrato.has(slot), `${s.id} / "${variante.id}": slot "${slot}"`).toBe(true);
+        }
       }
     }
   });
@@ -81,5 +85,49 @@ describe("aviso de slot não exibido na variante", () => {
   it("skin sem variantes não ganha aviso nenhum", () => {
     const outra = getSkin("tatuagem-pigmento-vivo")!;
     expect(html(outra, outra.themeDefault.id)).not.toContain("data-editor-aviso");
+  });
+});
+
+/**
+ * A chapa burger não tem uma composição "sem foto de fundo" como a
+ * `cartaz` da tatuagem — as três oculta são sempre `nenhum` (comida
+ * flutuante fora de lugar, ou uma carta tipográfica). Por isso não há um
+ * "Vesperal" aqui: as duas variantes que escondem slot têm a MESMA frase,
+ * e o que precisa provar é a lista COMPLETA de slots por variante, não uma
+ * frase especial.
+ */
+describe("aviso de slot não exibido — lancheria-chapa-burger", () => {
+  const chapa = getSkin("lancheria-chapa-burger")!;
+
+  it("balcao avisa sobre os três flutuantes, e só eles", () => {
+    const markup = html(chapa, "balcao");
+    for (const slot of ["flutuante-bacon", "flutuante-queijo", "flutuante-bebida"]) {
+      expect(avisoDe(markup, slot), slot).toContain("Não aparece nesta variante");
+    }
+    for (const slot of ["bebida-1", "bebida-2", "bebida-3", "bebida-4", "bebida-5"]) {
+      expect(avisoDe(markup, slot), slot).toBeUndefined();
+    }
+  });
+
+  it("sala avisa sobre as cinco bebidas E os três flutuantes — a carta é tipográfica", () => {
+    const markup = html(chapa, "sala");
+    for (const slot of [
+      "bebida-1", "bebida-2", "bebida-3", "bebida-4", "bebida-5",
+      "flutuante-bacon", "flutuante-queijo", "flutuante-bebida",
+    ]) {
+      expect(avisoDe(markup, slot), slot).toContain("Não aparece nesta variante");
+    }
+  });
+
+  it("chapa e praca desenham os 20 — nenhum aviso", () => {
+    for (const id of ["chapa", "praca"]) {
+      expect(html(chapa, id), id).not.toContain("data-editor-aviso");
+    }
+  });
+
+  it("o aviso é da variante aberta: bebida-1 avisa na sala, não na balcao nem na chapa", () => {
+    expect(avisoDe(html(chapa, "sala"), "bebida-1")).toContain("Não aparece nesta variante");
+    expect(avisoDe(html(chapa, "balcao"), "bebida-1")).toBeUndefined();
+    expect(avisoDe(html(chapa, "chapa"), "bebida-1")).toBeUndefined();
   });
 });

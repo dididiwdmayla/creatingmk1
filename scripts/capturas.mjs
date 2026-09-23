@@ -65,7 +65,19 @@ import {
   caminhoPublicoDoAlvo,
   parseAlvo,
 } from "../src/lib/demos/capturas/alvo.mjs";
+import { CAPTURA_HEADER } from "../src/lib/demos/capturas/seguranca.mjs";
 import { CHROMIUM, RAIZ, subirServidor } from "./qa-servidor.mjs";
+
+/**
+ * O header que desliga a intro da demo pública (ver "Intro e captura" em
+ * ARCHITECTURE.md e `app/demo/comum.tsx#introSuprimidaPelaCaptura`). Vazio
+ * quando `CAPTURA_SECRET` não está no ambiente deste processo — nesse
+ * caso o header simplesmente não é mandado, e a rota (fail-closed) segue
+ * como se ele nunca tivesse chegado. Mandado em TODA navegação, não só na
+ * rota pública: a `/interno/*` não olha pra ele, então não custa nada.
+ */
+const CAPTURA_SECRET = process.env.CAPTURA_SECRET;
+const HEADERS_CAPTURA = CAPTURA_SECRET ? { [CAPTURA_HEADER]: CAPTURA_SECRET } : {};
 
 /**
  * As duas telas. Celular em dpr 2 porque a imagem é vista NUM CELULAR — em
@@ -671,6 +683,7 @@ async function capturarTrilha({ browser, alvo, tela, cookie, manifestoAlvo, repr
   const ctx = await browser.newContext({
     viewport: { width: tela.largura, height: tela.altura },
     deviceScaleFactor: tela.dpr,
+    extraHTTPHeaders: HEADERS_CAPTURA,
   });
   // A rota /interno/* exige sessão; a demo pública NÃO — e é deliberado não
   // mandar cookie nenhum pra ela: com sessão (ou com o marcador de
@@ -872,6 +885,7 @@ async function main() {
       const ctxPrevia = await browser.newContext({
         viewport: { width: DESKTOP.largura, height: DESKTOP.altura },
         deviceScaleFactor: DESKTOP.dpr,
+        extraHTTPHeaders: HEADERS_CAPTURA,
       });
       // Mesma condição das âncoras acima: só o harness `/interno/*` exige
       // sessão — a demo pública nunca leva cookie (ver as defesas do motor).
