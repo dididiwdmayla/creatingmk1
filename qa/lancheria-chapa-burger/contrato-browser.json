@@ -1,0 +1,1974 @@
+{
+  "contrato": [
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Chapa Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 358,
+        "h": 133
+      },
+      "secoes": [
+        "hero",
+        "cardapio",
+        "bebidas",
+        "acompanhamentos",
+        "contato"
+      ],
+      "transborda": false,
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Hambúrgueres artesanais feitos com obsessão."
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Chapa Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 295,
+        "h": 31
+      },
+      "secoes": [
+        "hero",
+        "cardapio",
+        "acompanhamentos",
+        "bebidas",
+        "contato"
+      ],
+      "transborda": false,
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Chapa quente das 11h às 15h. Pede no balcão, come em pé ou leva pro escritório."
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Chapa Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 315,
+        "h": 34
+      },
+      "secoes": [
+        "hero",
+        "cardapio",
+        "bebidas",
+        "acompanhamentos",
+        "contato"
+      ],
+      "transborda": false,
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Casa com mesa, serviço e carta de cerveja artesanal. Reserva pelo WhatsApp."
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "h1s": 1,
+      "nome": "Chapa Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 326,
+        "h": 113
+      },
+      "secoes": [
+        "hero",
+        "contato",
+        "cardapio",
+        "acompanhamentos",
+        "bebidas"
+      ],
+      "transborda": false,
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Sexta e sábado, de praça em praça. Segue pra saber onde a gente para hoje."
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Chapa Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 1068,
+        "h": 365
+      },
+      "secoes": [
+        "hero",
+        "cardapio",
+        "bebidas",
+        "acompanhamentos",
+        "contato"
+      ],
+      "transborda": false,
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Hambúrgueres artesanais feitos com obsessão."
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Chapa Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 525,
+        "h": 54
+      },
+      "secoes": [
+        "hero",
+        "cardapio",
+        "acompanhamentos",
+        "bebidas",
+        "contato"
+      ],
+      "transborda": false,
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Chapa quente das 11h às 15h. Pede no balcão, come em pé ou leva pro escritório."
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Chapa Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 474,
+        "h": 136
+      },
+      "secoes": [
+        "hero",
+        "cardapio",
+        "bebidas",
+        "acompanhamentos",
+        "contato"
+      ],
+      "transborda": false,
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Casa com mesa, serviço e carta de cerveja artesanal. Reserva pelo WhatsApp."
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "h1s": 1,
+      "nome": "Chapa Contrato Real",
+      "h1NaAbertura": true,
+      "h1Caixa": {
+        "w": 820,
+        "h": 109
+      },
+      "secoes": [
+        "hero",
+        "contato",
+        "cardapio",
+        "acompanhamentos",
+        "bebidas"
+      ],
+      "transborda": false,
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Sexta e sábado, de praça em praça. Segue pra saber onde a gente para hoje."
+    }
+  ],
+  "slots": [
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 390,
+        "h": 844
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "prato-vazio",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 324,
+        "h": 192
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "lanche-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 324,
+        "h": 192
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "lanche-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 324,
+        "h": 192
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "lanche-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 324,
+        "h": 192
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "lanche-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 324,
+        "h": 192
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "lanche-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 324,
+        "h": 192
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "lanche-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 324,
+        "h": 192
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "bebida-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 124,
+        "h": 124
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "bebida-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 124,
+        "h": 124
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "bebida-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 124,
+        "h": 124
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "bebida-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 124,
+        "h": 124
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "bebida-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 124,
+        "h": 124
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "acompanhamento-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 124,
+        "h": 124
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "acompanhamento-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 124,
+        "h": 124
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "acompanhamento-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 124,
+        "h": 124
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "acompanhamento-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 124,
+        "h": 124
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "flutuante-bacon",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 83,
+        "h": 83
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "flutuante-queijo",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 79,
+        "h": 79
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "390",
+      "slot": "flutuante-bebida",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 86,
+        "h": 86
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 358,
+        "h": 160
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "prato-vazio",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "lanche-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "lanche-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "lanche-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "lanche-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "lanche-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "lanche-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "bebida-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "bebida-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "bebida-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "bebida-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "bebida-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "acompanhamento-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 96,
+        "h": 96
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "acompanhamento-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 96,
+        "h": 96
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "acompanhamento-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 96,
+        "h": 96
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "acompanhamento-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 96,
+        "h": 96
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "flutuante-bacon",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "flutuante-queijo",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "balcao",
+      "tela": "390",
+      "slot": "flutuante-bebida",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 358,
+        "h": 272
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "prato-vazio",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 358,
+        "h": 224
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "lanche-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 358,
+        "h": 224
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "lanche-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 358,
+        "h": 224
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "lanche-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 358,
+        "h": 224
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "lanche-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 358,
+        "h": 224
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "lanche-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 358,
+        "h": 224
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "lanche-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 358,
+        "h": 224
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "bebida-1",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "bebida-2",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "bebida-3",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "bebida-4",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "bebida-5",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "acompanhamento-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 20,
+        "h": 20
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "acompanhamento-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 20,
+        "h": 20
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "acompanhamento-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 20,
+        "h": 20
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "acompanhamento-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 20,
+        "h": 20
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "flutuante-bacon",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "flutuante-queijo",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "sala",
+      "tela": "390",
+      "slot": "flutuante-bebida",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 136,
+        "h": 136
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "prato-vazio",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 171,
+        "h": 171
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "lanche-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 171,
+        "h": 171
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "lanche-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 171,
+        "h": 171
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "lanche-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 171,
+        "h": 171
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "lanche-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 171,
+        "h": 171
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "lanche-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 171,
+        "h": 171
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "lanche-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 171,
+        "h": 171
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "bebida-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 147,
+        "h": 147
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "bebida-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 147,
+        "h": 147
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "bebida-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 147,
+        "h": 147
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "bebida-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 147,
+        "h": 147
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "bebida-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 147,
+        "h": 147
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "acompanhamento-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 72,
+        "h": 72
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "acompanhamento-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 72,
+        "h": 72
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "acompanhamento-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 72,
+        "h": 72
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "acompanhamento-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 72,
+        "h": 72
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "flutuante-bacon",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 83,
+        "h": 83
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "flutuante-queijo",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 79,
+        "h": 79
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "390",
+      "slot": "flutuante-bebida",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 86,
+        "h": 86
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 1100,
+        "h": 800
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "prato-vazio",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "lanche-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "lanche-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "lanche-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "lanche-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "lanche-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "lanche-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "bebida-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 154,
+        "h": 154
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "bebida-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 154,
+        "h": 154
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "bebida-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 154,
+        "h": 154
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "bebida-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 154,
+        "h": 154
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "bebida-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 154,
+        "h": 154
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "acompanhamento-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 154,
+        "h": 154
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "acompanhamento-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 154,
+        "h": 154
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "acompanhamento-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 154,
+        "h": 154
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "acompanhamento-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 154,
+        "h": 154
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "flutuante-bacon",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 183,
+        "h": 183
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "flutuante-queijo",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 174,
+        "h": 174
+      }
+    },
+    {
+      "variante": "chapa",
+      "tela": "1100",
+      "slot": "flutuante-bebida",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 189,
+        "h": 189
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 459,
+        "h": 320
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "prato-vazio",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "lanche-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "lanche-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "lanche-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "lanche-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "lanche-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "lanche-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "bebida-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "bebida-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "bebida-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "bebida-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "bebida-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 28,
+        "h": 28
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "acompanhamento-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "acompanhamento-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "acompanhamento-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "acompanhamento-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 112,
+        "h": 112
+      }
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "flutuante-bacon",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "flutuante-queijo",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "balcao",
+      "tela": "1100",
+      "slot": "flutuante-bebida",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 506,
+        "h": 448
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "prato-vazio",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 500,
+        "h": 312
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "lanche-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 500,
+        "h": 312
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "lanche-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 500,
+        "h": 312
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "lanche-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 500,
+        "h": 312
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "lanche-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 500,
+        "h": 312
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "lanche-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 500,
+        "h": 312
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "lanche-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 500,
+        "h": 312
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "bebida-1",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "bebida-2",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "bebida-3",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "bebida-4",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "bebida-5",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": {
+        "w": 0,
+        "h": 0
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "acompanhamento-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 20,
+        "h": 20
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "acompanhamento-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 20,
+        "h": 20
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "acompanhamento-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 20,
+        "h": 20
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "acompanhamento-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 20,
+        "h": 20
+      }
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "flutuante-bacon",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "flutuante-queijo",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "sala",
+      "tela": "1100",
+      "slot": "flutuante-bebida",
+      "declarado": true,
+      "desenhado": false,
+      "caixa": null
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "hero",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 168,
+        "h": 168
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "prato-vazio",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 524,
+        "h": 524
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "lanche-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 524,
+        "h": 524
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "lanche-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 524,
+        "h": 524
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "lanche-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 524,
+        "h": 524
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "lanche-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 524,
+        "h": 524
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "lanche-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 524,
+        "h": 524
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "lanche-6",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 524,
+        "h": 524
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "bebida-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 232,
+        "h": 232
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "bebida-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 232,
+        "h": 232
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "bebida-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 232,
+        "h": 232
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "bebida-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 232,
+        "h": 232
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "bebida-5",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 232,
+        "h": 232
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "acompanhamento-1",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 72,
+        "h": 72
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "acompanhamento-2",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 72,
+        "h": 72
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "acompanhamento-3",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 72,
+        "h": 72
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "acompanhamento-4",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 72,
+        "h": 72
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "flutuante-bacon",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 183,
+        "h": 183
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "flutuante-queijo",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 174,
+        "h": 174
+      }
+    },
+    {
+      "variante": "praca",
+      "tela": "1100",
+      "slot": "flutuante-bebida",
+      "declarado": false,
+      "desenhado": true,
+      "caixa": {
+        "w": 189,
+        "h": 189
+      }
+    }
+  ],
+  "identidade": [
+    {
+      "variante": "balcao",
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Chapa quente das 11h às 15h. Pede no balcão, come em pé ou leva pro escritório."
+    },
+    {
+      "variante": "praca",
+      "ficha": null,
+      "dados": null,
+      "textoHero": "Sexta e sábado, de praça em praça. Segue pra saber onde a gente para hoje."
+    }
+  ],
+  "drasticidade": {
+    "folha": "/home/user/creatingmk1/qa-shots/chapa/_folha-cinza.png",
+    "silhueta": "/home/user/creatingmk1/qa-shots/chapa/_folha-silhueta.png",
+    "pares": [
+      {
+        "par": "chapa × sala",
+        "aberturaMedia": 45.61,
+        "alturas": "4802 / 4996"
+      },
+      {
+        "par": "balcao × praca",
+        "aberturaMedia": 71.8,
+        "alturas": "3342 / 3701"
+      },
+      {
+        "par": "chapa × praca",
+        "aberturaMedia": 133.07,
+        "alturas": "4802 / 3701"
+      },
+      {
+        "par": "sala × praca",
+        "aberturaMedia": 144.94,
+        "alturas": "4996 / 3701"
+      },
+      {
+        "par": "chapa × balcao",
+        "aberturaMedia": 162.02,
+        "alturas": "4802 / 3342"
+      },
+      {
+        "par": "balcao × sala",
+        "aberturaMedia": 178.49,
+        "alturas": "3342 / 4996"
+      }
+    ],
+    "heros": [
+      {
+        "variante": "chapa",
+        "arquivo": "/home/user/creatingmk1/qa-shots/chapa/hero-chapa.png"
+      },
+      {
+        "variante": "balcao",
+        "arquivo": "/home/user/creatingmk1/qa-shots/chapa/hero-balcao.png"
+      },
+      {
+        "variante": "sala",
+        "arquivo": "/home/user/creatingmk1/qa-shots/chapa/hero-sala.png"
+      },
+      {
+        "variante": "praca",
+        "arquivo": "/home/user/creatingmk1/qa-shots/chapa/hero-praca.png"
+      }
+    ]
+  }
+}
