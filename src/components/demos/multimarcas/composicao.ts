@@ -46,9 +46,25 @@ export const MULTIMARCAS_COMPOSICAO_CSS = `
 .mm .mm-hero-h1 { font-size: calc(clamp(42px, 9.6vw, 124px) * var(--d-hero-escala)); }
 .mm .mm-hero-diagonal { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .mm .mm-hero-gauge {
-  position: absolute; z-index: 3; display: flex; align-items: center; gap: .625rem;
+  position: absolute; z-index: 3; display: flex; align-items: center; gap: .625rem; opacity: .9;
   top: calc(86px + env(safe-area-inset-top)); right: max(24px, 5vw);
 }
+.mm .mm-gauge-svg { display: block; width: 54px; height: auto; }
+
+/* ── O PAINEL DE INSTRUMENTOS em quatro escalas (§3 do plano) ──────────
+   selo (acima, o default) · marcador ao lado das faixas da busca ·
+   mostrador grande no pé da foto sangrada · canto da moldura dividida.
+   A escala vem em \`data-escala\` (ver ./interactive/Mostrador.tsx). */
+.mm .mm-hero-busca { display: flex; align-items: center; gap: .9rem; margin-bottom: 2rem; }
+.mm .mm-hero-busca .mm-hero-faixas { margin-bottom: 0; flex: 1 1 auto; }
+.mm .mm-hero-gauge[data-escala="marcador"] {
+  position: static; flex-direction: column; gap: .2rem; opacity: 1; flex: none;
+}
+.mm .mm-hero-gauge[data-escala="marcador"] .mm-gauge-svg { width: 58px; }
+.mm .mm-hero-gauge[data-escala="mostrador"] { top: auto; bottom: 1.25rem; opacity: 1; }
+.mm .mm-hero-gauge[data-escala="mostrador"] .mm-gauge-svg { width: clamp(118px, 19vw, 210px); }
+.mm .mm-hero-gauge[data-escala="canto"] { top: auto; right: auto; bottom: .75rem; left: .75rem; opacity: 1; }
+.mm .mm-hero-gauge[data-escala="canto"] .mm-gauge-svg { width: clamp(84px, 11vw, 116px); }
 .mm .mm-hero-chev {
   position: absolute; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center;
   bottom: calc(22px + env(safe-area-inset-bottom));

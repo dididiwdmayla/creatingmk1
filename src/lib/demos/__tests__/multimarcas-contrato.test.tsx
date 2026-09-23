@@ -334,3 +334,14 @@ describe.each(alvos)("multimarcas: slots de imagem por composição (§8): %s", 
     }
   });
 });
+
+describe("multimarcas: o painel de instrumentos nas quatro escalas (§3, item 18)", () => {
+  const ESCALA: Record<string, string> = { vortice: "selo", patio: "marcador", garagem: "mostrador", campo: "canto" };
+  it.each(alvos)("%s: um mostrador só, na âncora hero, na escala da abertura", (id) => {
+    const doc = documento(id, montarDemoData(exemploDaSkin(skin, id), lead, undefined, skin.id));
+    const mostradores = doc.querySelectorAll(".mm-gauge-svg");
+    expect(mostradores).toHaveLength(1);
+    expect(mostradores[0].getAttribute("data-escala")).toBe(ESCALA[id]);
+    expect(mostradores[0].closest('[data-d-secao="hero"]')).not.toBeNull();
+  });
+});

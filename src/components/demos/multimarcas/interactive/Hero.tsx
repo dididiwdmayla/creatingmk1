@@ -6,6 +6,7 @@ import { Fragment, useEffect, useRef, type ReactNode } from "react";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { Alinhamento, DemoSecao, MultimarcasComposicao } from "@/lib/demos/types";
 import { useIntroDone } from "./introContext";
+import { Mostrador, type EscalaDoMostrador } from "./Mostrador";
 import { linhaDeApoio, linhasDoNome } from "./logic";
 
 const HERO_ALINHAMENTO: Record<Alinhamento, string> = {
@@ -83,6 +84,17 @@ export function Hero({
   // demo já salva com título não perde o texto, só o papel dele muda.
   const [linha1, linha2] = linhasDoNome(nome);
   const desenhaFoto = foto && (abertura === "sangrada" || abertura === "dividida");
+  // Um mostrador só por página, e a escala dele acompanha a abertura. A
+  // busca sem faixas (estoque oculto ou sem preços) e a dividida sem foto
+  // caem no selo, para o painel de instrumentos nunca sumir.
+  const escala: EscalaDoMostrador =
+    abertura === "busca" && faixas.length > 0
+      ? "marcador"
+      : abertura === "sangrada"
+        ? "mostrador"
+        : abertura === "dividida" && desenhaFoto
+          ? "canto"
+          : "selo";
   const apoio = linhaDeApoio(hero?.titulo, nome);
 
   return (
@@ -102,6 +114,11 @@ export function Hero({
           {/* O véu é o que deixa o nome ler sobre a foto — tokenizado
               (--mm-veu, na folha) e medido como texto sobre fundo. */}
           {abertura === "sangrada" && <div className="mm-hero-veu" aria-hidden="true" />}
+          {escala === "canto" && (
+            <div className="mm-hero-gauge" data-escala="canto" aria-hidden="true">
+              <Mostrador escala="canto" agulha={needleRef} legenda={m.rpm} />
+            </div>
+          )}
         </div>
       )}
       <div ref={linhaRef} className="mm-hero-diagonal" aria-hidden="true">
@@ -114,22 +131,19 @@ export function Hero({
         />
       </div>
 
-      <div className="mm-hero-gauge opacity-90" aria-hidden="true">
-        <svg width="54" height="42" viewBox="0 0 100 78" fill="none">
-          <path d="M14 70 A44 44 0 1 1 86 70" stroke="var(--d-border)" strokeWidth="5" strokeLinecap="round" />
-          <path d="M79 30 A44 44 0 0 1 86 70" stroke="var(--d-accent)" strokeWidth="5" strokeLinecap="round" />
-          <g ref={needleRef} transform="rotate(-115 50 46)">
-            <line x1="50" y1="46" x2="50" y2="12" stroke="var(--d-text)" strokeWidth="4" strokeLinecap="round" />
-          </g>
-          <circle cx="50" cy="46" r="5" fill="var(--d-accent)" />
-        </svg>
-        <span
-          className="font-[family-name:var(--d-mono)] text-[10px] tracking-[2px] text-[var(--d-muted)]"
-          style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
-        >
-          {m.scrollEstilizado}
-        </span>
-      </div>
+      {(escala === "selo" || escala === "mostrador") && (
+        <div className="mm-hero-gauge" data-escala={escala} aria-hidden="true">
+          <Mostrador escala={escala} agulha={needleRef} legenda={m.rpm} />
+          {escala === "selo" && (
+            <span
+              className="font-[family-name:var(--d-mono)] text-[10px] tracking-[2px] text-[var(--d-muted)]"
+              style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+            >
+              {m.scrollEstilizado}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className={`mm-hero-corpo ${HERO_ALINHAMENTO[alinhamento]}`}>
         {hero?.rotulo?.trim() && (
@@ -209,17 +223,25 @@ export function Hero({
         )}
 
         {abertura === "busca" && faixas.length > 0 && (
-          <nav className="mm-hero-faixas" aria-label={m.faixaDePreco}>
-            {faixas.map((f) => (
-              <a
-                key={f.id}
-                href={`#${f.id}`}
-                className="mm-faixa d-press rounded-lg border font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)]"
-              >
-                {f.rotulo}
-              </a>
-            ))}
-          </nav>
+          <div className="mm-hero-busca">
+            <div className="mm-hero-gauge" data-escala="marcador" aria-hidden="true">
+              <Mostrador escala="marcador" agulha={needleRef} />
+              <span className="font-[family-name:var(--d-mono)] text-[9px] tracking-[1.5px] text-[var(--d-muted)]">
+                {m.rpm}
+              </span>
+            </div>
+            <nav className="mm-hero-faixas" aria-label={m.faixaDePreco}>
+              {faixas.map((f) => (
+                <a
+                  key={f.id}
+                  href={`#${f.id}`}
+                  className="mm-faixa d-press rounded-lg border font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)]"
+                >
+                  {f.rotulo}
+                </a>
+              ))}
+            </nav>
+          </div>
         )}
 
         <div
