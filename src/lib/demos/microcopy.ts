@@ -86,6 +86,15 @@ export interface DemoMicrocopia {
   faixaDePreco: string;
   /** Botão do card de veículo que leva o preço dele ao simulador (multimarcas). */
   simularEsteCarro: string;
+  /** Rótulos do formulário de troca (multimarcas): marca, modelo, ano, km. */
+  trocaMarca: string;
+  trocaModelo: string;
+  trocaAno: string;
+  trocaKm: string;
+  /** Mensagem de WhatsApp de avaliação SEM dado do carro (e o envio sem JavaScript). */
+  trocaMensagem: string;
+  /** Mensagem de WhatsApp de avaliação com a descrição do carro já montada. */
+  trocaMensagemCarro: (carro: string) => string;
 }
 
 const PT: DemoMicrocopia = {
@@ -126,6 +135,12 @@ const PT: DemoMicrocopia = {
   faixaAcima: (v) => `Acima de ${v}`,
   faixaDePreco: "Faixa de preço",
   simularEsteCarro: "Simular este carro",
+  trocaMarca: "Marca",
+  trocaModelo: "Modelo",
+  trocaAno: "Ano",
+  trocaKm: "Quilometragem",
+  trocaMensagem: "Olá! Quero uma avaliação do meu carro.",
+  trocaMensagemCarro: (carro) => `Olá! Quero avaliar meu carro na troca: ${carro}.`,
 };
 
 const EN: DemoMicrocopia = {
@@ -166,6 +181,12 @@ const EN: DemoMicrocopia = {
   faixaAcima: (v) => `Over ${v}`,
   faixaDePreco: "Price range",
   simularEsteCarro: "Simulate this car",
+  trocaMarca: "Make",
+  trocaModelo: "Model",
+  trocaAno: "Year",
+  trocaKm: "Mileage",
+  trocaMensagem: "Hi! I'd like my car appraised.",
+  trocaMensagemCarro: (carro) => `Hi! I'd like to trade in my car: ${carro}.`,
 };
 
 const ES: DemoMicrocopia = {
@@ -206,6 +227,12 @@ const ES: DemoMicrocopia = {
   faixaAcima: (v) => `Más de ${v}`,
   faixaDePreco: "Rango de precio",
   simularEsteCarro: "Simular este auto",
+  trocaMarca: "Marca",
+  trocaModelo: "Modelo",
+  trocaAno: "Año",
+  trocaKm: "Kilometraje",
+  trocaMensagem: "¡Hola! Quiero una tasación de mi auto.",
+  trocaMensagemCarro: (carro) => `¡Hola! Quiero tasar mi auto como parte de pago: ${carro}.`,
 };
 
 const FR: DemoMicrocopia = {
@@ -246,6 +273,12 @@ const FR: DemoMicrocopia = {
   faixaAcima: (v) => `Plus de ${v}`,
   faixaDePreco: "Fourchette de prix",
   simularEsteCarro: "Simuler ce véhicule",
+  trocaMarca: "Marque",
+  trocaModelo: "Modèle",
+  trocaAno: "Année",
+  trocaKm: "Kilométrage",
+  trocaMensagem: "Bonjour ! Je voudrais faire estimer ma voiture.",
+  trocaMensagemCarro: (carro) => `Bonjour ! Je voudrais faire reprendre ma voiture : ${carro}.`,
 };
 
 const DE: DemoMicrocopia = {
@@ -286,6 +319,12 @@ const DE: DemoMicrocopia = {
   faixaAcima: (v) => `Über ${v}`,
   faixaDePreco: "Preisspanne",
   simularEsteCarro: "Dieses Auto berechnen",
+  trocaMarca: "Marke",
+  trocaModelo: "Modell",
+  trocaAno: "Baujahr",
+  trocaKm: "Kilometerstand",
+  trocaMensagem: "Hallo! Ich möchte mein Auto bewerten lassen.",
+  trocaMensagemCarro: (carro) => `Hallo! Ich möchte mein Auto in Zahlung geben: ${carro}.`,
 };
 
 const IT: DemoMicrocopia = {
@@ -326,6 +365,12 @@ const IT: DemoMicrocopia = {
   faixaAcima: (v) => `Oltre ${v}`,
   faixaDePreco: "Fascia di prezzo",
   simularEsteCarro: "Simula questa auto",
+  trocaMarca: "Marca",
+  trocaModelo: "Modello",
+  trocaAno: "Anno",
+  trocaKm: "Chilometraggio",
+  trocaMensagem: "Ciao! Vorrei una valutazione della mia auto.",
+  trocaMensagemCarro: (carro) => `Ciao! Vorrei dare la mia auto in permuta: ${carro}.`,
 };
 
 const NL: DemoMicrocopia = {
@@ -366,6 +411,12 @@ const NL: DemoMicrocopia = {
   faixaAcima: (v) => `Boven ${v}`,
   faixaDePreco: "Prijsklasse",
   simularEsteCarro: "Deze auto berekenen",
+  trocaMarca: "Merk",
+  trocaModelo: "Model",
+  trocaAno: "Bouwjaar",
+  trocaKm: "Kilometerstand",
+  trocaMensagem: "Hallo! Ik wil mijn auto laten taxeren.",
+  trocaMensagemCarro: (carro) => `Hallo! Ik wil mijn auto inruilen: ${carro}.`,
 };
 
 const MICROCOPIA_POR_RAIZ: Record<RaizMicrocopia, DemoMicrocopia> = {

@@ -2,6 +2,7 @@ import Image from "next/image";
 import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
+import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { CarFilterGrid } from "./interactive/CarFilterGrid";
 import { FooterEgg } from "./interactive/FooterEgg";
@@ -133,6 +134,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
     "--d-hover-lift": ANIM_HOVER_LIFT[theme.animacao],
   } as CSSProperties;
 
+  const m = microcopiaDemo(idioma);
   const s = data.secoes;
   const visiveis = secoesVisiveis(MULTIMARCAS_SECOES, data);
   const centro = (id: string): boolean => s[id]?.alinhamento === "centro";
@@ -153,7 +155,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
   // `waHref` devolve undefined sem número — cada CTA de WhatsApp some
   // junto, em vez de virar link morto (ver interactive/logic.ts).
   const linkWaMain = waHref(data.whatsapp, `Olá! Vim pelo site da ${data.nome} e quero mais informações.`);
-  const linkWaAvaliacao = waHref(data.whatsapp, "Olá! Quero uma avaliação do meu carro.");
+  const linkWaAvaliacao = waHref(data.whatsapp, m.trocaMensagem);
   const linkWaDestaque = waHref(
     data.whatsapp,
     `Olá! Tenho interesse no ${s.destaque?.titulo?.trim() || "veículo em destaque"} que vi no site da ${data.nome}.`,

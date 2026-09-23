@@ -10,6 +10,7 @@ import {
   formatarNumeroBR,
   linhaDeApoio,
   linhasDoNome,
+  mensagemTroca,
   parcelaMensal,
   parseNumeroFormatado,
   rotuloFaixa,
@@ -222,5 +223,32 @@ describe("parcelaMensal", () => {
     expect(Math.round(parcelaMensal(96000, 1.49, 48))).toBe(2814);
     expect(parcelaMensal(0, 1.49, 48)).toBe(0);
     expect(parcelaMensal(4800, 0, 48)).toBe(100);
+  });
+});
+
+describe("mensagemTroca (formulário de troca)", () => {
+  const pt = microcopiaDemo("pt-BR");
+
+  it("monta o carro digitado, km com milhar do locale", () => {
+    expect(mensagemTroca({ marca: " Toyota", modelo: "Hilux SRX ", ano: "2019", km: "98400" }, pt, "pt-BR")).toBe(
+      "Olá! Quero avaliar meu carro na troca: Toyota Hilux SRX 2019, 98.400 km.",
+    );
+  });
+
+  it("campo vazio não entra", () => {
+    expect(mensagemTroca({ modelo: "Strada", km: "" }, pt, "pt-BR")).toBe(
+      "Olá! Quero avaliar meu carro na troca: Strada.",
+    );
+  });
+
+  it("nada preenchido: a mensagem genérica (a mesma do envio sem JavaScript)", () => {
+    expect(mensagemTroca({}, pt, "pt-BR")).toBe(pt.trocaMensagem);
+    expect(mensagemTroca({ marca: "  " }, pt, "pt-BR")).toBe(pt.trocaMensagem);
+  });
+
+  it("no idioma da demo", () => {
+    expect(mensagemTroca({ marca: "VW", km: "12000" }, microcopiaDemo("en-US"), "en-US")).toBe(
+      "Hi! I'd like to trade in my car: VW, 12,000 km.",
+    );
   });
 });

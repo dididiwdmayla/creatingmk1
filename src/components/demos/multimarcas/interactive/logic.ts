@@ -253,3 +253,36 @@ export function formatarInteiro(valor: number, idioma: string | undefined): stri
  * para `#simulador`.
  */
 export const EVENTO_SIMULAR = "multimarcas:simular";
+
+/** O carro do cliente, como digitado no formulário de troca. */
+export interface CarroDaTroca {
+  marca?: string;
+  modelo?: string;
+  ano?: string;
+  km?: string;
+}
+
+/**
+ * A mensagem de WhatsApp do formulário de troca (§3: "a avaliação vai com
+ * o carro do cliente" — nenhum "Olá, quero informações" genérico onde há
+ * contexto a mandar). Campo vazio não entra; a km ganha o separador do
+ * locale e a unidade. Nada preenchido: a mensagem genérica, a mesma que o
+ * formulário envia sem JavaScript.
+ */
+export function mensagemTroca(
+  carro: CarroDaTroca,
+  m: Pick<DemoMicrocopia, "trocaMensagem" | "trocaMensagemCarro">,
+  idioma: string | undefined,
+): string {
+  const limpo = (v?: string) => v?.replace(/\s+/g, " ").trim() ?? "";
+  const kmDigitos = limpo(carro.km).replace(/\D/g, "");
+  const km = kmDigitos ? `${formatarInteiro(Number(kmDigitos), idioma)} km` : "";
+  const nome = [limpo(carro.marca), limpo(carro.modelo), limpo(carro.ano)].filter(Boolean).join(" ");
+  const descricao = [nome, km].filter(Boolean).join(", ");
+  return descricao ? m.trocaMensagemCarro(descricao) : m.trocaMensagem;
+}
+
+/** Só os dígitos do WhatsApp — o destino do `action` do formulário sem JavaScript. */
+export function digitosWhatsapp(whatsapp: string | undefined): string {
+  return (whatsapp ?? "").replace(/\D/g, "");
+}
