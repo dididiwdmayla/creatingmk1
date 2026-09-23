@@ -3,10 +3,20 @@ import type { DemoData } from "@/lib/demos/types";
 /**
  * DemoData de exemplo da skin "Multimarcas Vórtice" — a base que a ficha
  * do lead pré-preenche. Copy fiel ao material bruto (skins-raw/multimarcas
- * — "Vórtice Motors"), com endereço/telefone/CNPJ genéricos: nada aqui
- * identifica o cliente original. O estoque de exemplo (9 veículos) já era
- * dado fictício no material bruto (marcas/modelos/preços de mercado, sem
- * ligação com nenhum cliente real) — mantido como está.
+ * — "Vórtice Motors"), sem nada que identifique o cliente original. O
+ * estoque de exemplo (9 veículos) já era dado fictício no material bruto
+ * (marcas/modelos/preços de mercado) — mantido como está.
+ *
+ * Três coisas que o material bruto tinha e o exemplo NÃO tem mais
+ * (docs/plano-multimarcas.md §1, item 15):
+ *  - **endereço**: "Av. Principal, 1000 — Centro" ligava os botões Waze e
+ *    Google Maps, que navegavam para um lugar inventado em toda demo de
+ *    lead sem endereço. Sem endereço do lead: nem texto, nem rota;
+ *  - **"4,9★ avaliação no Google"**: fato verificável atribuído ao negócio
+ *    do lead, que pode ter 3,8. Removido, não convertido em slot —
+ *    `numeros` fala da OFERTA (itens revisados, garantia, aprovação);
+ *  - **o nome da marca na cópia**: "POR QUE A VÓRTICE" e "Terceira compra
+ *    na Vórtice" chegavam a um lead chamado "Auto Center Silva".
  *
  * Cada veículo é um `DemoServico`: `categoria` alimenta o filtro de
  * estoque, `destaques` vira os chips (ano/km/câmbio/combustível) e
@@ -15,7 +25,6 @@ import type { DemoData } from "@/lib/demos/types";
 export const MULTIMARCAS_EXEMPLO: DemoData = {
   nome: "Vórtice Motors",
   slogan: "Seminovos premium com procedência auditada e garantia de 12 meses.",
-  endereco: "Av. Principal, 1000 — Centro",
   servicos: [
     {
       nome: "Hyundai HB20 Platinum",
@@ -101,7 +110,7 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
       autor: "Carlos Menezes",
       contexto: "Toyota Hilux SRX 2021",
       texto:
-        "Terceira compra na Vórtice. A avaliação da minha antiga foi justa e a diferença caiu no PIX na hora.",
+        "Terceira compra aqui. A avaliação da minha antiga foi justa e a diferença caiu no PIX na hora.",
     },
     {
       autor: "Fernanda Ito",
@@ -135,7 +144,7 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
       ctaSecundaria: "Detalhes",
     },
     vantagens: {
-      rotulo: "POR QUE A VÓRTICE",
+      rotulo: "POR QUE COMPRAR AQUI",
       titulo: "Comprar bem não é sorte. É processo.",
       itens: [
         {
@@ -158,9 +167,9 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
     },
     numeros: {
       itens: [
-        { titulo: "+1.200", detalhe: "carros entregues" },
-        { titulo: "4,9★", detalhe: "avaliação no Google" },
-        { titulo: "15 anos", detalhe: "de estrada" },
+        { titulo: "150", detalhe: "itens revisados por carro" },
+        { titulo: "12 meses", detalhe: "de garantia de motor e câmbio" },
+        { titulo: "30 min", detalhe: "para aprovar o crédito" },
       ],
     },
     destaque: {
@@ -219,7 +228,7 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
   // ele é conteúdo, como qualquer outro, e sobrevive a uma renomeação do
   // carro no editor sem virar um alt errado.
   imagensAlt: {
-    hero: "Showroom da Vórtice Motors",
+    hero: "Showroom de seminovos com carros alinhados",
     destaque: "Toyota Hilux SRX 2021, o veículo em destaque",
     "carro-1": "Hyundai HB20 Platinum",
     "carro-2": "VW Polo GTS",

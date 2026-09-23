@@ -293,3 +293,26 @@ describe("multimarcas: cromo pela microcópia (item 13)", () => {
     expect(nav).not.toContain("ESTOQUE");
   });
 });
+
+describe.each(alvos)("multimarcas: o exemplo não inventa fato sobre o lead (item 15): %s", (id) => {
+  // Lead REAL sem endereço (o caso comum): antes, o endereço do exemplo
+  // sobrevivia na montagem e ligava Waze/Maps para um lugar inventado.
+  const doc = documento(id, montarDemoData(exemploDaSkin(skin, id), lead, undefined, skin.id));
+  const texto = doc.body.textContent ?? "";
+
+  it("sem endereço do lead: nem texto de endereço, nem Waze, nem Maps", () => {
+    expect(doc.querySelector('[data-demo-slot="endereco"]')).toBeNull();
+    const hrefs = [...doc.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")!);
+    expect(hrefs.filter((h) => /waze\.com|maps\.google/.test(h))).toEqual([]);
+  });
+
+  it("nenhuma nota, estrela ou selo de plataforma de terceiros", () => {
+    expect(texto).not.toMatch(/★|Google|Reclame Aqui|Webmotors/i);
+  });
+
+  it("nenhum nome de marca do exemplo vaza para a demo do lead", () => {
+    expect(texto).not.toMatch(/v[óo]rtice/i);
+    const alts = [...doc.querySelectorAll("img[alt]")].map((i) => i.getAttribute("alt")!).join(" ");
+    expect(alts).not.toMatch(/v[óo]rtice/i);
+  });
+});
