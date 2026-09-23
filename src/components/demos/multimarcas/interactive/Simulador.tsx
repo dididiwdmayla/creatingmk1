@@ -40,12 +40,15 @@ function DigitoOdometro({ digito }: { digito: string }) {
 
 export function Simulador({
   whatsapp,
+  telefone,
   ctaLabel,
   servicos,
   idioma,
   moeda,
 }: {
   whatsapp?: string;
+  /** Sem WhatsApp, o CTA liga para cá (`tel:`); sem os dois, não há botão (§7). */
+  telefone?: string;
   ctaLabel?: string;
   /** O estoque: dele sai a faixa do slider e o valor de partida. */
   servicos: readonly DemoServico[];
@@ -87,10 +90,13 @@ export function Simulador({
     return { pmtStr: formatarInteiro(pmt, idioma), financiadoFmt: formatarInteiro(financiado, idioma) };
   }, [valor, entrada, parcelas, idioma]);
 
-  const linkProposta = waHref(
-    whatsapp,
-    `Olá! Simulei no site: veículo ${simbolo} ${fmt(valor)}, entrada ${simbolo} ${fmt(entrada)}, ${parcelas}x de ${simbolo} ${pmtStr}. Quero uma proposta.`,
-  );
+  const telDigitos = telefone?.replace(/[^\d+]/g, "");
+  const linkProposta =
+    waHref(
+      whatsapp,
+      `Olá! Simulei no site: veículo ${simbolo} ${fmt(valor)}, entrada ${simbolo} ${fmt(entrada)}, ${parcelas}x de ${simbolo} ${pmtStr}. Quero uma proposta.`,
+    ) ?? (telDigitos ? `tel:${telDigitos}` : undefined);
+  const externo = linkProposta?.startsWith("https:");
 
   return (
     <div className="grid items-start gap-[22px] [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
@@ -211,8 +217,7 @@ export function Simulador({
         {linkProposta && (
         <a
           href={linkProposta}
-          target="_blank"
-          rel="noopener noreferrer"
+          {...(externo && { target: "_blank", rel: "noopener noreferrer" })}
           data-demo-slot="secoes.simulador.cta"
           className="d-press mt-1.5 block rounded-lg py-[17px] text-center font-[family-name:var(--d-corpo)] text-sm font-bold tracking-[1.5px]"
           style={{

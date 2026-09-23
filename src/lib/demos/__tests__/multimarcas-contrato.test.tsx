@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 
 import type { Lead } from "@/lib/leads/types";
+import { montarDemoDataAvulsa, patchIdentidadeAvulsa } from "../avulsas/identidade";
 import { montarDemoData } from "../montar";
 import { getSkin, getTheme } from "../registry";
 import type { DemoData } from "../types";
@@ -162,5 +163,66 @@ describe("multimarcas: o simulador (item 10)", () => {
       secoes: { ...base.secoes, simulador: { ...base.secoes.simulador, oculta: true } },
     };
     expect(documento("vortice", semSimulador).querySelectorAll('a[href="#simulador"]')).toHaveLength(0);
+  });
+});
+
+/**
+ * §7 do plano — lead SEM dado de identidade é o caso normal. Montado como
+ * demo avulsa (identidade em branco por baixo: nem o endereço do exemplo
+ * sobrevive), e o lado cheio com os seis campos.
+ */
+describe.each(alvos)("multimarcas §7 — a regra do vazio: %s", (id) => {
+  const vazio = montarDemoDataAvulsa(exemploDaSkin(skin, id), patchIdentidadeAvulsa({ nome: lead.nome }), skin.id);
+  const cheio = montarDemoDataAvulsa(
+    exemploDaSkin(skin, id),
+    patchIdentidadeAvulsa({
+      nome: lead.nome,
+      endereco: "Rua Digitada, 100",
+      cidade: "Maringá - PR",
+      telefone: "(44) 3222-1111",
+      whatsapp: "+55 44 99999-0000",
+      horarios: "Seg a sáb, 9h às 18h",
+      instagram: "@garagemreal",
+    }),
+    skin.id,
+  );
+
+  it("sem dado: nenhuma escada, nenhum rótulo órfão, nenhuma grade vazia no rodapé", () => {
+    const doc = documento(id, vazio);
+    expect(doc.querySelector(".mm-dados")).toBeNull();
+    const contato = doc.getElementById("contato")!;
+    expect(contato.querySelector(".grid")).toBeNull();
+    expect(contato.querySelector("dt")).toBeNull();
+  });
+
+  it("sem dado: nenhum link de rota, nenhuma rede social apontando para #topo", () => {
+    const doc = documento(id, vazio);
+    const hrefs = [...doc.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")!);
+    expect(hrefs.filter((h) => /waze\.com|maps\.google/.test(h))).toEqual([]);
+    expect(doc.querySelectorAll('[aria-label="Instagram"], [aria-label="Facebook"], [aria-label="YouTube"]')).toHaveLength(0);
+    // O único #topo legítimo é a marca da nav.
+    expect(hrefs.filter((h) => h === "#topo")).toHaveLength(1);
+  });
+
+  it("sem dado: o rodapé degrada para título + link ao estoque; o simulador fica sem botão", () => {
+    const doc = documento(id, vazio);
+    expect(doc.querySelector('#contato a[href="#estoque"]')).not.toBeNull();
+    expect(doc.querySelector('[data-demo-slot="secoes.simulador.cta"]')).toBeNull();
+  });
+
+  it("com dado: a escada na ordem endereço → horário → telefone → Instagram, rota e ícone", () => {
+    const doc = documento(id, cheio);
+    const slots = [...doc.querySelectorAll("#contato .mm-dados dd")].map((dd) => dd.getAttribute("data-demo-slot"));
+    expect(slots).toEqual(["endereco", "horarios", "telefone", "instagram"]);
+    const hrefs = [...doc.querySelectorAll("#contato a[href]")].map((a) => a.getAttribute("href")!);
+    expect(hrefs.some((h) => h.startsWith("https://waze.com/"))).toBe(true);
+    expect(doc.querySelector('#contato [aria-label="Instagram"]')!.getAttribute("href")).toBe("https://instagram.com/garagemreal");
+  });
+
+  it("CTA do simulador: WhatsApp com a simulação; só telefone → tel:", () => {
+    const comWa = documento(id, cheio).querySelector('[data-demo-slot="secoes.simulador.cta"]')!;
+    expect(comWa.getAttribute("href")).toMatch(/^https:\/\/wa\.me\/5544999990000\?text=/);
+    const soTel = documento(id, { ...cheio, whatsapp: undefined }).querySelector('[data-demo-slot="secoes.simulador.cta"]')!;
+    expect(soTel.getAttribute("href")).toBe("tel:4432221111");
   });
 });

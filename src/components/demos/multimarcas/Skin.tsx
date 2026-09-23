@@ -3,7 +3,8 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
-import type { Animacao, Densidade, SkinProps } from "@/lib/demos/types";
+import type { DemoMicrocopia } from "@/lib/demos/microcopy";
+import type { Animacao, DemoData, Densidade, SkinProps } from "@/lib/demos/types";
 import { CarFilterGrid } from "./interactive/CarFilterGrid";
 import { FooterEgg } from "./interactive/FooterEgg";
 import { Hero } from "./interactive/Hero";
@@ -94,6 +95,68 @@ function Rotulo({ texto, slot }: { texto?: string; slot?: string }) {
   );
 }
 
+/** Uma linha da escada de identidade (ver `Dados`). */
+type LinhaDeDado = { chave: string; rotulo: string; valor: string; slot: string; href?: string };
+
+/**
+ * A ESCADA DE IDENTIDADE (§7 do plano), na ordem da chapa: endereço (ou
+ * cidade) → horário → telefone → Instagram. Cada linha só existe se o valor
+ * existe, e um rótulo nunca aparece sem o valor dele — o exemplo desta skin
+ * não tem NENHUM desses campos, então zero linhas é o caso normal. O
+ * telefone só entra quando é diferente do WhatsApp (que já está no botão).
+ */
+function escadaDeDados(data: DemoData, m: DemoMicrocopia): LinhaDeDado[] {
+  const linhas: LinhaDeDado[] = [];
+  const endereco = data.endereco?.trim();
+  const cidade = data.cidade?.trim();
+  const local = [endereco, cidade].filter(Boolean).join(" — ");
+  if (local) linhas.push({ chave: "local", rotulo: m.endereco, valor: local, slot: endereco ? "endereco" : "cidade" });
+  if (data.horarios?.trim()) {
+    linhas.push({ chave: "horario", rotulo: m.horario, valor: data.horarios.trim(), slot: "horarios" });
+  }
+  const telefone = data.telefone?.trim();
+  if (telefone && telefone !== data.whatsapp?.trim()) {
+    linhas.push({ chave: "telefone", rotulo: m.telefone, valor: telefone, slot: "telefone", href: `tel:${telefone.replace(/[^\d+]/g, "")}` });
+  }
+  const instagram = data.instagram?.trim();
+  if (instagram) {
+    linhas.push({
+      chave: "instagram",
+      rotulo: "Instagram",
+      valor: instagram.startsWith("@") ? instagram : `@${instagram}`,
+      slot: "instagram",
+      href: `https://instagram.com/${instagram.replace(/^@/, "")}`,
+    });
+  }
+  return linhas;
+}
+
+/**
+ * A REGRA DO VAZIO: com zero linhas nada é renderizado — nem borda, nem
+ * fundo, nem grade de rótulos. Com uma linha, altura natural.
+ */
+function Dados({ linhas, className }: { linhas: LinhaDeDado[]; className: string }) {
+  if (linhas.length === 0) return null;
+  return (
+    <dl className={`${className} m-0 flex flex-col gap-3 font-[family-name:var(--d-corpo)]`}>
+      {linhas.map((linha) => (
+        <div key={linha.chave} className="mm-dado flex flex-col gap-0.5">
+          <dt className="text-[11px] font-semibold uppercase tracking-[2px] text-[var(--d-muted)]">{linha.rotulo}</dt>
+          <dd data-demo-slot={linha.slot} className="m-0 text-base font-medium leading-relaxed text-[var(--d-text)]">
+            {linha.href ? (
+              <a href={linha.href} {...(linha.href.startsWith("http") && { target: "_blank", rel: "noopener noreferrer" })}>
+                {linha.valor}
+              </a>
+            ) : (
+              linha.valor
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 /** `<h2>` de seção que não nasce vazio (mesma regra do `Rotulo`). */
 function Titulo({ texto, slot, className }: { texto?: string; slot: string; className: string }) {
   if (!texto?.trim()) return null;
@@ -135,6 +198,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
   } as CSSProperties;
 
   const m = microcopiaDemo(idioma);
+  const linhasDeDado = escadaDeDados(data, m);
   const s = data.secoes;
   const visiveis = secoesVisiveis(MULTIMARCAS_SECOES, data);
   const centro = (id: string): boolean => s[id]?.alinhamento === "centro";
@@ -361,6 +425,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
         </div>
         <Simulador
           whatsapp={data.whatsapp}
+          telefone={data.telefone}
           ctaLabel={s.simulador?.cta}
           servicos={data.servicos}
           idioma={idioma}
@@ -439,142 +504,133 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
         </section>
       ),
 
-    /* ── Contato (rodapé) ───────────────────────────────────── */
-    contato: () => (
-      <footer id="contato" style={{ background: "var(--d-bg-alt)" }}>
-        <section
-          className={`px-[max(24px,5vw)] pb-[clamp(50px,6vw,80px)] pt-[var(--d-sec-y)] ${
-            centro("contato") ? "text-center" : ""
-          }`}
-        >
-          <div
-            className={`mx-auto grid max-w-[1200px] gap-10 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))] ${
-              centro("contato") ? "justify-items-center" : ""
+    /* ── Contato (rodapé) ───────────────────────────────────────
+       A regra do vazio (§7): a grade de duas colunas só existe se há o
+       que pôr nela — a escada de identidade de um lado, rota e WhatsApp
+       do outro. Zero dado é o caso NORMAL (harness, avulsa, lead recém-
+       criado): aí o rodapé é título + um link para o estoque. */
+    contato: () => {
+      const temAcoes = Boolean(data.endereco || (s.contato?.cta?.trim() && linkWaMain));
+      const temGrade = linhasDeDado.length > 0 || temAcoes;
+      const rota = data.endereco ? encodeURIComponent(`${data.endereco} ${data.cidade ?? ""}`.trim()) : "";
+      return (
+        <footer id="contato" style={{ background: "var(--d-bg-alt)" }}>
+          <section
+            className={`px-[max(24px,5vw)] pb-[clamp(50px,6vw,80px)] pt-[var(--d-sec-y)] ${
+              centro("contato") ? "text-center" : ""
             }`}
           >
-            <div>
-              <Rotulo texto={s.contato?.rotulo} slot="secoes.contato.rotulo" />
-              <Titulo
-                texto={s.contato?.titulo}
-                slot="secoes.contato.titulo"
-                className="mb-6 font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,58px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-              />
-              {(data.endereco || data.cidade) && (
-                <p
-                  data-demo-slot={data.endereco ? "endereco" : "cidade"}
-                  className="font-[family-name:var(--d-corpo)] text-base font-medium leading-relaxed text-[var(--d-text)]/80"
-                >
-                  {data.endereco}
-                  {data.endereco && data.cidade && <br />}
-                  {data.cidade}
-                </p>
-              )}
-              {data.horarios && (
-                <p
-                  data-demo-slot="horarios"
-                  className="mt-3 font-[family-name:var(--d-corpo)] text-sm font-medium text-[var(--d-muted)]"
-                >
-                  {data.horarios}
-                </p>
-              )}
-              {data.telefone && data.telefone !== data.whatsapp && (
-                <p
-                  data-demo-slot="telefone"
-                  className="mt-3 font-[family-name:var(--d-corpo)] text-sm font-medium text-[var(--d-muted)]"
-                >
-                  {data.telefone}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-3">
-              {data.endereco && (
-                <a
-                  href={`https://waze.com/ul?q=${encodeURIComponent(`${data.endereco} ${data.cidade ?? ""}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="d-press flex items-center justify-between rounded-lg border px-6 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)] transition-colors"
-                  style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)" }}
-                >
-                  <span>Abrir no Waze</span>
-                  <span style={{ color: "var(--d-accent)" }}>→</span>
-                </a>
-              )}
-              {data.endereco && (
-                <a
-                  href={`https://maps.google.com/?q=${encodeURIComponent(`${data.endereco} ${data.cidade ?? ""}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="d-press flex items-center justify-between rounded-lg border px-6 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)] transition-colors"
-                  style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)" }}
-                >
-                  <span>Abrir no Google Maps</span>
-                  <span style={{ color: "var(--d-accent)" }}>→</span>
-                </a>
-              )}
-              {s.contato?.cta && linkWaMain && (
-                <a
-                  href={linkWaMain}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-demo-slot="secoes.contato.cta"
-                  className="d-press flex items-center justify-between rounded-lg px-6 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold"
-                  style={{ background: "var(--d-accent)", color: "var(--d-accent-ink)" }}
-                >
-                  <span>{s.contato.cta}</span>
-                  <span>→</span>
-                </a>
+            <div
+              className={`mx-auto max-w-[1200px] ${
+                temGrade ? "grid gap-10 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]" : ""
+              } ${centro("contato") ? "justify-items-center" : ""}`}
+            >
+              <div>
+                <Rotulo texto={s.contato?.rotulo} slot="secoes.contato.rotulo" />
+                <Titulo
+                  texto={s.contato?.titulo}
+                  slot="secoes.contato.titulo"
+                  className="mb-6 font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,58px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
+                />
+                <Dados linhas={linhasDeDado} className="mm-dados" />
+                {!temGrade && s.hero?.cta?.trim() && visiveis.includes("estoque") && (
+                  <a
+                    href="#estoque"
+                    data-demo-slot="secoes.hero.cta"
+                    className="d-press d-cta-gradiente inline-flex items-center justify-center rounded-full px-[30px] py-4 font-[family-name:var(--d-corpo)] text-sm font-bold tracking-[1.5px]"
+                  >
+                    {s.hero.cta.toUpperCase()}
+                  </a>
+                )}
+              </div>
+              {temAcoes && (
+                <div className="flex flex-col gap-3">
+                  {data.endereco && (
+                    <a
+                      href={`https://waze.com/ul?q=${rota}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="d-press flex items-center justify-between rounded-lg border px-6 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)] transition-colors"
+                      style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)" }}
+                    >
+                      <span>Abrir no Waze</span>
+                      <span style={{ color: "var(--d-accent)" }}>→</span>
+                    </a>
+                  )}
+                  {data.endereco && (
+                    <a
+                      href={`https://maps.google.com/?q=${rota}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="d-press flex items-center justify-between rounded-lg border px-6 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)] transition-colors"
+                      style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)" }}
+                    >
+                      <span>Abrir no Google Maps</span>
+                      <span style={{ color: "var(--d-accent)" }}>→</span>
+                    </a>
+                  )}
+                  {s.contato?.cta?.trim() && linkWaMain && (
+                    <a
+                      href={linkWaMain}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-demo-slot="secoes.contato.cta"
+                      className="d-press flex items-center justify-between rounded-lg px-6 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold"
+                      style={{ background: "var(--d-accent)", color: "var(--d-accent-ink)" }}
+                    >
+                      <span>{s.contato.cta}</span>
+                      <span>→</span>
+                    </a>
+                  )}
+                </div>
               )}
             </div>
-          </div>
 
-          <div className="mx-auto mt-[clamp(60px,8vw,100px)] flex max-w-[1200px] flex-wrap items-center justify-between gap-6 border-t pt-[34px]" style={{ borderColor: "var(--d-border)" }}>
-            <FooterEgg nome={data.nome} accent={paleta.destaque} />
-            <div className="flex flex-wrap gap-6">
-              {navLinks.map((l) => (
+            <div
+              className="mx-auto mt-[clamp(60px,8vw,100px)] flex max-w-[1200px] flex-wrap items-center justify-between gap-6 border-t pt-[34px]"
+              style={{ borderColor: "var(--d-border)" }}
+            >
+              <FooterEgg nome={data.nome} accent={paleta.destaque} />
+              <div className="flex flex-wrap gap-6">
+                {navLinks.map((l) => (
+                  <a
+                    key={l.id}
+                    href={`#${l.id}`}
+                    className="font-[family-name:var(--d-corpo)] text-xs font-semibold tracking-[1.5px] text-[var(--d-muted)]"
+                  >
+                    {l.rotulo.toUpperCase()}
+                  </a>
+                ))}
+              </div>
+              {/* Rede social só com o dado do lead. Facebook e YouTube saíram:
+                  não existe campo para eles em DemoData, e os dois apontavam
+                  sempre para #topo — ícone que parece link e não leva a nada. */}
+              {data.instagram?.trim() && (
                 <a
-                  key={l.id}
-                  href={`#${l.id}`}
-                  className="font-[family-name:var(--d-corpo)] text-xs font-semibold tracking-[1.5px] text-[var(--d-muted)]"
-                >
-                  {l.rotulo.toUpperCase()}
-                </a>
-              ))}
-            </div>
-            <div className="flex gap-3.5">
-              {[
-                {
-                  label: "Instagram",
-                  href: data.instagram ? `https://instagram.com/${data.instagram.replace(/^@/, "")}` : "#topo",
-                  path: "M3 3h18v18H3V3Zm9 4.8a4.2 4.2 0 1 0 0 8.4 4.2 4.2 0 0 0 0-8.4Zm5.4-.6a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z",
-                },
-                { label: "Facebook", href: "#topo", path: "M15 3h-3a4 4 0 0 0-4 4v3H5v4h3v7h4v-7h3l1-4h-4V7a1 1 0 0 1 1-1h2Z" },
-                { label: "YouTube", href: "#topo", path: "M2.5 6h19v12h-19Zm7.5 3.5v5l4.5-2.5Z" },
-              ].map((rede) => (
-                <a
-                  key={rede.label}
-                  href={rede.href}
-                  target={rede.href.startsWith("http") ? "_blank" : undefined}
-                  rel={rede.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                  aria-label={rede.label}
+                  href={`https://instagram.com/${data.instagram.trim().replace(/^@/, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram"
+                  data-demo-slot="instagram"
                   className="d-press flex h-[42px] w-[42px] items-center justify-center rounded-full border transition-colors"
                   style={{ borderColor: "var(--d-border)" }}
                 >
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d={rede.path} fill={rede.label === "YouTube" ? "currentColor" : "none"} stroke={rede.label === "YouTube" ? "none" : "currentColor"} />
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M3 3h18v18H3V3Zm9 4.8a4.2 4.2 0 1 0 0 8.4 4.2 4.2 0 0 0 0-8.4Zm5.4-.6a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z" />
                   </svg>
                 </a>
-              ))}
+              )}
+              <p className="w-full font-[family-name:var(--d-corpo)] text-xs text-[var(--d-muted)]">
+                © {new Date().getFullYear()} {data.nome}.{" "}
+                <span data-demo-slot="secoes.contato.texto">
+                  {s.contato?.texto?.trim() || "Conteúdo ilustrativo."}
+                </span>
+              </p>
             </div>
-            <p className="w-full font-[family-name:var(--d-corpo)] text-xs text-[var(--d-muted)]">
-              © {new Date().getFullYear()} {data.nome}.{" "}
-              <span data-demo-slot="secoes.contato.texto">
-                {s.contato?.texto?.trim() || "Conteúdo ilustrativo."}
-              </span>
-            </p>
-          </div>
-        </section>
-      </footer>
-    ),
+          </section>
+        </footer>
+      );
+    },
   };
 
   return (
