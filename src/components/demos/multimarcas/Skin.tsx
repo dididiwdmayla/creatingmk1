@@ -157,6 +157,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
           <CarFilterGrid
             servicos={data.servicos}
             imagens={data.imagens}
+            imagensAlt={data.imagensAlt}
             ctaDetalhes={s.estoque?.ctaSecundaria}
             ctaInteresse={s.estoque?.cta}
             textoGarantia={s.estoque?.texto}

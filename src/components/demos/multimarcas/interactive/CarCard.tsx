@@ -19,6 +19,7 @@ export function CarCard({
   servico,
   index,
   imagem,
+  alt,
   ctaDetalhes,
   ctaInteresse,
   textoGarantia,
@@ -29,6 +30,8 @@ export function CarCard({
   servico: DemoServico;
   index: number;
   imagem: string;
+  /** Texto alternativo do slot (ver DemoData.imagensAlt); ausente = decorativo. */
+  alt?: string;
   ctaDetalhes?: string;
   ctaInteresse?: string;
   textoGarantia?: string;
@@ -57,7 +60,7 @@ export function CarCard({
       <div className="group/img relative aspect-[16/10] overflow-hidden border-b" style={{ borderColor: "var(--d-border)" }}>
         <Image
           src={imagem}
-          alt={servico.nome}
+          alt={alt ?? ""}
           fill
           unoptimized
           data-demo-slot={`imagens.carro-${index + 1}`}

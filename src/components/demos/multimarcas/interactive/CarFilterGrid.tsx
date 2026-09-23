@@ -17,6 +17,7 @@ import { categoriasDoEstoque, TODAS_CATEGORIAS } from "./logic";
 export function CarFilterGrid({
   servicos,
   imagens,
+  imagensAlt,
   ctaDetalhes,
   ctaInteresse,
   textoGarantia,
@@ -26,6 +27,8 @@ export function CarFilterGrid({
 }: {
   servicos: DemoServico[];
   imagens: Record<string, string>;
+  /** Texto alternativo por slot (ver DemoData.imagensAlt). */
+  imagensAlt?: Record<string, string>;
   ctaDetalhes?: string;
   ctaInteresse?: string;
   textoGarantia?: string;
@@ -101,6 +104,7 @@ export function CarFilterGrid({
                 servico={servico}
                 index={index}
                 imagem={imagens[`carro-${index + 1}`] ?? Object.values(imagens)[0]}
+                alt={imagensAlt?.[`carro-${index + 1}`]}
                 ctaDetalhes={ctaDetalhes}
                 ctaInteresse={ctaInteresse}
                 textoGarantia={textoGarantia}

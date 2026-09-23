@@ -213,6 +213,24 @@ export const MULTIMARCAS_EXEMPLO: DemoData = {
     },
   },
   ordemSecoes: ["estoque", "vantagens", "numeros", "destaque", "simulador", "avaliacao", "depoimentos", "contato"],
+  // Um alt por slot de imagem (opt-in por skin — ver DemoData.imagensAlt e
+  // o precedente da tatuagem-editorial). Antes disso o alt do estoque era
+  // DERIVADO da copy (`alt={servico.nome}`, cravado em CarCard.tsx): aqui
+  // ele é conteúdo, como qualquer outro, e sobrevive a uma renomeação do
+  // carro no editor sem virar um alt errado.
+  imagensAlt: {
+    hero: "Showroom da Vórtice Motors",
+    destaque: "Toyota Hilux SRX 2021, o veículo em destaque",
+    "carro-1": "Hyundai HB20 Platinum",
+    "carro-2": "VW Polo GTS",
+    "carro-3": "Honda Civic Touring",
+    "carro-4": "Toyota Corolla Altis Hybrid",
+    "carro-5": "Jeep Compass Limited",
+    "carro-6": "VW T-Cross Highline",
+    "carro-7": "Toyota Hilux SRX",
+    "carro-8": "Ford Ranger Limited",
+    "carro-9": "BMW M240i Coupé",
+  },
   imagens: {
     hero: "/demos/multimarcas/hero.svg",
     destaque: "/demos/multimarcas/destaque.svg",
