@@ -1,9 +1,38 @@
 # Plano — `multimarcas-vortice`: de quatro presets para quatro variantes
 
-Aprovado em 2026-09-23. Nenhum item foi executado ainda. As etapas rodam
-em sessões separadas; este documento é a fonte única entre elas. **O
-contrato de seções CRESCE nesta migração** (§5), e cresce na etapa 1 —
-depois que ela fechar, não cresce mais.
+Aprovado em 2026-09-23. As etapas rodam em sessões separadas; este
+documento é a fonte única entre elas. **O contrato de seções CRESCE nesta
+migração** (§5), e cresce na etapa 1 — depois que ela fechar, não cresce
+mais.
+
+**Etapa 1 — concluída em 2026-09-23** (itens 1–6, §9). Decisões tomadas na
+execução, não previstas em detalhe pelo texto original do plano:
+
+- **Item 5 ficou mínimo de propósito.** `multimarcas/variantes.ts` já
+  declara as quatro variantes (`vortice`/`patio`/`garagem`/`campo`) via
+  `criarVariante`, com o preset de paleta/tipografia herdado dos presets
+  antigos (só renomeado), o arranjo default de seções (§6 "Ordem default")
+  e `imagensOcultas` do hero em vortice/patio (§8) — mas as QUATRO
+  compartilham a MESMA camada de exemplo (`MULTIMARCAS_EXEMPLO`, sem cópia
+  própria por variante) e nenhuma tem `theme.multimarcas` (o tipo existe
+  desde o item 3, mas nenhum valor foi atribuído ainda). Composição visual
+  (`MultimarcasComposicao` por variante, o CSS de servidor) e cópia própria
+  são o item 19/20/21, na etapa 3 — o item 19 deve ATUALIZAR este arquivo,
+  não recriá-lo.
+- **A seção `destaque` já renderiza**, em `Skin.tsx` — desenho único (foto
+  + ficha + CTA), sem os knobs de composição por variante. Foi necessário
+  para fechar o item 5: a trava `__tests__/variantes.test.tsx` compara o
+  HTML DO SERVIDOR das quatro variantes e exige o MESMO conjunto de
+  `data-d-secao` — uma seção nova sem render algum já bastaria para o
+  marcador aparecer (o wrapper `<div data-d-secao>` do laço de seções não
+  depende de conteúdo), mas deixá-la vazia pareceria defeito. A etapa 3
+  (item 17) deve SUBSTITUIR este desenho único pelos quatro knobs, não
+  empilhar por cima.
+- **`imagens.hero` não é lido por nenhum componente ainda** (`Hero.tsx`
+  continua só texto + velocímetro). É dado do contrato (slot existe,
+  `imagensOcultas` declarado em vortice/patio), mas a foto de Garagem/Campo
+  só aparece quando a etapa 3 (item 17/18) desenhar a abertura `sangrada`/
+  `dividida`.
 
 **Decisões da aprovação:**
 - Crescer o contrato: seção `destaque` e slots `imagens.hero` e
