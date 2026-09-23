@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useEffect, useRef } from "react";
+import Image from "next/image";
+import { Fragment, useEffect, useRef, type ReactNode } from "react";
 
 import { microcopiaDemo } from "@/lib/demos/microcopy";
-import type { Alinhamento, DemoSecao } from "@/lib/demos/types";
+import type { Alinhamento, DemoSecao, MultimarcasComposicao } from "@/lib/demos/types";
 import { useIntroDone } from "./introContext";
 import { linhaDeApoio, linhasDoNome } from "./logic";
 
@@ -25,6 +26,11 @@ export function Hero({
   alinhamento,
   waHref,
   idioma,
+  abertura = "tipografica",
+  foto,
+  faixas = [],
+  identidade,
+  ctaTroca,
 }: {
   nome: string;
   hero: DemoSecao | undefined;
@@ -32,6 +38,20 @@ export function Hero({
   /** Link do wa.me — ausente quando não há WhatsApp; o CTA some junto. */
   waHref?: string;
   idioma?: string;
+  /** O desenho da abertura (knob `abertura` da composição, §6). */
+  abertura?: MultimarcasComposicao["abertura"];
+  /**
+   * A foto de abertura (`imagens.hero`). Só a abertura sangrada e a
+   * dividida a desenham; a tipográfica e a busca declaram o slot em
+   * `imagensOcultas` e ele nem chega ao HTML (§8).
+   */
+  foto?: { src: string; alt: string };
+  /** Busca: as faixas de preço do estoque, como links `#faixa-N`. */
+  faixas?: readonly { id: string; rotulo: string }[];
+  /** Busca: a barra de identidade (a escada da §7, já renderizada). */
+  identidade?: ReactNode;
+  /** Dividida: o CTA de troca, que é o assunto da loja de picape. */
+  ctaTroca?: { rotulo: string; href: string };
 }) {
   const m = microcopiaDemo(idioma);
   const revelado = useIntroDone();
@@ -62,10 +82,28 @@ export function Hero({
   // continua sendo o mesmo slot, e vira a linha de apoio logo abaixo — uma
   // demo já salva com título não perde o texto, só o papel dele muda.
   const [linha1, linha2] = linhasDoNome(nome);
+  const desenhaFoto = foto && (abertura === "sangrada" || abertura === "dividida");
   const apoio = linhaDeApoio(hero?.titulo, nome);
 
   return (
     <header id="topo" className="mm-hero">
+      {desenhaFoto && (
+        <div className="mm-hero-foto">
+          <Image
+            src={foto.src}
+            alt={foto.alt}
+            fill
+            unoptimized
+            priority
+            data-demo-slot="imagens.hero"
+            className="object-cover"
+            sizes={abertura === "sangrada" ? "100vw" : "(min-width: 768px) 50vw, 100vw"}
+          />
+          {/* O véu é o que deixa o nome ler sobre a foto — tokenizado
+              (--mm-veu, na folha) e medido como texto sobre fundo. */}
+          {abertura === "sangrada" && <div className="mm-hero-veu" aria-hidden="true" />}
+        </div>
+      )}
       <div ref={linhaRef} className="mm-hero-diagonal" aria-hidden="true">
         <div
           className="absolute left-[-12%] top-[34%] h-[7px] w-[126%] rotate-[-7deg]"
@@ -170,15 +208,38 @@ export function Hero({
           </p>
         )}
 
+        {abertura === "busca" && faixas.length > 0 && (
+          <nav className="mm-hero-faixas" aria-label={m.faixaDePreco}>
+            {faixas.map((f) => (
+              <a
+                key={f.id}
+                href={`#${f.id}`}
+                className="mm-faixa d-press rounded-lg border font-[family-name:var(--d-corpo)] text-[15px] font-bold text-[var(--d-text)]"
+              >
+                {f.rotulo}
+              </a>
+            ))}
+          </nav>
+        )}
+
         <div
-          className="flex flex-wrap gap-3.5"
+          className="mm-hero-ctas flex flex-wrap gap-3.5"
           style={{ transition: "opacity 800ms ease 640ms", opacity: revelado ? 1 : 0 }}
         >
+          {ctaTroca && (
+            <a
+              href={ctaTroca.href}
+              data-demo-slot="secoes.avaliacao.cta"
+              className="d-press d-cta-gradiente inline-flex items-center justify-center rounded-full px-[34px] py-[18px] font-[family-name:var(--d-corpo)] text-sm font-bold tracking-[1.5px]"
+            >
+              {ctaTroca.rotulo.toUpperCase()}
+            </a>
+          )}
           {hero?.cta?.trim() && (
             <a
               href="#estoque"
               data-demo-slot="secoes.hero.cta"
-              className="d-press d-cta-gradiente inline-flex items-center justify-center rounded-full px-[34px] py-[18px] font-[family-name:var(--d-corpo)] text-sm font-bold tracking-[1.5px]"
+              className="mm-hero-cta d-press d-cta-gradiente inline-flex items-center justify-center rounded-full px-[34px] py-[18px] font-[family-name:var(--d-corpo)] text-sm font-bold tracking-[1.5px]"
             >
               {hero.cta.toUpperCase()}
             </a>
@@ -196,6 +257,8 @@ export function Hero({
             </a>
           )}
         </div>
+
+        {identidade && <div className="mm-hero-identidade">{identidade}</div>}
       </div>
 
       <div

@@ -6,7 +6,14 @@ import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { simboloMoeda } from "@/lib/demos/precos";
 import { IDIOMA_PADRAO } from "@/lib/idioma";
 import type { DemoServico } from "@/lib/demos/types";
-import { EVENTO_SIMULAR, faixaDoSimulador, formatarInteiro, parcelaMensal, waHref } from "./logic";
+import {
+  EVENTO_SIMULAR,
+  faixaDoSimulador,
+  formatarInteiro,
+  parcelaMensal,
+  PREMISSA_FINANCIAMENTO,
+  waHref,
+} from "./logic";
 
 /**
  * Opções fixas do mecanismo do simulador — parte da MECÂNICA do widget, não
@@ -14,8 +21,8 @@ import { EVENTO_SIMULAR, faixaDoSimulador, formatarInteiro, parcelaMensal, waHre
  * (`faixaDoSimulador`), senão o carro mais barato ficava fora do slider.
  */
 const ENTRADA_RATIO_MAX = 0.8;
-const ENTRADA_RATIO_INICIAL = 0.2;
-const TAXA_JUROS_MENSAL = 1.49; // % a.m., taxa de referência exibida junto ao resultado
+const ENTRADA_RATIO_INICIAL = PREMISSA_FINANCIAMENTO.entrada;
+const TAXA_JUROS_MENSAL = PREMISSA_FINANCIAMENTO.taxa; // % a.m., exibida junto ao resultado
 const PARCELAS_OPCOES = [24, 36, 48, 60];
 
 const DIGITOS = "0123456789".split("");
@@ -61,7 +68,7 @@ export function Simulador({
   const entradaDe = (v: number) => Math.round((v * ENTRADA_RATIO_INICIAL) / passoEntrada) * passoEntrada;
   const [valor, setValor] = useState(faixa.inicial);
   const [entrada, setEntrada] = useState(() => entradaDe(faixa.inicial));
-  const [parcelas, setParcelas] = useState(48);
+  const [parcelas, setParcelas] = useState<number>(PREMISSA_FINANCIAMENTO.parcelas);
 
   const m = microcopiaDemo(idioma);
   const fmt = (n: number) => formatarInteiro(n, idioma);
@@ -104,7 +111,7 @@ export function Simulador({
     <div className="mm-sim">
       <div
         className="mm-sim-controles border"
-        style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}
+        style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)" }}
       >
         <div>
           <div className="mb-1.5 flex items-baseline justify-between">
@@ -188,7 +195,6 @@ export function Simulador({
         style={{
           background: "linear-gradient(160deg, var(--d-bg-alt), var(--d-bg-elev) 60%)",
           borderColor: "color-mix(in srgb, var(--d-accent) 30%, transparent)",
-          borderRadius: "var(--d-radius)",
         }}
       >
         <p className="font-[family-name:var(--d-corpo)] text-[11px] font-semibold tracking-[2px] text-[var(--d-muted)]">

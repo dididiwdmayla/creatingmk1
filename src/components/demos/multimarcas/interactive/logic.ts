@@ -354,3 +354,11 @@ export function corDoAutor(autor: string, cores: readonly CorDeAvatar[]): CorDeA
   for (let i = 0; i < autor.length; i++) h = (h * 31 + autor.charCodeAt(i)) | 0;
   return cores[Math.abs(h) % cores.length];
 }
+
+/**
+ * A premissa de financiamento da skin: taxa de referência (% a.m.),
+ * entrada e prazo com que o simulador ABRE — e a mesma com que a lista do
+ * Pátio mostra a parcela de cada carro, para o número da lista ser o que a
+ * pessoa reencontra ao clicar em "simular este carro".
+ */
+export const PREMISSA_FINANCIAMENTO = { taxa: 1.49, entrada: 0.2, parcelas: 48 } as const;

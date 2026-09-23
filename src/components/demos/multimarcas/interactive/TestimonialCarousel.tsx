@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Animacao, DemoDepoimento } from "@/lib/demos/types";
+import type { MultimarcasComposicao } from "@/lib/demos/types";
 import { corDoAutor, type CorDeAvatar } from "./logic";
 
 function iniciais(autor: string): string {
@@ -22,12 +23,20 @@ export function TestimonialCarousel({
   depoimentos,
   animacao,
   coresAvatar,
+  desenho = "carrossel",
 }: {
   depoimentos: DemoDepoimento[];
   animacao: Animacao;
   /** Fundo+tinta dos avatares, derivados da paleta (ver `coresDoAvatar`). */
   coresAvatar: readonly CorDeAvatar[];
+  /**
+   * O desenho (knob `depoimentos`). Só o carrossel e a citação correm — um
+   * de cada vez, arrastável, com autoplay; empilhado e tira são listas
+   * paradas, e nelas o trilho não recebe transform nenhum.
+   */
+  desenho?: MultimarcasComposicao["depoimentos"];
 }) {
+  const corre = desenho === "carrossel" || desenho === "citacao";
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
@@ -37,7 +46,7 @@ export function TestimonialCarousel({
   const n = depoimentos.length;
   const reduzida =
     typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const autoplayOk = !reduzida && animacao !== "nenhuma";
+  const autoplayOk = corre && !reduzida && animacao !== "nenhuma";
 
   const irPara = (i: number, animar = true) => {
     const track = trackRef.current;
@@ -70,19 +79,22 @@ export function TestimonialCarousel({
 
   return (
     <div className="mm-dep">
-      <div
-        className="mm-dep-progresso mb-3 h-[3px] w-[min(220px,40vw)] overflow-hidden rounded-full"
-        style={{ background: "var(--d-border)" }}
-      >
+      {corre && (
         <div
-          className="h-full origin-left transition-transform duration-500"
-          style={{ background: "var(--d-accent)", transform: `scaleX(${(idx + 1) / n})` }}
-        />
-      </div>
+          className="mm-dep-progresso mb-3 h-[3px] w-[min(220px,40vw)] overflow-hidden rounded-full"
+          style={{ background: "var(--d-border)" }}
+        >
+          <div
+            className="h-full origin-left transition-transform duration-500"
+            style={{ background: "var(--d-accent)", transform: `scaleX(${(idx + 1) / n})` }}
+          />
+        </div>
+      )}
       <div
         ref={viewportRef}
-        className="mm-dep-janela cursor-grab [touch-action:pan-y] select-none"
+        className={`mm-dep-janela ${corre ? "cursor-grab select-none [touch-action:pan-y]" : ""}`}
         onPointerDown={(e) => {
+          if (!corre) return;
           arrastoRef.current = { x0: e.clientX, dx: 0 };
           if (trackRef.current) trackRef.current.style.transition = "none";
           (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -105,11 +117,7 @@ export function TestimonialCarousel({
       >
         <div ref={trackRef} className="mm-dep-trilho will-change-transform">
           {depoimentos.map((d, i) => (
-            <figure
-              key={i}
-              className="mm-dep-item border"
-              style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}
-            >
+            <figure key={i} className="mm-dep-item">
               <p className="mm-dep-texto font-[family-name:var(--d-corpo)] text-[var(--d-text)]/80">
                 &ldquo;{d.texto}&rdquo;
               </p>
@@ -123,7 +131,7 @@ export function TestimonialCarousel({
                 >
                   {iniciais(d.autor)}
                 </span>
-                <span>
+                <span className="mm-dep-quem">
                   <span className="block font-[family-name:var(--d-corpo)] text-sm font-bold text-[var(--d-text)]">
                     {d.autor}
                   </span>

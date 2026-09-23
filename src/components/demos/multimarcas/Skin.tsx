@@ -5,7 +5,7 @@ import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { HEX_RE, luminancia } from "@/lib/demos/contraste";
 import type { DemoMicrocopia } from "@/lib/demos/microcopy";
-import type { Animacao, DemoData, Densidade, SkinProps } from "@/lib/demos/types";
+import type { Animacao, DemoData, Densidade, MultimarcasComposicao, SkinProps } from "@/lib/demos/types";
 import { CarFilterGrid } from "./interactive/CarFilterGrid";
 import { FooterEgg } from "./interactive/FooterEgg";
 import { Hero } from "./interactive/Hero";
@@ -18,7 +18,8 @@ import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
 import { Simulador } from "./interactive/Simulador";
 import { StatCounter } from "./interactive/StatCounter";
 import { TestimonialCarousel } from "./interactive/TestimonialCarousel";
-import { coresDoAvatar, waHref } from "./interactive/logic";
+import { FormTroca } from "./interactive/FormTroca";
+import { coresDoAvatar, faixasDePreco, rotuloFaixa, waHref } from "./interactive/logic";
 import { WhatsAppFloat } from "./interactive/WhatsAppFloat";
 import { atributosDaComposicao, MULTIMARCAS_COMPOSICAO_CSS, MULTIMARCAS_COMPOSICAO_PADRAO } from "./composicao";
 import { MULTIMARCAS_SECOES } from "./secoes";
@@ -43,6 +44,15 @@ import { MULTIMARCAS_SECOES } from "./secoes";
  * "numeros" fica fora da nav (é um bloco de apoio de "vantagens", não um
  * destino de navegação por si).
  */
+
+/** Como o estoque se deixa recortar, por desenho (§3/§6 do plano). */
+const FILTRO_DO_ESTOQUE: Record<MultimarcasComposicao["estoque"], "categoria" | "faixa" | "nenhum"> = {
+  grade: "categoria",
+  lista: "faixa",
+  // A vitrine é de poucos carros, cada um um evento: não se recorta.
+  vitrine: "nenhum",
+  tabela: "categoria",
+};
 
 const SECTION_PAD: Record<Densidade, string> = {
   compacta: "3.5rem",
@@ -215,6 +225,9 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
   const comp = theme.multimarcas ?? MULTIMARCAS_COMPOSICAO_PADRAO;
   const m = microcopiaDemo(idioma);
   const linhasDeDado = escadaDeDados(data, m);
+  // A escada aparece UMA vez por página: na busca (Pátio) ela sobe para a
+  // abertura, e o contato não a repete.
+  const dadosNoContato = comp.abertura === "busca" ? [] : linhasDeDado;
   const s = data.secoes;
   const visiveis = secoesVisiveis(MULTIMARCAS_SECOES, data);
   const centro = (id: string): boolean => s[id]?.alinhamento === "centro";
@@ -241,6 +254,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
     m.interesseNoDestaque(s.destaque?.titulo?.trim() || m.veiculoEmDestaque, data.nome),
   );
 
+  const marcas = (s.avaliacao?.itens ?? []).map((i) => i.titulo).filter((t) => t?.trim());
   const titulo2 =
     "font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]";
 
@@ -264,6 +278,8 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             idioma={idioma}
             moeda={moeda}
             simulavel={visiveis.includes("simulador")}
+            desenho={comp.estoque}
+            modoFiltro={FILTRO_DO_ESTOQUE[comp.estoque]}
           />
         </section>
       ),
@@ -284,15 +300,8 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             <div className="mm-vant-lista">
               {s.vantagens?.itens?.map((item, i) => (
                 <SectionReveal key={item.titulo} animacao={theme.animacao} tipo="padrao" delay={i * 0.09}>
-                  <div
-                    className="mm-vant-item border"
-                    style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}
-                  >
-                    <span
-                      className="mm-vant-num rounded-full border-[2.5px] font-[family-name:var(--d-mono)] font-semibold"
-                      style={{ borderColor: "var(--d-accent)", background: "var(--d-bg)", color: "var(--d-text)" }}
-                      aria-hidden="true"
-                    >
+                  <div className="mm-vant-item">
+                    <span className="mm-vant-num font-[family-name:var(--d-mono)] font-semibold" aria-hidden="true">
                       {i + 1}
                     </span>
                     <div className="mm-vant-textos">
@@ -454,7 +463,6 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
       <section
         id="avaliacao"
         className={`mm-avaliacao ${centro("avaliacao") ? "text-center" : ""}`}
-        style={{ background: "var(--d-accent)", color: "var(--d-accent-ink)" }}
       >
         <div className={`mm-caixa mm-aval-caixa ${centro("avaliacao") ? "justify-center text-center" : ""}`}>
           <div className="mm-aval-texto">
@@ -480,7 +488,13 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
               </p>
             )}
           </div>
-          {s.avaliacao?.cta?.trim() && linkWaAvaliacao && (
+          {comp.avaliacao === "formulario" ? (
+            <div className="mm-aval-form">
+              <FormTroca whatsapp={data.whatsapp} cta={s.avaliacao?.cta} marcas={marcas} idioma={idioma} />
+            </div>
+          ) : (
+            s.avaliacao?.cta?.trim() &&
+            linkWaAvaliacao && (
             <a
               href={linkWaAvaliacao}
               target="_blank"
@@ -491,9 +505,23 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             >
               {s.avaliacao.cta.toUpperCase()}
             </a>
+            )
           )}
         </div>
-        <Marquee marcas={(s.avaliacao?.itens ?? []).map((i) => i.titulo)} />
+        {/* As marcas correm só na faixa e na linha; na tarja e no
+            formulário ficam paradas, numa lista — nenhuma composição
+            esconde o texto delas. */}
+        {comp.avaliacao === "faixa" || comp.avaliacao === "linha" ? (
+          <Marquee marcas={marcas} />
+        ) : (
+          marcas.length > 0 && (
+            <ul className="mm-caixa mm-marcas font-[family-name:var(--d-mono)] font-semibold tracking-[2px]">
+              {marcas.map((marca, i) => (
+                <li key={`${marca}-${i}`}>{marca.toUpperCase()}</li>
+              ))}
+            </ul>
+          )
+        )}
       </section>
     ),
 
@@ -510,6 +538,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
               depoimentos={data.depoimentos}
               animacao={theme.animacao}
               coresAvatar={coresDoAvatar(paleta)}
+              desenho={comp.depoimentos}
             />
           </div>
         </section>
@@ -522,7 +551,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
        criado): aí o rodapé é título + um link para o estoque. */
     contato: () => {
       const temAcoes = Boolean(data.endereco || (s.contato?.cta?.trim() && linkWaMain));
-      const temGrade = linhasDeDado.length > 0 || temAcoes;
+      const temGrade = dadosNoContato.length > 0 || temAcoes;
       const rota = data.endereco ? encodeURIComponent(`${data.endereco} ${data.cidade ?? ""}`.trim()) : "";
       return (
         <footer id="contato" className="mm-contato" style={{ background: "var(--d-bg-alt)" }}>
@@ -539,7 +568,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                   slot="secoes.contato.titulo"
                   className="mm-contato-titulo mb-6 font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,58px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
                 />
-                <Dados linhas={linhasDeDado} className="mm-dados" />
+                <Dados linhas={dadosNoContato} className="mm-dados" />
                 {!temGrade && s.hero?.cta?.trim() && visiveis.includes("estoque") && (
                   <a
                     href="#estoque"
@@ -724,6 +753,23 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             alinhamento={theme.heroTitulo.alinhamento}
             waHref={linkWaMain}
             idioma={idioma}
+            abertura={comp.abertura}
+            foto={data.imagens.hero ? { src: data.imagens.hero, alt: data.imagensAlt?.hero ?? "" } : undefined}
+            faixas={
+              visiveis.includes("estoque")
+                ? faixasDePreco(data.servicos).map((f) => ({ id: f.id, rotulo: rotuloFaixa(f, m, idioma, moeda) }))
+                : []
+            }
+            identidade={
+              comp.abertura === "busca" && linhasDeDado.length > 0 ? (
+                <Dados linhas={linhasDeDado} className="mm-dados mm-dados-barra" />
+              ) : undefined
+            }
+            ctaTroca={
+              comp.abertura === "dividida" && visiveis.includes("avaliacao") && s.avaliacao?.cta?.trim()
+                ? { rotulo: s.avaliacao.cta, href: "#avaliacao" }
+                : undefined
+            }
           />
         </div>
 

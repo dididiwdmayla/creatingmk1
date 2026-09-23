@@ -1,4 +1,4 @@
-import type { DemoData, SkinVariante, Theme } from "@/lib/demos/types";
+import type { DemoData, MultimarcasComposicao, SkinVariante, Theme } from "@/lib/demos/types";
 import { criarVariante } from "@/lib/demos/variantes";
 
 import { MULTIMARCAS_EXEMPLO } from "./exemplo";
@@ -34,6 +34,8 @@ interface Declaracao {
   fundo: "claro" | "escuro";
   /** Id do preset ANTIGO em ./themes.ts que esta variante herda (paleta/tipografia). */
   presetId: string;
+  /** Os nove knobs de desenho (§6 do plano) — o que faz a variante ser um TIPO DE LOJA. */
+  composicao: MultimarcasComposicao;
   /** Permutação COMPLETA dos ids de MULTIMARCAS_SECOES, incluindo "hero" (ver VarianteArranjo). */
   ordem: readonly string[];
   imagensOcultas?: Record<string, "nenhum" | "so-titulo">;
@@ -47,6 +49,17 @@ const DECLARACOES: readonly Declaracao[] = [
       "Loja de seminovos de 80–150 mil com laudo e garantia. Quem chega: comprador racional que compara três lojas e decide por procedência. Conversão fiel do material bruto; continua o default.",
     fundo: "claro",
     presetId: "vortice",
+    composicao: {
+      abertura: "tipografica",
+      estoque: "grade",
+      vantagens: "grade",
+      numeros: "linha",
+      destaque: "cartao",
+      simulador: "cartoes",
+      avaliacao: "faixa",
+      depoimentos: "carrossel",
+      contato: "rodape",
+    },
     ordem: ["hero", "estoque", "vantagens", "numeros", "destaque", "simulador", "avaliacao", "depoimentos", "contato"],
     // Abertura tipográfica, fiel ao original — sem foto (§8).
     imagensOcultas: { hero: "nenhum" },
@@ -58,6 +71,17 @@ const DECLARACOES: readonly Declaracao[] = [
       "Pátio de populares e primeiro carro, até 70 mil, faixa na calçada. Quem chega: quem compra pela parcela e não pelo preço, no celular, entre um compromisso e outro.",
     fundo: "claro",
     presetId: "azul-classico",
+    composicao: {
+      abertura: "busca",
+      estoque: "lista",
+      vantagens: "faixa",
+      numeros: "selos",
+      destaque: "tira",
+      simulador: "coluna",
+      avaliacao: "tarja",
+      depoimentos: "empilhado",
+      contato: "tarja",
+    },
     ordem: ["hero", "estoque", "simulador", "avaliacao", "destaque", "numeros", "vantagens", "depoimentos", "contato"],
     // A abertura é a busca por faixa de preço — sem foto (§8).
     imagensOcultas: { hero: "nenhum" },
@@ -69,6 +93,17 @@ const DECLARACOES: readonly Declaracao[] = [
       "Poucos carros, cada um um evento: esportivos, importados, clássicos. Quem chega: entusiasta que lê a ficha técnica inteira antes de mandar a primeira mensagem.",
     fundo: "escuro",
     presetId: "grafite",
+    composicao: {
+      abertura: "sangrada",
+      estoque: "vitrine",
+      vantagens: "editorial",
+      numeros: "coluna",
+      destaque: "catalogo",
+      simulador: "painel",
+      avaliacao: "linha",
+      depoimentos: "citacao",
+      contato: "fecho",
+    },
     ordem: ["hero", "destaque", "estoque", "depoimentos", "vantagens", "numeros", "avaliacao", "simulador", "contato"],
     // Desenha os onze slots (§8) — foto sangrada na abertura.
   },
@@ -79,6 +114,17 @@ const DECLARACOES: readonly Declaracao[] = [
       "Loja de picape, SUV 4×4 e utilitário no interior. Quem chega: produtor ou empresa que troca a caminhonete velha na compra da nova — a troca é o assunto.",
     fundo: "escuro",
     presetId: "meia-noite",
+    composicao: {
+      abertura: "dividida",
+      estoque: "tabela",
+      vantagens: "quadrantes",
+      numeros: "placar",
+      destaque: "ficha",
+      simulador: "lateral",
+      avaliacao: "formulario",
+      depoimentos: "tira",
+      contato: "bloco",
+    },
     ordem: ["hero", "avaliacao", "estoque", "destaque", "numeros", "simulador", "vantagens", "depoimentos", "contato"],
     // Desenha os onze slots (§8) — abertura dividida, com foto.
   },
@@ -86,7 +132,7 @@ const DECLARACOES: readonly Declaracao[] = [
 
 export const MULTIMARCAS_VARIANTES: readonly SkinVariante[] = DECLARACOES.map((d) => {
   const preset = MULTIMARCAS_THEME_PRESETS.find((t) => t.id === d.presetId)!;
-  const theme: Theme = { ...preset, id: d.id, nome: d.nome };
+  const theme: Theme = { ...preset, id: d.id, nome: d.nome, multimarcas: d.composicao };
   const exemplo: DemoData = MULTIMARCAS_EXEMPLO;
   return criarVariante(
     {

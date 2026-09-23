@@ -28,6 +28,7 @@ export function CarCard({
   idioma,
   moeda,
   simulavel = false,
+  parcela,
 }: {
   servico: DemoServico;
   index: number;
@@ -46,6 +47,11 @@ export function CarCard({
    * morto.
    */
   simulavel?: boolean;
+  /**
+   * A parcela já montada ("48× R$ 1.876") e a premissa dela — só na lista
+   * do Pátio, onde quem compra pela parcela lê a parcela primeiro (§6).
+   */
+  parcela?: { valor: string; legenda: string };
 }) {
   const m = microcopiaDemo(idioma);
   const [aberto, setAberto] = useState(false);
@@ -55,12 +61,7 @@ export function CarCard({
   return (
     <article
       data-car
-      className="mm-carro d-card-hover cursor-pointer border"
-      style={{
-        background: "var(--d-bg-elev)",
-        borderColor: "var(--d-border)",
-        borderRadius: "var(--d-radius)",
-      }}
+      className="mm-carro d-card-hover cursor-pointer"
       onClick={() => setAberto((v) => !v)}
     >
       <div className="mm-carro-foto group/img border-b" style={{ borderColor: "var(--d-border)" }}>
@@ -75,7 +76,7 @@ export function CarCard({
         />
         {servico.categoria && (
           <span
-            className="absolute left-3.5 top-3.5 rounded-full border px-3 py-1.5 font-[family-name:var(--d-mono)] text-[11px] font-medium tracking-[2.5px] backdrop-blur-[6px]"
+            className="mm-carro-cat rounded-full border font-[family-name:var(--d-mono)] font-medium backdrop-blur-[6px]"
             style={{
               background: "color-mix(in srgb, var(--d-bg-elev) 85%, transparent)",
               borderColor: "var(--d-border)",
@@ -103,6 +104,17 @@ export function CarCard({
         <h3 className="mm-carro-nome font-[family-name:var(--d-display)] text-xl font-bold uppercase tracking-tight text-[var(--d-text)]">
           {servico.nome}
         </h3>
+        <div className="mm-carro-valores">
+          {parcela && (
+            <p className="mm-carro-parcela m-0">
+              <span className="block font-[family-name:var(--d-mono)] font-semibold tabular-nums text-[var(--d-accent)]">
+                {parcela.valor}
+              </span>
+              <span className="block font-[family-name:var(--d-corpo)] text-[11px] font-semibold tracking-[1px] text-[var(--d-muted)]">
+                {parcela.legenda}
+              </span>
+            </p>
+          )}
         <div className="mm-carro-preco">
           <span className="font-[family-name:var(--d-mono)] text-sm font-medium text-[var(--d-accent)]">
             {simboloMoeda(idioma, moeda)}
@@ -114,8 +126,14 @@ export function CarCard({
                 : servico.preco.replace(/^R\$\s*/, "")
             }
             idioma={idioma}
-            className="font-[family-name:var(--d-mono)] text-[30px] font-semibold leading-none tabular-nums tracking-[0.5px] text-[var(--d-text)]"
+            className="mm-carro-valor font-[family-name:var(--d-mono)] font-semibold leading-none tabular-nums tracking-[0.5px] text-[var(--d-text)]"
           />
+          {parcela && (
+            <span className="font-[family-name:var(--d-corpo)] text-[11px] font-semibold text-[var(--d-muted)]">
+              {m.aVista}
+            </span>
+          )}
+        </div>
         </div>
         {servico.destaques && servico.destaques.length > 0 && (
           <div className="mm-carro-chips">

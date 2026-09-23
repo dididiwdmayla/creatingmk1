@@ -4,10 +4,15 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 
 import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { simboloMoeda } from "@/lib/demos/precos";
 import type { DemoServico } from "@/lib/demos/types";
 import { CarCard } from "./CarCard";
+import type { MultimarcasComposicao } from "@/lib/demos/types";
 import {
   categoriasDoEstoque,
+  formatarInteiro,
+  parcelaMensal,
+  PREMISSA_FINANCIAMENTO as PARCELA_LISTA,
   faixaDoHash,
   faixasDePreco,
   rotuloFaixa,
@@ -40,6 +45,7 @@ export function CarFilterGrid({
   moeda,
   modoFiltro = "categoria",
   simulavel = false,
+  desenho = "grade",
 }: {
   servicos: DemoServico[];
   imagens: Record<string, string>;
@@ -54,6 +60,8 @@ export function CarFilterGrid({
   modoFiltro?: ModoFiltro;
   /** Seção `simulador` visível — liga "simular este carro" nos cards. */
   simulavel?: boolean;
+  /** O desenho do estoque (knob `estoque` da composição). */
+  desenho?: MultimarcasComposicao["estoque"];
 }) {
   const m = microcopiaDemo(idioma);
   const faixas = faixasDePreco(servicos);
@@ -82,6 +90,21 @@ export function CarFilterGrid({
     window.addEventListener("hashchange", lerHash);
     return () => window.removeEventListener("hashchange", lerHash);
   }, [modoFiltro, servicos]);
+
+  // A parcela da lista: a premissa com que o simulador abre
+  // (PREMISSA_FINANCIAMENTO) — o número que a pessoa reencontra ao clicar
+  // em "simular este carro".
+  const simbolo = simboloMoeda(idioma, moeda);
+  const parcelaDe = (valor: number | undefined) =>
+    valor === undefined
+      ? undefined
+      : {
+          valor: m.parcelaEm(
+            PARCELA_LISTA.parcelas,
+            `${simbolo} ${formatarInteiro(parcelaMensal(valor * (1 - PARCELA_LISTA.entrada), PARCELA_LISTA.taxa, PARCELA_LISTA.parcelas), idioma)}`,
+          ),
+          legenda: m.comEntrada(Math.round(PARCELA_LISTA.entrada * 100)),
+        };
 
   const comIndice = servicos.map((servico, index) => ({ servico, index }));
   const faixaAtiva = faixas.find((f) => f.id === filtro);
@@ -171,6 +194,7 @@ export function CarFilterGrid({
                 idioma={idioma}
                 moeda={moeda}
                 simulavel={simulavel}
+                parcela={desenho === "lista" ? parcelaDe(servico.precoValor) : undefined}
               />
             </motion.div>
           ))}

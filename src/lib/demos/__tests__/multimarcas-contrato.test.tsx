@@ -212,7 +212,10 @@ describe.each(alvos)("multimarcas §7 — a regra do vazio: %s", (id) => {
 
   it("com dado: a escada na ordem endereço → horário → telefone → Instagram, rota e ícone", () => {
     const doc = documento(id, cheio);
-    const slots = [...doc.querySelectorAll("#contato .mm-dados dd")].map((dd) => dd.getAttribute("data-demo-slot"));
+    // A escada aparece UMA vez por página — no rodapé, ou na abertura da
+    // busca (Pátio), que a leva para cima.
+    expect(doc.querySelectorAll(".mm-dados")).toHaveLength(1);
+    const slots = [...doc.querySelectorAll(".mm-dados dd")].map((dd) => dd.getAttribute("data-demo-slot"));
     expect(slots).toEqual(["endereco", "horarios", "telefone", "instagram"]);
     const hrefs = [...doc.querySelectorAll("#contato a[href]")].map((a) => a.getAttribute("href")!);
     expect(hrefs.some((h) => h.startsWith("https://waze.com/"))).toBe(true);
@@ -317,5 +320,17 @@ describe.each(alvos)("multimarcas: o exemplo não inventa fato sobre o lead (ite
     expect(texto).not.toMatch(/v[óo]rtice/i);
     const alts = [...doc.querySelectorAll("img[alt]")].map((i) => i.getAttribute("alt")!).join(" ");
     expect(alts).not.toMatch(/v[óo]rtice/i);
+  });
+});
+
+describe.each(alvos)("multimarcas: slots de imagem por composição (§8): %s", (id) => {
+  it("todo slot desenhado está no HTML; o declarado em imagensOcultas, não", () => {
+    const doc = documento(id, montarDemoData(exemploDaSkin(skin, id), lead, undefined, skin.id));
+    const variante = skin.variantes!.find((v) => v.id === id)!;
+    const ocultos = new Set(Object.keys(variante.imagensOcultas ?? {}));
+    for (const slot of Object.keys(skin.demoDataExemplo.imagens)) {
+      const presente = doc.querySelector(`[data-demo-slot="imagens.${slot}"]`) !== null;
+      expect(presente, `${slot} em ${id}`).toBe(!ocultos.has(slot));
+    }
   });
 });

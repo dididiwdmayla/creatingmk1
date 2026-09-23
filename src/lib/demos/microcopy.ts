@@ -134,6 +134,12 @@ export interface DemoMicrocopia {
   veiculoEmDestaque: string;
   /** Legenda do mostrador do velocímetro (conta-giros): `"RPM ×1000"`. */
   rpm: string;
+  /** Parcela em destaque na lista do estoque: `"48× R$ 1.876"` (valor já formatado). */
+  parcelaEm: (parcelas: number, valor: string) => string;
+  /** Rótulo do preço cheio sob a parcela: `"à vista"`. */
+  aVista: string;
+  /** Legenda da parcela da lista: a premissa da conta (`"com 20% de entrada"`). */
+  comEntrada: (pct: number) => string;
 }
 
 const PT: DemoMicrocopia = {
@@ -203,6 +209,9 @@ const PT: DemoMicrocopia = {
   interesseNoDestaque: (carro, nome) => `Olá! Tenho interesse no ${carro} que vi no site da ${nome}.`,
   veiculoEmDestaque: "veículo em destaque",
   rpm: "RPM ×1000",
+  parcelaEm: (n, v) => `${n}× ${v}`,
+  aVista: "à vista",
+  comEntrada: (p) => `com ${p}% de entrada`,
 };
 
 const EN: DemoMicrocopia = {
@@ -272,6 +281,9 @@ const EN: DemoMicrocopia = {
   interesseNoDestaque: (carro, nome) => `Hi! I'm interested in the ${carro} I saw on the ${nome} website.`,
   veiculoEmDestaque: "featured vehicle",
   rpm: "RPM ×1000",
+  parcelaEm: (n, v) => `${n} × ${v}`,
+  aVista: "cash price",
+  comEntrada: (p) => `with ${p}% down`,
 };
 
 const ES: DemoMicrocopia = {
@@ -341,6 +353,9 @@ const ES: DemoMicrocopia = {
   interesseNoDestaque: (carro, nome) => `¡Hola! Me interesa el ${carro} que vi en el sitio de ${nome}.`,
   veiculoEmDestaque: "vehículo destacado",
   rpm: "RPM ×1000",
+  parcelaEm: (n, v) => `${n} × ${v}`,
+  aVista: "al contado",
+  comEntrada: (p) => `con ${p}% de pie`,
 };
 
 const FR: DemoMicrocopia = {
@@ -410,6 +425,9 @@ const FR: DemoMicrocopia = {
   interesseNoDestaque: (carro, nome) => `Bonjour ! Le ${carro} vu sur le site de ${nome} m’intéresse.`,
   veiculoEmDestaque: "véhicule à la une",
   rpm: "TR/MIN ×1000",
+  parcelaEm: (n, v) => `${n} × ${v}`,
+  aVista: "au comptant",
+  comEntrada: (p) => `avec ${p} % d’apport`,
 };
 
 const DE: DemoMicrocopia = {
@@ -479,6 +497,9 @@ const DE: DemoMicrocopia = {
   interesseNoDestaque: (carro, nome) => `Hallo! Ich interessiere mich für den ${carro} von der Website von ${nome}.`,
   veiculoEmDestaque: "Fahrzeug im Highlight",
   rpm: "U/MIN ×1000",
+  parcelaEm: (n, v) => `${n} × ${v}`,
+  aVista: "Barpreis",
+  comEntrada: (p) => `mit ${p} % Anzahlung`,
 };
 
 const IT: DemoMicrocopia = {
@@ -548,6 +569,9 @@ const IT: DemoMicrocopia = {
   interesseNoDestaque: (carro, nome) => `Ciao! Mi interessa la ${carro} vista sul sito di ${nome}.`,
   veiculoEmDestaque: "veicolo in evidenza",
   rpm: "GIRI ×1000",
+  parcelaEm: (n, v) => `${n} × ${v}`,
+  aVista: "in contanti",
+  comEntrada: (p) => `con ${p}% di anticipo`,
 };
 
 const NL: DemoMicrocopia = {
@@ -617,6 +641,9 @@ const NL: DemoMicrocopia = {
   interesseNoDestaque: (carro, nome) => `Hallo! Ik heb interesse in de ${carro} op de website van ${nome}.`,
   veiculoEmDestaque: "uitgelichte auto",
   rpm: "TPM ×1000",
+  parcelaEm: (n, v) => `${n} × ${v}`,
+  aVista: "contant",
+  comEntrada: (p) => `met ${p}% aanbetaling`,
 };
 
 const MICROCOPIA_POR_RAIZ: Record<RaizMicrocopia, DemoMicrocopia> = {
