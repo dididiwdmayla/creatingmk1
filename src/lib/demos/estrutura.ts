@@ -9,16 +9,27 @@ import type { DemoData, SkinSecaoDef } from "./types";
 
 /**
  * Ordem efetiva de TODAS as seções da skin: fixas ficam na posição default;
- * não-fixas seguem `ordem` (ids desconhecidos ignorados; não listadas
- * entram no fim, na ordem default — dado velho nunca some com seção).
+ * não-fixas seguem `ordem` (ids desconhecidos ignorados). Uma seção
+ * reordenável NÃO listada em `ordem` entra antes da primeira seção listada
+ * que a sucede no CONTRATO (a ordem default de `secoes`) — e só no fim se
+ * nenhuma sucede. É o que faz um contrato que CRESCE (uma seção nova entra
+ * no meio do default) não empurrar dado velho de `ordemSecoes` para depois
+ * do rodapé — ver "O custo que não aparece na tabela" em
+ * docs/plano-multimarcas.md §5.
  */
 export function ordemEfetiva(secoes: SkinSecaoDef[], ordem: string[] | undefined): string[] {
   if (!ordem || ordem.length === 0) return secoes.map((secao) => secao.id);
 
   const reordenaveis = secoes.filter((secao) => !secao.fixa).map((secao) => secao.id);
   const pedidas = ordem.filter((id) => reordenaveis.includes(id));
-  const restantes = reordenaveis.filter((id) => !pedidas.includes(id));
-  const fila = [...pedidas, ...restantes];
+  const naoListadas = reordenaveis.filter((id) => !pedidas.includes(id));
+
+  const fila = [...pedidas];
+  for (const id of naoListadas) {
+    const posContrato = reordenaveis.indexOf(id);
+    const sucessora = pedidas.find((p) => reordenaveis.indexOf(p) > posContrato);
+    fila.splice(sucessora !== undefined ? fila.indexOf(sucessora) : fila.length, 0, id);
+  }
 
   let i = 0;
   return secoes.map((secao) => (secao.fixa ? secao.id : fila[i++]));

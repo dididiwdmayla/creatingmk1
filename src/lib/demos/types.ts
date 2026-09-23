@@ -167,9 +167,12 @@ export interface DemoData {
   secoes: Record<string, DemoSecao>;
   /**
    * Ordem das seções NÃO-fixas da skin (ids de SkinSecaoDef). Ausente =
-   * ordem default da skin; ids desconhecidos são ignorados e seções não
-   * listadas entram no fim, na ordem default (a skin nunca quebra por
-   * dado velho de uma versão anterior do contrato).
+   * ordem default da skin; ids desconhecidos são ignorados e seção não
+   * listada entra antes da primeira seção listada que a sucede na ordem
+   * default do contrato (no fim só se nenhuma sucede) — a skin nunca quebra
+   * por dado velho de uma versão anterior do contrato, e um contrato que
+   * CRESCE não empurra a seção nova para depois do rodapé em demo já salva
+   * (ver `ordemEfetiva` em ./estrutura.ts).
    */
   ordemSecoes?: string[];
   /**
