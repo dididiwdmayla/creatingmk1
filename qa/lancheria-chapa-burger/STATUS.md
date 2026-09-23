@@ -112,24 +112,50 @@ nela.
 
 `node scripts/qa-visual.mjs --so=variante,colapso,barra,avulsa --skin=lancheria-chapa-burger`
 
-**Rodada em andamento — esta seção fecha numa próxima revisão**, com as
-capturas abertas e olhadas (regra 5 do ARCHITECTURE.md), antes de qualquer
-veredito final aqui.
+Rodada fechada — capturas abertas e olhadas uma a uma (regra 5 do
+ARCHITECTURE.md) antes deste veredito.
 
+- **`colapso`**: **89/89 slots de imagem OK**, zero problema, nas quatro
+  variantes (`chapa` 25, `balcao` 22, `sala` 22, `praca` 25 — a diferença
+  de contagem é o `imagensOcultas` de cada composição). Isto só sai limpo
+  porque `verificarColapsoDeImagem` (em `qa-visual.mjs`) passou a excluir
+  do laço de "caixa deve ser > 0" os slots que a própria variante declara
+  não desenhar (`SkinVariante.imagensOcultas`) — antes desta correção o
+  gate acusava colapso EXATAMENTE nos flutuantes/bebidas que a `chapa
+  burger` esconde de propósito, um falso-positivo pré-existente no laço
+  genérico, nunca antes exercitado porque nenhuma skin usava
+  `imagensOcultas` com `--so=colapso` desde que o mecanismo existe. A
+  direção inversa (declarado ⇒ caixa zero) continua coberta, por skin, no
+  `qa-chapa.mjs` (seção "Contrato no navegador" acima).
 - **`barra`**: três das quatro variantes (`chapa`, `balcao`, `sala`) saem
   com **zero divergência** — um platô só, cor idêntica do começo ao fim da
-  página. A `praca` acusou UMA: no platô y≈560–2794 (cardápio + vizinhança),
+  página. A `praca` acusa UMA: no platô y≈560–2794 (cardápio + vizinhança),
   a barra lê `#fff8ec` (`--d-bg`) e o pixel amostrado em x=3 mede
   `rgb(245,238,226)`, ~4% mais escuro (erro 10, teto de tolerância 8).
-  Hipótese sob investigação: o `flutuante-bacon` (`public/demos/lancheria/
-  foto/flutuante-bacon.webp`, fundo BRANCO sólido, não um recorte
-  transparente) sangra pra fora da seção `cardapio` pela ESQUERDA — a
-  única das quatro composições em que a mesma amostragem de borda cruza
-  essa decoração — e é isso, não um desalinhamento real de `theme-color`,
-  que provavelmente está sendo medido. Ainda não confirmado com captura em
-  mãos; nenhum código mudou por causa disto até esta rodada fechar.
-- **`variante`/`colapso`/`avulsa`**: rodados (arquivos gerados em
-  `qa-shots/`), ainda não revisados imagem por imagem.
+  **Confirmado por captura dedicada**: o `flutuante-bacon`
+  (`public/demos/lancheria/foto/flutuante-bacon.webp`) tem fundo BRANCO
+  sólido — não um recorte transparente — e sangra pra fora da seção
+  `cardapio` pela borda esquerda exatamente na coluna x=3 amostrada; a
+  `praca` é a única das quatro composições em que essa decoração cruza
+  ali. Não é desalinhamento de `theme-color`: o `meta` e o plano de fundo
+  do `<body>` batem `#FFF8EC` do HTML servido em todas as quatro
+  variantes, sem exceção. Pré-existente (o asset é herdado, não desta
+  migração), puramente decorativo, e nunca reprova sozinho: `medirBarra`
+  só reporta, nunca lança. Decisão: documentar aqui, não tocar no
+  asset/`DecorativeFloat.tsx` compartilhado por fidelidade de conversão —
+  desproporcional para um achado cosmético de ~4%.
+- **`variante`**: as quatro folhas (`_folha-variante-{chapa,balcao,sala,
+  praca}-item25.png`) foram olhadas — sem efeito, tema/fixa/transição/
+  iridescente/arco-íris, todas as fases. Nenhuma corrupção visual, nenhum
+  texto cortado, nenhum grão vazando fora da página; cores e composição
+  batem com a tabela de drasticidade acima em cada variante.
+- **`avulsa`**: as quatro folhas (desktop/celular × topo/rodapé) foram
+  olhadas — em-branco vs. preenchida lado a lado nas quatro variantes. A
+  regra do §7 (nenhum bloco oco quando a identidade está vazia) se
+  confirma visualmente: `balcao` e `praca` em-branco não mostram cartão
+  fantasma nenhum, só o texto do herói; `chapa` e `sala` (que não têm
+  bloco de identidade na composição) não mudam nada entre em-branco e
+  preenchida, como esperado.
 
 ## Limitações da instrumentação
 
