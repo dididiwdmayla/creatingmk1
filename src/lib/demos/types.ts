@@ -475,6 +475,43 @@ export interface ChapaComposicao {
   contato: "rodape" | "tarja" | "fecho" | "bloco";
 }
 
+/**
+ * Composição editorial da `multimarcas-vortice`: knobs do DESENHO, nunca
+ * conteúdo do lead. Cada knob troca o layout de UMA seção — é o que faz as
+ * quatro variantes serem quatro TIPOS DE LOJA (seminovos premium, pátio de
+ * bairro, boutique de esportivos, picapes e utilitários) e não quatro
+ * paletas.
+ *
+ * Existe como parâmetro tipado, e não como quatro caminhos de render, pela
+ * mesma razão da tatuagem, da barbearia e da chapa burger: o contrato de
+ * seções é da SKIN. A variante move, redimensiona e retextura; não
+ * renomeia, não remove, não inventa. Ver "Critério de drasticidade" em
+ * docs/plano-multimarcas.md §6 — as NOVE seções da skin têm layout
+ * diferente entre as quatro variantes, uma a mais que o portão pede
+ * (abertura/estoque/destaque/avaliação seguram o mínimo mesmo se alguma
+ * linha escorregar na execução).
+ */
+export interface MultimarcasComposicao {
+  /** Abertura: tipográfica (nome + diagonal + velocímetro selo) / busca (faixas de preço) / foto sangrada / dividida (nome + foto emoldurada). */
+  abertura: "tipografica" | "busca" | "sangrada" | "dividida";
+  /** Estoque: grade de 3 colunas / lista densa com parcela em destaque / vitrine de um carro por linha / tabela com miniatura. */
+  estoque: "grade" | "lista" | "vitrine" | "tabela";
+  /** Vantagens: grade de 4 numerados / faixa de 4 linhas curtas / lista editorial numerada / grade 2×2 com número grande. */
+  vantagens: "grade" | "faixa" | "editorial" | "quadrantes";
+  /** Números: linha de 3 contadores / selos em pílula / numerais gigantes em coluna / placar em grade com borda. */
+  numeros: "linha" | "selos" | "coluna" | "placar";
+  /** Destaque (ficha técnica): cartão horizontal / tira "oferta da semana" / catálogo de página inteira / ficha de pátio (tabela larga). */
+  destaque: "cartao" | "tira" | "catalogo" | "ficha";
+  /** Simulador: dois cartões lado a lado / uma coluna com resultado acima / painel horizontal compacto / cartão único ao lado do texto. */
+  simulador: "cartoes" | "coluna" | "painel" | "lateral";
+  /** Avaliação (venda seu carro): faixa no acento + marquee / tarja com CTA / linha discreta + marquee lenta / formulário de troca em cartão grande. */
+  avaliacao: "faixa" | "tarja" | "linha" | "formulario";
+  /** Depoimentos: carrossel arrastável / três cartões empilhados / citação gigante por vez / tira com o veículo em destaque sobre o autor. */
+  depoimentos: "carrossel" | "empilhado" | "citacao" | "tira";
+  /** Contato: rodapé em duas colunas / tarja de uma linha / fecho centralizado / bloco "onde fica o pátio". */
+  contato: "rodape" | "tarja" | "fecho" | "bloco";
+}
+
 /** Tokens visuais de um tema de skin. */
 export interface Theme {
   /** Knobs da identidade, injetados pela definição da skin. Nunca por URL pública. */
@@ -482,6 +519,7 @@ export interface Theme {
   barbearia?: BarbeariaComposicao;
   tatuagem?: TatuagemComposicao;
   chapa?: ChapaComposicao;
+  multimarcas?: MultimarcasComposicao;
   id: string;
   nome: string;
   paleta: ThemePaleta;
