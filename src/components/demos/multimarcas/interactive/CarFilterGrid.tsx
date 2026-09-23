@@ -90,7 +90,12 @@ export function CarFilterGrid({
       )}
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(288px,1fr))] gap-[22px]">
-        <AnimatePresence>
+        {/* `initial={false}`: o estoque que chega no HTML do servidor já
+            está no estado FINAL (opacidade 1, escala 1). Sem isso o motion
+            serializa o `initial` de cada card no documento servido e, sem
+            JavaScript, os nove carros saíam transparentes. A entrada
+            animada continua valendo para o que ENTRA depois, ao filtrar. */}
+        <AnimatePresence initial={false}>
           {filtrados.map(({ servico, index }) => (
             <motion.div
               key={servico.nome}

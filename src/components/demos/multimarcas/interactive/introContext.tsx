@@ -3,10 +3,12 @@
 import { createContext, useContext } from "react";
 
 /**
- * Sinaliza pro Hero quando o preloader (velocímetro) terminou, pra disparar
- * a revelação escalonada das palavras do título (fiel ao `heroIntro()` do
- * material bruto). `true` por padrão (sem provider = revelado, usado no
- * preview do editor e em qualquer render fora de IntroExperience).
+ * Sinaliza pro Hero se a abertura está à mostra: `false` só enquanto o
+ * preloader (velocímetro) cobre a tela, no cliente — quando ele termina, a
+ * volta a `true` dispara a revelação escalonada das palavras (fiel ao
+ * `heroIntro()` do material bruto). `true` por padrão e no HTML do
+ * servidor (ver IntroExperience): sem provider, sem JavaScript ou sem
+ * intro, a abertura nunca nasce escondida.
  */
 const IntroDoneContext = createContext(true);
 

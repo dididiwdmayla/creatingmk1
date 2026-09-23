@@ -13,8 +13,16 @@ const SESSION_KEY = "demo-multimarcas-intro-vista";
  * preloader "velocímetro" (uma vez por sessão, desligado em
  * prefers-reduced-motion) — fiel ao `runPreloader`/`componentDidMount` do
  * material bruto. `ativa` (Theme.intro) desliga só o preloader; o cursor
- * contextual continua. `introDone` fica disponível pros filhos via contexto
- * (o Hero usa pra disparar a revelação escalonada do título).
+ * contextual continua.
+ *
+ * **O documento servido nunca é escondido.** O HTML do servidor sai SEM o
+ * preloader e com `revelado = true`: o nome no `<h1>`, o texto e os CTAs
+ * da abertura já visíveis, como na barbearia ("intro não é barreira sem
+ * JavaScript"). Só depois da hidratação, e só se a intro vai MESMO rodar
+ * (ligada, sem reduced-motion, primeira vez na sessão), o preloader monta
+ * por cima e a abertura se recolhe atrás dele — para subir palavra a
+ * palavra quando o ponteiro chega ao fim. Sem JavaScript, ou com a intro
+ * desligada (três das quatro variantes), nada é recolhido.
  */
 export function IntroExperience({
   nome,
@@ -27,30 +35,29 @@ export function IntroExperience({
   ativa: boolean;
   children: React.ReactNode;
 }) {
-  const [introDone, setIntroDone] = useState(false);
+  const [preloader, setPreloader] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!ativa) return;
     const jaViu = sessionStorage.getItem(SESSION_KEY);
     const reduzida = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!ativa || reduzida || jaViu) {
-      const t = setTimeout(() => setIntroDone(true), 0);
-      return () => clearTimeout(t);
-    }
+    if (reduzida || jaViu) return;
+    // Adiado pro próximo tick: setState síncrono no corpo do efeito é o
+    // que o lint de hooks reprova (mesmo padrão das outras skins).
+    const t = setTimeout(() => setPreloader(true), 0);
+    return () => clearTimeout(t);
   }, [ativa]);
-
-  const mostrandoPreloader = ativa && !introDone;
 
   function completar() {
     sessionStorage.setItem(SESSION_KEY, "1");
-    setIntroDone(true);
+    setPreloader(false);
   }
 
   return (
     <>
       <CustomCursor accent={accent} />
-      {mostrandoPreloader && <Preloader nome={nome} accent={accent} onComplete={completar} />}
-      <IntroDoneProvider value={introDone}>{children}</IntroDoneProvider>
+      {preloader && <Preloader nome={nome} accent={accent} onComplete={completar} />}
+      <IntroDoneProvider value={!preloader}>{children}</IntroDoneProvider>
     </>
   );
 }
