@@ -3,15 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Animacao, DemoDepoimento } from "@/lib/demos/types";
-
-/** Paleta fixa dos avatares (mecânica de exibição, não conteúdo do lead) — rotação determinística por autor. */
-const CORES_AVATAR = ["#8C2B1E", "#1B5E3B", "#A0741F", "#4A3B2E", "#5E1E14", "#2B4A6B", "#6B3B5E"];
-
-function corDoAutor(autor: string): string {
-  let h = 0;
-  for (let i = 0; i < autor.length; i++) h = (h * 31 + autor.charCodeAt(i)) | 0;
-  return CORES_AVATAR[Math.abs(h) % CORES_AVATAR.length];
-}
+import { corDoAutor, type CorDeAvatar } from "./logic";
 
 function iniciais(autor: string): string {
   const partes = autor.trim().split(/\s+/);
@@ -29,9 +21,12 @@ function iniciais(autor: string): string {
 export function TestimonialCarousel({
   depoimentos,
   animacao,
+  coresAvatar,
 }: {
   depoimentos: DemoDepoimento[];
   animacao: Animacao;
+  /** Fundo+tinta dos avatares, derivados da paleta (ver `coresDoAvatar`). */
+  coresAvatar: readonly CorDeAvatar[];
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -120,8 +115,11 @@ export function TestimonialCarousel({
               </p>
               <figcaption className="mt-auto flex items-center gap-3.5">
                 <span
-                  className="flex h-[46px] w-[46px] flex-none items-center justify-center rounded-full font-[family-name:var(--d-mono)] text-[15px] font-semibold tracking-[1px] text-white"
-                  style={{ background: corDoAutor(d.autor) }}
+                  className="flex h-[46px] w-[46px] flex-none items-center justify-center rounded-full font-[family-name:var(--d-mono)] text-[15px] font-semibold tracking-[1px]"
+                  style={{
+                    background: corDoAutor(d.autor, coresAvatar)?.fundo ?? "var(--d-text)",
+                    color: corDoAutor(d.autor, coresAvatar)?.tinta ?? "var(--d-bg)",
+                  }}
                 >
                   {iniciais(d.autor)}
                 </span>

@@ -3,6 +3,7 @@ import { Fragment, type CSSProperties, type ReactNode } from "react";
 
 import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { HEX_RE, luminancia } from "@/lib/demos/contraste";
 import type { DemoMicrocopia } from "@/lib/demos/microcopy";
 import type { Animacao, DemoData, Densidade, SkinProps } from "@/lib/demos/types";
 import { CarFilterGrid } from "./interactive/CarFilterGrid";
@@ -17,7 +18,7 @@ import { SectionReveal, type RevealTipo } from "./interactive/SectionReveal";
 import { Simulador } from "./interactive/Simulador";
 import { StatCounter } from "./interactive/StatCounter";
 import { TestimonialCarousel } from "./interactive/TestimonialCarousel";
-import { waHref } from "./interactive/logic";
+import { coresDoAvatar, waHref } from "./interactive/logic";
 import { WhatsAppFloat } from "./interactive/WhatsAppFloat";
 import { MULTIMARCAS_SECOES } from "./secoes";
 
@@ -171,6 +172,7 @@ function Titulo({ texto, slot, className }: { texto?: string; slot: string; clas
 
 export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
+  const fundoClaro = HEX_RE.test(paleta.fundo) ? luminancia(paleta.fundo) > 0.4 : true;
   const vars = {
     "--d-bg": paleta.fundo,
     "--d-bg-alt": paleta.fundoAlt,
@@ -197,6 +199,16 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
     "--d-anim-ease": "cubic-bezier(0.16, 1, 0.3, 1)",
     "--d-hover-scale": ANIM_HOVER_SCALE[theme.animacao],
     "--d-hover-lift": ANIM_HOVER_LIFT[theme.animacao],
+    // Sombra por token (§1 do plano): `rgba(60,30,10,…)` era calibrada para
+    // o creme — em fundo escuro sumia ou sujava. Fundo claro: a tinta da
+    // própria paleta, diluída; fundo escuro: preto, mais denso (sombra
+    // clara sobre escuro vira brilho, não profundidade).
+    "--mm-sombra": fundoClaro
+      ? "color-mix(in srgb, var(--d-text) 16%, transparent)"
+      : "rgba(0, 0, 0, 0.45)",
+    "--mm-sombra-forte": fundoClaro
+      ? "color-mix(in srgb, var(--d-text) 28%, transparent)"
+      : "rgba(0, 0, 0, 0.6)",
   } as CSSProperties;
 
   const m = microcopiaDemo(idioma);
@@ -502,7 +514,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
               />
             </div>
           </div>
-          <TestimonialCarousel depoimentos={data.depoimentos} animacao={theme.animacao} />
+          <TestimonialCarousel depoimentos={data.depoimentos} animacao={theme.animacao} coresAvatar={coresDoAvatar(paleta)} />
         </section>
       ),
 
@@ -662,7 +674,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
         @media (prefers-reduced-motion: reduce) { .d-press:active { transform: none; animation: none; } }
 
         .d-card-hover { transition: transform var(--d-anim-duration) var(--d-anim-ease), box-shadow var(--d-anim-duration) var(--d-anim-ease), border-color var(--d-anim-duration) var(--d-anim-ease); }
-        .d-card-hover:hover { transform: translateY(var(--d-hover-lift)); border-color: color-mix(in srgb, var(--d-accent) 45%, transparent); box-shadow: 0 26px 55px rgba(60,30,10,.16); }
+        .d-card-hover:hover { transform: translateY(var(--d-hover-lift)); border-color: color-mix(in srgb, var(--d-accent) 45%, transparent); box-shadow: 0 26px 55px var(--mm-sombra); }
         .d-card-hover:hover img { transform: scale(1.08); }
         .d-card-detalhes { transform: translateY(150%); transition: transform 400ms cubic-bezier(.2,.9,.2,1); }
         .d-card-hover:hover .d-card-detalhes { transform: translateY(0); }
@@ -690,9 +702,9 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
 
         .d-range { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; height: 44px; touch-action: none; }
         .d-range::-webkit-slider-runnable-track { height: 10px; border-radius: 999px; background: linear-gradient(90deg, var(--d-accent) var(--fill,20%), var(--d-border) var(--fill,20%)); }
-        .d-range::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; border-radius: 50%; background: var(--d-bg-elev); border: 5px solid var(--d-accent); margin-top: -10px; box-shadow: 0 6px 18px rgba(60,30,10,.3); }
+        .d-range::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; border-radius: 50%; background: var(--d-bg-elev); border: 5px solid var(--d-accent); margin-top: -10px; box-shadow: 0 6px 18px var(--mm-sombra-forte); }
         .d-range::-moz-range-track { height: 10px; border-radius: 999px; background: linear-gradient(90deg, var(--d-accent) var(--fill,20%), var(--d-border) var(--fill,20%)); }
-        .d-range::-moz-range-thumb { width: 30px; height: 30px; border-radius: 50%; background: var(--d-bg-elev); border: 5px solid var(--d-accent); box-shadow: 0 6px 18px rgba(60,30,10,.3); }
+        .d-range::-moz-range-thumb { width: 30px; height: 30px; border-radius: 50%; background: var(--d-bg-elev); border: 5px solid var(--d-accent); box-shadow: 0 6px 18px var(--mm-sombra-forte); }
 
       `}</style>
 

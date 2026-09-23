@@ -1,5 +1,7 @@
 import { IDIOMA_PADRAO } from "@/lib/idioma";
 import type { DemoMicrocopia } from "@/lib/demos/microcopy";
+import { contrasteWcag, HEX_RE, inkPara } from "@/lib/demos/contraste";
+import type { ThemePaleta } from "@/lib/demos/types";
 import { MOEDA_PADRAO } from "@/lib/moeda";
 
 /**
@@ -308,4 +310,47 @@ export function mensagemTroca(
 /** Só os dígitos do WhatsApp — o destino do `action` do formulário sem JavaScript. */
 export function digitosWhatsapp(whatsapp: string | undefined): string {
   return (whatsapp ?? "").replace(/\D/g, "");
+}
+
+/** Fundo e tinta de um avatar de iniciais. */
+export interface CorDeAvatar {
+  fundo: string;
+  tinta: string;
+}
+
+/** Contraste mínimo das iniciais (15px bold não é "texto grande" pela WCAG). */
+const CONTRASTE_AVATAR = 4.5;
+
+/**
+ * As cores dos avatares de depoimento DERIVADAS DA PALETA — não mais sete
+ * hex cravados (`CORES_AVATAR`) com `text-white` por cima, um deles
+ * (#A0741F) a 4,19:1 nas quatro paletas (§1/§2 do plano).
+ *
+ * Candidatas: destaque (com o `destaqueInk` da própria paleta),
+ * acento secundário, acento terciário e texto. A tinta de cada uma é a
+ * cor da paleta que mais contrasta (fundo ou texto) e, se nenhuma passa,
+ * preto ou branco (`inkPara`); a candidata que nem assim chega a 4,5:1 sai
+ * da lista. O par texto/fundo — o da leitura da página — sempre sobra.
+ */
+export function coresDoAvatar(paleta: ThemePaleta): CorDeAvatar[] {
+  const hex = (c: string) => HEX_RE.test(c);
+  const cores: CorDeAvatar[] = [];
+  const somar = (fundo: string, tintas: string[]) => {
+    if (!hex(fundo) || cores.some((c) => c.fundo.toLowerCase() === fundo.toLowerCase())) return;
+    const candidatas = [...tintas.filter(hex), inkPara(fundo)];
+    const melhor = candidatas.sort((a, b) => contrasteWcag(fundo, b) - contrasteWcag(fundo, a))[0];
+    if (melhor && contrasteWcag(fundo, melhor) >= CONTRASTE_AVATAR) cores.push({ fundo, tinta: melhor });
+  };
+  somar(paleta.destaque, [paleta.destaqueInk]);
+  somar(paleta.acentoSecundario, [paleta.fundo, paleta.texto]);
+  somar(paleta.acentoTerciario, [paleta.fundo, paleta.texto]);
+  somar(paleta.texto, [paleta.fundo]);
+  return cores;
+}
+
+/** Avatar determinístico por autor — o mesmo autor, a mesma cor. */
+export function corDoAutor(autor: string, cores: readonly CorDeAvatar[]): CorDeAvatar | undefined {
+  let h = 0;
+  for (let i = 0; i < autor.length; i++) h = (h * 31 + autor.charCodeAt(i)) | 0;
+  return cores[Math.abs(h) % cores.length];
 }

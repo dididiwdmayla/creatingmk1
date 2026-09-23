@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { contrasteWcag } from "@/lib/demos/contraste";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
+
+import { MULTIMARCAS_VARIANTES } from "../../variantes";
 
 import {
   categoriasDoEstoque,
+  corDoAutor,
+  coresDoAvatar,
   faixaDoHash,
   faixasDePreco,
   faixaDoSimulador,
@@ -265,5 +270,28 @@ describe("parseNumeroFormatado/formatarNumero pelo locale da demo (item 13)", ()
     expect(formatarNumero(39900, 0, "en-US")).toBe("39,900");
     expect(formatarNumero(39900, 0, "de-CH")).toMatch(/^39['’]900$/);
     expect(formatarNumero(39900, 0)).toBe("39.900");
+  });
+});
+
+describe("coresDoAvatar (item 14)", () => {
+  it.each(MULTIMARCAS_VARIANTES.map((v) => [v.id, v.theme.paleta] as const))(
+    "%s: toda cor de avatar tem tinta a ≥ 4,5:1, e há pelo menos uma",
+    (_id, paleta) => {
+      const cores = coresDoAvatar(paleta);
+      expect(cores.length).toBeGreaterThan(0);
+      for (const { fundo, tinta } of cores) expect(contrasteWcag(fundo, tinta)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
+  it("o #A0741F que reprovava com branco (4,19) ganha tinta que passa ou sai", () => {
+    const paleta = MULTIMARCAS_VARIANTES[0].theme.paleta;
+    const ouro = coresDoAvatar({ ...paleta, acentoTerciario: "#A0741F" }).find((c) => c.fundo === "#A0741F");
+    if (ouro) expect(contrasteWcag(ouro.fundo, ouro.tinta)).toBeGreaterThanOrEqual(4.5);
+    expect(contrasteWcag("#A0741F", "#FFFFFF")).toBeLessThan(4.5);
+  });
+
+  it("mesmo autor, mesma cor", () => {
+    const cores = coresDoAvatar(MULTIMARCAS_VARIANTES[0].theme.paleta);
+    expect(corDoAutor("Renata Albuquerque", cores)).toEqual(corDoAutor("Renata Albuquerque", cores));
   });
 });
