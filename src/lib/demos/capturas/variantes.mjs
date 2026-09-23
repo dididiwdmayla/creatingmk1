@@ -15,6 +15,7 @@ export const VARIANTES_POR_SKIN = /** @type {Record<string, string[]>} */ ({
   "barbearia-editorial": ["norte", "meia-noite", "creme", "vinho"],
   "tatuagem-editorial": ["sangue", "vesperal", "cripta", "marfim"],
   "lancheria-chapa-burger": ["chapa", "balcao", "sala", "praca"],
+  "multimarcas-vortice": ["vortice", "patio", "garagem", "campo"],
   "lancheria-2": [
     "lancheria-meia-noite",
     "lancheria-diner",
@@ -54,5 +55,9 @@ export const IMAGENS_OCULTAS_POR_VARIANTE = /** @type {Record<string, Record<str
       "flutuante-queijo": "nenhum",
       "flutuante-bebida": "nenhum",
     },
+  },
+  "multimarcas-vortice": {
+    vortice: { hero: "nenhum" },
+    patio: { hero: "nenhum" },
   },
 });
