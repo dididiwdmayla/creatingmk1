@@ -20,6 +20,7 @@ import { StatCounter } from "./interactive/StatCounter";
 import { TestimonialCarousel } from "./interactive/TestimonialCarousel";
 import { coresDoAvatar, waHref } from "./interactive/logic";
 import { WhatsAppFloat } from "./interactive/WhatsAppFloat";
+import { atributosDaComposicao, MULTIMARCAS_COMPOSICAO_CSS, MULTIMARCAS_COMPOSICAO_PADRAO } from "./composicao";
 import { MULTIMARCAS_SECOES } from "./secoes";
 
 /**
@@ -211,6 +212,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
       : "rgba(0, 0, 0, 0.6)",
   } as CSSProperties;
 
+  const comp = theme.multimarcas ?? MULTIMARCAS_COMPOSICAO_PADRAO;
   const m = microcopiaDemo(idioma);
   const linhasDeDado = escadaDeDados(data, m);
   const s = data.secoes;
@@ -239,18 +241,17 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
     m.interesseNoDestaque(s.destaque?.titulo?.trim() || m.veiculoEmDestaque, data.nome),
   );
 
+  const titulo2 =
+    "font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]";
+
   const secoes: Record<string, () => ReactNode> = {
     /* ── Estoque ─────────────────────────────────────────────── */
     estoque: () =>
       data.servicos.length > 0 && (
-        <section id="estoque" className="mx-auto max-w-[1200px] px-[max(24px,5vw)] py-[var(--d-sec-y)]">
-          <div className="mb-[34px]">
+        <section id="estoque" className="mm-estoque mm-caixa px-[max(24px,5vw)] py-[var(--d-sec-y)]">
+          <div className="mm-cabeca">
             <Rotulo texto={s.estoque?.rotulo} slot="secoes.estoque.rotulo" />
-            <Titulo
-              texto={s.estoque?.titulo}
-              slot="secoes.estoque.titulo"
-              className="font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-            />
+            <Titulo texto={s.estoque?.titulo} slot="secoes.estoque.titulo" className={titulo2} />
           </div>
           <CarFilterGrid
             servicos={data.servicos}
@@ -272,44 +273,44 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
       (s.vantagens?.itens?.length ?? 0) > 0 && (
         <section
           id="vantagens"
-          className="border-t px-[max(24px,5vw)] pb-10 pt-[var(--d-sec-y)]"
+          className="mm-vantagens border-t"
           style={{ background: "var(--d-bg-alt)", borderColor: "var(--d-border)" }}
         >
-          <div className="mx-auto max-w-[1200px]">
-            <div className="mb-11">
+          <div className="mm-caixa">
+            <div className="mm-cabeca">
               <Rotulo texto={s.vantagens?.rotulo} slot="secoes.vantagens.rotulo" />
-              <Titulo
-                texto={s.vantagens?.titulo}
-                slot="secoes.vantagens.titulo"
-                className="font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-              />
+              <Titulo texto={s.vantagens?.titulo} slot="secoes.vantagens.titulo" className={titulo2} />
             </div>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-[18px]">
+            <div className="mm-vant-lista">
               {s.vantagens?.itens?.map((item, i) => (
                 <SectionReveal key={item.titulo} animacao={theme.animacao} tipo="padrao" delay={i * 0.09}>
                   <div
-                    className="flex h-full flex-col gap-4 border p-7"
+                    className="mm-vant-item border"
                     style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}
                   >
                     <span
-                      className="flex h-[54px] w-[54px] items-center justify-center rounded-full border-[2.5px] font-[family-name:var(--d-mono)] text-[22px] font-semibold"
+                      className="mm-vant-num rounded-full border-[2.5px] font-[family-name:var(--d-mono)] font-semibold"
                       style={{ borderColor: "var(--d-accent)", background: "var(--d-bg)", color: "var(--d-text)" }}
                       aria-hidden="true"
                     >
                       {i + 1}
                     </span>
-                    <h3
-                      data-demo-slot={`secoes.vantagens.itens.${i}.titulo`}
-                      className="font-[family-name:var(--d-display)] text-xl font-bold uppercase tracking-[0.5px] text-[var(--d-text)]"
-                    >
-                      {item.titulo}
-                    </h3>
-                    <p
-                      data-demo-slot={`secoes.vantagens.itens.${i}.texto`}
-                      className="font-[family-name:var(--d-corpo)] text-sm leading-relaxed text-[var(--d-muted)]"
-                    >
-                      {item.texto}
-                    </p>
+                    <div className="mm-vant-textos">
+                      <h3
+                        data-demo-slot={`secoes.vantagens.itens.${i}.titulo`}
+                        className="mm-vant-titulo font-[family-name:var(--d-display)] text-xl font-bold uppercase tracking-[0.5px] text-[var(--d-text)]"
+                      >
+                        {item.titulo}
+                      </h3>
+                      {item.texto?.trim() && (
+                        <p
+                          data-demo-slot={`secoes.vantagens.itens.${i}.texto`}
+                          className="mt-4 font-[family-name:var(--d-corpo)] text-sm leading-relaxed text-[var(--d-muted)]"
+                        >
+                          {item.texto}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </SectionReveal>
               ))}
@@ -323,17 +324,23 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
       (s.numeros?.itens?.length ?? 0) > 0 && (
         <section
           id="numeros"
-          className="border-b px-[max(24px,5vw)] pb-[var(--d-sec-y)] pt-3"
+          className="mm-numeros border-b"
           style={{ background: "var(--d-bg-alt)", borderColor: "var(--d-border)" }}
         >
-          <div className="mx-auto flex max-w-[1200px] flex-wrap gap-[clamp(28px,6vw,80px)]">
+          <div className="mm-caixa mm-num-lista">
             {s.numeros?.itens?.map((item, i) => (
-              <div key={i}>
-                <p className="font-[family-name:var(--d-mono)] text-[clamp(38px,4.6vw,56px)] font-semibold leading-none tabular-nums text-[var(--d-text)]">
+              <div key={i} className="mm-num-item">
+                <p
+                  data-demo-slot={`secoes.numeros.itens.${i}.titulo`}
+                  className="mm-num-valor font-[family-name:var(--d-mono)] font-semibold tabular-nums text-[var(--d-text)]"
+                >
                   <StatCounter valor={item.titulo} corDestaque={paleta.destaque} idioma={idioma} />
                 </p>
                 {item.detalhe && (
-                  <p className="mt-2 font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[1px] text-[var(--d-muted)]">
+                  <p
+                    data-demo-slot={`secoes.numeros.itens.${i}.detalhe`}
+                    className="mm-num-detalhe mt-2 font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[1px] text-[var(--d-muted)]"
+                  >
                     {item.detalhe}
                   </p>
                 )}
@@ -343,15 +350,11 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
         </section>
       ),
 
-    /* ── Destaque (ficha técnica) ───────────────────────────────
-       Desenho único por enquanto — a composição por variante (knobs
-       cartao/tira/catalogo/ficha, ver MultimarcasComposicao) chega na
-       etapa 3 de docs/plano-multimarcas.md; aqui a seção já é real e
-       editável, só ainda sem a drasticidade por loja. */
+    /* ── Destaque (ficha técnica) ──────────────────────────────── */
     destaque: () => (
-      <section id="destaque" className="mx-auto max-w-[1200px] px-[max(24px,5vw)] py-[var(--d-sec-y)]">
-        <div className="grid gap-10 md:grid-cols-2 md:items-center">
-          <div className="relative aspect-[4/3] overflow-hidden border" style={{ borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}>
+      <section id="destaque" className="mm-destaque">
+        <div className="mm-caixa mm-dest-grade">
+          <div className="mm-dest-foto border" style={{ borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}>
             <Image
               src={data.imagens.destaque}
               alt={data.imagensAlt?.destaque ?? ""}
@@ -362,25 +365,25 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
               sizes="(min-width: 768px) 50vw, 100vw"
             />
           </div>
-          <div>
+          <div className="mm-dest-corpo">
             <Rotulo texto={s.destaque?.rotulo} slot="secoes.destaque.rotulo" />
             <Titulo
               texto={s.destaque?.titulo}
               slot="secoes.destaque.titulo"
-              className="font-[family-name:var(--d-display)] text-[clamp(30px,4.6vw,48px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
+              className="mm-dest-titulo font-[family-name:var(--d-display)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
             />
-            {s.destaque?.texto && (
+            {s.destaque?.texto?.trim() && (
               <p
                 data-demo-slot="secoes.destaque.texto"
-                className="mt-3 font-[family-name:var(--d-corpo)] text-[15px] leading-relaxed text-[var(--d-muted)]"
+                className="mm-dest-texto mt-3 font-[family-name:var(--d-corpo)] text-[15px] leading-relaxed text-[var(--d-muted)]"
               >
                 {s.destaque.texto}
               </p>
             )}
             {(s.destaque?.itens?.length ?? 0) > 0 && (
-              <dl className="mt-6 flex flex-col gap-2.5 border-t pt-5" style={{ borderColor: "var(--d-border)" }}>
+              <dl className="mm-ficha border-t" style={{ borderColor: "var(--d-border)" }}>
                 {s.destaque?.itens?.map((item, i) => (
-                  <div key={i} className="flex items-baseline justify-between gap-4">
+                  <div key={i} className="mm-ficha-linha">
                     <dt
                       data-demo-slot={`secoes.destaque.itens.${i}.titulo`}
                       className="font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[1px] text-[var(--d-muted)]"
@@ -389,7 +392,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                     </dt>
                     <dd
                       data-demo-slot={`secoes.destaque.itens.${i}.texto`}
-                      className="m-0 font-[family-name:var(--d-mono)] text-[15px] text-[var(--d-text)]"
+                      className="font-[family-name:var(--d-mono)] text-[15px] text-[var(--d-text)]"
                     >
                       {item.texto}
                     </dd>
@@ -397,7 +400,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                 ))}
               </dl>
             )}
-            {s.destaque?.cta && linkWaDestaque && (
+            {s.destaque?.cta?.trim() && linkWaDestaque && (
               <a
                 href={linkWaDestaque}
                 target="_blank"
@@ -420,31 +423,29 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
 
     /* ── Simulador de financiamento ─────────────────────────── */
     simulador: () => (
-      <section id="simulador" className="mx-auto max-w-[1200px] px-[max(24px,5vw)] py-[var(--d-sec-y)]">
-        <div className="mb-11">
-          <Rotulo texto={s.simulador?.rotulo} slot="secoes.simulador.rotulo" />
-          <Titulo
-            texto={s.simulador?.titulo}
-            slot="secoes.simulador.titulo"
-            className="font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
+      <section id="simulador" className="mm-simulador">
+        <div className="mm-caixa mm-sim-secao">
+          <div className="mm-cabeca mm-sim-cabeca">
+            <Rotulo texto={s.simulador?.rotulo} slot="secoes.simulador.rotulo" />
+            <Titulo texto={s.simulador?.titulo} slot="secoes.simulador.titulo" className={titulo2} />
+            {s.simulador?.texto?.trim() && (
+              <p
+                data-demo-slot="secoes.simulador.texto"
+                className="mt-3 font-[family-name:var(--d-corpo)] text-[15px] text-[var(--d-muted)]"
+              >
+                {s.simulador.texto}
+              </p>
+            )}
+          </div>
+          <Simulador
+            whatsapp={data.whatsapp}
+            telefone={data.telefone}
+            ctaLabel={s.simulador?.cta}
+            servicos={data.servicos}
+            idioma={idioma}
+            moeda={moeda}
           />
-          {s.simulador?.texto && (
-            <p
-              data-demo-slot="secoes.simulador.texto"
-              className="mt-3 font-[family-name:var(--d-corpo)] text-[15px] text-[var(--d-muted)]"
-            >
-              {s.simulador.texto}
-            </p>
-          )}
         </div>
-        <Simulador
-          whatsapp={data.whatsapp}
-          telefone={data.telefone}
-          ctaLabel={s.simulador?.cta}
-          servicos={data.servicos}
-          idioma={idioma}
-          moeda={moeda}
-        />
       </section>
     ),
 
@@ -452,19 +453,15 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
     avaliacao: () => (
       <section
         id="avaliacao"
-        className={`overflow-hidden pt-[clamp(60px,8vw,100px)] ${centro("avaliacao") ? "text-center" : ""}`}
+        className={`mm-avaliacao ${centro("avaliacao") ? "text-center" : ""}`}
         style={{ background: "var(--d-accent)", color: "var(--d-accent-ink)" }}
       >
-        <div
-          className={`mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-7 px-[max(24px,5vw)] ${
-            centro("avaliacao") ? "justify-center text-center" : ""
-          }`}
-        >
-          <div>
+        <div className={`mm-caixa mm-aval-caixa ${centro("avaliacao") ? "justify-center text-center" : ""}`}>
+          <div className="mm-aval-texto">
             {s.avaliacao?.rotulo?.trim() && (
               <p
                 data-demo-slot="secoes.avaliacao.rotulo"
-                className="mb-3.5 font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px] opacity-75"
+                className="mb-3.5 font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px]"
               >
                 {s.avaliacao.rotulo.toUpperCase()}
               </p>
@@ -472,24 +469,24 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             <Titulo
               texto={s.avaliacao?.titulo}
               slot="secoes.avaliacao.titulo"
-              className="font-[family-name:var(--d-display)] text-[clamp(38px,6.4vw,74px)] font-extrabold uppercase leading-none tracking-[0.5px]"
+              className="mm-aval-titulo font-[family-name:var(--d-display)] font-extrabold uppercase tracking-[0.5px]"
             />
-            {s.avaliacao?.texto && (
+            {s.avaliacao?.texto?.trim() && (
               <p
                 data-demo-slot="secoes.avaliacao.texto"
-                className="mt-4 max-w-[440px] text-pretty font-[family-name:var(--d-corpo)] text-[15px] font-medium leading-relaxed opacity-85"
+                className="mt-4 max-w-[440px] text-pretty font-[family-name:var(--d-corpo)] text-[15px] font-medium leading-relaxed"
               >
                 {s.avaliacao.texto}
               </p>
             )}
           </div>
-          {s.avaliacao?.cta && linkWaAvaliacao && (
+          {s.avaliacao?.cta?.trim() && linkWaAvaliacao && (
             <a
               href={linkWaAvaliacao}
               target="_blank"
               rel="noopener noreferrer"
               data-demo-slot="secoes.avaliacao.cta"
-              className="d-press flex-none rounded-full px-10 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold tracking-[1.5px] transition-transform"
+              className="mm-aval-acao d-press rounded-full px-10 py-5 font-[family-name:var(--d-corpo)] text-[15px] font-bold tracking-[1.5px] transition-transform"
               style={{ background: "var(--d-text)", color: "var(--d-bg)" }}
             >
               {s.avaliacao.cta.toUpperCase()}
@@ -503,18 +500,18 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
     /* ── Depoimentos ─────────────────────────────────────────── */
     depoimentos: () =>
       data.depoimentos.length > 0 && (
-        <section id="depoimentos" className="mx-auto max-w-[1200px] px-[max(24px,5vw)] py-[var(--d-sec-y)]">
-          <div className="mb-10 flex flex-wrap items-end justify-between gap-5">
-            <div>
+        <section id="depoimentos" className="mm-depoimentos">
+          <div className="mm-caixa">
+            <div className="mm-cabeca">
               <Rotulo texto={s.depoimentos?.rotulo} slot="secoes.depoimentos.rotulo" />
-              <Titulo
-                texto={s.depoimentos?.titulo}
-                slot="secoes.depoimentos.titulo"
-                className="font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-              />
+              <Titulo texto={s.depoimentos?.titulo} slot="secoes.depoimentos.titulo" className={titulo2} />
             </div>
+            <TestimonialCarousel
+              depoimentos={data.depoimentos}
+              animacao={theme.animacao}
+              coresAvatar={coresDoAvatar(paleta)}
+            />
           </div>
-          <TestimonialCarousel depoimentos={data.depoimentos} animacao={theme.animacao} coresAvatar={coresDoAvatar(paleta)} />
         </section>
       ),
 
@@ -528,23 +525,19 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
       const temGrade = linhasDeDado.length > 0 || temAcoes;
       const rota = data.endereco ? encodeURIComponent(`${data.endereco} ${data.cidade ?? ""}`.trim()) : "";
       return (
-        <footer id="contato" style={{ background: "var(--d-bg-alt)" }}>
-          <section
-            className={`px-[max(24px,5vw)] pb-[clamp(50px,6vw,80px)] pt-[var(--d-sec-y)] ${
-              centro("contato") ? "text-center" : ""
-            }`}
-          >
+        <footer id="contato" className="mm-contato" style={{ background: "var(--d-bg-alt)" }}>
+          <section className={`mm-contato-secao ${centro("contato") ? "text-center" : ""}`}>
             <div
-              className={`mx-auto max-w-[1200px] ${
-                temGrade ? "grid gap-10 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]" : ""
-              } ${centro("contato") ? "justify-items-center" : ""}`}
+              className={`mm-caixa mm-contato-caixa ${temGrade ? "" : "mm-sem-grade"} ${
+                centro("contato") ? "justify-items-center" : ""
+              }`}
             >
-              <div>
+              <div className="mm-contato-marca">
                 <Rotulo texto={s.contato?.rotulo} slot="secoes.contato.rotulo" />
                 <Titulo
                   texto={s.contato?.titulo}
                   slot="secoes.contato.titulo"
-                  className="mb-6 font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,58px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
+                  className="mm-contato-titulo mb-6 font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,58px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
                 />
                 <Dados linhas={linhasDeDado} className="mm-dados" />
                 {!temGrade && s.hero?.cta?.trim() && visiveis.includes("estoque") && (
@@ -558,7 +551,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
                 )}
               </div>
               {temAcoes && (
-                <div className="flex flex-col gap-3">
+                <div className="mm-contato-acoes">
                   {data.endereco && (
                     <a
                       href={`https://waze.com/ul?q=${rota}`}
@@ -600,10 +593,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
               )}
             </div>
 
-            <div
-              className="mx-auto mt-[clamp(60px,8vw,100px)] flex max-w-[1200px] flex-wrap items-center justify-between gap-6 border-t pt-[34px]"
-              style={{ borderColor: "var(--d-border)" }}
-            >
+            <div className="mm-caixa mm-contato-barra border-t" style={{ borderColor: "var(--d-border)" }}>
               <FooterEgg nome={data.nome} accent={paleta.destaque} />
               <div className="flex flex-wrap gap-6">
                 {navLinks.map((l) => (
@@ -655,11 +645,13 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
   return (
     <div
       style={vars}
+      {...atributosDaComposicao(comp)}
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)] selection:bg-[var(--d-accent)] selection:text-[var(--d-accent-ink)]"
+      className="mm min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)] selection:bg-[var(--d-accent)] selection:text-[var(--d-accent-ink)]"
     >
+      <style>{MULTIMARCAS_COMPOSICAO_CSS}</style>
       <style>{`
         html { scroll-behavior: smooth; }
         /* A nav é fixa: sem margem, um salto de âncora (#simulador, #faixa-N)

@@ -65,11 +65,8 @@ export function Hero({
   const apoio = linhaDeApoio(hero?.titulo, nome);
 
   return (
-    <header
-      id="topo"
-      className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden px-[max(24px,5vw)] pb-[90px] pt-[120px]"
-    >
-      <div ref={linhaRef} className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+    <header id="topo" className="mm-hero">
+      <div ref={linhaRef} className="mm-hero-diagonal" aria-hidden="true">
         <div
           className="absolute left-[-12%] top-[34%] h-[7px] w-[126%] rotate-[-7deg]"
           style={{
@@ -79,11 +76,7 @@ export function Hero({
         />
       </div>
 
-      <div
-        className="absolute flex items-center gap-2.5 opacity-90"
-        style={{ top: "calc(86px + env(safe-area-inset-top))", right: "max(24px, 5vw)" }}
-        aria-hidden="true"
-      >
+      <div className="mm-hero-gauge opacity-90" aria-hidden="true">
         <svg width="54" height="42" viewBox="0 0 100 78" fill="none">
           <path d="M14 70 A44 44 0 1 1 86 70" stroke="var(--d-border)" strokeWidth="5" strokeLinecap="round" />
           <path d="M79 30 A44 44 0 0 1 86 70" stroke="var(--d-accent)" strokeWidth="5" strokeLinecap="round" />
@@ -100,7 +93,7 @@ export function Hero({
         </span>
       </div>
 
-      <div className={`relative mx-auto flex w-full max-w-[1200px] flex-col ${HERO_ALINHAMENTO[alinhamento]}`}>
+      <div className={`mm-hero-corpo ${HERO_ALINHAMENTO[alinhamento]}`}>
         {hero?.rotulo?.trim() && (
           <p
             data-demo-slot="secoes.hero.rotulo"
@@ -114,8 +107,7 @@ export function Hero({
 
         <h1
           data-demo-slot="nome"
-          className="mb-[30px] font-[family-name:var(--d-hero-font)] uppercase leading-none tracking-[0.5px]"
-          style={{ fontSize: "calc(clamp(42px, 9.6vw, 124px) * var(--d-hero-escala))" }}
+          className="mm-hero-h1 mb-[30px] font-[family-name:var(--d-hero-font)] uppercase leading-none tracking-[0.5px]"
         >
           {/* Espaço de TEXTO entre as palavras (não margem): sem ele o nome
               acessível e o `textContent` do <h1> saíam colados. */}
@@ -207,7 +199,7 @@ export function Hero({
       </div>
 
       <div
-        className="absolute bottom-[calc(22px+env(safe-area-inset-bottom))] left-1/2 flex -translate-x-1/2 flex-col items-center"
+        className="mm-hero-chev"
         style={{ transition: "opacity 800ms ease 760ms", opacity: revelado ? 1 : 0 }}
         aria-hidden="true"
       >

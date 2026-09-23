@@ -298,6 +298,9 @@ describe.each(alvos)("multimarcas: o exemplo não inventa fato sobre o lead (ite
   // Lead REAL sem endereço (o caso comum): antes, o endereço do exemplo
   // sobrevivia na montagem e ligava Waze/Maps para um lugar inventado.
   const doc = documento(id, montarDemoData(exemploDaSkin(skin, id), lead, undefined, skin.id));
+  // Texto VISÍVEL: o conteúdo de <style> (a folha de composição, com seus
+  // comentários) não é texto da página.
+  for (const estilo of doc.querySelectorAll("style")) estilo.remove();
   const texto = doc.body.textContent ?? "";
 
   it("sem endereço do lead: nem texto de endereço, nem Waze, nem Maps", () => {

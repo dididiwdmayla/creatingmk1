@@ -99,7 +99,7 @@ export function CarFilterGrid({
         <span key={f.id} id={f.id} aria-hidden="true" className="block scroll-mt-28" />
       ))}
       {opcoes.length > 1 && (
-        <div className="relative mb-[30px]">
+        <div className="mm-filtro relative mb-[30px]">
           <div
             role="group"
             aria-label={modoFiltro === "faixa" ? m.faixaDePreco : undefined}
@@ -142,7 +142,7 @@ export function CarFilterGrid({
         </div>
       )}
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(288px,1fr))] gap-[22px]">
+      <div className="mm-carros">
         {/* `initial={false}`: o estoque que chega no HTML do servidor já
             está no estado FINAL (opacidade 1, escala 1). Sem isso o motion
             serializa o `initial` de cada card no documento servido e, sem
@@ -152,6 +152,7 @@ export function CarFilterGrid({
           {filtrados.map(({ servico, index }) => (
             <motion.div
               key={servico.nome}
+              className="mm-carro-celula"
               layout
               initial={{ opacity: 0, scale: 0.86 }}
               animate={{ opacity: 1, scale: 1 }}

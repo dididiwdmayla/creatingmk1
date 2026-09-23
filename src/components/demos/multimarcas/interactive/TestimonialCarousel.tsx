@@ -69,9 +69,9 @@ export function TestimonialCarousel({
   if (n === 0) return null;
 
   return (
-    <div>
+    <div className="mm-dep">
       <div
-        className="mb-3 h-[3px] w-[min(220px,40vw)] overflow-hidden rounded-full"
+        className="mm-dep-progresso mb-3 h-[3px] w-[min(220px,40vw)] overflow-hidden rounded-full"
         style={{ background: "var(--d-border)" }}
       >
         <div
@@ -81,7 +81,7 @@ export function TestimonialCarousel({
       </div>
       <div
         ref={viewportRef}
-        className="cursor-grab overflow-hidden [touch-action:pan-y] select-none"
+        className="mm-dep-janela cursor-grab [touch-action:pan-y] select-none"
         onPointerDown={(e) => {
           arrastoRef.current = { x0: e.clientX, dx: 0 };
           if (trackRef.current) trackRef.current.style.transition = "none";
@@ -103,17 +103,17 @@ export function TestimonialCarousel({
           irPara(idx);
         }}
       >
-        <div ref={trackRef} className="flex gap-5 will-change-transform">
+        <div ref={trackRef} className="mm-dep-trilho will-change-transform">
           {depoimentos.map((d, i) => (
             <figure
               key={i}
-              className="m-0 flex w-[min(360px,82vw)] flex-none flex-col gap-[18px] border p-7"
+              className="mm-dep-item border"
               style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}
             >
-              <p className="font-[family-name:var(--d-corpo)] text-[15.5px] leading-[1.65] text-[var(--d-text)]/80">
+              <p className="mm-dep-texto font-[family-name:var(--d-corpo)] text-[var(--d-text)]/80">
                 &ldquo;{d.texto}&rdquo;
               </p>
-              <figcaption className="mt-auto flex items-center gap-3.5">
+              <figcaption className="mm-dep-autor">
                 <span
                   className="flex h-[46px] w-[46px] flex-none items-center justify-center rounded-full font-[family-name:var(--d-mono)] text-[15px] font-semibold tracking-[1px]"
                   style={{
@@ -128,7 +128,7 @@ export function TestimonialCarousel({
                     {d.autor}
                   </span>
                   {d.contexto && (
-                    <span className="mt-0.5 block font-[family-name:var(--d-corpo)] text-xs font-medium text-[var(--d-accent)]">
+                    <span className="mm-dep-contexto mt-0.5 block font-[family-name:var(--d-corpo)] text-xs font-medium text-[var(--d-accent)]">
                       {d.contexto}
                     </span>
                   )}

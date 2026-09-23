@@ -55,7 +55,7 @@ export function CarCard({
   return (
     <article
       data-car
-      className="d-card-hover flex cursor-pointer flex-col overflow-hidden border"
+      className="mm-carro d-card-hover cursor-pointer border"
       style={{
         background: "var(--d-bg-elev)",
         borderColor: "var(--d-border)",
@@ -63,7 +63,7 @@ export function CarCard({
       }}
       onClick={() => setAberto((v) => !v)}
     >
-      <div className="group/img relative aspect-[16/10] overflow-hidden border-b" style={{ borderColor: "var(--d-border)" }}>
+      <div className="mm-carro-foto group/img border-b" style={{ borderColor: "var(--d-border)" }}>
         <Image
           src={imagem}
           alt={alt ?? ""}
@@ -99,11 +99,11 @@ export function CarCard({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 p-[18px] pb-5">
-        <h3 className="font-[family-name:var(--d-display)] text-xl font-bold uppercase tracking-tight text-[var(--d-text)]">
+      <div className="mm-carro-corpo">
+        <h3 className="mm-carro-nome font-[family-name:var(--d-display)] text-xl font-bold uppercase tracking-tight text-[var(--d-text)]">
           {servico.nome}
         </h3>
-        <div className="flex items-baseline gap-1.5">
+        <div className="mm-carro-preco">
           <span className="font-[family-name:var(--d-mono)] text-sm font-medium text-[var(--d-accent)]">
             {simboloMoeda(idioma, moeda)}
           </span>
@@ -118,7 +118,7 @@ export function CarCard({
           />
         </div>
         {servico.destaques && servico.destaques.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="mm-carro-chips">
             {servico.destaques.map((chip, i) => (
               <span
                 key={i}
@@ -136,7 +136,7 @@ export function CarCard({
         )}
 
         <div
-          className="grid transition-[grid-template-rows] duration-[550ms] ease-[cubic-bezier(.3,1.3,.4,1)]"
+          className="mm-carro-painel grid transition-[grid-template-rows] duration-[550ms] ease-[cubic-bezier(.3,1.3,.4,1)]"
           style={{ gridTemplateRows: aberto ? "1fr" : "0fr" }}
         >
           <div className="min-h-0 overflow-hidden">

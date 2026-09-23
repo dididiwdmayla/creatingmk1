@@ -101,9 +101,9 @@ export function Simulador({
   const externo = linkProposta?.startsWith("https:");
 
   return (
-    <div className="grid items-start gap-[22px] [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
+    <div className="mm-sim">
       <div
-        className="flex flex-col gap-[30px] border p-[clamp(24px,4vw,36px)]"
+        className="mm-sim-controles border"
         style={{ background: "var(--d-bg-elev)", borderColor: "var(--d-border)", borderRadius: "var(--d-radius)" }}
       >
         <div>
@@ -184,7 +184,7 @@ export function Simulador({
       </div>
 
       <div
-        className="flex flex-col gap-[18px] border p-[clamp(24px,4vw,36px)]"
+        className="mm-sim-resultado border"
         style={{
           background: "linear-gradient(160deg, var(--d-bg-alt), var(--d-bg-elev) 60%)",
           borderColor: "color-mix(in srgb, var(--d-accent) 30%, transparent)",
@@ -196,7 +196,7 @@ export function Simulador({
         </p>
         <div className="flex flex-wrap items-baseline gap-2">
           <span className="font-[family-name:var(--d-mono)] text-xl font-semibold text-[var(--d-accent)]">{simbolo}</span>
-          <span className="flex font-[family-name:var(--d-mono)] text-[clamp(48px,6.5vw,66px)] font-semibold leading-[1.1] tabular-nums tracking-[1px] text-[var(--d-text)]">
+          <span className="mm-sim-parcela flex font-[family-name:var(--d-mono)] font-semibold leading-[1.1] tabular-nums tracking-[1px] text-[var(--d-text)]">
             {[...pmtStr].map((ch, i) =>
               /\d/.test(ch) ? (
                 <DigitoOdometro key={i} digito={ch} />
