@@ -454,6 +454,12 @@ async function medirFps(browser, pageDaFolha, secret) {
     const r = await page.evaluate(
       ({ velocidade, maxMs }) =>
         new Promise((resolve) => {
+          // Mesmo defeito documentado em `desligarScrollSuave` (medirBarra,
+          // abaixo): `html { scroll-behavior: smooth }` (imobiliaria e
+          // multimarcas) transforma CADA `scrollTo` do passo abaixo numa
+          // animação própria — a cada quadro um alvo novo e próximo demais
+          // pra a anterior terminar, e `scrollY` nunca sai do lugar.
+          document.documentElement.style.scrollBehavior = "auto";
           window.scrollTo(0, 0);
           const max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
           let quadros = 0;
