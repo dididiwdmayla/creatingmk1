@@ -36,6 +36,18 @@ const documento = (id: string, data: DemoData, idioma?: string) =>
     ),
   ).window.document;
 
+describe.each(alvos)("multimarcas: nove seções sem duplicata, um <h1> com o nome (item 24): %s", (id) => {
+  it("data-d-secao cobre as nove seções do contrato, sem duplicata, e o <h1> é o nome inteiro na âncora hero", () => {
+    const doc = documento(id, montarDemoData(exemploDaSkin(skin, id), lead, undefined, skin.id));
+    const marcadores = [...doc.querySelectorAll("[data-d-secao]")].map((el) => el.getAttribute("data-d-secao"));
+    expect(new Set(marcadores).size, "sem duplicata").toBe(marcadores.length);
+    expect([...marcadores].sort()).toEqual(skin.secoes.map((s) => s.id).sort());
+    const h1s = doc.querySelectorAll('[data-d-secao="hero"] h1');
+    expect(h1s).toHaveLength(1);
+    expect(normalizar(h1s[0].textContent!)).toBe(lead.nome);
+  });
+});
+
 describe.each(alvos)("multimarcas SSR sem JavaScript: %s", (id) => {
   const base = montarDemoData(exemploDaSkin(skin, id), lead, undefined, skin.id);
 
@@ -443,5 +455,29 @@ describe("multimarcas: miniaturas das variantes (item 22)", () => {
     const v = skin.variantes!.find((x) => x.id === id)!;
     expect(v.thumbnail).toBe(`/demos/multimarcas/${id}.jpg`);
     expect(existsSync(path.join(process.cwd(), "public", v.thumbnail!))).toBe(true);
+  });
+});
+
+/**
+ * §5 do plano — "o custo que não aparece na tabela": `destaque` nasceu
+ * depois de toda demo que o operador já tinha reordenado, então o
+ * `ordemSecoes` salvo nunca a lista. Sem `ordemEfetiva` (item 2), a seção
+ * nova entraria no FIM da fila — depois do próprio rodapé. A ordem abaixo é
+ * o Pátio já reordenado pelo operador ANTES desta migração (sem `destaque`,
+ * que ainda não existia), terminando em `contato`, como toda demo publicada
+ * de fato termina.
+ */
+describe("multimarcas: destaque numa demo com ordemSecoes antigo cai antes de contato (item 24)", () => {
+  const ORDEM_ANTIGA = ["estoque", "simulador", "avaliacao", "numeros", "vantagens", "depoimentos", "contato"];
+
+  it("destaque (não listado) entra antes da sua sucessora no contrato (simulador) — e, com isso, antes de contato", () => {
+    const data = montarDemoData(exemploDaSkin(skin, "patio"), lead, { ordemSecoes: ORDEM_ANTIGA }, skin.id);
+    const ordem = [...documento("patio", data).querySelectorAll("[data-d-secao]")].map((el) =>
+      el.getAttribute("data-d-secao"),
+    );
+    expect(ordem).not.toContain(null);
+    expect(ordem.indexOf("destaque")).toBeGreaterThan(-1);
+    expect(ordem.indexOf("destaque")).toBeLessThan(ordem.indexOf("simulador"));
+    expect(ordem.indexOf("destaque")).toBeLessThan(ordem.indexOf("contato"));
   });
 });
