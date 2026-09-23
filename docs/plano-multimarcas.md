@@ -77,6 +77,69 @@ execução que a etapa 4 precisa saber:
 - Os dois achados acima foram verificados nas outras skins não migradas e
   ficam registrados como pendência, sem correção nesta migração (§10).
 
+**Etapa 4 — concluída em 2026-09-23** (itens 23–26). **Etapa 5 —
+concluída em 2026-09-23** (itens 27–29). Migração FECHADA. Um commit
+por item; resultados completos em
+[qa/multimarcas-vortice/STATUS.md](../qa/multimarcas-vortice/STATUS.md).
+Decisões de execução:
+
+- **`SKINS_COM_PRECO_ANIMADO` CAIU** (item 23), eliminada, não mantida.
+  `CarCard.tsx` passou a animar o preço JÁ FORMATADO por inteiro (símbolo,
+  milhar e centavos — o mesmo formato de `formatarPrecoServico` que as
+  outras sete skins usam), em vez de símbolo estático + número sem
+  centavos em dois nós separados. `StatCounter` só embrulha prefixo/
+  sufixo num `<span>` quando `corDestaque` é passado (o caso dos
+  contadores de "Números"); sem isso, sai como texto solto, contíguo com
+  o número no HTML do servidor — é o que fecha a comparação por
+  substring do teste genérico. `registry.test.ts`, a trava
+  `variantes.test.tsx`, `lead-data-contract` e a parte genérica de
+  `imagens-slot-oculto` já cobriam a skin sozinhos, sem código novo — o
+  registro (etapas 1–3) já estava correto.
+- **`multimarcas-contrato.test.tsx` completo** (item 24): as nove
+  `data-d-secao` sem duplicata e o `<h1>` com o nome na demo BASE (sem
+  título salvo — o §6.1 só provava o caso COM), e `destaque` numa demo
+  com `ordemSecoes` antigo (o Pátio reordenado antes desta migração, sem
+  `destaque`) entrando antes de `simulador` — sua sucessora no contrato —
+  e, com isso, antes de `contato`, nunca depois do rodapé.
+- **`scripts/qa-multimarcas.mjs`** (item 25) prova duas coisas que a
+  chapa burger não precisava: a linha de apoio VISÍVEL no navegador
+  (estilo computado, não só caixa) com um título salvo, nas quatro
+  variantes; e uma captura dedicada da `vortice` com a intro LIGADA (o
+  default dela) e JavaScript DESLIGADO — o estado em que o robô de
+  prospecção fotografa — confirmando ao vivo que o preloader não sai no
+  documento servido e nenhum preço do estoque sai zerado
+  (`qa-shots/multimarcas/intro-vortice.png`). O aferidor de caixa zerada
+  do §7 checa `.mm-dados` (a mesma escada de identidade, na barra do
+  Pátio e no bloco do Campo) nas QUATRO variantes, não só duas.
+- **Achado de ambiente, não desta skin**: `next build` quebra atrás de
+  proxy corporativo/sandbox porque o `fetch` nativo do Node (≥22.21)
+  ignora `HTTPS_PROXY` por padrão — `NODE_USE_ENV_PROXY=1` em
+  `qa-servidor.mjs` corrige para todo laço que builda, não só este.
+- **Achado de laço, não desta skin**: `scripts/qa-visual.mjs --so=fps`
+  não tinha o mesmo `desligarScrollSuave` que `medirBarra` já usava —
+  `html { scroll-behavior: smooth }` (imobiliaria e multimarcas) fazia
+  `window.scrollTo` por quadro virar uma animação que nunca chegava ao
+  alvo ("FPS sem rolagem ativa"). Corrigido no laço de fps; vale para
+  qualquer skin com essa folha.
+- **fps (item 27): 20/20 células, piso 45, menor mediana 53,0** (`campo`
+  × `fixa`). **Drasticidade: as quatro passam**, alturas de 7.207 a
+  10.371px, diferença média em cinza de 48,7 (vortice × patio, as duas
+  claras) a 181,8 (patio × campo, a mais distante).
+- **`--so=barra` (item 28): um achado de instrumentação, não de produto**,
+  na Garagem — o marquee de marcas (trilho duplicado, sem costura) cruza
+  a coluna amostrada nas duas bordas ao mesmo tempo, enganando a
+  checagem "bordas concordam ⇒ não é conteúdo de margem" (desenhada para
+  decoração assimétrica, categoria do achado `flutuante-bacon` da chapa
+  burger). Documentado em STATUS.md, não corrigido — nem o marquee (o
+  desenho pedido pelo §6), nem o script, por um achado cosmético de
+  amostragem sem produto quebrado atrás.
+- **§2 refeito com números reais (item 29)**: pior caso `destaque/alt`
+  na `vortice`, 5,12:1 — 0,62 acima do piso de 4,5:1. As quatro passam
+  em todo par de leitura.
+- **ARCHITECTURE.md**: seção "Multimarcas Vórtice" no molde da chapa
+  burger; "Auditoria de endereço" cai de cinco para quatro skins
+  nativas; "próximas CINCO migrações" vira QUATRO.
+
 ---
 
 ## 1. Inventário da skin hoje
