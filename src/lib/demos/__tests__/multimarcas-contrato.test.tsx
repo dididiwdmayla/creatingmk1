@@ -23,6 +23,8 @@ const skin = getSkin("multimarcas-vortice")!;
 const lead = { nome: "Garagem Contrato Real", placeId: "qa", status: "novo" } as Lead;
 const alvos = skin.variantes!.map((v) => v.id);
 
+const normalizar = (texto: string) => texto.replace(/\s+/g, " ").trim();
+
 const documento = (id: string, data: DemoData, idioma?: string) =>
   new JSDOM(
     renderToStaticMarkup(
@@ -60,6 +62,72 @@ describe.each(alvos)("multimarcas SSR sem JavaScript: %s", (id) => {
     for (const [i, servico] of base.servicos.entries()) {
       const milhar = servico.precoValor!.toLocaleString("pt-BR");
       expect(textos[i], `${servico.nome} sem o preço ${milhar}`).toContain(milhar);
+    }
+  });
+});
+
+/**
+ * §6.1 do plano: o `<h1>` é SEMPRE o nome; `secoes.hero.titulo` salvo vira
+ * a linha de apoio, sem perder o texto. Montado pelo caminho real — exemplo
+ * da variante ← lead ← `lead.demo.dados` com o título salvo.
+ */
+describe.each(alvos)("multimarcas §6.1 — o <h1> e o título já salvo: %s", (id) => {
+  const TITULO = "Seminovos com garantia de fábrica";
+  const comTitulo = (titulo: string) =>
+    montarDemoData(exemploDaSkin(skin, id), lead, { secoes: { hero: { titulo } } }, skin.id);
+  const hero = (doc: Document) => doc.querySelector('[data-d-secao="hero"]')!;
+
+  it("um único <h1>, na âncora hero, com o nome inteiro e sem o título", () => {
+    const doc = documento(id, comTitulo(TITULO));
+    expect(doc.querySelectorAll("h1")).toHaveLength(1);
+    const h1 = hero(doc).querySelector("h1")!;
+    expect(normalizar(h1.textContent!)).toBe(lead.nome);
+    expect(h1.textContent).not.toContain(TITULO);
+  });
+
+  it("o título salvo aparece inteiro, depois do <h1>, na mesma âncora, sem nada que o esconda", () => {
+    const doc = documento(id, comTitulo(TITULO));
+    const h1 = hero(doc).querySelector("h1")!;
+    const apoio = hero(doc).querySelector('[data-demo-slot="secoes.hero.titulo"]');
+    expect(apoio).not.toBeNull();
+    expect(normalizar(apoio!.textContent!)).toBe(TITULO);
+    expect(h1.compareDocumentPosition(apoio!) & 4 /* FOLLOWING */).toBeTruthy();
+    for (const el of [apoio!, ...apoio!.querySelectorAll("*")]) {
+      expect(el.hasAttribute("hidden")).toBe(false);
+      expect(el.getAttribute("aria-hidden")).not.toBe("true");
+      const estilo = el.getAttribute("style") ?? "";
+      expect(estilo).not.toMatch(/display:\s*none|opacity:\s*0(?![.\d])|translateY/);
+    }
+  });
+
+  it("controle: título vazio ou só espaço não desenha linha", () => {
+    for (const titulo of ["", "   "]) {
+      const doc = documento(id, comTitulo(titulo));
+      expect(hero(doc).querySelector('[data-demo-slot="secoes.hero.titulo"]')).toBeNull();
+      expect(normalizar(hero(doc).querySelector("h1")!.textContent!)).toBe(lead.nome);
+    }
+  });
+
+  it("controle: título igual ao nome (sem caixa, sem espaços nas pontas) não desenha linha", () => {
+    const doc = documento(id, comTitulo(`  ${lead.nome.toUpperCase()} `));
+    expect(hero(doc).querySelector('[data-demo-slot="secoes.hero.titulo"]')).toBeNull();
+  });
+
+  it("o caso normal de lead (título = quebrarTitulo(nome)) também não repete o nome", () => {
+    const doc = documento(id, montarDemoData(exemploDaSkin(skin, id), lead, undefined, skin.id));
+    expect(hero(doc).querySelector('[data-demo-slot="secoes.hero.titulo"]')).toBeNull();
+  });
+});
+
+describe("multimarcas: rótulos e títulos vazios não viram elemento vazio", () => {
+  it("<h2>, rótulo e link de nav com string vazia/espaço não renderizam em branco", () => {
+    const base = montarDemoData(exemploDaSkin(skin, "vortice"), lead, undefined, skin.id);
+    const secoes = Object.fromEntries(
+      Object.entries(base.secoes).map(([k, v]) => [k, { ...v, rotulo: " ", titulo: "" }]),
+    );
+    const doc = documento("vortice", { ...base, secoes });
+    for (const el of doc.querySelectorAll("h2, [data-demo-slot$='.rotulo'], nav a")) {
+      expect(normalizar(el.textContent ?? ""), el.outerHTML.slice(0, 120)).not.toBe("");
     }
   });
 });

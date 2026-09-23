@@ -71,3 +71,34 @@ export function categoriasDoEstoque(
   }
   return [TODAS_CATEGORIAS, ...vistas];
 }
+
+/** Colapsa espaços e quebras de linha — `quebrarTitulo` põe `\n` no nome. */
+function semEspacosExtras(texto: string): string {
+  return texto.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * A LINHA DE APOIO da abertura (docs/plano-multimarcas.md §6.1): o `<h1>`
+ * é sempre o nome do negócio, e `secoes.hero.titulo` — o mesmo slot de
+ * sempre, sem migração — vira a linha logo abaixo dele. Devolve o texto a
+ * desenhar, ou `undefined` quando a linha não existe:
+ *
+ * - vazio ou só espaço: não existe (o `??` antigo desenhava `<h1>` vazio);
+ * - igual ao nome, sem caixa e sem espaços/quebras nas pontas ou no meio:
+ *   não existe — é o caso normal de todo lead, porque `dadosDoLead` e a
+ *   avulsa gravam `quebrarTitulo(nome)` no título, e o nome não aparece
+ *   duas vezes.
+ */
+export function linhaDeApoio(titulo: string | undefined, nome: string): string | undefined {
+  const limpo = semEspacosExtras(titulo ?? "");
+  if (!limpo) return undefined;
+  if (limpo.toLocaleLowerCase() === semEspacosExtras(nome).toLocaleLowerCase()) return undefined;
+  return limpo;
+}
+
+/** O nome em duas linhas de palavras (a segunda no acento), metade a metade. */
+export function linhasDoNome(nome: string): [string[], string[]] {
+  const palavras = semEspacosExtras(nome).split(" ").filter(Boolean);
+  const meio = Math.ceil(palavras.length / 2);
+  return [palavras.slice(0, meio), palavras.slice(meio)];
+}

@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   categoriasDoEstoque,
   formatarNumeroBR,
+  linhaDeApoio,
+  linhasDoNome,
   parseNumeroFormatado,
   TODAS_CATEGORIAS,
   waHref,
@@ -101,5 +103,32 @@ describe("waHref", () => {
     expect(waHref("", "Olá!")).toBeUndefined();
     expect(waHref("   ", "Olá!")).toBeUndefined();
     expect(waHref("sem dígitos aqui", "Olá!")).toBeUndefined();
+  });
+});
+
+describe("linhaDeApoio (§6.1 do plano)", () => {
+  it("título digitado pelo operador vira a linha de apoio, sem espaços extras", () => {
+    expect(linhaDeApoio("  Seminovos com garantia\nde fábrica ", "Auto Center Silva")).toBe(
+      "Seminovos com garantia de fábrica",
+    );
+  });
+
+  it("vazio ou só espaço: não há linha (o `??` antigo desenhava vazio)", () => {
+    expect(linhaDeApoio(undefined, "Auto Center Silva")).toBeUndefined();
+    expect(linhaDeApoio("", "Auto Center Silva")).toBeUndefined();
+    expect(linhaDeApoio("   \n ", "Auto Center Silva")).toBeUndefined();
+  });
+
+  it("igual ao nome (sem caixa, com a quebra de quebrarTitulo): não há linha", () => {
+    expect(linhaDeApoio("AUTO CENTER\nsilva", "Auto Center Silva")).toBeUndefined();
+    expect(linhaDeApoio(" auto center silva ", "Auto Center Silva")).toBeUndefined();
+  });
+});
+
+describe("linhasDoNome", () => {
+  it("parte o nome ao meio por palavras, a primeira linha com a sobra", () => {
+    expect(linhasDoNome("Auto Center Silva")).toEqual([["Auto", "Center"], ["Silva"]]);
+    expect(linhasDoNome("Vórtice")).toEqual([["Vórtice"], []]);
+    expect(linhasDoNome(" Garagem\n77 ")).toEqual([["Garagem"], ["77"]]);
   });
 });

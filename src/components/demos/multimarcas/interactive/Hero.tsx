@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 
 import { microcopiaDemo } from "@/lib/demos/microcopy";
 import type { Alinhamento, DemoSecao } from "@/lib/demos/types";
 import { useIntroDone } from "./introContext";
+import { linhaDeApoio, linhasDoNome } from "./logic";
 
 const HERO_ALINHAMENTO: Record<Alinhamento, string> = {
   esquerda: "items-start text-left",
@@ -13,7 +14,7 @@ const HERO_ALINHAMENTO: Record<Alinhamento, string> = {
 };
 
 /**
- * Hero: kicker, título revelado palavra a palavra (só depois do preloader
+ * Hero: kicker, o NOME do negócio no `<h1>` revelado palavra a palavra (só depois do preloader
  * terminar — `useIntroDone`), texto, CTAs e o velocímetro decorativo que
  * reage à velocidade do scroll. Fiel ao `heroIntro()`/`loop()` (needle) do
  * material bruto; a linha diagonal ganha um parallax sutil no scroll.
@@ -57,11 +58,11 @@ export function Hero({
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const titulo = hero?.titulo ?? nome;
-  const palavras = titulo.split(" ");
-  const meio = Math.ceil(palavras.length / 2);
-  const linha1 = palavras.slice(0, meio);
-  const linha2 = palavras.slice(meio);
+  // O `<h1>` é SEMPRE o nome do negócio (§6.1 do plano). O título salvo
+  // continua sendo o mesmo slot, e vira a linha de apoio logo abaixo — uma
+  // demo já salva com título não perde o texto, só o papel dele muda.
+  const [linha1, linha2] = linhasDoNome(nome);
+  const apoio = linhaDeApoio(hero?.titulo, nome);
 
   return (
     <header
@@ -100,7 +101,7 @@ export function Hero({
       </div>
 
       <div className={`relative mx-auto flex w-full max-w-[1200px] flex-col ${HERO_ALINHAMENTO[alinhamento]}`}>
-        {hero?.rotulo && (
+        {hero?.rotulo?.trim() && (
           <p
             data-demo-slot="secoes.hero.rotulo"
             className="mb-6 flex flex-wrap items-center gap-3 pr-[90px] font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px] text-[var(--d-accent)]"
@@ -112,43 +113,62 @@ export function Hero({
         )}
 
         <h1
-          data-demo-slot="secoes.hero.titulo"
+          data-demo-slot="nome"
           className="mb-[30px] font-[family-name:var(--d-hero-font)] uppercase leading-none tracking-[0.5px]"
           style={{ fontSize: "calc(clamp(42px, 9.6vw, 124px) * var(--d-hero-escala))" }}
         >
+          {/* Espaço de TEXTO entre as palavras (não margem): sem ele o nome
+              acessível e o `textContent` do <h1> saíam colados. */}
           <span className="block overflow-hidden pb-[0.06em]">
             {linha1.map((p, i) => (
-              <span key={i} className="mr-[0.25em] inline-block overflow-hidden align-bottom">
-                <span
-                  className="inline-block"
-                  style={{
-                    transition: `transform 850ms cubic-bezier(.2,.9,.2,1) ${150 + i * 95}ms`,
-                    transform: revelado ? "translateY(0)" : "translateY(115%)",
-                  }}
-                >
-                  {p}
-                </span>
-              </span>
+              <Fragment key={i}>
+                <span className="inline-block overflow-hidden align-bottom">
+                  <span
+                    className="inline-block"
+                    style={{
+                      transition: `transform 850ms cubic-bezier(.2,.9,.2,1) ${150 + i * 95}ms`,
+                      transform: revelado ? "translateY(0)" : "translateY(115%)",
+                    }}
+                  >
+                    {p}
+                  </span>
+                </span>{" "}
+              </Fragment>
             ))}
           </span>
-          <span className="block overflow-hidden pb-[0.08em] text-[var(--d-accent)]">
-            {linha2.map((p, i) => (
-              <span key={i} className="mr-[0.25em] inline-block overflow-hidden align-bottom">
-                <span
-                  className="inline-block"
-                  style={{
-                    transition: `transform 850ms cubic-bezier(.2,.9,.2,1) ${150 + (linha1.length + i) * 95}ms`,
-                    transform: revelado ? "translateY(0)" : "translateY(115%)",
-                  }}
-                >
-                  {p}
-                </span>
-              </span>
-            ))}
-          </span>
+          {linha2.length > 0 && (
+            <span className="block overflow-hidden pb-[0.08em] text-[var(--d-accent)]">
+              {linha2.map((p, i) => (
+                <Fragment key={i}>
+                  <span className="inline-block overflow-hidden align-bottom">
+                    <span
+                      className="inline-block"
+                      style={{
+                        transition: `transform 850ms cubic-bezier(.2,.9,.2,1) ${150 + (linha1.length + i) * 95}ms`,
+                        transform: revelado ? "translateY(0)" : "translateY(115%)",
+                      }}
+                    >
+                      {p}
+                    </span>
+                  </span>
+                  {i < linha2.length - 1 && " "}
+                </Fragment>
+              ))}
+            </span>
+          )}
         </h1>
 
-        {hero?.texto && (
+        {apoio && (
+          <p
+            data-demo-slot="secoes.hero.titulo"
+            className="-mt-3 mb-7 max-w-[760px] text-balance font-[family-name:var(--d-display)] text-[clamp(22px,3vw,34px)] font-bold leading-[1.15] text-[var(--d-text)]"
+            style={{ transition: "opacity 800ms ease 460ms", opacity: revelado ? 1 : 0 }}
+          >
+            {apoio}
+          </p>
+        )}
+
+        {hero?.texto?.trim() && (
           <p
             data-demo-slot="secoes.hero.texto"
             className="mb-[38px] max-w-[520px] text-pretty font-[family-name:var(--d-corpo)] text-[clamp(15px,1.8vw,18px)] leading-relaxed text-[var(--d-muted)]"
@@ -162,7 +182,7 @@ export function Hero({
           className="flex flex-wrap gap-3.5"
           style={{ transition: "opacity 800ms ease 640ms", opacity: revelado ? 1 : 0 }}
         >
-          {hero?.cta && (
+          {hero?.cta?.trim() && (
             <a
               href="#estoque"
               data-demo-slot="secoes.hero.cta"
@@ -171,7 +191,7 @@ export function Hero({
               {hero.cta.toUpperCase()}
             </a>
           )}
-          {hero?.ctaSecundaria && waHref && (
+          {hero?.ctaSecundaria?.trim() && waHref && (
             <a
               href={waHref}
               target="_blank"

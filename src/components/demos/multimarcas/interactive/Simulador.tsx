@@ -191,7 +191,7 @@ export function Simulador({
             boxShadow: "0 10px 26px color-mix(in srgb, var(--d-accent) 28%, transparent)",
           }}
         >
-          {(ctaLabel ?? "Solicitar proposta").toUpperCase()}
+          {(ctaLabel?.trim() || "Solicitar proposta").toUpperCase()}
         </a>
         )}
         <p className="font-[family-name:var(--d-corpo)] text-[11px] text-[var(--d-muted)]">

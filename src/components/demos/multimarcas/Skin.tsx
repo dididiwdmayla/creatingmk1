@@ -80,12 +80,26 @@ const NAV_LABEL: Record<string, string> = {
   contato: "Contato",
 };
 
+/**
+ * Rótulo editorial acima do título. Vazio ou só espaço: não existe — o
+ * elemento com `data-demo-slot` ficava no documento sem texto nenhum.
+ */
 function Rotulo({ texto, slot }: { texto?: string; slot?: string }) {
-  if (!texto) return null;
+  if (!texto?.trim()) return null;
   return (
     <p data-demo-slot={slot} className="mb-3.5 font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px] text-[var(--d-accent)]">
       {texto.toUpperCase()}
     </p>
+  );
+}
+
+/** `<h2>` de seção que não nasce vazio (mesma regra do `Rotulo`). */
+function Titulo({ texto, slot, className }: { texto?: string; slot: string; className: string }) {
+  if (!texto?.trim()) return null;
+  return (
+    <h2 data-demo-slot={slot} className={className}>
+      {texto}
+    </h2>
   );
 }
 
@@ -134,7 +148,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
 
   const navLinks: NavLink[] = visiveis
     .filter((id) => id !== "hero" && id !== "numeros")
-    .map((id) => ({ id, rotulo: s[id]?.rotulo ?? NAV_LABEL[id] ?? s[id]?.titulo ?? id }));
+    .map((id) => ({ id, rotulo: s[id]?.rotulo?.trim() || NAV_LABEL[id] || s[id]?.titulo?.trim() || id }));
 
   // `waHref` devolve undefined sem número — cada CTA de WhatsApp some
   // junto, em vez de virar link morto (ver interactive/logic.ts).
@@ -142,7 +156,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
   const linkWaAvaliacao = waHref(data.whatsapp, "Olá! Quero uma avaliação do meu carro.");
   const linkWaDestaque = waHref(
     data.whatsapp,
-    `Olá! Tenho interesse no ${s.destaque?.titulo ?? "veículo em destaque"} que vi no site da ${data.nome}.`,
+    `Olá! Tenho interesse no ${s.destaque?.titulo?.trim() || "veículo em destaque"} que vi no site da ${data.nome}.`,
   );
 
   const secoes: Record<string, () => ReactNode> = {
@@ -152,12 +166,11 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
         <section id="estoque" className="mx-auto max-w-[1200px] px-[max(24px,5vw)] py-[var(--d-sec-y)]">
           <div className="mb-[34px]">
             <Rotulo texto={s.estoque?.rotulo} slot="secoes.estoque.rotulo" />
-            <h2
-              data-demo-slot="secoes.estoque.titulo"
+            <Titulo
+              texto={s.estoque?.titulo}
+              slot="secoes.estoque.titulo"
               className="font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-            >
-              {s.estoque?.titulo}
-            </h2>
+            />
           </div>
           <CarFilterGrid
             servicos={data.servicos}
@@ -184,12 +197,11 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
           <div className="mx-auto max-w-[1200px]">
             <div className="mb-11">
               <Rotulo texto={s.vantagens?.rotulo} slot="secoes.vantagens.rotulo" />
-              <h2
-                data-demo-slot="secoes.vantagens.titulo"
+              <Titulo
+                texto={s.vantagens?.titulo}
+                slot="secoes.vantagens.titulo"
                 className="font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-              >
-                {s.vantagens?.titulo}
-              </h2>
+              />
             </div>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-[18px]">
               {s.vantagens?.itens?.map((item, i) => (
@@ -271,12 +283,11 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
           </div>
           <div>
             <Rotulo texto={s.destaque?.rotulo} slot="secoes.destaque.rotulo" />
-            <h2
-              data-demo-slot="secoes.destaque.titulo"
+            <Titulo
+              texto={s.destaque?.titulo}
+              slot="secoes.destaque.titulo"
               className="font-[family-name:var(--d-display)] text-[clamp(30px,4.6vw,48px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-            >
-              {s.destaque?.titulo}
-            </h2>
+            />
             {s.destaque?.texto && (
               <p
                 data-demo-slot="secoes.destaque.texto"
@@ -331,12 +342,11 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
       <section id="simulador" className="mx-auto max-w-[1200px] px-[max(24px,5vw)] py-[var(--d-sec-y)]">
         <div className="mb-11">
           <Rotulo texto={s.simulador?.rotulo} slot="secoes.simulador.rotulo" />
-          <h2
-            data-demo-slot="secoes.simulador.titulo"
+          <Titulo
+            texto={s.simulador?.titulo}
+            slot="secoes.simulador.titulo"
             className="font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-          >
-            {s.simulador?.titulo}
-          </h2>
+          />
           {s.simulador?.texto && (
             <p
               data-demo-slot="secoes.simulador.texto"
@@ -363,18 +373,19 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
           }`}
         >
           <div>
-            <p
-              data-demo-slot="secoes.avaliacao.rotulo"
-              className="mb-3.5 font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px] opacity-75"
-            >
-              {s.avaliacao?.rotulo?.toUpperCase()}
-            </p>
-            <h2
-              data-demo-slot="secoes.avaliacao.titulo"
+            {s.avaliacao?.rotulo?.trim() && (
+              <p
+                data-demo-slot="secoes.avaliacao.rotulo"
+                className="mb-3.5 font-[family-name:var(--d-corpo)] text-[13px] font-semibold tracking-[4px] opacity-75"
+              >
+                {s.avaliacao.rotulo.toUpperCase()}
+              </p>
+            )}
+            <Titulo
+              texto={s.avaliacao?.titulo}
+              slot="secoes.avaliacao.titulo"
               className="font-[family-name:var(--d-display)] text-[clamp(38px,6.4vw,74px)] font-extrabold uppercase leading-none tracking-[0.5px]"
-            >
-              {s.avaliacao?.titulo}
-            </h2>
+            />
             {s.avaliacao?.texto && (
               <p
                 data-demo-slot="secoes.avaliacao.texto"
@@ -408,12 +419,11 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
           <div className="mb-10 flex flex-wrap items-end justify-between gap-5">
             <div>
               <Rotulo texto={s.depoimentos?.rotulo} slot="secoes.depoimentos.rotulo" />
-              <h2
-                data-demo-slot="secoes.depoimentos.titulo"
+              <Titulo
+                texto={s.depoimentos?.titulo}
+                slot="secoes.depoimentos.titulo"
                 className="font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,60px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-              >
-                {s.depoimentos?.titulo}
-              </h2>
+              />
             </div>
           </div>
           <TestimonialCarousel depoimentos={data.depoimentos} animacao={theme.animacao} />
@@ -435,12 +445,11 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
           >
             <div>
               <Rotulo texto={s.contato?.rotulo} slot="secoes.contato.rotulo" />
-              <h2
-                data-demo-slot="secoes.contato.titulo"
+              <Titulo
+                texto={s.contato?.titulo}
+                slot="secoes.contato.titulo"
                 className="mb-6 font-[family-name:var(--d-display)] text-[clamp(34px,5.4vw,58px)] font-extrabold uppercase leading-[1.05] tracking-[0.5px] text-[var(--d-text)]"
-              >
-                {s.contato?.titulo}
-              </h2>
+              />
               {(data.endereco || data.cidade) && (
                 <p
                   data-demo-slot={data.endereco ? "endereco" : "cidade"}
@@ -550,7 +559,7 @@ export function MultimarcasVortice({ data, theme, idioma, moeda }: SkinProps) {
             <p className="w-full font-[family-name:var(--d-corpo)] text-xs text-[var(--d-muted)]">
               © {new Date().getFullYear()} {data.nome}.{" "}
               <span data-demo-slot="secoes.contato.texto">
-                {s.contato?.texto ?? "Conteúdo ilustrativo."}
+                {s.contato?.texto?.trim() || "Conteúdo ilustrativo."}
               </span>
             </p>
           </div>
