@@ -93,9 +93,7 @@ export const TATUAGEM2_VARIANTES: readonly SkinVariante[] = DECLARACOES.map((d) 
       theme,
       exemplo: TATUAGEM2_EXEMPLOS_POR_VARIANTE[d.id],
       arranjo: { ordem: ORDENS[d.id] ?? TATUAGEM2_SECOES.map((s) => s.id) },
-      // Miniatura por variante fica para a sessão de composição (item 24 do
-      // plano) — reaproveita a da skin até lá.
-      thumbnail: "/demos/tatuagem2/thumb.svg",
+      thumbnail: `/demos/tatuagem2/${d.id}.jpg`,
     },
     TATUAGEM2_SECOES,
   );

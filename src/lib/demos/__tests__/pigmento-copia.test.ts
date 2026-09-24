@@ -39,4 +39,8 @@ describe("Pigmento Vivo — cópia de exemplo por variante", () => {
       "COBERTURA G",
     ]);
   });
+
+  it.each(TATUAGEM2_VARIANTES)("$id aponta para sua própria miniatura", (variante) => {
+    expect(variante.thumbnail).toBe(`/demos/tatuagem2/${variante.id}.jpg`);
+  });
 });
