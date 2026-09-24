@@ -828,6 +828,115 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   .pv[data-pv-estilos="baralho"] .pv-estilo-cartao { min-height: 16rem; }
 }
 
+/* ── ARTISTAS ────────────────────────────────────────────────────────
+   assinaturas: rabisco amplo desenhado sobre três colunas;
+   monogramas:  iniciais em discos frios;
+   bandeiras:   uma faixa pigmentada por artista;
+   livro:       verbetes horizontais com rabisco na margem. */
+.pv .pv-artista-monograma { display: none; }
+.pv .pv-artista-cartao { height: 100%; }
+
+.pv[data-pv-artistas="assinaturas"] .pv-artistas-lista {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.pv[data-pv-artistas="assinaturas"] .pv-artista-item { max-width: none; }
+.pv[data-pv-artistas="assinaturas"] .pv-artista-rabisco { min-height: 10rem; }
+
+.pv[data-pv-artistas="monogramas"] .pv-artistas-lista {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(1rem, 3vw, 3rem);
+}
+.pv[data-pv-artistas="monogramas"] .pv-artista-item { max-width: none; }
+.pv[data-pv-artistas="monogramas"] .pv-artista-cartao { text-align: center; }
+.pv[data-pv-artistas="monogramas"] .pv-artista-monograma {
+  display: grid;
+  place-items: center;
+  width: clamp(8rem, 18vw, 14rem);
+  aspect-ratio: 1;
+  margin: 0 auto 2rem;
+  border: var(--pv-forma-borda);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pv-artista-mancha) 13%, var(--d-bg-alt));
+  color: var(--pv-artista-tinta);
+  font-family: var(--d-display);
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  letter-spacing: -.08em;
+}
+.pv[data-pv-artistas="monogramas"] .pv-artista-rabisco { display: none; }
+
+.pv[data-pv-artistas="bandeiras"] .pv-artistas-lista {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+.pv[data-pv-artistas="bandeiras"] .pv-artista-item { max-width: none; }
+.pv[data-pv-artistas="bandeiras"] .pv-artista-cartao {
+  display: flex;
+  align-items: flex-end;
+  min-height: 30rem;
+  padding: clamp(1.5rem, 3vw, 3rem);
+  border-left: 1px solid color-mix(in srgb, var(--pv-artista-tinta) 42%, transparent);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--pv-artista-mancha) 64%, var(--d-bg-elev)), color-mix(in srgb, var(--pv-artista-mancha) 13%, var(--d-bg-elev)) 67%);
+}
+.pv[data-pv-artistas="bandeiras"] .pv-artista-rabisco { display: none; }
+.pv[data-pv-artistas="bandeiras"] .pv-artista-copy {
+  padding-top: 1.5rem;
+  border-top: 2px solid var(--pv-artista-tinta);
+}
+.pv[data-pv-artistas="bandeiras"] .pv-artista-subtitulo { color: var(--pv-artista-tinta); }
+
+.pv[data-pv-artistas="livro"] .pv-artistas-lista {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 68rem;
+  margin-inline: auto;
+  gap: 0;
+  border-top: 1px solid var(--d-text);
+}
+.pv[data-pv-artistas="livro"] .pv-artista-item { max-width: none; }
+.pv[data-pv-artistas="livro"] .pv-artista-cartao {
+  display: grid;
+  grid-template-columns: 9rem minmax(10rem, .8fr) minmax(0, 1.4fr);
+  align-items: center;
+  gap: clamp(1rem, 3vw, 3rem);
+  padding-block: 2rem;
+  border-bottom: 1px solid var(--d-text);
+}
+.pv[data-pv-artistas="livro"] .pv-artista-rabisco {
+  grid-column: 1;
+  width: 7rem;
+  margin: 0;
+}
+.pv[data-pv-artistas="livro"] .pv-artista-copy { display: contents; }
+.pv[data-pv-artistas="livro"] .pv-artista-titulo {
+  grid-column: 2;
+  margin: 0;
+  font-family: var(--font-pv-manuscrita), var(--d-display);
+}
+.pv[data-pv-artistas="livro"] .pv-artista-subtitulo,
+.pv[data-pv-artistas="livro"] .pv-artista-texto { grid-column: 3; }
+.pv[data-pv-artistas="livro"] .pv-artista-subtitulo { align-self: end; margin: 0 0 .35rem; }
+.pv[data-pv-artistas="livro"] .pv-artista-texto { align-self: start; }
+
+@media (max-width: 47.999rem) {
+  .pv[data-pv-artistas="assinaturas"] .pv-artistas-lista,
+  .pv[data-pv-artistas="monogramas"] .pv-artistas-lista,
+  .pv[data-pv-artistas="bandeiras"] .pv-artistas-lista { grid-template-columns: minmax(0, 1fr); }
+  .pv[data-pv-artistas="assinaturas"] .pv-artista-rabisco { min-height: 0; max-height: 12rem; }
+  .pv[data-pv-artistas="monogramas"] .pv-artista-monograma { width: 10rem; }
+  .pv[data-pv-artistas="bandeiras"] .pv-artista-cartao { min-height: 20rem; }
+  .pv[data-pv-artistas="livro"] .pv-artista-cartao {
+    grid-template-columns: 5rem minmax(0, 1fr);
+    gap: .8rem 1.2rem;
+  }
+  .pv[data-pv-artistas="livro"] .pv-artista-rabisco { width: 4.5rem; grid-row: 1 / 4; }
+  .pv[data-pv-artistas="livro"] .pv-artista-titulo,
+  .pv[data-pv-artistas="livro"] .pv-artista-subtitulo,
+  .pv[data-pv-artistas="livro"] .pv-artista-texto { grid-column: 2; }
+}
+
 /* ── PROCESSO ────────────────────────────────────────────────────────
    onda:       passos alternados dos dois lados de um traço contínuo;
    camadas:    quatro folhas de decalque em cascata;

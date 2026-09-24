@@ -570,8 +570,8 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Artistas ────────────────────────────────────────────── */
     artistas: () =>
       s.artistas && (
-        <section id="artistas" data-pigment={manchas[1]} className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className="mb-16">
+        <section id="artistas" data-pigment={manchas[1]} className="pv-artistas px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className="pv-artistas-cabeca mb-16">
             <Etiqueta texto={s.artistas.rotulo} slot="secoes.artistas.rotulo" />
             <SplashTitle
               texto={s.artistas.titulo}
@@ -580,37 +580,54 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               className="font-[family-name:var(--d-display)] text-[clamp(2.25rem,6vw,5.5rem)] leading-[1] text-[var(--d-text)]"
             />
           </div>
-          <div className="flex flex-wrap items-start gap-x-[clamp(24px,4vw,64px)] gap-y-12">
+          <div className="pv-artistas-lista flex flex-wrap items-start gap-x-[clamp(24px,4vw,64px)] gap-y-12">
             {(s.artistas.itens ?? []).map((item, i) => {
               const cor = pigmentos[i % pigmentos.length];
+              const iniciais = item.titulo
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((parte) => parte[0])
+                .join("");
               return (
-                <FadeUp key={item.titulo} animacao={theme.animacao} delay={0.1 * i} className="max-w-[380px] flex-1 basis-[280px]">
-                  <LineDraw
-                    d={RABISCOS_ARTISTA[i % RABISCOS_ARTISTA.length]}
-                    viewBox="0 0 200 160"
-                    stroke={cor}
-                    className="mb-5 block w-full max-w-[220px]"
-                  />
-                  <h3
-                    data-demo-slot={`secoes.artistas.itens.${i}.titulo`}
-                    className="mb-1.5 font-[family-name:var(--d-display)] text-[2.1rem] leading-none text-[var(--d-text)]"
+                <FadeUp key={item.titulo} animacao={theme.animacao} delay={0.1 * i} className="pv-artista-item max-w-[380px] flex-1 basis-[280px]">
+                  <article
+                    className="pv-artista-cartao"
+                    style={{
+                      "--pv-artista-tinta": cor,
+                      "--pv-artista-mancha": manchas[i % manchas.length],
+                    } as CSSProperties}
                   >
-                    {item.titulo}
-                  </h3>
-                  {item.subtitulo && (
-                    <p
-                      data-demo-slot={`secoes.artistas.itens.${i}.subtitulo`}
-                      className="mb-3 font-[family-name:var(--d-mono)] text-[13px] font-semibold uppercase tracking-[0.14em]"
-                      style={{ color: cor }}
-                    >
-                      {item.subtitulo}
-                    </p>
-                  )}
-                  {item.texto && (
-                    <p data-demo-slot={`secoes.artistas.itens.${i}.texto`} className="text-[15px] leading-relaxed text-[var(--d-muted)]">
-                      {item.texto}
-                    </p>
-                  )}
+                    <span className="pv-artista-monograma" aria-hidden="true">{iniciais}</span>
+                    <LineDraw
+                      d={RABISCOS_ARTISTA[i % RABISCOS_ARTISTA.length]}
+                      viewBox="0 0 200 160"
+                      stroke={cor}
+                      className="pv-artista-rabisco mb-5 block w-full max-w-[220px]"
+                    />
+                    <div className="pv-artista-copy">
+                      <h3
+                        data-demo-slot={`secoes.artistas.itens.${i}.titulo`}
+                        className="pv-artista-titulo mb-1.5 font-[family-name:var(--d-display)] text-[2.1rem] leading-none text-[var(--d-text)]"
+                      >
+                        {item.titulo}
+                      </h3>
+                      {item.subtitulo && (
+                        <p
+                          data-demo-slot={`secoes.artistas.itens.${i}.subtitulo`}
+                          className="pv-artista-subtitulo mb-3 font-[family-name:var(--d-mono)] text-[13px] font-semibold uppercase tracking-[0.14em]"
+                          style={{ color: cor }}
+                        >
+                          {item.subtitulo}
+                        </p>
+                      )}
+                      {item.texto && (
+                        <p data-demo-slot={`secoes.artistas.itens.${i}.texto`} className="pv-artista-texto text-[15px] leading-relaxed text-[var(--d-muted)]">
+                          {item.texto}
+                        </p>
+                      )}
+                    </div>
+                  </article>
                 </FadeUp>
               );
             })}
