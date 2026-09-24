@@ -125,7 +125,7 @@ const browser = await chromium.launch({
   headless: true,
   args: ["--no-sandbox", "--disable-dev-shm-usage", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
 });
-const relatorio = { contrato: [], slots: [], identidade: [], apoio: [], cinza: null };
+const relatorio = { contrato: [], slots: [], identidade: [], apoio: [], cinza: null, cls: [] };
 const falhas = [];
 
 try {
@@ -335,6 +335,78 @@ try {
     await ctxImg.close();
   }
 
+  /* ── CLS e troca de fonte, Slow 4G + cache frio (item 7) ───────────
+   * Contexto NOVO por variante — cache vazio por construção (mesmo
+   * princípio de `--incognito`: Playwright nunca reaproveita o cache
+   * HTTP entre `browser.newContext()`). `Network.setCacheDisabled`
+   * reforça: nenhuma resposta cacheada, nem por engano. Slow 4G nos
+   * mesmos números do Lighthouse (RTT 150ms, 1.6Mbps down / 750kbps up)
+   * — a rede em que o atraso de fonte fica visível de verdade. */
+  if (querido("cls")) {
+    const REDE_SLOW_4G = {
+      offline: false,
+      latency: 150,
+      downloadThroughput: (1.6 * 1024 * 1024) / 8,
+      uploadThroughput: (750 * 1024) / 8,
+    };
+    for (const v of VARIANTES) {
+      const ctxCls = await browser.newContext({ viewport: { width: TELAS[0].width, height: TELAS[0].height } });
+      await ctxCls.addCookies([app.cookie]);
+      const p = await ctxCls.newPage();
+      const cdpCls = await ctxCls.newCDPSession(p);
+      await cdpCls.send("Network.enable");
+      await cdpCls.send("Network.setCacheDisabled", { cacheDisabled: true });
+      await cdpCls.send("Network.emulateNetworkConditions", REDE_SLOW_4G);
+      await p.addInitScript(() => {
+        window.__cls = { value: 0, maiores: [] };
+        window.__fontesProntasEm = null;
+        try {
+          const po = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              if (entry.hadRecentInput) continue;
+              window.__cls.value += entry.value;
+              window.__cls.maiores.push({
+                value: entry.value,
+                time: entry.startTime,
+                nome: (entry.sources ?? []).some(
+                  (s) => s.node && s.node.closest && s.node.closest(".pv-hero-nome, .pv-hero-nome-caixa"),
+                ),
+              });
+            }
+          });
+          po.observe({ type: "layout-shift", buffered: true });
+        } catch {
+          /* navegador sem suporte — __cls fica em 0. */
+        }
+        if (document.fonts) {
+          document.fonts.ready.then(() => {
+            window.__fontesProntasEm = performance.now();
+          });
+        }
+      });
+
+      const t0 = Date.now();
+      await p.goto(url(v), { waitUntil: "load", timeout: 60000 });
+      const tCarregouMs = Date.now() - t0;
+      await p.waitForTimeout(1500);
+      const cls = await p.evaluate(() => window.__cls);
+      const fontesProntasEmMs = await p.evaluate(() => window.__fontesProntasEm);
+      const deslocamentoDoNome = cls.maiores.filter((m) => m.nome && m.value > 0);
+      relatorio.cls.push({
+        variante: v,
+        cls: +cls.value.toFixed(4),
+        maiores: cls.maiores.slice(0, 3).map((m) => ({ value: +m.value.toFixed(4), time: Math.round(m.time), nome: m.nome })),
+        tCarregouMs,
+        fontesProntasEmMs: fontesProntasEmMs === null ? null : Math.round(fontesProntasEmMs),
+        deslocamentoDoNomeAoTrocarFonte: deslocamentoDoNome.length > 0,
+      });
+      try {
+        assert.ok(cls.value < 0.1, `${v}: CLS ${cls.value.toFixed(4)} ≥ 0.1 sob Slow 4G + cache frio`);
+      } catch (e) { falhas.push(e.message); }
+      await ctxCls.close();
+    }
+  }
+
   await fs.writeFile(path.join(saida, "relatorio.json"), JSON.stringify(relatorio, null, 2));
 
   if (relatorio.slots.length > 0) {
@@ -356,6 +428,15 @@ try {
     for (const p of relatorio.cinza.pares) console.log(`  ${p.par.padEnd(28)} ${String(p.diferencaMedia).padStart(6)}   alturas ${p.alturas}px`);
     console.log(`\n  folha: ${path.relative(process.cwd(), relatorio.cinza.folha)}`);
     console.log(`  docs:  ${path.relative(process.cwd(), relatorio.cinza.folhaDocs)}`);
+  }
+  if (relatorio.cls.length > 0) {
+    console.log("\n── item 7: CLS sob Slow 4G + cache frio ──");
+    for (const c of relatorio.cls) {
+      console.log(
+        `  ${c.variante.padEnd(11)} CLS=${c.cls.toFixed(4).padStart(7)}  carregou em ${c.tCarregouMs}ms` +
+          `  fontes prontas em ${c.fontesProntasEmMs}ms  nome deslocou ao trocar fonte=${c.deslocamentoDoNomeAoTrocarFonte}`,
+      );
+    }
   }
 
   if (falhas.length > 0) {
