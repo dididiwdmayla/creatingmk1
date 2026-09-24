@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 /**
  * Manifesto com palavras "acendendo" conforme o scroll passa pela seção —
@@ -10,10 +10,18 @@ import { useEffect, useRef } from "react";
  * atinge o índice dela; a cada N palavras (`accentEvery`), a palavra
  * também ganha itálico e uma cor do ciclo de acentos do tema em vez do
  * texto normal — igual ao original destacar só ALGUMAS palavras
- * ("memória", "identidade"…) em cor e itálico. Direto no DOM via ref/rAF
- * (mesmo padrão de LedEdges.tsx) — nenhum re-render React por frame de
- * scroll. `ativa=false` (Theme.animacao "nenhuma" ou prefers-reduced-motion)
- * mostra tudo já aceso, sem listener.
+ * ("memória", "identidade"…) em cor e itálico.
+ *
+ * **O HTML servido sai ACESO** (item 4 da sessão de fundação): a versão
+ * anterior pintava toda palavra em `--d-unlit` (32% de mistura — 1,97 a
+ * 2,64:1 nas quatro paletas) já no JSX, e só um `useEffect` client-side
+ * acendia — sem JavaScript, ou antes da hidratação, o manifesto inteiro era
+ * ilegível. Agora cada palavra nasce na cor FINAL (o cliente é quem apaga,
+ * num `useLayoutEffect` — antes do navegador pintar, sem flash de "aceso
+ * depois apaga" — só as palavras ainda não alcançadas pelo scroll no
+ * momento da montagem). `ativa=false` (Theme.animacao "nenhuma" ou
+ * prefers-reduced-motion) não roda o efeito: fica tudo aceso, como o
+ * documento servido.
  */
 export function ManifestoReveal({
   texto,
@@ -32,18 +40,11 @@ export function ManifestoReveal({
 }) {
   const containerRef = useRef<HTMLParagraphElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const reduzida = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!ativa || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const palavras = Array.from(container.querySelectorAll<HTMLElement>("[data-w]"));
-
-    if (!ativa || reduzida) {
-      palavras.forEach((w) => {
-        w.style.color = w.dataset.accent ? w.dataset.accent : "var(--d-text)";
-      });
-      return;
-    }
 
     let raf = 0;
     const onScroll = () => {
@@ -81,7 +82,7 @@ export function ManifestoReveal({
             data-w
             data-accent={cor}
             style={{
-              color: "var(--d-unlit)",
+              color: cor ?? "var(--d-text)",
               fontStyle: destacada ? "italic" : "normal",
               fontWeight: destacada ? 300 : undefined,
               transition: "color .5s",

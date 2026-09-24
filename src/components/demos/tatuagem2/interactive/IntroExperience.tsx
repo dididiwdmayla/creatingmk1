@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { CustomCursor } from "./CustomCursor";
@@ -16,6 +16,17 @@ const DURACAO_MS = 900;
  * presets (mesmo critério da lancheria); se o editor ligar, mostra uma
  * revelação curta do nome em DM Serif Display sobre o fundo do tema. Uma
  * vez por sessão (sessionStorage), pulada em prefers-reduced-motion.
+ *
+ * **O documento servido nunca é escondido** (item 4 da sessão de fundação):
+ * `mostrando` é ESTADO, com valor inicial `false` — o mesmo em SSR e no
+ * primeiro paint do cliente — e só vira `true` dentro de um `useEffect`
+ * (nunca computado direto no corpo do render). Com `intro: true`, a versão
+ * antiga calculava `mostrando` na hora — `ativa && !reduzida && !terminado`,
+ * com `terminado` começando em `false` — então o próprio HTML do servidor
+ * já saía com a camada `fixed inset-0` opaca cobrindo a página. Mesmo
+ * defeito do preloader da multimarcas, mesmo remédio (`IntroExperience.tsx`
+ * de lá): o efeito que liga a splash roda só no cliente, depois da
+ * hidratação, e nunca antes dela.
  */
 export function IntroExperience({
   nome,
@@ -26,25 +37,29 @@ export function IntroExperience({
   ativa: boolean;
   children: ReactNode;
 }) {
-  const reduzida = useReducedMotion();
-  const [terminado, setTerminado] = useState(false);
+  const [mostrando, setMostrando] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!ativa) return;
     const jaViu = sessionStorage.getItem(SESSION_KEY);
-    if (!ativa || reduzida || jaViu) {
-      const t = setTimeout(() => setTerminado(true), 0);
-      return () => clearTimeout(t);
-    }
-  }, [ativa, reduzida]);
+    const reduzida = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduzida || jaViu) return;
+    // Adiado pro próximo tick: setState síncrono no corpo do efeito é o
+    // que o lint de hooks reprova (mesmo padrão das outras skins).
+    const t = setTimeout(() => setMostrando(true), 0);
+    return () => clearTimeout(t);
+  }, [ativa]);
 
-  const mostrando = ativa && !reduzida && !terminado;
+  function completar() {
+    sessionStorage.setItem(SESSION_KEY, "1");
+    setMostrando(false);
+  }
 
   useEffect(() => {
     if (!mostrando) return;
-    sessionStorage.setItem(SESSION_KEY, "1");
-    const t = setTimeout(() => setTerminado(true), DURACAO_MS);
+    const t = setTimeout(completar, DURACAO_MS);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mostrando]);
 
   return (

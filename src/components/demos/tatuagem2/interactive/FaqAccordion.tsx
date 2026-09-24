@@ -1,15 +1,16 @@
-"use client";
-
-import { useState } from "react";
+import type { CSSProperties } from "react";
 
 import type { DemoItem } from "@/lib/demos/types";
 
 /**
- * Acordeão de perguntas — fiel ao material bruto: um item aberto por vez
- * (o primeiro já nasce aberto, `state = { open: 0 }` no original),
- * `grid-template-rows` 0fr→1fr para a transição de altura sem medir
- * pixel, ícone "+" que gira 45° virando "×", ponto colorido que só
- * preenche quando aberto (cor do ciclo de acentos do tema).
+ * Acordeão de perguntas — `<details>/<summary>` nativo (item 4 da sessão de
+ * fundação): a versão anterior guardava o item aberto em `useState`, então
+ * sem JavaScript só a pergunta 0 abria — as respostas 2–4 ficavam
+ * inalcançáveis para quem lê o documento servido (o robô de prospecção
+ * incluído). `<details>` abre/fecha sem uma linha de script; o primeiro
+ * item nasce aberto (`open`, fiel ao `state = { open: 0 }` do material
+ * bruto), o ícone "+"→"×" gira via `[open]` no CSS, e o ponto colorido
+ * preenche do mesmo jeito.
  */
 export function FaqAccordion({
   itens,
@@ -20,27 +21,16 @@ export function FaqAccordion({
   slotBase: string;
   accentCycle: string[];
 }) {
-  const [aberto, setAberto] = useState<number>(itens.length > 0 ? 0 : -1);
-
   return (
     <div className="border-t border-[var(--d-border)]">
       {itens.map((item, i) => {
-        const isOpen = aberto === i;
         const cor = accentCycle[i % accentCycle.length];
         return (
-          <div key={i} className="border-b border-[var(--d-border)]">
-            <button
-              type="button"
-              onClick={() => setAberto(isOpen ? -1 : i)}
-              className="flex w-full items-center gap-4 py-6 text-left font-[family-name:var(--d-corpo)] transition-colors"
-              aria-expanded={isOpen}
-            >
+          <details key={i} className="group border-b border-[var(--d-border)]" open={i === 0}>
+            <summary className="flex cursor-pointer list-none items-center gap-4 py-6 font-[family-name:var(--d-corpo)] marker:content-none [&::-webkit-details-marker]:hidden">
               <span
-                className="h-2.5 w-2.5 flex-shrink-0 rounded-full border-[1.6px] transition-colors duration-300"
-                style={{
-                  borderColor: cor,
-                  backgroundColor: isOpen ? cor : "transparent",
-                }}
+                className="h-2.5 w-2.5 flex-shrink-0 rounded-full border-[1.6px] transition-colors duration-300 group-open:[background-color:var(--d-dot)]"
+                style={{ borderColor: cor, "--d-dot": cor } as CSSProperties}
               />
               <span
                 data-demo-slot={`${slotBase}.${i}.titulo`}
@@ -50,31 +40,21 @@ export function FaqAccordion({
               </span>
               <span
                 aria-hidden="true"
-                className="font-[family-name:var(--d-display)] text-xl transition-transform duration-300"
-                style={{
-                  color: cor,
-                  transform: isOpen ? "rotate(45deg)" : "rotate(0deg)",
-                }}
+                className="font-[family-name:var(--d-display)] text-xl transition-transform duration-300 group-open:rotate-45"
+                style={{ color: cor }}
               >
                 +
               </span>
-            </button>
-            <div
-              className="grid transition-[grid-template-rows] duration-[450ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-              style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
-            >
-              <div className="overflow-hidden">
-                {item.texto && (
-                  <p
-                    data-demo-slot={`${slotBase}.${i}.texto`}
-                    className="max-w-[60ch] pb-6 pl-[26px] text-[15px] leading-relaxed text-[var(--d-muted)]"
-                  >
-                    {item.texto}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
+            </summary>
+            {item.texto && (
+              <p
+                data-demo-slot={`${slotBase}.${i}.texto`}
+                className="max-w-[60ch] pb-6 pl-[26px] text-[15px] leading-relaxed text-[var(--d-muted)]"
+              >
+                {item.texto}
+              </p>
+            )}
+          </details>
         );
       })}
     </div>
