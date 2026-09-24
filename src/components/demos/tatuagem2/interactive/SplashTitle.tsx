@@ -55,6 +55,7 @@ export function SplashTitle({
               return;
             }
             const span = document.createElement("span");
+            span.dataset.splashLetter = "";
             span.textContent = ch;
             span.style.display = "inline-block";
             span.style.transition = "transform .35s cubic-bezier(.2,.8,.2,1), color .35s";
@@ -68,7 +69,7 @@ export function SplashTitle({
     };
     wrap(el);
 
-    const letras = Array.from(el.querySelectorAll<HTMLElement>("span"));
+    const letras = Array.from(el.querySelectorAll<HTMLElement>("span[data-splash-letter]"));
     const onEnter = () =>
       letras.forEach((s) => {
         s.style.transform = `translateY(${(Math.random() * 10 - 5).toFixed(1)}px)`;
@@ -91,14 +92,17 @@ export function SplashTitle({
   if (!texto) return null;
 
   // Quebra de linha literal (ex.: título do hero em duas linhas) preservada
-  // via <br/> — só a ÚLTIMA linha recebe o destaque em itálico, igual ao
-  // material bruto ("Sua pele,<br/>nossa <em>tela</em>.").
+  // por spans de bloco. Há um espaço de TEXTO depois de cada linha anterior:
+  // margem/display não entra no textContent, e o antigo <br/> fazia
+  // "Laboratório\nUltravioleta" sair como "LaboratórioUltravioleta" no
+  // nome acessível. Mesmo precedente do hero da multimarcas.
   const linhas = texto.split("\n");
   const ultimaLinha = linhas.pop() ?? "";
   const anteriores = linhas.map((linha, i) => (
     <Fragment key={i}>
-      {linha}
-      <br />
+      <span data-splash-line className="block">
+        {linha}
+      </span>{" "}
     </Fragment>
   ));
 

@@ -24,10 +24,8 @@ import { exemploDaSkin } from "../variantes";
 const skin = getSkin("tatuagem-pigmento-vivo")!;
 const Componente = await skin.componente();
 // Nome curto (≤ 20 caracteres — HERO_TITULO_LIMIAR de quebrarTitulo em
-// montar.ts): fica numa linha só. Um nome mais longo quebra em duas via
-// <br/>, que não contribui espaço ao textContent (achado à parte, fora do
-// escopo desta sessão — ver o relatório final) e tornaria a comparação de
-// texto abaixo frágil por um motivo que não é o desta trava.
+// montar.ts): fica numa linha só. O caso longo, quebrado em duas linhas,
+// tem regressão própria abaixo para garantir o espaço no textContent.
 const lead = { nome: "Estúdio Croma", placeId: "qa", status: "novo" } as Lead;
 const alvos = skin.variantes!.map((v) => v.id);
 
@@ -90,4 +88,21 @@ describe.each(alvos)("tatuagem-pigmento-vivo §7 — o <h1> e o título já salv
     const doc = documento(id, undefined);
     expect(doc.querySelector('[data-demo-slot="secoes.hero.titulo"]')).toBeNull();
   });
+});
+
+it("nome de duas palavras quebrado em duas linhas mantém o espaço no textContent do <h1>", () => {
+  const nome = "Laboratório Ultravioleta";
+  const leadLongo = { ...lead, nome } as Lead;
+
+  for (const id of alvos) {
+    const data = montarDemoData(exemploDaSkin(skin, id), leadLongo, undefined, skin.id);
+    const doc = new JSDOM(
+      renderToStaticMarkup(createElement(Componente, { data, theme: getTheme(skin, id) })),
+    ).window.document;
+
+    const h1 = doc.querySelector('[data-d-secao="hero"] h1');
+    expect(h1, id).not.toBeNull();
+    expect(h1!.querySelector("br"), id).toBeNull();
+    expect(normalizar(h1!.textContent!), id).toBe(nome);
+  }
 });
