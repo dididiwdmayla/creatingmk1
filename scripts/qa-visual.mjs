@@ -37,6 +37,10 @@
  *                                                # mesmo quadro, sem nenhum canal/dado de identidade
  *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --secao=agendar --identidade-cheia
  *                                                # mesmo quadro, com WhatsApp e os demais dados
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --pagina-inteira --sem-identidade
+ *                                                # quatro páginas inteiras sem nenhum canal/dado
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --pagina-inteira --celular --cinza
+ *                                                # portão preliminar: quatro páginas móveis em cinza
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -186,6 +190,9 @@ const SKIN = opcao("skin") ?? SKIN_PADRAO;
 const PIGMENTO_SECAO = opcao("secao");
 const PIGMENTO_IDENTIDADE_VAZIA = temFlag("sem-identidade");
 const PIGMENTO_IDENTIDADE_CHEIA = temFlag("identidade-cheia");
+const PIGMENTO_PAGINA_INTEIRA = temFlag("pagina-inteira");
+const PIGMENTO_APENAS_CELULAR = temFlag("celular");
+const PIGMENTO_CINZA = temFlag("cinza");
 /** Variantes da skin escolhida (vazio quando ela não tem o eixo). */
 const VARIANTES = VARIANTES_POR_SKIN[SKIN] ?? [];
 /** Preset/variante default da matriz: o primeiro da skin, ou o escuro da barbearia. */
@@ -1295,6 +1302,105 @@ async function capturarPigmentoSecao(page) {
   return gerados;
 }
 
+/* ── PIGMENTO VIVO EM PÁGINA INTEIRA ───────────────────────────────
+ *
+ * Fecha os dois portões que um recorte de seção não consegue provar:
+ * (1) a página ainda tem ritmo quando a identidade inteira some; e
+ * (2) as quatro silhuetas continuam diferentes sem a ajuda da cor.
+ */
+async function capturarPigmentoPagina(page) {
+  if (SKIN !== "tatuagem-pigmento-vivo") {
+    throw new Error("--so=pigmento exige --skin=tatuagem-pigmento-vivo");
+  }
+  if (PIGMENTO_IDENTIDADE_VAZIA && PIGMENTO_IDENTIDADE_CHEIA) {
+    throw new Error("use apenas um entre --sem-identidade e --identidade-cheia");
+  }
+  const telas = PIGMENTO_APENAS_CELULAR
+    ? PIGMENTO_TELAS.filter((tela) => tela.id === "celular")
+    : PIGMENTO_TELAS;
+  const estado = PIGMENTO_CINZA ? "cinza" : PIGMENTO_IDENTIDADE_VAZIA ? "sem-identidade" : "cor";
+  const gerados = [];
+
+  for (const tela of telas) {
+    await page.setViewportSize({ width: tela.largura, height: tela.altura });
+    const itens = [];
+    for (const variante of VARIANTES) {
+      await page.goto(
+        url({
+          preset: variante,
+          avulsa: PIGMENTO_IDENTIDADE_VAZIA || PIGMENTO_IDENTIDADE_CHEIA,
+          identidade: PIGMENTO_IDENTIDADE_CHEIA ? "cheia" : undefined,
+        }),
+        { waitUntil: "networkidle" },
+      );
+      await page.evaluate(() => {
+        document.documentElement.style.scrollBehavior = "auto";
+      });
+
+      // Percorre a página para carregar imagens e disparar todos os reveals;
+      // volta ao topo antes do fullPage, preservando a silhueta completa.
+      const altura = await page.evaluate(() => document.documentElement.scrollHeight);
+      const passo = Math.max(320, Math.floor(tela.altura * 0.72));
+      for (let y = 0; y < altura; y += passo) {
+        await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), y);
+        await page.waitForTimeout(55);
+      }
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      await page.waitForTimeout(180);
+
+      if (PIGMENTO_IDENTIDADE_VAZIA) {
+        const vazio = await page.evaluate(() => {
+          const slots = ["endereco", "cidade", "telefone", "whatsapp", "horarios", "instagram"];
+          const presentes = slots.filter((slot) => document.querySelector(`[data-demo-slot="${slot}"]`));
+          const texto = document.body.innerText;
+          const templates = ["MATIZ STUDIO", "Rua das Aquarelas", "Estúdio fictício", "tinta imaginária"]
+            .filter((trecho) => texto.includes(trecho));
+          return {
+            presentes,
+            templates,
+            agendarVazio: Boolean(document.querySelector('[data-d-secao="agendar"] [data-sem-canal="true"]')),
+            contatoVazio: Boolean(document.querySelector('[data-d-secao="contato"] [data-sem-dados="true"]')),
+          };
+        });
+        if (vazio.presentes.length || vazio.templates.length || !vazio.agendarVazio || !vazio.contatoVazio) {
+          throw new Error(`[pigmento] ${variante}: identidade vazia vazou ${JSON.stringify(vazio)}`);
+        }
+      }
+
+      if (PIGMENTO_CINZA) {
+        await page.addStyleTag({ content: "html { filter: grayscale(1) !important; }" });
+      }
+      await page.evaluate(() => {
+        for (const anim of document.getAnimations()) {
+          try {
+            const repeticoes = Number(anim.effect?.getTiming?.().iterations);
+            if (Number.isFinite(repeticoes) && repeticoes !== Infinity) anim.finish();
+            else anim.pause();
+          } catch {
+            anim.pause();
+          }
+        }
+      });
+
+      const destino = path.join(SAIDA, `pigmento-pagina-${tela.id}-${variante}-${estado}${marca}.png`);
+      await page.screenshot({ path: destino, fullPage: true });
+      gerados.push(destino);
+      itens.push({ rotulo: variante, png: destino });
+    }
+    gerados.push(
+      await folhaDeContato(
+        page,
+        `Pigmento Vivo — página inteira (${tela.id}, ${estado})`,
+        `pigmento-pagina-${tela.id}-${estado}`,
+        [{ rotulo: estado, itens }],
+      ),
+    );
+  }
+  await page.setViewportSize(VIEWPORT);
+  console.log(`[pigmento] página inteira: ${VARIANTES.length} variantes × ${telas.length} viewport(s), ${estado}.`);
+  return gerados;
+}
+
 async function main() {
   await fs.mkdir(SAIDA, { recursive: true });
   const secret = crypto.randomBytes(16).toString("hex");
@@ -1497,7 +1603,9 @@ async function main() {
     }
 
     if (querido("pigmento-secao")) {
-      gerados.push(...(await capturarPigmentoSecao(page)));
+      gerados.push(...(PIGMENTO_PAGINA_INTEIRA
+        ? await capturarPigmentoPagina(page)
+        : await capturarPigmentoSecao(page)));
     }
 
     /* ── Animação por seção: entrada com × sem ──────────────────── */
