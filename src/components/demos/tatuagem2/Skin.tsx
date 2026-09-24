@@ -248,6 +248,17 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     s.faq?.rotulo && { href: "#faq", label: s.faq.rotulo },
   ].filter((link): link is { href: string; label: string } => Boolean(link));
 
+  const valoresDePreco = data.servicos
+    .map((servico) => servico.precoValor)
+    .filter((valor): valor is number => typeof valor === "number" && Number.isFinite(valor));
+  const precoMinimo = Math.min(...valoresDePreco);
+  const precoMaximo = Math.max(...valoresDePreco);
+  const posicaoNaRegua = (valor: number | undefined): number => {
+    if (valor === undefined || !Number.isFinite(valor)) return 100;
+    if (precoMaximo === precoMinimo) return 50;
+    return 5 + ((valor - precoMinimo) / (precoMaximo - precoMinimo)) * 82;
+  };
+
   const secoes: Record<string, () => ReactNode> = {
     /* ── Hero (fixa) ─────────────────────────────────────────── */
     hero: () => (
@@ -432,10 +443,10 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
       <section
         id="investimento"
         data-pigment={manchas[2]}
-        className="border-y border-[var(--d-border)] bg-[var(--d-bg-alt)] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]"
+        className="pv-investimento border-y border-[var(--d-border)] bg-[var(--d-bg-alt)] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]"
       >
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-14">
+        <div className="pv-investimento-caixa mx-auto max-w-5xl">
+          <div className="pv-investimento-cabeca mb-14">
             <Etiqueta texto={s.investimento?.rotulo} slot="secoes.investimento.rotulo" />
             <SplashTitle
               texto={s.investimento?.titulo}
@@ -444,28 +455,36 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               className="font-[family-name:var(--d-display)] text-[clamp(2rem,5.5vw,4.5rem)] leading-[1] text-[var(--d-text)]"
             />
           </div>
-          <div className="flex flex-col gap-3">
+          <div className="pv-investimento-lista flex flex-col gap-3">
             {data.servicos.map((servico, i) => (
               <div
                 key={servico.nome}
-                className="flex flex-col items-start justify-between gap-2 border-b border-[var(--d-border)] py-5 sm:flex-row sm:items-baseline"
+                data-preco-sem-valor={servico.precoValor === undefined ? "true" : undefined}
+                className="pv-investimento-item flex flex-col items-start justify-between gap-2 border-b border-[var(--d-border)] py-5 sm:flex-row sm:items-baseline"
+                style={
+                  {
+                    "--pv-preco-pos": posicaoNaRegua(servico.precoValor),
+                    "--pv-item-mancha": manchas[i % manchas.length],
+                    "--pv-item-tinta": pigmentos[i % pigmentos.length],
+                  } as CSSProperties
+                }
               >
-                <div>
+                <div className="pv-investimento-copy">
                   <h3
                     data-demo-slot={`servicos.${i}.nome`}
-                    className="font-[family-name:var(--d-display)] text-xl italic text-[var(--d-text)] md:text-2xl"
+                    className="pv-investimento-nome font-[family-name:var(--d-display)] text-xl italic text-[var(--d-text)] md:text-2xl"
                   >
                     {servico.nome}
                   </h3>
                   {servico.descricao && (
-                    <p data-demo-slot={`servicos.${i}.descricao`} className="mt-1 max-w-xl text-sm text-[var(--d-muted)]">
+                    <p data-demo-slot={`servicos.${i}.descricao`} className="pv-investimento-desc mt-1 max-w-xl text-sm text-[var(--d-muted)]">
                       {servico.descricao}
                     </p>
                   )}
                 </div>
                 <span
                   data-demo-slot={`servicos.${i}.preco`}
-                  className="whitespace-nowrap rounded-full px-4 py-1.5 font-[family-name:var(--d-mono)] text-sm font-semibold"
+                  className="pv-investimento-preco whitespace-nowrap rounded-full px-4 py-1.5 font-[family-name:var(--d-mono)] text-sm font-semibold"
                   style={{
                     // Pílula: fundo na MANCHA a 16% (decoração), texto na
                     // TINTA (leitura) — regra 1 do §2 do plano.

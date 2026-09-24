@@ -391,4 +391,206 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   }
   .pv[data-pv-portfolio="mesa"] .pv-portfolio-item { width: 110%; }
 }
+
+/* ── INVESTIMENTO ────────────────────────────────────────────────────
+   gotas:     preço grande dentro de formas orgânicas;
+   régua:     posição derivada de precoValor, sem valor vai para o fim;
+   etiquetas: tags penduradas em fios;
+   selos:     preço carimbado ao lado da descrição. */
+.pv[data-pv-investimento="gotas"] .pv-investimento-lista {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1rem, 2.8vw, 2.5rem);
+}
+.pv[data-pv-investimento="gotas"] .pv-investimento-item {
+  min-height: 18rem;
+  padding: clamp(1.5rem, 3vw, 2.75rem);
+  border: 0;
+  border-radius: var(--pv-forma-raio);
+  background: color-mix(in srgb, var(--pv-item-mancha) 15%, var(--d-bg-alt));
+  box-shadow: var(--pv-forma-sombra);
+}
+.pv[data-pv-investimento="gotas"] .pv-investimento-item:nth-child(3n + 2) { transform: translateY(1.8rem); }
+.pv[data-pv-investimento="gotas"] .pv-investimento-item:last-child { grid-column: 1 / -1; width: 58%; justify-self: center; }
+.pv[data-pv-investimento="gotas"] .pv-investimento-preco {
+  order: -1;
+  padding: 0;
+  background: transparent;
+  color: var(--pv-item-tinta);
+  font-family: var(--d-display);
+  font-size: clamp(2rem, 4vw, 4.25rem);
+  line-height: 1;
+}
+
+.pv[data-pv-investimento="regua"] .pv-investimento-caixa { max-width: 72rem; }
+.pv[data-pv-investimento="regua"] .pv-investimento-lista {
+  position: relative;
+  height: 25rem;
+  margin-top: 5rem;
+  border-top: 2px solid var(--d-text);
+}
+.pv[data-pv-investimento="regua"] .pv-investimento-lista::before,
+.pv[data-pv-investimento="regua"] .pv-investimento-lista::after {
+  content: "";
+  position: absolute;
+  top: -.5rem;
+  width: 1px;
+  height: 1rem;
+  background: var(--d-text);
+}
+.pv[data-pv-investimento="regua"] .pv-investimento-lista::before { left: 0; }
+.pv[data-pv-investimento="regua"] .pv-investimento-lista::after { right: 0; }
+.pv[data-pv-investimento="regua"] .pv-investimento-item {
+  position: absolute;
+  left: calc(var(--pv-preco-pos) * 1%);
+  top: 1.5rem;
+  display: flex;
+  width: clamp(8.5rem, 15vw, 12rem);
+  padding: 1rem 0 0;
+  border: 0;
+  transform: translateX(-50%);
+}
+.pv[data-pv-investimento="regua"] .pv-investimento-item:nth-child(even) { top: 12.5rem; }
+.pv[data-pv-investimento="regua"] .pv-investimento-item[data-preco-sem-valor="true"] {
+  top: 7rem;
+  left: 100%;
+  transform: translateX(-100%);
+}
+.pv[data-pv-investimento="regua"] .pv-investimento-item::before {
+  content: "";
+  position: absolute;
+  top: -2.05rem;
+  left: 50%;
+  width: .9rem;
+  height: .9rem;
+  border: .18rem solid var(--d-bg-alt);
+  border-radius: 50%;
+  background: var(--pv-item-tinta);
+  box-shadow: 0 0 0 1px var(--pv-item-tinta);
+}
+.pv[data-pv-investimento="regua"] .pv-investimento-item:nth-child(even)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 1px;
+  height: 10.5rem;
+  background: color-mix(in srgb, var(--pv-item-tinta) 45%, transparent);
+}
+.pv[data-pv-investimento="regua"] .pv-investimento-preco {
+  order: -1;
+  padding: 0;
+  background: transparent;
+  color: var(--pv-item-tinta);
+}
+
+.pv[data-pv-investimento="etiquetas"] .pv-investimento-lista {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4rem 1.5rem;
+  padding-top: 3rem;
+}
+.pv[data-pv-investimento="etiquetas"] .pv-investimento-item {
+  position: relative;
+  min-height: 17rem;
+  padding: 2.25rem 1.5rem 1.5rem;
+  border: var(--pv-forma-borda);
+  border-radius: var(--d-radius);
+  background: var(--d-bg-elev);
+  box-shadow: var(--pv-forma-sombra);
+  transform: rotate(-2.5deg);
+}
+.pv[data-pv-investimento="etiquetas"] .pv-investimento-item:nth-child(even) { transform: rotate(2.5deg); }
+.pv[data-pv-investimento="etiquetas"] .pv-investimento-item::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - .55rem);
+  width: 1px;
+  height: 4rem;
+  background: var(--pv-item-tinta);
+}
+.pv[data-pv-investimento="etiquetas"] .pv-investimento-item::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - .35rem);
+  top: .75rem;
+  width: .7rem;
+  height: .7rem;
+  border: 1px solid var(--pv-item-tinta);
+  border-radius: 50%;
+  background: var(--d-bg-alt);
+}
+.pv[data-pv-investimento="etiquetas"] .pv-investimento-preco {
+  order: -1;
+  padding: .3rem 0 1rem;
+  background: transparent;
+  color: var(--pv-item-tinta);
+  font-size: 1.15rem;
+}
+
+.pv[data-pv-investimento="selos"] .pv-investimento-lista { gap: 0; }
+.pv[data-pv-investimento="selos"] .pv-investimento-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem;
+  align-items: center;
+  gap: 1.5rem;
+  min-height: 9rem;
+  padding-block: 1.25rem;
+}
+.pv[data-pv-investimento="selos"] .pv-investimento-preco {
+  display: grid;
+  place-items: center;
+  width: 7rem;
+  height: 7rem;
+  padding: .8rem;
+  border: .2rem double var(--pv-item-tinta);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pv-item-mancha) 10%, var(--d-bg-alt));
+  color: var(--pv-item-tinta);
+  text-align: center;
+  white-space: normal;
+  transform: rotate(3deg);
+}
+
+@media (max-width: 47.999rem) {
+  .pv[data-pv-investimento="gotas"] .pv-investimento-lista { grid-template-columns: minmax(0, 1fr); }
+  .pv[data-pv-investimento="gotas"] .pv-investimento-item,
+  .pv[data-pv-investimento="gotas"] .pv-investimento-item:last-child {
+    width: 100%;
+    min-height: 15rem;
+    grid-column: auto;
+    transform: none;
+  }
+  .pv[data-pv-investimento="regua"] .pv-investimento-lista {
+    height: auto;
+    margin: 2.5rem 0 0 .5rem;
+    padding-left: 1.5rem;
+    border-top: 0;
+    border-left: 2px solid var(--d-text);
+  }
+  .pv[data-pv-investimento="regua"] .pv-investimento-lista::before,
+  .pv[data-pv-investimento="regua"] .pv-investimento-lista::after { display: none; }
+  .pv[data-pv-investimento="regua"] .pv-investimento-item,
+  .pv[data-pv-investimento="regua"] .pv-investimento-item:nth-child(even),
+  .pv[data-pv-investimento="regua"] .pv-investimento-item[data-preco-sem-valor="true"] {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    min-height: 0;
+    padding: 0 0 2.5rem;
+    transform: none;
+  }
+  .pv[data-pv-investimento="regua"] .pv-investimento-item::before {
+    top: .2rem;
+    left: -2.02rem;
+  }
+  .pv[data-pv-investimento="regua"] .pv-investimento-item::after { display: none; }
+  .pv[data-pv-investimento="etiquetas"] .pv-investimento-lista {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pv[data-pv-investimento="etiquetas"] .pv-investimento-item { min-height: 14rem; }
+  .pv[data-pv-investimento="selos"] .pv-investimento-item { grid-template-columns: minmax(0, 1fr) 6.2rem; }
+  .pv[data-pv-investimento="selos"] .pv-investimento-preco { width: 6rem; height: 6rem; }
+}
 `;
