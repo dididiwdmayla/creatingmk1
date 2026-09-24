@@ -48,6 +48,15 @@ export function ManifestoReveal({
     const quadro = container.closest<HTMLElement>(".pv-manifesto-quadro");
 
     let raf = 0;
+    // O listener fica montado pela vida inteira da página (o usuário pode
+    // rolar de volta pro manifesto a qualquer momento), mas fora da janela
+    // de leitura `prog` satura em 0 ou 1 e FICA nesse valor por todo o
+    // resto da rolagem — sem o memo abaixo, o laço reescreveria o estilo
+    // de cada palavra a cada quadro pelo resto das dez seções seguintes,
+    // sempre com o MESMO valor (medido: era o maior custo de repintura da
+    // skin no portão de fps — UpdateLayoutTree dominava o trace).
+    let progAnterior = -1;
+    let litAnterior = -1;
     const onScroll = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
@@ -55,12 +64,17 @@ export function ManifestoReveal({
         const vh = window.innerHeight;
         const r = container.getBoundingClientRect();
         const prog = Math.min(1, Math.max(0, (vh * 0.75 - r.top) / (r.height * 0.9)));
+        if (prog === progAnterior) return;
+        progAnterior = prog;
         const lit = Math.floor(prog * (palavras.length + 1));
-        palavras.forEach((w, i) => {
-          w.dataset.lit = String(i < lit);
-          w.style.color =
-            i < lit ? (w.dataset.accent ? w.dataset.accent : "var(--d-text)") : "var(--d-unlit)";
-        });
+        if (lit !== litAnterior) {
+          litAnterior = lit;
+          palavras.forEach((w, i) => {
+            w.dataset.lit = String(i < lit);
+            w.style.color =
+              i < lit ? (w.dataset.accent ? w.dataset.accent : "var(--d-text)") : "var(--d-unlit)";
+          });
+        }
         quadro?.style.setProperty("--pv-manifesto-progresso", String(prog));
         quadro?.style.setProperty("--pv-manifesto-escala", String(0.72 + prog * 0.28));
       });
