@@ -1215,6 +1215,26 @@ async function capturarPigmentoSecao(page) {
       if ((await alvo.count()) !== 1) {
         throw new Error(`[pigmento] ${variante}/${PIGMENTO_SECAO}: âncora ausente ou duplicada`);
       }
+      // Se a seção ultrapassa a viewport, percorra-a antes da captura para
+      // disparar as entradas por IntersectionObserver de todos os filhos.
+      // Sem isso, uma composição alta podia parecer vazia na folha embora o
+      // conteúdo apenas ainda estivesse com a opacidade inicial do FadeUp.
+      const caixa = await alvo.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        return { y: rect.top + window.scrollY, height: rect.height };
+      });
+      if (caixa) {
+        const passo = Math.max(240, Math.floor(tela.altura * 0.7));
+        for (let y = caixa.y; y < caixa.y + caixa.height; y += passo) {
+          await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), y);
+          await page.waitForTimeout(80);
+        }
+        await alvo.scrollIntoViewIfNeeded();
+        await page.evaluate((id) => {
+          document.querySelector(`[data-d-secao="${id}"]`)?.scrollIntoView({ block: "start" });
+        }, PIGMENTO_SECAO);
+        await page.waitForTimeout(120);
+      }
       await page.evaluate(() => {
         for (const anim of document.getAnimations()) {
           const t = anim.effect?.getComputedTiming?.();

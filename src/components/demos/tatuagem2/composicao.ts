@@ -593,4 +593,164 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   .pv[data-pv-investimento="selos"] .pv-investimento-item { grid-template-columns: minmax(0, 1fr) 6.2rem; }
   .pv[data-pv-investimento="selos"] .pv-investimento-preco { width: 6rem; height: 6rem; }
 }
+
+/* ── PROCESSO ────────────────────────────────────────────────────────
+   onda:       passos alternados dos dois lados de um traço contínuo;
+   camadas:    quatro folhas de decalque em cascata;
+   quadrinhos: painéis irregulares separados por calhas diagonais;
+   ciclo:      anel com quatro nós e textos em volta. */
+.pv .pv-processo-ciclo { display: none; }
+.pv .pv-processo-item { --pv-passo-cor: var(--d-accent); --pv-passo-mancha: var(--pv-mancha-1); }
+.pv .pv-processo-item:nth-child(3n + 2) { --pv-passo-cor: var(--d-accent-2); --pv-passo-mancha: var(--pv-mancha-2); }
+.pv .pv-processo-item:nth-child(3n) { --pv-passo-cor: var(--d-accent-3); --pv-passo-mancha: var(--pv-mancha-3); }
+
+.pv[data-pv-processo="onda"] .pv-processo-caixa { max-width: 74rem; }
+.pv[data-pv-processo="onda"] .pv-processo-corpo { padding-block: 5.5rem; }
+.pv[data-pv-processo="onda"] .pv-processo-onda {
+  display: block;
+  top: calc(50% - 1.9rem);
+}
+.pv[data-pv-processo="onda"] .pv-processo-lista {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(1.25rem, 3vw, 3rem);
+}
+.pv[data-pv-processo="onda"] .pv-processo-item:nth-child(odd) { transform: translateY(-4.5rem); }
+.pv[data-pv-processo="onda"] .pv-processo-item:nth-child(even) { transform: translateY(4.5rem); }
+.pv[data-pv-processo="onda"] .pv-processo-numero {
+  background: var(--d-bg);
+  box-shadow: 0 0 0 .5rem var(--d-bg);
+}
+
+.pv[data-pv-processo="camadas"] .pv-processo-caixa { max-width: 62rem; }
+.pv[data-pv-processo="camadas"] .pv-processo-corpo { padding: 1rem 0 4rem; }
+.pv[data-pv-processo="camadas"] .pv-processo-lista {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.pv[data-pv-processo="camadas"] .pv-processo-item {
+  position: relative;
+  width: 72%;
+  min-height: 13rem;
+  padding: 2rem clamp(2rem, 5vw, 4rem);
+  border: var(--pv-forma-borda);
+  background: color-mix(in srgb, var(--pv-passo-mancha) 8%, var(--d-bg-elev));
+  box-shadow: var(--pv-forma-sombra);
+}
+.pv[data-pv-processo="camadas"] .pv-processo-item + .pv-processo-item { margin-top: -3.6rem; }
+.pv[data-pv-processo="camadas"] .pv-processo-item:nth-child(2) { margin-left: 9%; }
+.pv[data-pv-processo="camadas"] .pv-processo-item:nth-child(3) { margin-left: 18%; }
+.pv[data-pv-processo="camadas"] .pv-processo-item:nth-child(4) { margin-left: 27%; }
+.pv[data-pv-processo="camadas"] .pv-processo-numero {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  border-radius: 0;
+  background: transparent;
+}
+.pv[data-pv-processo="camadas"] .pv-processo-titulo { padding-right: 4.5rem; }
+
+.pv[data-pv-processo="quadrinhos"] .pv-processo-caixa { max-width: 72rem; }
+.pv[data-pv-processo="quadrinhos"] .pv-processo-lista {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: .7rem;
+}
+.pv[data-pv-processo="quadrinhos"] .pv-processo-item {
+  min-height: 15rem;
+  padding: clamp(1.5rem, 3vw, 2.75rem);
+  border: 1px solid var(--pv-passo-cor);
+  background: color-mix(in srgb, var(--pv-passo-mancha) 8%, var(--d-bg-elev));
+  clip-path: polygon(4% 0, 100% 0, 96% 100%, 0 96%);
+}
+.pv[data-pv-processo="quadrinhos"] .pv-processo-item:nth-child(1),
+.pv[data-pv-processo="quadrinhos"] .pv-processo-item:nth-child(4) { grid-column: span 7; }
+.pv[data-pv-processo="quadrinhos"] .pv-processo-item:nth-child(2),
+.pv[data-pv-processo="quadrinhos"] .pv-processo-item:nth-child(3) { grid-column: span 5; }
+.pv[data-pv-processo="quadrinhos"] .pv-processo-item:nth-child(even) {
+  clip-path: polygon(0 4%, 96% 0, 100% 96%, 5% 100%);
+}
+.pv[data-pv-processo="quadrinhos"] .pv-processo-numero {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  line-height: .8;
+}
+
+.pv[data-pv-processo="ciclo"] .pv-processo-caixa { max-width: 68rem; }
+.pv[data-pv-processo="ciclo"] .pv-processo-corpo { min-height: 42rem; }
+.pv[data-pv-processo="ciclo"] .pv-processo-ciclo {
+  display: block;
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: min(62%, 38rem);
+  transform: translate(-50%, -50%);
+}
+.pv[data-pv-processo="ciclo"] .pv-processo-lista {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: space-between;
+  min-height: 42rem;
+  gap: 11rem 16rem;
+}
+.pv[data-pv-processo="ciclo"] .pv-processo-item {
+  position: relative;
+  z-index: 1;
+  padding: 1.25rem;
+  background: var(--d-bg);
+}
+.pv[data-pv-processo="ciclo"] .pv-processo-numero {
+  border-width: .2rem;
+  border-style: double;
+  background: color-mix(in srgb, var(--pv-passo-mancha) 13%, var(--d-bg));
+}
+.pv[data-pv-processo="ciclo"] .pv-processo-item:nth-child(even) { text-align: right; }
+.pv[data-pv-processo="ciclo"] .pv-processo-item:nth-child(even) .pv-processo-numero { margin-left: auto; }
+
+@media (max-width: 47.999rem) {
+  .pv[data-pv-processo="onda"] .pv-processo-cabeca { margin-bottom: 4rem; }
+  .pv[data-pv-processo="onda"] .pv-processo-corpo { padding-block: 0; }
+  .pv[data-pv-processo="onda"] .pv-processo-onda {
+    top: 0;
+    left: 50%;
+    width: 36rem;
+    transform: rotate(90deg);
+    transform-origin: 0 0;
+  }
+  .pv[data-pv-processo="onda"] .pv-processo-lista {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4.5rem 2rem;
+  }
+  .pv[data-pv-processo="onda"] .pv-processo-item:nth-child(n) { transform: none; }
+  .pv[data-pv-processo="onda"] .pv-processo-item:nth-child(even) { margin-top: 6rem; }
+  .pv[data-pv-processo="camadas"] .pv-processo-item {
+    width: 88%;
+    min-height: 13.5rem;
+    padding: 1.5rem;
+  }
+  .pv[data-pv-processo="camadas"] .pv-processo-item + .pv-processo-item { margin-top: -2rem; }
+  .pv[data-pv-processo="camadas"] .pv-processo-item:nth-child(2) { margin-left: 4%; }
+  .pv[data-pv-processo="camadas"] .pv-processo-item:nth-child(3) { margin-left: 8%; }
+  .pv[data-pv-processo="camadas"] .pv-processo-item:nth-child(4) { margin-left: 12%; }
+  .pv[data-pv-processo="quadrinhos"] .pv-processo-lista { grid-template-columns: minmax(0, 1fr); }
+  .pv[data-pv-processo="quadrinhos"] .pv-processo-item:nth-child(n) { grid-column: auto; min-height: 13rem; }
+  .pv[data-pv-processo="ciclo"] .pv-processo-corpo { min-height: 0; }
+  .pv[data-pv-processo="ciclo"] .pv-processo-ciclo {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    margin-bottom: 2rem;
+    transform: none;
+  }
+  .pv[data-pv-processo="ciclo"] .pv-processo-lista {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    gap: 1rem;
+  }
+  .pv[data-pv-processo="ciclo"] .pv-processo-item:nth-child(n) { text-align: left; }
+  .pv[data-pv-processo="ciclo"] .pv-processo-item:nth-child(n) .pv-processo-numero { margin-left: 0; }
+}
 `;

@@ -665,9 +665,9 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Processo ────────────────────────────────────────────── */
     processo: () =>
       s.processo && (
-        <section id="processo" data-pigment={manchas[0]} className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className={`mx-auto max-w-4xl ${centro("processo") ? "text-center" : ""}`}>
-            <div className="mb-20">
+        <section id="processo" data-pigment={manchas[0]} className="pv-processo px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className={`pv-processo-caixa mx-auto max-w-4xl ${centro("processo") ? "text-center" : ""}`}>
+            <div className="pv-processo-cabeca mb-20">
               <Etiqueta texto={s.processo.rotulo} slot="secoes.processo.rotulo" />
               <SplashTitle
                 texto={s.processo.titulo}
@@ -676,32 +676,50 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
                 className="font-[family-name:var(--d-display)] text-[clamp(2.25rem,6vw,5.5rem)] leading-[1] text-[var(--d-text)]"
               />
             </div>
-            <div className="relative">
+            <div className="pv-processo-corpo relative">
               <LineDraw
                 d="M0 30 C 150 10, 250 50, 400 30 C 550 10, 650 50, 800 30 C 950 10, 1050 50, 1200 30"
                 viewBox="0 0 1200 60"
                 stroke={pigmentos[1]}
                 strokeWidth={1.6}
                 duration={2.2}
-                className="pointer-events-none absolute left-0 top-[22px] hidden w-full md:block"
+                className="pv-processo-onda pointer-events-none absolute left-0 top-[22px] hidden w-full md:block"
               />
-              <div className="relative grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              <svg className="pv-processo-ciclo" viewBox="0 0 600 420" aria-hidden="true">
+                <ellipse cx="300" cy="210" rx="232" ry="152" fill="none" stroke="var(--d-text)" strokeWidth="2" />
+                {[0, 1, 2, 3].map((i) => {
+                  const pontos = [[300, 58], [532, 210], [300, 362], [68, 210]] as const;
+                  return <circle key={i} cx={pontos[i][0]} cy={pontos[i][1]} r="13" fill={manchas[i % manchas.length]} stroke={pigmentos[i % pigmentos.length]} strokeWidth="3" />;
+                })}
+              </svg>
+              <div className="pv-processo-lista relative grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
                 {(s.processo.itens ?? []).map((passo, i) => (
-                  <FadeUp key={passo.titulo} animacao={theme.animacao} delay={0.1 * i}>
+                  <FadeUp
+                    key={passo.titulo}
+                    animacao={theme.animacao}
+                    delay={0.1 * i}
+                    className="pv-processo-item"
+                  >
                     <div
-                      className="mb-5 flex h-11 w-11 items-center justify-center rounded-full border-[1.6px] bg-[var(--d-bg)] font-[family-name:var(--d-mono)] text-[15px] font-bold"
-                      style={{ borderColor: pigmentos[i % pigmentos.length], color: pigmentos[i % pigmentos.length] }}
+                      data-demo-slot={`secoes.processo.itens.${i}.subtitulo`}
+                      className="pv-processo-numero mb-5 flex h-11 w-11 items-center justify-center rounded-full border-[1.6px] bg-[var(--d-bg)] font-[family-name:var(--d-mono)] text-[15px] font-bold"
+                      style={{
+                        "--pv-passo-cor": pigmentos[i % pigmentos.length],
+                        "--pv-passo-mancha": manchas[i % manchas.length],
+                        borderColor: pigmentos[i % pigmentos.length],
+                        color: pigmentos[i % pigmentos.length],
+                      } as CSSProperties}
                     >
                       {passo.subtitulo}
                     </div>
                     <h3
                       data-demo-slot={`secoes.processo.itens.${i}.titulo`}
-                      className="mb-1.5 font-[family-name:var(--d-display)] text-[1.75rem] italic leading-none text-[var(--d-text)]"
+                      className="pv-processo-titulo mb-1.5 font-[family-name:var(--d-display)] text-[1.75rem] italic leading-none text-[var(--d-text)]"
                     >
                       {passo.titulo}
                     </h3>
                     {passo.texto && (
-                      <p data-demo-slot={`secoes.processo.itens.${i}.texto`} className="text-sm leading-relaxed text-[var(--d-muted)]">
+                      <p data-demo-slot={`secoes.processo.itens.${i}.texto`} className="pv-processo-texto text-sm leading-relaxed text-[var(--d-muted)]">
                         {passo.texto}
                       </p>
                     )}
