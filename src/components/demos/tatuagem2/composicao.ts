@@ -1,4 +1,4 @@
-import type { PigmentoComposicao } from "@/lib/demos/types";
+import type { PigmentoComposicao, SkinVariante } from "@/lib/demos/types";
 
 /**
  * A composição da Pigmento Vivo: quatro sites, um contrato e um caminho de
@@ -1600,3 +1600,45 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   .pv[data-pv-processo="ciclo"] .pv-processo-item:nth-child(n) .pv-processo-numero { margin-left: 0; }
 }
 `;
+
+/**
+ * Os quatro knobs de SILHUETA — a parte da composição que dá a cada
+ * variante uma forma reconhecível na folha em cinza (docs/plano-
+ * tatuagem-pigmento-vivo.md §5, §9 camada 2 e camada 3). Os outros sete
+ * knobs também variam entre as quatro, mas não entram neste invariante:
+ * a drasticidade tem de sobreviver mesmo olhando só estes quatro.
+ */
+const KNOBS_DE_SILHUETA = ["abertura", "portfolio", "investimento", "processo"] as const;
+
+/**
+ * Verifica, aos pares, se duas variantes empatam nos quatro knobs de
+ * silhueta — a composição fica visualmente indistinguível em forma,
+ * mesmo que a paleta de cor mude (docs/plano-tatuagem-pigmento-vivo.md
+ * §9 camada 3). Função pura: não lê nada além do argumento, para o teste
+ * de mutação poder chamá-la sobre uma lista de variantes adulterada sem
+ * tocar no registro real.
+ *
+ * `theme.pigmento` ausente (preset de antes desta migração, sem o campo)
+ * cai em `PIGMENTO_COMPOSICAO_PADRAO` — o mesmo default que a Aquarela
+ * usa — então uma variante sem composição própria SEMPRE empata com a
+ * Aquarela aqui, e é isso que o teste de mutação verifica.
+ */
+export function violacoesDeVariantes(
+  variantes: readonly Pick<SkinVariante, "id" | "theme">[],
+): string[] {
+  const violacoes: string[] = [];
+  for (let i = 0; i < variantes.length; i++) {
+    for (let j = i + 1; j < variantes.length; j++) {
+      const a = variantes[i];
+      const b = variantes[j];
+      const composicaoA = a.theme.pigmento ?? PIGMENTO_COMPOSICAO_PADRAO;
+      const composicaoB = b.theme.pigmento ?? PIGMENTO_COMPOSICAO_PADRAO;
+      const empatam = KNOBS_DE_SILHUETA.every((knob) => composicaoA[knob] === composicaoB[knob]);
+      if (empatam) {
+        const detalhe = KNOBS_DE_SILHUETA.map((knob) => `${knob}=${composicaoA[knob]}`).join(", ");
+        violacoes.push(`"${a.id}" empata com "${b.id}" nos quatro knobs de silhueta (${detalhe})`);
+      }
+    }
+  }
+  return violacoes;
+}
