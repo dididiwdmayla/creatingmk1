@@ -256,3 +256,29 @@ medições (4 variantes × 2 telas × 8 slots), 0 não-desenhadas (item 9).
 "MATIZ STUDIO"/"Rua das Aquarelas"/"Estúdio fictício"/"tinta
 imaginária" aparecerem, ou se `agendarVazio`/`contatoVazio` derem
 falso, em QUALQUER das quatro) — ver item 12.
+
+## Auditoria de identidade — lead vazio (item 12)
+
+Lead sem endereço, telefone, horário nem Instagram, nas quatro
+variantes, em três camadas independentes:
+
+1. **JSDOM, sem JavaScript** (`pigmento-canal-identidade.test.tsx`,
+   sessão anterior, reconfirmado): nenhum dos slots `endereco`/
+   `cidade`/`horarios`/`telefone`/`instagram` aparece;
+   `.pv-contato[data-sem-dados="true"]`; nenhum `<dt>` órfão fora de
+   `.pv-contato`; escada de canal (WhatsApp → telefone → Instagram →
+   nenhum) sem `href="#agendar"` circular.
+2. **Navegador real, JavaScript desligado** (`qa-pigmento.mjs`): mesmo
+   aferidor, 4 variantes × 2 telas — `contatoSemDados=true` nas
+   quatro, `rotuloOrfaoContato=false` nas quatro.
+3. **Navegador real, identidade avulsa vazia + literais de template**
+   (`qa-visual.mjs --so=pigmento --sem-identidade`): confirma também a
+   AUSÊNCIA de literal ("MATIZ STUDIO" do nome-base do exemplo, "Rua
+   das Aquarelas" do endereço antigo, "Estúdio fictício"/"tinta
+   imaginária" do rodapé antigo) no texto da página — nenhum vazou,
+   nas quatro.
+
+**Nenhum bloco oco encontrado; nenhum literal de template; o portão de
+literais passa nas quatro.** Nenhuma correção necessária — o trabalho
+da sessão de fundação (itens "e"/"f") já cobria isto; esta sessão só
+reconfirma com o navegador real, não só JSDOM.
