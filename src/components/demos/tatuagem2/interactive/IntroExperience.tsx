@@ -59,7 +59,6 @@ export function IntroExperience({
     if (!mostrando) return;
     const t = setTimeout(completar, DURACAO_MS);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mostrando]);
 
   return (
