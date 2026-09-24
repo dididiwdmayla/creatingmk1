@@ -20,6 +20,7 @@ export function SplashTitle({
   className = "",
   style,
   accentCycle,
+  corDestaque = "var(--d-accent)",
 }: {
   texto?: string;
   slot?: string;
@@ -27,6 +28,14 @@ export function SplashTitle({
   className?: string;
   style?: CSSProperties;
   accentCycle: string[];
+  /**
+   * Cor estática do `<em>` (última palavra). Default = acento do tema; o
+   * CTA final passa `"currentColor"` — "sem troca de cor" (regra 4 do §2
+   * do plano): sobre o campo de cor, o acento tinge exatamente igual ao
+   * resto do título e some (1,00:1 medido), então ali o itálico é a única
+   * marca, na MESMA cor do título.
+   */
+  corDestaque?: string;
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
 
@@ -104,7 +113,7 @@ export function SplashTitle({
     <>
       {anteriores}
       {inicio}
-      <em className="not-italic italic" style={{ color: "var(--d-accent)" }}>
+      <em className="not-italic italic" style={{ color: corDestaque }}>
         {palavra}
       </em>
       {pontuacao}

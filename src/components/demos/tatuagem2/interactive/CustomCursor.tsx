@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useMotionValue, useSpring } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 /**
  * Cursor customizado — ponto sólido com mix-blend-mode multiply, fiel ao
@@ -63,7 +63,7 @@ export function CustomCursor() {
         width: big ? 40 : 14,
         height: big ? 40 : 14,
         backgroundColor: "var(--d-pigment, var(--d-accent))",
-        mixBlendMode: "multiply",
+        mixBlendMode: "var(--pv-mistura, multiply)" as CSSProperties["mixBlendMode"],
         transition: "width 250ms, height 250ms, background-color 400ms",
       }}
     />

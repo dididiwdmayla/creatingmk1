@@ -2,8 +2,10 @@ import Image from "next/image";
 import { type CSSProperties, type ReactNode } from "react";
 
 import { SecaoMarcada } from "@/lib/demos/animacao/SecaoMarcada";
+import { luminancia } from "@/lib/demos/contraste";
 import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { linhaDeApoio, quebrarTitulo } from "@/lib/demos/montar";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Alinhamento, Animacao, Densidade, SkinProps } from "@/lib/demos/types";
 import { FadeUp } from "./interactive/FadeUp";
@@ -70,9 +72,21 @@ const ANIM_HOVER_LIFT: Record<Animacao, string> = {
 /** Seções com revelação própria (não embrulhar de novo no SectionReveal padrão). */
 const SEM_ENTRADA_DEFAULT = new Set(["manifesto"]);
 
-function waHref(whatsapp: string | undefined): string {
-  const digitos = (whatsapp ?? "").replace(/\D/g, "");
-  return digitos ? `https://wa.me/${digitos}` : "#agendar";
+/**
+ * Escada do canal de agendamento (decisão fechada da sessão de fundação):
+ * WhatsApp → telefone → Instagram → nenhum. `undefined` quando o lead não
+ * tem nenhum dos três — quem chama esconde os botões (nunca
+ * `href="#agendar"` circular, o defeito do §1 do plano: os dois CTAs
+ * DENTRO da seção `agendar` apontavam pra si mesmos).
+ */
+function canalDeAgendamento(data: SkinProps["data"]): string | undefined {
+  const digitos = (data.whatsapp ?? "").replace(/\D/g, "");
+  if (digitos) return `https://wa.me/${digitos}`;
+  const telefone = (data.telefone ?? "").replace(/\D/g, "");
+  if (telefone) return `tel:${telefone}`;
+  const instagram = data.instagram?.trim();
+  if (instagram) return `https://instagram.com/${instagram.replace(/^@/, "")}`;
+  return undefined;
 }
 
 function Etiqueta({ texto, slot }: { texto?: string; slot?: string }) {
@@ -123,7 +137,23 @@ const RABISCOS_ARTISTA = [
 export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
+  // Tons legíveis (tinta) — texto, número, estrela e ícone. Nunca fundo de
+  // mancha ou campo de cor (ver PigmentoTokens em lib/demos/types.ts).
   const pigmentos = [paleta.destaque, paleta.acentoSecundario, paleta.acentoTerciario];
+  // Tons vivos (mancha) — só preenchimento e decoração: blobs do hero, blob
+  // do cartão de estilo no hover, cursor/ponto rastreador, campo de cor do
+  // CTA final na Meia-noite. `?? pigmentos` é só type safety (a skin sempre
+  // declara `theme.pigmento` — ver tatuagem2/themes.ts); nunca usado de fato.
+  const manchas = theme.pigmento?.manchas ?? pigmentos;
+  // Fundo escuro? (mesmo critério de luminância de tema.ts/variantes.test.tsx).
+  // Decide o blend-mode das manchas (regra: multiply desaparece em fundo
+  // quase preto — §1/§17 D6 do plano) e o campo de cor do CTA final
+  // (regra 4 do §2: tintas no claro com texto branco, vivos no escuro com
+  // texto na cor do fundo).
+  const escuro = luminancia(paleta.fundo) < 0.5;
+  const mistura = escuro ? "screen" : "multiply";
+  const campoCores = escuro ? manchas : pigmentos;
+  const campoTexto = escuro ? paleta.fundo : "#FFFFFF";
 
   const vars = {
     "--d-bg": paleta.fundo,
@@ -152,10 +182,18 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     "--d-anim-ease": "cubic-bezier(0.16, 1, 0.3, 1)",
     "--d-hover-scale": ANIM_HOVER_SCALE[theme.animacao],
     "--d-hover-lift": ANIM_HOVER_LIFT[theme.animacao],
+    "--pv-mancha-1": manchas[0],
+    "--pv-mancha-2": manchas[1],
+    "--pv-mancha-3": manchas[2],
+    "--pv-mistura": mistura,
+    "--pv-campo-1": campoCores[0],
+    "--pv-campo-2": campoCores[1],
+    "--pv-campo-3": campoCores[2],
+    "--pv-campo-texto": campoTexto,
   } as CSSProperties;
 
   const s = data.secoes;
-  const agendar = waHref(data.whatsapp);
+  const agendar = canalDeAgendamento(data);
   const HERO_ALINHAMENTO_TEXT: Record<Alinhamento, string> = {
     esquerda: "text-left items-start",
     centro: "text-center items-center",
@@ -193,7 +231,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     hero: () => (
       <section
         id="topo"
-        data-pigment={pigmentos[0]}
+        data-pigment={manchas[0]}
         className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden px-6 pb-20 pt-32 md:px-[clamp(20px,5vw,72px)]"
       >
         <div className="pointer-events-none absolute -left-[8%] top-[6%] h-[46vw] w-[46vw] rounded-full">
@@ -233,14 +271,26 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           </FadeUp>
 
           <div className={`flex w-full flex-col ${HERO_ALINHAMENTO_TEXT[theme.heroTitulo.alinhamento]}`}>
+            {/* O <h1> é SEMPRE o nome do negócio (decisão 3 da sessão de
+                fundação, precedente da multimarcas): título salvo (se
+                houver, e diferente do nome) vira linha de apoio abaixo,
+                nunca troca o <h1>. Nenhuma demo salva perde texto. */}
             <SplashTitle
-              texto={s.hero?.titulo ?? data.nome}
-              slot="secoes.hero.titulo"
+              texto={quebrarTitulo(data.nome)}
+              slot="nome"
               as="h1"
               accentCycle={pigmentos}
               className="whitespace-pre-line font-[family-name:var(--d-hero-font)] leading-[0.98] text-[var(--d-text)]"
               style={{ fontSize: "calc(clamp(2.75rem, 9vw, 7.5rem) * var(--d-hero-escala))" }}
             />
+            {linhaDeApoio(s.hero?.titulo, data.nome) && (
+              <p
+                data-demo-slot="secoes.hero.titulo"
+                className="mt-3 max-w-2xl text-balance font-[family-name:var(--d-display)] text-[clamp(1.15rem,2.6vw,1.75rem)] leading-snug text-[var(--d-text)]"
+              >
+                {linhaDeApoio(s.hero?.titulo, data.nome)}
+              </p>
+            )}
           </div>
 
           {s.hero?.texto && (
@@ -251,7 +301,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
             </FadeUp>
           )}
 
-          {s.hero?.cta && (
+          {s.hero?.cta && agendar && (
             <FadeUp animacao={theme.animacao} delay={0.5} className="mt-10">
               <a href={agendar} data-demo-slot="secoes.hero.cta" className="d-cta-pill d-cta-solida">
                 {s.hero.cta}
@@ -292,7 +342,10 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {(s.estilos.itens ?? []).map((item, i) => {
               const ultimo = i === (s.estilos?.itens?.length ?? 0) - 1;
+              // Número/texto usam a TINTA (legível); só o blob do hover usa
+              // a MANCHA (vivo) — regra 1 do §2 do plano.
               const cor = pigmentos[i % pigmentos.length];
+              const corBlob = manchas[i % manchas.length];
               return (
                 <FadeUp key={item.titulo} animacao={theme.animacao} delay={0.06 * i}>
                   <div
@@ -301,7 +354,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
                     }`}
                     style={
                       {
-                        "--d-card-blob": cor,
+                        "--d-card-blob": corBlob,
                         borderRadius: "var(--d-radius)",
                       } as CSSProperties
                     }
@@ -342,7 +395,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     investimento: () => (
       <section
         id="investimento"
-        data-pigment={pigmentos[2]}
+        data-pigment={manchas[2]}
         className="border-y border-[var(--d-border)] bg-[var(--d-bg-alt)] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]"
       >
         <div className="mx-auto max-w-5xl">
@@ -378,7 +431,9 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
                   data-demo-slot={`servicos.${i}.preco`}
                   className="whitespace-nowrap rounded-full px-4 py-1.5 font-[family-name:var(--d-mono)] text-sm font-semibold"
                   style={{
-                    backgroundColor: `color-mix(in srgb, ${pigmentos[i % pigmentos.length]} 16%, transparent)`,
+                    // Pílula: fundo na MANCHA a 16% (decoração), texto na
+                    // TINTA (leitura) — regra 1 do §2 do plano.
+                    backgroundColor: `color-mix(in srgb, ${manchas[i % manchas.length]} 16%, transparent)`,
                     color: pigmentos[i % pigmentos.length],
                   }}
                 >
@@ -394,7 +449,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Portfólio (trilha horizontal) ──────────────────────── */
     portfolio: () =>
       s.portfolio && (
-        <section id="portfolio" data-pigment={pigmentos[0]} className="py-[var(--d-sec-y)]">
+        <section id="portfolio" data-pigment={manchas[0]} className="py-[var(--d-sec-y)]">
           <div className="mb-10 px-6 md:px-[clamp(20px,5vw,72px)]">
             <Etiqueta texto={s.portfolio.rotulo} slot="secoes.portfolio.rotulo" />
             <SplashTitle
@@ -409,23 +464,30 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
             {(s.portfolio.itens ?? []).map((item, i) => {
               const largura = [420, 300, 360, 280, 400, 340][i % 6];
               const altura = [520, 400, 480, 360, 500, 440][i % 6];
+              const slot = `portfolio-${i + 1}`;
+              // Só 8 slots de foto (§11 do plano). Do 9º item em diante a
+              // figura sai só com a legenda — nunca a foto emprestada do
+              // slot 1 com um data-demo-slot que não existe no contrato.
+              const temSlot = slot in data.imagens;
               return (
                 <figure key={i} className="m-0 flex-shrink-0">
-                  <div
-                    className="relative overflow-hidden"
-                    style={{
-                      width: `min(${largura}px, 78vw)`,
-                      height: altura,
-                      borderRadius: "var(--d-radius)",
-                    }}
-                  >
-                    <Placeholder
-                      src={data.imagens[`portfolio-${i + 1}`] ?? Object.values(data.imagens)[0]}
-                      alt={`${item.titulo} — ${item.subtitulo ?? ""}`}
-                      sizes="(max-width: 768px) 78vw, 420px"
-                      slot={`imagens.portfolio-${i + 1}`}
-                    />
-                  </div>
+                  {temSlot && (
+                    <div
+                      className="relative overflow-hidden"
+                      style={{
+                        width: `min(${largura}px, 78vw)`,
+                        height: altura,
+                        borderRadius: "var(--d-radius)",
+                      }}
+                    >
+                      <Placeholder
+                        src={data.imagens[slot]}
+                        alt={data.imagensAlt?.[slot] ?? ""}
+                        sizes="(max-width: 768px) 78vw, 420px"
+                        slot={`imagens.${slot}`}
+                      />
+                    </div>
+                  )}
                   <figcaption
                     data-demo-slot={`secoes.portfolio.itens.${i}`}
                     className="mt-2.5 text-[13px] text-[var(--d-muted)]"
@@ -442,7 +504,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Artistas ────────────────────────────────────────────── */
     artistas: () =>
       s.artistas && (
-        <section id="artistas" data-pigment={pigmentos[1]} className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+        <section id="artistas" data-pigment={manchas[1]} className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
           <div className="mb-16">
             <Etiqueta texto={s.artistas.rotulo} slot="secoes.artistas.rotulo" />
             <SplashTitle
@@ -540,7 +602,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Processo ────────────────────────────────────────────── */
     processo: () =>
       s.processo && (
-        <section id="processo" data-pigment={pigmentos[0]} className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+        <section id="processo" data-pigment={manchas[0]} className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
           <div className={`mx-auto max-w-4xl ${centro("processo") ? "text-center" : ""}`}>
             <div className="mb-20">
               <Etiqueta texto={s.processo.rotulo} slot="secoes.processo.rotulo" />
@@ -620,21 +682,25 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           <SplashTitle
             texto={s.agendar?.titulo}
             slot="secoes.agendar.titulo"
-            accentCycle={["#FFFFFF", "#FFFFFF", "#FFFFFF"]}
-            className="mb-12 font-[family-name:var(--d-display)] text-[clamp(2.5rem,9vw,7.5rem)] leading-[1] text-white"
+            accentCycle={pigmentos}
+            corDestaque="currentColor"
+            className="mb-12 font-[family-name:var(--d-display)] text-[clamp(2.5rem,9vw,7.5rem)] leading-[1]"
+            style={{ color: "var(--pv-campo-texto)" }}
           />
-          <div className="flex flex-wrap justify-center gap-4">
-            {s.agendar?.cta && (
-              <a href={agendar} data-demo-slot="secoes.agendar.cta" className="d-cta-pill d-cta-clara">
-                {s.agendar.cta}
-              </a>
-            )}
-            {s.agendar?.ctaSecundaria && (
-              <a href={agendar} data-demo-slot="secoes.agendar.ctaSecundaria" className="d-cta-pill d-cta-contorno">
-                {s.agendar.ctaSecundaria}
-              </a>
-            )}
-          </div>
+          {agendar && (
+            <div className="flex flex-wrap justify-center gap-4">
+              {s.agendar?.cta && (
+                <a href={agendar} data-demo-slot="secoes.agendar.cta" className="d-cta-pill d-cta-clara">
+                  {s.agendar.cta}
+                </a>
+              )}
+              {s.agendar?.ctaSecundaria && (
+                <a href={agendar} data-demo-slot="secoes.agendar.ctaSecundaria" className="d-cta-pill d-cta-contorno">
+                  {s.agendar.ctaSecundaria}
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </section>
     ),
@@ -674,10 +740,13 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           )}
         </div>
         <span className="text-xs text-[var(--d-muted)]">
-          © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>.{" "}
-          <span data-demo-slot="secoes.contato.texto">
-            {s.contato?.texto ?? "Estúdio fictício, tinta imaginária."}
-          </span>
+          © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>.
+          {s.contato?.texto?.trim() && (
+            <>
+              {" "}
+              <span data-demo-slot="secoes.contato.texto">{s.contato.texto}</span>
+            </>
+          )}
         </span>
       </footer>
     ),
@@ -695,10 +764,10 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         @keyframes d-blob-a { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(8%,-6%) scale(1.12); } 66% { transform: translate(-5%,5%) scale(.94); } }
         @keyframes d-blob-b { 0%,100% { transform: translate(0,0) scale(1); } 40% { transform: translate(-7%,4%) scale(1.08); } 75% { transform: translate(6%,-3%) scale(.9); } }
         @keyframes d-blob-c { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(4%,7%) scale(1.15); } }
-        .d-blob { filter: blur(48px); mix-blend-mode: multiply; }
-        .d-blob-a { background: radial-gradient(circle at 40% 40%, color-mix(in srgb, var(--d-accent) 55%, transparent), transparent 68%); animation: d-blob-a 16s ease-in-out infinite; }
-        .d-blob-b { background: radial-gradient(circle at 60% 50%, color-mix(in srgb, var(--d-accent-2) 42%, transparent), transparent 66%); animation: d-blob-b 19s ease-in-out infinite; }
-        .d-blob-c { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--d-accent-3) 45%, transparent), transparent 65%); animation: d-blob-c 14s ease-in-out infinite; }
+        .d-blob { filter: blur(48px); mix-blend-mode: var(--pv-mistura); }
+        .d-blob-a { background: radial-gradient(circle at 40% 40%, color-mix(in srgb, var(--pv-mancha-1) 30%, transparent), transparent 68%); animation: d-blob-a 16s ease-in-out infinite; }
+        .d-blob-b { background: radial-gradient(circle at 60% 50%, color-mix(in srgb, var(--pv-mancha-2) 30%, transparent), transparent 66%); animation: d-blob-b 19s ease-in-out infinite; }
+        .d-blob-c { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--pv-mancha-3) 30%, transparent), transparent 65%); animation: d-blob-c 14s ease-in-out infinite; }
         [data-d-anim="nenhuma"] .d-blob { animation: none; }
         @media (prefers-reduced-motion: reduce) { .d-blob { animation: none; } }
 
@@ -723,8 +792,11 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         .d-cta-solida:hover { background: var(--d-accent); color: var(--d-accent-ink); }
         .d-cta-clara { background: var(--d-bg); color: var(--d-text); }
         .d-cta-clara:hover { background: var(--d-text); color: var(--d-bg); }
-        .d-cta-contorno { border: 1.6px solid color-mix(in srgb, var(--d-bg) 70%, transparent); color: var(--d-bg); }
-        .d-cta-contorno:hover { background: color-mix(in srgb, var(--d-bg) 14%, transparent); }
+        /* Botão sobre campo de cor é sempre CHEIO (fundo/texto), nunca
+           contorno transparente (regra 4 do §2 do plano — o contorno sobre
+           o gradiente reprovava contraste nas quatro paletas). */
+        .d-cta-contorno { background: var(--d-bg); color: var(--d-text); }
+        .d-cta-contorno:hover { background: var(--d-text); color: var(--d-bg); }
         [data-d-hover="zoom"] .d-cta-pill:hover { transform: scale(var(--d-hover-scale)); }
         [data-d-hover="lift"] .d-cta-pill:hover { transform: translateY(var(--d-hover-lift)); }
         [data-d-hover="brilho"] .d-cta-pill:hover { box-shadow: 0 0 32px color-mix(in srgb, var(--d-accent) 45%, transparent); }
@@ -754,7 +826,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           border-radius: 50%;
           background: radial-gradient(circle, color-mix(in srgb, var(--d-card-blob) 50%, transparent), transparent 70%);
           filter: blur(28px);
-          mix-blend-mode: multiply;
+          mix-blend-mode: var(--pv-mistura);
           transition: transform .6s cubic-bezier(.2,.8,.2,1);
           pointer-events: none;
         }
@@ -785,11 +857,13 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         }
         @media (prefers-reduced-motion: reduce) { [data-d-clique] a:active, [data-d-clique] button:active { transform: none; animation: none; } }
 
-        /* CTA final: fundo em gradiente multicor + blobs animados. */
-        .d-cta-bg { background: linear-gradient(135deg, var(--d-accent) 0%, var(--d-accent-2) 55%, var(--d-accent-3) 100%); }
+        /* CTA final: campo de cor + blobs animados. Regra 4 do §2 do plano:
+           tintas no claro (texto branco) e vivos no escuro (texto na cor do
+           fundo) — --pv-campo-* já resolve isso por variante. */
+        .d-cta-bg { background: linear-gradient(135deg, var(--pv-campo-1) 0%, var(--pv-campo-2) 55%, var(--pv-campo-3) 100%); }
         .d-cta-blob { filter: blur(60px); pointer-events: none; }
-        .d-cta-blob-a { background: radial-gradient(circle, color-mix(in srgb, var(--d-accent-3) 75%, transparent), transparent 65%); animation: d-cta-blob 18s ease-in-out infinite; }
-        .d-cta-blob-b { background: radial-gradient(circle, color-mix(in srgb, var(--d-accent) 80%, transparent), transparent 65%); animation: d-cta-blob 22s ease-in-out infinite reverse; }
+        .d-cta-blob-a { background: radial-gradient(circle, color-mix(in srgb, var(--pv-mancha-3) 75%, transparent), transparent 65%); animation: d-cta-blob 18s ease-in-out infinite; }
+        .d-cta-blob-b { background: radial-gradient(circle, color-mix(in srgb, var(--pv-mancha-1) 80%, transparent), transparent 65%); animation: d-cta-blob 22s ease-in-out infinite reverse; }
         @keyframes d-cta-blob { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-4%,6%) scale(1.2); } }
         [data-d-anim="nenhuma"] .d-cta-blob { animation: none; }
         @media (prefers-reduced-motion: reduce) { .d-cta-blob { animation: none; } }
@@ -805,7 +879,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
 
       <PigmentTracker>
         <IntroExperience nome={data.nome} ativa={theme.intro === true}>
-          <Nav nome={data.nome} links={links} ctaHref={agendar} ctaLabel={s.hero?.cta ?? "Agendar sessão"} />
+          <Nav nome={data.nome} links={links} ctaHref={agendar} ctaLabel={s.hero?.cta} />
 
           <div className="relative z-10">
             {visiveis.map((id) => {

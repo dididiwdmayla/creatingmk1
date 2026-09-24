@@ -29,6 +29,32 @@ function definidos<T extends object>(obj: T): Partial<T> {
 
 const HERO_TITULO_LIMIAR = 20;
 
+function semEspacosExtras(texto: string): string {
+  return texto.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * A LINHA DE APOIO da abertura (precedente da multimarcas, §6.1 de
+ * docs/plano-multimarcas.md, promovida para cá em
+ * docs/plano-tatuagem-pigmento-vivo.md §7/§17 D3 — skin com mais de uma
+ * variante que segue a mesma regra): o `<h1>` é sempre o nome do negócio, e
+ * `secoes.hero.titulo` — o mesmo slot de sempre, sem migração — vira a linha
+ * logo abaixo dele quando definido. Devolve o texto a desenhar, ou
+ * `undefined` quando a linha não existe:
+ *
+ * - vazio ou só espaço: não existe (o `??` antigo desenhava `<h1>` vazio);
+ * - igual ao nome, sem caixa e sem espaços/quebras nas pontas ou no meio:
+ *   não existe — é o caso normal de todo lead, porque `dadosDoLead` e a
+ *   avulsa gravam `quebrarTitulo(nome)` no título, e o nome não aparece
+ *   duas vezes.
+ */
+export function linhaDeApoio(titulo: string | undefined, nome: string): string | undefined {
+  const limpo = semEspacosExtras(titulo ?? "");
+  if (!limpo) return undefined;
+  if (limpo.toLocaleLowerCase() === semEspacosExtras(nome).toLocaleLowerCase()) return undefined;
+  return limpo;
+}
+
 /**
  * Quebra `nome` em no máximo duas linhas ("\n" — mesma convenção de
  * `whitespace-pre-line` usada pelas skins no título hero). Nomes curtos
