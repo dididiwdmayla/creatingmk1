@@ -39,6 +39,18 @@ const PaineisContexto = createContext<EstadoPaineis>({
 });
 
 /**
+ * Se o painel `id` está aberto agora — para o raro painel cuja BUSCA em si
+ * é cara demais para rodar sempre montada (ver "O corpo fechado continua
+ * MONTADO" acima e a exceção em `CotasUsuariosSection`/`MetasUsuariosSection`
+ * no ARCHITECTURE.md). Não use isto para decidir o que DESENHAR — o corpo
+ * já cuida disso sozinho com `display:none`.
+ */
+export function usePainelAberto(id: string): boolean {
+  const { aberto } = useContext(PaineisContexto);
+  return aberto(id);
+}
+
+/**
  * `inicial` vem resolvido no SERVIDOR (ver o wrapper de `/config`), e não de
  * uma busca do cliente: com painel aberto guardado, a lista chegando depois
  * do primeiro desenho expandiria o bloco e empurraria todos os de baixo —

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SkeletonRows } from "@/components/Skeleton";
-import { PainelColapsavel } from "@/components/config/PainelColapsavel";
+import { PainelColapsavel, usePainelAberto } from "@/components/config/PainelColapsavel";
 import { LimiteInput } from "@/components/config/comum";
 import { ApiError, api, type MetasUsuariosResponse } from "@/lib/api-client";
 import type { MetasUsuario } from "@/lib/usuarios/types";
@@ -30,13 +30,25 @@ function mensagemErroMetas(error: unknown, fallback: string): string {
  * meta, e a linha do usuário sem NENHUMA meta configurada não aparece em
  * lugar nenhum fora daqui (/hoje e o painel do admin escondem a janela sem
  * meta) — mas aqui ela continua listada, para o admin poder configurar.
+ *
+ * **Mesma exceção de `CotasUsuariosSection`** ao "corpo fechado continua
+ * MONTADO" do `PainelColapsavel`: `getMetasUsuarios` reaproveita
+ * `getUsoUsuario` por usuário (ver `usuarios/metas.ts`), então com N
+ * usuários a busca no mount custava dezenas de leituras só por abrir a
+ * /config, painel fechado incluso. Busca adiada até a primeira abertura
+ * (`usePainelAberto`); depois de carregada, fechar/reabrir não busca de
+ * novo.
  */
 export function MetasUsuariosSection() {
+  const painelAberto = usePainelAberto(PAINEL_METAS);
   const [linhas, setLinhas] = useState<MetasUsuariosResponse["usuarios"] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const jaBuscouRef = useRef(false);
 
   useEffect(() => {
+    if (!painelAberto || jaBuscouRef.current) return;
+    jaBuscouRef.current = true;
     let ignore = false;
     api
       .getMetasUsuarios()
@@ -54,7 +66,7 @@ export function MetasUsuariosSection() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [painelAberto]);
 
   async function salvarMeta(id: string, campo: keyof MetasUsuario, valor: number | null) {
     const chave = `${id}:${campo}`;
