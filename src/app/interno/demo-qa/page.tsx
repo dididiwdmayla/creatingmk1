@@ -274,11 +274,18 @@ export default async function DemoQaPage({ searchParams }: Props) {
   // mediria a falta da fonte como se fosse defeito da skin.
   const extraFontClassName = await resolveExtraFontClassNames(fontesEscolhidas(patch));
 
+  // Mesma cadeia da rota pública (fontesVariante): a fonte DEFAULT da
+  // variante pedida na query, sem o que o laço mediria fallback do sistema
+  // como se fosse a fonte da variante.
+  const varianteFontClassName = skin.fontesVariante
+    ? await skin.fontesVariante(texto(query.preset))
+    : "";
+
   // `await` antes de montar o elemento — mesmo motivo de resolverDemo em
   // app/demo/comum.tsx (ver o comentário de SkinDefinition.componente).
   const Skin = await skin.componente();
   return (
-    <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
+    <div className={`${demoCoreFontsClassName} ${extraFontClassName} ${varianteFontClassName}`}>
       {/* Mesma cadeia da rota pública — ver lib/demos/barra/plano.ts. */}
       <style>{cssPlanoDaPagina(corDaBarra(theme))}</style>
       <Skin data={dados} theme={theme} />

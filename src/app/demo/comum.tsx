@@ -122,6 +122,13 @@ export async function resolverDemo(fonte: FonteDemo) {
     ? ""
     : await resolveExtraFontClassNames(fontesEscolhidas(fonte.demo.tema));
 
+  // Fontes DEFAULT da VARIANTE ativa (opt-in — ver SkinDefinition.fontesVariante):
+  // import dinâmico por variante, então só o par de .woff2 da variante deste
+  // lead entra no HTML desta requisição.
+  const varianteFontClassName = skin.fontesVariante
+    ? await skin.fontesVariante(fonte.demo.themeId)
+    : "";
+
   // Efeito de fundo (registro de efeitos) + intensidade — undefined cobre
   // tanto "nenhum" quanto um id que não existe mais no registro. Nunca deve
   // derrubar a demo: um efeito é decoração opcional.
@@ -154,7 +161,7 @@ export async function resolverDemo(fonte: FonteDemo) {
   // comentário de `SkinDefinition.componente` em lib/demos/types.ts).
   const Componente = await skin.componente();
 
-  return { skin, theme, data, extraFontClassName, efeitoFundo, camada, fonte, Componente };
+  return { skin, theme, data, extraFontClassName, varianteFontClassName, efeitoFundo, camada, fonte, Componente };
 }
 
 /**
@@ -305,9 +312,9 @@ export function PaginaDemo({
   visitante: VisitanteInterno;
   visitaId?: string;
 }) {
-  const { theme, data, extraFontClassName, efeitoFundo, camada, fonte, Componente } = resolvida;
+  const { theme, data, extraFontClassName, varianteFontClassName, efeitoFundo, camada, fonte, Componente } = resolvida;
   return (
-    <div className={`${theme.lancheria ? "" : demoCoreFontsClassName} ${extraFontClassName}`}>
+    <div className={`${theme.lancheria ? "" : demoCoreFontsClassName} ${extraFontClassName} ${varianteFontClassName}`}>
       {/*
         O layout raiz fixa <html lang="pt-BR"> (compartilhado por todo o
         app — Radar é uma ferramenta interna em pt-BR). A demo pública é a

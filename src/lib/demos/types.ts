@@ -512,6 +512,25 @@ export interface MultimarcasComposicao {
   contato: "rodape" | "tarja" | "fecho" | "bloco";
 }
 
+/**
+ * Tokens de pigmento da `tatuagem-pigmento-vivo`: os TONS VIVOS, separados
+ * da `paleta` (que guarda só as TINTAS legíveis — a mesma cor, escurecida/
+ * clareada até ≥4,5:1). Texto, número, estrela e ícone usam a tinta
+ * (`paleta.destaque`/`acentoSecundario`/`acentoTerciario`); só mancha e
+ * campo de cor usam o vivo. Existe como campo PRÓPRIO, e não dentro de
+ * `ThemePaleta`, porque nada que lê `paleta` hoje (editor, LED, barra) pode
+ * herdar uma cor que reprova contraste por engano — ver
+ * docs/plano-tatuagem-pigmento-vivo.md §2 (regra 1) e §17 D6.
+ *
+ * Só `manchas` por enquanto: os knobs de composição (`PigmentoComposicao`,
+ * molde de `TatuagemComposicao`/`MultimarcasComposicao`) ficam para a sessão
+ * de composição visual — ver o registro de decisões da sessão de fundação.
+ */
+export interface PigmentoTokens {
+  /** As três cores vivas, na mesma ordem do ciclo de pigmentos da paleta. */
+  manchas: readonly [string, string, string];
+}
+
 /** Tokens visuais de um tema de skin. */
 export interface Theme {
   /** Knobs da identidade, injetados pela definição da skin. Nunca por URL pública. */
@@ -520,6 +539,7 @@ export interface Theme {
   tatuagem?: TatuagemComposicao;
   chapa?: ChapaComposicao;
   multimarcas?: MultimarcasComposicao;
+  pigmento?: PigmentoTokens;
   id: string;
   nome: string;
   paleta: ThemePaleta;
@@ -888,6 +908,20 @@ export interface SkinDefinition {
    * vêm fixos daqui.
    */
   decorativeFloats?: readonly DecorativeFloatDef[];
+  /**
+   * Fontes DEFAULT de CADA VARIANTE, quando elas mudam por variante — opt-in
+   * (ausente = as fontes vêm do pacote sempre-carregado
+   * `src/app/demo/fonts/core.ts`, como em toda skin sem esse eixo).
+   *
+   * Import dinâmico por dentro, no mesmo espírito de `componente` acima:
+   * `resolverDemo`/o harness de QA/o preview do editor dão `await` aqui
+   * ANTES de montar o elemento, então só o `.woff2` da variante ATIVA entra
+   * no HTML da requisição — as outras nunca chegam a ser buscadas nem
+   * pré-carregadas. Devolve as classes CSS var (`.variable` de cada
+   * `next/font/local`) já prontas para aplicar num ANCESTRAL do componente
+   * da skin (nunca dentro dele — o componente continua síncrono).
+   */
+  fontesVariante?: (themeId: string | undefined) => Promise<string>;
 }
 
 /**
