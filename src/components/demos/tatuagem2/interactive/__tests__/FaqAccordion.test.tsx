@@ -26,6 +26,22 @@ describe("FaqAccordion (tatuagem2) — primeiro item aberto por padrão, sem Jav
     expect(detalhes.map((m) => m[1].includes(" open"))).toEqual([true, false, false]);
   });
 
+  it.each(["fichas", "manchete", "respostas"] as const)(
+    "serve todas as respostas abertas no modo %s",
+    (modo) => {
+      const html = renderToStaticMarkup(
+        <FaqAccordion
+          itens={itens}
+          slotBase="secoes.faq.itens"
+          accentCycle={["#D6336C", "#2B4EFF", "#FF6B35"]}
+          modo={modo}
+        />,
+      );
+      const detalhes = [...html.matchAll(/<details([^>]*)>/g)];
+      expect(detalhes.map((m) => m[1].includes(" open"))).toEqual([true, true, true]);
+    },
+  );
+
   it("a resposta de TODO item sai no HTML, mesmo fechada — <details> não precisa de JavaScript para abrir", () => {
     const html = renderToStaticMarkup(
       <FaqAccordion itens={itens} slotBase="secoes.faq.itens" accentCycle={["#D6336C", "#2B4EFF", "#FF6B35"]} />,

@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import type { DemoItem } from "@/lib/demos/types";
+import type { DemoItem, PigmentoComposicao } from "@/lib/demos/types";
 
 /**
  * Acordeão de perguntas — `<details>/<summary>` nativo (item 4 da sessão de
@@ -16,31 +16,38 @@ export function FaqAccordion({
   itens,
   slotBase,
   accentCycle,
+  modo = "acordeao",
 }: {
   itens: DemoItem[];
   slotBase: string;
   accentCycle: string[];
+  modo?: PigmentoComposicao["faq"];
 }) {
   return (
-    <div className="border-t border-[var(--d-border)]">
+    <div className="pv-faq-lista border-t border-[var(--d-border)]">
       {itens.map((item, i) => {
         const cor = accentCycle[i % accentCycle.length];
         return (
-          <details key={i} className="group border-b border-[var(--d-border)]" open={i === 0}>
-            <summary className="flex cursor-pointer list-none items-center gap-4 py-6 font-[family-name:var(--d-corpo)] marker:content-none [&::-webkit-details-marker]:hidden">
+          <details
+            key={i}
+            className="pv-faq-item group border-b border-[var(--d-border)]"
+            open={modo === "acordeao" ? i === 0 : true}
+            style={{ "--pv-faq-tinta": cor } as CSSProperties}
+          >
+            <summary className="pv-faq-pergunta flex cursor-pointer list-none items-center gap-4 py-6 font-[family-name:var(--d-corpo)] marker:content-none [&::-webkit-details-marker]:hidden">
               <span
-                className="h-2.5 w-2.5 flex-shrink-0 rounded-full border-[1.6px] transition-colors duration-300 group-open:[background-color:var(--d-dot)]"
+                className="pv-faq-ponto h-2.5 w-2.5 flex-shrink-0 rounded-full border-[1.6px] transition-colors duration-300 group-open:[background-color:var(--d-dot)]"
                 style={{ borderColor: cor, "--d-dot": cor } as CSSProperties}
               />
               <span
                 data-demo-slot={`${slotBase}.${i}.titulo`}
-                className="flex-1 text-lg font-semibold text-[var(--d-text)] md:text-xl"
+                className="pv-faq-titulo flex-1 text-lg font-semibold text-[var(--d-text)] md:text-xl"
               >
                 {item.titulo}
               </span>
               <span
                 aria-hidden="true"
-                className="font-[family-name:var(--d-display)] text-xl transition-transform duration-300 group-open:rotate-45"
+                className="pv-faq-icone font-[family-name:var(--d-display)] text-xl transition-transform duration-300 group-open:rotate-45"
                 style={{ color: cor }}
               >
                 +
@@ -49,7 +56,7 @@ export function FaqAccordion({
             {item.texto && (
               <p
                 data-demo-slot={`${slotBase}.${i}.texto`}
-                className="max-w-[60ch] pb-6 pl-[26px] text-[15px] leading-relaxed text-[var(--d-muted)]"
+                className="pv-faq-resposta max-w-[60ch] pb-6 pl-[26px] text-[15px] leading-relaxed text-[var(--d-muted)]"
               >
                 {item.texto}
               </p>

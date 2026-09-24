@@ -757,8 +757,8 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── FAQ (Cuidados) ──────────────────────────────────────── */
     faq: () =>
       s.faq && (
-        <section id="faq" className="mx-auto max-w-[920px] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className="mb-14">
+        <section id="faq" className="pv-faq mx-auto max-w-[920px] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className="pv-faq-cabeca mb-14">
             <Etiqueta texto={s.faq.rotulo} slot="secoes.faq.rotulo" />
             <SplashTitle
               texto={s.faq.titulo}
@@ -767,7 +767,12 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               className="font-[family-name:var(--d-display)] text-[clamp(2.25rem,6vw,5.5rem)] leading-[1] text-[var(--d-text)]"
             />
           </div>
-          <FaqAccordion itens={s.faq.itens ?? []} slotBase="secoes.faq.itens" accentCycle={pigmentos} />
+          <FaqAccordion
+            itens={s.faq.itens ?? []}
+            slotBase="secoes.faq.itens"
+            accentCycle={pigmentos}
+            modo={composicao.faq}
+          />
         </section>
       ),
 

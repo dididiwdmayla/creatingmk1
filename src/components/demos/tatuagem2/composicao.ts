@@ -1055,6 +1055,89 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   .pv[data-pv-depoimentos="caderno"] .pv-depoimento-autor { padding: 1rem 0 0; }
 }
 
+/* ── FAQ ─────────────────────────────────────────────────────────────
+   acordeão: details nativo, primeiro item aberto;
+   fichas:    cartões em duas colunas, respostas abertas;
+   manchete:  pergunta grande e resposta pequena, todas abertas;
+   respostas: versalete seguido de parágrafo corrido. */
+.pv[data-pv-faq="acordeao"] .pv-faq-lista { border-color: var(--d-border); }
+
+.pv[data-pv-faq="fichas"].pv-faq { max-width: 72rem; }
+.pv[data-pv-faq="fichas"] .pv-faq-lista {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  border: 0;
+}
+.pv[data-pv-faq="fichas"] .pv-faq-item {
+  min-height: 14rem;
+  padding: 1.5rem;
+  border: var(--pv-forma-borda);
+  background: color-mix(in srgb, var(--pv-mancha-2) 6%, var(--d-bg-alt));
+  box-shadow: var(--pv-forma-sombra);
+}
+.pv[data-pv-faq="fichas"] .pv-faq-pergunta { padding-block: 0 1rem; }
+.pv[data-pv-faq="fichas"] .pv-faq-resposta { max-width: none; padding: 0; }
+.pv[data-pv-faq="fichas"] .pv-faq-icone { display: none; }
+
+.pv[data-pv-faq="manchete"].pv-faq { max-width: 78rem; }
+.pv[data-pv-faq="manchete"] .pv-faq-lista { border-top: 0; }
+.pv[data-pv-faq="manchete"] .pv-faq-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(16rem, .6fr);
+  align-items: center;
+  gap: clamp(2rem, 6vw, 7rem);
+  padding-block: clamp(2rem, 5vw, 4rem);
+  border-bottom: 1px solid var(--pv-faq-tinta);
+}
+.pv[data-pv-faq="manchete"] .pv-faq-pergunta { padding: 0; }
+.pv[data-pv-faq="manchete"] .pv-faq-titulo {
+  font-family: var(--d-display);
+  font-size: clamp(2.2rem, 6vw, 5.8rem);
+  line-height: .92;
+  letter-spacing: -.04em;
+}
+.pv[data-pv-faq="manchete"] .pv-faq-ponto,
+.pv[data-pv-faq="manchete"] .pv-faq-icone { display: none; }
+.pv[data-pv-faq="manchete"] .pv-faq-resposta {
+  max-width: 32ch;
+  padding: 0;
+  font-size: .95rem;
+}
+
+.pv[data-pv-faq="respostas"].pv-faq { max-width: 68rem; }
+.pv[data-pv-faq="respostas"] .pv-faq-lista { border-top: 2px solid var(--d-text); }
+.pv[data-pv-faq="respostas"] .pv-faq-item {
+  display: grid;
+  grid-template-columns: minmax(10rem, .55fr) minmax(0, 1.45fr);
+  gap: clamp(1.5rem, 5vw, 5rem);
+  padding-block: 1.75rem;
+  border-bottom: 1px solid var(--d-text);
+}
+.pv[data-pv-faq="respostas"] .pv-faq-pergunta { padding: 0; }
+.pv[data-pv-faq="respostas"] .pv-faq-titulo {
+  font-family: var(--d-mono);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.pv[data-pv-faq="respostas"] .pv-faq-ponto,
+.pv[data-pv-faq="respostas"] .pv-faq-icone { display: none; }
+.pv[data-pv-faq="respostas"] .pv-faq-resposta {
+  max-width: 58ch;
+  padding: 0;
+  color: var(--d-text);
+}
+
+@media (max-width: 47.999rem) {
+  .pv[data-pv-faq="fichas"] .pv-faq-lista { grid-template-columns: minmax(0, 1fr); }
+  .pv[data-pv-faq="fichas"] .pv-faq-item { min-height: 0; }
+  .pv[data-pv-faq="manchete"] .pv-faq-item,
+  .pv[data-pv-faq="respostas"] .pv-faq-item { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .pv[data-pv-faq="manchete"] .pv-faq-titulo { font-size: clamp(2.35rem, 13vw, 4.5rem); }
+}
+
 /* ── PROCESSO ────────────────────────────────────────────────────────
    onda:       passos alternados dos dois lados de um traço contínuo;
    camadas:    quatro folhas de decalque em cascata;
