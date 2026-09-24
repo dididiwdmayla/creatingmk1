@@ -705,6 +705,129 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   .pv[data-pv-manifesto="carta"] .pv-manifesto-quadro { width: 96%; padding: 3.5rem 2.2rem 3.5rem 3rem; }
 }
 
+/* ── ESTILOS ────────────────────────────────────────────────────────
+   mostruário: cinco cartões iguais e o último invertido;
+   bento:      uma peça dominante e quatro módulos;
+   paleta:     discos pigmentados com o título dentro;
+   baralho:    cartas manuscritas, giradas e sobrepostas. */
+.pv .pv-estilo-numero { color: var(--pv-estilo-tinta); }
+.pv .pv-estilo-texto { color: var(--d-muted); }
+
+.pv[data-pv-estilos="mostruario"] .pv-estilos-lista {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.pv[data-pv-estilos="mostruario"] .pv-estilo-item:last-child .pv-estilo-cartao {
+  background: var(--d-text);
+  color: var(--d-bg);
+  border-color: var(--d-text);
+}
+.pv[data-pv-estilos="mostruario"] .pv-estilo-item:last-child .pv-estilo-numero { color: var(--d-bg); }
+.pv[data-pv-estilos="mostruario"] .pv-estilo-item:last-child .pv-estilo-texto { color: color-mix(in srgb, var(--d-bg) 72%, transparent); }
+
+.pv[data-pv-estilos="bento"] .pv-estilos-lista {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: minmax(10rem, auto);
+  gap: 1rem;
+}
+.pv[data-pv-estilos="bento"] .pv-estilo-item { grid-column: span 4; }
+.pv[data-pv-estilos="bento"] .pv-estilo-item:first-child {
+  grid-column: span 8;
+  grid-row: span 2;
+}
+.pv[data-pv-estilos="bento"] .pv-estilo-cartao {
+  min-height: 100%;
+  border: var(--pv-forma-borda);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--d-card-blob) 8%, var(--d-bg-alt));
+}
+.pv[data-pv-estilos="bento"] .pv-estilo-item:first-child .pv-estilo-titulo {
+  max-width: 8ch;
+  font-size: clamp(3rem, 7vw, 6rem);
+}
+.pv[data-pv-estilos="bento"] .d-estilo-card-escuro { color: var(--d-text); }
+
+.pv[data-pv-estilos="paleta"] .pv-estilos-lista {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: start;
+  gap: clamp(.75rem, 2vw, 1.5rem);
+}
+.pv[data-pv-estilos="paleta"] .pv-estilo-cartao {
+  aspect-ratio: 1;
+  min-height: 0;
+  justify-content: center;
+  padding: clamp(1rem, 2.5vw, 2rem);
+  border: 1px solid var(--pv-estilo-tinta);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--d-card-blob) 18%, var(--d-bg-elev));
+  color: var(--d-text);
+  text-align: center;
+}
+.pv[data-pv-estilos="paleta"] .pv-estilo-cartao::before { display: none; }
+.pv[data-pv-estilos="paleta"] .pv-estilo-numero {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.pv[data-pv-estilos="paleta"] .pv-estilo-copy { position: static; }
+.pv[data-pv-estilos="paleta"] .pv-estilo-titulo { margin: 0; font-size: clamp(1rem, 2.1vw, 2rem); }
+.pv[data-pv-estilos="paleta"] .pv-estilo-texto { display: none; }
+.pv[data-pv-estilos="paleta"] .d-estilo-card-escuro { color: var(--d-text); }
+
+.pv[data-pv-estilos="baralho"] .pv-estilos-lista {
+  display: flex;
+  align-items: stretch;
+  max-width: 68rem;
+  margin-inline: auto;
+  padding-block: 2.5rem;
+}
+.pv[data-pv-estilos="baralho"] .pv-estilo-item {
+  flex: 1 1 0;
+  min-width: 0;
+  transform: rotate(-4deg);
+  transform-origin: 50% 80%;
+}
+.pv[data-pv-estilos="baralho"] .pv-estilo-item + .pv-estilo-item { margin-left: -4%; }
+.pv[data-pv-estilos="baralho"] .pv-estilo-item:nth-child(even) { transform: translateY(1.5rem) rotate(4deg); }
+.pv[data-pv-estilos="baralho"] .pv-estilo-item:nth-child(3) { transform: translateY(-1rem) rotate(-1deg); }
+.pv[data-pv-estilos="baralho"] .pv-estilo-cartao {
+  min-height: 23rem;
+  border: var(--pv-forma-borda);
+  background: var(--d-bg-elev);
+  color: var(--d-text);
+  box-shadow: var(--pv-forma-sombra);
+}
+.pv[data-pv-estilos="baralho"] .pv-estilo-cartao::before { display: none; }
+.pv[data-pv-estilos="baralho"] .pv-estilo-titulo {
+  font-family: var(--font-pv-manuscrita), var(--d-display);
+  font-size: clamp(1.8rem, 3vw, 3rem);
+}
+.pv[data-pv-estilos="baralho"] .d-estilo-card-escuro { color: var(--d-text); }
+
+@media (max-width: 63.999rem) {
+  .pv[data-pv-estilos="mostruario"] .pv-estilos-lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pv[data-pv-estilos="mostruario"] .pv-estilo-item:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 47.999rem) {
+  .pv[data-pv-estilos="mostruario"] .pv-estilos-lista { grid-template-columns: minmax(0, 1fr); }
+  .pv[data-pv-estilos="mostruario"] .pv-estilo-item:last-child { grid-column: auto; }
+  .pv[data-pv-estilos="bento"] .pv-estilos-lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pv[data-pv-estilos="bento"] .pv-estilo-item,
+  .pv[data-pv-estilos="bento"] .pv-estilo-item:first-child { grid-column: span 1; grid-row: auto; }
+  .pv[data-pv-estilos="bento"] .pv-estilo-item:first-child { grid-column: 1 / -1; min-height: 22rem; }
+  .pv[data-pv-estilos="paleta"] .pv-estilos-lista { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pv[data-pv-estilos="paleta"] .pv-estilo-item:last-child { grid-column: 1 / -1; width: 50%; justify-self: center; }
+  .pv[data-pv-estilos="baralho"] .pv-estilos-lista { display: grid; grid-template-columns: minmax(0, 1fr); padding-inline: 1.5rem; }
+  .pv[data-pv-estilos="baralho"] .pv-estilo-item,
+  .pv[data-pv-estilos="baralho"] .pv-estilo-item:nth-child(even),
+  .pv[data-pv-estilos="baralho"] .pv-estilo-item:nth-child(3) { transform: rotate(-2deg); }
+  .pv[data-pv-estilos="baralho"] .pv-estilo-item:nth-child(even) { transform: rotate(2deg); }
+  .pv[data-pv-estilos="baralho"] .pv-estilo-item + .pv-estilo-item { margin: -3rem 0 0; }
+  .pv[data-pv-estilos="baralho"] .pv-estilo-cartao { min-height: 16rem; }
+}
+
 /* ── PROCESSO ────────────────────────────────────────────────────────
    onda:       passos alternados dos dois lados de um traço contínuo;
    camadas:    quatro folhas de decalque em cascata;

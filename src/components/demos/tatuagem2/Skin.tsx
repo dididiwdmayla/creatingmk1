@@ -381,8 +381,8 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Estilos ─────────────────────────────────────────────── */
     estilos: () =>
       s.estilos && (
-        <section id="estilos" className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className="mb-14">
+        <section id="estilos" className="pv-estilos px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className="pv-estilos-cabeca mb-14">
             <Etiqueta texto={s.estilos.rotulo} slot="secoes.estilos.rotulo" />
             <SplashTitle
               texto={s.estilos.titulo}
@@ -391,7 +391,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               className="font-[family-name:var(--d-display)] text-[clamp(2.25rem,6vw,5.5rem)] leading-[1] text-[var(--d-text)]"
             />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="pv-estilos-lista grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {(s.estilos.itens ?? []).map((item, i) => {
               const ultimo = i === (s.estilos?.itens?.length ?? 0) - 1;
               // Número/texto usam a TINTA (legível); só o blob do hover usa
@@ -399,37 +399,35 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               const cor = pigmentos[i % pigmentos.length];
               const corBlob = manchas[i % manchas.length];
               return (
-                <FadeUp key={item.titulo} animacao={theme.animacao} delay={0.06 * i}>
+                <FadeUp key={item.titulo} animacao={theme.animacao} delay={0.06 * i} className="pv-estilo-item">
                   <div
-                    className={`d-estilo-card group relative flex min-h-[300px] flex-col justify-between overflow-hidden p-7 ${
+                    className={`pv-estilo-cartao d-estilo-card group relative flex min-h-[300px] flex-col justify-between overflow-hidden p-7 ${
                       ultimo ? "d-estilo-card-escuro" : ""
                     }`}
                     style={
                       {
                         "--d-card-blob": corBlob,
-                        borderRadius: "var(--d-radius)",
+                        "--pv-estilo-tinta": cor,
                       } as CSSProperties
                     }
                   >
                     <span
                       data-demo-slot={`secoes.estilos.itens.${i}.detalhe`}
-                      className="relative font-[family-name:var(--d-mono)] text-sm font-semibold"
-                      style={{ color: ultimo ? "var(--d-bg)" : cor }}
+                      className="pv-estilo-numero relative font-[family-name:var(--d-mono)] text-sm font-semibold"
                     >
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <div className="relative">
+                    <div className="pv-estilo-copy relative">
                       <h3
                         data-demo-slot={`secoes.estilos.itens.${i}.titulo`}
-                        className="mb-2 font-[family-name:var(--d-display)] text-[2rem] italic leading-none"
+                        className="pv-estilo-titulo mb-2 font-[family-name:var(--d-display)] text-[2rem] italic leading-none"
                       >
                         {item.titulo}
                       </h3>
                       {item.texto && (
                         <p
                           data-demo-slot={`secoes.estilos.itens.${i}.texto`}
-                          className="text-sm leading-relaxed"
-                          style={{ color: ultimo ? "color-mix(in srgb, var(--d-bg) 70%, transparent)" : "var(--d-muted)" }}
+                          className="pv-estilo-texto text-sm leading-relaxed"
                         >
                           {item.texto}
                         </p>
@@ -909,6 +907,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         .d-estilo-card {
           background: var(--d-bg);
           border: 1px solid var(--d-border);
+          border-radius: var(--d-radius);
           transition: transform .45s cubic-bezier(.2,.8,.2,1);
         }
         .d-estilo-card::before {
@@ -916,7 +915,6 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           position: absolute; bottom: -30%; right: -25%; width: 75%; aspect-ratio: 1;
           border-radius: 50%;
           background: radial-gradient(circle, color-mix(in srgb, var(--d-card-blob) 50%, transparent), transparent 70%);
-          filter: blur(28px);
           mix-blend-mode: var(--pv-mistura);
           transition: transform .6s cubic-bezier(.2,.8,.2,1);
           pointer-events: none;
