@@ -638,9 +638,9 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Depoimentos ─────────────────────────────────────────── */
     depoimentos: () =>
       data.depoimentos.length > 0 && (
-        <section className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className={`mx-auto max-w-7xl ${centro("depoimentos") ? "text-center" : ""}`}>
-            <div className="mb-14">
+        <section className="pv-depoimentos px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className={`pv-depoimentos-caixa mx-auto max-w-7xl ${centro("depoimentos") ? "text-center" : ""}`}>
+            <div className="pv-depoimentos-cabeca mb-14">
               <Etiqueta texto={s.depoimentos?.rotulo} slot="secoes.depoimentos.rotulo" />
               <SplashTitle
                 texto={s.depoimentos?.titulo}
@@ -649,29 +649,32 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
                 className="font-[family-name:var(--d-display)] text-[clamp(2rem,5.5vw,4.5rem)] leading-[1] text-[var(--d-text)]"
               />
             </div>
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="pv-depoimentos-lista grid gap-6 md:grid-cols-3">
               {data.depoimentos.map((dep, i) => (
                 <figure
                   key={dep.autor}
-                  className="d-card-hover flex h-full flex-col justify-between gap-5 bg-[var(--d-bg-elev)] p-7"
-                  style={{ borderRadius: "var(--d-radius)" }}
+                  className="pv-depoimento d-card-hover flex h-full flex-col justify-between gap-5 bg-[var(--d-bg-elev)] p-7"
+                  style={{
+                    "--pv-depoimento-tinta": pigmentos[i % pigmentos.length],
+                    "--pv-depoimento-mancha": manchas[i % manchas.length],
+                  } as CSSProperties}
                 >
-                  <div>
+                  <div className="pv-depoimento-corpo">
                     {dep.nota !== undefined && (
-                      <div className="mb-3" style={{ color: pigmentos[i % pigmentos.length] }} aria-label={m.avaliacaoEstrelas(dep.nota)}>
+                      <div className="pv-depoimento-estrelas mb-3" style={{ color: pigmentos[i % pigmentos.length] }} aria-label={m.avaliacaoEstrelas(dep.nota)}>
                         {"★".repeat(Math.max(0, Math.min(5, Math.round(dep.nota))))}
                       </div>
                     )}
                     <blockquote
                       data-demo-slot={`depoimentos.${i}.texto`}
-                      className="font-[family-name:var(--d-serif)] text-lg italic leading-relaxed text-[var(--d-text)]"
+                      className="pv-depoimento-texto font-[family-name:var(--d-serif)] text-lg italic leading-relaxed text-[var(--d-text)]"
                     >
                       &ldquo;{dep.texto}&rdquo;
                     </blockquote>
                   </div>
                   <figcaption
                     data-demo-slot={`depoimentos.${i}.autor`}
-                    className="font-[family-name:var(--d-mono)] text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--d-muted)]"
+                    className="pv-depoimento-autor font-[family-name:var(--d-mono)] text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--d-muted)]"
                   >
                     — {dep.autor}
                   </figcaption>

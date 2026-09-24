@@ -937,6 +937,124 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   .pv[data-pv-artistas="livro"] .pv-artista-texto { grid-column: 2; }
 }
 
+/* ── DEPOIMENTOS ────────────────────────────────────────────────────
+   bilhetes: papéis soltos presos por uma faixa de pigmento;
+   conversa: balões alternados, como uma troca de mensagens;
+   coro:     três vozes sem caixa, unidas numa faixa escura;
+   caderno:  entradas pautadas em sequência. */
+.pv .pv-depoimento { position: relative; border-radius: var(--d-radius); }
+.pv .pv-depoimento-estrelas { color: var(--pv-depoimento-tinta); }
+
+.pv[data-pv-depoimentos="bilhetes"] .pv-depoimentos-lista {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+}
+.pv[data-pv-depoimentos="bilhetes"] .pv-depoimento {
+  min-height: 20rem;
+  padding-top: 3rem;
+  border: 1px solid color-mix(in srgb, var(--pv-depoimento-tinta) 20%, var(--d-border));
+  border-radius: .25rem;
+  background: color-mix(in srgb, var(--pv-depoimento-mancha) 7%, var(--d-bg-elev));
+  box-shadow: var(--pv-forma-sombra);
+  transform: rotate(-1.5deg);
+}
+.pv[data-pv-depoimentos="bilhetes"] .pv-depoimento:nth-child(even) { transform: translateY(1.5rem) rotate(1.5deg); }
+.pv[data-pv-depoimentos="bilhetes"] .pv-depoimento::before {
+  content: "";
+  position: absolute;
+  top: .8rem;
+  left: 35%;
+  width: 30%;
+  height: 1.2rem;
+  background: color-mix(in srgb, var(--pv-depoimento-mancha) 48%, transparent);
+  transform: rotate(-2deg);
+}
+
+.pv[data-pv-depoimentos="conversa"] .pv-depoimentos-caixa { max-width: 58rem; }
+.pv[data-pv-depoimentos="conversa"] .pv-depoimentos-lista {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+.pv[data-pv-depoimentos="conversa"] .pv-depoimento {
+  width: min(78%, 42rem);
+  min-height: 0;
+  padding: 1.5rem 2rem;
+  border: 1px solid var(--pv-depoimento-tinta);
+  border-radius: 1.4rem 1.4rem 1.4rem .2rem;
+  background: color-mix(in srgb, var(--pv-depoimento-mancha) 9%, var(--d-bg-alt));
+}
+.pv[data-pv-depoimentos="conversa"] .pv-depoimento:nth-child(even) {
+  align-self: flex-end;
+  border-radius: 1.4rem 1.4rem .2rem 1.4rem;
+  text-align: right;
+}
+.pv[data-pv-depoimentos="conversa"] .pv-depoimento-texto { font-family: var(--d-corpo); font-style: normal; }
+
+.pv[data-pv-depoimentos="coro"] .pv-depoimentos-caixa { max-width: 78rem; }
+.pv[data-pv-depoimentos="coro"] .pv-depoimentos-lista {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-block: 1px solid var(--d-accent);
+}
+.pv[data-pv-depoimentos="coro"] .pv-depoimento {
+  min-height: 24rem;
+  padding: clamp(1.5rem, 3.5vw, 3rem);
+  border-right: 1px solid color-mix(in srgb, var(--d-accent-2) 42%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+.pv[data-pv-depoimentos="coro"] .pv-depoimento:last-child { border-right: 0; }
+.pv[data-pv-depoimentos="coro"] .pv-depoimento:nth-child(2) { padding-top: 6rem; }
+.pv[data-pv-depoimentos="coro"] .pv-depoimento-texto { font-size: clamp(1.25rem, 2.5vw, 2rem); }
+
+.pv[data-pv-depoimentos="caderno"] .pv-depoimentos-caixa { max-width: 64rem; }
+.pv[data-pv-depoimentos="caderno"] .pv-depoimentos-lista {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 1.5rem clamp(1.5rem, 5vw, 4rem);
+  border: var(--pv-forma-borda);
+  background-color: var(--d-bg-elev);
+  background-image: repeating-linear-gradient(transparent 0 2.4rem, color-mix(in srgb, var(--pv-mancha-3) 13%, transparent) 2.4rem calc(2.4rem + 1px));
+  box-shadow: var(--pv-forma-sombra);
+}
+.pv[data-pv-depoimentos="caderno"] .pv-depoimento {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  min-height: 12rem;
+  padding: 2rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--d-text) 36%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+.pv[data-pv-depoimentos="caderno"] .pv-depoimento:last-child { border-bottom: 0; }
+.pv[data-pv-depoimentos="caderno"] .pv-depoimento-texto {
+  font-family: var(--font-pv-manuscrita), var(--d-serif);
+  font-size: clamp(1.6rem, 3vw, 2.6rem);
+  line-height: 1.05;
+}
+.pv[data-pv-depoimentos="caderno"] .pv-depoimento-autor { padding-left: 1.5rem; color: var(--pv-depoimento-tinta); }
+
+@media (max-width: 47.999rem) {
+  .pv[data-pv-depoimentos="bilhetes"] .pv-depoimentos-lista,
+  .pv[data-pv-depoimentos="coro"] .pv-depoimentos-lista { grid-template-columns: minmax(0, 1fr); }
+  .pv[data-pv-depoimentos="bilhetes"] .pv-depoimento:nth-child(n) { min-height: 15rem; transform: rotate(-1deg); }
+  .pv[data-pv-depoimentos="bilhetes"] .pv-depoimento:nth-child(even) { transform: rotate(1deg); }
+  .pv[data-pv-depoimentos="conversa"] .pv-depoimento { width: 88%; padding: 1.25rem; }
+  .pv[data-pv-depoimentos="coro"] .pv-depoimento {
+    min-height: 15rem;
+    padding: 2rem 0;
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--d-accent-2) 42%, transparent);
+  }
+  .pv[data-pv-depoimentos="coro"] .pv-depoimento:nth-child(2) { padding-top: 2rem; }
+  .pv[data-pv-depoimentos="caderno"] .pv-depoimento { grid-template-columns: minmax(0, 1fr); }
+  .pv[data-pv-depoimentos="caderno"] .pv-depoimento-autor { padding: 1rem 0 0; }
+}
+
 /* ── PROCESSO ────────────────────────────────────────────────────────
    onda:       passos alternados dos dois lados de um traço contínuo;
    camadas:    quatro folhas de decalque em cascata;
