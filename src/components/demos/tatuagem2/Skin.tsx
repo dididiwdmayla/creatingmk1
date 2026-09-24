@@ -139,6 +139,15 @@ const RABISCOS_ARTISTA = [
   "M40 140 C 60 100, 55 70, 85 55 C 115 40, 140 55, 138 80 C 136 102, 110 108, 100 92 C 92 78, 105 64, 122 68 M 85 55 C 95 40, 115 30, 135 32",
 ];
 
+/** A Aquarela sempre usa duas linhas — composição, não conteúdo novo. */
+function nomeDaAbertura(nome: string, abertura: string): string {
+  if (abertura !== "mancha") return quebrarTitulo(nome);
+  const palavras = nome.trim().split(/\s+/);
+  if (palavras.length < 2) return palavras[0] ?? "";
+  const corte = Math.ceil(palavras.length / 2);
+  return `${palavras.slice(0, corte).join(" ")}\n${palavras.slice(corte).join(" ")}`;
+}
+
 export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
@@ -245,19 +254,19 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
       <section
         id="topo"
         data-pigment={manchas[0]}
-        className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden px-6 pb-20 pt-32 md:px-[clamp(20px,5vw,72px)]"
+        className="pv-hero relative flex min-h-[100svh] flex-col justify-center overflow-hidden px-6 pb-20 pt-32 md:px-[clamp(20px,5vw,72px)]"
       >
-        <div className="pointer-events-none absolute -left-[8%] top-[6%] h-[46vw] w-[46vw] rounded-full">
+        <div className="pv-hero-mancha pv-hero-mancha-a pointer-events-none absolute -left-[8%] top-[6%] h-[46vw] w-[46vw] rounded-full">
           <Parallax animacao={theme.animacao} className="h-full w-full">
             <div className="d-blob d-blob-a h-full w-full rounded-full" />
           </Parallax>
         </div>
-        <div className="pointer-events-none absolute -right-[10%] top-[30%] h-[42vw] w-[42vw] rounded-full">
+        <div className="pv-hero-mancha pv-hero-mancha-b pointer-events-none absolute -right-[10%] top-[30%] h-[42vw] w-[42vw] rounded-full">
           <Parallax animacao={theme.animacao} className="h-full w-full">
             <div className="d-blob d-blob-b h-full w-full rounded-full" />
           </Parallax>
         </div>
-        <div className="pointer-events-none absolute -bottom-[12%] left-[32%] hidden h-[34vw] w-[34vw] rounded-full md:block">
+        <div className="pv-hero-mancha pv-hero-mancha-c pointer-events-none absolute -bottom-[12%] left-[32%] hidden h-[34vw] w-[34vw] rounded-full md:block">
           <Parallax animacao={theme.animacao} className="h-full w-full">
             <div className="d-blob d-blob-c h-full w-full rounded-full" />
           </Parallax>
@@ -266,7 +275,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         <svg
           viewBox="0 0 1200 600"
           preserveAspectRatio="xMidYMid slice"
-          className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.85]"
+          className="pv-hero-traco pointer-events-none absolute inset-0 h-full w-full opacity-[0.85]"
           aria-hidden="true"
         >
           <path
@@ -278,28 +287,36 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           />
         </svg>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col">
-          <FadeUp animacao={theme.animacao} delay={0.1}>
+        <div className="pv-hero-conteudo relative z-10 mx-auto flex w-full max-w-7xl flex-col">
+          <FadeUp animacao={theme.animacao} delay={0.1} className="pv-hero-etiqueta">
             <Etiqueta texto={s.hero?.rotulo} slot="secoes.hero.rotulo" />
           </FadeUp>
 
-          <div className={`flex w-full flex-col ${HERO_ALINHAMENTO_TEXT[theme.heroTitulo.alinhamento]}`}>
+          <div className={`pv-hero-nome-bloco flex w-full flex-col ${HERO_ALINHAMENTO_TEXT[theme.heroTitulo.alinhamento]}`}>
             {/* O <h1> é SEMPRE o nome do negócio (decisão 3 da sessão de
                 fundação, precedente da multimarcas): título salvo (se
                 houver, e diferente do nome) vira linha de apoio abaixo,
                 nunca troca o <h1>. Nenhuma demo salva perde texto. */}
-            <SplashTitle
-              texto={quebrarTitulo(data.nome)}
-              slot="nome"
-              as="h1"
-              accentCycle={pigmentos}
-              className="whitespace-pre-line font-[family-name:var(--d-hero-font)] leading-[0.98] text-[var(--d-text)]"
-              style={{ fontSize: "calc(clamp(2.75rem, 9vw, 7.5rem) * var(--d-hero-escala))" }}
-            />
+            <div className="pv-hero-nome-caixa">
+              <span className="pv-hero-fantasma" aria-hidden="true">
+                {data.nome}
+              </span>
+              <span className="pv-hero-arco pv-hero-arco-a" aria-hidden="true" />
+              <span className="pv-hero-arco pv-hero-arco-b" aria-hidden="true" />
+              <span className="pv-hero-arco pv-hero-arco-c" aria-hidden="true" />
+              <SplashTitle
+                texto={nomeDaAbertura(data.nome, composicao.abertura)}
+                slot="nome"
+                as="h1"
+                accentCycle={pigmentos}
+                className="pv-hero-nome whitespace-pre-line font-[family-name:var(--d-hero-font)] leading-[0.98] text-[var(--d-text)]"
+                style={{ fontSize: "calc(clamp(2.75rem, 9vw, 7.5rem) * var(--d-hero-escala))" }}
+              />
+            </div>
             {linhaDeApoio(s.hero?.titulo, data.nome) && (
               <p
                 data-demo-slot="secoes.hero.titulo"
-                className="mt-3 max-w-2xl text-balance font-[family-name:var(--d-display)] text-[clamp(1.15rem,2.6vw,1.75rem)] leading-snug text-[var(--d-text)]"
+                className="pv-hero-apoio mt-3 max-w-2xl text-balance font-[family-name:var(--d-display)] text-[clamp(1.15rem,2.6vw,1.75rem)] leading-snug text-[var(--d-text)]"
               >
                 {linhaDeApoio(s.hero?.titulo, data.nome)}
               </p>
@@ -307,15 +324,21 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           </div>
 
           {s.hero?.texto && (
-            <FadeUp animacao={theme.animacao} delay={0.3} className="mt-6 max-w-xl">
-              <p data-demo-slot="secoes.hero.texto" className="text-[15px] leading-relaxed text-[var(--d-muted)] md:text-base">
+            <FadeUp animacao={theme.animacao} delay={0.3} className="pv-hero-texto-caixa mt-6 max-w-xl">
+              <p data-demo-slot="secoes.hero.texto" className="pv-hero-texto text-[15px] leading-relaxed text-[var(--d-muted)] md:text-base">
                 {s.hero.texto}
               </p>
             </FadeUp>
           )}
 
+          <div className="pv-hero-regua" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+
           {s.hero?.cta && agendar && (
-            <FadeUp animacao={theme.animacao} delay={0.5} className="mt-10">
+            <FadeUp animacao={theme.animacao} delay={0.5} className="pv-hero-cta mt-10">
               <a href={agendar} data-demo-slot="secoes.hero.cta" className="d-cta-pill d-cta-solida">
                 {s.hero.cta}
               </a>
@@ -780,7 +803,9 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         @keyframes d-blob-a { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(8%,-6%) scale(1.12); } 66% { transform: translate(-5%,5%) scale(.94); } }
         @keyframes d-blob-b { 0%,100% { transform: translate(0,0) scale(1); } 40% { transform: translate(-7%,4%) scale(1.08); } 75% { transform: translate(6%,-3%) scale(.9); } }
         @keyframes d-blob-c { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(4%,7%) scale(1.15); } }
-        .d-blob { filter: blur(48px); mix-blend-mode: var(--pv-mistura); }
+        /* O blur mora no contêiner ESTÁTICO (.pv-hero-mancha, em
+           composicao.ts); este elemento anima só transform. */
+        .d-blob { mix-blend-mode: var(--pv-mistura); }
         .d-blob-a { background: radial-gradient(circle at 40% 40%, color-mix(in srgb, var(--pv-mancha-1) 30%, transparent), transparent 68%); animation: d-blob-a 16s ease-in-out infinite; }
         .d-blob-b { background: radial-gradient(circle at 60% 50%, color-mix(in srgb, var(--pv-mancha-2) 30%, transparent), transparent 66%); animation: d-blob-b 19s ease-in-out infinite; }
         .d-blob-c { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--pv-mancha-3) 30%, transparent), transparent 65%); animation: d-blob-c 14s ease-in-out infinite; }
