@@ -18,7 +18,8 @@ import type { DemoData } from "@/lib/demos/types";
 export const TATUAGEM2_EXEMPLO: DemoData = {
   nome: "MATIZ STUDIO",
   slogan: "Cor que você carrega pra vida toda.",
-  endereco: "Rua das Aquarelas, 88 — Centro",
+  // Sem endereço fictício (§15 do plano): identidade sem dado do lead, o
+  // elemento some (CAMPOS_IDENTIDADE_AVULSA já zera isso na demo avulsa).
   servicos: [
     {
       nome: "SESSÃO — PEQUENA",
@@ -72,7 +73,7 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
   secoes: {
     hero: {
       rotulo: "Estúdio de tatuagem autoral",
-      texto: "Cor viva, traço autoral. Sessões por agendamento, desde 2018.",
+      texto: "Cor viva, traço autoral. Sessões por agendamento.",
       cta: "Agendar sessão",
     },
     manifesto: {
@@ -110,7 +111,7 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
     },
     artistas: {
       rotulo: "Artistas",
-      titulo: "Três mãos, três assinaturas.",
+      titulo: "As mãos por trás da tinta.",
       itens: [
         {
           titulo: "Cora Vidal",
@@ -121,7 +122,7 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
           titulo: "Bento Aoki",
           subtitulo: "Neo-Tradicional · Old School",
           texto:
-            "Dez anos de traço grosso e cor fechada — composição que envelhece bem, como as boas.",
+            "Traço grosso e cor fechada — composição que envelhece bem, como as boas.",
         },
         {
           titulo: "Íris Weiss",
@@ -170,7 +171,7 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
         },
         {
           titulo: "Cobre tatuagem antiga?",
-          texto: "Sim — cobertura é quase uma especialidade da casa. Traga uma foto e avaliamos na hora.",
+          texto: "Sim — traga uma foto e avaliamos na hora.",
         },
       ],
     },
@@ -179,9 +180,12 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
       cta: "Agendar sessão",
       ctaSecundaria: "WhatsApp",
     },
-    contato: {
-      texto: "Estúdio fictício, tinta imaginária.",
-    },
+    // Sem `contato.texto`: o fallback antigo ("Estúdio fictício, tinta
+    // imaginária.") afirmava, na demo de um estúdio real, que ele é
+    // fictício — saiu do exemplo e do componente (§15 do plano). A chave
+    // continua existindo (vazia): o contrato exige as onze seções no
+    // exemplo, mesmo a que não tem texto próprio nenhum.
+    contato: {},
   },
   imagens: {
     "portfolio-1": "/demos/tatuagem2/portfolio-1.svg",
@@ -192,5 +196,19 @@ export const TATUAGEM2_EXEMPLO: DemoData = {
     "portfolio-6": "/demos/tatuagem2/portfolio-6.svg",
     "portfolio-7": "/demos/tatuagem2/portfolio-7.svg",
     "portfolio-8": "/demos/tatuagem2/portfolio-8.svg",
+  },
+  // Alts das 8 fotos do portfólio — eram derivados de titulo/subtitulo no
+  // componente (Skin.tsx); viraram slot próprio (opt-in por skin, ver
+  // DemoData.imagensAlt) para o operador poder corrigi-los sem tocar na
+  // legenda visível.
+  imagensAlt: {
+    "portfolio-1": "Aquarela — Cora Vidal",
+    "portfolio-2": "Neo-Tradicional — Bento Aoki",
+    "portfolio-3": "Fineline botânico — Íris Weiss",
+    "portfolio-4": "Old School — Bento Aoki",
+    "portfolio-5": "Blackwork — Cora Vidal",
+    "portfolio-6": "Aquarela abstrata — Íris Weiss",
+    "portfolio-7": "Neo-Tradicional — Bento Aoki",
+    "portfolio-8": "Fineline — Íris Weiss",
   },
 };
