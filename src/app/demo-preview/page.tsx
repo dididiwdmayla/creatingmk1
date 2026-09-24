@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 
 import { resolverCamadaEfeito } from "@/lib/demos/efeitos/camada";
 import { EfeitoCamada } from "@/lib/demos/efeitos/EfeitoCamada";
 import { resolverEfeitoFundo } from "@/lib/demos/efeitos/registry";
 import { fontesEscolhidas } from "@/lib/demos/fontes";
 import { getSkin } from "@/lib/demos/registry";
-import type { DemoData, TemaPatch, Theme } from "@/lib/demos/types";
+import type { DemoData, SkinProps, TemaPatch, Theme } from "@/lib/demos/types";
 import { demoCoreFontsClassName, resolveExtraFontClassNames } from "../demo/fonts";
 
 /**
@@ -53,6 +53,30 @@ export default function DemoPreviewPage() {
   // de fonte já em edição (o usuário mexendo na aba Tema) não passam por
   // aqui de novo: `jaMostrou` já travou em true e o preview segue ao vivo.
   const [jaMostrou, setJaMostrou] = useState(false);
+  // Componente pesado da skin ativa — carregado sob demanda (ver o
+  // comentário de SkinDefinition.componente em lib/demos/types.ts), nunca
+  // no import estático do registro. Guarda o id junto: troca de skin (não
+  // de tema/variante, que reaproveita o mesmo componente) refaz o import;
+  // enquanto ele não resolve, o preview continua mostrando "Carregando…" —
+  // em vez de piscar a skin ANTERIOR sob o estado NOVO.
+  const [componenteCarregado, setComponenteCarregado] = useState<{
+    skinId: string;
+    Componente: ComponentType<SkinProps>;
+  } | null>(null);
+
+  useEffect(() => {
+    const skinId = estado?.skinId;
+    if (!skinId) return;
+    let ignorar = false;
+    getSkin(skinId)
+      ?.componente()
+      .then((Componente) => {
+        if (!ignorar) setComponenteCarregado({ skinId, Componente });
+      });
+    return () => {
+      ignorar = true;
+    };
+  }, [estado?.skinId]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -113,7 +137,12 @@ export default function DemoPreviewPage() {
   }, []);
 
   const skin = getSkin(estado?.skinId);
-  if (!estado || !skin || !jaMostrou) {
+  if (
+    !estado ||
+    !skin ||
+    !jaMostrou ||
+    componenteCarregado?.skinId !== skin.id
+  ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-sm text-ink-muted">Carregando prévia…</p>
@@ -121,7 +150,7 @@ export default function DemoPreviewPage() {
     );
   }
 
-  const Skin = skin.componente;
+  const Skin = componenteCarregado.Componente;
   // Mesma resolução da rota pública (ver /demo/[leadId]/page.tsx) — o
   // preview fica fiel ao que será publicado, inclusive o efeito de fundo.
   const efeitoFundo = resolverEfeitoFundo(

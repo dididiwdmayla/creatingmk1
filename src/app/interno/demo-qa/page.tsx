@@ -274,7 +274,9 @@ export default async function DemoQaPage({ searchParams }: Props) {
   // mediria a falta da fonte como se fosse defeito da skin.
   const extraFontClassName = await resolveExtraFontClassNames(fontesEscolhidas(patch));
 
-  const Skin = skin.componente;
+  // `await` antes de montar o elemento — mesmo motivo de resolverDemo em
+  // app/demo/comum.tsx (ver o comentário de SkinDefinition.componente).
+  const Skin = await skin.componente();
   return (
     <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
       {/* Mesma cadeia da rota pública — ver lib/demos/barra/plano.ts. */}

@@ -24,6 +24,11 @@ import { exemploDaSkin } from "../variantes";
  * A etapa 4 (item 24) completa este arquivo com a prova do §6.1 e o §7.
  */
 const skin = getSkin("multimarcas-vortice")!;
+// Carregado UMA VEZ (topo do módulo) — mesmo motivo de lancheria-contrato.
+// test.tsx: o componente é sob demanda no registro (ver
+// SkinDefinition.componente em ../types.ts), e este arquivo só testa a
+// `multimarcas-vortice`.
+const Componente = await skin.componente();
 const lead = { nome: "Garagem Contrato Real", placeId: "qa", status: "novo" } as Lead;
 const alvos = skin.variantes!.map((v) => v.id);
 
@@ -32,7 +37,7 @@ const normalizar = (texto: string) => texto.replace(/\s+/g, " ").trim();
 const documento = (id: string, data: DemoData, idioma?: string) =>
   new JSDOM(
     renderToStaticMarkup(
-      createElement(skin.componente, { data, theme: getTheme(skin, id), idioma }),
+      createElement(Componente, { data, theme: getTheme(skin, id), idioma }),
     ),
   ).window.document;
 
@@ -53,7 +58,7 @@ describe.each(alvos)("multimarcas SSR sem JavaScript: %s", (id) => {
 
   it("o preloader não sai no HTML do servidor, mesmo com a intro ligada", () => {
     const theme = { ...getTheme(skin, id), intro: true };
-    const html = renderToStaticMarkup(createElement(skin.componente, { data: base, theme }));
+    const html = renderToStaticMarkup(createElement(Componente, { data: base, theme }));
     // O preloader é o único `fixed inset-0` de fundo opaco da skin.
     expect(html).not.toMatch(/class="[^"]*fixed inset-0 z-\[9990\]/);
     expect(html).not.toContain("GIRI");
@@ -61,7 +66,7 @@ describe.each(alvos)("multimarcas SSR sem JavaScript: %s", (id) => {
 
   it("nada no documento servido nasce transparente ou deslocado para fora da caixa", () => {
     const html = renderToStaticMarkup(
-      createElement(skin.componente, { data: base, theme: { ...getTheme(skin, id), intro: true } }),
+      createElement(Componente, { data: base, theme: { ...getTheme(skin, id), intro: true } }),
     );
     // Só o `style` INLINE conta: os `@keyframes` da folha (o anel do
     // WhatsApp esmaece até 0) não escondem nada no documento servido.
@@ -161,7 +166,7 @@ describe("multimarcas: o simulador (item 10)", () => {
 
   it("em en-US/USD não sobra R$ nem separador pt-BR no simulador", () => {
     const html = renderToStaticMarkup(
-      createElement(skin.componente, { data: base, theme: getTheme(skin, "vortice"), idioma: "en-US", moeda: "USD" }),
+      createElement(Componente, { data: base, theme: getTheme(skin, "vortice"), idioma: "en-US", moeda: "USD" }),
     );
     const doc = new JSDOM(html).window.document;
     const sim = doc.getElementById("simulador")!.textContent!;
@@ -274,7 +279,7 @@ describe("multimarcas: cromo pela microcópia (item 13)", () => {
 
   it.each(["de-CH", "fr-CH", "en-US"])("%s: nenhum literal de cromo em português no HTML", (idioma) => {
     const bruto = renderToStaticMarkup(
-        createElement(skin.componente, {
+        createElement(Componente, {
           // CTA do simulador e texto do rodapé VAZIOS: é quando o fallback
           // cravado aparecia ("Solicitar proposta", "Conteúdo ilustrativo.").
           data: {
@@ -303,7 +308,7 @@ describe("multimarcas: cromo pela microcópia (item 13)", () => {
     };
     const doc = new JSDOM(
       renderToStaticMarkup(
-        createElement(skin.componente, { data: semRotulo, theme: getTheme(skin, "vortice"), idioma: "de-CH" }),
+        createElement(Componente, { data: semRotulo, theme: getTheme(skin, "vortice"), idioma: "de-CH" }),
       ),
     ).window.document;
     const nav = [...doc.querySelectorAll("nav a[href^='#']")].map((a) => a.textContent);

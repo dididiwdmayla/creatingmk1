@@ -38,10 +38,10 @@ function semEntidadesHtml(html: string): string {
   return html.replace(/&#x27;/g, "'").replace(/&#39;/g, "'");
 }
 
-function renderComLocale(skin: (typeof SKINS)[number], idioma: string, moeda: string) {
+async function renderComLocale(skin: (typeof SKINS)[number], idioma: string, moeda: string) {
   const data = montarDemoData(skin.demoDataExemplo);
   const theme = aplicarTema(getTheme(skin, undefined), undefined, skin.heroEscalaLimites);
-  const Skin = skin.componente;
+  const Skin = await skin.componente();
   const html = semEntidadesHtml(
     renderToStaticMarkup(<Skin data={data} theme={theme} idioma={idioma} moeda={moeda} />),
   );
@@ -51,16 +51,16 @@ function renderComLocale(skin: (typeof SKINS)[number], idioma: string, moeda: st
 describe("preços: precoValor formatado pelo locale/moeda da demo, nunca hardcoded — TODA skin do registro", () => {
   for (const skin of SKINS) {
     if (skin.localeFixo) {
-      it(`${skin.id}: catálogo comercial em centavos no locale fixo declarado`,()=>{
+      it(`${skin.id}: catálogo comercial em centavos no locale fixo declarado`,async ()=>{
         expect(skin.localeFixo).toEqual({idioma:'pt-BR',moeda:'BRL'});
-        const {html,data}=renderComLocale(skin,'pt-BR','BRL');
+        const {html,data}=await renderComLocale(skin,'pt-BR','BRL');
         expect(data.lancheria!.lanches.length).toBeGreaterThan(0);
         for(const lanche of data.lancheria!.lanches.filter(l=>skin.themeDefault.lancheria!.filtroInicial==='todos'||l.forma===data.lancheria!.lanches[0].forma))expect(html).toContain(`R$ ${(lanche.precoCent/100).toFixed(2).replace('.',',')}`);
       });
     } else {
       for (const { idioma, moeda } of LOCALES) {
-        it(`${skin.id}: cada serviço com precoValor aparece formatado em ${idioma}/${moeda}`, () => {
-          const { html, data } = renderComLocale(skin, idioma, moeda);
+        it(`${skin.id}: cada serviço com precoValor aparece formatado em ${idioma}/${moeda}`, async () => {
+          const { html, data } = await renderComLocale(skin, idioma, moeda);
           const comValor = data.servicos.filter((s) => s.precoValor !== undefined);
           expect(
             comValor.length,

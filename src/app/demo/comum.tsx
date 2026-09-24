@@ -147,7 +147,14 @@ export async function resolverDemo(fonte: FonteDemo) {
     modosReprovados: varianteEfetiva(skin, fonte.demo.themeId)?.modosDeCorReprovados,
   });
 
-  return { skin, theme, data, extraFontClassName, efeitoFundo, camada, fonte };
+  // `await` AQUI, antes de montar qualquer elemento: `PaginaDemo` (abaixo)
+  // continua um componente síncrono comum — Suspense em streaming SSR
+  // resolveria a troca via um <script> que só um navegador executa, e a
+  // captura de tela / prévia do link não rodam JavaScript nenhum (ver o
+  // comentário de `SkinDefinition.componente` em lib/demos/types.ts).
+  const Componente = await skin.componente();
+
+  return { skin, theme, data, extraFontClassName, efeitoFundo, camada, fonte, Componente };
 }
 
 /**
@@ -298,8 +305,7 @@ export function PaginaDemo({
   visitante: VisitanteInterno;
   visitaId?: string;
 }) {
-  const { skin, theme, data, extraFontClassName, efeitoFundo, camada, fonte } = resolvida;
-  const Skin = skin.componente;
+  const { theme, data, extraFontClassName, efeitoFundo, camada, fonte, Componente } = resolvida;
   return (
     <div className={`${theme.lancheria ? "" : demoCoreFontsClassName} ${extraFontClassName}`}>
       {/*
@@ -321,7 +327,7 @@ export function PaginaDemo({
         overscroll em qualquer navegador.
       */}
       <style>{cssPlanoDaPagina(corDaBarra(theme))}</style>
-      <Skin data={data} theme={theme} idioma={fonte.idioma} moeda={fonte.moeda} />
+      <Componente data={data} theme={theme} idioma={fonte.idioma} moeda={fonte.moeda} />
       {efeitoFundo && (
         // EfeitoCamada (client component) resolve E renderiza o efeito —
         // nunca chamar getEfeitoComponenteDinamico direto aqui: é uma

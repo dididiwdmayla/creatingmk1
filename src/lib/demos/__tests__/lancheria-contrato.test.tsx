@@ -22,6 +22,11 @@ import { exemploDaSkin } from "../variantes";
  * pré-requisito para o nome do negócio estar no documento servido.
  */
 const skin = getSkin("lancheria-chapa-burger")!;
+// Carregado UMA VEZ (topo do módulo): o componente é sob demanda no
+// registro (ver SkinDefinition.componente em ../types.ts), mas este arquivo
+// só testa a `lancheria-chapa-burger` — nenhum motivo pra reimportar a
+// cada `documento()`.
+const Componente = await skin.componente();
 const lead = { nome: "Lanchonete Contrato Real", placeId: "qa", status: "novo" } as Lead;
 const alvos = skin.variantes!.map((v) => v.id);
 const normalizar = (texto: string) => texto.replace(/\s+/g, " ").trim();
@@ -33,7 +38,7 @@ const FLUTUANTES = new Set(["flutuante-bacon", "flutuante-queijo", "flutuante-be
 
 const documento = (id: string, data: Parameters<typeof aplicarPatch>[0]) =>
   new JSDOM(
-    renderToStaticMarkup(createElement(skin.componente, { data, theme: getTheme(skin, id) })),
+    renderToStaticMarkup(createElement(Componente, { data, theme: getTheme(skin, id) })),
   ).window.document;
 
 describe.each(alvos)("lancheria SSR: %s", (id) => {
