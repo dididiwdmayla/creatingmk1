@@ -594,6 +594,117 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   .pv[data-pv-investimento="selos"] .pv-investimento-preco { width: 6rem; height: 6rem; }
 }
 
+/* ── MANIFESTO ───────────────────────────────────────────────────────
+   círculo: texto como núcleo dentro de um campo circular;
+   grifo:   linhas frias de marca-texto atravessam a declaração;
+   pilha:   manifesto sobre três folhas deslocadas;
+   carta:   papel pautado com voz manuscrita. */
+.pv .pv-manifesto-quadro { position: relative; }
+.pv .pv-manifesto-texto { position: relative; z-index: 2; margin-inline: auto; }
+.pv .pv-manifesto-folha,
+.pv .pv-manifesto-marca { display: none; pointer-events: none; }
+
+.pv[data-pv-manifesto="circulo"] .pv-manifesto-quadro {
+  display: grid;
+  place-items: center;
+  width: min(88vw, 56rem);
+  min-height: min(88vw, 56rem);
+  margin-inline: auto;
+  padding: clamp(3rem, 9vw, 8rem);
+  border: var(--pv-forma-borda);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--pv-mancha-1) 17%, transparent), transparent 45%),
+              radial-gradient(circle at 68% 64%, color-mix(in srgb, var(--pv-mancha-2) 13%, transparent), transparent 48%);
+}
+.pv[data-pv-manifesto="circulo"] .pv-manifesto-texto { text-align: center; }
+
+.pv[data-pv-manifesto="grifo"] .pv-manifesto-quadro {
+  max-width: 76rem;
+  margin-inline: auto;
+  padding-block: clamp(2rem, 7vw, 6rem);
+}
+.pv[data-pv-manifesto="grifo"] .pv-manifesto-texto {
+  margin-inline: 0;
+  padding: 1.5rem 0;
+  text-align: left;
+}
+.pv[data-pv-manifesto="grifo"] .pv-manifesto-texto [data-accent] {
+  padding-inline: .08em;
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pv-mancha-2) 32%, transparent) 58% 88%, transparent 88%);
+}
+.pv[data-pv-manifesto="grifo"] .pv-manifesto-marca {
+  display: block;
+  position: absolute;
+  z-index: 1;
+  left: -4%;
+  right: 9%;
+  top: 48%;
+  height: clamp(1.25rem, 3vw, 2.4rem);
+  background: color-mix(in srgb, var(--pv-mancha-1) 14%, transparent);
+  transform: rotate(-1.2deg);
+}
+
+.pv[data-pv-manifesto="pilha"] .pv-manifesto-quadro {
+  width: min(90%, 66rem);
+  margin-inline: auto;
+  padding: clamp(3rem, 8vw, 7rem);
+  border: var(--pv-forma-borda);
+  border-radius: var(--d-radius);
+  background: var(--d-bg-elev);
+  box-shadow: var(--pv-forma-sombra);
+}
+.pv[data-pv-manifesto="pilha"] .pv-manifesto-folha {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 1px solid var(--d-accent-2);
+  border-radius: var(--d-radius);
+  background: color-mix(in srgb, var(--pv-mancha-2) 8%, var(--d-bg-elev));
+}
+.pv[data-pv-manifesto="pilha"] .pv-manifesto-folha-a { transform: translate(-1.2rem, 1.1rem) rotate(-2deg); }
+.pv[data-pv-manifesto="pilha"] .pv-manifesto-folha-b {
+  background: color-mix(in srgb, var(--pv-mancha-3) 7%, var(--d-bg-elev));
+  transform: translate(1.25rem, 1.8rem) rotate(2.5deg);
+}
+.pv[data-pv-manifesto="pilha"] .pv-manifesto-texto { text-align: center; }
+
+.pv[data-pv-manifesto="carta"] .pv-manifesto-quadro {
+  width: min(92%, 58rem);
+  margin-inline: auto;
+  padding: clamp(3.5rem, 8vw, 7rem) clamp(2rem, 8vw, 6rem);
+  border: var(--pv-forma-borda);
+  background-color: var(--d-bg-elev);
+  background-image: repeating-linear-gradient(transparent 0 2.15rem, color-mix(in srgb, var(--pv-mancha-3) 16%, transparent) 2.15rem calc(2.15rem + 1px));
+  box-shadow: var(--pv-forma-sombra);
+  transform: rotate(-1deg);
+}
+.pv[data-pv-manifesto="carta"] .pv-manifesto-quadro::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: clamp(1.2rem, 4vw, 3.4rem);
+  width: 1px;
+  background: color-mix(in srgb, var(--pv-mancha-1) 42%, transparent);
+}
+.pv[data-pv-manifesto="carta"] .pv-manifesto-texto {
+  font-family: var(--font-pv-manuscrita), var(--d-serif);
+  font-size: clamp(2.2rem, 6vw, 5.25rem);
+  line-height: 1.05;
+}
+
+@media (max-width: 47.999rem) {
+  .pv[data-pv-manifesto="circulo"] .pv-manifesto-quadro {
+    width: 100%;
+    min-height: 33rem;
+    padding: 3rem 2rem;
+    border-radius: 48% 52% 46% 54% / 51% 44% 56% 49%;
+  }
+  .pv[data-pv-manifesto="pilha"] .pv-manifesto-quadro { width: 94%; padding: 3rem 1.5rem; }
+  .pv[data-pv-manifesto="carta"] .pv-manifesto-quadro { width: 96%; padding: 3.5rem 2.2rem 3.5rem 3rem; }
+}
+
 /* ── PROCESSO ────────────────────────────────────────────────────────
    onda:       passos alternados dos dois lados de um traço contínuo;
    camadas:    quatro folhas de decalque em cascata;

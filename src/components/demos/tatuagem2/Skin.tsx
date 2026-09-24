@@ -362,14 +362,19 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Manifesto ───────────────────────────────────────────── */
     manifesto: () =>
       s.manifesto?.texto && (
-        <section data-pigment={paleta.texto} className="px-6 py-[calc(var(--d-sec-y)*1.2)] md:px-[clamp(20px,7vw,120px)]">
-          <ManifestoReveal
-            texto={s.manifesto.texto}
-            slot="secoes.manifesto.texto"
-            accentCycle={pigmentos}
-            ativa={theme.animacao !== "nenhuma"}
-            className="max-w-4xl font-[family-name:var(--d-serif)] leading-[1.18] text-[clamp(1.75rem,5vw,4.5rem)]"
-          />
+        <section data-pigment={paleta.texto} className="pv-manifesto px-6 py-[calc(var(--d-sec-y)*1.2)] md:px-[clamp(20px,7vw,120px)]">
+          <div className="pv-manifesto-quadro">
+            <span className="pv-manifesto-folha pv-manifesto-folha-a" aria-hidden="true" />
+            <span className="pv-manifesto-folha pv-manifesto-folha-b" aria-hidden="true" />
+            <span className="pv-manifesto-marca" aria-hidden="true" />
+            <ManifestoReveal
+              texto={s.manifesto.texto}
+              slot="secoes.manifesto.texto"
+              accentCycle={pigmentos}
+              ativa={theme.animacao !== "nenhuma"}
+              className="pv-manifesto-texto max-w-4xl font-[family-name:var(--d-serif)] leading-[1.18] text-[clamp(1.75rem,5vw,4.5rem)]"
+            />
+          </div>
         </section>
       ),
 

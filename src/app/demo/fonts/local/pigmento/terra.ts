@@ -2,10 +2,8 @@ import localFont from "next/font/local";
 
 /**
  * Dupla tipográfica da variante Terra: Young Serif no título, Karla
- * (variável) no corpo — ver README deste diretório. A terceira fonte do
- * plano (Caveat, manuscrita) fica para a sessão de composição visual: hoje
- * nenhuma seção da Terra desenha manifesto "carta", legenda de "mesa" nem
- * "caderno" — as únicas composições que a usariam.
+ * (variável) no corpo e Caveat na voz manuscrita da carta, da mesa e do
+ * caderno — ver README deste diretório.
  *
  * A Young Serif não tem face itálica no pacote do Google Fonts: o `<em>`
  * sai em itálico sintético (mesmo critério da Dela Gothic One/Bricolage
@@ -32,4 +30,12 @@ const terraCorpo = localFont({
   preload: false,
 });
 
-export const pigmentoFontClassName = `${terraDisplay.variable} ${terraCorpo.variable}`;
+const terraManuscrita = localFont({
+  src: "./files/caveat-latin-wght-normal.woff2",
+  weight: "400 700",
+  variable: "--font-pv-manuscrita",
+  display: "swap",
+  preload: false,
+});
+
+export const pigmentoFontClassName = `${terraDisplay.variable} ${terraCorpo.variable} ${terraManuscrita.variable}`;
