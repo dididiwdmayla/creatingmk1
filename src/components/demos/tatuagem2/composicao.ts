@@ -1138,6 +1138,136 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   .pv[data-pv-faq="manchete"] .pv-faq-titulo { font-size: clamp(2.35rem, 13vw, 4.5rem); }
 }
 
+/* ── AGENDAR ────────────────────────────────────────────────────────
+   gota:     chamada dentro de uma forma orgânica;
+   talão:    canhoto destacável com perfuração;
+   diagonal: campo cortado por uma faixa oblíqua;
+   postal:   cartão enquadrado, selo e linhas de endereço abstratas. */
+.pv .pv-agendar-titulo { color: var(--pv-campo-texto); }
+.pv .pv-agendar-ornamento { display: none; pointer-events: none; }
+.pv .pv-agendar[data-sem-canal="true"] {
+  min-height: 62svh;
+  padding-block: 7rem;
+}
+.pv .pv-agendar[data-sem-canal="true"] .pv-agendar-titulo { margin-bottom: 0; }
+
+.pv[data-pv-agendar="gota"] .pv-agendar-conteudo {
+  display: flex;
+  justify-content: center;
+  width: min(88vw, 58rem);
+  min-height: min(72vw, 42rem);
+  padding: clamp(4rem, 10vw, 8rem);
+  border: 2px solid color-mix(in srgb, var(--pv-campo-texto) 74%, transparent);
+  border-radius: 48% 52% 62% 38% / 42% 38% 62% 58%;
+  background: color-mix(in srgb, var(--pv-campo-2) 78%, transparent);
+  box-shadow: inset 0 0 0 1rem color-mix(in srgb, var(--pv-campo-texto) 5%, transparent);
+}
+
+.pv[data-pv-agendar="talao"] .pv-agendar-fundo {
+  background: linear-gradient(110deg, var(--pv-campo-1), var(--pv-campo-2));
+}
+.pv[data-pv-agendar="talao"] .pv-agendar-conteudo {
+  width: min(90vw, 68rem);
+  padding: clamp(3rem, 8vw, 7rem) clamp(3rem, 10vw, 9rem) clamp(3rem, 8vw, 7rem) clamp(6rem, 14vw, 12rem);
+  border: 1px dashed var(--pv-campo-texto);
+  background: color-mix(in srgb, var(--pv-campo-1) 82%, transparent);
+  text-align: left;
+  align-items: flex-start;
+}
+.pv[data-pv-agendar="talao"] .pv-agendar-conteudo::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: clamp(3.5rem, 8vw, 7rem);
+  border-left: 2px dashed color-mix(in srgb, var(--pv-campo-texto) 70%, transparent);
+}
+.pv[data-pv-agendar="talao"] .pv-agendar-conteudo::after {
+  content: "";
+  position: absolute;
+  left: clamp(1rem, 3vw, 2.5rem);
+  top: 50%;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--pv-campo-texto);
+  border-radius: 50%;
+  transform: translateY(-50%);
+}
+.pv[data-pv-agendar="talao"] .pv-agendar-titulo { max-width: 9ch; text-align: left; }
+.pv[data-pv-agendar="talao"] .pv-agendar-acoes { justify-content: flex-start; }
+.pv[data-pv-agendar="talao"] .pv-agendar-mancha { display: none; }
+
+.pv[data-pv-agendar="diagonal"] { background: var(--d-bg); }
+.pv[data-pv-agendar="diagonal"] .pv-agendar-fundo {
+  inset: -18%;
+  background: linear-gradient(100deg, var(--pv-campo-1) 0 33%, var(--pv-campo-2) 33% 66%, var(--pv-campo-3) 66%);
+  clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
+  transform: rotate(-3deg);
+}
+.pv[data-pv-agendar="diagonal"] .pv-agendar-conteudo {
+  width: min(100%, 76rem);
+  align-items: flex-start;
+  text-align: left;
+}
+.pv[data-pv-agendar="diagonal"] .pv-agendar-titulo { max-width: 8ch; text-align: left; }
+.pv[data-pv-agendar="diagonal"] .pv-agendar-acoes { justify-content: flex-start; }
+.pv[data-pv-agendar="diagonal"] .pv-agendar-mancha { display: none; }
+
+.pv[data-pv-agendar="postal"] {
+  background: var(--d-bg-alt);
+}
+.pv[data-pv-agendar="postal"] .pv-agendar-fundo,
+.pv[data-pv-agendar="postal"] .pv-agendar-mancha { display: none; }
+.pv[data-pv-agendar="postal"] .pv-agendar-conteudo {
+  width: min(92vw, 72rem);
+  min-height: 34rem;
+  justify-content: center;
+  padding: clamp(4rem, 9vw, 8rem);
+  border: .35rem double var(--d-text);
+  background: var(--d-bg-elev);
+  box-shadow: var(--pv-forma-sombra);
+}
+.pv[data-pv-agendar="postal"] .pv-agendar-conteudo::before {
+  content: "";
+  position: absolute;
+  top: 2rem;
+  right: 2rem;
+  width: 5rem;
+  height: 6rem;
+  border: .2rem double var(--d-accent);
+  background: color-mix(in srgb, var(--pv-mancha-1) 12%, var(--d-bg));
+}
+.pv[data-pv-agendar="postal"] .pv-agendar-conteudo::after {
+  content: "";
+  position: absolute;
+  right: 2rem;
+  bottom: 2.5rem;
+  width: min(32%, 14rem);
+  height: 4rem;
+  background: repeating-linear-gradient(to bottom, transparent 0 1rem, color-mix(in srgb, var(--d-text) 42%, transparent) 1rem calc(1rem + 1px));
+}
+.pv[data-pv-agendar="postal"] .pv-agendar-titulo { max-width: 8ch; color: var(--d-text); }
+
+@media (max-width: 47.999rem) {
+  .pv[data-pv-agendar="gota"] .pv-agendar-conteudo {
+    width: 100%;
+    min-height: 30rem;
+    padding: 4rem 2rem;
+  }
+  .pv[data-pv-agendar="talao"] .pv-agendar-conteudo {
+    width: 100%;
+    padding: 4rem 2rem 4rem 5rem;
+  }
+  .pv[data-pv-agendar="talao"] .pv-agendar-conteudo::before { left: 3.25rem; }
+  .pv[data-pv-agendar="talao"] .pv-agendar-conteudo::after { left: .65rem; }
+  .pv[data-pv-agendar="postal"] .pv-agendar-conteudo {
+    width: 100%;
+    min-height: 32rem;
+    padding: 7rem 2rem 6rem;
+  }
+  .pv[data-pv-agendar="postal"] .pv-agendar-conteudo::before { width: 3.5rem; height: 4.5rem; }
+}
+
 /* ── PROCESSO ────────────────────────────────────────────────────────
    onda:       passos alternados dos dois lados de um traço contínuo;
    camadas:    quatro folhas de decalque em cascata;

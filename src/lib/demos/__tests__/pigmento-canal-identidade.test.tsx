@@ -34,6 +34,9 @@ describe.each(alvos)("tatuagem-pigmento-vivo §12 — canal de agendamento: %s",
     expect(doc.querySelector('[data-demo-slot="secoes.hero.cta"]')).toBeNull();
     expect(doc.querySelector('[data-demo-slot="secoes.agendar.cta"]')).toBeNull();
     expect(doc.querySelector('[data-demo-slot="secoes.agendar.ctaSecundaria"]')).toBeNull();
+    const secaoAgendar = doc.querySelector("#agendar");
+    expect(secaoAgendar?.getAttribute("data-sem-canal")).toBe("true");
+    expect(secaoAgendar?.querySelector('[data-demo-slot="secoes.agendar.titulo"]')).not.toBeNull();
     // Nav: sem canal, nenhum link de CTA — só o nome e as âncoras de seção.
     const nav = doc.querySelector("header");
     expect(nav?.querySelector(".d-nav-cta")).toBeNull();

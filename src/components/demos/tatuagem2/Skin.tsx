@@ -781,23 +781,29 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
       <section
         id="agendar"
         data-pigment={paleta.texto}
-        className="relative flex min-h-[92vh] flex-col items-center justify-center overflow-hidden px-6 py-[16vh] text-center md:px-[clamp(20px,5vw,72px)]"
+        data-sem-canal={agendar ? undefined : "true"}
+        className="pv-agendar relative flex min-h-[92vh] flex-col items-center justify-center overflow-hidden px-6 py-[16vh] text-center md:px-[clamp(20px,5vw,72px)]"
       >
-        <div className="d-cta-bg absolute inset-0" aria-hidden="true" />
-        <div className="d-cta-blob d-cta-blob-a absolute -left-[10%] -top-[15%] h-[60vw] w-[60vw] rounded-full" aria-hidden="true" />
-        <div className="d-cta-blob d-cta-blob-b absolute -bottom-[20%] -right-[12%] h-[55vw] w-[55vw] rounded-full" aria-hidden="true" />
+        <div className="pv-agendar-fundo d-cta-bg absolute inset-0" aria-hidden="true" />
+        <div className="pv-agendar-mancha pv-agendar-mancha-a absolute -left-[10%] -top-[15%] h-[60vw] w-[60vw] rounded-full" aria-hidden="true">
+          <div className="d-cta-blob d-cta-blob-a h-full w-full rounded-full" />
+        </div>
+        <div className="pv-agendar-mancha pv-agendar-mancha-b absolute -bottom-[20%] -right-[12%] h-[55vw] w-[55vw] rounded-full" aria-hidden="true">
+          <div className="d-cta-blob d-cta-blob-b h-full w-full rounded-full" />
+        </div>
+        <span className="pv-agendar-ornamento pv-agendar-ornamento-a" aria-hidden="true" />
+        <span className="pv-agendar-ornamento pv-agendar-ornamento-b" aria-hidden="true" />
 
-        <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center">
+        <div className="pv-agendar-conteudo relative z-10 mx-auto flex max-w-4xl flex-col items-center">
           <SplashTitle
             texto={s.agendar?.titulo}
             slot="secoes.agendar.titulo"
             accentCycle={pigmentos}
             corDestaque="currentColor"
-            className="mb-12 font-[family-name:var(--d-display)] text-[clamp(2.5rem,9vw,7.5rem)] leading-[1]"
-            style={{ color: "var(--pv-campo-texto)" }}
+            className="pv-agendar-titulo mb-12 font-[family-name:var(--d-display)] text-[clamp(2.5rem,9vw,7.5rem)] leading-[1]"
           />
           {agendar && (
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="pv-agendar-acoes flex flex-wrap justify-center gap-4">
               {s.agendar?.cta && (
                 <a href={agendar} data-demo-slot="secoes.agendar.cta" className="d-cta-pill d-cta-clara">
                   {s.agendar.cta}
@@ -975,7 +981,9 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
            tintas no claro (texto branco) e vivos no escuro (texto na cor do
            fundo) — --pv-campo-* já resolve isso por variante. */
         .d-cta-bg { background: linear-gradient(135deg, var(--pv-campo-1) 0%, var(--pv-campo-2) 55%, var(--pv-campo-3) 100%); }
-        .d-cta-blob { filter: blur(60px); pointer-events: none; }
+        /* O gradiente radial já faz a borda macia: o nó que anima transform
+           não recebe filter, evitando rasterização nova a cada quadro. */
+        .d-cta-blob { pointer-events: none; }
         .d-cta-blob-a { background: radial-gradient(circle, color-mix(in srgb, var(--pv-mancha-3) 75%, transparent), transparent 65%); animation: d-cta-blob 18s ease-in-out infinite; }
         .d-cta-blob-b { background: radial-gradient(circle, color-mix(in srgb, var(--pv-mancha-1) 80%, transparent), transparent 65%); animation: d-cta-blob 22s ease-in-out infinite reverse; }
         @keyframes d-cta-blob { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-4%,6%) scale(1.2); } }

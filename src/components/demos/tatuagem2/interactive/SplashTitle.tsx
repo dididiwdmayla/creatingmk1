@@ -49,17 +49,27 @@ export function SplashTitle({
       node.childNodes.forEach((n) => {
         if (n.nodeType === Node.TEXT_NODE && n.textContent && n.textContent.trim()) {
           const frag = document.createDocumentFragment();
-          [...n.textContent].forEach((ch) => {
-            if (ch === " ") {
-              frag.appendChild(document.createTextNode(" "));
+          n.textContent.split(/(\s+)/).forEach((trecho) => {
+            if (!trecho) return;
+            if (/^\s+$/.test(trecho)) {
+              frag.appendChild(document.createTextNode(trecho));
               return;
             }
-            const span = document.createElement("span");
-            span.dataset.splashLetter = "";
-            span.textContent = ch;
-            span.style.display = "inline-block";
-            span.style.transition = "transform .35s cubic-bezier(.2,.8,.2,1), color .35s";
-            frag.appendChild(span);
+            // As letras ainda animam individualmente, mas a palavra é uma
+            // unidade de quebra. Sem este invólucro, um título estreito
+            // podia virar "ma / rca / r" depois da hidratação.
+            const palavra = document.createElement("span");
+            palavra.dataset.splashWord = "";
+            palavra.style.display = "inline-block";
+            [...trecho].forEach((ch) => {
+              const letra = document.createElement("span");
+              letra.dataset.splashLetter = "";
+              letra.textContent = ch;
+              letra.style.display = "inline-block";
+              letra.style.transition = "transform .35s cubic-bezier(.2,.8,.2,1), color .35s";
+              palavra.appendChild(letra);
+            });
+            frag.appendChild(palavra);
           });
           n.parentNode?.replaceChild(frag, n);
         } else if (n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName !== "BR") {

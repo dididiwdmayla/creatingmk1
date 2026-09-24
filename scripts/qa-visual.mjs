@@ -33,6 +33,10 @@
  *   node scripts/qa-visual.mjs --so=avulsa     # demo sem lead: identidade em branco × preenchida
  *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --secao=hero
  *                                                # seção nas 4 variantes, 390×844 + 1100×700
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --secao=agendar --sem-identidade
+ *                                                # mesmo quadro, sem nenhum canal/dado de identidade
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --secao=agendar --identidade-cheia
+ *                                                # mesmo quadro, com WhatsApp e os demais dados
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -180,6 +184,8 @@ const marca = opcao("marca") ? `-${opcao("marca")}` : "";
 const filtro = opcao("so")?.split(",").map((s) => s.trim()).filter(Boolean);
 const SKIN = opcao("skin") ?? SKIN_PADRAO;
 const PIGMENTO_SECAO = opcao("secao");
+const PIGMENTO_IDENTIDADE_VAZIA = temFlag("sem-identidade");
+const PIGMENTO_IDENTIDADE_CHEIA = temFlag("identidade-cheia");
 /** Variantes da skin escolhida (vazio quando ela não tem o eixo). */
 const VARIANTES = VARIANTES_POR_SKIN[SKIN] ?? [];
 /** Preset/variante default da matriz: o primeiro da skin, ou o escuro da barbearia. */
@@ -258,6 +264,8 @@ function url({
   ledCorModo,
   ledCores,
   semAnim,
+  avulsa,
+  identidade,
 }) {
   const q = new URLSearchParams({ skin: SKIN, preset: preset ?? PRESET_PADRAO, intro: "0" });
   if (efeito) q.set("efeito", efeito);
@@ -269,6 +277,8 @@ function url({
   if (ledCorModo) q.set("ledCorModo", ledCorModo);
   if (ledCores) q.set("ledCores", ledCores.join(","));
   if (semAnim) q.set("semAnim", semAnim);
+  if (avulsa) q.set("avulsa", "1");
+  if (identidade) q.set("identidade", identidade);
   return `${BASE}/interno/demo-qa?${q}`;
 }
 
@@ -1195,6 +1205,9 @@ async function capturarPigmentoSecao(page) {
     throw new Error("--so=pigmento exige --skin=tatuagem-pigmento-vivo");
   }
   if (!PIGMENTO_SECAO) throw new Error("--so=pigmento exige --secao=<id do contrato>");
+  if (PIGMENTO_IDENTIDADE_VAZIA && PIGMENTO_IDENTIDADE_CHEIA) {
+    throw new Error("use apenas um entre --sem-identidade e --identidade-cheia");
+  }
   if (VARIANTES.length !== 4) {
     throw new Error(`[pigmento] esperava 4 variantes, recebeu ${VARIANTES.length}`);
   }
@@ -1204,7 +1217,14 @@ async function capturarPigmentoSecao(page) {
     await page.setViewportSize({ width: tela.largura, height: tela.altura });
     const itens = [];
     for (const variante of VARIANTES) {
-      await page.goto(url({ preset: variante }), { waitUntil: "networkidle" });
+      await page.goto(
+        url({
+          preset: variante,
+          avulsa: PIGMENTO_IDENTIDADE_VAZIA || PIGMENTO_IDENTIDADE_CHEIA,
+          identidade: PIGMENTO_IDENTIDADE_CHEIA ? "cheia" : undefined,
+        }),
+        { waitUntil: "networkidle" },
+      );
       await page.evaluate((id) => {
         document.documentElement.style.scrollBehavior = "auto";
         document.querySelector(`[data-d-secao="${id}"]`)?.scrollIntoView({ block: "start" });
