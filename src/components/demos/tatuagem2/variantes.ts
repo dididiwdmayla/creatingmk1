@@ -1,7 +1,7 @@
 import type { SkinVariante, Theme } from "@/lib/demos/types";
 import { criarVariante } from "@/lib/demos/variantes";
 
-import { TATUAGEM2_EXEMPLO } from "./exemplo";
+import { TATUAGEM2_EXEMPLOS_POR_VARIANTE } from "./exemplos";
 import { TATUAGEM2_SECOES } from "./secoes";
 import { TATUAGEM2_THEME_PRESETS } from "./themes";
 
@@ -9,8 +9,8 @@ import { TATUAGEM2_THEME_PRESETS } from "./themes";
  * As quatro VARIANTES da `tatuagem-pigmento-vivo` — quatro TIPOS DE ESTÚDIO,
  * não quatro paletas (docs/plano-tatuagem-pigmento-vivo.md §6). Sessão de
  * FUNDAÇÃO (2a): id/nome/descrição/fundo/paleta/fontes. A sessão 2b aplica
- * aqui a ordem própria do §6 junto dos onze knobs de `PigmentoComposicao`
- * declarados nos temas; a cópia própria entra no item 23.
+ * aqui a ordem própria do §6, os onze knobs de `PigmentoComposicao` e a
+ * cópia editorial própria de cada tipo de estúdio.
  *
  * IDs INALTERADOS, sem alias (§6, §17 D5): `aquarela`/`boreal`/
  * `meia-noite`/`terra` já são o que `LeadDemo.themeId` grava. `aquarela`
@@ -91,7 +91,7 @@ export const TATUAGEM2_VARIANTES: readonly SkinVariante[] = DECLARACOES.map((d) 
       descricao: d.descricao,
       fundo: d.fundo,
       theme,
-      exemplo: TATUAGEM2_EXEMPLO,
+      exemplo: TATUAGEM2_EXEMPLOS_POR_VARIANTE[d.id],
       arranjo: { ordem: ORDENS[d.id] ?? TATUAGEM2_SECOES.map((s) => s.id) },
       // Miniatura por variante fica para a sessão de composição (item 24 do
       // plano) — reaproveita a da skin até lá.
