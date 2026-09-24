@@ -11,19 +11,25 @@ import localFont from "next/font/local";
  * sessão; se algum acento faltar, `anton-latin-400-normal.woff2` (já neste
  * diretório) é o fallback já conferido.
  */
-const display = localFont({
+// Nomes de variável ÚNICOS por variante — ver o comentário longo em
+// ./aquarela.ts (o nome do binding vira o nome da família; repetido entre
+// arquivos, as quatro variantes disputam a mesma família e o navegador
+// baixa as quatro).
+const meiaNoiteDisplay = localFont({
   src: "./files/dela-gothic-one-latin-400-normal.woff2",
   weight: "400",
   style: "normal",
   variable: "--font-pv-display",
   display: "swap",
+  preload: false,
 });
 
-const corpo = localFont({
+const meiaNoiteCorpo = localFont({
   src: "./files/space-grotesk-latin-wght-normal.woff2",
   weight: "300 700",
   variable: "--font-pv-corpo",
   display: "swap",
+  preload: false,
 });
 
-export const pigmentoFontClassName = `${display.variable} ${corpo.variable}`;
+export const pigmentoFontClassName = `${meiaNoiteDisplay.variable} ${meiaNoiteCorpo.variable}`;

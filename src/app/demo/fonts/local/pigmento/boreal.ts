@@ -7,18 +7,24 @@ import localFont from "next/font/local";
  * Google Fonts; o itálico dos títulos sai sintético (mesmo critério já
  * usado em `core.ts` para a Playfair Display 900/Dela Gothic One).
  */
-const display = localFont({
+// Nomes de variável ÚNICOS por variante — ver o comentário longo em
+// ./aquarela.ts (o nome do binding vira o nome da família; repetido entre
+// arquivos, as quatro variantes disputam a mesma família e o navegador
+// baixa as quatro).
+const borealDisplay = localFont({
   src: "./files/bricolage-grotesque-latin-standard-normal.woff2",
   weight: "200 800",
   variable: "--font-pv-display",
   display: "swap",
+  preload: false,
 });
 
-const corpo = localFont({
+const borealCorpo = localFont({
   src: "./files/figtree-latin-wght-normal.woff2",
   weight: "300 900",
   variable: "--font-pv-corpo",
   display: "swap",
+  preload: false,
 });
 
-export const pigmentoFontClassName = `${display.variable} ${corpo.variable}`;
+export const pigmentoFontClassName = `${borealDisplay.variable} ${borealCorpo.variable}`;
