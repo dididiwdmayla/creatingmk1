@@ -45,6 +45,7 @@ export function ManifestoReveal({
     if (!container) return;
     if (!ativa || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const palavras = Array.from(container.querySelectorAll<HTMLElement>("[data-w]"));
+    const quadro = container.closest<HTMLElement>(".pv-manifesto-quadro");
 
     let raf = 0;
     const onScroll = () => {
@@ -56,9 +57,12 @@ export function ManifestoReveal({
         const prog = Math.min(1, Math.max(0, (vh * 0.75 - r.top) / (r.height * 0.9)));
         const lit = Math.floor(prog * (palavras.length + 1));
         palavras.forEach((w, i) => {
+          w.dataset.lit = String(i < lit);
           w.style.color =
             i < lit ? (w.dataset.accent ? w.dataset.accent : "var(--d-text)") : "var(--d-unlit)";
         });
+        quadro?.style.setProperty("--pv-manifesto-progresso", String(prog));
+        quadro?.style.setProperty("--pv-manifesto-escala", String(0.72 + prog * 0.28));
       });
     };
     onScroll();
@@ -80,6 +84,7 @@ export function ManifestoReveal({
           <span
             key={i}
             data-w
+            data-lit="true"
             data-accent={cor}
             style={{
               color: cor ?? "var(--d-text)",

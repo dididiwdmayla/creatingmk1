@@ -36,5 +36,5 @@ export function PigmentTracker({ children }: { children: ReactNode }) {
     return () => io.disconnect();
   }, []);
 
-  return <div ref={ref}>{children}</div>;
+  return <div ref={ref} className="pv-rastreador">{children}</div>;
 }

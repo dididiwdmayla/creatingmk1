@@ -30,7 +30,7 @@ export function Nav({
           {nome}
           <span
             aria-hidden="true"
-            className="inline-block h-2.5 w-2.5 rounded-full transition-colors duration-500"
+            className="pv-nav-ponto inline-block h-2.5 w-2.5 rounded-full transition-colors duration-500"
             style={{ backgroundColor: "var(--d-pigment, var(--d-accent))" }}
           />
         </a>

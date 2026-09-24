@@ -72,7 +72,8 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   --pv-forma-raio: 48% 52% 44% 56% / 54% 42% 58% 46%;
   --pv-forma-borda: 3px double color-mix(in srgb, var(--d-accent) 58%, transparent);
   --pv-forma-sombra: inset 0 0 0 7px color-mix(in srgb, var(--pv-mancha-2) 7%, transparent), 0 18px 48px color-mix(in srgb, var(--d-text) 10%, transparent);
-  --pv-textura: repeating-linear-gradient(4deg, transparent 0 4px, color-mix(in srgb, var(--d-text) 2.5%, transparent) 5px);
+  --pv-textura: repeating-linear-gradient(4deg, transparent 0 4px, color-mix(in srgb, var(--d-text) 2.5%, transparent) 5px),
+                repeating-linear-gradient(94deg, transparent 0 17px, color-mix(in srgb, var(--pv-mancha-2) 2.8%, transparent) 18px);
   --pv-papel: var(--d-bg-elev);
 }
 
@@ -121,7 +122,7 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   inset: -.04em auto auto .08em;
   width: 100%;
   color: transparent;
-  -webkit-text-stroke: 1px var(--d-accent-2);
+  -webkit-text-stroke: 1px var(--d-pigment, var(--d-accent-2));
   font-family: var(--d-hero-font);
   font-size: calc(clamp(2.75rem, 9vw, 7.5rem) * var(--d-hero-escala));
   line-height: .98;
@@ -237,7 +238,8 @@ export const PIGMENTO_COMPOSICAO_CSS = `
 .pv[data-pv-abertura="medalhao"] .pv-hero-arco-c {
   inset: -.25rem;
   border-bottom-color: var(--pv-mancha-3);
-  transform: rotate(22deg);
+  border-left-color: var(--d-pigment, var(--pv-mancha-3));
+  animation: pv-medalhao-a 26s linear infinite;
 }
 .pv[data-d-anim="nenhuma"][data-pv-abertura="medalhao"] .pv-hero-arco { animation: none; }
 @media (prefers-reduced-motion: reduce) {
@@ -613,8 +615,18 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   padding: clamp(3rem, 9vw, 8rem);
   border: var(--pv-forma-borda);
   border-radius: 50%;
-  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--pv-mancha-1) 17%, transparent), transparent 45%),
-              radial-gradient(circle at 68% 64%, color-mix(in srgb, var(--pv-mancha-2) 13%, transparent), transparent 48%);
+  overflow: hidden;
+  background: radial-gradient(circle at 68% 64%, color-mix(in srgb, var(--pv-mancha-2) 9%, transparent), transparent 48%);
+}
+.pv[data-pv-manifesto="circulo"] .pv-manifesto-quadro::before {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  z-index: 1;
+  border-radius: 48% 52% 44% 56% / 54% 43% 57% 46%;
+  background: radial-gradient(circle at 38% 34%, color-mix(in srgb, var(--pv-mancha-1) 24%, transparent), color-mix(in srgb, var(--pv-mancha-2) 8%, transparent) 62%, transparent 76%);
+  transform: scale(var(--pv-manifesto-escala, 1));
+  transition: transform .35s ease-out;
 }
 .pv[data-pv-manifesto="circulo"] .pv-manifesto-texto { text-align: center; }
 
@@ -631,6 +643,14 @@ export const PIGMENTO_COMPOSICAO_CSS = `
 .pv[data-pv-manifesto="grifo"] .pv-manifesto-texto [data-accent] {
   padding-inline: .08em;
   background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pv-mancha-2) 32%, transparent) 58% 88%, transparent 88%);
+}
+.pv[data-pv-manifesto="grifo"] .pv-manifesto-texto [data-w] {
+  padding-inline: .06em;
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pv-mancha-2) 0%, transparent) 58% 90%, transparent 90%);
+  transition: color .5s, background .5s;
+}
+.pv[data-pv-manifesto="grifo"] .pv-manifesto-texto [data-w][data-lit="true"] {
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pv-mancha-2) 27%, transparent) 58% 90%, transparent 90%);
 }
 .pv[data-pv-manifesto="grifo"] .pv-manifesto-marca {
   display: block;
@@ -668,6 +688,21 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   transform: translate(1.25rem, 1.8rem) rotate(2.5deg);
 }
 .pv[data-pv-manifesto="pilha"] .pv-manifesto-texto { text-align: center; }
+.pv[data-pv-variante="meia-noite"][data-pv-manifesto="pilha"] .pv-manifesto-texto [data-w] {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto .08em;
+  font-family: var(--d-display);
+  font-size: clamp(2rem, 6vw, 5.8rem);
+  font-style: normal;
+  line-height: .92;
+  text-transform: uppercase;
+  transition: color .5s, text-shadow .5s;
+}
+.pv[data-pv-variante="meia-noite"][data-pv-manifesto="pilha"] .pv-manifesto-texto [data-w][data-lit="true"] {
+  text-shadow: 0 0 1.1em currentColor;
+}
 
 .pv[data-pv-manifesto="carta"] .pv-manifesto-quadro {
   width: min(92%, 58rem);
@@ -692,6 +727,23 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   font-family: var(--font-pv-manuscrita), var(--d-serif);
   font-size: clamp(2.2rem, 6vw, 5.25rem);
   line-height: 1.05;
+}
+.pv[data-pv-manifesto="carta"] .pv-manifesto-texto [data-w] {
+  transition: color .65s ease-out, text-shadow .65s ease-out;
+}
+.pv[data-pv-manifesto="carta"] .pv-manifesto-texto [data-w][data-lit="true"] {
+  text-shadow: .012em .018em 0 color-mix(in srgb, currentColor 32%, transparent);
+}
+
+/* O rastreador é a terceira marca da essência. No decalque, o contorno
+   fantasma já lê --d-pigment; na Meia-noite o mesmo valor acende o ponto. */
+.pv[data-pv-variante="meia-noite"] .pv-nav-ponto {
+  box-shadow: 0 0 .45rem var(--d-pigment, var(--d-accent)), 0 0 1rem var(--d-pigment, var(--d-accent));
+}
+
+/* Borda seca da Terra: pigmento concentrado na periferia das formas. */
+.pv[data-pv-variante="terra"] :is(.pv-investimento-preco, .pv-processo-numero, .pv-artista-monograma) {
+  box-shadow: inset 0 0 0 .18rem color-mix(in srgb, var(--d-text) 18%, transparent), inset 0 0 0 .38rem color-mix(in srgb, var(--pv-mancha-2) 8%, transparent);
 }
 
 @media (max-width: 47.999rem) {
