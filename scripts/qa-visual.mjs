@@ -1302,6 +1302,63 @@ async function capturarPigmentoSecao(page) {
   return gerados;
 }
 
+/**
+ * Página inteira, em ladrilhos do tamanho do VIEWPORT, compostos por
+ * CANVAS no próprio navegador — não `page.screenshot({ fullPage: true })`.
+ * A `tatuagem-pigmento-vivo` é a primeira skin do repo alta o bastante
+ * (~15000px no celular, onze seções com fotos de portfólio e
+ * depoimentos) para cruzar o limite de textura do SwiftShader
+ * (renderização por software, sem GPU): acima dele, a captura de página
+ * inteira do Playwright sai com um pedaço da página REPETIDO (confirmado
+ * numa rodada manual — hero+manifesto reaparecem no meio do portfólio,
+ * perto dos 8192px clássicos de teto de textura). Ladrilhos do tamanho
+ * do viewport nunca chegam perto desse teto.
+ *
+ * `header.fixed` (o Nav) fica ESCONDIDO durante os ladrilhos: fixo à
+ * viewport, ele sairia pintado no topo de CADA ladrilho — sem escondê-lo,
+ * a folha ganha uma faixa do nome repetida a cada viewport de altura, um
+ * artefato do método de captura, não da composição.
+ */
+async function capturaPaginaInteiraPorLadrilhos(page, larguraCss) {
+  const alturaViewport = (await page.viewportSize()).height;
+  const alturaTotal = await page.evaluate(() => document.documentElement.scrollHeight);
+  await page.addStyleTag({ content: "header.fixed { visibility: hidden !important; }" });
+  const ladrilhos = [];
+  let y = 0;
+  while (true) {
+    await page.evaluate((yy) => window.scrollTo(0, yy), y);
+    await page.waitForTimeout(60);
+    const yReal = await page.evaluate(() => window.scrollY);
+    const buf = await page.screenshot();
+    ladrilhos.push({ y: yReal, base64: buf.toString("base64") });
+    if (yReal + alturaViewport >= alturaTotal) break;
+    y += alturaViewport;
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  const dataUrl = await page.evaluate(
+    async ({ ladrilhos, larguraCss, alturaTotal }) => {
+      const canvas = document.createElement("canvas");
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(larguraCss * dpr);
+      canvas.height = Math.round(alturaTotal * dpr);
+      const ctx = canvas.getContext("2d");
+      for (const t of ladrilhos) {
+        const img = await new Promise((resolve, reject) => {
+          const im = new Image();
+          im.onload = () => resolve(im);
+          im.onerror = reject;
+          im.src = "data:image/png;base64," + t.base64;
+        });
+        ctx.drawImage(img, 0, Math.round(t.y * dpr));
+      }
+      return canvas.toDataURL("image/png");
+    },
+    { ladrilhos, larguraCss, alturaTotal },
+  );
+  return Buffer.from(dataUrl.split(",")[1], "base64");
+}
+
 /* ── PIGMENTO VIVO EM PÁGINA INTEIRA ───────────────────────────────
  *
  * Fecha os dois portões que um recorte de seção não consegue provar:
@@ -1383,7 +1440,8 @@ async function capturarPigmentoPagina(page) {
       });
 
       const destino = path.join(SAIDA, `pigmento-pagina-${tela.id}-${variante}-${estado}${marca}.png`);
-      await page.screenshot({ path: destino, fullPage: true });
+      const png = await capturaPaginaInteiraPorLadrilhos(page, tela.largura);
+      await fs.writeFile(destino, png);
       gerados.push(destino);
       itens.push({ rotulo: variante, png: destino });
     }
