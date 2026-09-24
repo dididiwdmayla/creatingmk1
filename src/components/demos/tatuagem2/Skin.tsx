@@ -485,8 +485,8 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Portfólio (trilha horizontal) ──────────────────────── */
     portfolio: () =>
       s.portfolio && (
-        <section id="portfolio" data-pigment={manchas[0]} className="py-[var(--d-sec-y)]">
-          <div className="mb-10 px-6 md:px-[clamp(20px,5vw,72px)]">
+        <section id="portfolio" data-pigment={manchas[0]} className="pv-portfolio py-[var(--d-sec-y)]">
+          <div className="pv-portfolio-cabeca mb-10 px-6 md:px-[clamp(20px,5vw,72px)]">
             <Etiqueta texto={s.portfolio.rotulo} slot="secoes.portfolio.rotulo" />
             <SplashTitle
               texto={s.portfolio.titulo}
@@ -496,7 +496,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
             />
           </div>
 
-          <ScrollGallery>
+          <ScrollGallery ativa={composicao.portfolio === "trilha"}>
             {(s.portfolio.itens ?? []).map((item, i) => {
               const largura = [420, 300, 360, 280, 400, 340][i % 6];
               const altura = [520, 400, 480, 360, 500, 440][i % 6];
@@ -506,13 +506,21 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               // slot 1 com um data-demo-slot que não existe no contrato.
               const temSlot = slot in data.imagens;
               return (
-                <figure key={i} className="m-0 flex-shrink-0">
+                <figure
+                  key={i}
+                  className="pv-portfolio-item m-0 flex-shrink-0"
+                  style={
+                    {
+                      "--pv-foto-largura": `${largura}px`,
+                      "--pv-foto-altura": `${altura}px`,
+                      "--pv-i": i,
+                    } as CSSProperties
+                  }
+                >
                   {temSlot && (
                     <div
-                      className="relative overflow-hidden"
+                      className="pv-portfolio-foto relative overflow-hidden"
                       style={{
-                        width: `min(${largura}px, 78vw)`,
-                        height: altura,
                         borderRadius: "var(--d-radius)",
                       }}
                     >
@@ -526,7 +534,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
                   )}
                   <figcaption
                     data-demo-slot={`secoes.portfolio.itens.${i}`}
-                    className="mt-2.5 text-[13px] text-[var(--d-muted)]"
+                    className="pv-portfolio-legenda mt-2.5 text-[13px] text-[var(--d-muted)]"
                   >
                     {item.titulo} · {item.subtitulo} · {item.detalhe}
                   </figcaption>
