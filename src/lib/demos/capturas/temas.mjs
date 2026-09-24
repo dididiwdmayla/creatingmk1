@@ -7,7 +7,6 @@ import { VARIANTES_POR_SKIN } from "./variantes.mjs";
 
 export const PRESETS_SEM_VARIANTES = {
   "barbearia2-sul": ["musgo", "ardosia", "marfim", "ouro-da-meia-noite"],
-  "tatuagem-pigmento-vivo": ["aquarela", "boreal", "meia-noite", "terra"],
   "imobiliaria-curada": ["terracota", "salvia", "argila", "noturno"],
   "petshop-focinho-feliz": ["pastel", "menta", "blush", "meia-noite"],
 };

@@ -14,6 +14,7 @@
 export const VARIANTES_POR_SKIN = /** @type {Record<string, string[]>} */ ({
   "barbearia-editorial": ["norte", "meia-noite", "creme", "vinho"],
   "tatuagem-editorial": ["sangue", "vesperal", "cripta", "marfim"],
+  "tatuagem-pigmento-vivo": ["aquarela", "boreal", "meia-noite", "terra"],
   "lancheria-chapa-burger": ["chapa", "balcao", "sala", "praca"],
   "multimarcas-vortice": ["vortice", "patio", "garagem", "campo"],
   "lancheria-2": [
