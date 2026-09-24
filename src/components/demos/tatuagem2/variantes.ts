@@ -8,12 +8,9 @@ import { TATUAGEM2_THEME_PRESETS } from "./themes";
 /**
  * As quatro VARIANTES da `tatuagem-pigmento-vivo` — quatro TIPOS DE ESTÚDIO,
  * não quatro paletas (docs/plano-tatuagem-pigmento-vivo.md §6). Sessão de
- * FUNDAÇÃO (2a): id/nome/descrição/fundo/paleta/fontes já são os finais; o
- * arranjo é o NEUTRO (ordem default do contrato) e o exemplo é o mesmo nas
- * quatro — a ordem própria de cada variante e a cópia de exemplo distinta
- * (§6) ficam para a sessão de composição visual (2b), junto com
- * `PigmentoComposicao`/`composicao.ts`. Até lá, as quatro têm a MESMA
- * composição, diferindo só em paleta e fontes.
+ * FUNDAÇÃO (2a): id/nome/descrição/fundo/paleta/fontes. A sessão 2b aplica
+ * aqui a ordem própria do §6 junto dos onze knobs de `PigmentoComposicao`
+ * declarados nos temas; a cópia própria entra no item 23.
  *
  * IDs INALTERADOS, sem alias (§6, §17 D5): `aquarela`/`boreal`/
  * `meia-noite`/`terra` já são o que `LeadDemo.themeId` grava. `aquarela`
@@ -64,13 +61,25 @@ const DECLARACOES: readonly Declaracao[] = [
   },
 ];
 
-/**
- * Ordem NEUTRA (do contrato) — a mesma nas quatro nesta sessão (ver o
- * comentário do módulo). `VarianteArranjo.ordem` é uma permutação de TODOS
- * os ids do contrato, inclusive os fixos (a fixa fica na posição default de
- * qualquer forma — ver `ordemEfetiva`).
- */
-const ORDEM_NEUTRA = TATUAGEM2_SECOES.map((s) => s.id);
+/** Permutações do §6. A fixa `hero` permanece na posição do contrato. */
+const ORDENS: Record<string, readonly string[]> = {
+  aquarela: [
+    "hero", "manifesto", "estilos", "investimento", "portfolio", "artistas",
+    "depoimentos", "processo", "faq", "agendar", "contato",
+  ],
+  boreal: [
+    "hero", "portfolio", "processo", "faq", "depoimentos", "investimento",
+    "artistas", "estilos", "manifesto", "agendar", "contato",
+  ],
+  "meia-noite": [
+    "hero", "estilos", "portfolio", "artistas", "investimento", "manifesto",
+    "depoimentos", "faq", "processo", "agendar", "contato",
+  ],
+  terra: [
+    "hero", "manifesto", "depoimentos", "portfolio", "processo", "artistas",
+    "faq", "investimento", "estilos", "agendar", "contato",
+  ],
+};
 
 export const TATUAGEM2_VARIANTES: readonly SkinVariante[] = DECLARACOES.map((d) => {
   const preset = TATUAGEM2_THEME_PRESETS.find((t) => t.id === d.presetId)!;
@@ -83,7 +92,7 @@ export const TATUAGEM2_VARIANTES: readonly SkinVariante[] = DECLARACOES.map((d) 
       fundo: d.fundo,
       theme,
       exemplo: TATUAGEM2_EXEMPLO,
-      arranjo: { ordem: ORDEM_NEUTRA },
+      arranjo: { ordem: ORDENS[d.id] ?? TATUAGEM2_SECOES.map((s) => s.id) },
       // Miniatura por variante fica para a sessão de composição (item 24 do
       // plano) — reaproveita a da skin até lá.
       thumbnail: "/demos/tatuagem2/thumb.svg",

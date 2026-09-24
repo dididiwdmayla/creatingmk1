@@ -31,6 +31,8 @@
  *   node scripts/qa-visual.mjs --so=fps --skin=lancheria-2       # portão por célula (variante × modo)
  *   node scripts/qa-visual.mjs --so=colapso    # PORTÃO: nenhuma foto com w/h zero (todas as skins)
  *   node scripts/qa-visual.mjs --so=avulsa     # demo sem lead: identidade em branco × preenchida
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --secao=hero
+ *                                                # seção nas 4 variantes, 390×844 + 1100×700
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -177,6 +179,7 @@ const temFlag = (nome) => args.includes(`--${nome}`);
 const marca = opcao("marca") ? `-${opcao("marca")}` : "";
 const filtro = opcao("so")?.split(",").map((s) => s.trim()).filter(Boolean);
 const SKIN = opcao("skin") ?? SKIN_PADRAO;
+const PIGMENTO_SECAO = opcao("secao");
 /** Variantes da skin escolhida (vazio quando ela não tem o eixo). */
 const VARIANTES = VARIANTES_POR_SKIN[SKIN] ?? [];
 /** Preset/variante default da matriz: o primeiro da skin, ou o escuro da barbearia. */
@@ -188,6 +191,7 @@ function querido(id) {
     filtro.includes(id) ||
     (filtro.includes("led") && id.startsWith("led-")) ||
     (filtro.includes("cores") && id.startsWith("cores-")) ||
+    (filtro.includes("pigmento") && id.startsWith("pigmento-")) ||
     (filtro.includes("variante") && id.startsWith("variante-"))
   );
 }
@@ -1173,6 +1177,84 @@ async function capturarAvulsa(page) {
   return gerados;
 }
 
+/* ── PIGMENTO VIVO POR SEÇÃO (`--so=pigmento --secao=<id>`) ──────────
+ *
+ * O trabalho de composição não se julga por uma página inteira reduzida a
+ * uma tira. Este modo põe a MESMA seção das quatro variantes na mesma folha,
+ * em celular e desktop, e salva também os oito PNGs crus. As animações
+ * finitas terminam; as infinitas ficam numa fase fixa, evitando que uma
+ * diferença de relógio se passe por diferença de layout.
+ */
+const PIGMENTO_TELAS = [
+  { id: "celular", largura: 390, altura: 844 },
+  { id: "desktop", largura: 1100, altura: 700 },
+];
+
+async function capturarPigmentoSecao(page) {
+  if (SKIN !== "tatuagem-pigmento-vivo") {
+    throw new Error("--so=pigmento exige --skin=tatuagem-pigmento-vivo");
+  }
+  if (!PIGMENTO_SECAO) throw new Error("--so=pigmento exige --secao=<id do contrato>");
+  if (VARIANTES.length !== 4) {
+    throw new Error(`[pigmento] esperava 4 variantes, recebeu ${VARIANTES.length}`);
+  }
+
+  const gerados = [];
+  for (const tela of PIGMENTO_TELAS) {
+    await page.setViewportSize({ width: tela.largura, height: tela.altura });
+    const itens = [];
+    for (const variante of VARIANTES) {
+      await page.goto(url({ preset: variante }), { waitUntil: "networkidle" });
+      await page.evaluate((id) => {
+        document.documentElement.style.scrollBehavior = "auto";
+        document.querySelector(`[data-d-secao="${id}"]`)?.scrollIntoView({ block: "start" });
+      }, PIGMENTO_SECAO);
+      await page.waitForTimeout(1000);
+
+      const alvo = page.locator(`[data-d-secao="${PIGMENTO_SECAO}"]`);
+      if ((await alvo.count()) !== 1) {
+        throw new Error(`[pigmento] ${variante}/${PIGMENTO_SECAO}: âncora ausente ou duplicada`);
+      }
+      await page.evaluate(() => {
+        for (const anim of document.getAnimations()) {
+          const t = anim.effect?.getComputedTiming?.();
+          const duracao = Number(t?.duration);
+          const repeticoes = Number(t?.iterations);
+          try {
+            if (Number.isFinite(repeticoes) && repeticoes !== Infinity) anim.finish();
+            else if (Number.isFinite(duracao) && duracao > 0) {
+              anim.pause();
+              anim.currentTime = duracao * 0.42;
+            }
+          } catch {
+            anim.pause();
+          }
+        }
+      });
+      await page.waitForTimeout(100);
+
+      const destino = path.join(
+        SAIDA,
+        `pigmento-${PIGMENTO_SECAO}-${tela.id}-${variante}${marca}.png`,
+      );
+      await alvo.screenshot({ path: destino });
+      gerados.push(destino);
+      itens.push({ rotulo: variante, png: destino });
+    }
+    gerados.push(
+      await folhaDeContato(
+        page,
+        `Pigmento Vivo — ${PIGMENTO_SECAO} (${tela.id})`,
+        `pigmento-${PIGMENTO_SECAO}-${tela.id}`,
+        [{ rotulo: PIGMENTO_SECAO, itens }],
+      ),
+    );
+  }
+  await page.setViewportSize(VIEWPORT);
+  console.log(`[pigmento] ${PIGMENTO_SECAO}: 4 variantes × 2 viewports capturadas.`);
+  return gerados;
+}
+
 async function main() {
   await fs.mkdir(SAIDA, { recursive: true });
   const secret = crypto.randomBytes(16).toString("hex");
@@ -1372,6 +1454,10 @@ async function main() {
     /* ── DEMO AVULSA: a página sem identidade nenhuma ───────────── */
     if (querido("avulsa")) {
       gerados.push(...(await capturarAvulsa(page)));
+    }
+
+    if (querido("pigmento-secao")) {
+      gerados.push(...(await capturarPigmentoSecao(page)));
     }
 
     /* ── Animação por seção: entrada com × sem ──────────────────── */

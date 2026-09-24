@@ -8,6 +8,11 @@ import { microcopiaDemo } from "@/lib/demos/microcopy";
 import { linhaDeApoio, quebrarTitulo } from "@/lib/demos/montar";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Alinhamento, Animacao, Densidade, SkinProps } from "@/lib/demos/types";
+import {
+  atributosDaComposicao,
+  PIGMENTO_COMPOSICAO_CSS,
+  PIGMENTO_COMPOSICAO_PADRAO,
+} from "./composicao";
 import { FadeUp } from "./interactive/FadeUp";
 import { FaqAccordion } from "./interactive/FaqAccordion";
 import { IntroExperience } from "./interactive/IntroExperience";
@@ -139,12 +144,20 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
   const m = microcopiaDemo(idioma);
   // Tons legíveis (tinta) — texto, número, estrela e ícone. Nunca fundo de
   // mancha ou campo de cor (ver PigmentoTokens em lib/demos/types.ts).
-  const pigmentos = [paleta.destaque, paleta.acentoSecundario, paleta.acentoTerciario];
+  const pigmentos: [string, string, string] = [
+    paleta.destaque,
+    paleta.acentoSecundario,
+    paleta.acentoTerciario,
+  ];
   // Tons vivos (mancha) — só preenchimento e decoração: blobs do hero, blob
   // do cartão de estilo no hover, cursor/ponto rastreador, campo de cor do
   // CTA final na Meia-noite. `?? pigmentos` é só type safety (a skin sempre
   // declara `theme.pigmento` — ver tatuagem2/themes.ts); nunca usado de fato.
-  const manchas = theme.pigmento?.manchas ?? pigmentos;
+  const composicao = theme.pigmento ?? {
+    ...PIGMENTO_COMPOSICAO_PADRAO,
+    manchas: pigmentos,
+  };
+  const manchas = composicao.manchas;
   // Fundo escuro? (mesmo critério de luminância de tema.ts/variantes.test.tsx).
   // Decide o blend-mode das manchas (regra: multiply desaparece em fundo
   // quase preto — §1/§17 D6 do plano) e o campo de cor do CTA final
@@ -755,11 +768,14 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
   return (
     <div
       style={vars}
+      {...atributosDaComposicao(composicao)}
+      data-pv-variante={theme.id}
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="relative min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
+      className="pv relative min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
+      <style>{PIGMENTO_COMPOSICAO_CSS}</style>
       <style>{`
         @keyframes d-blob-a { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(8%,-6%) scale(1.12); } 66% { transform: translate(-5%,5%) scale(.94); } }
         @keyframes d-blob-b { 0%,100% { transform: translate(0,0) scale(1); } 40% { transform: translate(-7%,4%) scale(1.08); } 75% { transform: translate(6%,-3%) scale(.9); } }
