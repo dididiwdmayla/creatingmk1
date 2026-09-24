@@ -194,3 +194,23 @@ prioridade a `portfolio-1` não mudaria o LCP de nenhuma variante (ele já
 depois de rolar. O aviso anterior ("portfolio-1.webp sem
 loading=eager") descrevia um cenário que a composição atual das quatro
 variantes não reproduz.
+
+## Slots do portfólio e aviso na aba Imagens (item 9)
+
+`node scripts/qa-pigmento.mjs --so=slots` — os 8 slots
+(`portfolio-1`..`portfolio-8`), com JavaScript DESLIGADO, medidos nas
+quatro variantes × 2 telas (390px e 1100px): **64 medições, 0
+não-desenhadas.** `imagensOcultas` está vazio nas quatro — provado por
+medição de caixa real no navegador, não só ausência no código-fonte
+(§11 do plano).
+
+**Aviso novo na aba Imagens** (`PainelImagens`, `paineis.tsx`): o
+portfólio aceita até 30 itens (`validate.ts`), mas só há foto pros 8
+primeiros — a peça sem slot já saía só com a legenda (`Skin.tsx`,
+`temSlot`, de uma sessão anterior), mas sem aviso nenhum no editor. Com
+mais de 8 itens, a aba agora mostra "O portfólio tem N itens e 8 fotos;
+do 9º item em diante, a peça aparece só com a legenda, sem foto." — não
+depende da variante aberta (a contagem é a mesma nas quatro), por isso
+não é `imagensOcultas`. Coberto em
+`pigmento-portfolio-aviso.test.tsx` (4 testes: sem aviso com 8 ou menos
+itens, contagem certa com mais, mesma frase nas quatro variantes).
