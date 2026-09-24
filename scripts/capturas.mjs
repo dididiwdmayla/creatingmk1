@@ -169,6 +169,10 @@ async function resolverAlvos(base, cookie) {
     .map((v) => v.trim())
     .filter(Boolean);
   const skinId = opcao("skin");
+  // Id da VARIANTE, só pro modo `--skin=` (harness): sem isto, uma skin
+  // com eixo de variante (pigmento-vivo, multimarcas, ...) sempre captura
+  // a default — não dá pra provar as outras separadamente.
+  const preset = opcao("preset");
 
   if (alvosPedidos.length > 0) {
     // A marcação vigente vem de /config uma vez só, e a skin de cada alvo
@@ -236,11 +240,15 @@ async function resolverAlvos(base, cookie) {
     );
   }
   return ids.map((id) => ({
-    nome: id,
+    nome: preset && id === skinId ? `${id}-${preset}` : id,
     skinId: id,
     // `intro=0`: a splash de abertura cobriria a página e a captura sairia
-    // da tela de abertura, não da seção.
-    url: `${base}/interno/demo-qa?skin=${encodeURIComponent(id)}&intro=0`,
+    // da tela de abertura, não da seção. `preset` só se aplica à skin
+    // pedida por `--skin=` — em `--skins` (lote das 8) cada uma usa a
+    // default, como sempre.
+    url:
+      `${base}/interno/demo-qa?skin=${encodeURIComponent(id)}&intro=0` +
+      (preset && id === skinId ? `&preset=${encodeURIComponent(preset)}` : ""),
     ancoras: ancorasDe(marcacao, id),
   }));
 }

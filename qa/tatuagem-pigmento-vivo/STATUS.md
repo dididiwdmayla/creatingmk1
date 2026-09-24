@@ -282,3 +282,28 @@ variantes, em três camadas independentes:
 literais passa nas quatro.** Nenhuma correção necessária — o trabalho
 da sessão de fundação (itens "e"/"f") já cobria isto; esta sessão só
 reconfirma com o navegador real, não só JSDOM.
+
+## Captura de prospecção (item 11)
+
+`scripts/capturas.mjs --skin=` só capturava o preset DEFAULT de uma skin
+com eixo de variante — sem jeito de provar as outras três. Ganhou
+`--preset=<id>`, só no modo `--skin=` (o `--skins`, lote das 8, continua
+na default de cada uma):
+
+```
+node scripts/capturas.mjs --skin=tatuagem-pigmento-vivo --preset=<id> --sem-build
+```
+
+Rodado para as quatro (`aquarela`/`boreal`/`meia-noite`/`terra`), âncoras
+`hero`/`investimento`/`estilos` (a marcação padrão da skin, §17 D9),
+celular e desktop — 24 capturas, todas `ok` (0 reprovadas: sem cromo
+vazado fora do esperado, sem revelação pendente, sem título coberto).
+
+**Abertas e olhadas as quatro do hero (celular):** a captura começa no
+topo (nav com o nome pequeno + ponto) e o nome GRANDE aparece logo
+abaixo, legível, nas quatro — mancha rosa/azul com o nome à esquerda
+(Aquarela), cartela sobreposta com o nome fantasma atrás do nome real
+(Boreal), faixas de cor vivas com o nome em negrito (Meia-noite),
+medalhão circular com arcos coloridos e o nome centralizado (Terra).
+Salvas em `docs/qa/pigmento-hero-v1/` (com a moldura de aparelho — o
+formato que de fato sai para o lead).
