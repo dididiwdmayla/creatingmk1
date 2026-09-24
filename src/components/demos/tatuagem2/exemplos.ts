@@ -189,7 +189,7 @@ const MEIA_NOITE = comConteudo({
       ],
     },
     artistas: {
-      rotulo: "Player select", titulo: "Três mãos, três estilos de jogo.", itens: [
+      rotulo: "Player select", titulo: "Escolha seu estilo de jogo.", itens: [
         { titulo: "Cora Vidal", subtitulo: "Anime · Cor luminosa", texto: "Cenas de movimento e personagens construídos por planos de cor." },
         { titulo: "Bento Aoki", subtitulo: "Neo-trad · Geek", texto: "Silhueta forte, contorno espesso e composição de impacto." },
         { titulo: "Íris Weiss", subtitulo: "Cartoon · Lettering", texto: "Humor, forma gráfica e detalhes escondidos na leitura de perto." },
