@@ -10,6 +10,11 @@ import { exemploDaSkin } from "../variantes";
 import type { Lead } from "@/lib/leads/types";
 
 const skin = getSkin("barbearia-editorial")!;
+// Carregado UMA VEZ (topo do módulo) — mesmo motivo de lancheria-contrato.
+// test.tsx: o componente é sob demanda no registro (ver
+// SkinDefinition.componente em ../types.ts), e este arquivo só testa a
+// `barbearia-editorial`.
+const Componente = await skin.componente();
 const lead = { nome: "Barbearia Contrato Real", placeId: "qa", status: "novo" } as Lead;
 const alvos = skin.variantes?.map(v => v.id) ?? skin.themePresets.map(t => t.id);
 const normalizar = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -17,7 +22,7 @@ const normalizar = (s: string) => s.replace(/\s+/g, " ").trim();
 describe.each(alvos)("barbearia SSR: %s", (id) => {
   const base = montarDemoData(exemploDaSkin(skin, id), lead, undefined, skin.id);
   it("tem um único h1 com o nome inteiro dentro da âncora hero, sem executar JS", () => {
-    const html = renderToStaticMarkup(createElement(skin.componente, { data: base, theme: getTheme(skin, id) }));
+    const html = renderToStaticMarkup(createElement(Componente, { data: base, theme: getTheme(skin, id) }));
     const doc = new JSDOM(html).window.document;
     expect(doc.querySelectorAll("h1")).toHaveLength(1);
     expect(normalizar(doc.querySelector('[data-d-secao="hero"] h1')!.textContent!)).toBe(lead.nome);
@@ -39,7 +44,7 @@ describe.each(alvos)("barbearia SSR: %s", (id) => {
     expect(patch.imagensAlt).toEqual({ hero: "Foto enviada", servicos: "" });
     const remontado = montarDemoData(exemploDaSkin(skin, id), lead, patch, skin.id);
     expect(remontado.imagensAlt).toEqual(data.imagensAlt);
-    const doc = new JSDOM(renderToStaticMarkup(createElement(skin.componente, { data: remontado, theme: getTheme(skin, id) }))).window.document;
+    const doc = new JSDOM(renderToStaticMarkup(createElement(Componente, { data: remontado, theme: getTheme(skin, id) }))).window.document;
     expect(doc.querySelector('[data-demo-slot="imagens.hero"]')!.getAttribute('alt')).toBe('Foto enviada');
     expect(doc.querySelector('[data-demo-slot="imagens.servicos"]')!.getAttribute('alt')).toBe('');
   });
@@ -51,7 +56,7 @@ it.each([false, true])("mesmo contrato de slots no HTML servido nas quatro varia
       endereco: 'Rua do Cliente, 42', cidade: 'Cidade do Cliente', telefone: '44999990000',
       whatsapp: '5544999990000', horarios: 'Seg–Sex: 9h–18h', instagram: '@cliente',
     } : undefined, skin.id);
-    const doc = new JSDOM(renderToStaticMarkup(createElement(skin.componente, {
+    const doc = new JSDOM(renderToStaticMarkup(createElement(Componente, {
       data, theme: getTheme(skin, id),
     }))).window.document;
     // O multiconjunto captura também um slot duplicado/perdido em um arranjo.
@@ -86,7 +91,7 @@ it("variantes preservam campos internos de conteúdo e alts, não só IDs de se�
     expect(v.exemplo.imagensAlt).toEqual(skin.demoDataExemplo.imagensAlt);
     const base=montarDemoData(v.exemplo,lead,undefined,skin.id);
     const editado=montarDemoData(v.exemplo,lead,{ordemSecoes:['contato','servicos'],secoes:{ritual:{oculta:true}},imagens:{hero:'/foto-enviada.webp'}},skin.id);
-    const doc=new JSDOM(renderToStaticMarkup(createElement(skin.componente,{data:editado,theme:v.theme}))).window.document;
+    const doc=new JSDOM(renderToStaticMarkup(createElement(Componente,{data:editado,theme:v.theme}))).window.document;
     expect(doc.querySelector('[data-d-secao]')?.getAttribute('data-d-secao')).toBe('hero');
     expect(doc.querySelector('[data-d-secao="ritual"]')).toBeNull();
     expect(doc.querySelector('[data-demo-slot="imagens.hero"]')?.getAttribute('src')).toBe('/foto-enviada.webp');

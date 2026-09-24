@@ -75,10 +75,10 @@ function contemComoPalavra(html: string, literal: string): boolean {
   return new RegExp(`\\b${escapado}\\b`, "u").test(html);
 }
 
-function renderComIdioma(skin: (typeof SKINS)[number], idioma: string) {
+async function renderComIdioma(skin: (typeof SKINS)[number], idioma: string) {
   const data = montarDemoData(skin.demoDataExemplo);
   const theme = aplicarTema(getTheme(skin, undefined), undefined, skin.heroEscalaLimites);
-  const Skin = skin.componente;
+  const Skin = await skin.componente();
   const html = semBlocosDeEstilo(
     renderToStaticMarkup(<Skin data={data} theme={theme} idioma={idioma} />),
   );
@@ -119,28 +119,28 @@ describe("microcópia de chrome: nenhum literal pt-BR vaza fora do sistema de lo
   });
 
   for (const skin of SKINS.filter(s => !s.localeFixo)) {
-    it(`${skin.id}: HTML em de-CH não contém nenhum literal de chrome em pt-BR (fora de conteúdo legítimo)`, () => {
-      const { html, data } = renderComIdioma(skin, "de-CH");
+    it(`${skin.id}: HTML em de-CH não contém nenhum literal de chrome em pt-BR (fora de conteúdo legítimo)`, async () => {
+      const { html, data } = await renderComIdioma(skin, "de-CH");
       checarSemVazamento(skin.id, html, data, chavesDe, "de-CH");
     });
 
-    it(`${skin.id}: HTML em fr-CH não contém nenhum literal de chrome em pt-BR (fora de conteúdo legítimo)`, () => {
-      const { html, data } = renderComIdioma(skin, "fr-CH");
+    it(`${skin.id}: HTML em fr-CH não contém nenhum literal de chrome em pt-BR (fora de conteúdo legítimo)`, async () => {
+      const { html, data } = await renderComIdioma(skin, "fr-CH");
       checarSemVazamento(skin.id, html, data, chavesFr, "fr-CH");
     });
 
-    it(`${skin.id}: aria-label "X de 5 estrelas" nunca vaza em pt-BR no render de-CH/fr-CH`, () => {
+    it(`${skin.id}: aria-label "X de 5 estrelas" nunca vaza em pt-BR no render de-CH/fr-CH`, async () => {
       // avaliacaoEstrelas é função, não string — fora da varredura genérica
       // acima; testada à parte com uma nota fixa.
       const rotuloPt = PT.avaliacaoEstrelas(5);
-      const { html: htmlDe } = renderComIdioma(skin, "de-CH");
-      const { html: htmlFr } = renderComIdioma(skin, "fr-CH");
+      const { html: htmlDe } = await renderComIdioma(skin, "de-CH");
+      const { html: htmlFr } = await renderComIdioma(skin, "fr-CH");
       expect(htmlDe).not.toContain(rotuloPt);
       expect(htmlFr).not.toContain(rotuloPt);
     });
 
-    it(`${skin.id}: pt-BR (default) continua renderizando sem quebrar — comportamento inalterado`, () => {
-      const { html } = renderComIdioma(skin, "pt-BR");
+    it(`${skin.id}: pt-BR (default) continua renderizando sem quebrar — comportamento inalterado`, async () => {
+      const { html } = await renderComIdioma(skin, "pt-BR");
       expect(html).toBeTruthy();
     });
   }

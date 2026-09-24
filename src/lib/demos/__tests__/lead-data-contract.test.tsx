@@ -106,7 +106,7 @@ const ALVOS = SKINS.flatMap((skin) =>
   })),
 );
 
-function renderSkin(
+async function renderSkin(
   skin: (typeof SKINS)[number],
   lead: Lead | undefined,
   patch?: Parameters<typeof montarDemoData>[2],
@@ -114,16 +114,16 @@ function renderSkin(
 ) {
   const data = montarDemoData(exemploDaSkin(skin, varianteId), lead, patch, skin.id);
   const theme = aplicarTema(getTheme(skin, varianteId), undefined, skin.heroEscalaLimites);
-  const Skin = skin.componente;
+  const Skin = await skin.componente();
   const html = renderToStaticMarkup(<Skin data={data} theme={theme} />);
   return { data, html };
 }
 
 describe("contrato: dados do lead aparecem no render de TODA skin registrada", () => {
   for (const { skin, varianteId, rotulo } of ALVOS) {
-    it(`${rotulo}: nome/endereço/telefone/whatsapp da demo recém-criada`, () => {
+    it(`${rotulo}: nome/endereço/telefone/whatsapp da demo recém-criada`, async () => {
       const lead = leadFake();
-      const { data, html } = renderSkin(skin, lead, undefined, varianteId);
+      const { data, html } = await renderSkin(skin, lead, undefined, varianteId);
 
       // A montagem já garante isso na camada de dados — o teste é sobre a
       // SKIN não perder o que a montagem entregou.
@@ -159,9 +159,9 @@ describe("contrato: exemplo.ts NUNCA define campo de identidade como string não
 
 describe("contrato: lead completo faz identidade (horários/cidade/instagram) e nome aparecerem no HTML", () => {
   for (const { skin, varianteId, rotulo } of ALVOS) {
-    it(`${rotulo}: horarios/cidade/instagram/nome da demo com lead totalmente enriquecido`, () => {
+    it(`${rotulo}: horarios/cidade/instagram/nome da demo com lead totalmente enriquecido`, async () => {
       const lead = leadCompleto();
-      const { data, html } = renderSkin(skin, lead, undefined, varianteId);
+      const { data, html } = await renderSkin(skin, lead, undefined, varianteId);
 
       expect(data.horarios).toBeTruthy();
       expect(data.cidade).toBeTruthy();
@@ -177,9 +177,9 @@ describe("contrato: lead completo faz identidade (horários/cidade/instagram) e 
 
 describe("contrato: lead vazio nunca vaza um default antigo de identidade", () => {
   for (const { skin, varianteId, rotulo } of ALVOS) {
-    it(`${rotulo}: nenhum literal da blocklist aparece no HTML com lead sem identidade`, () => {
+    it(`${rotulo}: nenhum literal da blocklist aparece no HTML com lead sem identidade`, async () => {
       const lead = leadVazio();
-      const { data, html } = renderSkin(skin, lead, undefined, varianteId);
+      const { data, html } = await renderSkin(skin, lead, undefined, varianteId);
 
       // Sem lead nem edição, os campos de identidade ficam mesmo ausentes.
       for (const campo of CAMPOS_IDENTIDADE_DEMO) {

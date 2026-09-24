@@ -22,6 +22,11 @@ import { exemploDaSkin } from "../variantes";
  * pré-requisito para o nome do negócio estar no documento servido.
  */
 const skin = getSkin("tatuagem-editorial")!;
+// Carregado UMA VEZ (topo do módulo) — mesmo motivo de lancheria-contrato.
+// test.tsx: o componente é sob demanda no registro (ver
+// SkinDefinition.componente em ../types.ts), e este arquivo só testa a
+// `tatuagem-editorial`.
+const Componente = await skin.componente();
 const lead = { nome: "Estúdio Contrato Real", placeId: "qa", status: "novo" } as Lead;
 const alvos = skin.variantes?.map((v) => v.id) ?? skin.themePresets.map((t) => t.id);
 const normalizar = (texto: string) => texto.replace(/\s+/g, " ").trim();
@@ -29,7 +34,7 @@ const normalizar = (texto: string) => texto.replace(/\s+/g, " ").trim();
 const documento = (id: string, data: Parameters<typeof aplicarPatch>[0]) =>
   new JSDOM(
     renderToStaticMarkup(
-      createElement(skin.componente, { data, theme: getTheme(skin, id) }),
+      createElement(Componente, { data, theme: getTheme(skin, id) }),
     ),
   ).window.document;
 

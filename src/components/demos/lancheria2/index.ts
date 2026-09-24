@@ -1,7 +1,6 @@
 import type { SkinDefinition } from "@/lib/demos/types";
 
 import { LANCHERIA2_SECOES } from "./secoes";
-import { Lancheria2 } from "./Skin";
 import { LANCHERIA2_VARIANTES } from "./variantes";
 
 /**
@@ -16,7 +15,7 @@ export const LANCHERIA_2: SkinDefinition = {
   nome: "Lancheria 2",
   descricao:
     "Lancheria com raio-x do lanche: o cliente abre a composição, tira e põe camada e vê o preço mudar. Quatro variantes — Meia-Noite, Diner, Prático e Cantina — sobre o mesmo motor calibrado.",
-  componente: Lancheria2,
+  componente: () => import("./Skin").then((m) => m.Lancheria2),
   variantes: LANCHERIA2_VARIANTES,
   themeDefault: LANCHERIA2_VARIANTES[0].theme,
   themePresets: LANCHERIA2_VARIANTES.map((v) => v.theme),

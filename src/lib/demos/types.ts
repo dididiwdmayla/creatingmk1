@@ -809,7 +809,24 @@ export interface SkinDefinition {
   nicho: string;
   nome: string;
   descricao?: string;
-  componente: ComponentType<SkinProps>;
+  /**
+   * Carrega o componente PESADO da skin — sob demanda, nunca no import
+   * estático do registro. Mesmo princípio de `efeitos/dynamicComponents.tsx`
+   * (o `import()` por extenso, escrito no nível superior do módulo, é o que
+   * deixa o bundler casar um chunk próprio pra cada skin): quem só precisa
+   * de metadado (id/nome/tema/thumbnail — ex.: o seletor de skin, a aba
+   * Tema do editor) nunca paga o custo de baixar o JSX e os subcomponentes
+   * "interactive" de UMA skin sequer, muito menos das outras oito.
+   *
+   * Não é `next/dynamic`/`React.lazy`: a skin PRECISA sair completa no HTML
+   * de quem renderiza no servidor (rota pública, captura de tela, prévia do
+   * link) sem depender de hidratação — Suspense em streaming SSR resolve a
+   * troca via um `<script>` que só um NAVEGADOR executa, e um leitor de
+   * prévia/captura não roda JavaScript. Por isso todo chamador do servidor
+   * dá `await` aqui ANTES de montar o elemento (ver `resolverDemo` em
+   * `app/demo/comum.tsx`), nunca dentro da árvore React.
+   */
+  componente: () => Promise<ComponentType<SkinProps>>;
   themeDefault: Theme;
   /** Presets oferecidos na ficha do lead (inclui o default). */
   themePresets: Theme[];

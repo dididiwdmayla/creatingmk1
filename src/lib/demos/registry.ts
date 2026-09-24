@@ -2,41 +2,33 @@ import { idThemeAtual } from "./variantes";
 import { BARBEARIA_VARIANTES } from "@/components/demos/barbearia/variantes";
 import { LANCHERIA_2 } from "@/components/demos/lancheria2";
 import { BARBEARIA_SECOES } from "@/components/demos/barbearia/secoes";
-import { BarbeariaEditorial } from "@/components/demos/barbearia/Skin";
 import { BARBEARIA2_EXEMPLO } from "@/components/demos/barbearia2/exemplo";
 import { BARBEARIA2_SECOES } from "@/components/demos/barbearia2/secoes";
-import { BarbeariaSul } from "@/components/demos/barbearia2/Skin";
 import {
   BARBEARIA2_THEME_DEFAULT,
   BARBEARIA2_THEME_PRESETS,
 } from "@/components/demos/barbearia2/themes";
 import { IMOBILIARIA_EXEMPLO } from "@/components/demos/imobiliaria/exemplo";
 import { IMOBILIARIA_SECOES } from "@/components/demos/imobiliaria/secoes";
-import { ImobiliariaCurada } from "@/components/demos/imobiliaria/Skin";
 import {
   IMOBILIARIA_THEME_DEFAULT,
   IMOBILIARIA_THEME_PRESETS,
 } from "@/components/demos/imobiliaria/themes";
 import { LANCHERIA_DECORATIVE_FLOATS } from "@/components/demos/lancheria/decorativeFloats";
 import { LANCHERIA_SECOES } from "@/components/demos/lancheria/secoes";
-import { LancheriaChapaBurger } from "@/components/demos/lancheria/Skin";
 import { LANCHERIA_VARIANTES } from "@/components/demos/lancheria/variantes";
 import { MULTIMARCAS_SECOES } from "@/components/demos/multimarcas/secoes";
-import { MultimarcasVortice } from "@/components/demos/multimarcas/Skin";
 import { MULTIMARCAS_VARIANTES } from "@/components/demos/multimarcas/variantes";
 import { PETSHOP_EXEMPLO } from "@/components/demos/petshop/exemplo";
 import { PETSHOP_SECOES } from "@/components/demos/petshop/secoes";
-import { PetshopFocinhoFeliz } from "@/components/demos/petshop/Skin";
 import {
   PETSHOP_THEME_DEFAULT,
   PETSHOP_THEME_PRESETS,
 } from "@/components/demos/petshop/themes";
 import { TATUAGEM_SECOES } from "@/components/demos/tatuagem/secoes";
 import { TATUAGEM_VARIANTES } from "@/components/demos/tatuagem/variantes";
-import { TatuagemEditorial } from "@/components/demos/tatuagem/Skin";
 import { TATUAGEM2_EXEMPLO } from "@/components/demos/tatuagem2/exemplo";
 import { TATUAGEM2_SECOES } from "@/components/demos/tatuagem2/secoes";
-import { TatuagemPigmentoVivo } from "@/components/demos/tatuagem2/Skin";
 import {
   TATUAGEM2_THEME_DEFAULT,
   TATUAGEM2_THEME_PRESETS,
@@ -48,6 +40,11 @@ import type { SkinDefinition, Theme } from "./types";
  * pacote em src/components/demos/<nicho>/ (Skin.tsx + themes.ts +
  * exemplo.ts) e acrescente a entrada aqui — rota pública e ficha do lead
  * passam a conhecê-la automaticamente. Ver ARCHITECTURE.md.
+ *
+ * Só o METADADO de cada skin é import estático (tema/exemplo/seções — dado
+ * puro, barato de carregar); `componente` é sempre um import dinâmico por
+ * extenso (ver o comentário de `SkinDefinition.componente` em ./types.ts) —
+ * quem só lista skins (seletor, aba Tema) nunca baixa o JSX de nenhuma.
  */
 export const SKINS: SkinDefinition[] = [
   {
@@ -55,7 +52,7 @@ export const SKINS: SkinDefinition[] = [
     nicho: "barbearia",
     nome: "Barbearia Editorial",
     descricao: "Quatro composições editoriais: Norte, Meia-noite, Creme e Vinho. Ofício, serviços com preço, equipe e ritual.",
-    componente: BarbeariaEditorial,
+    componente: () => import("@/components/demos/barbearia/Skin").then((m) => m.BarbeariaEditorial),
     variantes: BARBEARIA_VARIANTES,
     themeAliases: { oliva: "vinho" },
     themeDefault: BARBEARIA_VARIANTES[0].theme,
@@ -75,7 +72,7 @@ export const SKINS: SkinDefinition[] = [
     nome: "Barbearia Sul",
     descricao:
       "Editorial minimalista verde-musgo e latão: etiquetas mono, título hero centralizado com corte de navalha, serviços que expandem no hover, ritual em três atos e galeria arrastável em preto-e-branco.",
-    componente: BarbeariaSul,
+    componente: () => import("@/components/demos/barbearia2/Skin").then((m) => m.BarbeariaSul),
     themeDefault: BARBEARIA2_THEME_DEFAULT,
     themePresets: BARBEARIA2_THEME_PRESETS,
     demoDataExemplo: BARBEARIA2_EXEMPLO,
@@ -93,7 +90,7 @@ export const SKINS: SkinDefinition[] = [
     nome: "Tatuagem Editorial Sombria",
     descricao:
       "Quatro estúdios editoriais: Sangue (fechamento), Vesperal (ateliê autoral), Cripta (mural coletivo) e Marfim (arquivo claro). Vídeo dentro das letras do título nas quatro.",
-    componente: TatuagemEditorial,
+    componente: () => import("@/components/demos/tatuagem/Skin").then((m) => m.TatuagemEditorial),
     variantes: TATUAGEM_VARIANTES,
     // Sem `themeAliases`: os quatro ids são os mesmos de antes da migração
     // (`sangue`/`vesperal`/`cripta`/`marfim`), então nenhuma demo publicada
@@ -115,7 +112,7 @@ export const SKINS: SkinDefinition[] = [
     nome: "Tatuagem Pigmento Vivo",
     descricao:
       "Fundo claro e blobs coloridos: manifesto que acende palavra a palavra no scroll, portfólio em trilha horizontal e cartões com blob no hover.",
-    componente: TatuagemPigmentoVivo,
+    componente: () => import("@/components/demos/tatuagem2/Skin").then((m) => m.TatuagemPigmentoVivo),
     themeDefault: TATUAGEM2_THEME_DEFAULT,
     themePresets: TATUAGEM2_THEME_PRESETS,
     demoDataExemplo: TATUAGEM2_EXEMPLO,
@@ -133,7 +130,7 @@ export const SKINS: SkinDefinition[] = [
     nome: "Lancheria Chapa Burger",
     descricao:
       "Lanchonete artesanal bem-humorada: tipografia poster com contorno, cardápio com efeito de lente no hover e listas compactas de bebidas/acompanhamentos.",
-    componente: LancheriaChapaBurger,
+    componente: () => import("@/components/demos/lancheria/Skin").then((m) => m.LancheriaChapaBurger),
     variantes: LANCHERIA_VARIANTES,
     // brasa/diner/neon trocam de id (praca/balcao/sala); chapa é o
     // default e fica inalterado (ver "IDs e aliases" em
@@ -158,7 +155,7 @@ export const SKINS: SkinDefinition[] = [
     nome: "Imobiliária Curada",
     descricao:
       "Imobiliária boutique editorial: serif calorosa + sans neutra, nav que troca de tema claro/escuro no scroll, manifesto revelado palavra a palavra, bento de imóveis com selo e vitrine de bairros arrastável.",
-    componente: ImobiliariaCurada,
+    componente: () => import("@/components/demos/imobiliaria/Skin").then((m) => m.ImobiliariaCurada),
     themeDefault: IMOBILIARIA_THEME_DEFAULT,
     themePresets: IMOBILIARIA_THEME_PRESETS,
     demoDataExemplo: IMOBILIARIA_EXEMPLO,
@@ -175,7 +172,7 @@ export const SKINS: SkinDefinition[] = [
     nome: "Multimarcas Vórtice",
     descricao:
       "Concessionária de seminovos premium: estoque filtrável por categoria, simulador de financiamento com odômetro de dígitos, velocímetro no preloader e carrossel de depoimentos arrastável.",
-    componente: MultimarcasVortice,
+    componente: () => import("@/components/demos/multimarcas/Skin").then((m) => m.MultimarcasVortice),
     variantes: MULTIMARCAS_VARIANTES,
     // azul-classico/grafite/meia-noite trocam de id (patio/garagem/campo);
     // vortice é o default e fica inalterado (ver "IDs e aliases" em
@@ -198,7 +195,7 @@ export const SKINS: SkinDefinition[] = [
     nome: "Petshop Focinho Feliz",
     descricao:
       "Banho, tosa e day care num pastel bem-humorado: formas orgânicas tipo blob, badge de avaliação flutuante, fita de frases em marquee e contadores animados.",
-    componente: PetshopFocinhoFeliz,
+    componente: () => import("@/components/demos/petshop/Skin").then((m) => m.PetshopFocinhoFeliz),
     themeDefault: PETSHOP_THEME_DEFAULT,
     themePresets: PETSHOP_THEME_PRESETS,
     demoDataExemplo: PETSHOP_EXEMPLO,

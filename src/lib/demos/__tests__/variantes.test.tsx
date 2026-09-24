@@ -36,18 +36,19 @@ const COM_VARIANTES = SKINS.filter(
  * contrato, e é isso que tem que bater entre as quatro. Comparar com o
  * arranjo aplicado só provaria que cada variante obedece a si mesma.
  */
-function htmlNeutro(skin: SkinDefinition, variante: SkinVariante): string {
+async function htmlNeutro(skin: SkinDefinition, variante: SkinVariante): Promise<string> {
   const neutro: DemoData = { ...variante.exemplo, ordemSecoes: undefined,
     secoes: Object.fromEntries(
       Object.entries(variante.exemplo.secoes).map(([id, s]) => [id, { ...s, oculta: false }]),
     ) };
   const data = montarDemoData(neutro, undefined, undefined, skin.id);
   const theme = aplicarTema(getTheme(skin, variante.id), undefined, skin.heroEscalaLimites);
+  const Componente = await skin.componente();
   // Fora o conteúdo de <style>: uma skin pode NOMEAR seções no CSS (a
   // lancheria-2 ordena e oculta por `[data-d-secao="…"]{order:N}`), e isso
   // não é marcação. Sem tirar, o teste contaria a regra como se fosse a
   // caixa — e foi exatamente o que ele pegou quando o CSS entrou.
-  return renderToStaticMarkup(createElement(skin.componente, { data, theme })).replace(
+  return renderToStaticMarkup(createElement(Componente, { data, theme })).replace(
     /<style\b[^>]*>[\s\S]*?<\/style>/g,
     "",
   );
@@ -138,8 +139,10 @@ describe.each(COM_VARIANTES.map((s) => [s.id, s] as const))("variantes de %s", (
     expect(chaves(primeira.exemplo)).toEqual([...contrato].sort());
   });
 
-  it("no HTML DO SERVIDOR (sem JavaScript), as variantes emitem os MESMOS data-d-secao", () => {
-    const porVariante = variantes.map((v) => ({ id: v.id, secoes: secoesNoHtml(htmlNeutro(skin, v)) }));
+  it("no HTML DO SERVIDOR (sem JavaScript), as variantes emitem os MESMOS data-d-secao", async () => {
+    const porVariante = await Promise.all(
+      variantes.map(async (v) => ({ id: v.id, secoes: secoesNoHtml(await htmlNeutro(skin, v)) })),
+    );
 
     for (const { id, secoes } of porVariante) {
       // Sem duplicata: duas caixas com o mesmo nome tornam a âncora de
@@ -170,9 +173,9 @@ describe.each(COM_VARIANTES.map((s) => [s.id, s] as const))("variantes de %s", (
    * Vale para qualquer skin — é o que a captura de identidade enquadra e o
    * que um documento sem h1 não tem.
    */
-  it("cada variante renderiza UM <h1>, dentro da abertura", () => {
+  it("cada variante renderiza UM <h1>, dentro da abertura", async () => {
     for (const v of variantes) {
-      const html = htmlNeutro(skin, v);
+      const html = await htmlNeutro(skin, v);
       const h1s = html.match(/<h1[\s>]/g) ?? [];
       expect(h1s.length, `variante "${v.id}" tem ${h1s.length} <h1>`).toBe(1);
 
