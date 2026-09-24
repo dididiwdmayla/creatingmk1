@@ -2,9 +2,15 @@
 
 Escrito em 2026-09-24 (sessão 1: leitura e plano, nenhum código). As
 sessões 2 e 3 executam; este documento é a fonte única entre elas.
-**Status: aguardando aprovação** — as decisões do §17 mudam o que a
-sessão 2 faz, e a do crescimento do contrato (§8) tem de ser tomada ANTES
-da sessão 2 começar.
+**Status: CONCLUÍDO (2026-09-24)** — as sessões 2 (composição visual) e
+3 (portões, contraste, fps, cinza e documentação) fecharam. As quatro
+variantes (Aquarela, Boreal, Meia-noite, Terra) estão compostas,
+testadas e documentadas; a única pendência é o piso de fps (item 33/
+§14 — reprovado na REFERÊNCIA das quatro variantes, reportado para
+decisão, não corrigido — ver [qa/tatuagem-pigmento-vivo/FPS.md](../qa/tatuagem-pigmento-vivo/FPS.md)
+e [STATUS.md](../qa/tatuagem-pigmento-vivo/STATUS.md)). As decisões do
+§17 foram todas fechadas (ver ARCHITECTURE.md, seção "Tatuagem Pigmento
+Vivo — migração de presets para variantes").
 
 **Base verificada nesta sessão.** O repositório não tem branch `main`: o
 branch padrão do remoto é `claude/radar-architecture-setup-49czui`, e é a
