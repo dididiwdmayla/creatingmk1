@@ -214,3 +214,45 @@ depende da variante aberta (a contagem é a mesma nas quatro), por isso
 não é `imagensOcultas`. Coberto em
 `pigmento-portfolio-aviso.test.tsx` (4 testes: sem aviso com 8 ou menos
 itens, contagem certa com mais, mesma frase nas quatro variantes).
+
+## Laços `.mjs` enxergam as quatro variantes (item 10)
+
+Cada laço citado, rodado de verdade, mostrando as quatro linhas:
+
+**`qa-visual.mjs`** — via `VARIANTES_POR_SKIN["tatuagem-pigmento-vivo"]`
+(`capturas/variantes.mjs`, já preenchida numa sessão anterior):
+`node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo
+--pagina-inteira --celular --cinza` gera as quatro capturas + a folha de
+contato (ver item 5).
+
+**Portão de fps** — `node scripts/qa-visual.mjs --so=fps --skin=tatuagem-
+pigmento-vivo`: tabela 4×5 completa (ver [FPS.md](FPS.md), item 6) — as
+quatro variantes aparecem como linhas, `nenhum` como referência.
+
+**Portão de CLS (`qa-cls.mjs`)** — corrigido nesta sessão (`--so=skins`
+visitava só o preset default de cada skin com variantes). Rodado de
+verdade após a correção, saída real:
+
+```
+tatuagem-pigmento-vivo:aquarela    CLS= 0.0007  ok
+tatuagem-pigmento-vivo:boreal      CLS= 0.0015  ok
+tatuagem-pigmento-vivo:meia-noite  CLS= 0.0381  ok
+tatuagem-pigmento-vivo:terra       CLS= 0.0034  ok
+```
+
+Confirmado também que skins SEM eixo de variante (`imobiliaria-curada`,
+`barbearia2-sul`, `petshop-focinho-feliz`) continuam com uma linha só —
+a expansão não quebrou o caso sem variantes. (Achado incidental, fora
+do escopo desta migração: `barbearia-editorial:norte` e `:creme`
+reprovam o piso de CLS — pré-existente, não relacionado à
+pigmento-vivo, não corrigido aqui.)
+
+**Portão de slots** — `node scripts/qa-pigmento.mjs --so=slots`: 64
+medições (4 variantes × 2 telas × 8 slots), 0 não-desenhadas (item 9).
+
+**Literais de identidade** — `node scripts/qa-visual.mjs --so=pigmento
+--skin=tatuagem-pigmento-vivo --pagina-inteira --sem-identidade
+--celular`: passa nas quatro sem lançar (o laço joga `Error` e para se
+"MATIZ STUDIO"/"Rua das Aquarelas"/"Estúdio fictício"/"tinta
+imaginária" aparecerem, ou se `agendarVazio`/`contatoVazio` derem
+falso, em QUALQUER das quatro) — ver item 12.
