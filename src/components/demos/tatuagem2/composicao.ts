@@ -1268,6 +1268,126 @@ export const PIGMENTO_COMPOSICAO_CSS = `
   .pv[data-pv-agendar="postal"] .pv-agendar-conteudo::before { width: 3.5rem; height: 4.5rem; }
 }
 
+/* ── CONTATO ────────────────────────────────────────────────────────
+   assinatura: nome amplo e um traço gestual;
+   recibo:     linhas destacáveis e duas colunas;
+   letreiro:   nome em escala de fachada, dados numa faixa;
+   colofão:    fecho centralizado como o fim de um livro. */
+.pv .pv-contato { position: relative; }
+.pv .pv-contato-ornamento { display: none; pointer-events: none; }
+
+.pv[data-pv-contato="assinatura"] .pv-contato {
+  min-height: 24rem;
+  padding-top: 7rem;
+}
+.pv[data-pv-contato="assinatura"] .pv-contato-principal { max-width: 48rem; }
+.pv[data-pv-contato="assinatura"] .pv-contato-nome {
+  font-family: var(--d-serif);
+  font-size: clamp(3rem, 8vw, 8rem);
+  font-style: italic;
+  line-height: .86;
+}
+.pv[data-pv-contato="assinatura"] .pv-contato-ornamento-a {
+  display: block;
+  position: absolute;
+  left: 4%;
+  top: 3rem;
+  width: min(58vw, 38rem);
+  height: 4rem;
+  border-top: 2px solid var(--d-accent);
+  border-radius: 50%;
+  transform: rotate(-3deg);
+}
+
+.pv[data-pv-contato="recibo"] .pv-contato {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 2rem;
+  margin: clamp(1rem, 4vw, 3rem);
+  padding: clamp(2rem, 5vw, 4rem);
+  border-block: 2px dashed var(--d-text);
+  background: var(--d-bg-alt);
+}
+.pv[data-pv-contato="recibo"] .pv-contato-principal {
+  display: grid;
+  grid-template-columns: minmax(10rem, .75fr) minmax(0, 1.25fr);
+  align-items: start;
+  gap: 2rem;
+}
+.pv[data-pv-contato="recibo"] .pv-contato-nome {
+  font-size: clamp(2.4rem, 6vw, 5rem);
+  line-height: .9;
+}
+.pv[data-pv-contato="recibo"] .pv-contato-dados {
+  padding-left: 2rem;
+  border-left: 1px dashed var(--d-text);
+}
+.pv[data-pv-contato="recibo"] .pv-contato-copy { align-self: end; max-width: 26ch; text-align: right; }
+.pv[data-pv-contato="recibo"] .pv-contato[data-sem-dados="true"] .pv-contato-principal { grid-template-columns: minmax(0, 1fr); }
+
+.pv[data-pv-contato="letreiro"] .pv-contato {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+  padding-block: 5rem 2.5rem;
+  border-top: 1px solid var(--d-accent);
+}
+.pv[data-pv-contato="letreiro"] .pv-contato-principal { display: contents; }
+.pv[data-pv-contato="letreiro"] .pv-contato-nome {
+  display: block;
+  max-width: 100%;
+  color: var(--d-text);
+  font-size: clamp(3.5rem, 8vw, 8rem);
+  line-height: .78;
+  letter-spacing: -.055em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.pv[data-pv-contato="letreiro"] .pv-contato-dados {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: .75rem 2rem;
+  padding-block: 1rem;
+  border-block: 1px solid color-mix(in srgb, var(--d-accent-2) 54%, transparent);
+}
+.pv[data-pv-contato="letreiro"] .pv-contato-copy { justify-self: end; }
+
+.pv[data-pv-contato="colofao"] .pv-contato {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 24rem;
+  padding-top: 5rem;
+  text-align: center;
+}
+.pv[data-pv-contato="colofao"] .pv-contato::before {
+  content: "";
+  width: min(80vw, 32rem);
+  margin-bottom: 3rem;
+  border-top: .3rem double var(--d-text);
+}
+.pv[data-pv-contato="colofao"] .pv-contato-principal { align-items: center; }
+.pv[data-pv-contato="colofao"] .pv-contato-nome {
+  font-family: var(--font-pv-manuscrita), var(--d-display);
+  font-size: clamp(3rem, 7vw, 6rem);
+}
+.pv[data-pv-contato="colofao"] .pv-contato-dados { align-items: center; }
+.pv[data-pv-contato="colofao"] .pv-contato-copy { max-width: 52ch; }
+
+@media (max-width: 47.999rem) {
+  .pv[data-pv-contato="assinatura"] .pv-contato { align-items: flex-start; min-height: 20rem; }
+  .pv[data-pv-contato="recibo"] .pv-contato,
+  .pv[data-pv-contato="recibo"] .pv-contato-principal { grid-template-columns: minmax(0, 1fr); }
+  .pv[data-pv-contato="recibo"] .pv-contato-dados { padding: 1.5rem 0 0; border-top: 1px dashed var(--d-text); border-left: 0; }
+  .pv[data-pv-contato="recibo"] .pv-contato-copy { text-align: left; }
+  .pv[data-pv-contato="letreiro"] .pv-contato-nome {
+    font-size: clamp(2.7rem, 15vw, 5rem);
+    white-space: normal;
+  }
+  .pv[data-pv-contato="letreiro"] .pv-contato-dados { flex-direction: column; }
+}
+
 /* ── PROCESSO ────────────────────────────────────────────────────────
    onda:       passos alternados dos dois lados de um traço contínuo;
    camadas:    quatro folhas de decalque em cascata;

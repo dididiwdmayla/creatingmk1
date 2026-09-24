@@ -258,6 +258,13 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     if (precoMaximo === precoMinimo) return 50;
     return 5 + ((valor - precoMinimo) / (precoMaximo - precoMinimo)) * 82;
   };
+  const temDadosContato = Boolean(
+    data.endereco ||
+      data.cidade ||
+      data.horarios ||
+      (data.telefone && data.telefone !== data.whatsapp) ||
+      data.instagram,
+  );
 
   const secoes: Record<string, () => ReactNode> = {
     /* ── Hero (fixa) ─────────────────────────────────────────── */
@@ -822,39 +829,48 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
 
     /* ── Contato (rodapé) ────────────────────────────────────── */
     contato: () => (
-      <footer className="flex flex-wrap items-end justify-between gap-10 px-6 py-14 md:px-[clamp(20px,5vw,72px)]">
-        <div className="flex flex-col gap-2.5">
-          <span className="font-[family-name:var(--d-display)] text-[1.9rem] text-[var(--d-text)]">
+      <footer
+        data-sem-dados={temDadosContato ? undefined : "true"}
+        className="pv-contato flex flex-wrap items-end justify-between gap-10 px-6 py-14 md:px-[clamp(20px,5vw,72px)]"
+      >
+        <span className="pv-contato-ornamento pv-contato-ornamento-a" aria-hidden="true" />
+        <span className="pv-contato-ornamento pv-contato-ornamento-b" aria-hidden="true" />
+        <div className="pv-contato-principal flex flex-col gap-2.5">
+          <span className="pv-contato-nome font-[family-name:var(--d-display)] text-[1.9rem] text-[var(--d-text)]">
             <span data-demo-slot="nome">{data.nome}</span>
             <span style={{ color: "var(--d-accent)" }}>.</span>
           </span>
-          {data.endereco && (
-            <span data-demo-slot="endereco" className="text-sm text-[var(--d-muted)]">
-              {data.endereco}
-            </span>
-          )}
-          {data.cidade && (
-            <span data-demo-slot="cidade" className="text-sm text-[var(--d-muted)]">
-              {data.cidade}
-            </span>
-          )}
-          {data.horarios && (
-            <span data-demo-slot="horarios" className="text-sm text-[var(--d-muted)]">
-              {data.horarios}
-            </span>
-          )}
-          {data.telefone && data.telefone !== data.whatsapp && (
-            <span data-demo-slot="telefone" className="text-sm text-[var(--d-muted)]">
-              {data.telefone}
-            </span>
-          )}
-          {data.instagram && (
-            <span data-demo-slot="instagram" className="text-sm font-semibold text-[var(--d-text)]">
-              {data.instagram}
-            </span>
+          {temDadosContato && (
+            <div className="pv-contato-dados flex flex-col gap-2.5">
+              {data.endereco && (
+                <span data-demo-slot="endereco" className="text-sm text-[var(--d-muted)]">
+                  {data.endereco}
+                </span>
+              )}
+              {data.cidade && (
+                <span data-demo-slot="cidade" className="text-sm text-[var(--d-muted)]">
+                  {data.cidade}
+                </span>
+              )}
+              {data.horarios && (
+                <span data-demo-slot="horarios" className="text-sm text-[var(--d-muted)]">
+                  {data.horarios}
+                </span>
+              )}
+              {data.telefone && data.telefone !== data.whatsapp && (
+                <span data-demo-slot="telefone" className="text-sm text-[var(--d-muted)]">
+                  {data.telefone}
+                </span>
+              )}
+              {data.instagram && (
+                <span data-demo-slot="instagram" className="text-sm font-semibold text-[var(--d-text)]">
+                  {data.instagram}
+                </span>
+              )}
+            </div>
           )}
         </div>
-        <span className="text-xs text-[var(--d-muted)]">
+        <span className="pv-contato-copy text-xs text-[var(--d-muted)]">
           © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>.
           {s.contato?.texto?.trim() && (
             <>

@@ -69,6 +69,9 @@ describe.each(alvos)("tatuagem-pigmento-vivo §12 — identidade vazia, sem bloc
     }
     // O rodapé ainda existe (nome + copyright), só sem a coluna de dados.
     expect(doc.querySelectorAll('[data-demo-slot="nome"]').length).toBeGreaterThan(0);
+    const contato = doc.querySelector(".pv-contato");
+    expect(contato?.getAttribute("data-sem-dados")).toBe("true");
+    expect(contato?.querySelector(".pv-contato-dados")).toBeNull();
   });
 
   it("com todos os dados: cada um aparece, no rodapé", () => {
@@ -84,6 +87,8 @@ describe.each(alvos)("tatuagem-pigmento-vivo §12 — identidade vazia, sem bloc
     for (const slot of ["endereco", "cidade", "horarios", "instagram"]) {
       expect(doc.querySelector(`[data-demo-slot="${slot}"]`), slot).not.toBeNull();
     }
+    expect(doc.querySelector(".pv-contato")?.getAttribute("data-sem-dados")).toBeNull();
+    expect(doc.querySelector(".pv-contato-dados")).not.toBeNull();
     // telefone só aparece se DIFERENTE do whatsapp (regra já existente).
   });
 });
