@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SkeletonRows } from "@/components/Skeleton";
 import { UsageMeter } from "@/components/UsageMeter";
-import { PainelColapsavel } from "@/components/config/PainelColapsavel";
+import { PainelColapsavel, usePainelAberto } from "@/components/config/PainelColapsavel";
 import { LimiteInput } from "@/components/config/comum";
 import {
   ApiError,
@@ -66,15 +66,30 @@ function mensagemErroCotas(error: unknown, fallback: string): string {
  * usam `aiGeneration`, mas ficam de fora desta cota individual: são
  * geradas uma vez e cacheadas para o time inteiro, não uma ação pessoal
  * repetida — cobrar do primeiro a abrir uma região nova seria injusto.
+ *
+ * **Exceção ao "corpo fechado continua MONTADO" do `PainelColapsavel`**:
+ * lá a busca de todo painel roda no mount porque é barata (poucos docs) e o
+ * resumo fechado depende dela. Aqui não — `getUsoUsuario` por usuário ×
+ * tipo (buscas/enriquecimentos/geracoesIA) soma dezenas de leituras cada, e
+ * com N usuários isso passava de 300 leituras SÓ POR ABRIR A /config, painel
+ * fechado incluso. A busca só dispara na primeira vez que o painel abre
+ * (`usePainelAberto`); depois de carregada, fechar/reabrir não busca de
+ * novo — o corpo continua montado normalmente, só a busca INICIAL é adiada.
+ * Custo: o resumo do cabeçalho fechado fica vazio até a primeira abertura
+ * (mesmo estado de "carregando" que já existia, só mais longo).
  */
 export function CotasUsuariosSection() {
+  const painelAberto = usePainelAberto(PAINEL_COTAS);
   const [linhas, setLinhas] = useState<CotasUsuariosResponse["usuarios"] | null>(null);
   const [usoGlobal, setUsoGlobal] = useState<UsageResponse | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const jaBuscouRef = useRef(false);
 
   useEffect(() => {
+    if (!painelAberto || jaBuscouRef.current) return;
+    jaBuscouRef.current = true;
     let ignore = false;
     fetchCotasData()
       .then(({ cotas, usage }) => {
@@ -94,7 +109,7 @@ export function CotasUsuariosSection() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [painelAberto]);
 
   async function salvarLimite(id: string, campo: CampoLimite, valor: number | null) {
     const chave = `${id}:${campo}`;

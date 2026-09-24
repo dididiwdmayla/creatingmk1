@@ -4220,6 +4220,21 @@ pulam o que está dentro de um fechado: o aferidor de "slot com caixa
 zerada" existe para pegar conteúdo que some SEM QUERER, e um corpo
 colapsado é conteúdo escondido de propósito.
 
+**Exceção: "Cotas por usuário" e "Metas por integrante" adiam a BUSCA até a
+primeira abertura** (`usePainelAberto`, exportado de `PainelColapsavel.tsx`).
+A regra acima assume que a busca de um painel é barata — poucos documentos,
+o custo de rodar sempre montada é irrelevante. Não é o caso destes dois:
+`getUsoUsuario` soma dezenas de leituras por usuário × tipo
+(buscas/enriquecimentos/geracoesIA), e com um time de alguns usuários isso
+passava de **300+ leituras só por carregar a /config**, com os dois painéis
+FECHADOS. `usePainelAberto(id)` lê o mesmo contexto que `PainelColapsavel`
+já usa e deixa o `useEffect` de busca esperar a primeira abertura (uma
+`ref` evita buscar de novo ao fechar/reabrir — uma vez carregado, o
+comportamento volta a ser "corpo montado, sem busca nova", igual aos
+outros doze). O preço: o resumo do cabeçalho fechado destes dois painéis
+fica vazio até a primeira abertura, em vez de populado desde o carregamento
+da página — o mesmo estado de "carregando" que já existia, só mais longo.
+
 ### Onde mora o aberto/fechado
 
 Em `/usuarios/{id}.paineisConfigAbertos`, via `GET`/`PUT

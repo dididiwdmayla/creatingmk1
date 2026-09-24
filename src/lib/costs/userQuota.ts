@@ -181,11 +181,17 @@ export async function getUsoUsuario(
 
   const inicioMes = saoPauloMonthStartKey(hojeKey);
   const chavesMes = dateKeyRange(inicioMes, hojeKey);
-  const contadores = new Map<string, ContadorDiaUsuario>();
-  for (const chave of chavesMes) {
-    const snap = await db.collection(colecao).doc(chave).get();
-    contadores.set(chave, readContadorDia(snap.exists ? snap.data() : undefined));
-  }
+  // `AppDb`/`UsageDb` não têm query de intervalo (ver nota em
+  // `fila/candidatos.ts`: "se o AppDb ganhasse query") — os docs são um por
+  // dia, sem campo que sirva de filtro além do próprio id, então uma única
+  // consulta de intervalo não é possível com esta interface. O que dava
+  // ~31 leituras SEQUENCIAIS (uma rodada de rede por dia, a pior no fim do
+  // mês) virou o mesmo número de leituras EM PARALELO — mesma contagem de
+  // documentos, uma só rodada de rede em vez de até 31.
+  const snapshots = await Promise.all(chavesMes.map((chave) => db.collection(colecao).doc(chave).get()));
+  const contadores = new Map<string, ContadorDiaUsuario>(
+    chavesMes.map((chave, i) => [chave, readContadorDia(snapshots[i].exists ? snapshots[i].data() : undefined)]),
+  );
 
   const inicioSemana = saoPauloWeekStartKey(hojeKey);
   const somar = (chaves: string[]): number =>
