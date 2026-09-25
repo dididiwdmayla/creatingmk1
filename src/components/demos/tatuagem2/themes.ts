@@ -189,7 +189,8 @@ const MEIA_NOITE: Theme = {
   clique: "pulso",
   fundoEfeito: "aura",
   heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
-  led: "sutil",
+  // LED desligado por padrão até a correção de desempenho do LedEdges (ver FPS-diagnostico.md); religar depois.
+  led: "desligado",
   ledEstilo: "dissipado",
   ledCores: { modo: "transicao", cores: ["#3FD0EE", "#FF6CC4", "#FFA86A"] },
 };
@@ -233,7 +234,8 @@ const TERRA: Theme = {
   clique: "nenhum",
   fundoEfeito: "grao",
   heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
-  led: "sutil",
+  // LED desligado por padrão até a correção de desempenho do LedEdges (ver FPS-diagnostico.md); religar depois.
+  led: "desligado",
   ledEstilo: "moldura",
 };
 

@@ -429,8 +429,8 @@ e só o `transform` anima.
 |---|---|---|
 | aquarela | `grao` (papel), intensidade default do nicho | desligado (fiel) |
 | boreal | `varredura-de-luz` (a cobertura passando sobre o antigo) | desligado |
-| meia-noite | `aura` (brilho dos pigmentos no escuro) | `sutil`, estilo `dissipado`, `ledCores` = as três tintas |
-| terra | `grao` | `sutil`, estilo `moldura` (o porta-retrato) |
+| meia-noite | `aura` (brilho dos pigmentos no escuro) | `desligado` — era `sutil`/`dissipado`/`ledCores` = as três tintas; **LED desligado por padrão até a correção de desempenho do LedEdges (ver FPS-diagnostico.md); religar depois** |
+| terra | `grao` | `desligado` — era `sutil`, estilo `moldura` (o porta-retrato); **LED desligado por padrão até a correção de desempenho do LedEdges (ver FPS-diagnostico.md); religar depois** |
 
 Sem `faiscas` em nenhuma (255 Mpx/s de repintura na matriz de registro).
 

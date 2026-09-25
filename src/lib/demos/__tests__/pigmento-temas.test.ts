@@ -8,9 +8,10 @@ describe("Pigmento Vivo — tema próprio por variante", () => {
   it.each([
     ["aquarela", "4px", "arejada", "marcante", "lift", "pressao", "grao", "desligado", "barra"],
     ["boreal", "0px", "confortavel", "sutil", "brilho", "nenhum", "varredura-de-luz", "desligado", "barra"],
-    ["meia-noite", "12px", "compacta", "marcante", "zoom", "pulso", "aura", "sutil", "dissipado"],
-    ["terra", "24px", "arejada", "sutil", "lift", "nenhum", "grao", "sutil", "moldura"],
+    ["meia-noite", "12px", "compacta", "marcante", "zoom", "pulso", "aura", "desligado", "dissipado"],
+    ["terra", "24px", "arejada", "sutil", "lift", "nenhum", "grao", "desligado", "moldura"],
   ] as const)(
+    // LED desligado por padrão em meia-noite/terra até a correção de desempenho do LedEdges (ver FPS-diagnostico.md); religar depois.
     "%s aplica raio, densidade, movimento, interação, efeito e LED do plano",
     (id, raio, densidade, animacao, hover, clique, fundoEfeito, led, ledEstilo) => {
       expect(porId[id]).toMatchObject({
