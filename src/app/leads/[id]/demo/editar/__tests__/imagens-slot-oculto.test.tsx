@@ -83,7 +83,9 @@ describe("aviso de slot não exibido na variante", () => {
   });
 
   it("skin sem variantes não ganha aviso nenhum", () => {
-    const outra = getSkin("tatuagem-pigmento-vivo")!;
+    // tatuagem-pigmento-vivo ganhou variantes nesta migração — imobiliaria-
+    // curada continua sem o eixo (SkinDefinition.variantes ausente).
+    const outra = getSkin("imobiliaria-curada")!;
     expect(html(outra, outra.themeDefault.id)).not.toContain("data-editor-aviso");
   });
 });

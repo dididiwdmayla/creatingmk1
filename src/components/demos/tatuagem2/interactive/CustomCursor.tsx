@@ -4,7 +4,7 @@ import { motion, useMotionValue, useSpring } from "motion/react";
 import { useEffect, useState } from "react";
 
 /**
- * Cursor customizado — ponto sólido com mix-blend-mode multiply, fiel ao
+ * Cursor customizado — ponto sólido de pigmento, fiel ao
  * material bruto (`[data-cursor]`, 14px → 40px sobre link/botão, cor =
  * pigmento da seção atual via `--d-pigment`, escrita por PigmentTracker).
  * Some em touch devices, sem hover, e com prefers-reduced-motion.
@@ -63,7 +63,7 @@ export function CustomCursor() {
         width: big ? 40 : 14,
         height: big ? 40 : 14,
         backgroundColor: "var(--d-pigment, var(--d-accent))",
-        mixBlendMode: "multiply",
+        boxShadow: "0 0 0 1px color-mix(in srgb, var(--d-bg) 72%, transparent)",
         transition: "width 250ms, height 250ms, background-color 400ms",
       }}
     />

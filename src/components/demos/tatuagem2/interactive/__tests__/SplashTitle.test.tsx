@@ -21,12 +21,13 @@ describe("SplashTitle (tatuagem2) — última palavra em itálico, pontuação f
     expect(html).toMatch(/<\/em>\?/);
   });
 
-  it("preserva quebra de linha literal e italiciza só a última linha", () => {
+  it("preserva quebra visual por linha sem <br> e italiciza só a última linha", () => {
     const html = renderToStaticMarkup(
       <SplashTitle texto={"Sua história,\nnossa tinta."} as="h1" accentCycle={["#2B4EFF"]} />,
     );
     expect(html).toContain("Sua história,");
-    expect(html).toContain("<br");
+    expect(html).toContain("data-splash-line");
+    expect(html).not.toContain("<br");
     expect(html).toContain(">tinta</em>");
     expect(html).not.toContain("<em>Sua");
   });

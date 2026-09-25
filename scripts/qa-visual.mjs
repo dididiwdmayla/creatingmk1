@@ -31,6 +31,16 @@
  *   node scripts/qa-visual.mjs --so=fps --skin=lancheria-2       # portão por célula (variante × modo)
  *   node scripts/qa-visual.mjs --so=colapso    # PORTÃO: nenhuma foto com w/h zero (todas as skins)
  *   node scripts/qa-visual.mjs --so=avulsa     # demo sem lead: identidade em branco × preenchida
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --secao=hero
+ *                                                # seção nas 4 variantes, 390×844 + 1100×700
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --secao=agendar --sem-identidade
+ *                                                # mesmo quadro, sem nenhum canal/dado de identidade
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --secao=agendar --identidade-cheia
+ *                                                # mesmo quadro, com WhatsApp e os demais dados
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --pagina-inteira --sem-identidade
+ *                                                # quatro páginas inteiras sem nenhum canal/dado
+ *   node scripts/qa-visual.mjs --so=pigmento --skin=tatuagem-pigmento-vivo --pagina-inteira --celular --cinza
+ *                                                # portão preliminar: quatro páginas móveis em cinza
  *   node scripts/qa-visual.mjs --marca=antes   # sufixo nos arquivos
  *   node scripts/qa-visual.mjs --sem-build     # reusa o .next já buildado
  */
@@ -177,6 +187,12 @@ const temFlag = (nome) => args.includes(`--${nome}`);
 const marca = opcao("marca") ? `-${opcao("marca")}` : "";
 const filtro = opcao("so")?.split(",").map((s) => s.trim()).filter(Boolean);
 const SKIN = opcao("skin") ?? SKIN_PADRAO;
+const PIGMENTO_SECAO = opcao("secao");
+const PIGMENTO_IDENTIDADE_VAZIA = temFlag("sem-identidade");
+const PIGMENTO_IDENTIDADE_CHEIA = temFlag("identidade-cheia");
+const PIGMENTO_PAGINA_INTEIRA = temFlag("pagina-inteira");
+const PIGMENTO_APENAS_CELULAR = temFlag("celular");
+const PIGMENTO_CINZA = temFlag("cinza");
 /** Variantes da skin escolhida (vazio quando ela não tem o eixo). */
 const VARIANTES = VARIANTES_POR_SKIN[SKIN] ?? [];
 /** Preset/variante default da matriz: o primeiro da skin, ou o escuro da barbearia. */
@@ -188,6 +204,7 @@ function querido(id) {
     filtro.includes(id) ||
     (filtro.includes("led") && id.startsWith("led-")) ||
     (filtro.includes("cores") && id.startsWith("cores-")) ||
+    (filtro.includes("pigmento") && id.startsWith("pigmento-")) ||
     (filtro.includes("variante") && id.startsWith("variante-"))
   );
 }
@@ -254,6 +271,8 @@ function url({
   ledCorModo,
   ledCores,
   semAnim,
+  avulsa,
+  identidade,
 }) {
   const q = new URLSearchParams({ skin: SKIN, preset: preset ?? PRESET_PADRAO, intro: "0" });
   if (efeito) q.set("efeito", efeito);
@@ -265,6 +284,8 @@ function url({
   if (ledCorModo) q.set("ledCorModo", ledCorModo);
   if (ledCores) q.set("ledCores", ledCores.join(","));
   if (semAnim) q.set("semAnim", semAnim);
+  if (avulsa) q.set("avulsa", "1");
+  if (identidade) q.set("identidade", identidade);
   return `${BASE}/interno/demo-qa?${q}`;
 }
 
@@ -1173,6 +1194,271 @@ async function capturarAvulsa(page) {
   return gerados;
 }
 
+/* ── PIGMENTO VIVO POR SEÇÃO (`--so=pigmento --secao=<id>`) ──────────
+ *
+ * O trabalho de composição não se julga por uma página inteira reduzida a
+ * uma tira. Este modo põe a MESMA seção das quatro variantes na mesma folha,
+ * em celular e desktop, e salva também os oito PNGs crus. As animações
+ * finitas terminam; as infinitas ficam numa fase fixa, evitando que uma
+ * diferença de relógio se passe por diferença de layout.
+ */
+const PIGMENTO_TELAS = [
+  { id: "celular", largura: 390, altura: 844 },
+  { id: "desktop", largura: 1100, altura: 700 },
+];
+
+async function capturarPigmentoSecao(page) {
+  if (SKIN !== "tatuagem-pigmento-vivo") {
+    throw new Error("--so=pigmento exige --skin=tatuagem-pigmento-vivo");
+  }
+  if (!PIGMENTO_SECAO) throw new Error("--so=pigmento exige --secao=<id do contrato>");
+  if (PIGMENTO_IDENTIDADE_VAZIA && PIGMENTO_IDENTIDADE_CHEIA) {
+    throw new Error("use apenas um entre --sem-identidade e --identidade-cheia");
+  }
+  if (VARIANTES.length !== 4) {
+    throw new Error(`[pigmento] esperava 4 variantes, recebeu ${VARIANTES.length}`);
+  }
+
+  const gerados = [];
+  for (const tela of PIGMENTO_TELAS) {
+    await page.setViewportSize({ width: tela.largura, height: tela.altura });
+    const itens = [];
+    for (const variante of VARIANTES) {
+      await page.goto(
+        url({
+          preset: variante,
+          avulsa: PIGMENTO_IDENTIDADE_VAZIA || PIGMENTO_IDENTIDADE_CHEIA,
+          identidade: PIGMENTO_IDENTIDADE_CHEIA ? "cheia" : undefined,
+        }),
+        { waitUntil: "networkidle" },
+      );
+      await page.evaluate((id) => {
+        document.documentElement.style.scrollBehavior = "auto";
+        document.querySelector(`[data-d-secao="${id}"]`)?.scrollIntoView({ block: "start" });
+      }, PIGMENTO_SECAO);
+      await page.waitForTimeout(1000);
+
+      const alvo = page.locator(`[data-d-secao="${PIGMENTO_SECAO}"]`);
+      if ((await alvo.count()) !== 1) {
+        throw new Error(`[pigmento] ${variante}/${PIGMENTO_SECAO}: âncora ausente ou duplicada`);
+      }
+      // Se a seção ultrapassa a viewport, percorra-a antes da captura para
+      // disparar as entradas por IntersectionObserver de todos os filhos.
+      // Sem isso, uma composição alta podia parecer vazia na folha embora o
+      // conteúdo apenas ainda estivesse com a opacidade inicial do FadeUp.
+      const caixa = await alvo.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        return { y: rect.top + window.scrollY, height: rect.height };
+      });
+      if (caixa) {
+        const passo = Math.max(240, Math.floor(tela.altura * 0.7));
+        for (let y = caixa.y; y < caixa.y + caixa.height; y += passo) {
+          await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), y);
+          await page.waitForTimeout(80);
+        }
+        await alvo.scrollIntoViewIfNeeded();
+        await page.evaluate((id) => {
+          document.querySelector(`[data-d-secao="${id}"]`)?.scrollIntoView({ block: "start" });
+        }, PIGMENTO_SECAO);
+        await page.waitForTimeout(120);
+      }
+      await page.evaluate(() => {
+        for (const anim of document.getAnimations()) {
+          const t = anim.effect?.getComputedTiming?.();
+          const duracao = Number(t?.duration);
+          const repeticoes = Number(t?.iterations);
+          try {
+            if (Number.isFinite(repeticoes) && repeticoes !== Infinity) anim.finish();
+            else if (Number.isFinite(duracao) && duracao > 0) {
+              anim.pause();
+              anim.currentTime = duracao * 0.42;
+            }
+          } catch {
+            anim.pause();
+          }
+        }
+      });
+      await page.waitForTimeout(100);
+
+      const destino = path.join(
+        SAIDA,
+        `pigmento-${PIGMENTO_SECAO}-${tela.id}-${variante}${marca}.png`,
+      );
+      await alvo.screenshot({ path: destino });
+      gerados.push(destino);
+      itens.push({ rotulo: variante, png: destino });
+    }
+    gerados.push(
+      await folhaDeContato(
+        page,
+        `Pigmento Vivo — ${PIGMENTO_SECAO} (${tela.id})`,
+        `pigmento-${PIGMENTO_SECAO}-${tela.id}`,
+        [{ rotulo: PIGMENTO_SECAO, itens }],
+      ),
+    );
+  }
+  await page.setViewportSize(VIEWPORT);
+  console.log(`[pigmento] ${PIGMENTO_SECAO}: 4 variantes × 2 viewports capturadas.`);
+  return gerados;
+}
+
+/**
+ * Página inteira, em ladrilhos do tamanho do VIEWPORT, compostos por
+ * CANVAS no próprio navegador — não `page.screenshot({ fullPage: true })`.
+ * A `tatuagem-pigmento-vivo` é a primeira skin do repo alta o bastante
+ * (~15000px no celular, onze seções com fotos de portfólio e
+ * depoimentos) para cruzar o limite de textura do SwiftShader
+ * (renderização por software, sem GPU): acima dele, a captura de página
+ * inteira do Playwright sai com um pedaço da página REPETIDO (confirmado
+ * numa rodada manual — hero+manifesto reaparecem no meio do portfólio,
+ * perto dos 8192px clássicos de teto de textura). Ladrilhos do tamanho
+ * do viewport nunca chegam perto desse teto.
+ *
+ * `header.fixed` (o Nav) fica ESCONDIDO durante os ladrilhos: fixo à
+ * viewport, ele sairia pintado no topo de CADA ladrilho — sem escondê-lo,
+ * a folha ganha uma faixa do nome repetida a cada viewport de altura, um
+ * artefato do método de captura, não da composição.
+ */
+async function capturaPaginaInteiraPorLadrilhos(page, larguraCss) {
+  const alturaViewport = (await page.viewportSize()).height;
+  const alturaTotal = await page.evaluate(() => document.documentElement.scrollHeight);
+  await page.addStyleTag({ content: "header.fixed { visibility: hidden !important; }" });
+  const ladrilhos = [];
+  let y = 0;
+  while (true) {
+    await page.evaluate((yy) => window.scrollTo(0, yy), y);
+    await page.waitForTimeout(60);
+    const yReal = await page.evaluate(() => window.scrollY);
+    const buf = await page.screenshot();
+    ladrilhos.push({ y: yReal, base64: buf.toString("base64") });
+    if (yReal + alturaViewport >= alturaTotal) break;
+    y += alturaViewport;
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  const dataUrl = await page.evaluate(
+    async ({ ladrilhos, larguraCss, alturaTotal }) => {
+      const canvas = document.createElement("canvas");
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(larguraCss * dpr);
+      canvas.height = Math.round(alturaTotal * dpr);
+      const ctx = canvas.getContext("2d");
+      for (const t of ladrilhos) {
+        const img = await new Promise((resolve, reject) => {
+          const im = new Image();
+          im.onload = () => resolve(im);
+          im.onerror = reject;
+          im.src = "data:image/png;base64," + t.base64;
+        });
+        ctx.drawImage(img, 0, Math.round(t.y * dpr));
+      }
+      return canvas.toDataURL("image/png");
+    },
+    { ladrilhos, larguraCss, alturaTotal },
+  );
+  return Buffer.from(dataUrl.split(",")[1], "base64");
+}
+
+/* ── PIGMENTO VIVO EM PÁGINA INTEIRA ───────────────────────────────
+ *
+ * Fecha os dois portões que um recorte de seção não consegue provar:
+ * (1) a página ainda tem ritmo quando a identidade inteira some; e
+ * (2) as quatro silhuetas continuam diferentes sem a ajuda da cor.
+ */
+async function capturarPigmentoPagina(page) {
+  if (SKIN !== "tatuagem-pigmento-vivo") {
+    throw new Error("--so=pigmento exige --skin=tatuagem-pigmento-vivo");
+  }
+  if (PIGMENTO_IDENTIDADE_VAZIA && PIGMENTO_IDENTIDADE_CHEIA) {
+    throw new Error("use apenas um entre --sem-identidade e --identidade-cheia");
+  }
+  const telas = PIGMENTO_APENAS_CELULAR
+    ? PIGMENTO_TELAS.filter((tela) => tela.id === "celular")
+    : PIGMENTO_TELAS;
+  const estado = PIGMENTO_CINZA ? "cinza" : PIGMENTO_IDENTIDADE_VAZIA ? "sem-identidade" : "cor";
+  const gerados = [];
+
+  for (const tela of telas) {
+    await page.setViewportSize({ width: tela.largura, height: tela.altura });
+    const itens = [];
+    for (const variante of VARIANTES) {
+      await page.goto(
+        url({
+          preset: variante,
+          avulsa: PIGMENTO_IDENTIDADE_VAZIA || PIGMENTO_IDENTIDADE_CHEIA,
+          identidade: PIGMENTO_IDENTIDADE_CHEIA ? "cheia" : undefined,
+        }),
+        { waitUntil: "networkidle" },
+      );
+      await page.evaluate(() => {
+        document.documentElement.style.scrollBehavior = "auto";
+      });
+
+      // Percorre a página para carregar imagens e disparar todos os reveals;
+      // volta ao topo antes do fullPage, preservando a silhueta completa.
+      const altura = await page.evaluate(() => document.documentElement.scrollHeight);
+      const passo = Math.max(320, Math.floor(tela.altura * 0.72));
+      for (let y = 0; y < altura; y += passo) {
+        await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), y);
+        await page.waitForTimeout(55);
+      }
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      await page.waitForTimeout(180);
+
+      if (PIGMENTO_IDENTIDADE_VAZIA) {
+        const vazio = await page.evaluate(() => {
+          const slots = ["endereco", "cidade", "telefone", "whatsapp", "horarios", "instagram"];
+          const presentes = slots.filter((slot) => document.querySelector(`[data-demo-slot="${slot}"]`));
+          const texto = document.body.innerText;
+          const templates = ["MATIZ STUDIO", "Rua das Aquarelas", "Estúdio fictício", "tinta imaginária"]
+            .filter((trecho) => texto.includes(trecho));
+          return {
+            presentes,
+            templates,
+            agendarVazio: Boolean(document.querySelector('[data-d-secao="agendar"] [data-sem-canal="true"]')),
+            contatoVazio: Boolean(document.querySelector('[data-d-secao="contato"] [data-sem-dados="true"]')),
+          };
+        });
+        if (vazio.presentes.length || vazio.templates.length || !vazio.agendarVazio || !vazio.contatoVazio) {
+          throw new Error(`[pigmento] ${variante}: identidade vazia vazou ${JSON.stringify(vazio)}`);
+        }
+      }
+
+      if (PIGMENTO_CINZA) {
+        await page.addStyleTag({ content: "html { filter: grayscale(1) !important; }" });
+      }
+      await page.evaluate(() => {
+        for (const anim of document.getAnimations()) {
+          try {
+            const repeticoes = Number(anim.effect?.getTiming?.().iterations);
+            if (Number.isFinite(repeticoes) && repeticoes !== Infinity) anim.finish();
+            else anim.pause();
+          } catch {
+            anim.pause();
+          }
+        }
+      });
+
+      const destino = path.join(SAIDA, `pigmento-pagina-${tela.id}-${variante}-${estado}${marca}.png`);
+      const png = await capturaPaginaInteiraPorLadrilhos(page, tela.largura);
+      await fs.writeFile(destino, png);
+      gerados.push(destino);
+      itens.push({ rotulo: variante, png: destino });
+    }
+    gerados.push(
+      await folhaDeContato(
+        page,
+        `Pigmento Vivo — página inteira (${tela.id}, ${estado})`,
+        `pigmento-pagina-${tela.id}-${estado}`,
+        [{ rotulo: estado, itens }],
+      ),
+    );
+  }
+  await page.setViewportSize(VIEWPORT);
+  console.log(`[pigmento] página inteira: ${VARIANTES.length} variantes × ${telas.length} viewport(s), ${estado}.`);
+  return gerados;
+}
+
 async function main() {
   await fs.mkdir(SAIDA, { recursive: true });
   const secret = crypto.randomBytes(16).toString("hex");
@@ -1372,6 +1658,12 @@ async function main() {
     /* ── DEMO AVULSA: a página sem identidade nenhuma ───────────── */
     if (querido("avulsa")) {
       gerados.push(...(await capturarAvulsa(page)));
+    }
+
+    if (querido("pigmento-secao")) {
+      gerados.push(...(PIGMENTO_PAGINA_INTEIRA
+        ? await capturarPigmentoPagina(page)
+        : await capturarPigmentoSecao(page)));
     }
 
     /* ── Animação por seção: entrada com × sem ──────────────────── */

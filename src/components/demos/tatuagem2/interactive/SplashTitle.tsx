@@ -20,6 +20,7 @@ export function SplashTitle({
   className = "",
   style,
   accentCycle,
+  corDestaque = "var(--d-accent)",
 }: {
   texto?: string;
   slot?: string;
@@ -27,6 +28,14 @@ export function SplashTitle({
   className?: string;
   style?: CSSProperties;
   accentCycle: string[];
+  /**
+   * Cor estática do `<em>` (última palavra). Default = acento do tema; o
+   * CTA final passa `"currentColor"` — "sem troca de cor" (regra 4 do §2
+   * do plano): sobre o campo de cor, o acento tinge exatamente igual ao
+   * resto do título e some (1,00:1 medido), então ali o itálico é a única
+   * marca, na MESMA cor do título.
+   */
+  corDestaque?: string;
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
 
@@ -40,16 +49,27 @@ export function SplashTitle({
       node.childNodes.forEach((n) => {
         if (n.nodeType === Node.TEXT_NODE && n.textContent && n.textContent.trim()) {
           const frag = document.createDocumentFragment();
-          [...n.textContent].forEach((ch) => {
-            if (ch === " ") {
-              frag.appendChild(document.createTextNode(" "));
+          n.textContent.split(/(\s+)/).forEach((trecho) => {
+            if (!trecho) return;
+            if (/^\s+$/.test(trecho)) {
+              frag.appendChild(document.createTextNode(trecho));
               return;
             }
-            const span = document.createElement("span");
-            span.textContent = ch;
-            span.style.display = "inline-block";
-            span.style.transition = "transform .35s cubic-bezier(.2,.8,.2,1), color .35s";
-            frag.appendChild(span);
+            // As letras ainda animam individualmente, mas a palavra é uma
+            // unidade de quebra. Sem este invólucro, um título estreito
+            // podia virar "ma / rca / r" depois da hidratação.
+            const palavra = document.createElement("span");
+            palavra.dataset.splashWord = "";
+            palavra.style.display = "inline-block";
+            [...trecho].forEach((ch) => {
+              const letra = document.createElement("span");
+              letra.dataset.splashLetter = "";
+              letra.textContent = ch;
+              letra.style.display = "inline-block";
+              letra.style.transition = "transform .35s cubic-bezier(.2,.8,.2,1), color .35s";
+              palavra.appendChild(letra);
+            });
+            frag.appendChild(palavra);
           });
           n.parentNode?.replaceChild(frag, n);
         } else if (n.nodeType === Node.ELEMENT_NODE && (n as HTMLElement).tagName !== "BR") {
@@ -59,7 +79,7 @@ export function SplashTitle({
     };
     wrap(el);
 
-    const letras = Array.from(el.querySelectorAll<HTMLElement>("span"));
+    const letras = Array.from(el.querySelectorAll<HTMLElement>("span[data-splash-letter]"));
     const onEnter = () =>
       letras.forEach((s) => {
         s.style.transform = `translateY(${(Math.random() * 10 - 5).toFixed(1)}px)`;
@@ -82,14 +102,17 @@ export function SplashTitle({
   if (!texto) return null;
 
   // Quebra de linha literal (ex.: título do hero em duas linhas) preservada
-  // via <br/> — só a ÚLTIMA linha recebe o destaque em itálico, igual ao
-  // material bruto ("Sua pele,<br/>nossa <em>tela</em>.").
+  // por spans de bloco. Há um espaço de TEXTO depois de cada linha anterior:
+  // margem/display não entra no textContent, e o antigo <br/> fazia
+  // "Laboratório\nUltravioleta" sair como "LaboratórioUltravioleta" no
+  // nome acessível. Mesmo precedente do hero da multimarcas.
   const linhas = texto.split("\n");
   const ultimaLinha = linhas.pop() ?? "";
   const anteriores = linhas.map((linha, i) => (
     <Fragment key={i}>
-      {linha}
-      <br />
+      <span data-splash-line className="block">
+        {linha}
+      </span>{" "}
     </Fragment>
   ));
 
@@ -104,7 +127,7 @@ export function SplashTitle({
     <>
       {anteriores}
       {inicio}
-      <em className="not-italic italic" style={{ color: "var(--d-accent)" }}>
+      <em className="not-italic italic" style={{ color: corDestaque }}>
         {palavra}
       </em>
       {pontuacao}

@@ -701,8 +701,22 @@ export function PainelImagens({
   // Subir uma foto e não ver nada mudar parece defeito. A variante declara
   // quais slots ela não desenha; aqui isso vira aviso ANTES do upload.
   const ocultas = getVariante(skin, themeId)?.imagensOcultas ?? {};
+  // O portfólio aceita até 30 itens (ver validate.ts), mas só existe um
+  // slot de foto por item numerado (`portfolio-1`..`portfolio-N`) — do
+  // item seguinte ao último slot em diante, a figura sai só com a
+  // legenda (nunca a foto emprestada de outro slot). Não depende de
+  // variante — é a mesma contagem nas quatro, por isso mora aqui, e não
+  // em `imagensOcultas` (docs/plano-tatuagem-pigmento-vivo.md §11).
+  const slotsDePortfolio = slots.filter((s) => /^portfolio-\d+$/.test(s)).length;
+  const itensDePortfolio = dados.secoes?.portfolio?.itens?.length ?? 0;
   return (
     <div className="flex flex-col gap-2">
+      {slotsDePortfolio > 0 && itensDePortfolio > slotsDePortfolio && (
+        <p className="border-l-2 border-warning pl-2 text-[11px] text-ink-muted">
+          O portfólio tem {itensDePortfolio} itens e {slotsDePortfolio} fotos; do {slotsDePortfolio + 1}º
+          item em diante, a peça aparece só com a legenda, sem foto.
+        </p>
+      )}
       <div>
         <span className="text-xs text-ink-muted">Base dos slots sem imagem própria</span>
         <div className="mt-1.5 flex flex-wrap gap-2">

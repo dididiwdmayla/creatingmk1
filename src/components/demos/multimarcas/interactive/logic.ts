@@ -107,23 +107,14 @@ function semEspacosExtras(texto: string): string {
 }
 
 /**
- * A LINHA DE APOIO da abertura (docs/plano-multimarcas.md §6.1): o `<h1>`
- * é sempre o nome do negócio, e `secoes.hero.titulo` — o mesmo slot de
- * sempre, sem migração — vira a linha logo abaixo dele. Devolve o texto a
- * desenhar, ou `undefined` quando a linha não existe:
- *
- * - vazio ou só espaço: não existe (o `??` antigo desenhava `<h1>` vazio);
- * - igual ao nome, sem caixa e sem espaços/quebras nas pontas ou no meio:
- *   não existe — é o caso normal de todo lead, porque `dadosDoLead` e a
- *   avulsa gravam `quebrarTitulo(nome)` no título, e o nome não aparece
- *   duas vezes.
+ * A LINHA DE APOIO da abertura (§6.1) — promovida para `lib/demos/montar.ts`
+ * na migração da tatuagem-pigmento-vivo (docs/plano-tatuagem-pigmento-vivo.md
+ * §7/§17 D3): outra skin com o mesmo eixo de variantes precisava da mesma
+ * regra, e a função não tinha nada de específico da multimarcas. Reexportada
+ * aqui para `Hero.tsx` (e qualquer outro import existente) continuarem
+ * funcionando sem mudar de caminho.
  */
-export function linhaDeApoio(titulo: string | undefined, nome: string): string | undefined {
-  const limpo = semEspacosExtras(titulo ?? "");
-  if (!limpo) return undefined;
-  if (limpo.toLocaleLowerCase() === semEspacosExtras(nome).toLocaleLowerCase()) return undefined;
-  return limpo;
-}
+export { linhaDeApoio } from "@/lib/demos/montar";
 
 /** O nome em duas linhas de palavras (a segunda no acento), metade a metade. */
 export function linhasDoNome(nome: string): [string[], string[]] {

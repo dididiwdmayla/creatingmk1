@@ -1150,7 +1150,6 @@ neste bloco, conforme escopo aprovado. `CAMPOS_IDENTIDADE_DEMO` não inclui
 | Skin | Endereço do exemplo que aparece no HTML sem dado do lead |
 |---|---|
 | `barbearia2-sul` | Av. Brasil, 500 — Zona 3 |
-| `tatuagem-pigmento-vivo` | Rua das Aquarelas, 88 — Centro |
 | `imobiliaria-curada` | Rua Principal, 100 — Centro |
 | `petshop-focinho-feliz` | Rua das Begônias, 240 — Jardim das Flores |
 
@@ -1160,8 +1159,11 @@ cobre isso por variante. A `lancheria-chapa-burger` saiu na migração dela
 (ver "Lancheria Chapa Burger" abaixo), pelo mesmo motivo. A
 `multimarcas-vortice` saiu na migração dela (ver "Multimarcas Vórtice"
 abaixo) — o endereço fictício aqui era pior que texto: ligava os botões
-Waze e Google Maps, exclusivos desta skin, para um lugar inventado.
-Restam QUATRO skins nativas com o defeito.
+Waze e Google Maps, exclusivos desta skin, para um lugar inventado. A
+`tatuagem-pigmento-vivo` saiu na migração dela (ver "Tatuagem Pigmento
+Vivo" abaixo) — o "Rua das Aquarelas, 88 — Centro" já tinha saído do
+exemplo antes desta tabela chegar a listá-la. Restam TRÊS skins nativas
+com o defeito.
 
 Na `barbearia-editorial`, o endereço fictício foi retirado de `BARBEARIA_EXEMPLO`;
 lead sem endereço não emite o slot nem o botão de rota. O teste específico
@@ -1603,6 +1605,149 @@ marcas cruza a coluna amostrada nas duas bordas ao mesmo tempo, por ser
 um trilho duplicado sem costura. Resultados completos, a tabela de fps
 e os dados brutos do navegador em
 [qa/multimarcas-vortice/STATUS.md](qa/multimarcas-vortice/STATUS.md).
+
+### Tatuagem Pigmento Vivo — migração de presets para variantes
+
+`tatuagem-pigmento-vivo` mantém uma entrada de skin, ONZE seções (`hero`,
+`manifesto`, `estilos`, `investimento`, `portfolio`, `artistas`,
+`depoimentos`, `processo`, `faq`, `agendar`, `contato`), oito slots de
+imagem (`portfolio-1`..`portfolio-8`) e os oito `imagensAlt`
+correspondentes. Só `hero` é fixa. As variantes Aquarela, Boreal,
+Meia-noite e Terra vivem em `tatuagem2/variantes.ts`; a composição é
+parametrizada por `Theme.pigmento` (`PigmentoComposicao`, onze knobs —
+um por seção), com o CSS em `tatuagem2/composicao.ts` — sem quatro
+caminhos de render. A essência da skin (a irmã de `tatuagem-editorial`,
+ver "Separação da irmã" abaixo) é a ABERTURA SEM FOTO: nenhuma das
+quatro tem slot de imagem no hero, só blobs de cor e traço SVG — os
+oito slots inteiros pertencem ao portfólio.
+
+**IDs inalterados, nenhuma migração.** `aquarela`/`boreal`/`meia-noite`/
+`terra` já eram o que `LeadDemo.themeId` gravava; `aquarela` continua o
+default — é a variante que carrega a conversão fiel do material bruto
+(`skins-raw/tatuagem2`, CROMA Tattoo Studio). Sem `themeAliases`: as
+três luminâncias eram as mesmas de antes (três claras, uma escura —
+§17 D5 do plano; decisão mantida depois do portão de cinza formal
+aprovar as quatro, ver abaixo).
+
+**Quatro tipos de estúdio, e quem chega em cada um:**
+
+| variante | estúdio | quem chega |
+|---|---|---|
+| Aquarela (**claro**, default) | ateliê autoral de cor | escolhe pela COR do portfólio, quer peça única, lê o manifesto |
+| Boreal (**claro**) | cobertura e reforma de tatuagem antiga | tem peça antiga que incomoda, quer saber se tem jeito |
+| Meia-noite (**escuro**) | cor pop saturada — anime, geek, neo-trad | jovem, vem pelo Instagram, escolhe por estilo e artista |
+| Terra (**claro**) | homenagem e retrato colorido | quer eternizar alguém, lê depoimento antes de tudo |
+
+**Os onze knobs de `PigmentoComposicao` (a composição visual por seção):**
+
+| seção | aquarela | boreal | meia-noite | terra |
+|---|---|---|---|---|
+| abertura | mancha (blobs soltos) | sobreposição (cartelas rotacionadas + nome fantasma) | cartela (três faixas de cor sólidas) | medalhão (círculo com arcos coloridos) |
+| portfólio | trilha (pinada, zigue-zague no celular) | vitrine (1 grande + 7 miniaturas) | manchas (recortes orgânicos) | mesa (polaroides sobrepostas) |
+| investimento | gotas (blob de preço) | régua | etiquetas | selos |
+| processo | onda | camadas | quadrinhos | ciclo |
+| manifesto | círculo (texto dentro de forma) | grifo (marca-texto atrás da palavra acesa) | pilha (uma palavra gigante por linha, brilho) | carta (manuscrita, papel pautado) |
+| estilos | mostruário | bento | paleta | baralho |
+| artistas | assinaturas | monogramas | bandeiras | livro |
+| depoimentos | bilhetes | conversa | coro | caderno |
+| faq | acordeão | fichas | manchete | respostas |
+| agendar | gota | talão (canhoto destacável) | diagonal | postal |
+| contato | assinatura | recibo | letreiro | colofão |
+
+Nenhum valor de `PigmentoComposicao` coincide com o valor análogo de
+`TatuagemComposicao` (a irmã) na mesma seção — os dois tipos usam
+literais de união DISJUNTOS por construção (verificado em
+`pigmento-contrato.test.tsx`), então a separação das duas skins não
+depende de disciplina de quem escreve composição nova.
+
+**Fontes locais por variante** (`next/font/local`, `.woff2` em
+`src/app/demo/fonts/local/pigmento/`, variáveis `--font-pv-display`/
+`--font-pv-corpo`, resolvidas sob demanda por `tatuagem2/fontes.ts` —
+só a fonte da variante ATIVA entra no HTML de uma requisição):
+
+| variante | display | corpo |
+|---|---|---|
+| Aquarela | DM Serif Display | Archivo |
+| Boreal | Bricolage Grotesque | Figtree |
+| Meia-noite | Dela Gothic One | Space Grotesk |
+| Terra | Young Serif | Karla |
+
+**Decisões fechadas do §17 do plano** (docs/plano-tatuagem-pigmento-vivo.md):
+D1, contrato NÃO cresceu (a essência é não ter foto na abertura). D2, a
+separação da irmã venceu — a Aquarela muda as seis seções que
+coincidiam com tipos dela no desenho original, preservando as
+assinaturas (manchas, `SplashTitle`, manifesto que acende, ponto
+rastreador). D3, `<h1>` é SEMPRE `data.nome`; título salvo vira linha
+de apoio. D4, sem NENHUM canal (WhatsApp/telefone/Instagram), os
+botões de CTA não renderizam — nunca um `#agendar` circular. D5, as
+luminâncias originais ficam (três claras, uma escura); a folha em
+cinza formal (item 5, sessão 3) confirmou que a decisão se sustenta.
+D6, `paleta` guarda as tintas legíveis, `Theme.pigmento.manchas` guarda
+os vivos — texto/ícone nunca herdam uma cor que reprova contraste por
+engano. D7, fontes locais via `next/font/local` (não uma folha CSS por
+variante). D8, as listas dos laços `.mjs` continuam de mão
+(`VARIANTES_POR_SKIN`), cobertas por teste de contrato — a rota
+`/interno/demo-qa/contrato` proposta como alternativa NÃO foi
+construída nesta sessão; fica para uma limpeza separada, se algum dia
+compensar. D9, `ANCORAS_PADRAO` mantido em `hero, investimento,
+estilos`. D10, nomes de artista fictício ficam (substituíveis pelo
+operador); fato verificável sobre o NEGÓCIO do lead sai — nesta sessão
+saiu uma afirmação de tamanho de equipe ("Três mãos, três estilos de
+jogo." na Meia-noite).
+
+**Auditoria de endereço:** o endereço fictício ("Rua das Aquarelas, 88
+— Centro") saiu do exemplo na sessão de fundação desta migração (item 3
+do plano, §15) — antes da sessão de portões e documentação. A linha
+correspondente na tabela "Auditoria de endereço" acima só foi removida
+agora, junto com a atualização desta seção (ver "Restam TRÊS skins
+nativas").
+
+#### O portão de cinza formal (`scripts/qa-pigmento.mjs --so=cinza`)
+
+Página inteira das quatro no celular, escala de cinza, folha lado a
+lado — `docs/qa/pigmento-cinza-folha-v1.png`. **Bug de instrumentação
+descoberto e corrigido**: a pigmento-vivo é a primeira skin do repo
+alta o bastante (~11.300–14.900px no celular) para cruzar o teto de
+textura do SwiftShader — `page.screenshot({ fullPage: true })` saía com
+um pedaço da página repetido. Trocado por captura em ladrilhos do
+tamanho do viewport, compostos por `<canvas>` no navegador, em
+`qa-pigmento.mjs` e em `qa-visual.mjs` (`capturarPigmentoPagina`, que
+tinha o mesmo defeito).
+
+Os três pares claros (aquarela/boreal/terra) ficam entre 40,1 e 43,1 de
+diferença em cinza — abaixo da referência de 48,7 da multimarcas,
+**olhados duas vezes** (§10 do plano): a trilha em zigue-zague da
+Aquarela, a vitrine da Boreal e a mesa de polaroides da Terra têm
+silhuetas diferentes mesmo sem cor. Meia-noite se distingue das três
+por luminância (167–176). **As quatro aprovam.**
+
+**Fps: reprovado na REFERÊNCIA, reportado, não corrigido.** As 20
+células (4 variantes × 5 modos de cor) E a referência (efeito `nenhum`)
+ficam em ~16-17 fps contra o piso de 45 — calibrado contra
+`multimarcas-vortice` nas mesmas condições (40-47 fps: o ambiente
+alcança o piso, a diferença é real). Um CPU profile por amostragem
+durante a rolagem mostrou 72% do tempo IDLE na thread principal — o
+gargalo é rasterização/composição (SwiftShader, sem GPU real neste
+ambiente), não JavaScript; uma correção real (memoização do listener de
+scroll do `ManifestoReveal`, que reescrevia o estilo de cada palavra a
+cada quadro pela vida inteira da página) foi aplicada, sem mudar o
+veredito. `modosDeCorReprovados` fica vazio nas quatro — marcar um modo
+mentiria que o problema é o modo de cor quando a referência também
+reprova. Decisão pendente: aceitar o piso como não alcançável nesta
+linguagem visual, ou remedir num ambiente com GPU real.
+
+**Fechamento da validação:** contraste refeito sobre as superfícies
+REAIS das composições (bilhete, ficha, talão, selo, grifo, carta — não
+só a paleta em isolado), nenhum par abaixo de 4,5:1 (3:1 texto grande).
+CLS sob Slow 4G + cache frio nas quatro: 0,0013–0,0553, todas abaixo do
+piso de 0,1, nenhuma precisou de pré-carregamento extra de fonte. LCP
+medido com a API real do navegador: o elemento é sempre TEXTO do hero
+nas quatro (nunca uma imagem — a abertura cobre 88-100svh). Os oito
+slots do portfólio, com JavaScript desligado: 64 medições (4 variantes
+× 2 telas), 0 não-desenhadas — `imagensOcultas` vazio nas quatro,
+provado por medição real. Resultados completos, a tabela de fps e os
+dados brutos em
+[qa/tatuagem-pigmento-vivo/STATUS.md](qa/tatuagem-pigmento-vivo/STATUS.md).
 
 ### Animação (`Theme.animacao` + `DemoSecao.animacaoEntrada`)
 
@@ -5084,7 +5229,7 @@ A skin de barbearia da Forja de Demos foi verificada **lado a lado com o materia
 - **Trilha horizontal do portfólio** (`ScrollGallery.tsx`): confirmada em desktop (ponteiro fino) com pin real — a seção fica "presa" enquanto a trilha desliza horizontalmente conforme o scroll vertical avança — e em mobile (390px) com o fallback de scroll nativo (sem pin, `overflow-x-auto`), mesmo comportamento do material bruto em `coarse` pointers.
 - **Cartões de "Estilos"**: hover real confirmado — o blob de cor por trás do cartão expande (`scale(2.1)`) e o cartão inclina em 3D (`perspective`/`rotateX`/`rotateY`, alternando o sinal por posição par/ímpar), fiel ao original; o último cartão da lista sempre nasce com o esquema invertido (fundo escuro, texto claro usando os mesmos tokens de tema — funciona em preset claro OU escuro) no lugar do "Blackwork" fixo do original.
 - **FAQ** (`FaqAccordion.tsx`): primeiro item nasce aberto (`state = { open: 0 }` do original), clicar em outro item fecha o anterior e abre o novo, ponto colorido só preenche quando aberto.
-- **Preset escuro** ("Meia-noite"): confirmado visualmente com boa legibilidade e as micro-interações opcionais da Forja ligadas nesse preset (LED sutil, partículas de fundo) renderizando por cima do conteúdo sem atrapalhar leitura — mesma verificação de contraste feita nos outros presets claros ("Aquarela", "Boreal", "Terra").
+- **Preset escuro** ("Meia-noite"): confirmado visualmente com boa legibilidade e as micro-interações opcionais da Forja ligadas nesse preset (LED sutil, partículas de fundo) renderizando por cima do conteúdo sem atrapalhar leitura — mesma verificação de contraste feita nos outros presets claros ("Aquarela", "Boreal", "Terra"). **Atualização:** desde então, `led` default de `meia-noite` (e de `terra`) virou `desligado` por padrão até a correção de desempenho do `LedEdges` (ver `qa/tatuagem-pigmento-vivo/FPS-diagnostico.md`); religar depois.
 - Sem foto no hero nem nos cartões de "Estilos"/"Artistas" — fiel ao material bruto, que também não usa nenhuma imagem ali (só blobs de cor e rabiscos SVG); só o Portfólio tem slot de imagem de verdade.
 
 **Layout do chat `/mensagens`** (mesmo esquema de fake Firestore via `RADAR_FAKE_DB=1`, `next dev`, revertido antes do commit; Playwright em viewport mobile 390×844, dois usuários logados em contextos de browser separados): conversa com 18 mensagens confirmando header RADAR + mini-header da conversa no topo, lista preenchendo `flex-1` com scroll (sem colapsar), input colado acima da nav com as 6 abas sempre visíveis (checado por geometria via `getBoundingClientRect`, não só visual). Teclado mobile simulado por resize real do Chromium (390×844 → 390×400, o efeito equivalente ao `interactiveWidget:"resizes-content"` abrindo o teclado): input permaneceu dentro da viewport reduzida e a última mensagem visível acima dele, nunca escondida. Reabrir a conversa (nova navegação) e o lado do destinatário confirmados abrindo já com o scroll no fundo.

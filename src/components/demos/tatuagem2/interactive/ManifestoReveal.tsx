@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 /**
  * Manifesto com palavras "acendendo" conforme o scroll passa pela seção —
@@ -10,10 +10,18 @@ import { useEffect, useRef } from "react";
  * atinge o índice dela; a cada N palavras (`accentEvery`), a palavra
  * também ganha itálico e uma cor do ciclo de acentos do tema em vez do
  * texto normal — igual ao original destacar só ALGUMAS palavras
- * ("memória", "identidade"…) em cor e itálico. Direto no DOM via ref/rAF
- * (mesmo padrão de LedEdges.tsx) — nenhum re-render React por frame de
- * scroll. `ativa=false` (Theme.animacao "nenhuma" ou prefers-reduced-motion)
- * mostra tudo já aceso, sem listener.
+ * ("memória", "identidade"…) em cor e itálico.
+ *
+ * **O HTML servido sai ACESO** (item 4 da sessão de fundação): a versão
+ * anterior pintava toda palavra em `--d-unlit` (32% de mistura — 1,97 a
+ * 2,64:1 nas quatro paletas) já no JSX, e só um `useEffect` client-side
+ * acendia — sem JavaScript, ou antes da hidratação, o manifesto inteiro era
+ * ilegível. Agora cada palavra nasce na cor FINAL (o cliente é quem apaga,
+ * num `useLayoutEffect` — antes do navegador pintar, sem flash de "aceso
+ * depois apaga" — só as palavras ainda não alcançadas pelo scroll no
+ * momento da montagem). `ativa=false` (Theme.animacao "nenhuma" ou
+ * prefers-reduced-motion) não roda o efeito: fica tudo aceso, como o
+ * documento servido.
  */
 export function ManifestoReveal({
   texto,
@@ -32,20 +40,23 @@ export function ManifestoReveal({
 }) {
   const containerRef = useRef<HTMLParagraphElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const reduzida = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!ativa || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const palavras = Array.from(container.querySelectorAll<HTMLElement>("[data-w]"));
-
-    if (!ativa || reduzida) {
-      palavras.forEach((w) => {
-        w.style.color = w.dataset.accent ? w.dataset.accent : "var(--d-text)";
-      });
-      return;
-    }
+    const quadro = container.closest<HTMLElement>(".pv-manifesto-quadro");
 
     let raf = 0;
+    // O listener fica montado pela vida inteira da página (o usuário pode
+    // rolar de volta pro manifesto a qualquer momento), mas fora da janela
+    // de leitura `prog` satura em 0 ou 1 e FICA nesse valor por todo o
+    // resto da rolagem — sem o memo abaixo, o laço reescreveria o estilo
+    // de cada palavra a cada quadro pelo resto das dez seções seguintes,
+    // sempre com o MESMO valor (medido: era o maior custo de repintura da
+    // skin no portão de fps — UpdateLayoutTree dominava o trace).
+    let progAnterior = -1;
+    let litAnterior = -1;
     const onScroll = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
@@ -53,11 +64,19 @@ export function ManifestoReveal({
         const vh = window.innerHeight;
         const r = container.getBoundingClientRect();
         const prog = Math.min(1, Math.max(0, (vh * 0.75 - r.top) / (r.height * 0.9)));
+        if (prog === progAnterior) return;
+        progAnterior = prog;
         const lit = Math.floor(prog * (palavras.length + 1));
-        palavras.forEach((w, i) => {
-          w.style.color =
-            i < lit ? (w.dataset.accent ? w.dataset.accent : "var(--d-text)") : "var(--d-unlit)";
-        });
+        if (lit !== litAnterior) {
+          litAnterior = lit;
+          palavras.forEach((w, i) => {
+            w.dataset.lit = String(i < lit);
+            w.style.color =
+              i < lit ? (w.dataset.accent ? w.dataset.accent : "var(--d-text)") : "var(--d-unlit)";
+          });
+        }
+        quadro?.style.setProperty("--pv-manifesto-progresso", String(prog));
+        quadro?.style.setProperty("--pv-manifesto-escala", String(0.72 + prog * 0.28));
       });
     };
     onScroll();
@@ -79,9 +98,10 @@ export function ManifestoReveal({
           <span
             key={i}
             data-w
+            data-lit="true"
             data-accent={cor}
             style={{
-              color: "var(--d-unlit)",
+              color: cor ?? "var(--d-text)",
               fontStyle: destacada ? "italic" : "normal",
               fontWeight: destacada ? 300 : undefined,
               transition: "color .5s",

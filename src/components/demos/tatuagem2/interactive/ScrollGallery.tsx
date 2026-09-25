@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * scroll horizontal nativo, sem pin: mesmo comportamento do original, que
  * desliga a mecânica de scroll-driven em `coarse` pointers.
  */
-export function ScrollGallery({ children }: { children: ReactNode }) {
+export function ScrollGallery({ children, ativa = true }: { children: ReactNode; ativa?: boolean }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const reduzida = useReducedMotion();
@@ -25,10 +25,12 @@ export function ScrollGallery({ children }: { children: ReactNode }) {
   const [wrapperHeight, setWrapperHeight] = useState<number | null>(null);
 
   useEffect(() => {
-    const fino = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-    const t = setTimeout(() => setPinar(fino && !reduzida), 0);
+    const fino =
+      window.innerWidth >= 768 &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    const t = setTimeout(() => setPinar(ativa && fino && !reduzida), 0);
     return () => clearTimeout(t);
-  }, [reduzida]);
+  }, [ativa, reduzida]);
 
   useEffect(() => {
     if (!pinar) return;
@@ -60,8 +62,7 @@ export function ScrollGallery({ children }: { children: ReactNode }) {
     return (
       <div
         ref={trackRef}
-        className="flex w-max gap-6 overflow-x-auto px-6 pb-6 [-webkit-overflow-scrolling:touch] md:px-[clamp(20px,5vw,72px)]"
-        style={{ width: "auto" }}
+        className="pv-portfolio-lista flex w-max gap-6 overflow-x-auto px-6 pb-6 [-webkit-overflow-scrolling:touch] md:px-[clamp(20px,5vw,72px)]"
       >
         {children}
       </div>
@@ -71,7 +72,7 @@ export function ScrollGallery({ children }: { children: ReactNode }) {
   return (
     <div ref={wrapperRef} style={{ height: wrapperHeight ?? "100vh" }} className="relative">
       <div className="sticky top-0 flex h-screen flex-col justify-center overflow-hidden">
-        <motion.div ref={trackRef} style={{ x }} className="flex w-max items-end gap-6 px-6 md:px-[clamp(20px,5vw,72px)]">
+        <motion.div ref={trackRef} style={{ x }} className="pv-portfolio-lista flex w-max items-end gap-6 px-6 md:px-[clamp(20px,5vw,72px)]">
           {children}
         </motion.div>
       </div>

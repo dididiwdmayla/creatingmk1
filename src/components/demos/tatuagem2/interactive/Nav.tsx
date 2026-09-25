@@ -15,9 +15,11 @@ export function Nav({
 }: {
   nome: string;
   links: { href: string; label: string }[];
-  ctaHref: string;
-  ctaLabel: string;
+  /** Ausente (sem canal de agendamento) ou sem rótulo: o CTA não renderiza. */
+  ctaHref?: string;
+  ctaLabel?: string;
 }) {
+  const mostraCta = Boolean(ctaHref && ctaLabel);
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-b border-[var(--d-border)] bg-[var(--d-bg)]/72 backdrop-blur-md">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 md:px-[clamp(20px,4vw,56px)]">
@@ -28,7 +30,7 @@ export function Nav({
           {nome}
           <span
             aria-hidden="true"
-            className="inline-block h-2.5 w-2.5 rounded-full transition-colors duration-500"
+            className="pv-nav-ponto inline-block h-2.5 w-2.5 rounded-full transition-colors duration-500"
             style={{ backgroundColor: "var(--d-pigment, var(--d-accent))" }}
           />
         </a>
@@ -39,16 +41,20 @@ export function Nav({
               {link.label}
             </a>
           ))}
-          <a href={ctaHref} className="d-nav-cta inline-flex">
+          {mostraCta && (
+            <a href={ctaHref} className="d-nav-cta inline-flex">
+              <span className="d-nav-cta-grad" aria-hidden="true" />
+              <span className="relative">{ctaLabel}</span>
+            </a>
+          )}
+        </nav>
+
+        {mostraCta && (
+          <a href={ctaHref} className="d-nav-cta inline-flex text-sm md:hidden">
             <span className="d-nav-cta-grad" aria-hidden="true" />
             <span className="relative">{ctaLabel}</span>
           </a>
-        </nav>
-
-        <a href={ctaHref} className="d-nav-cta inline-flex text-sm md:hidden">
-          <span className="d-nav-cta-grad" aria-hidden="true" />
-          <span className="relative">{ctaLabel}</span>
-        </a>
+        )}
       </div>
     </header>
   );

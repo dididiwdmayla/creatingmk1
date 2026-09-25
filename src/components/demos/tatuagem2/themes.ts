@@ -1,50 +1,107 @@
 import type { Theme, ThemeFontes } from "@/lib/demos/types";
 
 /**
- * Presets de tema da skin de tatuagem "Pigmento Vivo" (conversão de
- * skins-raw/tatuagem2 — CROMA Tattoo Studio): fundo claro, blobs
- * coloridos borrados, manifesto editorial e trilha de portfólio
- * horizontal. O material bruto usa só duas famílias (DM Serif Display
- * para títulos, Archivo pro resto) — `serif`/`decorativa`/`citacao`
- * reaproveitam a display, `mono`/`destaque` reaproveitam o corpo (não
- * existe uma família tabular/monoespaçada no original: rótulos e preços
- * usam a mesma Archivo em caixa alta), igual ao critério já usado em
- * tatuagem/lancheria quando a família não existe separada no original.
+ * Presets de tema da skin de tatuagem "Pigmento Vivo" — quatro TINTAS
+ * (fundo, fontes locais por variante — ver `./fontes.ts` — e paleta legível)
+ * consumidas por `./variantes.ts` (`criarVariante`), que monta o `Theme`
+ * final de cada uma (id/nome/descrição da variante, arranjo, exemplo).
+ *
+ * A paleta aqui já é a versão REMEDIDA em
+ * docs/plano-tatuagem-pigmento-vivo.md §2/§6: `destaque`/`acentoSecundario`/
+ * `acentoTerciario` guardam as TINTAS (a mesma cor do pigmento, escurecida/
+ * clareada até ≥4,5:1 sobre fundo, alt, elevado e a pílula do próprio
+ * pigmento a 16%) — nunca o vivo. Os vivos moram em `Theme.pigmento.manchas`
+ * (só mancha e campo de cor os usam — ver `PigmentoTokens` em
+ * `lib/demos/types.ts`). `textoSuave` é cor SÓLIDA (regra 2 do §2), não mais
+ * alfa sobre preto/branco — o valor muda por variante porque precisa ler
+ * ≥4,5:1 nas três superfícies E sobre a própria mancha a α 0,30.
+ *
+ * Verificado por `pigmento-paletas.test.ts` (contrasteWcag, composto sobre
+ * as superfícies reais) — nenhum par de leitura abaixo de 4,5:1.
  */
-const FONTES_PIGMENTO: ThemeFontes = {
-  display: "var(--font-demo-dm-serif), Georgia, serif",
-  corpo: "var(--font-demo-archivo), system-ui, sans-serif",
-  mono: "var(--font-demo-archivo), system-ui, sans-serif",
-  serif: "var(--font-demo-dm-serif), Georgia, serif",
-  decorativa: "var(--font-demo-dm-serif), Georgia, serif",
-  citacao: "var(--font-demo-dm-serif), Georgia, serif",
-  destaque: "var(--font-demo-archivo), system-ui, sans-serif",
+
+/** Fontes locais da Aquarela (DM Serif Display + Archivo) — ver ./fontes.ts. */
+const FONTES_AQUARELA: ThemeFontes = {
+  display: "var(--font-pv-display), Georgia, serif",
+  corpo: "var(--font-pv-corpo), system-ui, sans-serif",
+  mono: "var(--font-pv-corpo), system-ui, sans-serif",
+  serif: "var(--font-pv-display), Georgia, serif",
+  decorativa: "var(--font-pv-display), Georgia, serif",
+  citacao: "var(--font-pv-display), Georgia, serif",
+  destaque: "var(--font-pv-corpo), system-ui, sans-serif",
 };
 
-/** Paleta original do material bruto: creme + rosa/azul/laranja vivos. */
+/** Fontes locais da Boreal (Bricolage Grotesque + Figtree) — ver ./fontes.ts. */
+const FONTES_BOREAL: ThemeFontes = {
+  display: "var(--font-pv-display), system-ui, sans-serif",
+  corpo: "var(--font-pv-corpo), system-ui, sans-serif",
+  mono: "var(--font-pv-corpo), system-ui, sans-serif",
+  serif: "var(--font-pv-display), system-ui, sans-serif",
+  decorativa: "var(--font-pv-display), system-ui, sans-serif",
+  citacao: "var(--font-pv-display), system-ui, sans-serif",
+  destaque: "var(--font-pv-corpo), system-ui, sans-serif",
+};
+
+/** Fontes locais da Meia-noite (Dela Gothic One + Space Grotesk) — ver ./fontes.ts. */
+const FONTES_MEIA_NOITE: ThemeFontes = {
+  display: "var(--font-pv-display), system-ui, sans-serif",
+  corpo: "var(--font-pv-corpo), system-ui, sans-serif",
+  mono: "var(--font-pv-corpo), system-ui, sans-serif",
+  serif: "var(--font-pv-display), system-ui, sans-serif",
+  decorativa: "var(--font-pv-display), system-ui, sans-serif",
+  citacao: "var(--font-pv-display), system-ui, sans-serif",
+  destaque: "var(--font-pv-corpo), system-ui, sans-serif",
+};
+
+/** Fontes locais da Terra (Young Serif + Karla) — ver ./fontes.ts. */
+const FONTES_TERRA: ThemeFontes = {
+  display: "var(--font-pv-display), Georgia, serif",
+  corpo: "var(--font-pv-corpo), system-ui, sans-serif",
+  mono: "var(--font-pv-corpo), system-ui, sans-serif",
+  serif: "var(--font-pv-display), Georgia, serif",
+  decorativa: "var(--font-pv-display), Georgia, serif",
+  citacao: "var(--font-pv-display), Georgia, serif",
+  destaque: "var(--font-pv-corpo), system-ui, sans-serif",
+};
+
+/** Paleta original do material bruto, remedida: creme + tintas de rosa/azul/laranja. */
 const AQUARELA: Theme = {
   id: "aquarela",
   nome: "Aquarela (creme, rosa e azul)",
   paleta: {
     fundo: "#FAF6F0",
-    fundoAlt: "#F1E9DB",
-    fundoElevado: "#E9DFC9",
-    destaque: "#D6336C",
+    fundoAlt: "#F2EADC",
+    fundoElevado: "#EADFCB",
+    destaque: "#A51C4C",
     destaqueInk: "#FFFFFF",
     texto: "#141414",
-    textoSuave: "rgba(20, 20, 20, 0.65)",
+    textoSuave: "#534D46",
     borda: "rgba(20, 20, 20, 0.12)",
-    acentoSecundario: "#2B4EFF",
-    acentoTerciario: "#FF6B35",
+    acentoSecundario: "#2440D0",
+    acentoTerciario: "#94380B",
   },
-  fontes: FONTES_PIGMENTO,
+  pigmento: {
+    manchas: ["#E0336F", "#2B4EFF", "#FF6B35"],
+    abertura: "mancha",
+    portfolio: "trilha",
+    investimento: "gotas",
+    processo: "onda",
+    manifesto: "circulo",
+    estilos: "mostruario",
+    artistas: "assinaturas",
+    depoimentos: "bilhetes",
+    faq: "acordeao",
+    agendar: "gota",
+    contato: "assinatura",
+  },
+  fontes: FONTES_AQUARELA,
   raio: "4px",
   densidade: "arejada",
   animacao: "marcante",
   intro: false,
   hover: "lift",
   clique: "pressao",
-  fundoEfeito: "nenhum",
+  fundoEfeito: "grao",
   heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
   led: "desligado",
   ledEstilo: "barra",
@@ -55,25 +112,39 @@ const BOREAL: Theme = {
   id: "boreal",
   nome: "Boreal (cinza, verde e violeta)",
   paleta: {
-    fundo: "#F5F7F6",
-    fundoAlt: "#E9EEEC",
-    fundoElevado: "#DEE7E3",
-    destaque: "#0F9D6E",
+    fundo: "#F4F6F5",
+    fundoAlt: "#E6ECE9",
+    fundoElevado: "#DAE3DF",
+    destaque: "#0A6B50",
     destaqueInk: "#FFFFFF",
-    texto: "#101614",
-    textoSuave: "rgba(16, 22, 20, 0.62)",
+    texto: "#0F1513",
+    textoSuave: "#434E4A",
     borda: "rgba(16, 22, 20, 0.12)",
-    acentoSecundario: "#6633CC",
-    acentoTerciario: "#2B4EFF",
+    acentoSecundario: "#5A2BBE",
+    acentoTerciario: "#1F4FC4",
   },
-  fontes: FONTES_PIGMENTO,
-  raio: "8px",
+  pigmento: {
+    manchas: ["#12A57C", "#6A35D6", "#2B6BFF"],
+    abertura: "sobreposicao",
+    portfolio: "vitrine",
+    investimento: "regua",
+    processo: "camadas",
+    manifesto: "grifo",
+    estilos: "bento",
+    artistas: "monogramas",
+    depoimentos: "conversa",
+    faq: "fichas",
+    agendar: "talao",
+    contato: "recibo",
+  },
+  fontes: FONTES_BOREAL,
+  raio: "0px",
   densidade: "confortavel",
   animacao: "sutil",
   intro: false,
   hover: "brilho",
   clique: "nenhum",
-  fundoEfeito: "nenhum",
+  fundoEfeito: "varredura-de-luz",
   heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "centro" },
   led: "desligado",
   ledEstilo: "barra",
@@ -84,58 +155,88 @@ const MEIA_NOITE: Theme = {
   id: "meia-noite",
   nome: "Meia-noite (preto, ciano e magenta)",
   paleta: {
-    fundo: "#0E0B10",
-    fundoAlt: "#17121C",
-    fundoElevado: "#221B29",
-    destaque: "#22B8D9",
-    destaqueInk: "#0B2A30",
-    texto: "#F5F1EC",
-    textoSuave: "rgba(245, 241, 236, 0.62)",
+    fundo: "#0D0A12",
+    fundoAlt: "#16111D",
+    fundoElevado: "#211A2B",
+    destaque: "#3FD0EE",
+    destaqueInk: "#07141A",
+    texto: "#F6F2EE",
+    textoSuave: "#B9B2BF",
     borda: "rgba(245, 241, 236, 0.10)",
-    acentoSecundario: "#E23FA0",
-    acentoTerciario: "#FF9152",
+    acentoSecundario: "#FF6CC4",
+    acentoTerciario: "#FFA86A",
   },
-  fontes: FONTES_PIGMENTO,
+  pigmento: {
+    manchas: ["#22C3E6", "#FF4FB8", "#FF9A52"],
+    abertura: "cartela",
+    portfolio: "manchas",
+    investimento: "etiquetas",
+    processo: "quadrinhos",
+    manifesto: "pilha",
+    estilos: "paleta",
+    artistas: "bandeiras",
+    depoimentos: "coro",
+    faq: "manchete",
+    agendar: "diagonal",
+    contato: "letreiro",
+  },
+  fontes: FONTES_MEIA_NOITE,
   raio: "12px",
-  densidade: "confortavel",
-  animacao: "sutil",
+  densidade: "compacta",
+  animacao: "marcante",
   intro: false,
   hover: "zoom",
   clique: "pulso",
-  fundoEfeito: "particulas",
+  fundoEfeito: "aura",
   heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
-  led: "sutil",
-  ledEstilo: "barra",
+  // LED desligado por padrão até a correção de desempenho do LedEdges (ver FPS-diagnostico.md); religar depois.
+  led: "desligado",
+  ledEstilo: "dissipado",
+  ledCores: { modo: "transicao", cores: ["#3FD0EE", "#FF6CC4", "#FFA86A"] },
 };
 
-/** Variante terrosa — tons muito mais contidos, terracota + mostarda + verde-petróleo. */
+/** Variante terrosa — terracota, mostarda e verde-petróleo sobre bege. */
 const TERRA: Theme = {
   id: "terra",
   nome: "Terra (bege, terracota e petróleo)",
   paleta: {
-    fundo: "#F4EDE2",
-    fundoAlt: "#E9DCC7",
-    fundoElevado: "#DDCBAE",
-    destaque: "#C1512F",
+    fundo: "#F5EFE6",
+    fundoAlt: "#EBE1D2",
+    fundoElevado: "#E0D2BD",
+    destaque: "#963A1B",
     destaqueInk: "#FFFFFF",
-    texto: "#241C14",
-    textoSuave: "rgba(36, 28, 20, 0.62)",
+    texto: "#221A13",
+    textoSuave: "#54483C",
     borda: "rgba(36, 28, 20, 0.14)",
-    acentoSecundario: "#8A6D1E",
-    acentoTerciario: "#2F6B5E",
+    acentoSecundario: "#6E5210",
+    acentoTerciario: "#275A4F",
   },
-  fontes: FONTES_PIGMENTO,
-  raio: "16px",
+  pigmento: {
+    manchas: ["#C4552F", "#C9961E", "#2F6B5E"],
+    abertura: "medalhao",
+    portfolio: "mesa",
+    investimento: "selos",
+    processo: "ciclo",
+    manifesto: "carta",
+    estilos: "baralho",
+    artistas: "livro",
+    depoimentos: "caderno",
+    faq: "respostas",
+    agendar: "postal",
+    contato: "colofao",
+  },
+  fontes: FONTES_TERRA,
+  raio: "24px",
   densidade: "arejada",
-  animacao: "marcante",
+  animacao: "sutil",
   intro: false,
   hover: "lift",
-  clique: "pressao",
-  fundoEfeito: "nenhum",
+  clique: "nenhum",
+  fundoEfeito: "grao",
   heroTitulo: { fonte: "", escala: 1, espacamento: 0, alinhamento: "esquerda" },
+  // LED desligado por padrão até a correção de desempenho do LedEdges (ver FPS-diagnostico.md); religar depois.
   led: "desligado",
-  ledEstilo: "barra",
+  ledEstilo: "moldura",
 };
 
-export const TATUAGEM2_THEME_DEFAULT: Theme = AQUARELA;
 export const TATUAGEM2_THEME_PRESETS: Theme[] = [AQUARELA, BOREAL, MEIA_NOITE, TERRA];

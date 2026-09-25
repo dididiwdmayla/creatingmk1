@@ -2,10 +2,17 @@ import Image from "next/image";
 import { type CSSProperties, type ReactNode } from "react";
 
 import { SecaoMarcada } from "@/lib/demos/animacao/SecaoMarcada";
+import { luminancia } from "@/lib/demos/contraste";
 import { secaoAnimada, secoesVisiveis } from "@/lib/demos/estrutura";
 import { microcopiaDemo } from "@/lib/demos/microcopy";
+import { linhaDeApoio, quebrarTitulo } from "@/lib/demos/montar";
 import { formatarPrecoServico } from "@/lib/demos/precos";
 import type { Alinhamento, Animacao, Densidade, SkinProps } from "@/lib/demos/types";
+import {
+  atributosDaComposicao,
+  PIGMENTO_COMPOSICAO_CSS,
+  PIGMENTO_COMPOSICAO_PADRAO,
+} from "./composicao";
 import { FadeUp } from "./interactive/FadeUp";
 import { FaqAccordion } from "./interactive/FaqAccordion";
 import { IntroExperience } from "./interactive/IntroExperience";
@@ -70,9 +77,21 @@ const ANIM_HOVER_LIFT: Record<Animacao, string> = {
 /** Seções com revelação própria (não embrulhar de novo no SectionReveal padrão). */
 const SEM_ENTRADA_DEFAULT = new Set(["manifesto"]);
 
-function waHref(whatsapp: string | undefined): string {
-  const digitos = (whatsapp ?? "").replace(/\D/g, "");
-  return digitos ? `https://wa.me/${digitos}` : "#agendar";
+/**
+ * Escada do canal de agendamento (decisão fechada da sessão de fundação):
+ * WhatsApp → telefone → Instagram → nenhum. `undefined` quando o lead não
+ * tem nenhum dos três — quem chama esconde os botões (nunca
+ * `href="#agendar"` circular, o defeito do §1 do plano: os dois CTAs
+ * DENTRO da seção `agendar` apontavam pra si mesmos).
+ */
+function canalDeAgendamento(data: SkinProps["data"]): string | undefined {
+  const digitos = (data.whatsapp ?? "").replace(/\D/g, "");
+  if (digitos) return `https://wa.me/${digitos}`;
+  const telefone = (data.telefone ?? "").replace(/\D/g, "");
+  if (telefone) return `tel:${telefone}`;
+  const instagram = data.instagram?.trim();
+  if (instagram) return `https://instagram.com/${instagram.replace(/^@/, "")}`;
+  return undefined;
 }
 
 function Etiqueta({ texto, slot }: { texto?: string; slot?: string }) {
@@ -120,10 +139,43 @@ const RABISCOS_ARTISTA = [
   "M40 140 C 60 100, 55 70, 85 55 C 115 40, 140 55, 138 80 C 136 102, 110 108, 100 92 C 92 78, 105 64, 122 68 M 85 55 C 95 40, 115 30, 135 32",
 ];
 
+/** A Aquarela sempre usa duas linhas — composição, não conteúdo novo. */
+function nomeDaAbertura(nome: string, abertura: string): string {
+  if (abertura !== "mancha") return quebrarTitulo(nome);
+  const palavras = nome.trim().split(/\s+/);
+  if (palavras.length < 2) return palavras[0] ?? "";
+  const corte = Math.ceil(palavras.length / 2);
+  return `${palavras.slice(0, corte).join(" ")}\n${palavras.slice(corte).join(" ")}`;
+}
+
 export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) {
   const { paleta, fontes } = theme;
   const m = microcopiaDemo(idioma);
-  const pigmentos = [paleta.destaque, paleta.acentoSecundario, paleta.acentoTerciario];
+  // Tons legíveis (tinta) — texto, número, estrela e ícone. Nunca fundo de
+  // mancha ou campo de cor (ver PigmentoTokens em lib/demos/types.ts).
+  const pigmentos: [string, string, string] = [
+    paleta.destaque,
+    paleta.acentoSecundario,
+    paleta.acentoTerciario,
+  ];
+  // Tons vivos (mancha) — só preenchimento e decoração: blobs do hero, blob
+  // do cartão de estilo no hover, cursor/ponto rastreador, campo de cor do
+  // CTA final na Meia-noite. `?? pigmentos` é só type safety (a skin sempre
+  // declara `theme.pigmento` — ver tatuagem2/themes.ts); nunca usado de fato.
+  const composicao = theme.pigmento ?? {
+    ...PIGMENTO_COMPOSICAO_PADRAO,
+    manchas: pigmentos,
+  };
+  const manchas = composicao.manchas;
+  // Fundo escuro? (mesmo critério de luminância de tema.ts/variantes.test.tsx).
+  // Decide o blend-mode das manchas (regra: multiply desaparece em fundo
+  // quase preto — §1/§17 D6 do plano) e o campo de cor do CTA final
+  // (regra 4 do §2: tintas no claro com texto branco, vivos no escuro com
+  // texto na cor do fundo).
+  const escuro = luminancia(paleta.fundo) < 0.5;
+  const mistura = escuro ? "screen" : "multiply";
+  const campoCores = escuro ? manchas : pigmentos;
+  const campoTexto = escuro ? paleta.fundo : "#FFFFFF";
 
   const vars = {
     "--d-bg": paleta.fundo,
@@ -152,10 +204,18 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     "--d-anim-ease": "cubic-bezier(0.16, 1, 0.3, 1)",
     "--d-hover-scale": ANIM_HOVER_SCALE[theme.animacao],
     "--d-hover-lift": ANIM_HOVER_LIFT[theme.animacao],
+    "--pv-mancha-1": manchas[0],
+    "--pv-mancha-2": manchas[1],
+    "--pv-mancha-3": manchas[2],
+    "--pv-mistura": mistura,
+    "--pv-campo-1": campoCores[0],
+    "--pv-campo-2": campoCores[1],
+    "--pv-campo-3": campoCores[2],
+    "--pv-campo-texto": campoTexto,
   } as CSSProperties;
 
   const s = data.secoes;
-  const agendar = waHref(data.whatsapp);
+  const agendar = canalDeAgendamento(data);
   const HERO_ALINHAMENTO_TEXT: Record<Alinhamento, string> = {
     esquerda: "text-left items-start",
     centro: "text-center items-center",
@@ -188,25 +248,43 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     s.faq?.rotulo && { href: "#faq", label: s.faq.rotulo },
   ].filter((link): link is { href: string; label: string } => Boolean(link));
 
+  const valoresDePreco = data.servicos
+    .map((servico) => servico.precoValor)
+    .filter((valor): valor is number => typeof valor === "number" && Number.isFinite(valor));
+  const precoMinimo = Math.min(...valoresDePreco);
+  const precoMaximo = Math.max(...valoresDePreco);
+  const posicaoNaRegua = (valor: number | undefined): number => {
+    if (valor === undefined || !Number.isFinite(valor)) return 100;
+    if (precoMaximo === precoMinimo) return 50;
+    return 5 + ((valor - precoMinimo) / (precoMaximo - precoMinimo)) * 82;
+  };
+  const temDadosContato = Boolean(
+    data.endereco ||
+      data.cidade ||
+      data.horarios ||
+      (data.telefone && data.telefone !== data.whatsapp) ||
+      data.instagram,
+  );
+
   const secoes: Record<string, () => ReactNode> = {
     /* ── Hero (fixa) ─────────────────────────────────────────── */
     hero: () => (
       <section
         id="topo"
-        data-pigment={pigmentos[0]}
-        className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden px-6 pb-20 pt-32 md:px-[clamp(20px,5vw,72px)]"
+        data-pigment={manchas[0]}
+        className="pv-hero relative flex min-h-[100svh] flex-col justify-center overflow-hidden px-6 pb-20 pt-32 md:px-[clamp(20px,5vw,72px)]"
       >
-        <div className="pointer-events-none absolute -left-[8%] top-[6%] h-[46vw] w-[46vw] rounded-full">
+        <div className="pv-hero-mancha pv-hero-mancha-a pointer-events-none absolute -left-[8%] top-[6%] h-[46vw] w-[46vw] rounded-full">
           <Parallax animacao={theme.animacao} className="h-full w-full">
             <div className="d-blob d-blob-a h-full w-full rounded-full" />
           </Parallax>
         </div>
-        <div className="pointer-events-none absolute -right-[10%] top-[30%] h-[42vw] w-[42vw] rounded-full">
+        <div className="pv-hero-mancha pv-hero-mancha-b pointer-events-none absolute -right-[10%] top-[30%] h-[42vw] w-[42vw] rounded-full">
           <Parallax animacao={theme.animacao} className="h-full w-full">
             <div className="d-blob d-blob-b h-full w-full rounded-full" />
           </Parallax>
         </div>
-        <div className="pointer-events-none absolute -bottom-[12%] left-[32%] hidden h-[34vw] w-[34vw] rounded-full md:block">
+        <div className="pv-hero-mancha pv-hero-mancha-c pointer-events-none absolute -bottom-[12%] left-[32%] hidden h-[34vw] w-[34vw] rounded-full md:block">
           <Parallax animacao={theme.animacao} className="h-full w-full">
             <div className="d-blob d-blob-c h-full w-full rounded-full" />
           </Parallax>
@@ -215,7 +293,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         <svg
           viewBox="0 0 1200 600"
           preserveAspectRatio="xMidYMid slice"
-          className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.85]"
+          className="pv-hero-traco pointer-events-none absolute inset-0 h-full w-full opacity-[0.85]"
           aria-hidden="true"
         >
           <path
@@ -227,32 +305,58 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           />
         </svg>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col">
-          <FadeUp animacao={theme.animacao} delay={0.1}>
+        <div className="pv-hero-conteudo relative z-10 mx-auto flex w-full max-w-7xl flex-col">
+          <FadeUp animacao={theme.animacao} delay={0.1} className="pv-hero-etiqueta">
             <Etiqueta texto={s.hero?.rotulo} slot="secoes.hero.rotulo" />
           </FadeUp>
 
-          <div className={`flex w-full flex-col ${HERO_ALINHAMENTO_TEXT[theme.heroTitulo.alinhamento]}`}>
-            <SplashTitle
-              texto={s.hero?.titulo ?? data.nome}
-              slot="secoes.hero.titulo"
-              as="h1"
-              accentCycle={pigmentos}
-              className="whitespace-pre-line font-[family-name:var(--d-hero-font)] leading-[0.98] text-[var(--d-text)]"
-              style={{ fontSize: "calc(clamp(2.75rem, 9vw, 7.5rem) * var(--d-hero-escala))" }}
-            />
+          <div className={`pv-hero-nome-bloco flex w-full flex-col ${HERO_ALINHAMENTO_TEXT[theme.heroTitulo.alinhamento]}`}>
+            {/* O <h1> é SEMPRE o nome do negócio (decisão 3 da sessão de
+                fundação, precedente da multimarcas): título salvo (se
+                houver, e diferente do nome) vira linha de apoio abaixo,
+                nunca troca o <h1>. Nenhuma demo salva perde texto. */}
+            <div className="pv-hero-nome-caixa">
+              <span className="pv-hero-fantasma" aria-hidden="true">
+                {data.nome}
+              </span>
+              <span className="pv-hero-arco pv-hero-arco-a" aria-hidden="true" />
+              <span className="pv-hero-arco pv-hero-arco-b" aria-hidden="true" />
+              <span className="pv-hero-arco pv-hero-arco-c" aria-hidden="true" />
+              <SplashTitle
+                texto={nomeDaAbertura(data.nome, composicao.abertura)}
+                slot="nome"
+                as="h1"
+                accentCycle={pigmentos}
+                className="pv-hero-nome whitespace-pre-line font-[family-name:var(--d-hero-font)] leading-[0.98] text-[var(--d-text)]"
+                style={{ fontSize: "calc(clamp(2.75rem, 9vw, 7.5rem) * var(--d-hero-escala))" }}
+              />
+            </div>
+            {linhaDeApoio(s.hero?.titulo, data.nome) && (
+              <p
+                data-demo-slot="secoes.hero.titulo"
+                className="pv-hero-apoio mt-3 max-w-2xl text-balance font-[family-name:var(--d-display)] text-[clamp(1.15rem,2.6vw,1.75rem)] leading-snug text-[var(--d-text)]"
+              >
+                {linhaDeApoio(s.hero?.titulo, data.nome)}
+              </p>
+            )}
           </div>
 
           {s.hero?.texto && (
-            <FadeUp animacao={theme.animacao} delay={0.3} className="mt-6 max-w-xl">
-              <p data-demo-slot="secoes.hero.texto" className="text-[15px] leading-relaxed text-[var(--d-muted)] md:text-base">
+            <FadeUp animacao={theme.animacao} delay={0.3} className="pv-hero-texto-caixa mt-6 max-w-xl">
+              <p data-demo-slot="secoes.hero.texto" className="pv-hero-texto text-[15px] leading-relaxed text-[var(--d-muted)] md:text-base">
                 {s.hero.texto}
               </p>
             </FadeUp>
           )}
 
-          {s.hero?.cta && (
-            <FadeUp animacao={theme.animacao} delay={0.5} className="mt-10">
+          <div className="pv-hero-regua" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+
+          {s.hero?.cta && agendar && (
+            <FadeUp animacao={theme.animacao} delay={0.5} className="pv-hero-cta mt-10">
               <a href={agendar} data-demo-slot="secoes.hero.cta" className="d-cta-pill d-cta-solida">
                 {s.hero.cta}
               </a>
@@ -265,22 +369,27 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Manifesto ───────────────────────────────────────────── */
     manifesto: () =>
       s.manifesto?.texto && (
-        <section data-pigment={paleta.texto} className="px-6 py-[calc(var(--d-sec-y)*1.2)] md:px-[clamp(20px,7vw,120px)]">
-          <ManifestoReveal
-            texto={s.manifesto.texto}
-            slot="secoes.manifesto.texto"
-            accentCycle={pigmentos}
-            ativa={theme.animacao !== "nenhuma"}
-            className="max-w-4xl font-[family-name:var(--d-serif)] leading-[1.18] text-[clamp(1.75rem,5vw,4.5rem)]"
-          />
+        <section data-pigment={paleta.texto} className="pv-manifesto px-6 py-[calc(var(--d-sec-y)*1.2)] md:px-[clamp(20px,7vw,120px)]">
+          <div className="pv-manifesto-quadro">
+            <span className="pv-manifesto-folha pv-manifesto-folha-a" aria-hidden="true" />
+            <span className="pv-manifesto-folha pv-manifesto-folha-b" aria-hidden="true" />
+            <span className="pv-manifesto-marca" aria-hidden="true" />
+            <ManifestoReveal
+              texto={s.manifesto.texto}
+              slot="secoes.manifesto.texto"
+              accentCycle={pigmentos}
+              ativa={theme.animacao !== "nenhuma"}
+              className="pv-manifesto-texto max-w-4xl font-[family-name:var(--d-serif)] leading-[1.18] text-[clamp(1.75rem,5vw,4.5rem)]"
+            />
+          </div>
         </section>
       ),
 
     /* ── Estilos ─────────────────────────────────────────────── */
     estilos: () =>
       s.estilos && (
-        <section id="estilos" className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className="mb-14">
+        <section id="estilos" className="pv-estilos px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className="pv-estilos-cabeca mb-14">
             <Etiqueta texto={s.estilos.rotulo} slot="secoes.estilos.rotulo" />
             <SplashTitle
               texto={s.estilos.titulo}
@@ -289,42 +398,43 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               className="font-[family-name:var(--d-display)] text-[clamp(2.25rem,6vw,5.5rem)] leading-[1] text-[var(--d-text)]"
             />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="pv-estilos-lista grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {(s.estilos.itens ?? []).map((item, i) => {
               const ultimo = i === (s.estilos?.itens?.length ?? 0) - 1;
+              // Número/texto usam a TINTA (legível); só o blob do hover usa
+              // a MANCHA (vivo) — regra 1 do §2 do plano.
               const cor = pigmentos[i % pigmentos.length];
+              const corBlob = manchas[i % manchas.length];
               return (
-                <FadeUp key={item.titulo} animacao={theme.animacao} delay={0.06 * i}>
+                <FadeUp key={item.titulo} animacao={theme.animacao} delay={0.06 * i} className="pv-estilo-item">
                   <div
-                    className={`d-estilo-card group relative flex min-h-[300px] flex-col justify-between overflow-hidden p-7 ${
+                    className={`pv-estilo-cartao d-estilo-card group relative flex min-h-[300px] flex-col justify-between overflow-hidden p-7 ${
                       ultimo ? "d-estilo-card-escuro" : ""
                     }`}
                     style={
                       {
-                        "--d-card-blob": cor,
-                        borderRadius: "var(--d-radius)",
+                        "--d-card-blob": corBlob,
+                        "--pv-estilo-tinta": cor,
                       } as CSSProperties
                     }
                   >
                     <span
                       data-demo-slot={`secoes.estilos.itens.${i}.detalhe`}
-                      className="relative font-[family-name:var(--d-mono)] text-sm font-semibold"
-                      style={{ color: ultimo ? "var(--d-bg)" : cor }}
+                      className="pv-estilo-numero relative font-[family-name:var(--d-mono)] text-sm font-semibold"
                     >
                       {String(i + 1).padStart(2, "0")}
                     </span>
-                    <div className="relative">
+                    <div className="pv-estilo-copy relative">
                       <h3
                         data-demo-slot={`secoes.estilos.itens.${i}.titulo`}
-                        className="mb-2 font-[family-name:var(--d-display)] text-[2rem] italic leading-none"
+                        className="pv-estilo-titulo mb-2 font-[family-name:var(--d-display)] text-[2rem] italic leading-none"
                       >
                         {item.titulo}
                       </h3>
                       {item.texto && (
                         <p
                           data-demo-slot={`secoes.estilos.itens.${i}.texto`}
-                          className="text-sm leading-relaxed"
-                          style={{ color: ultimo ? "color-mix(in srgb, var(--d-bg) 70%, transparent)" : "var(--d-muted)" }}
+                          className="pv-estilo-texto text-sm leading-relaxed"
                         >
                           {item.texto}
                         </p>
@@ -342,11 +452,11 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     investimento: () => (
       <section
         id="investimento"
-        data-pigment={pigmentos[2]}
-        className="border-y border-[var(--d-border)] bg-[var(--d-bg-alt)] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]"
+        data-pigment={manchas[2]}
+        className="pv-investimento border-y border-[var(--d-border)] bg-[var(--d-bg-alt)] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]"
       >
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-14">
+        <div className="pv-investimento-caixa mx-auto max-w-5xl">
+          <div className="pv-investimento-cabeca mb-14">
             <Etiqueta texto={s.investimento?.rotulo} slot="secoes.investimento.rotulo" />
             <SplashTitle
               texto={s.investimento?.titulo}
@@ -355,30 +465,40 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               className="font-[family-name:var(--d-display)] text-[clamp(2rem,5.5vw,4.5rem)] leading-[1] text-[var(--d-text)]"
             />
           </div>
-          <div className="flex flex-col gap-3">
+          <div className="pv-investimento-lista flex flex-col gap-3">
             {data.servicos.map((servico, i) => (
               <div
                 key={servico.nome}
-                className="flex flex-col items-start justify-between gap-2 border-b border-[var(--d-border)] py-5 sm:flex-row sm:items-baseline"
+                data-preco-sem-valor={servico.precoValor === undefined ? "true" : undefined}
+                className="pv-investimento-item flex flex-col items-start justify-between gap-2 border-b border-[var(--d-border)] py-5 sm:flex-row sm:items-baseline"
+                style={
+                  {
+                    "--pv-preco-pos": posicaoNaRegua(servico.precoValor),
+                    "--pv-item-mancha": manchas[i % manchas.length],
+                    "--pv-item-tinta": pigmentos[i % pigmentos.length],
+                  } as CSSProperties
+                }
               >
-                <div>
+                <div className="pv-investimento-copy">
                   <h3
                     data-demo-slot={`servicos.${i}.nome`}
-                    className="font-[family-name:var(--d-display)] text-xl italic text-[var(--d-text)] md:text-2xl"
+                    className="pv-investimento-nome font-[family-name:var(--d-display)] text-xl italic text-[var(--d-text)] md:text-2xl"
                   >
                     {servico.nome}
                   </h3>
                   {servico.descricao && (
-                    <p data-demo-slot={`servicos.${i}.descricao`} className="mt-1 max-w-xl text-sm text-[var(--d-muted)]">
+                    <p data-demo-slot={`servicos.${i}.descricao`} className="pv-investimento-desc mt-1 max-w-xl text-sm text-[var(--d-muted)]">
                       {servico.descricao}
                     </p>
                   )}
                 </div>
                 <span
                   data-demo-slot={`servicos.${i}.preco`}
-                  className="whitespace-nowrap rounded-full px-4 py-1.5 font-[family-name:var(--d-mono)] text-sm font-semibold"
+                  className="pv-investimento-preco whitespace-nowrap rounded-full px-4 py-1.5 font-[family-name:var(--d-mono)] text-sm font-semibold"
                   style={{
-                    backgroundColor: `color-mix(in srgb, ${pigmentos[i % pigmentos.length]} 16%, transparent)`,
+                    // Pílula: fundo na MANCHA a 16% (decoração), texto na
+                    // TINTA (leitura) — regra 1 do §2 do plano.
+                    backgroundColor: `color-mix(in srgb, ${manchas[i % manchas.length]} 16%, transparent)`,
                     color: pigmentos[i % pigmentos.length],
                   }}
                 >
@@ -394,8 +514,8 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Portfólio (trilha horizontal) ──────────────────────── */
     portfolio: () =>
       s.portfolio && (
-        <section id="portfolio" data-pigment={pigmentos[0]} className="py-[var(--d-sec-y)]">
-          <div className="mb-10 px-6 md:px-[clamp(20px,5vw,72px)]">
+        <section id="portfolio" data-pigment={manchas[0]} className="pv-portfolio py-[var(--d-sec-y)]">
+          <div className="pv-portfolio-cabeca mb-10 px-6 md:px-[clamp(20px,5vw,72px)]">
             <Etiqueta texto={s.portfolio.rotulo} slot="secoes.portfolio.rotulo" />
             <SplashTitle
               texto={s.portfolio.titulo}
@@ -405,30 +525,45 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
             />
           </div>
 
-          <ScrollGallery>
+          <ScrollGallery ativa={composicao.portfolio === "trilha"}>
             {(s.portfolio.itens ?? []).map((item, i) => {
               const largura = [420, 300, 360, 280, 400, 340][i % 6];
               const altura = [520, 400, 480, 360, 500, 440][i % 6];
+              const slot = `portfolio-${i + 1}`;
+              // Só 8 slots de foto (§11 do plano). Do 9º item em diante a
+              // figura sai só com a legenda — nunca a foto emprestada do
+              // slot 1 com um data-demo-slot que não existe no contrato.
+              const temSlot = slot in data.imagens;
               return (
-                <figure key={i} className="m-0 flex-shrink-0">
-                  <div
-                    className="relative overflow-hidden"
-                    style={{
-                      width: `min(${largura}px, 78vw)`,
-                      height: altura,
-                      borderRadius: "var(--d-radius)",
-                    }}
-                  >
-                    <Placeholder
-                      src={data.imagens[`portfolio-${i + 1}`] ?? Object.values(data.imagens)[0]}
-                      alt={`${item.titulo} — ${item.subtitulo ?? ""}`}
-                      sizes="(max-width: 768px) 78vw, 420px"
-                      slot={`imagens.portfolio-${i + 1}`}
-                    />
-                  </div>
+                <figure
+                  key={i}
+                  className="pv-portfolio-item m-0 flex-shrink-0"
+                  style={
+                    {
+                      "--pv-foto-largura": `${largura}px`,
+                      "--pv-foto-altura": `${altura}px`,
+                      "--pv-i": i,
+                    } as CSSProperties
+                  }
+                >
+                  {temSlot && (
+                    <div
+                      className="pv-portfolio-foto relative overflow-hidden"
+                      style={{
+                        borderRadius: "var(--d-radius)",
+                      }}
+                    >
+                      <Placeholder
+                        src={data.imagens[slot]}
+                        alt={data.imagensAlt?.[slot] ?? ""}
+                        sizes="(max-width: 768px) 78vw, 420px"
+                        slot={`imagens.${slot}`}
+                      />
+                    </div>
+                  )}
                   <figcaption
                     data-demo-slot={`secoes.portfolio.itens.${i}`}
-                    className="mt-2.5 text-[13px] text-[var(--d-muted)]"
+                    className="pv-portfolio-legenda mt-2.5 text-[13px] text-[var(--d-muted)]"
                   >
                     {item.titulo} · {item.subtitulo} · {item.detalhe}
                   </figcaption>
@@ -442,8 +577,8 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Artistas ────────────────────────────────────────────── */
     artistas: () =>
       s.artistas && (
-        <section id="artistas" data-pigment={pigmentos[1]} className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className="mb-16">
+        <section id="artistas" data-pigment={manchas[1]} className="pv-artistas px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className="pv-artistas-cabeca mb-16">
             <Etiqueta texto={s.artistas.rotulo} slot="secoes.artistas.rotulo" />
             <SplashTitle
               texto={s.artistas.titulo}
@@ -452,37 +587,54 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               className="font-[family-name:var(--d-display)] text-[clamp(2.25rem,6vw,5.5rem)] leading-[1] text-[var(--d-text)]"
             />
           </div>
-          <div className="flex flex-wrap items-start gap-x-[clamp(24px,4vw,64px)] gap-y-12">
+          <div className="pv-artistas-lista flex flex-wrap items-start gap-x-[clamp(24px,4vw,64px)] gap-y-12">
             {(s.artistas.itens ?? []).map((item, i) => {
               const cor = pigmentos[i % pigmentos.length];
+              const iniciais = item.titulo
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((parte) => parte[0])
+                .join("");
               return (
-                <FadeUp key={item.titulo} animacao={theme.animacao} delay={0.1 * i} className="max-w-[380px] flex-1 basis-[280px]">
-                  <LineDraw
-                    d={RABISCOS_ARTISTA[i % RABISCOS_ARTISTA.length]}
-                    viewBox="0 0 200 160"
-                    stroke={cor}
-                    className="mb-5 block w-full max-w-[220px]"
-                  />
-                  <h3
-                    data-demo-slot={`secoes.artistas.itens.${i}.titulo`}
-                    className="mb-1.5 font-[family-name:var(--d-display)] text-[2.1rem] leading-none text-[var(--d-text)]"
+                <FadeUp key={item.titulo} animacao={theme.animacao} delay={0.1 * i} className="pv-artista-item max-w-[380px] flex-1 basis-[280px]">
+                  <article
+                    className="pv-artista-cartao"
+                    style={{
+                      "--pv-artista-tinta": cor,
+                      "--pv-artista-mancha": manchas[i % manchas.length],
+                    } as CSSProperties}
                   >
-                    {item.titulo}
-                  </h3>
-                  {item.subtitulo && (
-                    <p
-                      data-demo-slot={`secoes.artistas.itens.${i}.subtitulo`}
-                      className="mb-3 font-[family-name:var(--d-mono)] text-[13px] font-semibold uppercase tracking-[0.14em]"
-                      style={{ color: cor }}
-                    >
-                      {item.subtitulo}
-                    </p>
-                  )}
-                  {item.texto && (
-                    <p data-demo-slot={`secoes.artistas.itens.${i}.texto`} className="text-[15px] leading-relaxed text-[var(--d-muted)]">
-                      {item.texto}
-                    </p>
-                  )}
+                    <span className="pv-artista-monograma" aria-hidden="true">{iniciais}</span>
+                    <LineDraw
+                      d={RABISCOS_ARTISTA[i % RABISCOS_ARTISTA.length]}
+                      viewBox="0 0 200 160"
+                      stroke={cor}
+                      className="pv-artista-rabisco mb-5 block w-full max-w-[220px]"
+                    />
+                    <div className="pv-artista-copy">
+                      <h3
+                        data-demo-slot={`secoes.artistas.itens.${i}.titulo`}
+                        className="pv-artista-titulo mb-1.5 font-[family-name:var(--d-display)] text-[2.1rem] leading-none text-[var(--d-text)]"
+                      >
+                        {item.titulo}
+                      </h3>
+                      {item.subtitulo && (
+                        <p
+                          data-demo-slot={`secoes.artistas.itens.${i}.subtitulo`}
+                          className="pv-artista-subtitulo mb-3 font-[family-name:var(--d-mono)] text-[13px] font-semibold uppercase tracking-[0.14em]"
+                          style={{ color: cor }}
+                        >
+                          {item.subtitulo}
+                        </p>
+                      )}
+                      {item.texto && (
+                        <p data-demo-slot={`secoes.artistas.itens.${i}.texto`} className="pv-artista-texto text-[15px] leading-relaxed text-[var(--d-muted)]">
+                          {item.texto}
+                        </p>
+                      )}
+                    </div>
+                  </article>
                 </FadeUp>
               );
             })}
@@ -493,9 +645,9 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Depoimentos ─────────────────────────────────────────── */
     depoimentos: () =>
       data.depoimentos.length > 0 && (
-        <section className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className={`mx-auto max-w-7xl ${centro("depoimentos") ? "text-center" : ""}`}>
-            <div className="mb-14">
+        <section className="pv-depoimentos px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className={`pv-depoimentos-caixa mx-auto max-w-7xl ${centro("depoimentos") ? "text-center" : ""}`}>
+            <div className="pv-depoimentos-cabeca mb-14">
               <Etiqueta texto={s.depoimentos?.rotulo} slot="secoes.depoimentos.rotulo" />
               <SplashTitle
                 texto={s.depoimentos?.titulo}
@@ -504,29 +656,32 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
                 className="font-[family-name:var(--d-display)] text-[clamp(2rem,5.5vw,4.5rem)] leading-[1] text-[var(--d-text)]"
               />
             </div>
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="pv-depoimentos-lista grid gap-6 md:grid-cols-3">
               {data.depoimentos.map((dep, i) => (
                 <figure
                   key={dep.autor}
-                  className="d-card-hover flex h-full flex-col justify-between gap-5 bg-[var(--d-bg-elev)] p-7"
-                  style={{ borderRadius: "var(--d-radius)" }}
+                  className="pv-depoimento d-card-hover flex h-full flex-col justify-between gap-5 bg-[var(--d-bg-elev)] p-7"
+                  style={{
+                    "--pv-depoimento-tinta": pigmentos[i % pigmentos.length],
+                    "--pv-depoimento-mancha": manchas[i % manchas.length],
+                  } as CSSProperties}
                 >
-                  <div>
+                  <div className="pv-depoimento-corpo">
                     {dep.nota !== undefined && (
-                      <div className="mb-3" style={{ color: pigmentos[i % pigmentos.length] }} aria-label={m.avaliacaoEstrelas(dep.nota)}>
+                      <div className="pv-depoimento-estrelas mb-3" style={{ color: pigmentos[i % pigmentos.length] }} aria-label={m.avaliacaoEstrelas(dep.nota)}>
                         {"★".repeat(Math.max(0, Math.min(5, Math.round(dep.nota))))}
                       </div>
                     )}
                     <blockquote
                       data-demo-slot={`depoimentos.${i}.texto`}
-                      className="font-[family-name:var(--d-serif)] text-lg italic leading-relaxed text-[var(--d-text)]"
+                      className="pv-depoimento-texto font-[family-name:var(--d-serif)] text-lg italic leading-relaxed text-[var(--d-text)]"
                     >
                       &ldquo;{dep.texto}&rdquo;
                     </blockquote>
                   </div>
                   <figcaption
                     data-demo-slot={`depoimentos.${i}.autor`}
-                    className="font-[family-name:var(--d-mono)] text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--d-muted)]"
+                    className="pv-depoimento-autor font-[family-name:var(--d-mono)] text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--d-muted)]"
                   >
                     — {dep.autor}
                   </figcaption>
@@ -540,9 +695,9 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── Processo ────────────────────────────────────────────── */
     processo: () =>
       s.processo && (
-        <section id="processo" data-pigment={pigmentos[0]} className="px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className={`mx-auto max-w-4xl ${centro("processo") ? "text-center" : ""}`}>
-            <div className="mb-20">
+        <section id="processo" data-pigment={manchas[0]} className="pv-processo px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className={`pv-processo-caixa mx-auto max-w-4xl ${centro("processo") ? "text-center" : ""}`}>
+            <div className="pv-processo-cabeca mb-20">
               <Etiqueta texto={s.processo.rotulo} slot="secoes.processo.rotulo" />
               <SplashTitle
                 texto={s.processo.titulo}
@@ -551,32 +706,50 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
                 className="font-[family-name:var(--d-display)] text-[clamp(2.25rem,6vw,5.5rem)] leading-[1] text-[var(--d-text)]"
               />
             </div>
-            <div className="relative">
+            <div className="pv-processo-corpo relative">
               <LineDraw
                 d="M0 30 C 150 10, 250 50, 400 30 C 550 10, 650 50, 800 30 C 950 10, 1050 50, 1200 30"
                 viewBox="0 0 1200 60"
                 stroke={pigmentos[1]}
                 strokeWidth={1.6}
                 duration={2.2}
-                className="pointer-events-none absolute left-0 top-[22px] hidden w-full md:block"
+                className="pv-processo-onda pointer-events-none absolute left-0 top-[22px] hidden w-full md:block"
               />
-              <div className="relative grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              <svg className="pv-processo-ciclo" viewBox="0 0 600 420" aria-hidden="true">
+                <ellipse cx="300" cy="210" rx="232" ry="152" fill="none" stroke="var(--d-text)" strokeWidth="2" />
+                {[0, 1, 2, 3].map((i) => {
+                  const pontos = [[300, 58], [532, 210], [300, 362], [68, 210]] as const;
+                  return <circle key={i} cx={pontos[i][0]} cy={pontos[i][1]} r="13" fill={manchas[i % manchas.length]} stroke={pigmentos[i % pigmentos.length]} strokeWidth="3" />;
+                })}
+              </svg>
+              <div className="pv-processo-lista relative grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
                 {(s.processo.itens ?? []).map((passo, i) => (
-                  <FadeUp key={passo.titulo} animacao={theme.animacao} delay={0.1 * i}>
+                  <FadeUp
+                    key={passo.titulo}
+                    animacao={theme.animacao}
+                    delay={0.1 * i}
+                    className="pv-processo-item"
+                  >
                     <div
-                      className="mb-5 flex h-11 w-11 items-center justify-center rounded-full border-[1.6px] bg-[var(--d-bg)] font-[family-name:var(--d-mono)] text-[15px] font-bold"
-                      style={{ borderColor: pigmentos[i % pigmentos.length], color: pigmentos[i % pigmentos.length] }}
+                      data-demo-slot={`secoes.processo.itens.${i}.subtitulo`}
+                      className="pv-processo-numero mb-5 flex h-11 w-11 items-center justify-center rounded-full border-[1.6px] bg-[var(--d-bg)] font-[family-name:var(--d-mono)] text-[15px] font-bold"
+                      style={{
+                        "--pv-passo-cor": pigmentos[i % pigmentos.length],
+                        "--pv-passo-mancha": manchas[i % manchas.length],
+                        borderColor: pigmentos[i % pigmentos.length],
+                        color: pigmentos[i % pigmentos.length],
+                      } as CSSProperties}
                     >
                       {passo.subtitulo}
                     </div>
                     <h3
                       data-demo-slot={`secoes.processo.itens.${i}.titulo`}
-                      className="mb-1.5 font-[family-name:var(--d-display)] text-[1.75rem] italic leading-none text-[var(--d-text)]"
+                      className="pv-processo-titulo mb-1.5 font-[family-name:var(--d-display)] text-[1.75rem] italic leading-none text-[var(--d-text)]"
                     >
                       {passo.titulo}
                     </h3>
                     {passo.texto && (
-                      <p data-demo-slot={`secoes.processo.itens.${i}.texto`} className="text-sm leading-relaxed text-[var(--d-muted)]">
+                      <p data-demo-slot={`secoes.processo.itens.${i}.texto`} className="pv-processo-texto text-sm leading-relaxed text-[var(--d-muted)]">
                         {passo.texto}
                       </p>
                     )}
@@ -591,8 +764,8 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
     /* ── FAQ (Cuidados) ──────────────────────────────────────── */
     faq: () =>
       s.faq && (
-        <section id="faq" className="mx-auto max-w-[920px] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
-          <div className="mb-14">
+        <section id="faq" className="pv-faq mx-auto max-w-[920px] px-6 py-[var(--d-sec-y)] md:px-[clamp(20px,5vw,72px)]">
+          <div className="pv-faq-cabeca mb-14">
             <Etiqueta texto={s.faq.rotulo} slot="secoes.faq.rotulo" />
             <SplashTitle
               texto={s.faq.titulo}
@@ -601,7 +774,12 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
               className="font-[family-name:var(--d-display)] text-[clamp(2.25rem,6vw,5.5rem)] leading-[1] text-[var(--d-text)]"
             />
           </div>
-          <FaqAccordion itens={s.faq.itens ?? []} slotBase="secoes.faq.itens" accentCycle={pigmentos} />
+          <FaqAccordion
+            itens={s.faq.itens ?? []}
+            slotBase="secoes.faq.itens"
+            accentCycle={pigmentos}
+            modo={composicao.faq}
+          />
         </section>
       ),
 
@@ -610,74 +788,96 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
       <section
         id="agendar"
         data-pigment={paleta.texto}
-        className="relative flex min-h-[92vh] flex-col items-center justify-center overflow-hidden px-6 py-[16vh] text-center md:px-[clamp(20px,5vw,72px)]"
+        data-sem-canal={agendar ? undefined : "true"}
+        className="pv-agendar relative flex min-h-[92vh] flex-col items-center justify-center overflow-hidden px-6 py-[16vh] text-center md:px-[clamp(20px,5vw,72px)]"
       >
-        <div className="d-cta-bg absolute inset-0" aria-hidden="true" />
-        <div className="d-cta-blob d-cta-blob-a absolute -left-[10%] -top-[15%] h-[60vw] w-[60vw] rounded-full" aria-hidden="true" />
-        <div className="d-cta-blob d-cta-blob-b absolute -bottom-[20%] -right-[12%] h-[55vw] w-[55vw] rounded-full" aria-hidden="true" />
+        <div className="pv-agendar-fundo d-cta-bg absolute inset-0" aria-hidden="true" />
+        <div className="pv-agendar-mancha pv-agendar-mancha-a absolute -left-[10%] -top-[15%] h-[60vw] w-[60vw] rounded-full" aria-hidden="true">
+          <div className="d-cta-blob d-cta-blob-a h-full w-full rounded-full" />
+        </div>
+        <div className="pv-agendar-mancha pv-agendar-mancha-b absolute -bottom-[20%] -right-[12%] h-[55vw] w-[55vw] rounded-full" aria-hidden="true">
+          <div className="d-cta-blob d-cta-blob-b h-full w-full rounded-full" />
+        </div>
+        <span className="pv-agendar-ornamento pv-agendar-ornamento-a" aria-hidden="true" />
+        <span className="pv-agendar-ornamento pv-agendar-ornamento-b" aria-hidden="true" />
 
-        <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center">
+        <div className="pv-agendar-conteudo relative z-10 mx-auto flex max-w-4xl flex-col items-center">
           <SplashTitle
             texto={s.agendar?.titulo}
             slot="secoes.agendar.titulo"
-            accentCycle={["#FFFFFF", "#FFFFFF", "#FFFFFF"]}
-            className="mb-12 font-[family-name:var(--d-display)] text-[clamp(2.5rem,9vw,7.5rem)] leading-[1] text-white"
+            accentCycle={pigmentos}
+            corDestaque="currentColor"
+            className="pv-agendar-titulo mb-12 font-[family-name:var(--d-display)] text-[clamp(2.5rem,9vw,7.5rem)] leading-[1]"
           />
-          <div className="flex flex-wrap justify-center gap-4">
-            {s.agendar?.cta && (
-              <a href={agendar} data-demo-slot="secoes.agendar.cta" className="d-cta-pill d-cta-clara">
-                {s.agendar.cta}
-              </a>
-            )}
-            {s.agendar?.ctaSecundaria && (
-              <a href={agendar} data-demo-slot="secoes.agendar.ctaSecundaria" className="d-cta-pill d-cta-contorno">
-                {s.agendar.ctaSecundaria}
-              </a>
-            )}
-          </div>
+          {agendar && (
+            <div className="pv-agendar-acoes flex flex-wrap justify-center gap-4">
+              {s.agendar?.cta && (
+                <a href={agendar} data-demo-slot="secoes.agendar.cta" className="d-cta-pill d-cta-clara">
+                  {s.agendar.cta}
+                </a>
+              )}
+              {s.agendar?.ctaSecundaria && (
+                <a href={agendar} data-demo-slot="secoes.agendar.ctaSecundaria" className="d-cta-pill d-cta-contorno">
+                  {s.agendar.ctaSecundaria}
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </section>
     ),
 
     /* ── Contato (rodapé) ────────────────────────────────────── */
     contato: () => (
-      <footer className="flex flex-wrap items-end justify-between gap-10 px-6 py-14 md:px-[clamp(20px,5vw,72px)]">
-        <div className="flex flex-col gap-2.5">
-          <span className="font-[family-name:var(--d-display)] text-[1.9rem] text-[var(--d-text)]">
+      <footer
+        data-sem-dados={temDadosContato ? undefined : "true"}
+        className="pv-contato flex flex-wrap items-end justify-between gap-10 px-6 py-14 md:px-[clamp(20px,5vw,72px)]"
+      >
+        <span className="pv-contato-ornamento pv-contato-ornamento-a" aria-hidden="true" />
+        <span className="pv-contato-ornamento pv-contato-ornamento-b" aria-hidden="true" />
+        <div className="pv-contato-principal flex flex-col gap-2.5">
+          <span className="pv-contato-nome font-[family-name:var(--d-display)] text-[1.9rem] text-[var(--d-text)]">
             <span data-demo-slot="nome">{data.nome}</span>
             <span style={{ color: "var(--d-accent)" }}>.</span>
           </span>
-          {data.endereco && (
-            <span data-demo-slot="endereco" className="text-sm text-[var(--d-muted)]">
-              {data.endereco}
-            </span>
-          )}
-          {data.cidade && (
-            <span data-demo-slot="cidade" className="text-sm text-[var(--d-muted)]">
-              {data.cidade}
-            </span>
-          )}
-          {data.horarios && (
-            <span data-demo-slot="horarios" className="text-sm text-[var(--d-muted)]">
-              {data.horarios}
-            </span>
-          )}
-          {data.telefone && data.telefone !== data.whatsapp && (
-            <span data-demo-slot="telefone" className="text-sm text-[var(--d-muted)]">
-              {data.telefone}
-            </span>
-          )}
-          {data.instagram && (
-            <span data-demo-slot="instagram" className="text-sm font-semibold text-[var(--d-text)]">
-              {data.instagram}
-            </span>
+          {temDadosContato && (
+            <div className="pv-contato-dados flex flex-col gap-2.5">
+              {data.endereco && (
+                <span data-demo-slot="endereco" className="text-sm text-[var(--d-muted)]">
+                  {data.endereco}
+                </span>
+              )}
+              {data.cidade && (
+                <span data-demo-slot="cidade" className="text-sm text-[var(--d-muted)]">
+                  {data.cidade}
+                </span>
+              )}
+              {data.horarios && (
+                <span data-demo-slot="horarios" className="text-sm text-[var(--d-muted)]">
+                  {data.horarios}
+                </span>
+              )}
+              {data.telefone && data.telefone !== data.whatsapp && (
+                <span data-demo-slot="telefone" className="text-sm text-[var(--d-muted)]">
+                  {data.telefone}
+                </span>
+              )}
+              {data.instagram && (
+                <span data-demo-slot="instagram" className="text-sm font-semibold text-[var(--d-text)]">
+                  {data.instagram}
+                </span>
+              )}
+            </div>
           )}
         </div>
-        <span className="text-xs text-[var(--d-muted)]">
-          © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>.{" "}
-          <span data-demo-slot="secoes.contato.texto">
-            {s.contato?.texto ?? "Estúdio fictício, tinta imaginária."}
-          </span>
+        <span className="pv-contato-copy text-xs text-[var(--d-muted)]">
+          © {new Date().getFullYear()} <span data-demo-slot="nome">{data.nome}</span>.
+          {s.contato?.texto?.trim() && (
+            <>
+              {" "}
+              <span data-demo-slot="secoes.contato.texto">{s.contato.texto}</span>
+            </>
+          )}
         </span>
       </footer>
     ),
@@ -686,19 +886,24 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
   return (
     <div
       style={vars}
+      {...atributosDaComposicao(composicao)}
+      data-pv-variante={theme.id}
       data-d-hover={theme.hover}
       data-d-clique={theme.clique}
       data-d-anim={theme.animacao}
-      className="relative min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
+      className="pv relative min-h-screen overflow-x-clip bg-[var(--d-bg)] font-[family-name:var(--d-corpo)] text-[var(--d-text)]"
     >
+      <style>{PIGMENTO_COMPOSICAO_CSS}</style>
       <style>{`
         @keyframes d-blob-a { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(8%,-6%) scale(1.12); } 66% { transform: translate(-5%,5%) scale(.94); } }
         @keyframes d-blob-b { 0%,100% { transform: translate(0,0) scale(1); } 40% { transform: translate(-7%,4%) scale(1.08); } 75% { transform: translate(6%,-3%) scale(.9); } }
         @keyframes d-blob-c { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(4%,7%) scale(1.15); } }
-        .d-blob { filter: blur(48px); mix-blend-mode: multiply; }
-        .d-blob-a { background: radial-gradient(circle at 40% 40%, color-mix(in srgb, var(--d-accent) 55%, transparent), transparent 68%); animation: d-blob-a 16s ease-in-out infinite; }
-        .d-blob-b { background: radial-gradient(circle at 60% 50%, color-mix(in srgb, var(--d-accent-2) 42%, transparent), transparent 66%); animation: d-blob-b 19s ease-in-out infinite; }
-        .d-blob-c { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--d-accent-3) 45%, transparent), transparent 65%); animation: d-blob-c 14s ease-in-out infinite; }
+        /* O blur mora no contêiner ESTÁTICO (.pv-hero-mancha, em
+           composicao.ts); este elemento anima só transform. */
+        .d-blob { mix-blend-mode: var(--pv-mistura); }
+        .d-blob-a { background: radial-gradient(circle at 40% 40%, color-mix(in srgb, var(--pv-mancha-1) 30%, transparent), transparent 68%); animation: d-blob-a 16s ease-in-out infinite; }
+        .d-blob-b { background: radial-gradient(circle at 60% 50%, color-mix(in srgb, var(--pv-mancha-2) 30%, transparent), transparent 66%); animation: d-blob-b 19s ease-in-out infinite; }
+        .d-blob-c { background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--pv-mancha-3) 30%, transparent), transparent 65%); animation: d-blob-c 14s ease-in-out infinite; }
         [data-d-anim="nenhuma"] .d-blob { animation: none; }
         @media (prefers-reduced-motion: reduce) { .d-blob { animation: none; } }
 
@@ -723,8 +928,11 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         .d-cta-solida:hover { background: var(--d-accent); color: var(--d-accent-ink); }
         .d-cta-clara { background: var(--d-bg); color: var(--d-text); }
         .d-cta-clara:hover { background: var(--d-text); color: var(--d-bg); }
-        .d-cta-contorno { border: 1.6px solid color-mix(in srgb, var(--d-bg) 70%, transparent); color: var(--d-bg); }
-        .d-cta-contorno:hover { background: color-mix(in srgb, var(--d-bg) 14%, transparent); }
+        /* Botão sobre campo de cor é sempre CHEIO (fundo/texto), nunca
+           contorno transparente (regra 4 do §2 do plano — o contorno sobre
+           o gradiente reprovava contraste nas quatro paletas). */
+        .d-cta-contorno { background: var(--d-bg); color: var(--d-text); }
+        .d-cta-contorno:hover { background: var(--d-text); color: var(--d-bg); }
         [data-d-hover="zoom"] .d-cta-pill:hover { transform: scale(var(--d-hover-scale)); }
         [data-d-hover="lift"] .d-cta-pill:hover { transform: translateY(var(--d-hover-lift)); }
         [data-d-hover="brilho"] .d-cta-pill:hover { box-shadow: 0 0 32px color-mix(in srgb, var(--d-accent) 45%, transparent); }
@@ -746,6 +954,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         .d-estilo-card {
           background: var(--d-bg);
           border: 1px solid var(--d-border);
+          border-radius: var(--d-radius);
           transition: transform .45s cubic-bezier(.2,.8,.2,1);
         }
         .d-estilo-card::before {
@@ -753,8 +962,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
           position: absolute; bottom: -30%; right: -25%; width: 75%; aspect-ratio: 1;
           border-radius: 50%;
           background: radial-gradient(circle, color-mix(in srgb, var(--d-card-blob) 50%, transparent), transparent 70%);
-          filter: blur(28px);
-          mix-blend-mode: multiply;
+          mix-blend-mode: var(--pv-mistura);
           transition: transform .6s cubic-bezier(.2,.8,.2,1);
           pointer-events: none;
         }
@@ -785,11 +993,15 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
         }
         @media (prefers-reduced-motion: reduce) { [data-d-clique] a:active, [data-d-clique] button:active { transform: none; animation: none; } }
 
-        /* CTA final: fundo em gradiente multicor + blobs animados. */
-        .d-cta-bg { background: linear-gradient(135deg, var(--d-accent) 0%, var(--d-accent-2) 55%, var(--d-accent-3) 100%); }
-        .d-cta-blob { filter: blur(60px); pointer-events: none; }
-        .d-cta-blob-a { background: radial-gradient(circle, color-mix(in srgb, var(--d-accent-3) 75%, transparent), transparent 65%); animation: d-cta-blob 18s ease-in-out infinite; }
-        .d-cta-blob-b { background: radial-gradient(circle, color-mix(in srgb, var(--d-accent) 80%, transparent), transparent 65%); animation: d-cta-blob 22s ease-in-out infinite reverse; }
+        /* CTA final: campo de cor + blobs animados. Regra 4 do §2 do plano:
+           tintas no claro (texto branco) e vivos no escuro (texto na cor do
+           fundo) — --pv-campo-* já resolve isso por variante. */
+        .d-cta-bg { background: linear-gradient(135deg, var(--pv-campo-1) 0%, var(--pv-campo-2) 55%, var(--pv-campo-3) 100%); }
+        /* O gradiente radial já faz a borda macia: o nó que anima transform
+           não recebe filter, evitando rasterização nova a cada quadro. */
+        .d-cta-blob { pointer-events: none; }
+        .d-cta-blob-a { background: radial-gradient(circle, color-mix(in srgb, var(--pv-mancha-3) 75%, transparent), transparent 65%); animation: d-cta-blob 18s ease-in-out infinite; }
+        .d-cta-blob-b { background: radial-gradient(circle, color-mix(in srgb, var(--pv-mancha-1) 80%, transparent), transparent 65%); animation: d-cta-blob 22s ease-in-out infinite reverse; }
         @keyframes d-cta-blob { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-4%,6%) scale(1.2); } }
         [data-d-anim="nenhuma"] .d-cta-blob { animation: none; }
         @media (prefers-reduced-motion: reduce) { .d-cta-blob { animation: none; } }
@@ -805,7 +1017,7 @@ export function TatuagemPigmentoVivo({ data, theme, idioma, moeda }: SkinProps) 
 
       <PigmentTracker>
         <IntroExperience nome={data.nome} ativa={theme.intro === true}>
-          <Nav nome={data.nome} links={links} ctaHref={agendar} ctaLabel={s.hero?.cta ?? "Agendar sessão"} />
+          <Nav nome={data.nome} links={links} ctaHref={agendar} ctaLabel={s.hero?.cta} />
 
           <div className="relative z-10">
             {visiveis.map((id) => {

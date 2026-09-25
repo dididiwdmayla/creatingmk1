@@ -45,7 +45,9 @@ const MSG_PRONTO = "radar-demo-preview-pronto";
 
 export default function DemoPreviewPage() {
   const [estado, setEstado] = useState<PreviewState | null>(null);
+  const skin = getSkin(estado?.skinId);
   const [extraFontClassName, setExtraFontClassName] = useState("");
+  const [varianteFontClassName, setVarianteFontClassName] = useState("");
   // Só para o PRIMEIRO desenho: sem isso, a skin pinta com a fonte core (ou
   // nenhuma, se a var ainda não existe) e troca de fonte assim que o import
   // dinâmico da fonte escolhida resolve — reflow de texto depois do
@@ -106,17 +108,25 @@ export default function DemoPreviewPage() {
   // Desestruturado em ids: o efeito depende dos VALORES, não do objeto
   // `tema` — que chega novo a cada tecla digitada no editor.
   const [fonteDisplay, fonteCorpo, fonteHero] = fontesEscolhidas(estado?.tema);
+  // Fonte DEFAULT da variante (ver SkinDefinition.fontesVariante) — mesma
+  // cadeia da rota pública, resolvida junto com as fontes escolhidas para
+  // não haver DOIS reflows separados no primeiro desenho.
+  const varianteId = estado?.theme.id;
   useEffect(() => {
     let ignore = false;
-    resolveExtraFontClassNames([fonteDisplay, fonteCorpo, fonteHero]).then((classe) => {
+    Promise.all([
+      resolveExtraFontClassNames([fonteDisplay, fonteCorpo, fonteHero]),
+      skin?.fontesVariante ? skin.fontesVariante(varianteId) : Promise.resolve(""),
+    ]).then(([classe, varianteClasse]) => {
       if (ignore) return;
       setExtraFontClassName(classe);
+      setVarianteFontClassName(varianteClasse);
       setJaMostrou(true);
     });
     return () => {
       ignore = true;
     };
-  }, [fonteDisplay, fonteCorpo, fonteHero]);
+  }, [fonteDisplay, fonteCorpo, fonteHero, skin, varianteId]);
 
   useEffect(() => {
     // Clique em slot → foca o campo no painel do editor. Capture para
@@ -136,7 +146,6 @@ export default function DemoPreviewPage() {
     return () => document.removeEventListener("click", onClick, true);
   }, []);
 
-  const skin = getSkin(estado?.skinId);
   if (
     !estado ||
     !skin ||
@@ -166,7 +175,7 @@ export default function DemoPreviewPage() {
     auraCores: estado.tema?.auraCores,
   });
   return (
-    <div className={`${demoCoreFontsClassName} ${extraFontClassName}`}>
+    <div className={`${demoCoreFontsClassName} ${extraFontClassName} ${varianteFontClassName}`}>
       {/* Affordance de edição: qualquer slot clicável ganha contorno no hover. */}
       <style>{`
         [data-demo-slot] { cursor: pointer; }

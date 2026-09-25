@@ -27,12 +27,9 @@ import {
 } from "@/components/demos/petshop/themes";
 import { TATUAGEM_SECOES } from "@/components/demos/tatuagem/secoes";
 import { TATUAGEM_VARIANTES } from "@/components/demos/tatuagem/variantes";
-import { TATUAGEM2_EXEMPLO } from "@/components/demos/tatuagem2/exemplo";
+import { fontesTatuagemPigmentoVivo } from "@/components/demos/tatuagem2/fontes";
 import { TATUAGEM2_SECOES } from "@/components/demos/tatuagem2/secoes";
-import {
-  TATUAGEM2_THEME_DEFAULT,
-  TATUAGEM2_THEME_PRESETS,
-} from "@/components/demos/tatuagem2/themes";
+import { TATUAGEM2_VARIANTES } from "@/components/demos/tatuagem2/variantes";
 import type { SkinDefinition, Theme } from "./types";
 
 /**
@@ -111,17 +108,26 @@ export const SKINS: SkinDefinition[] = [
     nicho: "tatuagem",
     nome: "Tatuagem Pigmento Vivo",
     descricao:
-      "Fundo claro e blobs coloridos: manifesto que acende palavra a palavra no scroll, portfólio em trilha horizontal e cartões com blob no hover.",
+      "Quatro estúdios em pigmento vivo: Aquarela (ateliê de cor), Boreal (cobertura), Meia-noite (cor pop, escura) e Terra (homenagem e retrato). Manifesto que acende palavra a palavra, portfólio em trilha e cartões com mancha no hover.",
     componente: () => import("@/components/demos/tatuagem2/Skin").then((m) => m.TatuagemPigmentoVivo),
-    themeDefault: TATUAGEM2_THEME_DEFAULT,
-    themePresets: TATUAGEM2_THEME_PRESETS,
-    demoDataExemplo: TATUAGEM2_EXEMPLO,
+    variantes: TATUAGEM2_VARIANTES,
+    // IDs inalterados, sem alias (§17 D5 do plano): aquarela/boreal/
+    // meia-noite/terra já são o que LeadDemo.themeId gravava.
+    themeDefault: TATUAGEM2_VARIANTES[0].theme,
+    themePresets: TATUAGEM2_VARIANTES.map((v) => v.theme),
+    demoDataExemplo: TATUAGEM2_VARIANTES[0].exemplo,
     secoes: TATUAGEM2_SECOES,
     heroEscalaLimites: { min: 0.75, max: 1.25 },
     thumbnail: "/demos/tatuagem2/thumb.svg",
     // Sem videoSlots: o material bruto não tem vídeo-no-título (o hero
-    // nem usa foto — só blobs de cor e um traço SVG).
-    // Serif dramática + sans editorial — o par tipográfico do material bruto.
+    // nem usa foto — só manchas de cor e um traço SVG).
+    // Fontes DEFAULT por variante (decisão 7 da sessão de fundação): cada
+    // uma vem de um pacote @fontsource local próprio — ver
+    // components/demos/tatuagem2/fontes.ts.
+    fontesVariante: fontesTatuagemPigmentoVivo,
+    // Serif dramática + sans editorial — o par tipográfico do material bruto
+    // (Aquarela); continua como sugestão da lista curada para quem quiser
+    // trocar a fonte no editor por cima da fonte default da variante.
     fontesRecomendadas: ["dm-serif", "archivo", "playfair", "cormorant", "josefin"],
   },
   {

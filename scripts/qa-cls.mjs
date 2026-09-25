@@ -63,6 +63,8 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
 
+import { VARIANTES_POR_SKIN } from "../src/lib/demos/capturas/variantes.mjs";
+
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SAIDA = path.join(RAIZ, "qa-shots");
 const CHROMIUM = process.env.QA_CHROMIUM ?? "/opt/pw-browsers/chromium";
@@ -572,13 +574,19 @@ async function main() {
 
     if (querido("skins")) {
       console.log("\n── Rota pública das skins (via /interno/demo-qa) ──");
+      // Skin com eixo de variantes: uma carga POR VARIANTE, não só a
+      // default — a troca de composição/fonte é exatamente onde o CLS de
+      // uma variante pode divergir das outras três (mesmo raciocínio do
+      // §13, D8, do plano da tatuagem-pigmento-vivo).
       for (const skin of SKINS) {
-        const resultado = await medirPagina(
-          page,
-          `${BASE}/interno/demo-qa?skin=${skin}&imagens=foto&intro=0`,
-        );
-        relatorio.push({ tela: `skin:${skin}`, ...resultado });
-        imprimirResultado(skin, resultado);
+        const variantes = VARIANTES_POR_SKIN[skin];
+        for (const preset of variantes ?? [undefined]) {
+          const url = `${BASE}/interno/demo-qa?skin=${skin}&imagens=foto&intro=0${preset ? `&preset=${preset}` : ""}`;
+          const resultado = await medirPagina(page, url);
+          const rotulo = preset ? `${skin}:${preset}` : skin;
+          relatorio.push({ tela: `skin:${rotulo}`, ...resultado });
+          imprimirResultado(rotulo, resultado);
+        }
       }
     }
 
