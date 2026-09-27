@@ -108,6 +108,20 @@ export interface SearchTextOptions {
    * `quantidade` leads que passem no filtro, ou os limites de sempre.
    */
   soSemSite?: boolean;
+  /**
+   * "Só com telefone": filtro pós-resposta irmão de `soSemSite` — quem volta
+   * sem telefone nem entra no resultado. Implica qualificada (o telefone só
+   * vem no mask qualificado). Usado pela automação do estoque: lead sem
+   * telefone nunca vira demo, e contá-lo na quantidade pedida seria pagar
+   * página por lead que não serve.
+   */
+  soComTelefone?: boolean;
+  /**
+   * Teto de páginas DESTA chamada (1 a `SEARCH_MAX_PAGES`); ausente = o
+   * limite de sempre. A automação passa o que resta do teto de requisições
+   * da noite, que é contado em páginas.
+   */
+  maxPaginas?: number;
   /** Localização dura: retângulo (viewport geocodificado) da região. */
   locationRestriction?: LatLngRect;
   /**
@@ -224,8 +238,13 @@ export async function searchText(
     SEARCH_MAX_RESULTS,
   );
   const soSemSite = options.soSemSite ?? false;
-  // "Só sem site" precisa classificar siteProprio pra filtrar → força o mask qualificado.
-  const qualificada = (options.qualificada ?? false) || soSemSite;
+  const soComTelefone = options.soComTelefone ?? false;
+  // "Só sem site"/"só com telefone" precisam do mask qualificado pra filtrar.
+  const qualificada = (options.qualificada ?? false) || soSemSite || soComTelefone;
+  const maxPaginas = Math.min(
+    Math.max(Math.floor(options.maxPaginas ?? SEARCH_MAX_PAGES), 1),
+    SEARCH_MAX_PAGES,
+  );
   const sku: Sku = qualificada ? "textSearchEnterprise" : "textSearch";
   // pageSize constante entre as páginas: a API exige os mesmos parâmetros
   // (fora o pageToken) nas chamadas de continuação.
@@ -238,7 +257,7 @@ export async function searchText(
   let aviso: string | undefined;
   let pageToken: string | undefined;
 
-  while (paginas < SEARCH_MAX_PAGES) {
+  while (paginas < maxPaginas) {
     try {
       await reserveQuota(db, sku, caps, undefined, {
         userId: options.userId,
@@ -291,6 +310,7 @@ export async function searchText(
       // entra no resultado da busca qualificada (pode existir na base de
       // outra busca, mas não é resultado desta).
       if (soSemSite && place.siteProprio === true) continue;
+      if (soComTelefone && !place.telefoneIntl) continue;
       const novo = (await options.isNovo?.(place.placeId)) ?? true;
       if (novo) novos += 1;
       entradas.push({ place, novo });
@@ -302,7 +322,7 @@ export async function searchText(
 
   if (!aviso && novos < quantidade) {
     aviso = pageToken
-      ? `limite de ${SEARCH_MAX_PAGES} páginas do Google atingido: ${novos} novo(s)`
+      ? `limite de ${maxPaginas} páginas do Google atingido: ${novos} novo(s)`
       : `resultados esgotados: ${novos} novo(s) em ${paginas} página(s)`;
   }
 

@@ -106,11 +106,15 @@ describe("portão da aprovação na fila (/api/fila/proximo)", () => {
     expect((await proximo()).temTarefa).toBe(false);
   });
 
-  it("demo automática APROVADA é entregue", async () => {
+  it("demo automática APROVADA é entregue — com o contrato achatado de sempre", async () => {
     semear(lead("ChIJok", { origem: "automacao", aprovacao: "aprovada" }));
     const corpo = await proximo();
     expect(corpo.temTarefa).toBe(true);
     expect(corpo.leadId).toBe("ChIJok");
+    // Contrato de /proximo inalterado: as MESMAS onze chaves, nenhuma nova.
+    expect(Object.keys(corpo).sort()).toEqual(
+      ["temTarefa", "tipo", "teste", "id", "leadId", "nome", "numero", "texto", "printUrl", "expiraEm", "motivo"].sort(),
+    );
   });
 
   it("demo manual sem origem segue elegível como hoje", async () => {

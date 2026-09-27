@@ -89,26 +89,39 @@ export function somarEstoque(baldes: Array<BaldeEstoque | undefined>): Estoque {
   return estoque;
 }
 
+/** O que o estoque (e o planejador) lê do banco — uma varredura só. */
+export interface BaseEstoque {
+  leads: Lead[];
+  envios: Map<string, FilaEnvioDoc>;
+  retencaoMs: number;
+}
+
 /**
- * O estoque AGORA. Lê `/leads` e `/filaEnvios` inteiras UMA vez — a mesma
- * varredura que o pool da fila faz a cada 10 minutos, aqui uma vez por
- * execução da automação (duas: antes e depois). A retenção é a política em
- * vigor na config da fila, a mesma que o pool usa.
+ * Lê `/leads` e `/filaEnvios` inteiras UMA vez — a mesma varredura que o
+ * pool da fila faz a cada 10 minutos, aqui uma vez por execução da
+ * automação (duas: antes e depois). A retenção é a política em vigor na
+ * config da fila, a mesma que o pool usa.
  */
-export async function calcularEstoque(db: AppDb, now: Date = new Date()): Promise<Estoque> {
+export async function lerBaseEstoque(db: AppDb): Promise<BaseEstoque> {
   const [leadsSnap, enviosSnap, filaConfig] = await Promise.all([
     db.collection(LEADS_COLLECTION).get(),
     db.collection(FILA_ENVIOS_COLLECTION).get(),
     loadFilaConfig(db),
   ]);
-  const envios = new Map<string, FilaEnvioDoc>(
-    enviosSnap.docs.map((doc) => [doc.id, doc.data() as unknown as FilaEnvioDoc]),
-  );
-  const retencaoMs = retencaoMsDeHoras(filaConfig.retencaoEnvioHoras);
+  return {
+    leads: leadsSnap.docs.map((doc) => ({ ...(doc.data() as unknown as Lead), placeId: doc.id })),
+    envios: new Map(enviosSnap.docs.map((doc) => [doc.id, doc.data() as unknown as FilaEnvioDoc])),
+    retencaoMs: retencaoMsDeHoras(filaConfig.retencaoEnvioHoras),
+  };
+}
+
+export function estoqueDaBase(base: BaseEstoque, now: Date): Estoque {
   return somarEstoque(
-    leadsSnap.docs.map((doc) => {
-      const lead = doc.data() as unknown as Lead;
-      return classificarEstoque(lead, envios.get(lead.placeId ?? doc.id), now, retencaoMs);
-    }),
+    base.leads.map((lead) => classificarEstoque(lead, base.envios.get(lead.placeId), now, base.retencaoMs)),
   );
+}
+
+/** O estoque AGORA. */
+export async function calcularEstoque(db: AppDb, now: Date = new Date()): Promise<Estoque> {
+  return estoqueDaBase(await lerBaseEstoque(db), now);
 }

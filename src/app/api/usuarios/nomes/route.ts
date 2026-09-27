@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { UnauthorizedError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError } from "@/lib/http";
+import { nomesComAutomacao } from "@/lib/automacao/autor";
 import { listUsuarios, usuarioDaRequest } from "@/lib/usuarios";
 
 /**
@@ -18,9 +19,11 @@ export async function GET(req: Request) {
     const usuario = await usuarioDaRequest(db, req);
     if (!usuario) throw new UnauthorizedError();
 
-    const usuarios = await listUsuarios(db);
+    // A automação do estoque é autora de demo e de busca sem ser usuário
+    // (ver lib/automacao/autor.ts): entra aqui para não virar "usuário removido".
+    const nomes = nomesComAutomacao(await listUsuarios(db));
     return NextResponse.json({
-      usuarios: usuarios.map((u) => ({ id: u.id, nome: u.nome })),
+      usuarios: [...nomes].map(([id, nome]) => ({ id, nome })),
     });
   } catch (error) {
     return handleRouteError(error);

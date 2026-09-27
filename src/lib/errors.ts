@@ -39,6 +39,22 @@ export class NotFoundError extends Error {
   }
 }
 
+/**
+ * O recurso está ocupado por outra operação em curso — hoje, a trava da
+ * automação do estoque (duas execuções nunca rodam juntas). 409.
+ */
+export class ConflictError extends Error {
+  readonly code = "conflict";
+
+  constructor(
+    message: string,
+    readonly extra: Record<string, unknown> = {},
+  ) {
+    super(message);
+    this.name = "ConflictError";
+  }
+}
+
 export class InvalidTransitionError extends Error {
   readonly code = "invalid_transition";
 

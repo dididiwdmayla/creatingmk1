@@ -13,8 +13,12 @@ import type { Busca } from "./types";
  * ao Google.
  */
 
-/** Normaliza pra comparar "mesmo nicho+região" entre buscas (minúsculas, espaços colapsados). */
-function normalizar(texto: string): string {
+/**
+ * Normaliza pra comparar "mesmo nicho+região" entre buscas (minúsculas,
+ * espaços colapsados). Exportada porque a automação do estoque agrupa os
+ * pares (nicho, região) com esta MESMA régua (`lib/automacao/pares.ts`).
+ */
+export function normalizarGrupo(texto: string): string {
   return texto.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
@@ -22,7 +26,7 @@ function mesmoGrupo(
   a: Pick<Busca, "nicho" | "regiao">,
   b: Pick<Busca, "nicho" | "regiao">,
 ): boolean {
-  return normalizar(a.nicho) === normalizar(b.nicho) && normalizar(a.regiao) === normalizar(b.regiao);
+  return normalizarGrupo(a.nicho) === normalizarGrupo(b.nicho) && normalizarGrupo(a.regiao) === normalizarGrupo(b.regiao);
 }
 
 /**

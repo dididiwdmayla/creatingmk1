@@ -1219,6 +1219,7 @@ export async function gerarSugestaoDemo(
   const schema = schemaSugestao(skin, nivel, idioma);
 
   await reserveQuota(db, "aiGeneration", caps, undefined, reserveQuotaOptsIA(ctx));
+  ctx.contarChamada?.();
   const primeira = validarSugestao(await gerarJson(prompt, schema), skin, nivel, idioma);
   if (primeira.sugestao) return primeira.sugestao;
 
@@ -1230,6 +1231,7 @@ export async function gerarSugestaoDemo(
   ].join("\n");
 
   await reserveQuota(db, "aiGeneration", caps, undefined, reserveQuotaOptsIA(ctx));
+  ctx.contarChamada?.();
   const segunda = validarSugestao(await gerarJson(promptRetry, schema), skin, nivel, idioma);
   if (segunda.sugestao) return segunda.sugestao;
 
