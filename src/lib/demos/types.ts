@@ -1027,4 +1027,35 @@ export interface LeadDemo {
    * feature — self-heal no próximo save/leitura, ver garantirEnvioToken).
    */
   envios?: EnvioDemo[];
+  /**
+   * Quem criou a demo: o operador (ausente ou `"manual"` — toda demo de
+   * antes da automação) ou a automação do estoque (`"automacao"`, ver
+   * `lib/automacao`). Preservado entre edições por `saveDemo`, como
+   * `criadoEm`: editar uma demo automática no editor NÃO a torna manual —
+   * senão o PUT do editor furaria o portão de aprovação da fila.
+   */
+  origem?: OrigemDemo;
+  /**
+   * Aprovação da demo AUTOMÁTICA — só tem sentido com `origem: "automacao"`.
+   * A fila só entrega demo automática `"aprovada"` (ver `motivoEstrutural`,
+   * `aguardandoAprovacao`). Ausente numa demo automática = pendente.
+   */
+  aprovacao?: AprovacaoDemo;
+  /** Quando `aprovacao` foi decidida (ISO). */
+  aprovacaoEm?: string;
+  /** Quem decidiu: userId de quem clicou, ou `"automacao"` (aprovação automática). */
+  aprovacaoPor?: string;
+  /**
+   * Id da execução da automação que criou a demo (`/automacaoExecucoes`).
+   * É o que torna a unidade idempotente: uma unidade que morreu DEPOIS de
+   * gravar a demo e é retomada reconhece a demo como sua, em vez de pular o
+   * lead como "já tinha demo".
+   */
+  execucaoAutomacao?: string;
 }
+
+/** Origem de uma demo — ausente vale `"manual"`. */
+export type OrigemDemo = "manual" | "automacao";
+
+/** Estado de aprovação de uma demo automática. */
+export type AprovacaoDemo = "pendente" | "aprovada" | "reprovada";
