@@ -103,6 +103,7 @@ export const MOTIVOS_ESTRUTURAIS = [
   "semTelefone",
   "semDemo",
   "capturaNaoPronta",
+  "aguardandoAprovacao",
   "semFuso",
 ] as const;
 
@@ -131,6 +132,7 @@ export function estruturalVazio(): DiagnosticoEstrutural {
     semTelefone: 0,
     semDemo: 0,
     capturaNaoPronta: 0,
+    aguardandoAprovacao: 0,
     semFuso: 0,
   };
 }
@@ -243,6 +245,20 @@ export function motivoEstrutural(lead: Lead): MotivoEstrutural | undefined {
   // Mesmo balde de "capturaNaoPronta" — as duas dizem a mesma coisa pro
   // operador: a peça que vende ainda não existe.
   if (!printUrlDoLead(lead.capturas)) return "capturaNaoPronta";
+  // PORTÃO DA APROVAÇÃO: demo que a AUTOMAÇÃO fez (ver `lib/automacao`) só
+  // sai depois de alguém — ou o critério da aprovação automática — aprovar.
+  // Pendente ou reprovada, não vira candidato; `/proximo` relê o doc fresco
+  // com esta mesma função, então nem um pool velho entrega. Demo sem
+  // `origem` (toda demo manual, e toda de antes da automação) passa direto,
+  // como sempre passou.
+  //
+  // A checagem vem DEPOIS de demo e captura, e a ordem é o que mantém o
+  // funil honesto: demo automática ainda sem print para aqui como "print não
+  // pronto" — é a peça que falta primeiro —, e só a que já tem tudo e espera
+  // o operador aparece como "aguardando aprovação".
+  if (lead.demo.origem === "automacao" && lead.demo.aprovacao !== "aprovada") {
+    return "aguardandoAprovacao";
+  }
   // Sem fuso derivável não dá para saber que horas são lá — e mandar
   // mensagem às três da manhã é pior do que não mandar.
   if (utcOffsetDoLead(lead) === undefined) return "semFuso";
@@ -360,7 +376,7 @@ export async function construirPool(
   for (const doc of leadsSnap.docs) {
     const lead = doc.data() as unknown as Lead;
     // O LEAD FIXO DE TESTE não existe para esta varredura — nem como
-    // candidato, nem em `lidos`, nem numa das sete contagens estruturais.
+    // candidato, nem em `lidos`, nem em nenhuma das contagens estruturais.
     // Não é só higiene de número: candidato ele mandaria mensagem DE
     // VERDADE sozinho, à noite, para o telefone do doc. O alvo do disparo
     // de teste é escolhido na tela e chega por id, nunca pelo pool (ver

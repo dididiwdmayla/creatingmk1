@@ -65,10 +65,8 @@ export function classificarEstoque(
   const pendente = demoAutomaticaPendente(lead.demo);
   const motivo = motivoEstrutural(lead);
 
+  if (motivo === "aguardandoAprovacao") return pendente ? "aguardandoAprovacao" : undefined;
   if (motivo === undefined) {
-    if (pendente) return "aguardandoAprovacao";
-    // Reprovada: não está a caminho de lugar nenhum.
-    if (lead.demo?.origem === "automacao" && lead.demo.aprovacao !== "aprovada") return undefined;
     return candidatoEstavel(lead, envio, now, retencaoMs) ? "pronto" : undefined;
   }
   if (motivo === "capturaNaoPronta") {

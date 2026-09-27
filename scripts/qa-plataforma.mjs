@@ -46,7 +46,8 @@
  *   node scripts/qa-plataforma.mjs --so=listas    # PORTÃO das listas longas: /leads e /buscas no celular
  *   node scripts/qa-plataforma.mjs --so=usuario   # a escolha é POR USUÁRIO (2 sessões)
  *   node scripts/qa-plataforma.mjs --so=pendencias # lista de print pendente em /config, cheia e VAZIA
- *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil, próximos,
+ *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil (com a peneira
+ *                                                 # da aprovação da automação), próximos,
  *                                                 # bloqueados, RETIDOS (com e sem)
  *   node scripts/qa-plataforma.mjs --so=balao     # o BALÃO da fila (em toda tela): fechado e aberto,
  *                                                 # cheia/vazia/pausada/pendente, e a VARREDURA DE
@@ -800,6 +801,9 @@ function semear() {
       semTelefone: 21,
       semDemo: 60,
       capturaNaoPronta: 30,
+      // Demo feita pela AUTOMAÇÃO do estoque, esperando o operador aprovar —
+      // a peneira que veio com ela (ver "Automação do estoque").
+      aguardandoAprovacao: 7,
       semFuso: 2,
     },
     // O pendente sai da MESMA varredura que o funil acima (é um dos
@@ -2396,6 +2400,7 @@ async function medirFila(browser, secret) {
       [/Ritmo liberado/, "linha de ritmo liberado"],
       [/Retrato do pool/, "data do retrato do pool, ao lado das contagens estruturais"],
       [/print da demo não pronto/, "linha estrutural do funil"],
+      [/demo automática aguardando aprovação/, "peneira da aprovação da automação no funil"],
       [/fora dos nichos permitidos/, "etapa de nicho"],
       [/elegíveis agora/, "total de elegíveis"],
       [/Pet Center Ipiranga/, "primeiro lead elegível"],
