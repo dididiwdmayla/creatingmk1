@@ -76,6 +76,11 @@ async function requireLead(db: AppDb, placeId: string): Promise<Lead> {
   return lead;
 }
 
+/** Horário que veio de graça na busca qualificada, carimbado como o do Place Details. */
+function horariosDaBusca(place: PlaceBasico, em: string): Lead["horarios"] {
+  return place.horarios && { ...place.horarios, obtidoEm: em };
+}
+
 export interface UpsertResult {
   criados: number;
   existentes: number;
@@ -85,7 +90,8 @@ export interface UpsertResult {
 /**
  * Upsert dos resultados da busca. Lead novo entra com status "novo";
  * lead existente só tem nome/endereco/location/busca atualizados —
- * NUNCA rebaixa status nem apaga detalhes/contato. O buscaId é ANEXADO
+ * NUNCA rebaixa status nem apaga detalhes/contato/horários (horário da
+ * busca só entra onde não havia nenhum). O buscaId é ANEXADO
  * ao array existente (um lead pode aparecer em várias buscas).
  */
 export async function upsertLeads(
@@ -117,6 +123,10 @@ export async function upsertLeads(
         temTelefone: place.temTelefone ?? existing.temTelefone,
         telefone: place.telefone ?? existing.telefone,
         telefoneIntl: place.telefoneIntl ?? existing.telefoneIntl,
+        // Horário da busca só PREENCHE o ausente: nunca sobrescreve o que
+        // já existe (do enriquecimento, que é a fonte dedicada, ou de uma
+        // busca anterior).
+        horarios: existing.horarios ?? horariosDaBusca(place, em),
         atualizadoEm: em,
       };
     } else {
@@ -135,6 +145,7 @@ export async function upsertLeads(
         temTelefone: place.temTelefone,
         telefone: place.telefone,
         telefoneIntl: place.telefoneIntl,
+        horarios: horariosDaBusca(place, em),
         enriquecido: false,
         criadoEm: em,
         atualizadoEm: em,

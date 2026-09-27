@@ -205,8 +205,9 @@ export function familiaDasJanelas(
 }
 
 /**
- * Deslocamento UTC do lead: `horarios.utcOffsetMinutes` do enriquecimento
- * (SKU detailsProHours) vence; sem ele, deriva do PAÍS do endereço quando
+ * Deslocamento UTC do lead: `horarios.utcOffsetMinutes` vence (hoje só o
+ * Place Details — SKU detailsProHours — traz o fuso; o horário que vem da
+ * busca qualificada chega sem ele); sem ele, deriva do PAÍS do endereço quando
  * reconhecível; sem nenhum dos dois, undefined — o chamador não mostra hora
  * nenhuma em vez de arriscar mostrar uma errada.
  */

@@ -99,11 +99,19 @@ export interface Lead {
   enriquecido: boolean;
   detalhes?: DetalhesLugar & { enriquecidoEm: string; enriquecidoPor?: string };
   /**
-   * Horário de funcionamento estruturado (SKU detailsProHours, tier Pro,
-   * contador PRÓPRIO — separado de `detalhes`/`enriquecido`). Chamado junto
-   * do enriquecimento quando o lead ainda não tinha nenhum dos dois; leads
-   * já enriquecidos ANTES desta feature buscam via botão dedicado
-   * ("buscar horários"). Ausente = nunca buscado (nem tentado, nem falhou).
+   * Horário de funcionamento estruturado. Duas fontes, mesmo formato (a
+   * conversão é uma só, `horariosDoGoogle`):
+   * - **busca qualificada**: o mask Enterprise do Text Search já traz
+   *   `regularOpeningHours`, então o horário entra de graça no upsert —
+   *   só quando o Google devolveu ao menos uma faixa, e só se o lead ainda
+   *   não tinha horário (nunca sobrescreve). Sem `utcOffsetMinutes` (fora
+   *   do mask): o fuso cai no fallback por país (`utcOffsetDoLead`).
+   * - **Place Details dedicado** (SKU detailsProHours, tier Pro, contador
+   *   PRÓPRIO — separado de `detalhes`/`enriquecido`): chamado junto do
+   *   enriquecimento, ou pelo botão "buscar horários"; traz o fuso.
+   * Ausente = nenhuma das duas trouxe horário: busca básica, busca
+   * qualificada anterior a esta leitura (sem retroativo) ou lugar sem
+   * horário publicado — e o Place Details nunca foi pedido.
    */
   horarios?: {
     faixas: FaixaHorario[];

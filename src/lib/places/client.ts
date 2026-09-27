@@ -64,6 +64,14 @@ export interface PlaceBasico {
   temTelefone?: boolean;
   telefone?: string;
   telefoneIntl?: string;
+  /**
+   * Só na busca qualificada, e só quando o Google devolveu ao menos uma
+   * faixa: o mask Enterprise já pede (e cobra) `regularOpeningHours`, então
+   * o horário vem sem request extra. Mesma conversão de `placeHours`
+   * (`horariosDoGoogle`). O fuso só vem se estiver no mask — hoje não está,
+   * e `utcOffsetDoLead` cai no fallback por país.
+   */
+  horarios?: HorariosLugar;
 }
 
 export interface DetalhesLugar {
@@ -150,13 +158,13 @@ async function errorDetail(res: Response): Promise<string> {
   return body.slice(0, 2000) || res.statusText || "sem detalhe";
 }
 
-interface GoogleHorarioPonto {
+export interface GoogleHorarioPonto {
   day?: number;
   hour?: number;
   minute?: number;
 }
 
-interface GooglePlace {
+export interface GooglePlace {
   id?: string;
   displayName?: { text?: string };
   formattedAddress?: string;
@@ -174,6 +182,7 @@ interface GooglePlace {
 
 function toPlaceBasico(place: GooglePlace, qualificada: boolean): PlaceBasico | undefined {
   if (!place.id) return undefined; // sem Place ID não vira doc em /leads
+  const horarios = qualificada ? horariosDoGoogle(place) : undefined;
   return {
     placeId: place.id,
     nome: place.displayName?.text ?? "(sem nome)",
@@ -193,6 +202,10 @@ function toPlaceBasico(place: GooglePlace, qualificada: boolean): PlaceBasico | 
       temTelefone: Boolean(place.nationalPhoneNumber || place.internationalPhoneNumber),
       telefone: place.nationalPhoneNumber || undefined,
       telefoneIntl: place.internationalPhoneNumber || undefined,
+      // Lugar sem horário publicado fica SEM `horarios` (não com faixas
+      // vazias): um `horarios` presente trava o botão "buscar horários" e
+      // faria a barra do dia tratar "não sabemos" como "sabemos".
+      ...(horarios && horarios.faixas.length > 0 && { horarios }),
     }),
   };
 }
@@ -366,6 +379,21 @@ export async function placeDetails(
 }
 
 /**
+ * Converte o horário no formato do Google (`regularOpeningHours` +
+ * `utcOffsetMinutes`) em `HorariosLugar`. ÚNICA conversão do app — usada
+ * pelo Place Details dedicado (`placeHours`) e pela busca qualificada
+ * (`toPlaceBasico`), que recebem o mesmo formato de resposta.
+ */
+export function horariosDoGoogle(
+  place: Pick<GooglePlace, "regularOpeningHours" | "utcOffsetMinutes">,
+): HorariosLugar {
+  return {
+    faixas: toFaixas(place.regularOpeningHours?.periods),
+    utcOffsetMinutes: place.utcOffsetMinutes,
+  };
+}
+
+/**
  * Normaliza os períodos brutos do Google em FaixaHorario[]. Um período sem
  * `close` (representação do Google para "aberto 24h" a partir dali) vira
  * uma faixa de 24h cheias a partir da abertura.
@@ -434,9 +462,5 @@ export async function placeHours(
     throw new PlacesError(res.status, await errorDetail(res));
   }
 
-  const place = (await res.json()) as GooglePlace;
-  return {
-    faixas: toFaixas(place.regularOpeningHours?.periods),
-    utcOffsetMinutes: place.utcOffsetMinutes,
-  };
+  return horariosDoGoogle((await res.json()) as GooglePlace);
 }
