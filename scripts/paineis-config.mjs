@@ -14,7 +14,7 @@
  * fechado, e portanto escondidos junto com ele. Os subordinados não são só
  * da "Fila de envio": "Simular mensagem" é subordinado a "Respostas
  * pendentes" pela mesma razão (testa exatamente o que aquele painel
- * mostra).
+ * mostra), e os de "Automação" porque vivem da MESMA resposta do painel.
  */
 export const PAINEIS_CONFIG = [
   { id: "usuarios", titulo: "Usuários", nivel: 2 },
@@ -29,6 +29,7 @@ export const PAINEIS_CONFIG = [
   { id: "respostas-pendentes", titulo: "Respostas pendentes", nivel: 2 },
   { id: "respostas-simular", titulo: "Simular mensagem", nivel: 3 },
   { id: "automacao", titulo: "Automação", nivel: 2 },
+  { id: "automacao-aprovacao", titulo: "Fila de aprovação", nivel: 3 },
   { id: "leads-sem-vestigio", titulo: "Leads sem vestígio", nivel: 2 },
   { id: "busca", titulo: "Busca", nivel: 2 },
   { id: "mensagem-padrao", titulo: "Mensagem padrão", nivel: 2 },

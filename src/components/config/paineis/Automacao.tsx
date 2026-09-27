@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { SkeletonRows } from "@/components/Skeleton";
 import { PainelColapsavel } from "@/components/config/PainelColapsavel";
+import { AprovacaoAutomacao } from "@/components/config/paineis/AprovacaoAutomacao";
 import { CAMPO_BASE_CLS, FilaNumeroInput, mensagemErroFila } from "@/components/config/comum";
 import { ApiError, api } from "@/lib/api-client";
 import type { AutomacaoConfig } from "@/lib/automacao/config";
@@ -259,6 +260,12 @@ export function AutomacaoSection() {
               </p>
             )}
           </div>
+
+          <AprovacaoAutomacao
+            itens={painel.aprovacao.itens}
+            total={painel.aprovacao.total}
+            onDecidido={carregar}
+          />
         </>
       )}
 

@@ -2,7 +2,11 @@ import type { NivelIA } from "@/lib/ai/nivel";
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import type { ConteudoTraduzivel } from "@/lib/ai/traducaoDemo";
 import type { AutomacaoConfig } from "@/lib/automacao/config";
-import type { OperadorAutomacao, PainelAutomacao } from "@/lib/automacao/painelTipos";
+import type {
+  DecisaoLote,
+  PainelAutomacao,
+  ResultadoAprovacaoLote,
+} from "@/lib/automacao/painelTipos";
 import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
@@ -469,6 +473,12 @@ export const api = {
     request<{ automacao: AutomacaoConfig }>("/api/config/automacao", {
       method: "PUT",
       body: JSON.stringify(patch),
+    }),
+  /** Fila de aprovação: aprovar/reprovar um ou vários (admin). */
+  decidirAprovacaoAutomacao: (leadIds: string[], aprovacao: DecisaoLote) =>
+    request<{ resultados: ResultadoAprovacaoLote[] }>("/api/config/automacao/aprovacao", {
+      method: "POST",
+      body: JSON.stringify({ leadIds, aprovacao }),
     }),
   /** "Rodar agora" — 409 com execução ativa. */
   dispararAutomacao: () =>

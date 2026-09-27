@@ -1,4 +1,5 @@
 import type { CapturaEstado } from "@/lib/demos/capturas/estado";
+import type { AprovacaoDemo } from "@/lib/demos/types";
 
 import type { Estoque } from "./balde";
 import type { AutomacaoConfig } from "./config";
@@ -70,6 +71,17 @@ export interface PainelAutomacao {
   aprovacao: { itens: ItemAprovacao[]; total: number };
   /** O "rodar agora" está configurado (token do GitHub na Vercel)? */
   disparoDisponivel: boolean;
+}
+
+/** Teto por chamada da aprovação em lote — cada lead é uma leitura e uma escrita. */
+export const APROVACAO_LOTE_MAX = 50;
+
+export type DecisaoLote = Extract<AprovacaoDemo, "aprovada" | "reprovada">;
+
+export interface ResultadoAprovacaoLote {
+  leadId: string;
+  ok: boolean;
+  erro?: string;
 }
 
 /** Nicho de busca sem skin nenhuma (ver `lib/demos/nichosSemSkin.ts`). */
