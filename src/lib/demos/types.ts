@@ -847,6 +847,19 @@ export interface SkinDefinition {
   id: string;
   /** Nicho a que a skin se destina (ex.: "barbearia"). */
   nicho: string;
+  /**
+   * Sinônimos do nicho, escritos à mão (conhecimento do OPERADOR — nunca
+   * gerado por IA: seria uma chamada por noite para uma resposta que não
+   * muda, e um casamento errado manda a demo da skin errada para um
+   * negócio real). Usado por `skinsDoNicho` (./nicho.ts) para casar o
+   * nicho de busca (texto livre digitado pelo operador) com a skin, além
+   * do próprio `nicho` acima — comparação sempre EXATA depois de
+   * normalizar (minúsculas, sem acento, sem espaço/hífen), nunca
+   * substring. Lista vazia = só o `nicho` casa. Skins do mesmo nicho podem
+   * compartilhar sinônimos; nenhum sinônimo pode colidir com o nicho ou os
+   * sinônimos de uma skin de OUTRO nicho (ver o teste de contrato).
+   */
+  sinonimos: string[];
   nome: string;
   descricao?: string;
   /**

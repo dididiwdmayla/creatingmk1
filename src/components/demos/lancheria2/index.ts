@@ -12,6 +12,11 @@ import { LANCHERIA2_VARIANTES } from "./variantes";
 export const LANCHERIA_2: SkinDefinition = {
   id: "lancheria-2",
   nicho: "lancheria",
+  // Mesma lista de src/lib/demos/registry.ts (SINONIMOS_LANCHERIA) — skins
+  // do mesmo nicho compartilham sinônimos, e esta skin vive num pacote
+  // próprio, então o valor é escrito de novo aqui (ver o teste de
+  // contrato em nicho.test.ts, que reprova se divergir).
+  sinonimos: ["lanchonete", "hamburgueria", "hamburgeria", "casa de lanches", "burger"],
   nome: "Lancheria 2",
   descricao:
     "Lancheria com raio-x do lanche: o cliente abre a composição, tira e põe camada e vê o preço mudar. Quatro variantes — Meia-Noite, Diner, Prático e Cantina — sobre o mesmo motor calibrado.",
