@@ -59,6 +59,12 @@
  *                                                 # (resultado aberto + contexto enviado expandido)
  *   node scripts/qa-plataforma.mjs --so=vestigio  # leads antigos SEM VESTÍGIO em /config: lista cheia,
  *                                                 # o diálogo da exclusão e a lista VAZIA
+ *   node scripts/qa-plataforma.mjs --so=automacao # o painel AUTOMAÇÃO em /config: fechado e aberto,
+ *                                                 # desligada, última concluída e com FALHA, fila de
+ *                                                 # aprovação cheia (captura pronta/gerando/falhou) e
+ *                                                 # VAZIA, e "o que falta". Com GITHUB_CAPTURAS_TOKEN
+ *                                                 # e GITHUB_CAPTURAS_REPO no ambiente, "Rodar agora"
+ *                                                 # aparece habilitado (o laço nunca clica nele)
  *   node scripts/qa-plataforma.mjs --so=paineis   # PORTÃO dos blocos colapsáveis de /config: tudo fechado,
  *                                                 # um aberto e o estado PERSISTIDO entre recargas
  *   node scripts/qa-plataforma.mjs --so=lote      # diálogo "Gerar demos em lote" (/leads?buscaId=): a skin
@@ -5731,6 +5737,433 @@ async function medirLote(browser, secret) {
   return gerados;
 }
 
+/* ── Item: o painel "Automação" em /config (`--so=automacao`) ─────────── */
+
+/** O painel e os dois blocos subordinados que este passo mede. */
+const PAINEIS_AUTOMACAO = ["automacao", "automacao-aprovacao", "automacao-operador"];
+
+/** Id do doc de busca da automação para o par — `idBuscaAutomacao` de `lib/automacao/pares.ts`. */
+const idBuscaAutomacaoQa = (nicho, regiao) => {
+  const norm = (t) => t.trim().toLowerCase().replace(/\s+/g, " ");
+  const chave = `${norm(nicho)}|${norm(regiao)}`;
+  return `automacao-${crypto.createHash("sha1").update(chave).digest("hex").slice(0, 16)}`;
+};
+
+/**
+ * URL do print do hero semeado nos leads da fila de aprovação. O host é o
+ * do Storage de verdade, mas a IMAGEM é servida pelo próprio laço
+ * (`ctx.route`): a miniatura é carregada pelo navegador, então a
+ * interceptação alcança — e a imagem servida é um print REAL do hero da
+ * demo do lead, tirado no começo do passo, não um retângulo qualquer.
+ */
+const HERO_QA_URL = "https://storage.googleapis.com/radar-qa/automacao/hero-auto-1.png";
+
+/** O que o passo semeia e desfaz — guardado para devolver o banco como estava. */
+let automacaoGuardado = null;
+
+const chaveDaAutomacao = (chave) =>
+  chave === "config/automacao" ||
+  chave === "filaCandidatos/pool" ||
+  chave.startsWith("automacao/") ||
+  chave.startsWith("automacaoExecucoes/") ||
+  chave.startsWith("leads/auto-") ||
+  chave.startsWith("buscas/automacao-") ||
+  chave.startsWith("buscas/qa-auto-");
+
+function guardarAutomacao() {
+  editarBanco((mapa) => {
+    automacaoGuardado = {};
+    for (const chave of Object.keys(mapa)) {
+      if (chaveDaAutomacao(chave)) automacaoGuardado[chave] = mapa[chave];
+    }
+  });
+}
+
+function restaurarAutomacao() {
+  if (!automacaoGuardado) return;
+  editarBanco((mapa) => {
+    for (const chave of Object.keys(mapa)) if (chaveDaAutomacao(chave)) delete mapa[chave];
+    Object.assign(mapa, automacaoGuardado);
+  });
+  automacaoGuardado = null;
+}
+
+/** Uma demo automática PENDENTE, num lead que está no funil. */
+function leadAutomatico(placeId, nome, nicho, skinId, themeId, capturas) {
+  return {
+    placeId,
+    nome,
+    status: "novo",
+    enriquecido: false,
+    telefoneIntl: "+55 44 99154-3803",
+    endereco: `Av. Brasil, ${100 + placeId.length} - Zona 1, Maringá - PR, 87013-000, Brasil`,
+    busca: { nicho, regiao: "Maringá PR", em: iso(2) },
+    horarios: { faixas: [], utcOffsetMinutes: -180, obtidoEm: iso(2) },
+    demo: {
+      skinId,
+      themeId,
+      dados: {},
+      criadoEm: iso(0.2),
+      atualizadoEm: iso(0.2),
+      criadoPor: "automacao",
+      origem: "automacao",
+      aprovacao: "pendente",
+      execucaoAutomacao: "qa-exec-ok",
+    },
+    ...(capturas && { capturas }),
+    criadoEm: iso(1),
+    atualizadoEm: iso(0.2),
+  };
+}
+
+const LEADS_AUTOMACAO = () => [
+  leadAutomatico("auto-1", "Barbearia Navalha de Ouro", "barbearia", "barbearia-editorial", "creme", {
+    estado: "pronto",
+    execucaoId: "cap-1",
+    pedidoEm: iso(0.19),
+    iniciadoEm: iso(0.19),
+    geradoEm: iso(0.18),
+    imagens: [{ ancora: "hero", tela: "celular", ordem: 1, url: HERO_QA_URL, largura: 780, altura: 1688 }],
+  }),
+  // Nome LONGO de propósito: a linha tem de truncar, não empurrar os botões.
+  leadAutomatico(
+    "auto-2",
+    "Barbearia Dom Bigode & Filhos — Unidade Centro Histórico de Maringá",
+    "barbearia",
+    "barbearia2-sul",
+    "ardosia",
+    { estado: "rodando", execucaoId: "cap-2", pedidoEm: iso(0.01), iniciadoEm: new Date(AGORA.getTime() - 60000).toISOString() },
+  ),
+  leadAutomatico("auto-3", "Pet Shop Focinho Molhado", "petshop", "petshop-focinho-feliz", "menta", {
+    estado: "enfileirado",
+    execucaoId: "cap-3",
+    pedidoEm: new Date(AGORA.getTime() - 60000).toISOString(),
+  }),
+  leadAutomatico("auto-4", "Tattoo Sombra Viva", "tatuagem", "tatuagem-editorial", "sangue", {
+    estado: "falhou",
+    execucaoId: "cap-4",
+    pedidoEm: iso(0.19),
+    erro: "timeout esperando a seção hero",
+  }),
+];
+
+/** A execução da noite, nas duas versões que a tela distingue. */
+function execucaoQa(estado) {
+  const base = {
+    id: estado === "falhou" ? "qa-exec-falha" : "qa-exec-ok",
+    disparo: "schedule",
+    runUrl: "https://github.com/dididiwdmayla/creatingmk1/actions/runs/1",
+    iniciadaEm: iso(0.25),
+    atualizadaEm: iso(0.2),
+    finalizadaEm: iso(0.2),
+    alvo: 15,
+    falta: 6,
+    estoqueAntes: { prontos: 7, aguardandoAprovacao: 2, capturasEmAndamento: 0, total: 9 },
+    paresTentados: ["barbearia|maringá pr"],
+    falhas: [],
+  };
+  if (estado === "falhou") {
+    return {
+      ...base,
+      estado: "falhou",
+      unidades: [
+        { id: "u1", tipo: "demo", leadId: "auto-1", fonte: "existente", estado: "feita", tentativas: 1 },
+        { id: "u2", tipo: "busca", estado: "nao_processada", tentativas: 0 },
+      ],
+      demosCriadas: ["auto-1"],
+      buscas: [],
+      requisicoesBusca: 0,
+      chamadasIA: 2,
+      erro: "o laço parou depois de 3 erros seguidos (HTTP 502 em /api/automacao/passo)",
+      motivo: "erro: o laço parou depois de 3 erros seguidos (HTTP 502 em /api/automacao/passo)",
+    };
+  }
+  return {
+    ...base,
+    estado: "concluida",
+    estoqueDepois: { prontos: 7, aguardandoAprovacao: 4, capturasEmAndamento: 2, total: 13 },
+    unidades: [
+      ...["auto-1", "auto-2", "auto-3", "auto-4"].map((leadId, i) => ({
+        id: `u${i}`,
+        tipo: "demo",
+        leadId,
+        fonte: i < 2 ? "existente" : "busca",
+        estado: "feita",
+        tentativas: 1,
+      })),
+      { id: "u9", tipo: "demo", leadId: "auto-x", fonte: "busca", estado: "falhou", tentativas: 2 },
+      { id: "ub", tipo: "busca", estado: "feita", tentativas: 1, novos: 6 },
+    ],
+    demosCriadas: ["auto-1", "auto-2", "auto-3", "auto-4"],
+    buscas: [{ parChave: "barbearia|maringá pr", nicho: "barbearia", regiao: "Maringá PR", buscaId: "b", paginas: 2, novos: 6 }],
+    requisicoesBusca: 3,
+    chamadasIA: 8,
+    falhas: [{ unidadeId: "u9", tipo: "demo", leadId: "auto-x", motivo: "a função morreu no meio 2 vez(es)", em: iso(0.2) }],
+    motivo: "teto de requisições de busca da noite",
+  };
+}
+
+/**
+ * Semeia um ESTADO do painel. O pool é APAGADO de propósito: quem o refaz é
+ * a própria rota do painel (`lerPool` → `construirPool`), a partir dos leads
+ * — é o caminho real do estoque e da fila de aprovação, e não um número
+ * escrito à mão no doc.
+ */
+function semearAutomacao({ ativo, ultima, fila }) {
+  editarBanco((mapa) => {
+    for (const chave of Object.keys(mapa)) if (chaveDaAutomacao(chave)) delete mapa[chave];
+    mapa["config/automacao"] = { ativo, alvoEstoque: 15, textoIA: true, aprovacaoAutomatica: false, corteLegado: "2026-08-10", tetoBuscasNoite: 6, tetoIANoite: 20 };
+    if (fila) for (const l of LEADS_AUTOMACAO()) mapa[`leads/${l.placeId}`] = l;
+    if (ultima) {
+      const execucao = execucaoQa(ultima);
+      mapa[`automacaoExecucoes/${execucao.id}`] = execucao;
+      mapa["automacao/ultima"] = { execucaoId: execucao.id, estado: execucao.estado, em: execucao.finalizadaEm };
+      mapa["automacao/trava"] = { execucaoId: "", expiraEm: execucao.finalizadaEm, liberadaEm: execucao.finalizadaEm };
+    }
+    // "O que falta": um nicho sem skin a mais (o "dentista" já vem da
+    // semeadura geral) e um par SATURADO — busca do operador + doc da
+    // automação com as três últimas noites somando menos de 3 novos.
+    mapa["buscas/qa-auto-pilates"] = {
+      id: "qa-auto-pilates", nome: "Pilates — Batel", nicho: "Estúdio de Pilates", regiao: "Curitiba PR",
+      cor: "#8a5cf6", criadaEm: iso(6), totalCriados: 9, totalExistentes: 2, userId: "admin",
+    };
+    mapa["buscas/qa-auto-op"] = {
+      id: "qa-auto-op", nome: "Barbearias — Maringá", nicho: "barbearia", regiao: "Maringá PR",
+      cor: "#c98500", criadaEm: iso(20), totalCriados: 12, totalExistentes: 3, userId: "admin",
+    };
+    const idPar = idBuscaAutomacaoQa("barbearia", "Maringá PR");
+    mapa[`buscas/${idPar}`] = {
+      id: idPar, nome: "barbearia — Maringá PR (automação)", nicho: "barbearia", regiao: "Maringá PR",
+      cor: "#2f82e0", criadaEm: iso(12), totalCriados: 9, totalExistentes: 20, origem: "automacao", userId: "automacao",
+    };
+    [1, 0, 1, 7].forEach((novos, i) => {
+      mapa[`buscas/${idPar}/execucoes/qa${i}`] = { em: iso(i + 1), novos, existentes: 12 };
+    });
+  });
+}
+
+/** Caixa do painel e slots zerados — o aferidor dos outros passos, no painel novo. */
+async function conferirPainelAutomacao(page, onde, largura, problemas) {
+  const r = await page.evaluate(() => {
+    const secao = document.querySelector('[data-painel="automacao"]');
+    if (!secao) return null;
+    const caixa = secao.getBoundingClientRect();
+    const zeradas = [...secao.querySelectorAll("*")]
+      .filter((el) => !el.closest('[data-corpo="fechado"]'))
+      .filter((el) => el.children.length === 0 && (el.textContent ?? "").trim().length > 0)
+      // A forma do resumo que não é a desta largura (`sm:hidden` / `hidden
+      // sm:inline`) está escondida DE PROPÓSITO, como um corpo fechado.
+      .filter((el) => getComputedStyle(el).display !== "none")
+      .map((el) => {
+        const b = el.getBoundingClientRect();
+        return { w: Math.round(b.width), h: Math.round(b.height), texto: (el.textContent ?? "").trim().slice(0, 30) };
+      })
+      .filter((s) => s.w <= 0 || s.h <= 0);
+    const vazando = [...secao.querySelectorAll("*")]
+      .filter((el) => !el.closest('[data-corpo="fechado"]'))
+      // Contra a borda do CARTÃO, não só da viewport: o sufixo "páginas"
+      // passava do cartão sem sair da tela, e a comparação só com a viewport
+      // não via (a captura mostrou).
+      .filter((el) => getComputedStyle(el).display !== "none")
+      .filter((el) => el.getBoundingClientRect().right > Math.min(window.innerWidth, caixa.right) + 1)
+      .map((el) => el.tagName.toLowerCase() + ((el.textContent ?? "").trim().slice(0, 20) ? ` "${(el.textContent ?? "").trim().slice(0, 20)}"` : ""));
+    return { direita: Math.round(caixa.right), altura: Math.round(caixa.height), zeradas, vazando: vazando.slice(0, 3) };
+  });
+  if (!r) {
+    problemas.push(`${onde}: painel "automacao" não foi encontrado`);
+    return null;
+  }
+  if (r.direita > largura + 1) problemas.push(`${onde}: painel vaza da viewport (direita=${r.direita}, tela=${largura})`);
+  for (const v of r.vazando) problemas.push(`${onde}: ${v} vaza do cartão`);
+  for (const s of r.zeradas) problemas.push(`${onde}: slot com caixa zerada ("${s.texto}") ${s.w}×${s.h}`);
+  return r;
+}
+
+async function medirAutomacao(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+  guardarAutomacao();
+
+  // O PRINT DO HERO: o hero de verdade da demo do lead, fotografado no
+  // tamanho do celular — é ele que a miniatura da fila mostra.
+  semearAutomacao({ ativo: true, ultima: "ok", fila: true });
+  let heroPng;
+  {
+    const ctx = await contextoLogado(browser, { viewport: VIEWPORT_CELULAR, secret });
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/demo/auto-1`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1200);
+    heroPng = await page.screenshot();
+    await ctx.close();
+  }
+
+  try {
+    for (const [viewport, sufixo, tema] of [
+      [VIEWPORT_CELULAR, "celular", "escuro"],
+      [VIEWPORT_DESKTOP, "desktop", "escuro"],
+      [VIEWPORT_CELULAR, "celular-claro", "claro"],
+      [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+    ]) {
+      definirTemaNoDoc("admin", tema);
+      const ctx = await contextoLogado(browser, { viewport, secret, tema });
+      await ctx.route(HERO_QA_URL, (rota) => rota.fulfill({ status: 200, contentType: "image/png", body: heroPng }));
+      const page = await ctx.newPage();
+
+      const abrir = async (onde, abertos) => {
+        definirPaineisAbertosNoDoc("admin", abertos);
+        await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+        await assentar(page);
+        await exigirLogado(page, `automacao/${onde}`);
+        await exigirTema(page, tema, `automacao/${onde}`);
+        const secao = page.locator('[data-painel="automacao"]');
+        await secao.scrollIntoViewIfNeeded();
+        // O bloco "O que falta" busca na PRIMEIRA ABERTURA — espera a lista.
+        if (abertos.includes("automacao-operador")) {
+          await page.locator('[data-bloco="nichos-sem-skin"]').waitFor({ timeout: 10000 }).catch(() => {});
+        }
+        await page.waitForTimeout(400);
+        return secao;
+      };
+
+      const capturar = async (secao, rotulo, arquivo) => {
+        const png = path.join(SAIDA, `automacao-${arquivo}-${sufixo}${marca}.png`);
+        const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+        await secao.screenshot({ path: png });
+        await semNav.evaluate((no) => no.remove());
+        itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+      };
+
+      const resumo = async () =>
+        page.evaluate(() => {
+          const el = document.querySelector('[data-painel="automacao"] h2 button > span:nth-of-type(2)');
+          // `innerText`: das duas formas (celular/desktop), só a VISÍVEL.
+          return el
+            ? { texto: (el.innerText ?? "").trim(), scroll: el.scrollWidth, cliente: el.clientWidth }
+            : null;
+        });
+
+      // ── FECHADO: o cabeçalho diz o estado numa linha, sem truncar.
+      semearAutomacao({ ativo: true, ultima: "ok", fila: true });
+      let secao = await abrir(`fechado/${sufixo}`, []);
+      const r = await resumo();
+      if (!r) problemas.push(`fechado/${sufixo}: linha de resumo ausente`);
+      else {
+        const esperado = viewport === VIEWPORT_CELULAR
+          ? /^ligada · \d+\/15 · 4 a aprovar$/
+          : /^ligada · estoque \d+\/15 · 4 aguardando aprovação$/;
+        if (!esperado.test(r.texto)) {
+          problemas.push(`fechado/${sufixo}: resumo inesperado "${r.texto}"`);
+        }
+        if (r.scroll > r.cliente + 1) {
+          problemas.push(`fechado/${sufixo}: resumo truncado ("${r.texto}": ${r.scroll}px em ${r.cliente}px)`);
+        }
+      }
+      if (await page.locator('[data-painel="automacao"] [data-corpo="aberto"]').count()) {
+        problemas.push(`fechado/${sufixo}: o painel nasceu aberto`);
+      }
+      await capturar(secao, "fechado (ligada, fila cheia)", "fechado");
+
+      // ── DESLIGADA, sem execução nenhuma, fila CHEIA (captura pronta,
+      // gerando, enfileirada e falhou).
+      semearAutomacao({ ativo: false, ultima: null, fila: true });
+      secao = await abrir(`desligada/${sufixo}`, PAINEIS_AUTOMACAO);
+      await conferirPainelAutomacao(page, `desligada/${sufixo}`, viewport.width, problemas);
+      if ((await page.locator('[data-interruptor="ativo"][aria-pressed="false"]').count()) !== 1) {
+        problemas.push(`desligada/${sufixo}: o interruptor da automação não aparece desligado`);
+      }
+      if ((await page.getByText("Última execução: nenhuma ainda.").count()) === 0) {
+        problemas.push(`desligada/${sufixo}: sem execução, a tela não disse "nenhuma ainda"`);
+      }
+      const linhas = await page.locator('[data-lista="aprovacao"] li').count();
+      if (linhas !== 4) problemas.push(`desligada/${sufixo}: esperava 4 itens na fila de aprovação, achei ${linhas}`);
+      const hero = await page.evaluate(() => {
+        const img = document.querySelector('[data-lead="auto-1"] img');
+        return img ? { carregou: img.complete && img.naturalWidth > 0, largura: img.getBoundingClientRect().width } : null;
+      });
+      if (!hero?.carregou) problemas.push(`desligada/${sufixo}: o print do hero (captura pronta) não carregou`);
+      if ((await page.locator('[data-lead="auto-2"]').getByText("print gerando…").count()) === 0) {
+        problemas.push(`desligada/${sufixo}: captura rodando não disse "print gerando…"`);
+      }
+      if ((await page.locator('[data-lead="auto-4"]').getByText("print falhou").count()) === 0) {
+        problemas.push(`desligada/${sufixo}: captura que falhou não disse "print falhou"`);
+      }
+      if ((await page.locator('[data-lead="auto-1"] a', { hasText: "abrir demo" }).getAttribute("href")) !== "/demo/auto-1") {
+        problemas.push(`desligada/${sufixo}: o link da demo não aponta para /demo/auto-1`);
+      }
+      if ((await page.locator('[data-bloco="nichos-sem-skin"]').getByText("Estúdio de Pilates").count()) === 0) {
+        problemas.push(`desligada/${sufixo}: "Estúdio de Pilates" não apareceu entre os nichos sem skin`);
+      }
+      if ((await page.locator('[data-bloco="pares-saturados"]').getByText(/barbearia — Maringá PR/).count()) === 0) {
+        problemas.push(`desligada/${sufixo}: o par saturado não apareceu`);
+      }
+      await capturar(secao, "desligada · fila cheia · o que falta", "desligada");
+
+      // ── LIGADA, última execução CONCLUÍDA.
+      semearAutomacao({ ativo: true, ultima: "ok", fila: true });
+      secao = await abrir(`ok/${sufixo}`, ["automacao"]);
+      await conferirPainelAutomacao(page, `ok/${sufixo}`, viewport.width, problemas);
+      const tomOk = await page.locator('[data-bloco="automacao-ultima"]').getAttribute("data-tom");
+      if (tomOk !== "ok") problemas.push(`ok/${sufixo}: última execução com tom "${tomOk}", esperava "ok"`);
+      if ((await page.getByText("✓ Concluída").count()) === 0) problemas.push(`ok/${sufixo}: selo "Concluída" ausente`);
+      if (!(await page.locator('[data-acao="rodar-agora"]').isVisible())) {
+        problemas.push(`ok/${sufixo}: o botão "Rodar agora" não está na tela`);
+      }
+      const molduraOk = await page.locator('[data-bloco="automacao-ultima"]').evaluate((el) => getComputedStyle(el).borderTopColor);
+      await capturar(secao, "ligada · última concluída", "ok");
+
+      // ── LIGADA, última execução FALHOU, fila VAZIA. A falha tem de ser
+      // inconfundível com o sucesso: moldura de outra cor, selo e texto.
+      semearAutomacao({ ativo: true, ultima: "falhou", fila: false });
+      secao = await abrir(`falha/${sufixo}`, ["automacao", "automacao-aprovacao"]);
+      await conferirPainelAutomacao(page, `falha/${sufixo}`, viewport.width, problemas);
+      const ultimaFalha = page.locator('[data-bloco="automacao-ultima"]');
+      if ((await ultimaFalha.getAttribute("data-tom")) !== "falha") problemas.push(`falha/${sufixo}: tom não é "falha"`);
+      if ((await ultimaFalha.getByText("✕ Falhou").count()) === 0) problemas.push(`falha/${sufixo}: selo "Falhou" ausente`);
+      if ((await ultimaFalha.getByText(/3 erros seguidos/).count()) === 0) problemas.push(`falha/${sufixo}: o erro não foi dito`);
+      const molduraFalha = await ultimaFalha.evaluate((el) => getComputedStyle(el).borderTopColor);
+      if (molduraFalha === molduraOk) {
+        problemas.push(`falha/${sufixo}: moldura da falha (${molduraFalha}) igual à do sucesso — confundível`);
+      }
+      if ((await page.locator('[data-vazio="aprovacao"]').count()) === 0) {
+        problemas.push(`falha/${sufixo}: fila vazia sem a linha "Nenhuma demo automática…"`);
+      }
+      const rFalha = await resumo();
+      if (!rFalha?.texto.endsWith("última falhou")) {
+        problemas.push(`falha/${sufixo}: o cabeçalho não diz que a última falhou ("${rFalha?.texto}")`);
+      }
+      if (rFalha && rFalha.scroll > rFalha.cliente + 1) {
+        problemas.push(`falha/${sufixo}: resumo truncado ("${rFalha.texto}": ${rFalha.scroll}px em ${rFalha.cliente}px)`);
+      }
+      await capturar(secao, "ligada · última FALHOU · fila vazia", "falha");
+
+      await ctx.close();
+    }
+  } finally {
+    restaurarAutomacao();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, 'Painel "Automação" (/config)', "automacao", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+  gerados.push(...itens.map((i) => i.png));
+
+  if (problemas.length > 0) {
+    throw new Error(`[automacao] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log(
+    "[automacao] ok — fechado, desligada, concluída e FALHA; fila cheia (pronta/gerando/enfileirada/falhou) e vazia; o que falta.",
+  );
+  return gerados;
+}
+
 /* ── main ────────────────────────────────────────────────────────────── */
 
 async function main() {
@@ -5791,6 +6224,7 @@ async function main() {
     if (querido("teste")) gerados.push(...(await medirDisparoTeste(browser, secret)));
     if (querido("seletor")) gerados.push(...(await medirSeletorLead(browser, secret)));
     if (querido("vestigio")) gerados.push(...(await medirSemVestigio(browser, secret)));
+    if (querido("automacao")) gerados.push(...(await medirAutomacao(browser, secret)));
     if (querido("paineis")) gerados.push(...(await medirPaineisConfig(browser, secret)));
     if (querido("lote")) gerados.push(...(await medirLote(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));

@@ -123,14 +123,28 @@ export function falhou(ultima: ResumoExecucao | null, ativa: ExecucaoAtiva | nul
 /**
  * A linha do cabeçalho FECHADO: "ligada · estoque 12/15 · 3 aguardando
  * aprovação". Sai inteira da resposta que o corpo já usa.
+ *
+ * `curto` é a forma do CELULAR ("ligada · 12/15 · 3 a aprovar"): na largura
+ * de 390px a forma longa não cabe ao lado do título e seria truncada — e um
+ * resumo truncado não diz o estado (medido pelo `--so=automacao`). Na forma
+ * curta, com espaço para um aviso só, a falha (ou a execução rodando) vem
+ * antes da contagem de pendentes: é o que pede ação primeiro.
  */
-export function resumoCabecalho(painel: PainelAutomacao | null): string {
+export function resumoCabecalho(painel: PainelAutomacao | null, curto = false): string {
   if (!painel) return "carregando…";
   const partes = [painel.config.ativo ? "ligada" : "desligada"];
-  if (painel.estoque) partes.push(`estoque ${painel.estoque.total}/${painel.config.alvoEstoque}`);
+  if (painel.estoque) {
+    const conta = `${painel.estoque.total}/${painel.config.alvoEstoque}`;
+    partes.push(curto ? conta : `estoque ${conta}`);
+  }
   const pendentes = painel.aprovacao.total;
+  const aviso = painel.ativa ? "rodando" : falhou(painel.ultima, painel.ativa) ? "última falhou" : undefined;
+  if (curto) {
+    if (aviso) partes.push(aviso);
+    else if (pendentes > 0) partes.push(`${pendentes} a aprovar`);
+    return partes.join(" · ");
+  }
   if (pendentes > 0) partes.push(`${pendentes} aguardando aprovação`);
-  if (painel.ativa) partes.push("rodando");
-  else if (falhou(painel.ultima, painel.ativa)) partes.push("última falhou");
+  if (aviso) partes.push(aviso);
   return partes.join(" · ");
 }

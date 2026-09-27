@@ -269,6 +269,12 @@ describe("linha do cabeçalho fechado", () => {
     expect(resumoCabecalho(painel())).toBe("ligada · estoque 12/15 · 3 aguardando aprovação");
   });
 
+  it("a forma curta do celular: sem a palavra estoque, e a falha antes dos pendentes", () => {
+    expect(resumoCabecalho(painel(), true)).toBe("ligada · 12/15 · 3 a aprovar");
+    const ativa = { tipo: "disparo" as const, em: "x" };
+    expect(resumoCabecalho(painel({ ativa }), true)).toBe("ligada · 12/15 · rodando");
+  });
+
   it("desligada, sem pendência e sem retrato", () => {
     expect(
       resumoCabecalho(

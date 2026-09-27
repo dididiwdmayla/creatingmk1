@@ -164,17 +164,13 @@ export function AutomacaoSection() {
     <PainelColapsavel
       id={PAINEL_AUTOMACAO}
       titulo="Automação"
-      resumo={resumoCabecalho(painel)}
-      acoes={
-        <button
-          type="button"
-          onClick={carregar}
-          disabled={carregando || painel === null}
-          className="shrink-0 rounded px-2 py-1 text-xs text-ink-muted hover:text-foreground disabled:opacity-50"
-          title="Reler estado, estoque e fila de aprovação"
-        >
-          {carregando ? "…" : "↻ Atualizar"}
-        </button>
+      // Duas formas, e só uma visível por vez: a longa não cabe no celular
+      // ao lado do título (ver `resumoCabecalho`).
+      resumo={
+        <>
+          <span className="sm:hidden">{resumoCabecalho(painel, true)}</span>
+          <span className="hidden sm:inline">{resumoCabecalho(painel)}</span>
+        </>
       }
     >
       <p className="mt-1 text-xs text-ink-muted">
@@ -190,7 +186,7 @@ export function AutomacaoSection() {
             {INTERRUPTORES.map(({ campo, label, ajuda }) => (
               <div key={campo} className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-2 text-xs text-ink-secondary">
-                  <span className="w-44 shrink-0">{label}</span>
+                  <span className="w-32 shrink-0 sm:w-44">{label}</span>
                   <button
                     type="button"
                     data-interruptor={campo}
@@ -212,7 +208,7 @@ export function AutomacaoSection() {
 
             {NUMEROS.map(({ campo, label, sufixo }) => (
               <div key={campo} className="flex items-center gap-2 text-xs text-ink-secondary">
-                <span className="w-44 shrink-0">{label}</span>
+                <span className="w-32 shrink-0 sm:w-44">{label}</span>
                 <FilaNumeroInput
                   valor={config[campo]}
                   disabled={ocupado === campo}
@@ -223,7 +219,7 @@ export function AutomacaoSection() {
             ))}
 
             <div className="flex items-center gap-2 text-xs text-ink-secondary">
-              <span className="w-44 shrink-0">Corte do legado</span>
+              <span className="w-32 shrink-0 sm:w-44">Corte do legado</span>
               <CorteInput
                 valor={config.corteLegado}
                 disabled={ocupado === "corteLegado"}
@@ -250,6 +246,11 @@ export function AutomacaoSection() {
                 data-acao="rodar-agora"
               >
                 Rodar agora
+              </Button>
+              {/* Fora do cabeçalho de propósito: ali ele roubava a largura
+                  que o resumo precisa para não truncar. */}
+              <Button variant="ghost" onClick={carregar} loading={carregando} data-acao="atualizar">
+                ↻ Atualizar
               </Button>
               <span className="text-xs text-ink-muted">
                 {textoRodarAgora(painel.ativa, painel.disparoDisponivel)}
@@ -316,7 +317,7 @@ function CorteInput({
       disabled={disabled}
       onChange={(event) => setTexto(event.target.value)}
       onBlur={commit}
-      className={`${CAMPO_BASE_CLS} text-sm disabled:opacity-50`}
+      className={`${CAMPO_BASE_CLS.replace("w-full", "w-40")} min-w-0 text-sm disabled:opacity-50`}
     />
   );
 }

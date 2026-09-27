@@ -79,7 +79,7 @@ export function OperadorAutomacao({ painelId }: { painelId: string }) {
                 <tbody>
                   {dados.nichosSemSkin.map((n) => (
                     <tr key={n.nicho} className="border-t border-line">
-                      <td className="max-w-0 truncate py-1 pr-2 text-ink-secondary">{n.nicho}</td>
+                      <td className="py-1 pr-2 break-words text-ink-secondary">{n.nicho}</td>
                       <td className="py-1 text-right tabular-nums">{formatInt(n.buscas)}</td>
                       <td className="py-1 text-right tabular-nums">{formatInt(n.leads)}</td>
                     </tr>
