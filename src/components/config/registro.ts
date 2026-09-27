@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 
+import { PAINEL_AUTOMACAO, AutomacaoSection } from "./paineis/Automacao";
 import { PAINEL_BUSCA, PainelBusca } from "./paineis/Busca";
 import { PAINEL_CONTEXTO_COMERCIAL, ContextoComercialSection } from "./paineis/ContextoComercial";
 import { PAINEL_COTAS, CotasUsuariosSection } from "./paineis/CotasUsuarios";
@@ -63,6 +64,7 @@ export const PAINEIS_CONFIG: PainelConfig[] = [
   { id: PAINEL_CONTEXTO_COMERCIAL, posicao: "antes", Componente: ContextoComercialSection },
   { id: PAINEL_FILA, posicao: "antes", Componente: FilaEnvioSection },
   { id: PAINEL_RESPOSTAS, posicao: "antes", Componente: RespostasPendentesSection },
+  { id: PAINEL_AUTOMACAO, posicao: "antes", Componente: AutomacaoSection },
   { id: PAINEL_SEM_VESTIGIO, posicao: "antes", Componente: LeadsSemVestigioSection },
   { id: PAINEL_BUSCA, posicao: "formulario", Componente: PainelBusca },
   { id: PAINEL_MENSAGEM, posicao: "formulario", Componente: PainelMensagemPadrao },

@@ -86,7 +86,7 @@ export function parRecente(ultimaEm: string | undefined, now: Date, horas: numbe
   return Number.isFinite(t) && now.getTime() - t < horas * 3600_000;
 }
 
-async function execucoesDe(db: AppDb, buscaId: string): Promise<BuscaExecucao[]> {
+export async function execucoesDe(db: AppDb, buscaId: string): Promise<BuscaExecucao[]> {
   const { docs } = await db.collection(execucoesCollection(buscaId)).get();
   return docs
     .map((doc) => doc.data() as unknown as BuscaExecucao)

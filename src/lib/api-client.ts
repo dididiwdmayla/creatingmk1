@@ -1,6 +1,13 @@
 import type { NivelIA } from "@/lib/ai/nivel";
 import type { SugestaoDemo } from "@/lib/ai/sugestao";
 import type { ConteudoTraduzivel } from "@/lib/ai/traducaoDemo";
+import type { AutomacaoConfig } from "@/lib/automacao/config";
+import type {
+  DecisaoLote,
+  OperadorAutomacao,
+  PainelAutomacao,
+  ResultadoAprovacaoLote,
+} from "@/lib/automacao/painelTipos";
 import type { CronExecucao } from "@/lib/buscas/cron";
 import type { Busca } from "@/lib/buscas/types";
 import type { AppConfig } from "@/lib/config";
@@ -460,6 +467,25 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(patch),
     }),
+
+  /** Painel "Automação" da /config — tudo numa resposta (admin). */
+  getAutomacaoPainel: () => request<PainelAutomacao>("/api/config/automacao/painel"),
+  putAutomacaoConfig: (patch: Partial<AutomacaoConfig>) =>
+    request<{ automacao: AutomacaoConfig }>("/api/config/automacao", {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    }),
+  /** Fila de aprovação: aprovar/reprovar um ou vários (admin). */
+  decidirAprovacaoAutomacao: (leadIds: string[], aprovacao: DecisaoLote) =>
+    request<{ resultados: ResultadoAprovacaoLote[] }>("/api/config/automacao/aprovacao", {
+      method: "POST",
+      body: JSON.stringify({ leadIds, aprovacao }),
+    }),
+  /** Nichos sem skin e pares saturados — o bloco busca na primeira abertura. */
+  getAutomacaoOperador: () => request<OperadorAutomacao>("/api/config/automacao/operador"),
+  /** "Rodar agora" — 409 com execução ativa. */
+  dispararAutomacao: () =>
+    request<{ disparado: true; em: string }>("/api/config/automacao/disparar", { method: "POST" }),
 
   /**
    * Leads que receberam o texto mas não o print (ver `detalheEnvio`) —
