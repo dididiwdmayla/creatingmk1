@@ -4,6 +4,7 @@ import type { ConteudoTraduzivel } from "@/lib/ai/traducaoDemo";
 import type { AutomacaoConfig } from "@/lib/automacao/config";
 import type {
   DecisaoLote,
+  OperadorAutomacao,
   PainelAutomacao,
   ResultadoAprovacaoLote,
 } from "@/lib/automacao/painelTipos";
@@ -480,6 +481,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ leadIds, aprovacao }),
     }),
+  /** Nichos sem skin e pares saturados — o bloco busca na primeira abertura. */
+  getAutomacaoOperador: () => request<OperadorAutomacao>("/api/config/automacao/operador"),
   /** "Rodar agora" — 409 com execução ativa. */
   dispararAutomacao: () =>
     request<{ disparado: true; em: string }>("/api/config/automacao/disparar", { method: "POST" }),

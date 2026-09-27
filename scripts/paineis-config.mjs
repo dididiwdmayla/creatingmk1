@@ -30,6 +30,7 @@ export const PAINEIS_CONFIG = [
   { id: "respostas-simular", titulo: "Simular mensagem", nivel: 3 },
   { id: "automacao", titulo: "Automação", nivel: 2 },
   { id: "automacao-aprovacao", titulo: "Fila de aprovação", nivel: 3 },
+  { id: "automacao-operador", titulo: "O que falta", nivel: 3 },
   { id: "leads-sem-vestigio", titulo: "Leads sem vestígio", nivel: 2 },
   { id: "busca", titulo: "Busca", nivel: 2 },
   { id: "mensagem-padrao", titulo: "Mensagem padrão", nivel: 2 },

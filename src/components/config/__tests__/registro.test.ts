@@ -4,6 +4,7 @@ import { PAINEIS_CONFIG as PAINEIS_MJS } from "../../../../scripts/paineis-confi
 import { PAINEIS_ANTES, PAINEIS_CONFIG, PAINEIS_DEPOIS, PAINEIS_FORMULARIO } from "../registro";
 import { PAINEL_AUTOMACAO_APROVACAO } from "../paineis/AprovacaoAutomacao";
 import { PAINEL_DISPARO_TESTE } from "../paineis/DisparoTeste";
+import { PAINEL_AUTOMACAO_OPERADOR } from "../paineis/OperadorAutomacao";
 import { PAINEL_PRINT_PENDENTE } from "../paineis/PrintPendente";
 import { PAINEL_RESPOSTA_AUTOMATICA } from "../paineis/RespostaAutomatica";
 import { PAINEL_SIMULAR } from "../paineis/RespostasPendentes";
@@ -27,9 +28,10 @@ const SUBORDINADOS_DAS_RESPOSTAS = [PAINEL_SIMULAR];
 
 /**
  * E os de "Automação": a fila de aprovação vive da MESMA resposta do painel
- * (o total dela é o que o cabeçalho fechado do painel diz).
+ * (o total dela é o que o cabeçalho fechado do painel diz), e "O que falta"
+ * explica o que a automação daquele painel deixa parado.
  */
-const SUBORDINADOS_DA_AUTOMACAO = [PAINEL_AUTOMACAO_APROVACAO];
+const SUBORDINADOS_DA_AUTOMACAO = [PAINEL_AUTOMACAO_APROVACAO, PAINEL_AUTOMACAO_OPERADOR];
 
 /** Todo bloco de nível 3 da página, seja de qual painel for. */
 const SUBORDINADOS = [

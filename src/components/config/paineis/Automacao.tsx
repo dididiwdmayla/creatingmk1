@@ -6,6 +6,7 @@ import { Button } from "@/components/Button";
 import { SkeletonRows } from "@/components/Skeleton";
 import { PainelColapsavel } from "@/components/config/PainelColapsavel";
 import { AprovacaoAutomacao } from "@/components/config/paineis/AprovacaoAutomacao";
+import { OperadorAutomacao } from "@/components/config/paineis/OperadorAutomacao";
 import { CAMPO_BASE_CLS, FilaNumeroInput, mensagemErroFila } from "@/components/config/comum";
 import { ApiError, api } from "@/lib/api-client";
 import type { AutomacaoConfig } from "@/lib/automacao/config";
@@ -266,6 +267,7 @@ export function AutomacaoSection() {
             total={painel.aprovacao.total}
             onDecidido={carregar}
           />
+          <OperadorAutomacao painelId={PAINEL_AUTOMACAO} />
         </>
       )}
 
