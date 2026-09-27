@@ -180,6 +180,14 @@ export interface Lead {
    * tela, e um lead de teste elegível à noite mandaria mensagem de verdade.
    */
   leadDeTeste?: boolean;
+  /**
+   * O operador REPROVOU a demo que a automação do estoque fez para este
+   * lead (`decidirAprovacaoDemo`). Marca do LEAD, não da demo, de propósito:
+   * o planejador nunca mais o escolhe, mesmo que a demo seja apagada depois
+   * — senão o lead voltaria a "sem demo" e a automação refaria a mesma demo
+   * toda noite. Ausente = nunca reprovado.
+   */
+  automacaoReprovada?: { em: string; por?: string };
   criadoEm: string;
   atualizadoEm: string;
 }

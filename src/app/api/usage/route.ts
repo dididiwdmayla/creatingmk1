@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { nomesComAutomacao } from "@/lib/automacao/autor";
 import { loadConfig, pricingFromConfig } from "@/lib/config";
 import { ZERO_USAGE, getUsage, projectedCostUSD } from "@/lib/costs";
 import { getDb } from "@/lib/firebase/admin";
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
       return NextResponse.json(base);
     }
 
-    const nomes = new Map((await listUsuarios(db)).map((u) => [u.id, u.nome]));
+    const nomes = nomesComAutomacao(await listUsuarios(db));
     const quebra = Object.entries(porUsuario)
       .map(([userId, counts]) => ({
         userId,

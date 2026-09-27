@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { AiError, AiIndisponivelError } from "@/lib/ai/gemini";
 import { QuotaExceededError, UserQuotaExceededError } from "@/lib/costs";
 import {
+  ConflictError,
   ForbiddenError,
   InvalidTransitionError,
   NotFoundError,
@@ -77,6 +78,9 @@ export function handleRouteError(error: unknown): NextResponse {
   }
   if (error instanceof NotFoundError) {
     return jsonError(404, error.code, error.message);
+  }
+  if (error instanceof ConflictError) {
+    return jsonError(409, error.code, error.message, error.extra);
   }
   if (error instanceof InvalidTransitionError) {
     return jsonError(409, error.code, error.message, {

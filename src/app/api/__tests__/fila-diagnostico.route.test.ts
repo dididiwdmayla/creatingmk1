@@ -157,6 +157,8 @@ describe("GET /api/fila/diagnostico — etapa 2: estrutural (retrato do pool)", 
       geradoEm: geradoEmVelho,
       lidos: 40,
       truncado: false,
+      // Pool gravado ANTES da peneira da aprovação existir: a chave nova
+      // sai normalizada para zero, nunca ausente.
       estrutural: {
         status: 5,
         contactadoForaDaFila: 8,
@@ -165,6 +167,7 @@ describe("GET /api/fila/diagnostico — etapa 2: estrutural (retrato do pool)", 
         semTelefone: 3,
         semDemo: 4,
         capturaNaoPronta: 6,
+        aguardandoAprovacao: 0,
         semFuso: 7,
       },
     });

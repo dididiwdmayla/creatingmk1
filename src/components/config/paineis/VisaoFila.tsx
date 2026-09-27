@@ -32,7 +32,7 @@ const RITMO_LABEL: Record<string, string> = {
 };
 
 /**
- * As oito peneiras ESTRUTURAIS na ordem real de avaliação (`motivoEstrutural`,
+ * As nove peneiras ESTRUTURAIS na ordem real de avaliação (`motivoEstrutural`,
  * lib/fila/candidatos.ts) — um lead que falha em várias conta só na
  * primeira, então a ordem é o que torna a coluna de números legível.
  *
@@ -50,6 +50,7 @@ const FUNIL_ESTRUTURAL: Array<{ chave: string; label: string }> = [
   { chave: "semTelefone", label: "sem telefone" },
   { chave: "semDemo", label: "sem demo" },
   { chave: "capturaNaoPronta", label: "print da demo não pronto" },
+  { chave: "aguardandoAprovacao", label: "demo automática aguardando aprovação" },
   { chave: "semFuso", label: "sem fuso conhecido" },
 ];
 
@@ -423,13 +424,13 @@ export function VisaoFila({
               <>
                 Retrato do pool de {formatDateTime(dados.pool.geradoEm)} (
                 {formatTempoRelativo(dados.pool.geradoEm, agora)}), {formatInt(dados.pool.lidos)}{" "}
-                leads lidos. Estas oito contagens só são apuráveis na varredura completa, então
+                leads lidos. Estas contagens só são apuráveis na varredura completa, então
                 são desse instante — não de agora.
                 {dados.pool.truncado && " A base passou do teto e o pool saiu cortado."}
               </>
             ) : (
               <>
-                O pool ainda não foi construído — o celular não pediu tarefa nenhuma. As oito
+                O pool ainda não foi construído — o celular não pediu tarefa nenhuma. As
                 contagens abaixo ficam zeradas até a primeira chamada.
               </>
             )}

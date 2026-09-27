@@ -16,6 +16,13 @@ import { SESSION_COOKIE, appPassword, lerSessaoToken } from "@/lib/auth";
  * A página /config é restrita ao admin — membro é mandado de volta ao
  * painel.
  */
+/** As rotas do laço da automação — fora da sessão, protegidas por AUTOMACAO_SECRET. */
+const ROTAS_AUTOMACAO = new Set([
+  "/api/automacao/planejar",
+  "/api/automacao/passo",
+  "/api/automacao/finalizar",
+]);
+
 export async function proxy(request: NextRequest) {
   const { pathname } = new URL(request.url);
   if (pathname === "/api/login" || pathname === "/login") {
@@ -48,6 +55,15 @@ export async function proxy(request: NextRequest) {
   // do dashboard) continua atrás da sessão. Também depois do check de
   // APP_PASSWORD (fail-closed vale para o cron igual).
   if (pathname === "/api/cron") {
+    return NextResponse.next();
+  }
+
+  // Automação do estoque (workflow do GitHub Actions): as três rotas do
+  // laço chamam com Bearer AUTOMACAO_SECRET, sem cookie — cada rota valida o
+  // segredo ela mesma (ver lib/automacao/auth.ts). Match EXATO, no molde do
+  // /api/cron: `/api/config/automacao` (e o "rodar agora" dela) continuam
+  // atrás da sessão. Depois do check de APP_PASSWORD (fail-closed igual).
+  if (ROTAS_AUTOMACAO.has(pathname)) {
     return NextResponse.next();
   }
 

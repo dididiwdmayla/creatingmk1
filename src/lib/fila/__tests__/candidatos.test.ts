@@ -290,6 +290,12 @@ describe("construirPool", () => {
         seloContato: { userId: "u1", em: "2026-03-05T12:00:00.000Z" },
       }) as unknown as Record<string, unknown>,
     );
+    db.seed(
+      "leads/pendente",
+      lead("pendente", {
+        demo: { skinId: "barbearia-editorial", origem: "automacao", aprovacao: "pendente" },
+      } as Partial<Lead>) as unknown as Record<string, unknown>,
+    );
 
     const pool = await construirPool(db, AGORA);
 
@@ -302,6 +308,7 @@ describe("construirPool", () => {
       semTelefone: 1,
       semDemo: 1,
       capturaNaoPronta: 1,
+      aguardandoAprovacao: 1,
       semFuso: 1,
     });
     // A contagem do funil bate com quem de fato ficou de fora do pool.

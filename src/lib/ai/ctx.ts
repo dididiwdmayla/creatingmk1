@@ -12,6 +12,13 @@ export interface CtxIA {
   userId?: string;
   isAdmin?: boolean;
   limites?: LimitesUsuario;
+  /**
+   * Avisado a cada chamada REAL ao Gemini (depois da reserva de cota) — o
+   * retry de resposta inválida conta de novo. Só a automação do estoque
+   * usa: ela tem teto próprio de chamadas por noite e precisa do número
+   * exato, que a função de geração não devolve.
+   */
+  contarChamada?: () => void;
 }
 
 /**

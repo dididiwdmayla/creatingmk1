@@ -114,6 +114,25 @@ describe("proxy (proteção por sessão multiusuário)", () => {
     }
   });
 
+  it("as três rotas do laço da automação passam sem sessão (autenticação própria por AUTOMACAO_SECRET)", async () => {
+    for (const path of ["/api/automacao/planejar", "/api/automacao/passo", "/api/automacao/finalizar"]) {
+      const res = await proxy(request(path));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-middleware-next")).toBe("1");
+    }
+  });
+
+  it("fora dessas três, a automação continua atrás da sessão — match exato, não prefixo", async () => {
+    for (const path of [
+      "/api/automacao",
+      "/api/automacao/outra",
+      "/api/config/automacao",
+      "/api/config/automacao/disparar",
+    ]) {
+      expect((await proxy(request(path))).status).toBe(401);
+    }
+  });
+
   it("/api/fila (sem barra) continua protegida — só o prefixo /api/fila/ é liberado", async () => {
     const res = await proxy(request("/api/fila"));
     expect(res.status).toBe(401);

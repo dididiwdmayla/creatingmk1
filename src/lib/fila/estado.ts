@@ -205,8 +205,11 @@ export function claimAtiva(doc: FilaEnvioDoc | undefined | null, now: Date): boo
 /**
  * As peneiras estruturais que são AUSÊNCIA DE PEÇA — o subconjunto de
  * `MotivoEstrutural` (`lib/fila/candidatos.ts`) que deixa um lead manual
- * PENDENTE em vez de invisível: alguém gera a demo, roda a captura ou
- * conserta o telefone, e ele entra sozinho.
+ * PENDENTE em vez de invisível: alguém gera a demo, roda a captura,
+ * conserta o telefone ou aprova a demo automática, e ele entra sozinho.
+ * `aguardandoAprovacao` entra aqui como peça que falta — o "ok" do operador
+ * —, não como decisão: sem isso, o lead que alguém marcou à mão sumiria da
+ * lista por causa de uma demo que a automação fez para ele.
  *
  * Mora aqui, e não junto de `MOTIVOS_ESTRUTURAIS`, pelo mesmo motivo de
  * todo o resto deste módulo: quem desenha a lista de pendentes é componente
@@ -218,7 +221,13 @@ export function claimAtiva(doc: FilaEnvioDoc | undefined | null, now: Date): boo
  * `telefoneInvalido`) ficam de FORA de propósito: ali não falta peça, houve
  * decisão — e `descartado` é a própria ação de remover da fila.
  */
-export const MOTIVOS_FISICOS = ["semTelefone", "semDemo", "capturaNaoPronta", "semFuso"] as const;
+export const MOTIVOS_FISICOS = [
+  "semTelefone",
+  "semDemo",
+  "capturaNaoPronta",
+  "aguardandoAprovacao",
+  "semFuso",
+] as const;
 
 export type MotivoFisico = (typeof MOTIVOS_FISICOS)[number];
 
@@ -237,6 +246,7 @@ export const MOTIVO_FISICO_LABEL: Record<MotivoFisico, string> = {
   semTelefone: "sem telefone",
   semDemo: "sem demo",
   capturaNaoPronta: "print da demo não pronto",
+  aguardandoAprovacao: "demo automática aguardando aprovação",
   semFuso: "sem fuso conhecido",
 };
 

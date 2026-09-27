@@ -64,6 +64,12 @@ export interface Busca {
   /** Usuário que executou a busca (ausente em docs anteriores ao multiusuário). */
   userId?: string;
   /**
+   * `"automacao"` = o doc do PAR (nicho, região) que a automação do estoque
+   * reexecuta (ver `lib/automacao/busca.ts`); ausente = busca do operador.
+   * A automação só extrai pares das buscas do operador.
+   */
+  origem?: "automacao";
+  /**
    * Penetração de site próprio do nicho+região deste grupo (todas as
    * buscas com o MESMO nicho+região, não só esta — "neste nicho nesta
    * cidade" é o grupo lógico). Cacheada aqui, recalculada toda vez que

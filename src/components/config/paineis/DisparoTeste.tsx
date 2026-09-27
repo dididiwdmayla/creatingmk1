@@ -52,6 +52,7 @@ const MOTIVO_TESTE_LABEL: Record<string, string> = {
   semTelefone: "o lead não tem telefone",
   semDemo: "o lead não tem demo",
   capturaNaoPronta: "o print da demo não está pronto",
+  aguardandoAprovacao: "a demo foi feita pela automação e ainda não foi aprovada",
   semFuso: "o lead não tem fuso conhecido",
   fora_dos_nichos: "o nicho do lead não está em “nichos permitidos”",
   sem_janela: "não dá para saber que horas são no lead (sem fuso)",

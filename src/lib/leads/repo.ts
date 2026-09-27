@@ -1,7 +1,7 @@
 import type { FiltroPresenca } from "@/lib/config";
 import { enviosIncompletos, garantirEnviosCanais } from "@/lib/demos/envio";
 import { aplicarVisita, completarVisita } from "@/lib/demos/visitas";
-import type { DemoDataPatch, TemaPatch } from "@/lib/demos/types";
+import type { AprovacaoDemo, DemoDataPatch, LeadDemo, TemaPatch } from "@/lib/demos/types";
 import { InvalidTransitionError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import type { DetalhesLugar, HorariosLugar, PlaceBasico } from "@/lib/places/client";
@@ -380,6 +380,32 @@ export function envioTokenIncompleto(lead: Lead): boolean {
   return enviosIncompletos(lead.demo);
 }
 
+/**
+ * Metadados da demo que NÃO vêm do editor: origem, aprovação e a execução
+ * da automação que a criou. Só a automação (`lib/automacao`) passa isto na
+ * criação; o PUT do editor nunca — `validateLeadDemoInput` recusa as chaves.
+ */
+export type MetaDemo = Pick<LeadDemo, "origem" | "aprovacao" | "execucaoAutomacao">;
+
+/**
+ * Os campos que um save PRESERVA de uma demo já existente, além de
+ * `criadoEm`/`criadoPor`. O PUT do editor reescreve a demo inteira a
+ * partir do corpo; sem esta cópia, editar uma demo automática pendente a
+ * transformaria em "manual" — e o portão de aprovação da fila
+ * (`motivoEstrutural`, `aguardandoAprovacao`) seria furado pela porta do
+ * editor.
+ */
+function metaPreservada(demo: LeadDemo | undefined): Partial<LeadDemo> {
+  if (!demo) return {};
+  return {
+    ...(demo.origem !== undefined && { origem: demo.origem }),
+    ...(demo.aprovacao !== undefined && { aprovacao: demo.aprovacao }),
+    ...(demo.aprovacaoEm !== undefined && { aprovacaoEm: demo.aprovacaoEm }),
+    ...(demo.aprovacaoPor !== undefined && { aprovacaoPor: demo.aprovacaoPor }),
+    ...(demo.execucaoAutomacao !== undefined && { execucaoAutomacao: demo.execucaoAutomacao }),
+  };
+}
+
 /** Salva a configuração da demo do lead (Forja de Demos). */
 export async function saveDemo(
   db: AppDb,
@@ -393,6 +419,7 @@ export async function saveDemo(
   },
   now: Date = new Date(),
   userId?: string,
+  meta: MetaDemo = {},
 ): Promise<Lead> {
   const lead = await requireLead(db, placeId);
   const em = now.toISOString();
@@ -408,8 +435,52 @@ export async function saveDemo(
       criadoEm: lead.demo?.criadoEm ?? em,
       ...(criadoPor && { criadoPor }),
       envios,
+      ...metaPreservada(lead.demo),
+      ...meta,
       atualizadoEm: em,
     },
+    atualizadoEm: em,
+  };
+  await docRef(db, placeId).set(toDoc(updated));
+  return updated;
+}
+
+/**
+ * Decide a aprovação de uma demo AUTOMÁTICA (aprovar/reprovar à mão, ou a
+ * aprovação automática da própria automação). Só existe para demo de
+ * origem automação: demo manual não passa por aprovação nenhuma, e
+ * aprová-la seria uma decisão sem efeito — recusada em vez de ignorada.
+ *
+ * REPROVAR também marca o LEAD (`automacaoReprovada`): o planejador lê o
+ * lead, não a demo, então apagar a demo depois não devolve o lead à
+ * automação — sem isto ela refaria a mesma demo toda noite. A demo não é
+ * apagada: o operador pode editá-la e aprovar depois, e aprovar não limpa a
+ * marca do lead (a automação não volta a mexer nele).
+ */
+export async function decidirAprovacaoDemo(
+  db: AppDb,
+  placeId: string,
+  aprovacao: AprovacaoDemo,
+  por: string | undefined,
+  now: Date = new Date(),
+): Promise<Lead> {
+  const lead = await requireLead(db, placeId);
+  if (lead.demo?.origem !== "automacao") {
+    throw new ValidationError(["só demo criada pela automação passa por aprovação"]);
+  }
+  const em = now.toISOString();
+  const updated: Lead = {
+    ...lead,
+    demo: {
+      ...lead.demo,
+      aprovacao,
+      aprovacaoEm: em,
+      ...(por ? { aprovacaoPor: por } : {}),
+    },
+    ...(aprovacao === "reprovada" &&
+      !lead.automacaoReprovada && {
+        automacaoReprovada: { em, ...(por ? { por } : {}) },
+      }),
     atualizadoEm: em,
   };
   await docRef(db, placeId).set(toDoc(updated));

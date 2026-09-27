@@ -214,6 +214,17 @@ src/
       repo.ts                       #    + listBuscasRecorrentes (ordem determinística), registrarExecucao e salvarPenetracao
       cron.ts                       # ✅ executarBuscasRecorrentes: pipeline diário + resumo em /cron/ultima
       penetracao.ts                 # ✅ calcularPenetracaoGrupo/recalcularPenetracao/penetracaoParaLead (ver "Penetração de site")
+    automacao/                      # ✅ automação do estoque de leads prontos (ver seção própria)
+      config.ts                     #    /config/automacao: alvo, interruptores, corte do legado, tetos por noite, saturação
+      estoque.ts                    #    classificarEstoque/calcularEstoque: prontos + aguardando aprovação + capturas em andamento
+      elegivel.ts                   #    motivoInelegivelAutomacao/leadsParaDemo: quem pode ganhar demo (puro)
+      pares.ts                      #    pares (nicho, região) das buscas do operador, saturação, intervalo, rodízio de pares
+      busca.ts                      #    executarBuscaAutomacao: o pipeline do cron com os parâmetros da automação
+      unidades.ts                   #    as unidades "demo" e "busca" (uma por chamada)
+      execucao.ts                   #    o plano/registro /automacaoExecucoes, a trava, o orçamento da noite
+      motor.ts                      #    planejar / passo / finalizar
+      autor.ts                      #    o pseudo-usuário "automacao" ("Automação")
+      auth.ts                       #    AUTOMACAO_SECRET (Bearer, tempo constante, fail-closed)
     demos/                          # ✅ Forja de Demos (ver seção própria)
       types.ts                      # DemoData, Theme, SkinDefinition (+secoes), LeadDemo (+tema), TemaPatch
       montar.ts                     # montarDemoData: exemplo ← lead ← edições
@@ -661,9 +672,14 @@ Observações:
       "auraCores": { "primaria": "#ff3ec8" }     // opcional; só efeito quando fundoEfeito é "aura" — ver "Cor da aura"
     },
     "criadoEm": "<timestamp>",                  // 1º save; preservado nas edições seguintes (ver saveDemo)
-    "criadoPor": "<userId>",                    // usuário do 1º save; preservado nas edições (métricas por usuário)
+    "criadoPor": "<userId>",                    // usuário do 1º save; preservado nas edições (métricas por usuário) — "automacao" na demo automática
+    "origem": "automacao",                      // ✅ opcional: ausente = "manual" (toda demo de antes da automação) — ver "Automação do estoque"
+    "aprovacao": "pendente",                    // ✅ só na demo automática: "pendente" | "aprovada" | "reprovada" (ausente = pendente)
+    "aprovacaoEm": "<timestamp>", "aprovacaoPor": "<userId|automacao>",
+    "execucaoAutomacao": "<uuid>",              // ✅ a execução que criou a demo (idempotência da unidade)
     "atualizadoEm": "<timestamp>"
   },
+  "automacaoReprovada": { "em": "<timestamp>", "por": "<userId>" }, // ✅ opcional: demo automática reprovada — a automação nunca mais escolhe o lead
   "contato": {                                  // carimbos das transições de status
     "primeiroContatoEm": "<timestamp>",         // status → contactado
     "primeiroContatoPor": "<userId>",           // quem contactou (métricas por usuário; ausente em docs antigos)
@@ -721,7 +737,8 @@ O campo **`leadDeTeste`** (booleano, ausente = false) marca o LEAD FIXO DE TESTE
   "criadaEm": "<ISO 8601>",
   "totalCriados": 12,                           // leads novos que esta busca criou (o cron SOMA os deltas aqui)
   "totalExistentes": 8,                         // leads que já estavam na base
-  "userId": "admin",                            // quem executou (ausente em docs pré-multiusuário)
+  "userId": "admin",                            // quem executou (ausente em docs pré-multiusuário; "automacao" no doc do par da automação)
+  "origem": "automacao",                        // ✅ opcional: o doc do PAR que a automação do estoque reexecuta (id "automacao-<hash>"); ausente = busca do operador
   "penetracao": {                               // ✅ opcional: penetração de site do GRUPO nicho+região (ver seção própria)
     "total": 14, "comSiteProprio": 9, "soRedeSocial": 3, "semNada": 2, "desconhecidos": 4,
     "percentuais": { "comSiteProprio": 64, "soRedeSocial": 21, "semNada": 14 } // ausente se total < 5
@@ -884,6 +901,12 @@ Formato de erro padrão em todas as rotas:
 | `/api/mundo` | GET | query: `familia` (chave de `janelasContato`; ausente/desconhecida → a primeira) | `200 { familia, familias[], agora, paises: [{ codigo, nome, idiomas, horaLocal, faixa, indice: { indice, fonte, cidades }, totalLeads, leads[] }], emBreve? }` | — (**derivada**: nenhuma) |
 | `/api/cron` | GET | header `Authorization: Bearer ${CRON_SECRET}` (fora da sessão — exceção no proxy) | `200 { execucao }` · `401` · `503 config_error` (sem CRON_SECRET) | mesmo pipeline de `/api/search`, por busca recorrente |
 | `/api/cron/status` | GET | — | `200 { ultima, recorrentes }` | — |
+| `/api/automacao/planejar` | POST | `{ disparo?, runUrl? }` · header `Authorization: Bearer ${AUTOMACAO_SECRET}` (fora da sessão — exceção exata no proxy) | `200 { acao: "executar", execucaoId, estoque, falta, unidades }` · `200 { acao: "nada", execucaoId, motivo }` · `401` · `409 conflict` (outra execução com a trava) · `503` (sem a env) | — |
+| `/api/automacao/passo` | POST | `{ execucaoId }` · idem | `200 { temTrabalho, esperarSegundos?, unidade? }` · `401` · `404` · `409` · `503` | Text Search / Gemini, conforme a unidade (sempre por `reserveQuota`) |
+| `/api/automacao/finalizar` | POST | `{ execucaoId?, erro?, motivo?, disparo?, runUrl? }` · idem | `200 { execucao }` (idempotente; sem `execucaoId` e com `erro` grava uma execução falha) · `400` · `401` · `404` · `503` | — (dispara o workflow de capturas) |
+| `/api/config/automacao` | GET/PUT | patch parcial (admin) | `200 { automacao }` · `400` · `401` · `403` | — |
+| `/api/config/automacao/disparar` | POST | — (admin) | `202 { disparado }` · `401` · `403` · `502 dispatch_error` · `503 capturas_unavailable` (sem token) | — (`repository_dispatch` `automacao-estoque`) |
+| `/api/leads/[id]/demo/aprovacao` | POST | `{ aprovacao: "aprovada" \| "reprovada" }` (qualquer sessão; só demo de origem automação) | `200 { lead }` · `400` · `404` | — |
 | `/api/leads` | GET | query: `status`, `temSite`, `temTelefone`, `buscaId`, `favorito` | `200 { leads[] }` · `400` | — |
 | `/api/leads/[id]` | GET | — | `200 { lead }` · `404` | — |
 | `/api/leads/[id]` | PATCH | `{ status?, notas? (≤500), favorito?, descartado? }` (≥1 campo) | `200 { lead }` · `400` · `404` · `409 invalid_transition` | — |
@@ -2938,6 +2961,78 @@ O Radar como rotina, não só ferramenta: o cron reabastece a base de madrugada 
 - Descartados ficam fora de todas as seções (a fila é "o que trabalhar"; descartar é tirar do caminho). Cada item tem ação direta: **WhatsApp** (link `wa.me` com a mensagem do grupo ou a global, `{demo}` → link público quando houver demo), **abrir ficha** e **abrir demo** — além de "melhor momento pra contatar" (`melhorMomento` de `lib/leads/horarios.ts`) quando o lead tem horário de funcionamento salvo.
 - A seleção é pura (`montarFilaDoDia`) e testada isolada; a rota só orquestra (config + leads + buscas + carimbo de visita).
 
+## Automação do estoque de leads prontos (`src/lib/automacao` + `/api/automacao/*` + `.github/workflows/automacao.yml`)
+
+Quando o estoque de leads prontos cai abaixo de um alvo, o Radar completa até o alvo: primeiro faz demo para os leads que já estão na base sem demo; se ainda faltar, busca leads novos e faz demo para eles. O plano está em `docs/plano-automacao-estoque.md`.
+
+### Onde roda — e por que não na Vercel
+
+O plano Hobby da Vercel limita cron a uma vez por dia e função a 300 s; várias demos com texto de IA passam disso. O **motor roda no GitHub Actions** (repositório público, sem custo, sem teto de 300 s) e chama o Radar **uma unidade de trabalho por requisição** — cada chamada bem dentro dos 300 s (`maxDuration = 300` declarado nas três rotas). As chaves pagas (Places, Gemini) continuam só na Vercel; o Actions só conhece o `AUTOMACAO_SECRET`.
+
+### O estoque (`estoque.ts`)
+
+**Estoque = prontos + a caminho**, um balde por lead (`classificarEstoque`, puro):
+
+- **pronto** — passa em `candidatoEstavel`, exatamente o critério do pool da fila (inclusive retenção por claim silenciosa e tentativas esgotadas);
+- **aguardando aprovação** — demo automática `pendente` parada só pela aprovação ou pela captura; reprovada NÃO conta;
+- **captura em andamento** — `capturaNaoPronta` com `capturas.estado` `enfileirado`/`rodando`, demo manual ou automática. Tem precedência sobre a aprovação quando as duas faltam (a ordem do funil).
+
+Por que "a caminho" conta: contando só os prontos, com o operador demorando a aprovar, a automação veria estoque baixo toda noite e empilharia pendências. E por que o filtro ESTRUTURAL e não "elegível agora": a automação roda de madrugada, quando quase todo lead está fora da janela de contato — o gatilho veria zero sempre. Uma varredura de `/leads` + `/filaEnvios` por cálculo, duas por execução (antes e depois).
+
+### Origem e aprovação da demo — o portão na fila
+
+`LeadDemo.origem` (`"manual"` | `"automacao"`, ausente = manual) e `aprovacao` (`"pendente"` | `"aprovada"` | `"reprovada"`, ausente numa automática = pendente), mais `aprovacaoEm`/`aprovacaoPor` e `execucaoAutomacao`.
+
+- **`motivoEstrutural` ganhou `aguardandoAprovacao`**: demo automática que não está `aprovada` nunca vira candidato, e `/proximo` relê o doc fresco com a mesma função — nem pool velho entrega. Vem **depois** de `semDemo`/`capturaNaoPronta` (e do print), antes de `semFuso`: a demo automática ainda sem print aparece no funil como "print não pronto", e só a que tem tudo e espera o operador aparece como "demo automática aguardando aprovação". Demo manual passa exatamente como antes. Entra em `MOTIVOS_FISICOS` (o "ok" do operador é a peça que falta): lead marcado à mão não some da lista de pendentes.
+- **`saveDemo` preserva os campos entre edições**, como já preservava `criadoEm`. O PUT do editor reescreve a demo inteira; sem a preservação, editar uma demo automática pendente a transformaria em manual e o portão seria furado pela porta do editor. O corpo do PUT continua recusando essas chaves (400).
+- **Aprovar/reprovar**: `POST /api/leads/[id]/demo/aprovacao` (qualquer sessão, só para demo de origem automação — manual é 400). **Reprovar marca o LEAD** (`automacaoReprovada`): o planejador lê o lead, então apagar a demo não o devolve à automação (senão ela refaria a mesma demo toda noite). A demo não é apagada; aprovar depois, à mão, continua possível. O botão na ficha não está neste bloco (a verificação visual pedida foi só a etiqueta do funil) — a rota está pronta para ele.
+- **Aprovação automática** (`config.aprovacaoAutomatica`, **padrão desligado**): ligada, a demo nasce aprovada SE `passaCriterioAprovacaoAutomatica` — um **recorte** de `pendenciasProntidao`, não a prontidão inteira: aprova sem pendência de `telefone`, `horario` e `idioma`, e ignora `imagens` e `instagram` (a automação nunca sobe foto nem descobre Instagram; com a prontidão inteira nenhuma demo passaria, nunca — e toda skin tem foto própria para todos os slots). **Consequência a saber**: lead que veio de busca qualificada tem telefone mas não tem horário (horário é Place Details, sob demanda) — com o critério atual, ele nunca é aprovado sozinho; só lead enriquecido passa.
+
+### As três rotas e o plano da noite
+
+Autenticadas por `AUTOMACAO_SECRET` (`auth.ts`: Bearer, tempo constante, 503 sem a env). **Segredo próprio**: nem a `RADAR_DEVICE_KEY` (o celular manda mensagem para negócio real) nem o `CRON_SECRET` — este segredo mora também no GitHub e precisa ser revogável sem derrubar o cron da Vercel. Exceção no proxy por **match exato** das três rotas, no molde de `/api/cron`; `/api/config/automacao` e o "rodar agora" continuam atrás da sessão.
+
+- **`/automacaoExecucoes/{id}`** é o plano E o registro, o mesmo doc: estoque antes/depois, alvo, falta, `unidades[]` (estado `pendente|rodando|feita|pulada|falhou|nao_processada`, tentativas, motivo, skin/preset, resultado da IA, par buscado), demos criadas, buscas feitas, `requisicoesBusca`, `chamadasIA`, falhas por unidade, lotes de captura, motivo de parada, início/fim, disparo e URL do run. `/automacao/ultima` aponta para a última.
+- **Trava** (`/automacao/trava`): tomada em transação no planejar, **renovada a cada passo** (15 min à frente), liberada no finalizar — só se ainda for dela. Disparo manual e agendado nunca rodam juntos: o segundo recebe 409 e fica registrado como `recusada`. Execução morta destrava sozinha 15 min depois do último sinal de vida; o passo de uma execução cuja trava foi tomada por outra é 409.
+- **planejar**: desligada ou estoque ≥ alvo → registra `nada_a_fazer` com o motivo. Senão `falta = alvo − estoque`, unidades "demo" para os leads existentes (até `falta`) e, se não bastarem, uma unidade "busca" no fim.
+- **passo**: pega a primeira unidade pendente — ou uma `rodando` há mais de 310 s (a Vercel mata a função em 300, então ela morreu) —, marca `rodando`, processa, grava. Duas tentativas por unidade. Se só resta unidade viva noutra chamada, devolve `esperarSegundos`. Quando o plano acaba curto (lead pulado, par que trouxe pouco) e ainda falta, entra outra unidade "busca" — a mesma regra "se ainda faltar, uma busca", reaplicada —, até o teto de busca da noite ou acabarem os pares.
+- **finalizar**: `enfileirarCapturas` **uma vez por lote de até 60** (o `MAX_LOTE` de `/api/capturas`) com as demos automáticas que ainda não pediram captura nenhuma — lidas do LEAD, não da lista do plano, para a demo de uma unidade que morreu depois de gravar também ganhar print. O workflow de capturas não mudou e continua sendo o único dono dos estados de captura. Grava estoque depois, marca o que não rodou como `nao_processada`, deriva o motivo de parada (erro › motivo do laço › alvo atingido › último bloqueio › sem mais trabalho) e libera a trava. **Aceita erro**: com `execucaoId` a execução vira `falhou`; sem (o laço morreu antes do plano), grava uma execução `falhou` mesmo assim. Idempotente.
+
+### Unidade "demo"
+
+Elegível (`elegivel.ts`, puro): `status "novo"`, telefone, **sem vestígio** (selo, `registrosEnvio`, `primeiroContatoEm` e **doc em `/filaEnvios`** — a lição de "sem vestígio": claim que expirou sem confirmação provavelmente saiu), não reprovado, não descartado, `telefoneInvalido` falso, sem demo, nicho com skin (`skinsDoNicho`) e **criado em ou depois da data de corte do legado** (`corteLegado`, padrão 2026-08-10, dia em São Paulo — o complemento exato do `< corte` da tela de revisão). A data de corte não é detalhe: lead anterior a ela e sem vestígio pode já ter recebido mensagem antes de existir registro de contato, e demo para ele é mensagem repetida, a causa número um de denúncia no WhatsApp. Ordem: `criadoEm` crescente.
+
+Processamento: relê o lead (o operador pode ter mexido entre o plano e a unidade); `proximaCombinacao(nicho)` (o rodízio); `patchCriacaoLote` com `imagensModo: "foto"` e sem efeito no patch (fica o do preset); `validateLeadDemoInput` + `saveDemo` com `origem: "automacao"`, **`aprovacao: "pendente"` desde a primeira escrita** (o portão segura a demo mesmo se a unidade morrer antes de decidir), `execucaoAutomacao` e `criadoPor: "automacao"`. Texto por IA (`textoIA`, **padrão ligado, nunca obrigatório**): `gerarSugestaoDemo` no nível "completo" → `aplicarSugestaoTexto` → `montarPatch` → validação → `saveDemo` — a sequência do diálogo de lote. Desligada, sem chave, skin de tema calibrado (o mesmo corte do diálogo) ou teto da noite: pula a IA com o motivo. Falha da IA: a demo fica com o conteúdo de exemplo da skin e o motivo vai para a unidade (`ia: "falhou"`, `iaMotivo`). Por fim a aprovação.
+
+**Idempotente**: lead que já tem demo é pulado; se a demo é DESTA execução (a unidade morreu depois de gravar e foi retomada), conta como criada sem criar outra nem girar o rodízio de novo.
+
+### Unidade "busca" (`pares.ts` + `busca.ts`)
+
+- **Pares (nicho, região)** extraídos das buscas que o **operador** fez, sem sub-nicho, com a normalização da penetração (`normalizarGrupo`); o texto é o da busca mais recente do operador no par. **Só nichos com skin.**
+- **Um doc de busca por par**, `origem: "automacao"`, id determinístico `automacao-<sha1(par)>`, criado no primeiro uso (zerado) e reexecutado depois — cada execução, a primeira inclusive, entra em `execucoes` via `registrarExecucao`: é a série histórica de quantos leads novos o par trouxe.
+- **Saturação**: par com pelo menos 3 execuções da automação cujas 3 últimas trouxeram, **somadas, menos de 3 leads novos** (média abaixo de um por noite) sai do rodízio. Configurável (`saturacaoExecucoes`/`saturacaoMinNovos`).
+- **Duas máquinas, uma área**: par com execução de QUALQUER máquina nas últimas `intervaloParHoras` (padrão 20) — criação manual, cron recorrente (lido da subcoleção `execucoes`) ou a própria automação — não é buscado. O cron da Vercel roda 06:00 UTC, a automação 06:30.
+- **Rodízio de pares**: o que a automação buscou há mais tempo primeiro (nunca buscado antes de todos), desempate pela chave; um par nunca se repete na mesma execução.
+- **Parâmetros fixos**: qualificada, só sem site, **só com telefone** (`soComTelefone`, filtro pós-resposta irmão de `soSemSite` em `searchText`), `quantidade` = o que ainda falta, `maxPaginas` = o que resta do teto da noite. Mesmo pipeline do cron (`geocodeRegion` com cache, `searchText` com `reserveQuota` por página, `upsertLeads` que não rebaixa, penetração recalculada). Os leads novos viram unidades "demo" no mesmo plano. Teto global estourado numa busca para as buscas daquela noite.
+
+### Custo
+
+Nada contorna `reserveQuota`. Além dos tetos globais, dois tetos **por execução** em `/config/automacao`: `tetoBuscasNoite` (páginas de Text Search, padrão 6) e `tetoIANoite` (chamadas ao Gemini, retry incluso, padrão 20). Os dois são **reservados no plano antes da chamada** (busca: `maxPaginas`; IA: 2, o pior caso com retry) e **acertados depois** com o real — o mesmo princípio de `reserveQuota`: cobra primeiro. Unidade que morre no meio deixa a reserva cobrada, e por isso **uma busca morta pode ser repetida e pagar de novo** — aceito, porque está limitado pelo teto da noite. Com reserva de 2 por demo, um teto ímpar deixa a última chamada sem usar; nunca passa.
+
+O teto GLOBAL de `aiGeneration` (padrão 50/mês) é pequeno para uso diário: 15 demos × até 2 chamadas por noite esgotam em poucos dias. Com a IA ligada, suba o teto em /config ou baixe `tetoIANoite`; com o teto global esgotado, a IA falha e a demo fica com o exemplo (sem derrubar nada).
+
+**Autoria e cotas individuais**: o pseudo-usuário `automacao` ("Automação", `autor.ts`) — sem doc em `/usuarios` (um doc ali antes do primeiro login impediria o seed do admin num banco novo). **Nunca admin**: admin pula o teto global, e a automação tem de obedecer os tetos globais. **Nunca um humano**: comeria a cota pessoal de quem não pediu nada — o mesmo argumento que deixou a precificação regional fora da cota individual. As reservas vão para `usage.porUsuario.automacao` e `usage_users/automacao/dias/*`; `nomesComAutomacao` faz o id aparecer como "Automação" em `/api/usuarios/nomes`, `/api/metrics` e `/api/usage` (demos e buscas dela não viram "usuário removido").
+
+### O workflow e o laço (`.github/workflows/automacao.yml` + `scripts/automacao-ci.mjs`)
+
+Três gatilhos: `schedule` **06:30 UTC** (03:30 em Brasília, com folga para as capturas terminarem antes da janela de envio — anotado no arquivo que o horário é UTC e que mudar exige editá-lo), `workflow_dispatch` e `repository_dispatch` tipo `automacao-estoque` — o "rodar agora" do painel (`POST /api/config/automacao/disparar`, admin → `dispararAutomacao` em `lib/github/dispatch.ts`, o mesmo módulo e o mesmo token das capturas). Sem `npm ci`: o script só usa `fetch`.
+
+`laco` chama planejar, grava o `execucaoId` num arquivo de estado **logo depois** do plano e chama passo até não haver trabalho. Salvaguardas: teto de 120 iterações, para em 3 erros seguidos (rede, 5xx, timeout), timeout de 280 s por requisição (abaixo dos 300 da função), e erro que repetir não resolve (400/401/403/404/409/503) para na hora. `finalizar` é outro passo, com `if: always()`, e recebe o `outcome` do laço: morreu, estourou o tempo ou foi cancelado → a execução é gravada como falha, com o erro. **A falha nunca é silenciosa**, que era a doença do cron antigo. Testado contra um Radar falso em HTTP local (`automacao-ci.test.ts`).
+
+### Para funcionar em produção
+
+`AUTOMACAO_SECRET` na Vercel E como secret do repositório no GitHub (mesmo valor); `APP_PUBLIC_URL` já existe como variável do repositório; o workflow precisa estar no branch default (o GitHub só agenda e só aceita dispatch de lá); e ligar a automação (`PUT /api/config/automacao { "ativo": true }` — nasce desligada).
+
 ## Fila de envio ao WhatsApp — fundação (celular Android + MacroDroid)
 
 Um celular Android com MacroDroid é um EXECUTOR BURRO: pergunta "qual o próximo lead", envia a mensagem no WhatsApp e reporta o resultado. Todo o estado (fila, cota, pausa, claim, decisão de horário) vive no Radar — o celular nunca decide nada sozinho. Este bloco é só a FUNDAÇÃO (autenticação, config, contadores, a coleção de reservas e a montagem da mensagem); as rotas HTTP que o celular de fato chama (`/api/fila/*`) vêm num bloco seguinte.
@@ -3064,7 +3159,7 @@ Então a varredura acontece **uma vez a cada `POOL_TTL_MS` (10 min)** e o result
   "truncado": false,   // a base passou de POOL_MAX e o pool saiu cortado
   "estrutural": {      // diagnóstico da mesma passada — ver "Diagnóstico da fila" abaixo
     "status": 180, "descartado": 4, "telefoneInvalido": 9, "semTelefone": 21,
-    "semDemo": 60, "capturaNaoPronta": 30, "semFuso": 2
+    "semDemo": 60, "capturaNaoPronta": 30, "aguardandoAprovacao": 7, "semFuso": 2
   }
 }
 ```
@@ -3151,7 +3246,7 @@ O dispositivo se identifica pelo header `X-Radar-Device` (ausente = `"android"`,
 `fora_de_janela` era caixa preta: o operador desmarca `exigirJanelaBoa` no painel e `/proximo` continua devolvendo `fora_de_janela` — comportamento CORRETO (`niveisAceitos` amplia de `["bom"]` para `["bom", "razoavel"]`, e pode simplesmente não haver ninguém em `razoavel` agora), mas sem contagem por etapa não dá para distinguir isso de "a flag não pegou". A correção não mexe em nenhuma decisão — só faz o pipeline contar, na ordem real em que avalia:
 
 1. **Ritmo** — `pausado`, `meta_atingida`, `teto_hora`, `intervalo` (`motivoDeRitmo`, antes de ler o pool). Não é contagem por lead, é um portão único: ou está ativo, ou não está.
-2. **Estrutural** — os mesmos critérios de `candidatoEstavel`, mas cada um com o próprio contador (`motivoEstrutural`, em `lib/fila/candidatos.ts`): `status` (diferente de "novo"), `contactadoForaDaFila` (ver adiante), `descartado`, `telefoneInvalido`, `semTelefone`, `semDemo`, `capturaNaoPronta` (cobre tanto `capturas.estado !== "pronto"` quanto print ausente — as duas dizem a mesma coisa pro operador), `semFuso`. Um lead que falha em vários ao mesmo tempo conta só uma vez, pelo PRIMEIRO da ordem acima — a mesma ordem de `candidatoEstavel`. Apurado **na mesma passada** de `construirPool` (uma segunda varredura só para contar duplicaria a leitura cara que o pool existe pra evitar) e gravado em `PoolCandidatos.estrutural`, junto do `geradoEm` que já existia.
+2. **Estrutural** — os mesmos critérios de `candidatoEstavel`, mas cada um com o próprio contador (`motivoEstrutural`, em `lib/fila/candidatos.ts`): `status` (diferente de "novo"), `contactadoForaDaFila` (ver adiante), `descartado`, `telefoneInvalido`, `semTelefone`, `semDemo`, `capturaNaoPronta` (cobre tanto `capturas.estado !== "pronto"` quanto print ausente — as duas dizem a mesma coisa pro operador), `aguardandoAprovacao` (demo da automação ainda não aprovada — ver "Automação do estoque"), `semFuso`. Um lead que falha em vários ao mesmo tempo conta só uma vez, pelo PRIMEIRO da ordem acima — a mesma ordem de `candidatoEstavel`. Apurado **na mesma passada** de `construirPool` (uma segunda varredura só para contar duplicaria a leitura cara que o pool existe pra evitar) e gravado em `PoolCandidatos.estrutural`, junto do `geradoEm` que já existia.
 3. **Nicho** — `nichoBarrado`: passaria em tudo, mas o nicho não está em `nichosPermitidos`. Calculado fresco, na seleção.
 4. **Janela** — quem não está em `niveisAceitos` agora, quebrado por nível: `razoavel`, `ruim`, `semNivel` (fechado na hora do lead). Também fresco.
 
@@ -3325,7 +3420,7 @@ Então `construirPool` grava, **na mesma varredura e sem uma leitura a mais**, q
 "manuaisPendentesTotal": 3
 ```
 
-O recorte de "pendente" é `MOTIVOS_FISICOS` (`lib/fila/estado.ts`): `semTelefone`, `semDemo`, `capturaNaoPronta`, `semFuso` — o subconjunto de `MotivoEstrutural` que alguém RESOLVE fazendo o trabalho (gerar a demo, rodar a captura, consertar o número). A lista vive no módulo client-safe porque a ficha e o balão a leem, e `candidatos.ts` arrasta `node:crypto` por `envios.ts`; uma asserção de tipo em `candidatos.ts` **mais** um teste travam que ela é subconjunto de `MOTIVOS_ESTRUTURAIS` — duas listas separadas sem guarda divergiriam em silêncio, e um motivo renomeado faria o pendente sumir da tela sem erro nenhum.
+O recorte de "pendente" é `MOTIVOS_FISICOS` (`lib/fila/estado.ts`): `semTelefone`, `semDemo`, `capturaNaoPronta`, `aguardandoAprovacao`, `semFuso` — o subconjunto de `MotivoEstrutural` que alguém RESOLVE fazendo o trabalho (gerar a demo, rodar a captura, consertar o número, aprovar a demo automática). A lista vive no módulo client-safe porque a ficha e o balão a leem, e `candidatos.ts` arrasta `node:crypto` por `envios.ts`; uma asserção de tipo em `candidatos.ts` **mais** um teste travam que ela é subconjunto de `MOTIVOS_ESTRUTURAIS` — duas listas separadas sem guarda divergiriam em silêncio, e um motivo renomeado faria o pendente sumir da tela sem erro nenhum.
 
 `manuaisPendentesTotal` existe separado da lista pelo mesmo motivo de `truncado` existir do lado dos candidatos: um corte que aparecesse como "são só estes" seria a mentira calada. Teto BAIXO (20, contra `POOL_MAX` de 2000) de propósito — cada entrada aqui nasce de um clique humano, então a ordem de grandeza é de punhados, e o doc é o mesmo que o celular lê a cada ciclo. A ordem é a justa de sempre (`criadoEm`, desempate por id); não é ordenação nova, porque pendente não disputa vaga com ninguém.
 
@@ -3370,7 +3465,7 @@ O diagnóstico acima responde "quantos pararam em cada etapa". Esta tela respond
 Quatro partes:
 
 - **Contador do dia** — enviados, meta, restante, quantos na última hora contra o teto, e **quando o dia operacional vira** (`proximaViradaDiaOperacional`, respeitando `inicioDiaOperacionalHora`). Sem o instante da virada, "7 de 15" não diz se resta a noite inteira ou dez minutos. A função é calculada no relógio de São Paulo com o deslocamento reconferido NO ALVO, e há teste que a amarra a `diaOperacionalKey`: o instante devolvido é exatamente aquele em que a chave do contador muda. `restante` nunca é negativo — a meta pode ser reduzida no meio do dia, e "-3 restantes" não quer dizer nada.
-- **Funil**, nas quatro etapas e na ordem real de avaliação (ritmo → estrutural → nicho → janela). As oito contagens estruturais levam **o instante do rebuild ao lado delas** ("retrato do pool de 14h32, há 12min, 312 leads lidos"), e nicho/janela ficam sob "calculado agora, sobre esse mesmo pool". A fronteira entre defasado e fresco é visível NA TELA, não só na documentação: número defasado lido como se fosse agora é pior que número ausente. Pool nunca construído tem texto próprio, e não um funil de zeros sem explicação.
+- **Funil**, nas quatro etapas e na ordem real de avaliação (ritmo → estrutural → nicho → janela). As contagens estruturais levam **o instante do rebuild ao lado delas** ("retrato do pool de 14h32, há 12min, 312 leads lidos"), e nicho/janela ficam sob "calculado agora, sobre esse mesmo pool". A fronteira entre defasado e fresco é visível NA TELA, não só na documentação: número defasado lido como se fosse agora é pior que número ausente. Pool nunca construído tem texto próprio, e não um funil de zeros sem explicação.
 - **Próximos elegíveis** — nome, nicho, nível e a hora local do lead, **na ordem em que serão entregues**. A lista é `ordenarCandidatos(...).escolhido`, a mesma função que `/proximo` usa: o painel não ordena por conta própria, porque duas ordenações seriam duas verdades sobre quem é o próximo e divergiriam em silêncio.
 - **Bloqueados por janela** — nome, nicho, nível agora e a **próxima faixa ACEITA**, que não é o `proximoBom` (ver abaixo).
 
@@ -3536,7 +3631,7 @@ A retenção não só impede o envio duplicado: ela mantém a confirmação tard
 
 A retenção tira o lead da fila **sem que nada no lead mude**: o doc continua `status: "novo"`, com demo, com print, elegível a olho nu. Sem vitrine ele pararia EM SILÊNCIO — a mesma razão de `filaParado` aparecer na ficha e de `detalheEnvio` ter lista própria. Três peças, todas dentro da visão da fila:
 
-- **Contagem própria no funil, com etiqueta explícita** ("retidos por envio recente não confirmado"). É a **exceção deliberada** ao precedente registrado acima, de que razão do lado de `filaEnvios` fica fora do diagnóstico estrutural: `filaParado` fica fora porque já tem vitrine na ficha do lead; a retenção não tem vitrine em lugar nenhum, então entra. Linha separada das oito contagens estruturais por um filete, e com o aviso de que ela é contada AGORA, direto de `filaEnvios` — **não** é do retrato do pool. A fronteira entre defasado e fresco é a disciplina desta tela, e misturar as duas coisas na mesma lista a apagaria.
+- **Contagem própria no funil, com etiqueta explícita** ("retidos por envio recente não confirmado"). É a **exceção deliberada** ao precedente registrado acima, de que razão do lado de `filaEnvios` fica fora do diagnóstico estrutural: `filaParado` fica fora porque já tem vitrine na ficha do lead; a retenção não tem vitrine em lugar nenhum, então entra. Linha separada das contagens estruturais por um filete, e com o aviso de que ela é contada AGORA, direto de `filaEnvios` — **não** é do retrato do pool. A fronteira entre defasado e fresco é a disciplina desta tela, e misturar as duas coisas na mesma lista a apagaria.
 - **Lista dos retidos**, com nome, **quando foi a reserva** (o instante em que a mensagem provavelmente saiu — é o que o operador confere no WhatsApp) e **quando a retenção vence**. Não só o número: sem lista não há como liberar um específico. Ordenada do mais RECENTE para o mais antigo, porque a conversa mais nova é a que ainda está no topo do WhatsApp dele. Lead excluído não apaga a retenção (some o nome, fica o id).
 - **Ação de liberar por linha**, para quando o operador confirmar que o envio realmente não saiu.
 
@@ -3927,7 +4022,7 @@ A exclusão acontece na ORIGEM de cada varredura, nunca em cada consumidor:
 
 - **`listLeads`** (`leads/repo.ts`) — e com ela `/api/leads` (páginas `/leads` e `/demos`), `/api/hoje` (a fila do dia), `/api/mundo`, a análise de grupo por IA, o apagar demos em lote do grupo e `calcularPenetracaoGrupo` (a penetração por nicho+cidade). Os derivados puros que rodam sobre essa lista — `montarFilaDoDia`, `montarMundo`, `calcularPenetracaoSite`, `calculaScore` — ficam cobertos sem código novo.
 - **`getMetrics` e `getMetricsPorUsuario`** (`leads/metrics.ts`) — o painel e o rollup por integrante, inclusive `demosCriadas`, que ele inflaria por já nascer com demo.
-- **`construirPool`** (`fila/candidatos.ts`) — nem como candidato, nem em `lidos`, nem em nenhuma das oito contagens estruturais do funil. Aqui não é só higiene de número: candidato, ele receberia prospecção de verdade à noite. O alvo do disparo de teste chega por id, nunca pelo pool.
+- **`construirPool`** (`fila/candidatos.ts`) — nem como candidato, nem em `lidos`, nem em nenhuma das contagens estruturais do funil. Aqui não é só higiene de número: candidato, ele receberia prospecção de verdade à noite. O alvo do disparo de teste chega por id, nunca pelo pool.
 
 Dois lugares que a busca alcançou e onde **não havia nada a excluir**, conferido no código: o **índice regional de preço** (`lib/regioes`, `lib/precificacao`) não lê `/leads`, e as **metas por integrante** (`usuarios/metas.ts`) leem o contador de buscas em `usage_users`. A lista de print pendente também fica de fora por construção: ela varre `filaEnvios`, onde o teste nunca escreve.
 
@@ -5618,6 +5713,7 @@ GEMINI_API_KEY=           # OPCIONAL: sugestões de IA da Forja; ausente = IA oc
 CRON_SECRET=              # segredo do cron diário (/api/cron); o Vercel Cron envia "Bearer ${CRON_SECRET}"; sem ela a rota responde 503
 RADAR_DEVICE_KEY=         # segredo do celular da fila de envio (/api/fila/*); NUNCA o mesmo do CRON_SECRET (raio de explosão diferente); sem ela a rota responde 503
 RADAR_DEVICE_USER_ID=     # userId sob o qual as ações do celular são atribuídas (registro de autor)
+AUTOMACAO_SECRET=         # segredo das rotas do laço da automação (/api/automacao/{planejar,passo,finalizar}); o MESMO valor como secret do repositório no GitHub; nunca o CRON_SECRET nem a RADAR_DEVICE_KEY; sem ela, 503
 ```
 
 Ver `.env.example`. Na Vercel, cadastrar todas em Project Settings → Environment Variables (a do Gemini só se quiser IA).
@@ -5632,3 +5728,4 @@ Ver `.env.example`. Na Vercel, cadastrar todas em Project Settings → Environme
 - **Claim que expira em SILÊNCIO prende o lead, não o libera**: a regra central de `reservarLead` ("reserva expirada = livre") foi deliberadamente INVERTIDA por `retencaoEnvioHoras` (padrão 12h). Aquela existia para o lead não ficar preso quando o celular trava; depois de um lead receber a mesma mensagem duas vezes (503 no `/confirmar`, macro não repetiu, claim expirou, lead voltou ao pool), a leitura mudou: "o aparelho pegou e não disse o que houve" é mais provavelmente "mandou". A assimetria é o argumento — bloquear quem não recebeu custa um envio recuperável; liberar quem já recebeu manda duas vezes, e isso não tem volta. Falha REPORTADA continua fora da retenção (a política de 3 tentativas fica intacta): o que retém é o silêncio. Ver "Retenção por claim não confirmada".
 - **A retenção não ganhou campo novo, e mora em DOIS portões**: a evidência já estava em `/filaEnvios` (`estado: "reservado"` = nunca confirmada; `expiraEm <= reservadoEm` = devolvida de propósito). E o filtro do pool sozinho não fecharia o furo — pool de 10 min contra claim de 5 min deixa ~4 minutos em que o cache ainda oferece o lead —, então quem impede a duplicata é `leadDisponivel`, na transação da reserva; o pool é pré-filtro. Ver "EM DOIS LUGARES" naquela seção.
 - **Resposta automática com cota PRÓPRIA**: uma resposta enviada sozinha não consome `metaDiaria`, não respeita `intervaloMinimoSegundos` e não conta no `tetoPorHora` — ela tem `filaContadores.respostasEnviadas` e `respostasAutomaticasMaxDia` só para ela. Aqueles três portões existem para disfarçar disparo em rajada para quem NUNCA falou com você; responder quem te escreveu é outra coisa, e somar as duas faria uma noite movimentada de respostas comer a cota de prospecção do dia seguinte. Ver "Resposta automática".
+- **Automação do estoque no GitHub Actions, uma unidade por chamada**: o motor não roda no cron da Vercel (Hobby: um cron por dia, função de 300 s) e não recebe chave paga nenhuma — só chama o Radar, que continua sendo quem fala com Places e Gemini, sempre por `reserveQuota`. Estoque conta os "a caminho" (aprovação pendente, captura em andamento) para a automação não empilhar pendências quando o operador demora; demo automática só sai na fila depois de aprovada; e a autoria/cota é de um pseudo-usuário próprio, nunca admin (que pularia o teto global) nem humano. Ver "Automação do estoque de leads prontos".

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError } from "@/lib/http";
 import { getMetrics, getMetricsPorUsuario } from "@/lib/leads/metrics";
+import { nomesComAutomacao } from "@/lib/automacao/autor";
 import { listUsuarios, usuarioDaRequest } from "@/lib/usuarios";
 
 /**
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
     }
 
     const rollup = await getMetricsPorUsuario(db);
-    const nomes = new Map((await listUsuarios(db)).map((u) => [u.id, u.nome]));
+    const nomes = nomesComAutomacao(await listUsuarios(db));
     const porUsuario = Object.entries(rollup)
       .map(([userId, contadores]) => ({
         userId,

@@ -76,8 +76,7 @@ export async function dispararCapturas(
   env: NodeJS.ProcessEnv = process.env,
   fetchImpl: typeof fetch = fetch,
 ): Promise<void> {
-  const config = configGitHub(env);
-  if (!config) {
+  if (!configGitHub(env)) {
     throw new CapturasIndisponivelError(
       "Geração de capturas não configurada: falta GITHUB_CAPTURAS_TOKEN (e GITHUB_CAPTURAS_REPO, se o deploy não for da Vercel).",
     );
@@ -85,7 +84,58 @@ export async function dispararCapturas(
   if (payload.leads.length === 0) {
     throw new DispatchError("Nenhum lead para capturar.");
   }
+  // O workflow lê os leads como string separada por vírgula: o
+  // `client_payload` chega como expressão de template no YAML, e uma lista
+  // viraria "[object Object]" na linha de comando.
+  await dispararEvento(
+    CAPTURAS_EVENT_TYPE,
+    { leads: payload.leads.join(","), execucao: payload.execucao },
+    "da geração de capturas",
+    env,
+    fetchImpl,
+  );
+}
 
+/** Nome do evento do workflow da automação do estoque (`automacao.yml`). */
+export const AUTOMACAO_EVENT_TYPE = "automacao-estoque";
+
+/**
+ * "Rodar agora" da automação do estoque — o MESMO `repository_dispatch`,
+ * com o mesmo token, só outro `event_type`. O workflow decide o resto
+ * (trava, estoque, alvo); daqui só sai o pedido e quem o fez.
+ */
+export async function dispararAutomacao(
+  payload: { pedidoPor?: string } = {},
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  if (!configGitHub(env)) {
+    throw new CapturasIndisponivelError(
+      "Disparo da automação não configurado: falta GITHUB_CAPTURAS_TOKEN (e GITHUB_CAPTURAS_REPO, se o deploy não for da Vercel).",
+    );
+  }
+  await dispararEvento(
+    AUTOMACAO_EVENT_TYPE,
+    { pedidoPor: payload.pedidoPor ?? "" },
+    "da automação do estoque",
+    env,
+    fetchImpl,
+  );
+}
+
+/**
+ * O `repository_dispatch` em si — um só caminho para os dois workflows,
+ * com as mensagens de erro específicas por status.
+ */
+async function dispararEvento(
+  eventType: string,
+  clientPayload: Record<string, string>,
+  /** "da geração de capturas" — o complemento de "o disparo…" nas mensagens. */
+  doQue: string,
+  env: NodeJS.ProcessEnv,
+  fetchImpl: typeof fetch,
+): Promise<void> {
+  const config = configGitHub(env) as ConfigGitHub;
   let resposta: Response;
   try {
     resposta = await fetchImpl(`https://api.github.com/repos/${config.repo}/dispatches`, {
@@ -96,17 +146,11 @@ export async function dispararCapturas(
         "X-GitHub-Api-Version": "2022-11-28",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        event_type: CAPTURAS_EVENT_TYPE,
-        // O workflow lê os leads como string separada por vírgula: o
-        // `client_payload` chega como expressão de template no YAML, e uma
-        // lista viraria "[object Object]" na linha de comando.
-        client_payload: { leads: payload.leads.join(","), execucao: payload.execucao },
-      }),
+      body: JSON.stringify({ event_type: eventType, client_payload: clientPayload }),
     });
   } catch (erro) {
     throw new DispatchError(
-      "Não deu para falar com o GitHub para disparar a geração.",
+      `Não deu para falar com o GitHub para o disparo ${doQue}.`,
       erro instanceof Error ? erro.message : String(erro),
     );
   }
@@ -114,10 +158,10 @@ export async function dispararCapturas(
   if (resposta.status === 204) return;
 
   const corpo = await resposta.text().catch(() => "");
-  throw new DispatchError(mensagemDoStatus(resposta.status, config.repo), corpo.slice(0, 300));
+  throw new DispatchError(mensagemDoStatus(resposta.status, config.repo, doQue), corpo.slice(0, 300));
 }
 
-function mensagemDoStatus(status: number, repo: string): string {
+function mensagemDoStatus(status: number, repo: string, doQue: string): string {
   if (status === 401) {
     return "O GitHub recusou o token de capturas (401): ele venceu ou foi revogado.";
   }
@@ -128,7 +172,7 @@ function mensagemDoStatus(status: number, repo: string): string {
     return `Repositório ${repo} não encontrado pelo token (404): confira GITHUB_CAPTURAS_REPO e se o token enxerga esse repositório.`;
   }
   if (status === 422) {
-    return "O GitHub recusou o disparo (422): o workflow de capturas precisa estar no branch default do repositório.";
+    return `O GitHub recusou o disparo ${doQue} (422): o workflow precisa estar no branch default do repositório.`;
   }
-  return `O GitHub respondeu ${status} ao disparo da geração de capturas.`;
+  return `O GitHub respondeu ${status} ao disparo ${doQue}.`;
 }
