@@ -1,0 +1,73 @@
+name: Automação do estoque
+
+# Completa o estoque de leads prontos até o alvo de /config/automacao (ver
+# "Automação do estoque" em ARCHITECTURE.md). O MOTOR roda aqui, e não no
+# cron da Vercel: o plano Hobby limita cron a uma vez por dia e função a
+# 300 s, e várias demos com texto de IA passam disso. Daqui o Radar é
+# chamado UMA unidade de trabalho por requisição, cada uma bem dentro dos
+# 300 s. As chaves pagas (Places, Gemini) continuam só na Vercel — este
+# workflow só conhece o AUTOMACAO_SECRET.
+on:
+  # ⚠️ HORÁRIO EM UTC. 06:30 UTC = 03:30 em Brasília (UTC−3, sem horário de
+  # verão): meia hora depois do cron das buscas recorrentes da Vercel
+  # (vercel.json, 06:00 UTC), e com folga para as capturas terminarem antes
+  # de a janela de envio abrir. O agendamento NÃO é configurável pelo
+  # painel: mudar o horário exige editar esta linha (e o GitHub só lê a
+  # agenda do arquivo que está no branch default).
+  schedule:
+    - cron: "30 6 * * *"
+  # Disparo manual pela interface do GitHub (Actions → Run workflow).
+  workflow_dispatch:
+  # O "rodar agora" do painel: POST /api/config/automacao/disparar →
+  # lib/github/dispatch.ts#dispararAutomacao, o mesmo módulo das capturas.
+  repository_dispatch:
+    types: [automacao-estoque]
+
+# Uma execução por vez também do lado do GitHub. A trava de verdade é a do
+# Radar (/automacao/trava) — esta só evita subir um runner à toa.
+concurrency:
+  group: automacao-estoque
+  cancel-in-progress: false
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    # Folga para o passo final rodar DEPOIS do teto do laço (abaixo).
+    timeout-minutes: 75
+
+    env:
+      # Endereço público do Radar — a mesma variável que o workflow de
+      # capturas já usa (vars, ou secret para quem cadastrou lá).
+      RADAR_URL: ${{ vars.APP_PUBLIC_URL || secrets.APP_PUBLIC_URL }}
+      AUTOMACAO_SECRET: ${{ secrets.AUTOMACAO_SECRET }}
+      DISPARO: ${{ github.event_name }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      # Só o script é necessário: nada de `npm ci` — ele usa apenas o
+      # `fetch` do Node.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/automacao-ci.mjs
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # planejar → passo em laço. Salvaguardas no script: teto de iterações,
+      # para em 3 erros seguidos, timeout de 280 s por requisição.
+      - name: Laço (planejar e passos)
+        id: laco
+        timeout-minutes: 60
+        run: node scripts/automacao-ci.mjs laco --estado="$RUNNER_TEMP/automacao-estado.json"
+
+      # SEMPRE — inclusive quando o laço falhou, estourou o tempo ou foi
+      # cancelado: grava a execução no Radar, com o erro. Falha nunca pode
+      # ser silenciosa, como era no cron antigo.
+      - name: Finalizar (sempre)
+        if: always()
+        run: >
+          node scripts/automacao-ci.mjs finalizar
+          --estado="$RUNNER_TEMP/automacao-estado.json"
+          --resultado="${{ steps.laco.outcome }}"
