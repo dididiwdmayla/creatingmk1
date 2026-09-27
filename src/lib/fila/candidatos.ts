@@ -1,3 +1,10 @@
+import {
+  baldeEstoque,
+  estoqueVazio,
+  naFilaDeAprovacao,
+  somarBalde,
+  type Estoque,
+} from "@/lib/automacao/balde";
 import type { AppDb } from "@/lib/firestore-like";
 import { utcOffsetDoLead } from "@/lib/leads/janelaContato";
 import { LEADS_COLLECTION, type Lead } from "@/lib/leads/types";
@@ -168,7 +175,37 @@ export interface PoolCandidatos {
    * não deixar acontecer do lado dos candidatos.
    */
   manuaisPendentesTotal: number;
+  /**
+   * O ESTOQUE da automação (`lib/automacao/estoque.ts`) apurado NESTA mesma
+   * passada — prontos + a caminho. Existe para o painel "Automação" da
+   * /config dizer o estoque no cabeçalho fechado sem pagar uma varredura de
+   * `/leads` a cada abertura da página: a varredura já acontece aqui, a
+   * cada `POOL_TTL_MS`, com o motivo estrutural e o envio em mãos — que é
+   * tudo o que o balde precisa. Nem `/proximo` nem `/confirmar` leem isto.
+   *
+   * Opcional porque o doc gravado antes deste campo continua válido: quem
+   * lê trata ausência como "retrato ainda não tem", nunca como zero.
+   */
+  estoque?: Estoque;
+  /**
+   * Ids das demos AUTOMÁTICAS pendentes que estão no funil (a fila de
+   * aprovação do painel), na ordem justa, cortados em
+   * `APROVACAO_PENDENTES_MAX`. Só ids, pela mesma regra de
+   * `manuaisPendentes`: nome e detalhe vêm de leitura por id, só das linhas
+   * que a tela mostra — e a tela reconfere cada uma contra o doc fresco.
+   */
+  aprovacaoPendentes?: string[];
+  /** O total real — `aprovacaoPendentes` é cortado e este número não. */
+  aprovacaoPendentesTotal?: number;
 }
+
+/**
+ * Teto da fila de aprovação dentro do doc do pool. A automação cria no
+ * máximo o que falta para o alvo por noite (padrão 15), então a ordem de
+ * grandeza é de dezenas; o teto só impede que um operador ausente por
+ * semanas infle o doc que o celular lê a cada ciclo.
+ */
+export const APROVACAO_PENDENTES_MAX = 100;
 
 /**
  * Um lead marcado à mão que ainda não tem a peça que o envio exige. Só id e
@@ -373,6 +410,8 @@ export async function construirPool(
   // Ordenados junto com os candidatos, e pela MESMA regra justa — ver abaixo.
   const pendentes: Array<PendenteManual & { criadoEm: string }> = [];
   let lidos = 0;
+  const estoque = estoqueVazio();
+  const aprovacao: Array<{ id: string; criadoEm: string }> = [];
   for (const doc of leadsSnap.docs) {
     const lead = doc.data() as unknown as Lead;
     // O LEAD FIXO DE TESTE não existe para esta varredura — nem como
@@ -384,6 +423,16 @@ export async function construirPool(
     if (lead.leadDeTeste === true) continue;
     lidos += 1;
     const motivo = motivoEstrutural(lead);
+    const envio = envios.get(lead.placeId);
+    // O balde do estoque da automação, na MESMA passada (ver `estoque` em
+    // `PoolCandidatos`). `envioImpedePool` só é avaliado quando não há
+    // motivo estrutural — é o mesmo curto-circuito de `candidatoEstavel`.
+    const passa = motivo === undefined && !envioImpedePool(envio, now, opcoes.retencaoMs ?? 0);
+    const balde = baldeEstoque(lead, motivo, passa);
+    somarBalde(estoque, balde);
+    if (naFilaDeAprovacao(lead, balde)) {
+      aprovacao.push({ id: lead.placeId, criadoEm: lead.criadoEm });
+    }
     if (motivo) {
       estrutural[motivo] += 1;
       // O lead que o operador ESCOLHEU não some em silêncio quando o que
@@ -397,7 +446,7 @@ export async function construirPool(
       }
       continue;
     }
-    if (envioImpedePool(envios.get(lead.placeId), now, opcoes.retencaoMs ?? 0)) continue;
+    if (!passa) continue;
     candidatos.push(paraCandidato(lead));
   }
   candidatos.sort((a, b) => a.criadoEm.localeCompare(b.criadoEm) || a.id.localeCompare(b.id));
@@ -405,6 +454,7 @@ export async function construirPool(
   // não disputa vaga com ninguém (não está na fila de entrega), então o que
   // resta é só "quem espera há mais tempo aparece primeiro".
   pendentes.sort((a, b) => a.criadoEm.localeCompare(b.criadoEm) || a.id.localeCompare(b.id));
+  aprovacao.sort((a, b) => a.criadoEm.localeCompare(b.criadoEm) || a.id.localeCompare(b.id));
 
   return {
     geradoEm: now.toISOString(),
@@ -416,6 +466,9 @@ export async function construirPool(
       .slice(0, MANUAIS_PENDENTES_MAX)
       .map(({ id, motivo }) => ({ id, motivo })),
     manuaisPendentesTotal: pendentes.length,
+    estoque,
+    aprovacaoPendentes: aprovacao.slice(0, APROVACAO_PENDENTES_MAX).map(({ id }) => id),
+    aprovacaoPendentesTotal: aprovacao.length,
   };
 }
 
@@ -454,6 +507,21 @@ export async function lerPool(
   const valido = poolValido(snap.exists ? snap.data() : undefined, now);
   if (valido) return valido;
 
+  return reconstruirPool(db, now, opcoes);
+}
+
+/**
+ * Varre e GRAVA o pool agora, sem olhar o TTL — o que `lerPool` faz quando o
+ * persistido venceu. Exportado para o painel "Automação" da /config, que
+ * precisa de um retrato posterior à última execução da automação mesmo com
+ * o pool ainda dentro do TTL (ver `lib/automacao/painel.ts`). Grava no MESMO
+ * doc: quem paga a varredura adianta a próxima do celular, nunca duplica.
+ */
+export async function reconstruirPool(
+  db: AppDb,
+  now: Date = new Date(),
+  opcoes: { retencaoMs?: number } = {},
+): Promise<PoolCandidatos> {
   const novo = await construirPool(db, now, opcoes);
   await poolRef(db).set(novo as unknown as Record<string, unknown>);
   return novo;

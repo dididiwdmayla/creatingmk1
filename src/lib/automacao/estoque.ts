@@ -1,11 +1,11 @@
-import { emAndamento } from "@/lib/demos/capturas/estado";
-import type { LeadDemo } from "@/lib/demos/types";
 import { candidatoEstavel, motivoEstrutural } from "@/lib/fila/candidatos";
 import { loadFilaConfig } from "@/lib/fila/config";
 import { FILA_ENVIOS_COLLECTION } from "@/lib/fila/envios";
 import { retencaoMsDeHoras, type FilaEnvioDoc } from "@/lib/fila/estado";
 import type { AppDb } from "@/lib/firestore-like";
 import { LEADS_COLLECTION, type Lead } from "@/lib/leads/types";
+
+import { baldeEstoque, estoqueVazio, somarBalde, type BaldeEstoque, type Estoque } from "./balde";
 
 /**
  * O ESTOQUE de leads prontos — o número que decide se a automação trabalha.
@@ -24,23 +24,13 @@ import { LEADS_COLLECTION, type Lead } from "@/lib/leads/types";
  * pool de candidatos —, nunca a janela.
  */
 
-export type BaldeEstoque = "pronto" | "aguardandoAprovacao" | "capturaEmAndamento";
-
-export interface Estoque {
-  prontos: number;
-  aguardandoAprovacao: number;
-  capturasEmAndamento: number;
-  total: number;
-}
-
-/** Demo automática esperando o operador (aprovação ausente vale pendente). */
-export function demoAutomaticaPendente(demo: LeadDemo | undefined): boolean {
-  return demo?.origem === "automacao" && (demo.aprovacao ?? "pendente") === "pendente";
-}
+export { demoAutomaticaPendente, type BaldeEstoque, type Estoque } from "./balde";
 
 /**
  * Em qual balde do estoque este lead cai — no MÁXIMO um, para nenhum lead
- * contar duas vezes. Pura.
+ * contar duas vezes. Pura. A regra mora em `baldeEstoque` (`balde.ts`),
+ * que a varredura do pool também chama; aqui só se resolve o motivo e o
+ * envio.
  *
  * - **pronto**: passa em `candidatoEstavel`, exatamente o critério do pool
  *   da fila (inclusive a retenção por claim silenciosa e as tentativas
@@ -61,31 +51,14 @@ export function classificarEstoque(
   now: Date,
   retencaoMs: number,
 ): BaldeEstoque | undefined {
-  if (lead.leadDeTeste === true) return undefined;
-  const pendente = demoAutomaticaPendente(lead.demo);
   const motivo = motivoEstrutural(lead);
-
-  if (motivo === "aguardandoAprovacao") return pendente ? "aguardandoAprovacao" : undefined;
-  if (motivo === undefined) {
-    return candidatoEstavel(lead, envio, now, retencaoMs) ? "pronto" : undefined;
-  }
-  if (motivo === "capturaNaoPronta") {
-    if (emAndamento(lead.capturas?.estado)) return "capturaEmAndamento";
-    if (pendente) return "aguardandoAprovacao";
-  }
-  return undefined;
+  return baldeEstoque(lead, motivo, motivo === undefined && candidatoEstavel(lead, envio, now, retencaoMs));
 }
 
 /** Soma pura dos baldes — separada para o teste não precisar de banco. */
 export function somarEstoque(baldes: Array<BaldeEstoque | undefined>): Estoque {
-  const estoque: Estoque = { prontos: 0, aguardandoAprovacao: 0, capturasEmAndamento: 0, total: 0 };
-  for (const balde of baldes) {
-    if (balde === "pronto") estoque.prontos += 1;
-    else if (balde === "aguardandoAprovacao") estoque.aguardandoAprovacao += 1;
-    else if (balde === "capturaEmAndamento") estoque.capturasEmAndamento += 1;
-    else continue;
-    estoque.total += 1;
-  }
+  const estoque = estoqueVazio();
+  for (const balde of baldes) somarBalde(estoque, balde);
   return estoque;
 }
 

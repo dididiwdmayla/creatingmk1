@@ -28,6 +28,7 @@ export const PAINEIS_CONFIG = [
   { id: "fila-print-pendente", titulo: "Print pendente", nivel: 3 },
   { id: "respostas-pendentes", titulo: "Respostas pendentes", nivel: 2 },
   { id: "respostas-simular", titulo: "Simular mensagem", nivel: 3 },
+  { id: "automacao", titulo: "Automação", nivel: 2 },
   { id: "leads-sem-vestigio", titulo: "Leads sem vestígio", nivel: 2 },
   { id: "busca", titulo: "Busca", nivel: 2 },
   { id: "mensagem-padrao", titulo: "Mensagem padrão", nivel: 2 },
