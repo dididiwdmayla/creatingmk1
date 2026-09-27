@@ -66,6 +66,8 @@
  *   node scripts/qa-plataforma.mjs --so=seletor  # o SELETOR DE LEAD em /config: fechado com o nome,
  *                                                 # aberto, a busca filtrando, "lead não encontrado",
  *                                                 # e o FIM da ficha com o id
+ *   node scripts/qa-plataforma.mjs --so=cron      # o WIDGET do cron no painel: rodou, FALHOU e não
+ *                                                 # concluiu, celular e desktop, escuro e claro
  *   node scripts/qa-plataforma.mjs --marca=antes  # sufixo nos arquivos
  *   node scripts/qa-plataforma.mjs --sem-build    # reusa o .next já buildado
  */
@@ -433,6 +435,7 @@ function semear() {
     // `data-theme` do <html> vai junto e TODA a captura sai no tema errado.
     "cron/ultima": {
       em: iso(0),
+      estado: "ok",
       concluidaEm: iso(0),
       recorrentes: 1,
       totalNovos: 3,
@@ -5612,6 +5615,155 @@ async function medirFps(browser, secret) {
   return gerados;
 }
 
+/* ── Item: o widget do cron no painel (`--so=cron`) ──────────────────── */
+
+/**
+ * O widget "Buscas recorrentes" do painel (`/`) nos estados que o operador
+ * precisa distinguir de relance. O defeito que ele corrige era de OMISSÃO:
+ * uma rodada que morria não gravava nada, e o painel seguia mostrando a
+ * última bem-sucedida — então a captura que importa é a de FALHA ao lado
+ * da de sucesso, no mesmo tema, e as duas não podem se parecer.
+ *
+ * Cada estado é gravado direto em `cron/ultima` no banco-arquivo (mesma
+ * técnica de `definirTemaNoDoc`) — são as formas exatas que
+ * `executarBuscasRecorrentes` grava (lib/buscas/cron.ts). A mensagem da
+ * falha é LONGA de propósito (erro real do gRPC do Firestore): é ela que
+ * vaza a largura no celular se a quebra estiver errada.
+ */
+const ESTADOS_CRON = [
+  {
+    id: "rodou",
+    rotulo: "rodou",
+    doc: () => ({
+      em: iso(0),
+      estado: "ok",
+      concluidaEm: iso(0),
+      recorrentes: 2,
+      totalNovos: 5,
+      totalExistentes: 14,
+      buscas: [
+        { buscaId: "busca-centro", nome: "Dentistas — Centro", novos: 3, existentes: 11 },
+        { buscaId: "busca-zona-sul", nome: "Dentistas — Zona Sul", novos: 2, existentes: 3 },
+      ],
+    }),
+  },
+  {
+    id: "falhou",
+    rotulo: "FALHOU (loadConfig)",
+    doc: () => ({
+      em: iso(0),
+      estado: "falhou",
+      concluidaEm: iso(0),
+      recorrentes: 0,
+      totalNovos: 0,
+      totalExistentes: 0,
+      buscas: [],
+      falha: {
+        etapa: "config",
+        mensagem:
+          "14 UNAVAILABLE: No connection established. Last error: connect ETIMEDOUT 142.250.79.42:443 (firestore.googleapis.com)",
+        em: iso(0),
+      },
+    }),
+  },
+  {
+    id: "nao-concluiu",
+    rotulo: "não concluiu (estouro de tempo)",
+    doc: () => ({
+      em: new Date(AGORA.getTime() - 3 * 3600_000).toISOString(),
+      estado: "rodando",
+      recorrentes: 0,
+      totalNovos: 0,
+      totalExistentes: 0,
+      buscas: [],
+    }),
+  },
+];
+
+function gravarCronUltima(doc) {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  const anterior = mapa["cron/ultima"];
+  mapa["cron/ultima"] = doc;
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+  return anterior;
+}
+
+async function medirCron(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+  const original = gravarCronUltima(ESTADOS_CRON[0].doc());
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    for (const estado of ESTADOS_CRON) {
+      gravarCronUltima(estado.doc());
+      const onde = `cron/${estado.id}/${sufixo}`;
+      await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, onde);
+      await exigirTema(page, tema, onde);
+
+      const card = page.locator("[data-cron-estado]");
+      if ((await card.count()) !== 1) {
+        problemas.push(`${onde}: widget do cron não encontrado`);
+        continue;
+      }
+      const lido = await card.getAttribute("data-cron-estado");
+      if (lido !== estado.id) problemas.push(`${onde}: widget em "${lido}", esperado "${estado.id}"`);
+      await card.scrollIntoViewIfNeeded();
+
+      const caixa = await card.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const vaza = [...el.querySelectorAll("*")].some(
+          (filho) => filho.getBoundingClientRect().right > r.right + 1,
+        );
+        return { direita: Math.round(r.right), vaza, largura: document.documentElement.scrollWidth };
+      });
+      if (caixa.direita > viewport.width + 1 || caixa.largura > viewport.width + 1) {
+        problemas.push(`${onde}: widget vaza a viewport (direita=${caixa.direita}, página=${caixa.largura})`);
+      }
+      if (caixa.vaza) problemas.push(`${onde}: conteúdo vaza a caixa do widget`);
+
+      const png = path.join(SAIDA, `cron-${estado.id}-${sufixo}${marca}.png`);
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await card.screenshot({ path: png });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `${estado.rotulo} · ${sufixo}`, png });
+      gerados.push(png);
+    }
+    await ctx.close();
+  }
+
+  gravarCronUltima(original);
+
+  const folha = await browser.newPage();
+  const linha = (fim) => itens.filter((i) => i.rotulo.endsWith(fim));
+  gerados.push(
+    await folhaDeContato(folha, "Widget do cron (painel /)", "cron", [
+      { rotulo: "celular · escuro", itens: linha("· celular") },
+      { rotulo: "desktop · escuro", itens: linha("· desktop") },
+      { rotulo: "celular · claro", itens: linha("· celular-claro") },
+      { rotulo: "desktop · claro", itens: linha("· desktop-claro") },
+    ]),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[cron] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[cron] ok — rodou, falhou e não concluiu, 2 viewports × 2 temas.");
+  return gerados;
+}
+
 /* ── main ────────────────────────────────────────────────────────────── */
 
 async function main() {
@@ -5673,6 +5825,7 @@ async function main() {
     if (querido("seletor")) gerados.push(...(await medirSeletorLead(browser, secret)));
     if (querido("vestigio")) gerados.push(...(await medirSemVestigio(browser, secret)));
     if (querido("paineis")) gerados.push(...(await medirPaineisConfig(browser, secret)));
+    if (querido("cron")) gerados.push(...(await medirCron(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));

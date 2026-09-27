@@ -11,8 +11,9 @@ import {
   type MetricsResponse,
   type UsageResponse,
 } from "@/lib/api-client";
-import { formatBRL, formatDateTime, formatInt, formatPercent, formatUSD } from "@/lib/format";
+import { formatBRL, formatInt, formatPercent, formatUSD } from "@/lib/format";
 import { SKUS, SKU_LABELS } from "@/lib/sku-labels";
+import { CronStatusCard } from "@/components/CronStatusCard";
 import { MetaProgresso } from "@/components/MetaProgresso";
 import { RadarSweep } from "@/components/RadarSweep";
 import { Skeleton, SkeletonRows } from "@/components/Skeleton";
@@ -274,46 +275,7 @@ export default function DashboardPage() {
         </section>
       )}
 
-      <section className="rounded-lg border border-line bg-surface p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Buscas recorrentes · cron da madrugada
-        </h2>
-        {cron?.ultima ? (
-          <div className="mt-2">
-            <p className="text-sm text-foreground">
-              Última execução: {formatDateTime(cron.ultima.em)} —{" "}
-              <span className="font-semibold">{formatInt(cron.ultima.totalNovos)} novo(s)</span> ·{" "}
-              {formatInt(cron.ultima.totalExistentes)} já existente(s) em{" "}
-              {formatInt(cron.ultima.buscas.length)} busca(s)
-            </p>
-            {cron.ultima.interrompida && (
-              <p className="mt-1 text-xs text-warning">
-                Interrompida{cron.ultima.interrompida.nome ? ` em "${cron.ultima.interrompida.nome}"` : ""}:{" "}
-                {cron.ultima.interrompida.motivo}
-              </p>
-            )}
-            {cron.ultima.buscas.some((b) => b.erro) && (
-              <p className="mt-1 text-xs text-critical">
-                {cron.ultima.buscas
-                  .filter((b) => b.erro)
-                  .map((b) => `"${b.nome}" falhou`)
-                  .join(" · ")}
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-ink-muted">O cron ainda não rodou.</p>
-        )}
-        <p className="mt-2 text-xs text-ink-muted">
-          {cron
-            ? `${formatInt(cron.recorrentes)} busca(s) recorrente(s) ligada(s) — gerencie em `
-            : "Gerencie as recorrências em "}
-          <Link href="/buscas" className="text-accent">
-            Buscas
-          </Link>
-          .
-        </p>
-      </section>
+      <CronStatusCard cron={cron} now={new Date()} />
 
       <section>
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">

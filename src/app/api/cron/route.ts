@@ -8,7 +8,9 @@ import { handleRouteError, jsonError } from "@/lib/http";
  * Teto de execução da função. Plano Hobby da Vercel: 300s é o padrão E o
  * máximo — declarado explicitamente para o limite estar no código, não
  * implícito no plano. Literal de propósito: o Next lê a config de segmento
- * estaticamente.
+ * estaticamente. `CRON_MAX_DURATION_S` (lib/buscas/cron-estado) espelha o
+ * valor para o painel reconhecer uma rodada morta por tempo, e um teste
+ * cobra que os dois batam.
  */
 export const maxDuration = 300;
 

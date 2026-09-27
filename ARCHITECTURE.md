@@ -112,7 +112,7 @@ src/
       mensagens/nao-lidas/route.ts  # ✅ GET total de não-lidas (badge do menu, polling leve)
       hoje/route.ts                 # ✅ GET fila do dia (delta por usuário; carimba ultimaVisitaEm)
       mundo/route.ts                # ✅ GET países em faixa boa agora para uma família — DERIVADA (config + leads + /regioes cacheado), nenhuma chamada paga
-      cron/route.ts                 # ✅ GET gatilho do Vercel Cron (Bearer CRON_SECRET, fora da sessão)
+      cron/route.ts                 # ✅ GET gatilho do Vercel Cron (Bearer CRON_SECRET, fora da sessão; maxDuration = 300)
       cron/status/route.ts          # ✅ GET última execução do cron + recorrentes ligadas (widget)
       usage/route.ts                # ✅ GET uso do mês + custo projetado
       metrics/route.ts              # ✅ GET métricas de prospecção
@@ -212,8 +212,9 @@ src/
     buscas/                         # ✅ registro das buscas executadas
       types.ts                      #    + recorrente/qualificada/quantidade, BuscaExecucao e penetracao (cache)
       repo.ts                       #    + listBuscasRecorrentes (ordem determinística), registrarExecucao e salvarPenetracao
-      cron.ts                       # ✅ executarBuscasRecorrentes: pipeline diário + resumo em /cron/ultima
-      penetracao.ts                 # ✅ calcularPenetracaoGrupo/recalcularPenetracao/penetracaoParaLead (ver "Penetração de site")
+      cron.ts                       # ✅ executarBuscasRecorrentes: pipeline diário + resumo em /cron/ultima (rodando → ok | falhou)
+      cron-estado.ts                # ✅ puro: situacaoCron (rodou/rodando/falhou/não concluiu), etapas, CRON_MAX_DURATION_S
+      penetracao.ts                 # ✅ calcularPenetracaoGrupo/recalcularPenetracao/recalcularPenetracaoBuscas (lote do cron)/penetracaoParaLead
     demos/                          # ✅ Forja de Demos (ver seção própria)
       types.ts                      # DemoData, Theme, SkinDefinition (+secoes), LeadDemo (+tema), TemaPatch
       montar.ts                     # montarDemoData: exemplo ← lead ← edições
@@ -303,6 +304,7 @@ src/
     MetaProgresso.tsx               # ✅ barra de progresso de UMA meta (dia OU semana) — polaridade oposta ao UsageMeter (mais uso é melhor, nunca "crítico"); só renderiza quando a janela tem `meta`
     PrecificacaoCard.tsx            # ✅ card "Precificação": slider + cálculo ao vivo + edição de índice (admin) — ver seção própria
     LeadCard.tsx                    # card da lista: estrela, notas inline, dots de cor, destaque sem site, badge "argumento forte"
+    CronStatusCard.tsx              # ✅ widget do cron no painel: selo Rodou/Rodando/Falhou/Não concluiu + etapa e mensagem da falha
     BarraDoDia.tsx                  # ✅ a barra do dia da ficha (cor + ALTURA + legenda + descrição) e a prévia das faixas em /config
     PageTransition.tsx              # fade-in de página por troca de rota (client)
     RadarSweep.tsx                  # decoração de sweep de radar (CSS puro)
@@ -740,7 +742,8 @@ Subcoleção da busca recorrente, um doc por rodada do cron: `{ em, novos, exist
 ```jsonc
 {
   "em": "<ISO 8601>",                 // início da rodada
-  "concluidaEm": "<ISO 8601>",
+  "estado": "ok",                     // "rodando" (gravado ANTES de tudo) → "ok" | "falhou"; ausente (docs antigos) = "ok"
+  "concluidaEm": "<ISO 8601>",        // ausente enquanto "rodando"
   "recorrentes": 3,                   // buscas marcadas como recorrentes (antes do teto)
   "buscas": [                         // uma entrada por busca executada, na ordem da fila
     { "buscaId": "<uuid>", "nome": "Implantes Sarandi", "novos": 2, "existentes": 5,
@@ -750,11 +753,16 @@ Subcoleção da busca recorrente, um doc por rodada do cron: `{ em, novos, exist
   "totalExistentes": 5,
   "interrompida": {                   // presente se a COTA estourou no meio: a fila parou aqui
     "buscaId": "<uuid>", "nome": "…", "motivo": "Teto mensal atingido para \"textSearch\" …"
+  },
+  "falha": {                          // só com estado "falhou" — buscas/totais acima = o que andou ANTES dela
+    "etapa": "config",                // inicio | config | fila | buscas | penetracao | registro
+    "mensagem": "14 UNAVAILABLE: …",
+    "em": "<ISO 8601>"
   }
 }
 ```
 
-Alimenta o widget "Buscas recorrentes" do dashboard via `GET /api/cron/status`. Só a última rodada interessa no painel — o histórico por busca fica nas subcoleções `execucoes`.
+Alimenta o widget "Buscas recorrentes" do dashboard via `GET /api/cron/status`. Só a última rodada interessa no painel — o histórico por busca fica nas subcoleções `execucoes`. Uma rodada que falha **sobrescreve** a última bem-sucedida de propósito: o painel mostra o que aconteceu por último, não o último sucesso (ver "Falha que deixa rastro").
 
 Sobre a **cor**: paleta fixa de 10 (validada contra a superfície escura: banda de luminância, croma e contraste ≥3:1). Com 10 hues a separação CVD de todos os pares é matematicamente inviável — por isso a cor é sempre reforço redundante: o nome da busca acompanha o badge em texto. Docs antigos sem `cor` ganham fallback estável na leitura.
 
@@ -2918,6 +2926,16 @@ O Radar como rotina, não só ferramenta: o cron reabastece a base de madrugada 
 6. **Cada re-execução grava** `{ em, novos, existentes }` em `/buscas/{id}/execucoes` (e soma os deltas aos totais do grupo); a rodada inteira sobrescreve `/cron/ultima`, que o dashboard mostra no widget "Buscas recorrentes" via `GET /api/cron/status`.
 7. **Penetração uma vez, no fim** — não por busca: ver "Penetração de site por nicho e cidade". Roda também quando a fila foi interrompida por cota (o que rodou antes da interrupção é recalculado).
 8. **Teto de tempo explícito**: `export const maxDuration = 300` em `src/app/api/cron/route.ts`. O projeto está no plano Hobby da Vercel, onde 300s é o padrão E o máximo — declarado para o limite estar no código, não implícito no plano.
+
+#### Falha que deixa rastro
+
+Antes, `/cron/ultima` só era gravado depois do laço inteiro, e `loadConfig`/`listBuscasRecorrentes` rodavam fora de qualquer `try`: qualquer exceção ali (ou na penetração, ou na própria gravação) matava a rodada sem gravar nada, e o painel continuava exibindo a última execução BEM-SUCEDIDA — o operador lia "rodou" sobre uma madrugada em que nada rodou. Agora `executarBuscasRecorrentes`:
+
+1. **grava `estado: "rodando"` antes de qualquer outra coisa.** Estouro do `maxDuration` não lança exceção — a Vercel mata o processo e nenhum `catch` roda. O marcador é o que sobra: `situacaoCron` (`src/lib/buscas/cron-estado.ts`, puro) lê um `rodando` mais velho que `CRON_MAX_DURATION_S` (300, espelho do `maxDuration` da rota — teste cobra os dois iguais) + 60s de folga como **"não concluiu"**;
+2. **embrulha a rodada inteira** e acompanha a etapa corrente (`inicio` → `config` → `fila` → `buscas` → `penetracao` → `registro`). Qualquer exceção grava `estado: "falhou"` com `falha: { etapa, mensagem, em }` e o progresso até ali (buscas já rodadas, totais), e é **relançada** — a rota responde 500 e a invocação aparece como falha no log da Vercel. Se nem a gravação da falha funcionar (Firestore fora do ar), fica o `console.error` e o marcador `rodando` envelhece até virar "não concluiu";
+3. **mantém a cota como está**: `QuotaExceededError` continua interrompendo a fila de propósito (recurso compartilhado) — a rodada termina `ok` com `interrompida`, não `falhou`.
+
+O widget (`src/components/CronStatusCard.tsx`, extraído do painel) escreve o estado num selo — **✓ Rodou**, **● Rodando**, **✕ Falhou**, **✕ Não concluiu** —, palavra e ícone, nunca só cor; falha e "não concluiu" também trocam a borda do cartão para `critical`. Em falha, mostra a etapa em palavras ("leitura da configuração"), a mensagem crua numa caixa monoespaçada que quebra linha (erro de gRPC é longo) e o instante; os números de sucesso ("Última execução… novos") só aparecem em "rodou". Doc antigo sem `estado` continua lido como "rodou". Verificado no app real com `qa-plataforma.mjs --so=cron` (rodou, falhou e não concluiu × celular/desktop × escuro/claro, sem vazamento de largura; folha `_folha-cron.png`).
 
 ### Fila do dia (`src/lib/leads/hoje.ts` + `/api/hoje` + página /hoje)
 

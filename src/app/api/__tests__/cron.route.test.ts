@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CRON_MAX_DURATION_S } from "@/lib/buscas/cron-estado";
 import { regiaoCacheKey } from "@/lib/geo/geocode";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
-import { GET } from "../cron/route";
+import { GET, maxDuration } from "../cron/route";
 import { GET as STATUS } from "../cron/status/route";
 
 let db: FakeFirestore;
@@ -190,9 +191,13 @@ describe("GET /api/cron — execução", () => {
     // b1 executou e gravou; b2 não tem execução.
     expect(await execucoesDe("b1")).toHaveLength(1);
     expect(await execucoesDe("b2")).toHaveLength(0);
+    // Cota estourada NÃO é falha da rodada: a fila para de propósito e a
+    // rodada termina "ok", com a interrupção registrada.
     expect(db.getDoc("cron/ultima")).toMatchObject({
+      estado: "ok",
       interrompida: { buscaId: "b2" },
     });
+    expect(db.getDoc("cron/ultima")).not.toHaveProperty("falha");
   });
 
   it("erro do Google numa busca não trava as demais (registra o erro e segue)", async () => {
@@ -310,5 +315,162 @@ describe("GET /api/cron — execução", () => {
     const period = new Date().toISOString().slice(0, 7);
     expect(db.getDoc(`usage/${period}`)).toMatchObject({ textSearchEnterprise: 1 });
     expect(db.getDoc("leads/ChIJ010")).toMatchObject({ temSite: false, siteProprio: false });
+  });
+});
+
+describe("GET /api/cron — falha que deixa rastro em /cron/ultima", () => {
+  const AGORA = new Date("2026-07-21T06:00:00.000Z");
+
+  /** Faz toda leitura/escrita na coleção `nome` falhar como um Firestore fora do ar. */
+  function derrubarColecao(nome: string, mensagem = "Firestore indisponível") {
+    const original = db.collection.bind(db);
+    vi.spyOn(db, "collection").mockImplementation((colecao: string) => {
+      const ref = original(colecao);
+      if (colecao !== nome) return ref;
+      return {
+        doc: (id: string) => {
+          const docRef = ref.doc(id);
+          return {
+            ...docRef,
+            get: async () => {
+              throw new Error(mensagem);
+            },
+          };
+        },
+        get: async () => {
+          throw new Error(mensagem);
+        },
+      } as ReturnType<typeof original>;
+    });
+  }
+
+  /** A última rodada BEM-SUCEDIDA de ontem — é ela que o painel mostrava, mentindo. */
+  function seedRodadaBoaAnterior() {
+    db.seed("cron/ultima", {
+      em: "2026-07-20T06:00:00.000Z",
+      concluidaEm: "2026-07-20T06:00:05.000Z",
+      recorrentes: 1,
+      buscas: [{ buscaId: "b1", nome: "busca b1", novos: 4, existentes: 1 }],
+      totalNovos: 4,
+      totalExistentes: 1,
+    });
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AGORA);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("falha em loadConfig grava registro de falha (etapa, mensagem, instante) e responde 500", async () => {
+    seedBusca("b1", { recorrente: true });
+    seedRodadaBoaAnterior();
+    derrubarColecao("config");
+
+    const res = await GET(cronRequest("Bearer segredo-cron"));
+
+    expect(res.status).toBe(500);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(db.getDoc("cron/ultima")).toEqual({
+      em: AGORA.toISOString(),
+      estado: "falhou",
+      concluidaEm: AGORA.toISOString(),
+      recorrentes: 0,
+      buscas: [],
+      totalNovos: 0,
+      totalExistentes: 0,
+      falha: { etapa: "config", mensagem: "Firestore indisponível", em: AGORA.toISOString() },
+    });
+    // O painel lê a FALHA, não a rodada boa de ontem.
+    const status = await (await STATUS()).json();
+    expect(status.ultima).toMatchObject({ estado: "falhou", falha: { etapa: "config" } });
+  });
+
+  it("falha ao listar as recorrentes → etapa \"fila\"", async () => {
+    seedBusca("b1", { recorrente: true });
+    derrubarColecao("buscas", "deadline exceeded");
+
+    const res = await GET(cronRequest("Bearer segredo-cron"));
+
+    expect(res.status).toBe(500);
+    expect(db.getDoc("cron/ultima")).toMatchObject({
+      estado: "falhou",
+      falha: { etapa: "fila", mensagem: "deadline exceeded" },
+    });
+  });
+
+  it("falha DEPOIS das buscas guarda o progresso até ali (etapa \"penetracao\")", async () => {
+    seedBusca("b1", { recorrente: true });
+    // /leads só é VARRIDA inteira no recálculo da penetração (o upsert lê doc a doc).
+    const original = db.collection.bind(db);
+    vi.spyOn(db, "collection").mockImplementation((colecao: string) => {
+      const ref = original(colecao);
+      if (colecao !== "leads") return ref;
+      return {
+        ...ref,
+        get: async () => {
+          throw new Error("leitura de /leads estourou");
+        },
+      };
+    });
+
+    const res = await GET(cronRequest("Bearer segredo-cron"));
+
+    expect(res.status).toBe(500);
+    expect(db.getDoc("cron/ultima")).toMatchObject({
+      estado: "falhou",
+      recorrentes: 1,
+      buscas: [{ buscaId: "b1", novos: 2, existentes: 0 }],
+      totalNovos: 2,
+      falha: { etapa: "penetracao", mensagem: "leitura de /leads estourou" },
+    });
+    // A busca rodou de verdade antes da falha: execução gravada, leads criados.
+    expect(await execucoesDe("b1")).toHaveLength(1);
+    expect(db.getDoc("leads/ChIJ001")).toBeDefined();
+  });
+
+  it("grava \"rodando\" ANTES de tudo — uma rodada morta por tempo não fica sem rastro", async () => {
+    seedBusca("b1", { recorrente: true });
+    seedRodadaBoaAnterior();
+    let durante: Record<string, unknown> | undefined;
+    fetchMock.mockImplementation(async () => {
+      durante = db.getDoc("cron/ultima");
+      return placesResponse(["ChIJ001"]);
+    });
+
+    await GET(cronRequest("Bearer segredo-cron"));
+
+    expect(durante).toEqual({
+      em: AGORA.toISOString(),
+      estado: "rodando",
+      recorrentes: 0,
+      buscas: [],
+      totalNovos: 0,
+      totalExistentes: 0,
+    });
+    expect(db.getDoc("cron/ultima")).toMatchObject({ estado: "ok", totalNovos: 1 });
+  });
+
+  it("rodada que termina bem grava estado \"ok\" sem campo de falha", async () => {
+    seedBusca("b1", { recorrente: true });
+
+    await GET(cronRequest("Bearer segredo-cron"));
+
+    const ultima = db.getDoc("cron/ultima");
+    expect(ultima).toMatchObject({
+      estado: "ok",
+      em: AGORA.toISOString(),
+      concluidaEm: AGORA.toISOString(),
+    });
+    expect(ultima).not.toHaveProperty("falha");
+  });
+
+  it("maxDuration da rota é o mesmo teto que o painel usa para declarar \"não concluiu\"", () => {
+    expect(maxDuration).toBe(300);
+    expect(CRON_MAX_DURATION_S).toBe(maxDuration);
   });
 });
