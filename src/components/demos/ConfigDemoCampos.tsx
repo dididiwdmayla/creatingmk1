@@ -1,6 +1,7 @@
 "use client";
 
 import { EFEITOS } from "@/lib/demos/efeitos/registry";
+import { skinsDoNicho } from "@/lib/demos/nicho";
 import { SKINS, getSkin } from "@/lib/demos/registry";
 import { IMAGENS_MODOS, type ImagensModo } from "@/lib/demos/types";
 
@@ -31,9 +32,18 @@ export interface ConfigDemo {
   imagensModo: ImagensModo;
 }
 
-/** Config inicial: a primeira skin do registro no preset default dela. */
-export function configDemoInicial(): ConfigDemo {
-  const skin = SKINS[0];
+/**
+ * Config inicial: a primeira skin do registro que casa com `nicho` (ver
+ * skinsDoNicho), na ordem do registro — nunca simplesmente `SKINS[0]`, que
+ * abriria o diálogo de um grupo de petshop já com a barbearia selecionada.
+ * Sem `nicho` (ex.: demo avulsa, que não vem de um grupo de busca) ou sem
+ * skin nenhuma casando, cai no comportamento de sempre (`SKINS[0]`) — o
+ * operador troca manualmente, e `ConfigDemoCampos` avisa quando é o caso
+ * de "nenhuma skin atende este nicho" (ver `nicho`/`semSkinDoNicho` abaixo).
+ */
+export function configDemoInicial(nicho?: string): ConfigDemo {
+  const casam = nicho ? skinsDoNicho(nicho) : [];
+  const skin = casam[0] ?? SKINS[0];
   return {
     skinId: skin?.id ?? "",
     themeId: skin?.themeDefault.id ?? "",
@@ -55,14 +65,29 @@ export function ConfigDemoCampos({
   config,
   onChange,
   desabilitado = false,
+  nicho,
 }: {
   config: ConfigDemo;
   onChange: (config: ConfigDemo) => void;
   desabilitado?: boolean;
+  /**
+   * Nicho do grupo de busca (ver GerarDemosLoteDialog) — só para avisar o
+   * operador quando nenhuma skin do registro atende este nicho ainda
+   * (skinsDoNicho vazio). Ausente = sem aviso (ex.: demo avulsa, que não
+   * vem de um grupo).
+   */
+  nicho?: string;
 }) {
   const skin = getSkin(config.skinId);
+  const semSkinDoNicho = Boolean(nicho) && skinsDoNicho(nicho as string).length === 0;
   return (
     <div className="flex flex-wrap gap-2">
+      {semSkinDoNicho && (
+        <p className="w-full text-xs text-critical">
+          Nenhuma skin do registro atende o nicho &quot;{nicho}&quot; ainda — escolha uma abaixo
+          manualmente.
+        </p>
+      )}
       <select
         value={config.skinId}
         onChange={(event) => onChange(trocarSkin(config, event.target.value))}

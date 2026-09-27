@@ -954,6 +954,7 @@ function LeadsPageInner() {
       {loteAberto && leads && (
         <GerarDemosLoteDialog
           leads={leads}
+          nicho={buscaAtual?.nicho}
           iaDisponivel={iaDisponivel}
           onFechar={() => setLoteAberto(false)}
           onLeadAtualizado={atualizarLeadLocal}

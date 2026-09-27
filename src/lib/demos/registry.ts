@@ -43,10 +43,41 @@ import type { SkinDefinition, Theme } from "./types";
  * extenso (ver o comentário de `SkinDefinition.componente` em ./types.ts) —
  * quem só lista skins (seletor, aba Tema) nunca baixa o JSX de nenhuma.
  */
+
+/**
+ * Sinônimos por NICHO (não por skin) — escritos à mão pelo operador, não
+ * por IA (ver `SkinDefinition.sinonimos` em ./types.ts). Skins do mesmo
+ * nicho compartilham a mesma lista aqui para nunca divergirem uma da
+ * outra por descuido de edição.
+ */
+const SINONIMOS_BARBEARIA = ["barbeiro", "barbershop", "barber"];
+const SINONIMOS_TATUAGEM = ["tattoo", "tatuador", "estudio de tatuagem"];
+const SINONIMOS_LANCHERIA = [
+  "lanchonete",
+  "hamburgueria",
+  "hamburgeria",
+  "casa de lanches",
+  "burger",
+];
+const SINONIMOS_IMOBILIARIA = [
+  "corretora de imoveis",
+  "corretor de imoveis",
+  "agencia imobiliaria",
+];
+const SINONIMOS_MULTIMARCAS = [
+  "revenda de carros",
+  "revendedora de veiculos",
+  "loja de carros",
+  "seminovos",
+  "concessionaria de seminovos",
+];
+const SINONIMOS_PETSHOP = ["banho e tosa", "loja de animais", "clinica veterinaria"];
+
 export const SKINS: SkinDefinition[] = [
   {
     id: "barbearia-editorial",
     nicho: "barbearia",
+    sinonimos: SINONIMOS_BARBEARIA,
     nome: "Barbearia Editorial",
     descricao: "Quatro composições editoriais: Norte, Meia-noite, Creme e Vinho. Ofício, serviços com preço, equipe e ritual.",
     componente: () => import("@/components/demos/barbearia/Skin").then((m) => m.BarbeariaEditorial),
@@ -66,6 +97,7 @@ export const SKINS: SkinDefinition[] = [
   {
     id: "barbearia2-sul",
     nicho: "barbearia",
+    sinonimos: SINONIMOS_BARBEARIA,
     nome: "Barbearia Sul",
     descricao:
       "Editorial minimalista verde-musgo e latão: etiquetas mono, título hero centralizado com corte de navalha, serviços que expandem no hover, ritual em três atos e galeria arrastável em preto-e-branco.",
@@ -84,6 +116,7 @@ export const SKINS: SkinDefinition[] = [
   {
     id: "tatuagem-editorial",
     nicho: "tatuagem",
+    sinonimos: SINONIMOS_TATUAGEM,
     nome: "Tatuagem Editorial Sombria",
     descricao:
       "Quatro estúdios editoriais: Sangue (fechamento), Vesperal (ateliê autoral), Cripta (mural coletivo) e Marfim (arquivo claro). Vídeo dentro das letras do título nas quatro.",
@@ -106,6 +139,7 @@ export const SKINS: SkinDefinition[] = [
   {
     id: "tatuagem-pigmento-vivo",
     nicho: "tatuagem",
+    sinonimos: SINONIMOS_TATUAGEM,
     nome: "Tatuagem Pigmento Vivo",
     descricao:
       "Quatro estúdios em pigmento vivo: Aquarela (ateliê de cor), Boreal (cobertura), Meia-noite (cor pop, escura) e Terra (homenagem e retrato). Manifesto que acende palavra a palavra, portfólio em trilha e cartões com mancha no hover.",
@@ -133,6 +167,7 @@ export const SKINS: SkinDefinition[] = [
   {
     id: "lancheria-chapa-burger",
     nicho: "lancheria",
+    sinonimos: SINONIMOS_LANCHERIA,
     nome: "Lancheria Chapa Burger",
     descricao:
       "Lanchonete artesanal bem-humorada: tipografia poster com contorno, cardápio com efeito de lente no hover e listas compactas de bebidas/acompanhamentos.",
@@ -158,6 +193,7 @@ export const SKINS: SkinDefinition[] = [
   {
     id: "imobiliaria-curada",
     nicho: "imobiliaria",
+    sinonimos: SINONIMOS_IMOBILIARIA,
     nome: "Imobiliária Curada",
     descricao:
       "Imobiliária boutique editorial: serif calorosa + sans neutra, nav que troca de tema claro/escuro no scroll, manifesto revelado palavra a palavra, bento de imóveis com selo e vitrine de bairros arrastável.",
@@ -175,6 +211,7 @@ export const SKINS: SkinDefinition[] = [
   {
     id: "multimarcas-vortice",
     nicho: "multimarcas",
+    sinonimos: SINONIMOS_MULTIMARCAS,
     nome: "Multimarcas Vórtice",
     descricao:
       "Concessionária de seminovos premium: estoque filtrável por categoria, simulador de financiamento com odômetro de dígitos, velocímetro no preloader e carrossel de depoimentos arrastável.",
@@ -198,6 +235,7 @@ export const SKINS: SkinDefinition[] = [
   {
     id: "petshop-focinho-feliz",
     nicho: "petshop",
+    sinonimos: SINONIMOS_PETSHOP,
     nome: "Petshop Focinho Feliz",
     descricao:
       "Banho, tosa e day care num pastel bem-humorado: formas orgânicas tipo blob, badge de avaliação flutuante, fita de frases em marquee e contadores animados.",

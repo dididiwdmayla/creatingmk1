@@ -55,6 +55,7 @@ const NIVEL_TEXTO_LABEL: Record<Exclude<NivelIA, "toque-leve">, string> = {
  */
 export function GerarDemosLoteDialog({
   leads,
+  nicho,
   iaDisponivel,
   onFechar,
   onLeadAtualizado,
@@ -62,6 +63,13 @@ export function GerarDemosLoteDialog({
 }: {
   /** Leads do grupo de busca atual (o diálogo filtra os que já têm demo). */
   leads: Lead[];
+  /**
+   * Nicho do grupo (`Busca.nicho`) — só para pré-selecionar a primeira
+   * skin do registro que casa com ele (ver `configDemoInicial` em
+   * ConfigDemoCampos.tsx); sem skin nenhuma casando, o diálogo cai no
+   * comportamento de sempre e avisa o operador.
+   */
+  nicho?: string;
   /** GEMINI_API_KEY configurada — sem ela a seção de IA nem aparece. */
   iaDisponivel: boolean;
   onFechar: () => void;
@@ -94,7 +102,7 @@ export function GerarDemosLoteDialog({
   const [selecionados, setSelecionados] = useState<Set<string>>(
     () => new Set(candidatos.map((lead) => lead.placeId)),
   );
-  const [config, setConfig] = useState<ConfigDemo>(configDemoInicial);
+  const [config, setConfig] = useState<ConfigDemo>(() => configDemoInicial(nicho));
   const { skinId, themeId } = config;
   const skin = getSkin(skinId);
 
@@ -338,6 +346,7 @@ export function GerarDemosLoteDialog({
                 config={config}
                 onChange={setConfig}
                 desabilitado={processando}
+                nicho={nicho}
               />
             </div>
 
