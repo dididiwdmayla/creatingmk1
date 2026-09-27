@@ -5,6 +5,14 @@ import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError, jsonError } from "@/lib/http";
 
 /**
+ * Teto de execução da função. Plano Hobby da Vercel: 300s é o padrão E o
+ * máximo — declarado explicitamente para o limite estar no código, não
+ * implícito no plano. Literal de propósito: o Next lê a config de segmento
+ * estaticamente.
+ */
+export const maxDuration = 300;
+
+/**
  * Gatilho diário do Vercel Cron (ver vercel.json): re-executa as buscas
  * recorrentes de madrugada. ÚNICA rota de API fora da sessão (exceção no
  * proxy) — protegida pelo header `Authorization: Bearer ${CRON_SECRET}`,

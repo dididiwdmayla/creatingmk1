@@ -5,7 +5,7 @@ import { geocodeRegion } from "@/lib/geo/geocode";
 import { getLead, upsertLeads } from "@/lib/leads/repo";
 import { searchText } from "@/lib/places/client";
 import { getUsuario } from "@/lib/usuarios";
-import { recalcularPenetracao } from "./penetracao";
+import { recalcularPenetracaoBuscas } from "./penetracao";
 import { listBuscasRecorrentes, registrarExecucao } from "./repo";
 import type { Busca } from "./types";
 
@@ -71,6 +71,9 @@ export async function executarBuscasRecorrentes(
   const fila = recorrentes.slice(0, Math.max(config.maxBuscasRecorrentes, 0));
 
   const resumos: CronBuscaResumo[] = [];
+  // Buscas que chegaram ao fim do pipeline — a penetração delas é
+  // recalculada UMA vez, depois do laço (ver recalcularPenetracaoBuscas).
+  const concluidas: string[] = [];
   let totalNovos = 0;
   let totalExistentes = 0;
   let interrompida: CronExecucao["interrompida"];
@@ -87,6 +90,7 @@ export async function executarBuscasRecorrentes(
       });
       totalNovos += criados;
       totalExistentes += existentes;
+      concluidas.push(busca.id);
       // Teto GLOBAL estourado da 2ª página em diante: searchText devolve o
       // parcial (já pago) com aviso — registra e PARA a fila (recurso
       // compartilhado, afeta todo mundo). O limite INDIVIDUAL do dono não
@@ -124,6 +128,12 @@ export async function executarBuscasRecorrentes(
       });
     }
   }
+
+  // Penetração no fim da rodada, não por busca: cada recálculo varre
+  // /buscas e /leads inteiras, e N varreduras por rodada faziam o cron
+  // estourar o tempo com a base crescendo. Roda também quando a fila foi
+  // interrompida por cota — o que rodou antes da interrupção é recalculado.
+  await recalcularPenetracaoBuscas(db, concluidas);
 
   const execucao: CronExecucao = {
     em,
@@ -174,8 +184,8 @@ async function executarBusca(
     novos: criados,
     existentes,
   });
-  // Mesma regra da busca manual: recalcula a penetração do grupo sempre
-  // que esta busca roda de novo.
-  await recalcularPenetracao(db, busca.id);
+  // A penetração do grupo NÃO é recalculada aqui: o laço de
+  // executarBuscasRecorrentes recalcula todas as concluídas de uma vez, no
+  // fim da rodada.
   return { criados, existentes, aviso: resultado.aviso };
 }
