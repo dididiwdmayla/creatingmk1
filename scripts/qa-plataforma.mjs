@@ -60,6 +60,9 @@
  *                                                 # o diálogo da exclusão e a lista VAZIA
  *   node scripts/qa-plataforma.mjs --so=paineis   # PORTÃO dos blocos colapsáveis de /config: tudo fechado,
  *                                                 # um aberto e o estado PERSISTIDO entre recargas
+ *   node scripts/qa-plataforma.mjs --so=lote      # diálogo "Gerar demos em lote" (/leads?buscaId=): a skin
+ *                                                 # default casando com o nicho do grupo, e o aviso quando
+ *                                                 # nenhuma skin atende
  *   node scripts/qa-plataforma.mjs --so=teste     # o DISPARO DE TESTE em /config: pendente, repetições
  *                                                 # (zerado/andamento/cancelado), barrado, confirmado,
  *                                                 # desligado, e os 5 estados da CAPTURA do lead fixo
@@ -5612,6 +5615,117 @@ async function medirFps(browser, secret) {
   return gerados;
 }
 
+/* ── Item: skin default do diálogo de lote casa com o nicho do grupo (--so=lote) ── */
+
+/**
+ * `configDemoInicial` (ConfigDemoCampos.tsx) caía sempre em `SKINS[0]`
+ * (barbearia-editorial), não importava o nicho do grupo — o diálogo de
+ * "Gerar demos em lote" abria com essa skin mesmo num grupo de petshop. A
+ * correção usa `skinsDoNicho`, e este item prova visualmente os DOIS lados:
+ * um grupo cujo nicho casa com skin do registro (`busca-barbearias`,
+ * "barbearia") e um sem skin nenhuma (`busca-centro`, "dentista") — os
+ * dois já semeados por `semear()` para outros itens, sem fixture nova.
+ */
+async function medirLote(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    // Navegação completa (goto, não clique de link) a cada grupo — o
+    // diálogo é desmontado de graça, sem precisar fechar o anterior.
+    const abrirLote = async (buscaId, onde) => {
+      await page.goto(`${BASE}/leads?buscaId=${buscaId}`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `lote/${onde}`);
+      await exigirTema(page, tema, `lote/${onde}`);
+      await page.getByRole("button", { name: "🧩 Gerar demos em lote" }).click();
+      await page.waitForTimeout(300);
+      return page.locator('[role="dialog"]');
+    };
+
+    const capturarDialogo = async (rotulo, arquivo) => {
+      const png = path.join(SAIDA, `lote-${arquivo}-${sufixo}${marca}.png`);
+      await page.locator('[role="dialog"]').screenshot({ path: png });
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    // ── Grupo cujo nicho CASA com skin (barbearia) ──────────────────────
+    const dialogoMatch = await abrirLote("busca-barbearias", `casa/${sufixo}`);
+    if ((await dialogoMatch.count()) === 0) {
+      problemas.push(`casa/${sufixo}: o diálogo não abriu`);
+    } else {
+      const skinId = await dialogoMatch
+        .locator('select[aria-label="Skin (template)"]')
+        .inputValue();
+      if (!skinId.startsWith("barbearia")) {
+        problemas.push(`casa/${sufixo}: skin default "${skinId}" não é de barbearia`);
+      }
+      if ((await dialogoMatch.getByText(/Nenhuma skin do registro atende/).count()) > 0) {
+        problemas.push(`casa/${sufixo}: aviso de "nenhuma skin" apareceu num grupo que TEM skin`);
+      }
+      await capturarDialogo("nicho com skin (barbearia)", "casa");
+    }
+
+    // ── Grupo cujo nicho NÃO casa com skin nenhuma (dentista) ───────────
+    const dialogoSemSkin = await abrirLote("busca-centro", `sem-skin/${sufixo}`);
+    if ((await dialogoSemSkin.count()) === 0) {
+      problemas.push(`sem-skin/${sufixo}: o diálogo não abriu`);
+    } else {
+      const skinId = await dialogoSemSkin
+        .locator('select[aria-label="Skin (template)"]')
+        .inputValue();
+      if (skinId !== "barbearia-editorial") {
+        problemas.push(`sem-skin/${sufixo}: default mudou de SKINS[0] (achei "${skinId}")`);
+      }
+      const aviso = dialogoSemSkin.getByText(/Nenhuma skin do registro atende o nicho "dentista"/);
+      if ((await aviso.count()) === 0) {
+        problemas.push(`sem-skin/${sufixo}: o aviso de "nenhuma skin atende" não apareceu`);
+      }
+      await capturarDialogo("nicho sem skin (dentista)", "sem-skin");
+    }
+
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(
+      folha,
+      'Diálogo "Gerar demos em lote" — skin default por nicho do grupo',
+      "lote",
+      [
+        { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+        { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+        {
+          rotulo: "celular · claro",
+          itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")),
+        },
+        {
+          rotulo: "desktop · claro",
+          itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")),
+        },
+      ],
+    ),
+  );
+  await folha.close();
+
+  if (problemas.length > 0) {
+    throw new Error(`[lote] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+
+  return gerados;
+}
+
 /* ── main ────────────────────────────────────────────────────────────── */
 
 async function main() {
@@ -5673,6 +5787,7 @@ async function main() {
     if (querido("seletor")) gerados.push(...(await medirSeletorLead(browser, secret)));
     if (querido("vestigio")) gerados.push(...(await medirSemVestigio(browser, secret)));
     if (querido("paineis")) gerados.push(...(await medirPaineisConfig(browser, secret)));
+    if (querido("lote")) gerados.push(...(await medirLote(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
     if (querido("contraste")) gerados.push(...(await medirContraste(browser, secret)));
     if (querido("iris")) gerados.push(...(await medirIris(browser, secret)));
