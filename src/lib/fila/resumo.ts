@@ -4,6 +4,7 @@ import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 
 import { lerPool, type CandidatoFila } from "./candidatos";
 import { loadFilaConfig, type FilaConfig } from "./config";
+import { motivoDeSaude } from "./saude";
 import { retencaoMsDeHoras } from "./envios";
 import {
   lerContadorFilaCompleto,
@@ -180,7 +181,7 @@ export async function montarResumoFila(db: AppDb, now: Date = new Date()): Promi
     lerPool(db, now, { retencaoMs: retencaoMsDeHoras(config.retencaoEnvioHoras) }),
   ]);
 
-  const { escolhido, diagnostico, motivo } = decidirFila(
+  const decisao = decidirFila(
     pool.candidatos,
     config,
     app.janelasContato,
@@ -188,6 +189,11 @@ export async function montarResumoFila(db: AppDb, now: Date = new Date()): Promi
     now,
     { coletarBloqueados: true },
   );
+  const { escolhido, diagnostico } = decisao;
+  // A MESMA regra de `/proximo`: faltando config que o confirmar exige, a
+  // fila não entrega — e o resumo não pode dizer que há tarefa disponível
+  // quando a rota de entrega diria `pausado`. Ver lib/fila/saude.ts.
+  const motivo = motivoDeSaude() ?? decisao.motivo;
 
   const proximaJanela = calcularProximaJanela(motivo, {
     contadorDoc,

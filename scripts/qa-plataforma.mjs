@@ -49,6 +49,9 @@
  *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil (com a peneira
  *                                                 # da aprovação da automação), próximos,
  *                                                 # bloqueados, RETIDOS (com e sem)
+ *   node scripts/qa-plataforma.mjs --so=saude     # SAÚDE DA FILA em /config: bloqueada (config ausente) e
+ *                                                 # ok — o estado vem do AMBIENTE, então são duas rodadas
+ *                                                 # (ver `medirSaude`)
  *   node scripts/qa-plataforma.mjs --so=balao     # o BALÃO da fila (em toda tela): fechado e aberto,
  *                                                 # cheia/vazia/pausada/pendente, e a VARREDURA DE
  *                                                 # COLISÃO em todas as abas
@@ -2345,6 +2348,117 @@ function editarBanco(fn) {
  * de aba não o cobrem — o painel fica muito abaixo da dobra de /config.
  */
 /** Ver `PAINEIS_PENDENCIAS`: o painel e o bloco que este passo mede. */
+/* ── Item: saúde da fila (`--so=saude`) ───────────────────────────────── */
+
+/**
+ * O bloco "Saúde da fila" no topo do painel "Fila de envio" — as variáveis
+ * de ambiente de que o ciclo depende, presente/ausente (ver
+ * `lib/fila/saude.ts`).
+ *
+ * O estado deste bloco vem do AMBIENTE DO SERVIDOR, não do banco: não dá para
+ * trocá-lo no meio da rodada. Por isso o passo lê o próprio `process.env`
+ * (que `main` repassa ao `next start`) para saber o que ESPERAR, e a leva
+ * completa são duas rodadas:
+ *
+ *   RADAR_DEVICE_KEY=x RADAR_DEVICE_USER_ID= APP_PUBLIC_URL= \
+ *     node scripts/qa-plataforma.mjs --so=saude --marca=bloqueada
+ *   RADAR_DEVICE_KEY=x RADAR_DEVICE_USER_ID=admin APP_PUBLIC_URL=https://exemplo \
+ *     node scripts/qa-plataforma.mjs --so=saude --marca=ok --sem-build
+ *
+ * "Bloqueada" é o estado CHEIO (faixa vermelha + ausentes); "ok" é o VAZIO
+ * (sem faixa, tudo verde) — e o passo cobra que o bloco ENCOLHA sem a faixa.
+ */
+async function medirSaude(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+  const exigidas = ["RADAR_DEVICE_KEY", "RADAR_DEVICE_USER_ID"];
+  const presente = (nome) => (process.env[nome] ?? "").trim() !== "";
+  const esperaBloqueada = exigidas.some((nome) => !presente(nome));
+  const estado = esperaBloqueada ? "bloqueada" : "ok";
+  const segredos = ["RADAR_DEVICE_KEY", "RADAR_DEVICE_USER_ID", "APP_PUBLIC_URL"]
+    .map((nome) => (process.env[nome] ?? "").trim())
+    .filter((valor) => valor.length >= 4);
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", ["fila-envio"]);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+    const onde = `saude/${estado}/${sufixo}`;
+
+    await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+    await assentar(page);
+    await exigirLogado(page, onde);
+    const bloco = page.locator('[data-bloco="saude"]');
+    await bloco.scrollIntoViewIfNeeded();
+    await page.locator('[data-bloco="saude"] [data-variavel]').first().waitFor({ timeout: 10_000 });
+
+    const caixa = await bloco.boundingBox();
+    if (!caixa) {
+      problemas.push(`${onde}: bloco de saúde não apareceu`);
+    } else if (caixa.x + caixa.width > viewport.width + 1) {
+      problemas.push(`${onde}: bloco vaza da viewport (direita=${caixa.x + caixa.width})`);
+    }
+
+    const variaveis = await page.locator('[data-bloco="saude"] [data-variavel]').count();
+    if (variaveis !== 3) problemas.push(`${onde}: esperava 3 variáveis, achei ${variaveis}`);
+
+    const faixa = await page.locator('[data-saude="bloqueada"]').count();
+    if (esperaBloqueada && faixa !== 1) problemas.push(`${onde}: faixa de entrega bloqueada não apareceu`);
+    if (!esperaBloqueada && faixa !== 0) problemas.push(`${onde}: faixa de bloqueio apareceu com tudo presente`);
+
+    // O cabeçalho do painel não pode dizer "Ativa" quando nada sai (a
+    // semente deixa a fila PAUSADA, e "Pausada" tem precedência — também é
+    // verdade). Sem bloqueio, "Bloqueada" não pode aparecer.
+    const resumoCabecalho = (await page.locator('[data-painel="fila-envio"] h2').first().innerText()).slice(0, 120);
+    if (esperaBloqueada && /Ativa ·|^Ativa$/m.test(resumoCabecalho)) {
+      problemas.push(`${onde}: o cabeçalho diz "Ativa" com a entrega bloqueada — ${JSON.stringify(resumoCabecalho)}`);
+    }
+    if (!esperaBloqueada && /Bloqueada/.test(resumoCabecalho)) {
+      problemas.push(`${onde}: o cabeçalho diz "Bloqueada" com tudo presente`);
+    }
+
+    // Nenhum VALOR de variável na página — só nomes.
+    const texto = await page.locator("body").innerText();
+    for (const valor of segredos) {
+      if (texto.includes(valor)) problemas.push(`${onde}: o valor de uma variável vazou na tela`);
+    }
+
+    const png = path.join(SAIDA, `saude-${estado}-${sufixo}${marca}.png`);
+    const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+    await bloco.screenshot({ path: png });
+    await semNav.evaluate((no) => no.remove());
+    itens.push({ rotulo: `${estado} (${Math.round(caixa?.height ?? 0)}px) · ${sufixo}`, png });
+    console.log(`  [saude] ${onde}: bloco ${Math.round(caixa?.height ?? 0)}px`);
+
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, `Saúde da fila — ${estado} (/config)`, `saude-${estado}`, [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+  gerados.push(...itens.map((i) => i.png));
+
+  if (problemas.length > 0) {
+    throw new Error(`[saude] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log(`[saude] ok — estado "${estado}", 3 variáveis, sem valor na tela, sem vazamento.`);
+  return gerados;
+}
+
 const PAINEIS_FILA = ["fila-envio", "fila-visao"];
 
 async function medirFila(browser, secret) {
@@ -6218,6 +6332,7 @@ async function main() {
     if (querido("listas")) gerados.push(...(await medirListas(browser, secret)));
     if (querido("pendencias")) gerados.push(...(await medirPendencias(browser, secret)));
     if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
+    if (querido("saude")) gerados.push(...(await medirSaude(browser, secret)));
     if (querido("balao")) gerados.push(...(await medirBalao(browser, secret)));
     if (querido("comercial")) gerados.push(...(await medirContextoComercial(browser, secret)));
     if (querido("respostas")) gerados.push(...(await medirRespostas(browser, secret)));

@@ -3207,6 +3207,7 @@ Cada entrada guarda o fuso e o nicho **já resolvidos** (não o endereço cru): 
 
 A ordem dos portões é a ordem do **custo**: pausa e ritmo custam 2 leituras de doc e barram a esmagadora maioria das chamadas da noite; só quem passa delas paga a leitura do pool.
 
+0. config que o confirmar exige ausente (`RADAR_DEVICE_USER_ID`, ver "Saúde da fila" adiante) → `pausado` — depois da tarefa de teste e da resposta automática, antes de tudo o que reserva lead
 1. `config/fila.ativo === false` → `pausado`
 2. contador do dia ≥ `metaDiaria` → `meta_atingida`
 3. envios na última hora corrida ≥ `tetoPorHora` → `teto_hora`
@@ -3317,6 +3318,25 @@ Duas regras específicas do envio pela fila:
 **"invalido"**: a claim é encerrada e o lead ganha `telefoneInvalido = true` — número sem WhatsApp não volta à fila nunca mais, mas o lead continua na base com demo e capturas, porque o número pode ser corrigido depois. `enviados` NÃO anda (não saiu mensagem), mas `invalidos` sim — ver "`falhas`/`invalidos`/`semPrint`" em `/filaContadores` acima.
 
 **"falhou"**: `tentativas + 1` e a claim devolvida à fila. A partir de `TENTATIVAS_MAX` (3) o lead **para**: não é excluído nem marcado como inválido, só deixa de ser elegível — e a ficha mostra por quê, para a inspeção manual acontecer. Mesma ressalva: `enviados` não anda, `falhas` sim.
+
+### Saúde da fila — a fila não entrega o que não consegue registrar (`src/lib/fila/saude.ts`)
+
+**O que aconteceu.** Em produção existia `RADAR_DEVICE_KEY` mas não `RADAR_DEVICE_USER_ID`. `/proximo` entregava lead normalmente, o aparelho mandava a mensagem, e todo `POST /confirmar` de prospecção respondia `503 config_error` sem gravar nada — é ele que exige o userId do registro de autor. Consequências, todas silenciosas: nenhum lead virou "contactado"; `enviados` nunca andou, então meta, teto por hora e intervalo nunca seguraram nada; e cada claim ficou "reservado" até a retenção (ou, antes dela, os 5 min da claim) devolver o lead à fila — a mesma mensagem saía de novo. O DISPARO DE TESTE passava, porque o confirmar dele desvia pelo prefixo `teste-` ANTES da checagem da variável: o ensaio dizia que estava tudo certo. O "503 no /confirmar" do incidente que criou a retenção (adiante) muito provavelmente era este mesmo.
+
+**A regra: o servidor nunca depende de o aparelho reportar.** Faltando qualquer variável que o confirmar exige, `/proximo` responde `pausado` sem reservar nada. Bloquear um lead que não recebeu custa um envio; entregar um envio que não vai ser registrado é mandar duas vezes.
+
+- **`pausado`, o motivo que já existe.** A macro já sabe esperar nele, e o contrato achatado não ganha valor novo (o teste de `Object.keys` continua passando byte a byte). O que distingue "pausada pelo botão" de "bloqueada por config" é o PAINEL, não a resposta ao aparelho.
+- **Onde fica na cadeia**: depois da tarefa de TESTE e da RESPOSTA automática — o confirmar daquelas duas não precisa da variável, e o teste é justamente como se ensaia o aparelho — e antes do ritmo, que é onde começa tudo que reserva lead.
+- **Três lugares, uma regra (`motivoDeSaude`)**: `/proximo`, `GET /api/fila/resumo` (a macro do desbloqueio não pode ver `motivoAtual: ""` quando a rota de entrega diria `pausado`) e `GET /api/fila/diagnostico` (o `ritmo` do painel).
+- **Presente = não vazia depois de aparar espaços** — valor só de espaço é engano de cadastro, não configuração.
+
+**`VARIAVEIS_FILA`** é a lista única: `RADAR_DEVICE_KEY` e `RADAR_DEVICE_USER_ID` são EXIGIDAS; `APP_PUBLIC_URL` é RECOMENDADA (mostrada em amarelo quando ausente, não bloqueia). `saudeDaFila()` devolve nome, papel e presente/ausente — **nunca o valor**: isto vai para uma tela, e a chave do aparelho não pode aparecer nela.
+
+**A guarda do `{demo}` (`demoSemResolver`).** Sem `APP_PUBLIC_URL`, `montarMensagemParaLead` deixa o marcador `{demo}` sem substituir (de propósito — "nunca inventar domínio"), e o texto sairia com "{demo}" literal para um negócio real. Em `tentarEntregar`, texto ainda com `{demo}` não é entregue: a claim é DEVOLVIDA (`liberarClaim`, `expiraEm` no EPOCH — nada saiu, e o servidor sabe; não é silêncio e a retenção não a enxerga) e a rota cai no próximo candidato, então um lead barrado não trava a fila. É rede de segurança: em produção a variável existe. A causa aparece no painel (a linha amarela de `APP_PUBLIC_URL`), e o `console.warn` deixa rastro no log da Vercel. Só `{demo}` é guardado; `{penetracao}` também fica literal quando falta dado (lead sem `siteProprio === false` ou sem penetração calculada) e NÃO está nesta guarda — pendência ABERTA, fora do escopo deste item: estender a guarda a ele tira da fila todo lead cuja frase usa `{penetracao}` sem o dado, e essa é uma decisão de produto, não de segurança.
+
+**No painel** (`SaudeFilaBloco`, topo do painel "Fila de envio"; `GET /api/config/fila/saude`, admin only, sob `/api/config/` pelo motivo de sempre): uma linha por variável com ✓/✕, "presente"/"ausente" e o papel; com exigida ausente, uma faixa vermelha diz "Entrega bloqueada" com os nomes do que falta e que o teste continua funcionando. O cabeçalho FECHADO do painel passa a dizer "Bloqueada — config ausente" em vez de "Ativa" — "Ativa" com nada saindo é a mentira que deixou o incidente passar despercebido ("Pausada", quando o botão está desligado, tem precedência: também é verdade).
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=saude`. O estado vem do AMBIENTE do servidor, não do banco, então a leva são duas rodadas (`--marca=bloqueada` com `RADAR_DEVICE_USER_ID`/`APP_PUBLIC_URL` vazias; `--marca=ok --sem-build` com tudo presente); o passo lê o próprio `process.env` para saber o que esperar. Cobra: 3 variáveis, faixa presente só quando falta exigida, cabeçalho nunca "Ativa" com bloqueio, nenhum VALOR de variável no texto da página, e nada vazando da viewport. Medido: o bloco encolhe sem a faixa (317→219px no celular, 256→190px no desktop).
 
 ### `detalheEnvio` — o texto saiu, o print não
 
@@ -3605,7 +3625,7 @@ As rotas dos RETIDOS (`GET /api/config/fila/retidos`, `DELETE .../{leadId}`) nas
 
 ### Retenção por claim não confirmada — a proteção que não depende do aparelho
 
-**O que aconteceu.** Um lead recebeu a mesma mensagem duas vezes. Reconstituído pelo log do aparelho: o ciclo executou inteiro (texto enviado, print anexado), o `POST /api/fila/confirmar` respondeu 503, a macro não repetiu a chamada, a claim expirou, o lead voltou ao pool e foi enviado de novo. O lado do aparelho foi corrigido (a confirmação agora repete 3 vezes) — isso reduz a probabilidade e **não elimina a classe**: aparelho reiniciado, macro morta pelo sistema, rede caindo ou nova indisponibilidade do servidor produzem o mesmo resultado. Mensagem repetida é o comportamento que mais gera denúncia no WhatsApp, e denúncia derruba número. Então a proteção tem que viver no servidor.
+**O que aconteceu.** Um lead recebeu a mesma mensagem duas vezes. Reconstituído pelo log do aparelho: o ciclo executou inteiro (texto enviado, print anexado), o `POST /api/fila/confirmar` respondeu 503 (causa real, achada depois: `RADAR_DEVICE_USER_ID` nunca foi cadastrada em produção — TODO confirmar de prospecção respondia 503; ver "Saúde da fila"), a macro não repetiu a chamada, a claim expirou, o lead voltou ao pool e foi enviado de novo. O lado do aparelho foi corrigido (a confirmação agora repete 3 vezes) — isso reduz a probabilidade e **não elimina a classe**: aparelho reiniciado, macro morta pelo sistema, rede caindo ou nova indisponibilidade do servidor produzem o mesmo resultado. Mensagem repetida é o comportamento que mais gera denúncia no WhatsApp, e denúncia derruba número. Então a proteção tem que viver no servidor.
 
 **A regra.** Lead cuja claim EXPIROU SEM CONFIRMAÇÃO fica inelegível por uma janela configurável (`retencaoEnvioHoras` em `/config/fila`, padrão **12**, editável no painel; **0 desliga**).
 
@@ -5747,7 +5767,8 @@ APP_PASSWORD=             # segredo de assinatura das sessões + senha INICIAL d
 GEMINI_API_KEY=           # OPCIONAL: sugestões de IA da Forja; ausente = IA oculta/desabilitada com aviso, nada quebra
 CRON_SECRET=              # segredo do cron diário (/api/cron); o Vercel Cron envia "Bearer ${CRON_SECRET}"; sem ela a rota responde 503
 RADAR_DEVICE_KEY=         # segredo do celular da fila de envio (/api/fila/*); NUNCA o mesmo do CRON_SECRET (raio de explosão diferente); sem ela a rota responde 503
-RADAR_DEVICE_USER_ID=     # userId sob o qual as ações do celular são atribuídas (registro de autor)
+RADAR_DEVICE_USER_ID=     # id de um doc de /usuarios (veja em /api/me → usuario.id) sob o qual as ações do celular são atribuídas; sem ela o /confirmar de prospecção responde 503 e o /proximo responde "pausado" (ver "Saúde da fila")
+APP_PUBLIC_URL=           # origem pública do app (link {demo} das mensagens da fila e moldura das capturas); sem ela, lead cuja frase usa {demo} não é entregue pela fila
 AUTOMACAO_SECRET=         # segredo das rotas do laço da automação (/api/automacao/{planejar,passo,finalizar}); o MESMO valor como secret do repositório no GitHub; nunca o CRON_SECRET nem a RADAR_DEVICE_KEY; sem ela, 503
 ```
 

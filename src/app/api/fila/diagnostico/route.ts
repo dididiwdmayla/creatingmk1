@@ -13,6 +13,7 @@ import {
   type DiagnosticoJanela,
   type MotivoSemTarefa,
 } from "@/lib/fila/selecao";
+import { motivoDeSaude } from "@/lib/fila/saude";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError } from "@/lib/http";
 import { requireAdmin } from "@/lib/usuarios";
@@ -63,7 +64,9 @@ export async function GET(req: Request) {
     const now = new Date();
     const config = await loadFilaConfig(db);
     const contador = await lerContadorFila(db, now, config.inicioDiaOperacionalHora);
-    const ritmo: MotivoSemTarefa | null = motivoDeRitmo(config, contador) ?? null;
+    // Saúde antes do ritmo, como em `/proximo`: faltando config que o
+    // confirmar exige, o portão que vale é `pausado` (ver lib/fila/saude.ts).
+    const ritmo: MotivoSemTarefa | null = motivoDeSaude() ?? motivoDeRitmo(config, contador) ?? null;
 
     const pool = await lerPoolBruto(db);
 

@@ -28,6 +28,7 @@ import type {
   RespostaPendente,
 } from "@/lib/fila/estado";
 import type { GrupoComErro } from "@/lib/fila/respostasPainel";
+import type { SaudeFila } from "@/lib/fila/saude";
 import type { SimulacaoResposta } from "@/lib/fila/simularResposta";
 import type {
   ConjuntoSkin,
@@ -493,6 +494,13 @@ export const api = {
    * traz também as já fechadas, para desfazer um alternador marcado por
    * engano.
    */
+  /**
+   * As variáveis de ambiente de que a fila depende — só NOME e
+   * presente/ausente, nunca o valor (ver `lib/fila/saude.ts`). Com uma
+   * exigida ausente, `/proximo` responde `pausado` e não entrega lead.
+   */
+  getFilaSaude: () => request<SaudeFila>("/api/config/fila/saude"),
+
   getFilaPendencias: (resolvidas = false) =>
     request<{ pendencias: PendenciaEnvio[] }>(
       `/api/config/fila/pendencias${resolvidas ? "?resolvidos=1" : ""}`,

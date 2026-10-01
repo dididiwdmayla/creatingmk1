@@ -79,6 +79,8 @@ function aprovar(id: string, aprovacao: string, cookie: string) {
 beforeEach(() => {
   db = new FakeFirestore();
   vi.stubEnv("RADAR_DEVICE_KEY", CHAVE);
+  // A fila só entrega com o que o confirmar exige configurado (lib/fila/saude.ts).
+  vi.stubEnv("RADAR_DEVICE_USER_ID", "admin");
   vi.stubEnv("APP_PASSWORD", "segredo123");
   vi.useFakeTimers();
   vi.setSystemTime(TERCA_10H);

@@ -48,6 +48,9 @@ function diagnostico(cookie?: string) {
 beforeEach(() => {
   db = new FakeFirestore();
   vi.stubEnv("APP_PASSWORD", "segredo123");
+  // A fila só entrega com o que o confirmar exige configurado (lib/fila/saude.ts).
+  vi.stubEnv("RADAR_DEVICE_KEY", "chave-do-celular");
+  vi.stubEnv("RADAR_DEVICE_USER_ID", "admin");
   vi.useFakeTimers();
   vi.setSystemTime(AGORA);
 });
@@ -88,6 +91,15 @@ describe("GET /api/fila/diagnostico — etapa 1: ritmo", () => {
     const corpo = await (await diagnostico(cookie)).json();
 
     expect(corpo.ritmo).toBeNull();
+  });
+
+  it("config que o confirmar exige ausente: ritmo 'pausado', como /proximo diria", async () => {
+    vi.stubEnv("RADAR_DEVICE_USER_ID", "");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+
+    const corpo = await (await diagnostico(cookie)).json();
+
+    expect(corpo.ritmo).toBe("pausado");
   });
 
   it("fila pausada: ritmo 'pausado', mesmo sem pool nenhum construído", async () => {

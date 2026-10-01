@@ -26,6 +26,7 @@ import {
   proximaTarefaResposta,
 } from "@/lib/fila/respostaAutomatica";
 import { printUrlDoLead } from "@/lib/fila/print";
+import { demoSemResolver, motivoDeSaude } from "@/lib/fila/saude";
 import {
   motivoDeRitmo,
   motivoSemTarefaAgora,
@@ -212,6 +213,15 @@ async function tentarEntregar(
     await liberarClaim(db, leadId, reserva.claimId);
     return undefined;
   }
+  // REDE DE SEGURANÇA do `{demo}` (ver `demoSemResolver` em lib/fila/saude.ts):
+  // o marcador literal numa mensagem para negócio real é pior do que não
+  // mandar. A claim volta devolvida — nada saiu, e o servidor sabe — e o
+  // painel "Saúde da fila" já mostra a causa (APP_PUBLIC_URL ausente).
+  if (demoSemResolver(mensagem.texto)) {
+    console.warn(`[fila] {demo} sem resolver para o lead ${leadId}: tarefa não entregue (APP_PUBLIC_URL ausente?)`);
+    await liberarClaim(db, leadId, reserva.claimId);
+    return undefined;
+  }
 
   // A frase que o lead vai receber fica gravada na claim: entre entregar a
   // tarefa e o celular confirmar, a rotação compartilhada pode ter girado por
@@ -328,6 +338,17 @@ export async function GET(req: Request) {
     // O contador do dia já pode ter sido lido pelo bloco acima — é o MESMO
     // doc que o portão de ritmo precisa, e lê-lo duas vezes na mesma chamada
     // seria pagar de novo por nada.
+    // ── SAÚDE ─────────────────────────────────────────────────────────
+    // Faltando config que o confirmar exige, NENHUM lead é reservado nem
+    // entregue: o envio sairia e não seria registrado (ver
+    // lib/fila/saude.ts). Vem DEPOIS do teste e da resposta automática de
+    // propósito — o confirmar daquelas duas não precisa da variável, e o
+    // teste é justamente como se ensaia o aparelho — e ANTES do ritmo, que
+    // é onde a cadeia de portões da prospecção começa. `pausado` é o motivo
+    // que já existe e que a macro já sabe esperar: o contrato não muda.
+    const saude = motivoDeSaude();
+    if (saude) return semTarefa(saude);
+
     const contador = contadorCompleto
       ? snapshotDoContador(contadorCompleto)
       : await lerContadorFila(db, now, config.inicioDiaOperacionalHora);
