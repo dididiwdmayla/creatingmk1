@@ -47,7 +47,7 @@ export const VARIAVEIS_FILA: readonly VariavelFila[] = [
     nome: "APP_PUBLIC_URL",
     exigida: false,
     papel:
-      "origem do link {demo} — sem ela, lead cuja frase usa {demo} não é entregue (o marcador sairia literal)",
+      "origem do link {demo} — sem ela, lead cuja frase usa {demo} não é entregue (nenhum marcador sai literal)",
   },
 ];
 
@@ -89,11 +89,25 @@ export function motivoDeSaude(env: Ambiente = process.env): "pausado" | undefine
 }
 
 /**
- * O texto final ainda carrega `{demo}` — o link não foi resolvido (hoje, só
- * acontece sem `APP_PUBLIC_URL`). É a REDE DE SEGURANÇA da entrega: um
- * marcador literal numa mensagem para negócio real é pior do que não
- * mandar, e o lead fica para a próxima volta em vez de queimado.
+ * Um marcador SEM RESOLVER: `{` + identificador (letra ou `_`, depois
+ * letras, dígitos ou `_`) + `}`. Pega os três marcadores conhecidos
+ * (`{nome}`, `{demo}`, `{penetracao}` — ver `MARCADORES` em lib/wa.ts) quando
+ * o dado falta, e também o marcador DIGITADO ERRADO na frase (`{Nome}`,
+ * `{link}`), que nunca seria substituído. Chave sem cara de identificador
+ * (`{ }`, `{:)}`, `{2026}`) não é marcador e passa.
  */
-export function demoSemResolver(texto: string): boolean {
-  return texto.includes("{demo}");
+const MARCADOR_SEM_RESOLVER = /\{[\p{L}_][\p{L}\p{N}_]*\}/u;
+
+/**
+ * O primeiro marcador que sobrou no texto final, ou `undefined`. É a REDE DE
+ * SEGURANÇA da entrega: `aplicarMarcadores` deixa o marcador intacto quando
+ * falta o dado (`{demo}` sem `APP_PUBLIC_URL`; `{penetracao}` em lead sem
+ * `siteProprio === false` ou sem penetração calculada) — de propósito, para
+ * nunca apagar em silêncio —, e na ficha um humano vê e edita antes de
+ * mandar. Na fila não há humano: um marcador literal numa mensagem para
+ * negócio real é pior do que não mandar, e o lead fica para a próxima volta
+ * em vez de queimado.
+ */
+export function marcadorSemResolver(texto: string): string | undefined {
+  return MARCADOR_SEM_RESOLVER.exec(texto)?.[0];
 }

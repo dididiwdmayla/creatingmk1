@@ -203,6 +203,40 @@ describe("GET /api/fila/proximo — guarda do {demo} sem resolver", () => {
   });
 });
 
+describe("GET /api/fila/proximo — guarda de QUALQUER marcador sem resolver", () => {
+  it("REPRODUÇÃO: {penetracao} sem o dado do lead não sai literal — a claim é devolvida", async () => {
+    // Lead sem `siteProprio === false`: a linha de penetração não existe, e
+    // `aplicarMarcadores` deixa o marcador intacto (nunca apaga em silêncio).
+    db.seed("config/app", { mensagemPadrao: "Oi {nome}! {penetracao}" });
+    semear(lead("ChIJa"));
+
+    const corpo = await proximo();
+
+    expect(corpo.temTarefa).toBe(false);
+    expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({ estado: "reservado", expiraEm: EPOCH_ISO });
+  });
+
+  it("REPRODUÇÃO: marcador digitado errado na frase ({Nome}) também não sai", async () => {
+    db.seed("config/app", { mensagemPadrao: "Oi {Nome}, tudo bem?" });
+    semear(lead("ChIJa"));
+
+    const corpo = await proximo();
+
+    expect(corpo.temTarefa).toBe(false);
+    expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({ expiraEm: EPOCH_ISO });
+  });
+
+  it("chave sem cara de marcador não barra: '{ }', '{:)}' e números entre chaves passam", async () => {
+    db.seed("config/app", { mensagemPadrao: "Oi {nome} { } {:)} {2026}" });
+    semear(lead("ChIJa"));
+
+    const corpo = await proximo();
+
+    expect(corpo.temTarefa).toBe(true);
+    expect(corpo.texto).toBe("Oi Lead ChIJa { } {:)} {2026}");
+  });
+});
+
 describe("GET /api/fila/resumo — mesma verdade que /proximo", () => {
   it("sem RADAR_DEVICE_USER_ID, motivoAtual é `pausado` e proximaJanela fica vazia", async () => {
     vi.stubEnv("RADAR_DEVICE_USER_ID", "");

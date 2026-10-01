@@ -26,7 +26,7 @@ import {
   proximaTarefaResposta,
 } from "@/lib/fila/respostaAutomatica";
 import { printUrlDoLead } from "@/lib/fila/print";
-import { demoSemResolver, motivoDeSaude } from "@/lib/fila/saude";
+import { marcadorSemResolver, motivoDeSaude } from "@/lib/fila/saude";
 import {
   motivoDeRitmo,
   motivoSemTarefaAgora,
@@ -213,12 +213,14 @@ async function tentarEntregar(
     await liberarClaim(db, leadId, reserva.claimId);
     return undefined;
   }
-  // REDE DE SEGURANÇA do `{demo}` (ver `demoSemResolver` em lib/fila/saude.ts):
-  // o marcador literal numa mensagem para negócio real é pior do que não
-  // mandar. A claim volta devolvida — nada saiu, e o servidor sabe — e o
-  // painel "Saúde da fila" já mostra a causa (APP_PUBLIC_URL ausente).
-  if (demoSemResolver(mensagem.texto)) {
-    console.warn(`[fila] {demo} sem resolver para o lead ${leadId}: tarefa não entregue (APP_PUBLIC_URL ausente?)`);
+  // REDE DE SEGURANÇA dos marcadores (ver `marcadorSemResolver` em
+  // lib/fila/saude.ts): qualquer `{marcador}` que sobrou no texto — dado
+  // faltando ou marcador digitado errado na frase — sairia literal para um
+  // negócio real, e isso é pior do que não mandar. A claim volta devolvida
+  // (nada saiu, e o servidor sabe) e a rota cai no próximo candidato.
+  const sobrou = marcadorSemResolver(mensagem.texto);
+  if (sobrou) {
+    console.warn(`[fila] marcador ${sobrou} sem resolver para o lead ${leadId}: tarefa não entregue`);
     await liberarClaim(db, leadId, reserva.claimId);
     return undefined;
   }
