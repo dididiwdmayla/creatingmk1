@@ -55,6 +55,8 @@
  *   node scripts/qa-plataforma.mjs --so=reconciliacao # RECONCILIAÇÃO em /config: prévia cheia, a confirmação
  *                                                 # aberta (nunca confirmada) e VAZIA; rodar com
  *                                                 # RADAR_DEVICE_USER_ID no ambiente (botão habilitado)
+ *   node scripts/qa-plataforma.mjs --so=eventos   # ERROS DO APARELHO em /config: cheio (503/409/400/500,
+ *                                                 # hoje e ontem, nome longo, lead excluído) e VAZIO
  *   node scripts/qa-plataforma.mjs --so=balao     # o BALÃO da fila (em toda tela): fechado e aberto,
  *                                                 # cheia/vazia/pausada/pendente, e a VARREDURA DE
  *                                                 # COLISÃO em todas as abas
@@ -2676,6 +2678,176 @@ async function medirReconciliacao(browser, secret) {
     throw new Error(`[reconciliacao] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
   }
   console.log("[reconciliacao] ok — prévia cheia, confirmação aberta e VAZIA, sem vazamento.");
+  return gerados;
+}
+
+/* ── Item: erros do aparelho (`--so=eventos`) ───────────────────────── */
+
+/**
+ * O bloco "Erros do aparelho" do painel "Fila de envio" (ver
+ * `lib/fila/eventos.ts`): toda resposta não-200 de `/api/fila/proximo` e
+ * `/api/fila/confirmar`. Dois estados: CHEIO (503 de config, 409, 400 e 500,
+ * de hoje e de ontem, um com lead de nome longo, um com lead excluído) e
+ * VAZIO. Celular e desktop, escuro e claro.
+ *
+ * O dia operacional é recalculado aqui do mesmo jeito que o servidor faz
+ * (`diaOperacionalKey`): São Paulo é UTC−3, e a semente usa
+ * `inicioDiaOperacionalHora: 6`.
+ */
+function diaOperacionalQa(instante, inicioHora = 6) {
+  const deslocado = new Date(instante.getTime() - 3 * 3_600_000 - inicioHora * 3_600_000);
+  return deslocado.toISOString().slice(0, 10);
+}
+
+function semearEventos({ vazio }) {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  for (const chave of Object.keys(mapa)) if (chave.startsWith("filaEventos/")) delete mapa[chave];
+  if (!vazio) {
+    const agora = Date.now();
+    const hoje = diaOperacionalQa(new Date(agora));
+    const ontem = diaOperacionalQa(new Date(agora - 24 * 3_600_000));
+    const eventos = [
+      [hoje, 12, { rota: "confirmar", status: 503, leadId: "fila-p1", claimId: "c-503", motivo: "config_error" }],
+      [hoje, 40, { rota: "confirmar", status: 409, leadId: "lead-ev-longo", claimId: "c-409", motivo: "claim_invalida" }],
+      [hoje, 95, { rota: "confirmar", status: 400, leadId: null, claimId: null, motivo: "corpo_invalido" }],
+      [hoje, 130, { rota: "proximo", status: 500, leadId: null, claimId: null, motivo: "internal_error" }],
+      [ontem, 26 * 60, { rota: "confirmar", status: 409, leadId: "lead-ev-excluido", claimId: "c-x", motivo: "claim_invalida" }],
+    ];
+    const totais = {};
+    for (const [dia, minutosAtras, evento] of eventos) {
+      const em = new Date(agora - minutosAtras * 60_000).toISOString();
+      mapa[`filaEventos/${dia}/itens/${agora - minutosAtras * 60_000}-qa`] = { ...evento, em };
+      totais[dia] ??= { total: 0, porStatus: {} };
+      totais[dia].total += 1;
+      totais[dia].porStatus[String(evento.status)] = (totais[dia].porStatus[String(evento.status)] ?? 0) + 1;
+    }
+    for (const [dia, doc] of Object.entries(totais)) mapa[`filaEventos/${dia}`] = doc;
+    mapa["leads/lead-ev-longo"] = {
+      placeId: "lead-ev-longo",
+      nome: "Clínica Veterinária e Pet Shop Amigo Fiel — Unidade Zona Norte, Avenida Assis Brasil",
+      status: "contactado",
+      enriquecido: false,
+      criadoEm: "2026-06-01T00:00:00.000Z",
+      atualizadoEm: "2026-06-01T00:00:00.000Z",
+    };
+  } else {
+    delete mapa["leads/lead-ev-longo"];
+  }
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+async function medirEventos(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  try {
+    for (const [viewport, sufixo, tema] of [
+      [VIEWPORT_CELULAR, "celular", "escuro"],
+      [VIEWPORT_DESKTOP, "desktop", "escuro"],
+      [VIEWPORT_CELULAR, "celular-claro", "claro"],
+      [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+    ]) {
+      definirTemaNoDoc("admin", tema);
+      definirPaineisAbertosNoDoc("admin", ["fila-envio", "fila-eventos"]);
+      const ctx = await contextoLogado(browser, { viewport, secret, tema });
+      const page = await ctx.newPage();
+      const bloco = page.locator('[data-painel="fila-eventos"]');
+
+      const abrir = async (onde, esperar) => {
+        await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+        await assentar(page);
+        await exigirLogado(page, onde);
+        await bloco.scrollIntoViewIfNeeded();
+        await esperar();
+        await page.waitForTimeout(300);
+      };
+
+      const medir = async (onde) => {
+        const caixa = await bloco.boundingBox();
+        if (!caixa) {
+          problemas.push(`${onde}: bloco de erros não apareceu`);
+          return null;
+        }
+        if (caixa.x + caixa.width > viewport.width + 1) {
+          problemas.push(`${onde}: bloco vaza da viewport (direita=${Math.round(caixa.x + caixa.width)})`);
+        }
+        const larguraRolavel = await page.evaluate(() => document.documentElement.scrollWidth);
+        if (larguraRolavel > viewport.width + 1) {
+          problemas.push(`${onde}: a página ganhou rolagem horizontal (${larguraRolavel}px)`);
+        }
+        return caixa;
+      };
+
+      const capturar = async (rotulo, arquivo) => {
+        const png = path.join(SAIDA, `eventos-${arquivo}-${sufixo}${marca}.png`);
+        const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+        await bloco.screenshot({ path: png });
+        await semNav.evaluate((no) => no.remove());
+        itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+      };
+
+      // ── CHEIO: 4 de hoje + 1 de ontem.
+      semearEventos({ vazio: false });
+      await abrir(`cheio/${sufixo}`, () => page.locator('[data-lista="eventos"] li').first().waitFor({ timeout: 10_000 }));
+      const cheio = await medir(`cheio/${sufixo}`);
+      const linhas = await page.locator('[data-lista="eventos"] li').count();
+      if (linhas !== 5) problemas.push(`cheio/${sufixo}: esperava 5 eventos, achei ${linhas}`);
+      for (const [alvo, oque] of [
+        [/4 hoje/, "total do dia no cabeçalho"],
+        [/config_error/, "o 503 de configuração"],
+        [/Clínica Veterinária e Pet Shop Amigo Fiel/, "nome do lead (não o id)"],
+        [/lead excluído ou desconhecido/, "lead que não existe mais"],
+        [/corpo malformado/, "explicação do 400"],
+      ]) {
+        if ((await bloco.getByText(alvo).count()) === 0) problemas.push(`cheio/${sufixo}: ${oque} não apareceu`);
+      }
+      // O placeId não aparece CRU na /config (ver "O id, onde ele PODE aparecer").
+      const textoBloco = await bloco.innerText();
+      for (const id of ["lead-ev-longo", "lead-ev-excluido", "fila-p1"]) {
+        if (textoBloco.includes(id)) problemas.push(`cheio/${sufixo}: o id cru "${id}" apareceu no bloco`);
+      }
+      await capturar("cheio (503, 409, 400, 500 hoje + 409 ontem)", "cheio");
+
+      // ── VAZIO.
+      semearEventos({ vazio: true });
+      await abrir(`vazio/${sufixo}`, () => page.getByText("Nenhum erro hoje nem ontem.").waitFor({ timeout: 10_000 }));
+      const vazio = await medir(`vazio/${sufixo}`);
+      if ((await page.locator('[data-lista="eventos"] li').count()) > 0) {
+        problemas.push(`vazio/${sufixo}: sobrou linha com a lista vazia`);
+      }
+      if ((await bloco.getByText(/nenhum hoje/).count()) === 0) {
+        problemas.push(`vazio/${sufixo}: o cabeçalho não diz "nenhum hoje"`);
+      }
+      if (cheio && vazio) {
+        const encolheu = Math.round(cheio.height - vazio.height);
+        console.log(`  [eventos] ${sufixo}: ${Math.round(cheio.height)}px cheio → ${Math.round(vazio.height)}px vazio (−${encolheu}px)`);
+        if (encolheu <= 0) problemas.push(`vazio/${sufixo}: o bloco não encolheu sem eventos`);
+      }
+      await capturar("vazio", "vazio");
+
+      await ctx.close();
+    }
+  } finally {
+    semearEventos({ vazio: true });
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, 'Erros do aparelho — painel "Fila de envio" (/config)', "eventos", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+  gerados.push(...itens.map((i) => i.png));
+
+  if (problemas.length > 0) {
+    throw new Error(`[eventos] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[eventos] ok — cheio e VAZIO, sem id cru, sem vazamento.");
   return gerados;
 }
 
@@ -6577,6 +6749,7 @@ async function main() {
     if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
     if (querido("saude")) gerados.push(...(await medirSaude(browser, secret)));
     if (querido("reconciliacao")) gerados.push(...(await medirReconciliacao(browser, secret)));
+    if (querido("eventos")) gerados.push(...(await medirEventos(browser, secret)));
     if (querido("balao")) gerados.push(...(await medirBalao(browser, secret)));
     if (querido("comercial")) gerados.push(...(await medirContextoComercial(browser, secret)));
     if (querido("respostas")) gerados.push(...(await medirRespostas(browser, secret)));

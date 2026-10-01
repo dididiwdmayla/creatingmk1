@@ -3660,6 +3660,42 @@ As rotas da REVISÃO (`GET /api/config/fila/revisao`, `DELETE .../{leadId}`, `PO
 
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` captura o painel em quatro estados × celular e desktop × temas escuro e claro (o tema claro pelo mesmo motivo do `--so=pendencias`: é onde os tokens apagados deste bloco têm menos contraste de sobra, e as capturas de aba não o cobrem). Os estados: **cheia** (5 próximos + "e mais 1 na fila", 2 bloqueados, 3 em revisão, contador andando, retrato do pool datado); **sem revisão** com a fila cheia em volta (ver "A REVISÃO no painel" adiante para por que este estado é próprio); **vazia** — fila ativa, pool sem candidato, contador zerado e as três listas vazias ao mesmo tempo, que é o motivo de o passo existir e onde ele cobra que o painel ENCOLHA (−679px no celular, −530px no desktop) em vez de trocar as listas por um vão; e **sem pool**, o celular que nunca pediu tarefa. Os fixtures usam as famílias `petshop` (faixa `bom` o dia inteiro nos 7 dias) e `multimarcas` (`ruim` igual), pelo mesmo motivo já anotado para `imobiliaria` em /mundo: captura cujo CONTEÚDO muda com a hora da rodada não prova nada. Os aferidores do painel (não vaza da viewport, nenhum slot com caixa zerada) são compartilhados com o `--so=pendencias` e com o `--so=teste`, e a asserção "sobrou linha de lista" daquele passo passou a ser escopada por `[data-lista="pendencias"]` — o funil desta visão também é feito de `<li>`, e ele não é linha de pendência.
 
+### Eventos da fila — o rastro das respostas de erro (`src/lib/fila/eventos.ts`)
+
+**Por que existe.** Durante semanas TODO `POST /api/fila/confirmar` de prospecção respondeu 503 (ver "Saúde da fila"). O aparelho recebia o erro, o servidor não guardava nada, e o painel não mostrava nada. Um 409 de claim que não bate, um 400 de corpo malformado pela macro e um 500 somem do mesmo jeito.
+
+**A regra: toda resposta não-200 de `/api/fila/proximo` e `/api/fila/confirmar` grava um evento** — `{ rota, status, leadId, claimId, motivo, em }` — em `filaEventos/{dia operacional}/itens/{id}`, e soma no total do dia em `filaEventos/{dia}` (`{ total, porStatus }`), os dois na mesma transação. "Sem tarefa" é 200 com motivo e NÃO é evento: só o que a macro recebe como falha HTTP.
+
+- **`comRastroFila(rota, req, handler, getDb)`** embrulha as duas rotas: roda o handler e, se a resposta não for 200, grava o evento. `leadId`/`claimId` saem do CORPO da requisição (o confirmar manda os dois; JSON quebrado dá nulos), lido de um clone feito antes de o handler consumir o original; o `motivo` sai do corpo da RESPOSTA (`erro` no dialeto da fila, `error.code` no do resto do app).
+- **Nunca muda a resposta.** A gravação vem DEPOIS de a resposta estar pronta, e qualquer falha nela vira `console.error` (log da Vercel). Há teste com a coleção de eventos explodindo: a rota responde o mesmo 409, byte a byte.
+- **401 não grava no banco** — nem o 503 de `RADAR_DEVICE_KEY` ausente (aí nenhuma requisição é autenticável). Requisição sem a chave do aparelho não pode ganhar o poder de escrever no Firestore; os dois ficam só no log. A checagem é a mesma `autenticarDispositivo`, refeita no embrulho.
+- **Por dia operacional** porque a pergunta é sempre "o que deu errado hoje/ontem": o painel lê dois dias, nunca a coleção.
+
+**No painel** (`EventosFilaBloco`, "Erros do aparelho", logo abaixo da saúde: a saúde diz o que FALTA, este diz o que de fato DEU ERRADO; `GET /api/config/fila/eventos`, admin only): o total do dia no cabeçalho (do doc do dia — a lista tem teto, o número não) e os últimos `EVENTOS_PAINEL_MAX` (20) de hoje e ontem, mais recente primeiro, com status colorido (5xx crítico, 4xx aviso), rota, hora, o código e uma explicação em linguagem de operador. **O lead aparece pelo NOME**, lido por id só para os leads da lista — o placeId não aparece cru na /config (ver "O id, onde ele PODE aparecer"); lead que não existe mais aparece como "lead excluído ou desconhecido".
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=eventos` — cheio (503 de config, 409, 400 e 500 hoje + um 409 de ontem, um lead de nome longo e um excluído) e vazio, celular e desktop, escuro e claro; cobra o total no cabeçalho, as cinco linhas, o nome no lugar do id (e nenhum id cru no texto do bloco) e que o bloco encolha sem eventos (−360px no celular, −298px no desktop).
+
+### Ciclos — o histórico de cada reserva (`filaEnvios/{leadId}/ciclos/{claimId}`, `src/lib/fila/ciclos.ts`)
+
+O doc principal de `/filaEnvios` é UM por lead e cada reserva o sobrescreve: só o último ciclo ficava visível, e foi isso que impediu responder, no diagnóstico do envio repetido, quantas vezes um lead tinha sido levado e o que o aparelho disse em cada vez. **O doc principal continua exatamente como era**; ao lado dele, cada reserva vira um registro próprio:
+
+```jsonc
+// filaEnvios/{leadId}/ciclos/{claimId}
+{ "claimId": "...", "leadId": "ChIJ...", "reservadoEm": "<ISO>", "dispositivo": "android",
+  "rotacaoSkinId": "barbearia-editorial",  // ou null
+  "resultado": "enviado",                  // null enquanto aberto
+  "detalhe": "print não anexou",           // o que o aparelho mandou, ou null
+  "fechadoEm": "<ISO>" }                   // null enquanto aberto
+```
+
+- **Abre** na transação de `reservarLead` (o claimId é único por reserva, daí a chave); a skin entra em `anotarRotacao` (merge).
+- **Fecha UMA vez, na mesma transação de quem decide o desfecho**: o confirmar (`enviado`/`falhou`/`invalido`, com o detalhe), `liberarClaim` (`devolvida` — a rota desistiu antes de montar a tarefa), e as duas ações da revisão (`liberado_revisao`, `contactado_revisao`). O primeiro fechamento vale: ciclo fechado não é reaberto nem sobrescrito (confirmação repetida não muda `fechadoEm` nem `detalhe`), e é isso que o torna registro, não estado. O fechamento LÊ o ciclo antes de escrever, respeitando "todas as leituras antes de todas as escritas".
+- **Claim de antes dos ciclos** não tem registro aberto: o fechamento o cria com o que o doc principal sabe (reserva, aparelho, skin), em vez de perder o desfecho.
+- **Subcoleção, e não coleção solta**: o acesso é sempre "os ciclos DESTE lead" (`lerCiclos`, do mais antigo para o mais novo — a história na ordem), e a varredura de `/filaEnvios` que o pool, a revisão e as pendências fazem não enxerga subcoleção — nada do que já lia a coleção muda.
+- **A exclusão definitiva leva os ciclos junto** (`excluirLeadDefinitivo`): o Firestore não apaga subcoleção em cascata, e registro de envio de lead que não existe mais é o lixo que a exclusão existe para não deixar.
+
+Os ciclos ainda não têm tela: são dado para o diagnóstico (console do Firestore, ou uma vitrine na ficha quando fizer falta).
+
 ### Revisão de claim não confirmada — a proteção que não depende do aparelho
 
 **O que aconteceu, em duas rodadas.** (1) Um lead recebeu a mesma mensagem duas vezes: o ciclo executou inteiro, o `POST /api/fila/confirmar` respondeu 503, a macro não repetiu, a claim expirou em 5 min e o lead voltou ao pool. A primeira correção foi a RETENÇÃO: claim silenciosa prendia o lead por `retencaoEnvioHoras` (12h) e o **liberava ao vencer**. (2) A causa real do 503 era `RADAR_DEVICE_USER_ID` nunca cadastrada (ver "Saúde da fila"): TODO confirmar de prospecção falhava, e a retenção virou um relógio — o silêncio não conta tentativa (só "falhou" conta) e não gira a frase (só "enviado" gira), então um lead cujo confirmar nunca chega saía com o MESMO texto **cerca de uma vez por dia, indefinidamente**. Qualquer prazo reabre a mesma classe.

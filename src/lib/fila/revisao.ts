@@ -5,6 +5,7 @@ import { LEADS_COLLECTION, type Lead } from "@/lib/leads/types";
 
 import { FILA_CONTADORES_COLLECTION, contadorComEnvioTardio, diaOperacionalKey } from "./contadores";
 import { EPOCH_ISO, FILA_ENVIOS_COLLECTION, emRevisao, type FilaEnvioDoc } from "./envios";
+import { cicloFechado, gravarFechamentoTx, lerCicloTx } from "./ciclos";
 import { claimAtiva, type LinhaRevisao } from "./estado";
 import { instanteDaReserva, leadComEnvioProvavel } from "./reconciliacao";
 
@@ -136,8 +137,11 @@ export async function liberarRevisao(db: AppDb, leadId: string, now: Date): Prom
     const atual = (await tx.get(ref)).data() as unknown as FilaEnvioDoc | undefined;
     const recusa = guardar(atual, leadId, now);
     if (recusa) return recusa;
+    const envio = atual as FilaEnvioDoc;
+    const ciclo = await lerCicloTx(tx, db, leadId, envio.claimId);
 
-    tx.set(ref, { ...(atual as FilaEnvioDoc), expiraEm: EPOCH_ISO } as unknown as Record<string, unknown>);
+    tx.set(ref, { ...envio, expiraEm: EPOCH_ISO } as unknown as Record<string, unknown>);
+    gravarFechamentoTx(tx, db, cicloFechado(ciclo, envio, "liberado_revisao", null, now));
     return { ok: true };
   });
 }
@@ -180,6 +184,7 @@ export async function marcarContactadoRevisao(
       .collection(FILA_CONTADORES_COLLECTION)
       .doc(diaOperacionalKey(now, opcoes.inicioDiaOperacionalHora));
     const contador = (await tx.get(refContador)).data();
+    const ciclo = await lerCicloTx(tx, db, leadId, envio.claimId);
 
     // ── Escritas ──────────────────────────────────────────────────────────
     tx.set(refEnvio, {
@@ -190,6 +195,7 @@ export async function marcarContactadoRevisao(
     } as unknown as Record<string, unknown>);
     tx.set(refLead, leadToDoc(leadComEnvioProvavel(lead, envio, userId, now, "revisao")));
     tx.set(refContador, contadorComEnvioTardio(contador) as unknown as Record<string, unknown>);
+    gravarFechamentoTx(tx, db, cicloFechado(ciclo, envio, "contactado_revisao", null, now));
     return { ok: true };
   });
 }

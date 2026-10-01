@@ -4,6 +4,7 @@ import { getDb } from "@/lib/firebase/admin";
 import { autenticarDispositivo } from "@/lib/fila/auth";
 import { loadFilaConfig } from "@/lib/fila/config";
 import { confirmarEnvio } from "@/lib/fila/confirmar";
+import { comRastroFila } from "@/lib/fila/eventos";
 import { ClaimInvalidoError, type FilaEnvioResultado } from "@/lib/fila/envios";
 import {
   confirmarTarefaResposta,
@@ -46,7 +47,16 @@ const RESULTADOS: FilaEnvioResultado[] = ["enviado", "invalido", "falhou"];
 /** Teto do texto livre que o celular manda em `detalhe` — é diagnóstico, não log. */
 const DETALHE_MAX = 300;
 
+/**
+ * Toda resposta não-200 desta rota vira um evento em `filaEventos` (ver
+ * `comRastroFila`): foi a falta disso que escondeu o 503 de todo confirmar.
+ * O embrulho nunca muda a resposta.
+ */
 export async function POST(req: Request) {
+  return comRastroFila("confirmar", req, tratar, getDb);
+}
+
+async function tratar(req: Request) {
   const barrado = autenticarDispositivo(req);
   if (barrado) return barrado;
 

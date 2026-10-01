@@ -75,6 +75,21 @@ describe("excluirLeadDefinitivo", () => {
     expect((await db.collection("filaEnvios").doc("A").get()).exists).toBe(false);
   });
 
+  it("leva junto o HISTÓRICO de ciclos do lead — exclusão destrói de verdade", async () => {
+    const db = new FakeFirestore();
+    semearLeadCompleto(db, "A");
+    semearEnvio(db, "A");
+    db.seed("filaEnvios/A/ciclos/c0", { claimId: "c0", leadId: "A", resultado: "falhou" });
+    db.seed("filaEnvios/A/ciclos/c1", { claimId: "c1", leadId: "A", resultado: null });
+    // Ciclo de OUTRO lead não pode ir junto.
+    db.seed("filaEnvios/B/ciclos/c9", { claimId: "c9", leadId: "B", resultado: "enviado" });
+
+    await excluirLeadDefinitivo(db, fakeStorage(), "A");
+
+    expect((await db.collection("filaEnvios/A/ciclos").get()).docs).toEqual([]);
+    expect(db.getDoc("filaEnvios/B/ciclos/c9")).toBeDefined();
+  });
+
   /**
    * A demo morava no campo `demo` do doc do lead: apagado o doc, a rota
    * pública não tem de onde ler e volta a 404. É o que a confirmação diz,

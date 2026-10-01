@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import type { AppDb } from "@/lib/firestore-like";
 
+import { cicloAberto, cicloFechado, cicloRef, gravarFechamentoTx, lerCicloTx } from "./ciclos";
 import { emRevisao, type FilaEnvioDoc, type FilaEnvioResultado } from "./estado";
 
 /**
@@ -167,6 +168,9 @@ export async function reservarLead(
       reservas: (atual ? (atual.reservas ?? 1) : 0) + 1,
     };
     tx.set(ref, toDoc(doc));
+    // O CICLO desta reserva, na mesma transação: um registro próprio que
+    // nenhuma reserva seguinte toca (ver lib/fila/ciclos.ts).
+    tx.set(cicloRef(db, leadId, claimId), { ...cicloAberto(doc) });
     return { claimId, expiraEm };
   });
 }
@@ -212,15 +216,24 @@ export async function confirmarClaim(
  * mesmo motivo: liberar com uma claim velha não pode derrubar a reserva
  * NOVA de outro ciclo.
  */
-export async function liberarClaim(db: AppDb, leadId: string, claimId: string): Promise<void> {
+export async function liberarClaim(
+  db: AppDb,
+  leadId: string,
+  claimId: string,
+  now: Date = new Date(),
+): Promise<void> {
   await db.runTransaction(async (tx) => {
     const ref = docRef(db, leadId);
     const atual = asDoc((await tx.get(ref)).data());
     if (!atual || atual.claimId !== claimId) {
       throw new ClaimInvalidoError(leadId);
     }
+    const ciclo = await lerCicloTx(tx, db, leadId, claimId);
 
     tx.set(ref, { ...atual, expiraEm: EPOCH_ISO });
+    // A rota desistiu antes de montar a tarefa: o ciclo fecha como
+    // "devolvida" (nada saiu, e o servidor sabe).
+    gravarFechamentoTx(tx, db, cicloFechado(ciclo, atual, "devolvida", null, now));
   });
 }
 
@@ -244,6 +257,7 @@ export async function anotarRotacao(
       throw new ClaimInvalidoError(leadId);
     }
     tx.set(ref, toDoc({ ...atual, rotacaoSkinId }));
+    tx.set(cicloRef(db, leadId, claimId), { rotacaoSkinId }, { merge: true });
   });
 }
 

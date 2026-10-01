@@ -10,6 +10,7 @@ import {
   contadorComInvalido,
   diaOperacionalKey,
 } from "./contadores";
+import { cicloFechado, gravarFechamentoTx, lerCicloTx } from "./ciclos";
 import {
   ClaimInvalidoError,
   FILA_ENVIOS_COLLECTION,
@@ -107,6 +108,9 @@ export async function confirmarEnvio(
       };
     }
 
+    // O ciclo desta claim fecha nesta MESMA transação (ver lib/fila/ciclos.ts).
+    const ciclo = await lerCicloTx(tx, db, leadId, claimId);
+
     const refLead = db.collection(LEADS_COLLECTION).doc(leadId);
     const precisaDoLead = resultado === "enviado" || resultado === "invalido";
     const lead = precisaDoLead
@@ -175,6 +179,7 @@ export async function confirmarEnvio(
           ? contadorComFalha(contador)
           : contadorComInvalido(contador);
     tx.set(refContador, proximoContador as unknown as Record<string, unknown>);
+    gravarFechamentoTx(tx, db, cicloFechado(ciclo, envio, resultado, detalhe, now));
 
     return {
       estado: resultado,

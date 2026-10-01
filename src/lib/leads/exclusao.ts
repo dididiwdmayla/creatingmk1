@@ -35,7 +35,8 @@ import { LEADS_COLLECTION } from "./types";
  *    recalcular exigiria uma varredura de `/leads` por busca afetada,
  *    deixando as buscas irmãs defasadas do mesmo jeito. O número volta a
  *    ficar certo na próxima vez que a busca rodar.
- * 4. **O doc em `filaEnvios` é removido junto**, senão fica lixo apontando
+ * 4. **O doc em `filaEnvios` é removido junto** (e a subcoleção de ciclos
+ *    dele, que o Firestore não apaga em cascata), senão fica lixo apontando
  *    para lead inexistente — um doc de claim órfão que a varredura dos
  *    revisão e a das pendências de print continuariam lendo para sempre,
  *    com nome vazio.
@@ -93,6 +94,14 @@ export async function excluirLeadDefinitivo(
   // órfão é estado que mente, não centavo de arquivo esquecido.
   await leadRef.delete();
   if (tinhaEnvio) await envioRef.delete();
+  // O HISTÓRICO de ciclos (`filaEnvios/{id}/ciclos`, ver lib/fila/ciclos.ts)
+  // vai junto: o Firestore não apaga subcoleção em cascata, e um registro
+  // de envio de lead que não existe mais é exatamente o lixo que a exclusão
+  // definitiva existe para não deixar.
+  const ciclos = await db.collection(`${FILA_ENVIOS_COLLECTION}/${leadId}/ciclos`).get();
+  for (const ciclo of ciclos.docs) {
+    await db.collection(`${FILA_ENVIOS_COLLECTION}/${leadId}/ciclos`).doc(ciclo.id).delete();
+  }
 
   let storageFalhou = false;
   try {

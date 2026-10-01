@@ -12,6 +12,7 @@ import {
 } from "@/components/config/comum";
 import { SeletorLead } from "@/components/config/SeletorLead";
 import { DisparoTeste } from "@/components/config/paineis/DisparoTeste";
+import { EventosFilaBloco } from "@/components/config/paineis/EventosFila";
 import { PrintPendenteLista } from "@/components/config/paineis/PrintPendente";
 import { ReconciliacaoBloco } from "@/components/config/paineis/Reconciliacao";
 import { RespostaAutomaticaBloco } from "@/components/config/paineis/RespostaAutomatica";
@@ -160,6 +161,7 @@ export function FilaEnvioSection() {
       </p>
 
       <SaudeFilaBloco onBloqueada={aoSaber} />
+      <EventosFilaBloco />
 
       {config === null && !erro && (
         <SkeletonRows count={1} className="mt-3 h-32 rounded border border-line" />

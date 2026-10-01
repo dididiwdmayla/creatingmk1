@@ -28,6 +28,7 @@ import type {
   RespostaPendente,
 } from "@/lib/fila/estado";
 import type { GrupoComErro } from "@/lib/fila/respostasPainel";
+import type { PainelEventos } from "@/lib/fila/eventos";
 import type { PreviaReconciliacao, ResultadoReconciliacao } from "@/lib/fila/reconciliacao";
 import type { SaudeFila } from "@/lib/fila/saude";
 import type { SimulacaoResposta } from "@/lib/fila/simularResposta";
@@ -501,6 +502,12 @@ export const api = {
    * exigida ausente, `/proximo` responde `pausado` e não entrega lead.
    */
   getFilaSaude: () => request<SaudeFila>("/api/config/fila/saude"),
+
+  /**
+   * As respostas de ERRO das rotas do aparelho (ver `lib/fila/eventos.ts`):
+   * o total do dia e os últimos de hoje e ontem, com o nome do lead.
+   */
+  getFilaEventos: () => request<PainelEventos>("/api/config/fila/eventos"),
 
   /**
    * A RECONCILIAÇÃO (ver `lib/fila/reconciliacao.ts`): a prévia dos leads que
