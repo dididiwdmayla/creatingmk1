@@ -14,7 +14,7 @@ import { requireAdmin } from "@/lib/usuarios";
  * sempre foi. O que ela acrescenta é a GUARDA — **409 quando há claim ativa
  * no lead**, com a hora em que a reserva morre sozinha.
  *
- * A razão é a mesma da liberação manual de um retido, e usa a mesma função
+ * A razão é a mesma das ações da revisão (liberar, marcar contactado), e usa a mesma função
  * (`claimAtiva`): remover um lead da fila NÃO cancela um envio em andamento.
  * O aparelho pode estar com o WhatsApp aberto neste segundo, e nada daqui
  * alcança a tela dele — então o servidor recusa e DIZ por quê, em vez de
@@ -24,7 +24,7 @@ import { requireAdmin } from "@/lib/usuarios";
  * decisão do servidor (cada linha é reconferida contra o doc fresco), e
  * deixar a tela adivinhar o resultado é justamente o que faria o lead
  * removido continuar listado como próximo. Mesmo motivo de
- * `DELETE .../retidos/{leadId}` devolver a lista nova.
+ * `DELETE .../revisao/{leadId}` devolver a lista nova.
  *
  * ADMIN ONLY, 401/403 como o GET ao lado.
  */

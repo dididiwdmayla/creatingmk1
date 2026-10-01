@@ -30,7 +30,6 @@ const FILA_CAMPOS_NUMERO: Array<{
     | "metaDiaria"
     | "tetoPorHora"
     | "intervaloMinimoSegundos"
-    | "retencaoEnvioHoras"
     | "inicioDiaOperacionalHora"
   >;
   label: string;
@@ -40,7 +39,6 @@ const FILA_CAMPOS_NUMERO: Array<{
   { campo: "metaDiaria", label: "Meta diária" },
   { campo: "tetoPorHora", label: "Teto por hora" },
   { campo: "intervaloMinimoSegundos", label: "Intervalo mínimo", sufixo: "s" },
-  { campo: "retencaoEnvioHoras", label: "Retenção sem confirmação", sufixo: "h" },
   { campo: "inicioDiaOperacionalHora", label: "Início do dia operacional", max: 23, sufixo: "h" },
 ];
 
@@ -183,9 +181,9 @@ export function FilaEnvioSection() {
           ))}
 
           <p className="text-xs text-ink-muted">
-            Retenção: lead cuja reserva venceu sem o aparelho confirmar nada fica fora da fila
-            por essas horas — na dúvida entre não mandar e mandar duas vezes, não manda. Falha
-            REPORTADA não retém (essa segue as 3 tentativas). 0 desliga.
+            Reserva que vence sem o aparelho confirmar nada vai para “Em revisão” (abaixo) e não
+            volta sozinha — na dúvida entre não mandar e mandar duas vezes, não manda. Falha
+            REPORTADA segue as 3 tentativas.
           </p>
 
           <div className="flex items-center gap-2 text-xs text-ink-secondary">

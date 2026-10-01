@@ -394,9 +394,6 @@ function semear() {
       // permitidos" do funil não ser sempre zero.
       nichosPermitidos: ["petshop", "multimarcas"],
       intervaloMinimoSegundos: 240,
-      // Retenção por claim não confirmada (--so=fila). Fixa aqui, e não no
-      // default do código, para a captura não mudar se o padrão mudar.
-      retencaoEnvioHoras: 12,
       inicioDiaOperacionalHora: 6,
       // Destino do disparo de teste (--so=teste). Fixo aqui para a captura
       // não depender do default do código mudar.
@@ -828,31 +825,32 @@ function semear() {
     manuaisPendentesTotal: 1,
   };
 
-  // ── RETIDOS POR ENVIO NÃO CONFIRMADO (--so=fila) ───────────────────
+  // ── EM REVISÃO: CLAIM VENCIDA SEM CONFIRMAÇÃO (--so=fila) ──────────
   //
   // Claims que MORRERAM EM SILÊNCIO: `estado: "reservado"`, prazo vencido, e
-  // `expiraEm = reservadoEm + 5min` — é essa relação que a retenção lê para
+  // `expiraEm = reservadoEm + 5min` — é essa relação que a revisão lê para
   // distinguir silêncio de claim devolvida de propósito (ver
-  // `claimExpiradaSemConfirmacao`). Minutos atrás, não dias: a janela padrão
-  // é de 12h, e uma reserva de ontem já teria vencido.
+  // `claimExpiradaSemConfirmacao`). Sem prazo: uma de dias atrás continua.
   //
-  // Leads PRÓPRIOS, fora do pool: o retido é justamente quem não é candidato.
-  // Três estados de propósito — um recém retido (vence em quase 12h), um no
-  // fim da janela (vence em minutos, o caso em que o "volta à fila" mais
-  // importa) e um cujo LEAD foi excluído, que mostra o id sem nome.
-  const retidos = [
-    ["fila-r1", "Ótica Mercúrio", 40],
-    ["fila-r2", "Serralheria Navegantes", 11 * 60 + 50],
-    ["fila-r3", null, 200],
+  // Leads PRÓPRIOS, fora do pool: quem está em revisão é justamente quem não
+  // é candidato. Quatro estados de propósito — um recém reservado (1×), um de
+  // DIAS atrás reservado 3× (a revisão não tem prazo, e "3×" é o aviso de que
+  // talvez já tenham saído três mensagens), um doc ANTERIOR ao contador
+  // `reservas` ("1× ou mais") e um cujo lead já foi CONTACTADO (reconciliado):
+  // esse NÃO pode aparecer — não há o que revisar.
+  const emRevisao = [
+    ["fila-r1", "Ótica Mercúrio", 40, 1, "novo"],
+    ["fila-r2", "Serralheria Navegantes", 3 * 24 * 60 + 10, 3, "novo"],
+    ["fila-r3", "Vidraçaria Cristal do Sul", 200, null, "novo"],
+    ["fila-r4", "Já Reconciliada Ltda", 90, 1, "contactado"],
   ];
-  for (const [id, nome, minutosAtras] of retidos) {
-    if (nome) {
-      mapa[`leads/${id}`] = {
-        ...leadDaFila(id, nome, "petshop"),
-        // Fora do pool de propósito: candidato ele apareceria nas outras
-        // listas, e retido é exatamente quem NÃO é candidato.
-      };
-    }
+  for (const [id, nome, minutosAtras, reservas, status] of emRevisao) {
+    mapa[`leads/${id}`] = {
+      ...leadDaFila(id, nome, "petshop"),
+      status,
+      // Fora do pool de propósito: candidato ele apareceria nas outras
+      // listas, e em revisão é exatamente quem NÃO é candidato.
+    };
     const reservadoEm = new Date(AGORA.getTime() - minutosAtras * 60000).toISOString();
     mapa[`filaEnvios/${id}`] = {
       leadId: id,
@@ -865,6 +863,7 @@ function semear() {
       tentativas: 0,
       ultimoErro: null,
       enviadoEm: null,
+      ...(reservas !== null && { reservas }),
     };
   }
 
@@ -2342,9 +2341,9 @@ function editarBanco(fn) {
  * (as sete contagens estruturais ficam zeradas até a primeira chamada do
  * celular) e não pode virar um funil de zeros sem explicação.
  *
- * Os RETIDOS por envio não confirmado entram com DOIS estados, e não um: com
- * retidos (a lista, o "volta à fila" e o botão de liberar por linha) e SEM
- * retidos com a fila cheia em volta — este último porque é o caso em que uma
+ * A REVISÃO (claim que venceu sem confirmação) entra com DOIS estados, e não
+ * um: com leads em revisão (a lista, o "reservado N×" e as duas ações por
+ * linha) e SEM nenhum com a fila cheia em volta — este último porque é o caso em que uma
  * lista vazia no meio de um painel cheio deixa caixa quebrada, e o estado
  * "vazia" (onde tudo está vazio junto) não o revelaria. O passo também
  * confronta o NÚMERO do funil com a quantidade de linhas da lista: eles saem
@@ -2768,41 +2767,63 @@ async function medirFila(browser, secret) {
     if (tirar !== 7) {
       problemas.push(`cheia/${sufixo}: esperava 7 botões "tirar da fila", achei ${tirar}`);
     }
-    // Os RETIDOS por envio não confirmado: a contagem no funil e a lista
-    // logo abaixo saem da MESMA varredura, então as duas têm de aparecer
-    // juntas — é a checagem de que o número do funil bate com a lista.
+    // A REVISÃO: a contagem no funil e a lista logo abaixo saem da MESMA
+    // varredura, então as duas têm de aparecer juntas — é a checagem de que
+    // o número do funil bate com a lista.
     await exigirTextos(`cheia/${sufixo}`, [
-      [/retidos por envio recente não confirmado/, "etiqueta da retenção no funil"],
-      [/Janela de 12h a partir da reserva/, "regra da janela ao lado do número"],
-      [/Ótica Mercúrio/, "lead retido recém reservado"],
-      [/Serralheria Navegantes/, "lead retido no fim da janela"],
-      [/volta à fila/, "quando a retenção vence"],
-      [/reservado/, "quando foi a reserva"],
+      [/em revisão \(o aparelho não confirmou\)/, "etiqueta da revisão no funil"],
+      [/Sem prazo: só sai/, "a regra ao lado do número"],
+      [/Ótica Mercúrio/, "lead em revisão recém reservado"],
+      [/Serralheria Navegantes/, "lead em revisão de dias atrás"],
+      [/reservado 3×/, "quantas vezes foi reservado"],
+      [/reservado 1× ou mais/, "doc anterior ao contador"],
+      [/última reserva/, "quando foi a reserva"],
     ]);
-    const linhasRetidos = await page.locator('[data-lista="retidos"] li').count();
-    if (linhasRetidos !== 3) {
-      problemas.push(`cheia/${sufixo}: esperava 3 retidos na lista, achei ${linhasRetidos}`);
+    if ((await page.getByText("Já Reconciliada Ltda").count()) > 0) {
+      problemas.push(`cheia/${sufixo}: lead já contactado apareceu na revisão`);
     }
-    const liberar = await page.getByRole("button", { name: "liberar" }).count();
-    if (liberar !== 3) {
-      problemas.push(`cheia/${sufixo}: esperava 3 botões "liberar", achei ${liberar}`);
+    const linhasRevisao = await page.locator('[data-lista="revisao"] li').count();
+    if (linhasRevisao !== 3) {
+      problemas.push(`cheia/${sufixo}: esperava 3 leads em revisão, achei ${linhasRevisao}`);
     }
+    for (const nome of ["não saiu · liberar", "saiu · contactado"]) {
+      const botoes = await page.getByRole("button", { name: nome }).count();
+      if (botoes !== 3) problemas.push(`cheia/${sufixo}: esperava 3 botões "${nome}", achei ${botoes}`);
+    }
+    // As duas ações são LARGAS: lado a lado com o texto no celular, elas já
+    // passaram por cima do nome e espremeram a linha numa coluna de uma
+    // palavra. Cobra que o nome não cruza com as ações e que o texto da
+    // linha tem largura de gente (não uma coluna de 70px).
+    const geometria = await page.evaluate(() =>
+      [...document.querySelectorAll("[data-linha-revisao]")].map((li) => {
+        const nome = li.querySelector("[data-nome-revisao]")?.getBoundingClientRect();
+        const acoes = li.querySelector("[data-acoes-revisao]")?.getBoundingClientRect();
+        const texto = li.firstElementChild?.getBoundingClientRect();
+        if (!nome || !acoes || !texto) return { ok: false, motivo: "peça ausente" };
+        const cruza =
+          nome.left < acoes.right && nome.right > acoes.left && nome.top < acoes.bottom && nome.bottom > acoes.top;
+        return { ok: !cruza && texto.width >= 160, motivo: cruza ? "nome sob as ações" : `texto com ${Math.round(texto.width)}px` };
+      }),
+    );
+    geometria.forEach((g, i) => {
+      if (!g.ok) problemas.push(`cheia/${sufixo}: linha ${i + 1} da revisão quebrada (${g.motivo})`);
+    });
     // A contagem do funil é lida da TELA e confrontada com a lista: se as
     // duas divergirem, este passo reprova em vez de a divergência passar.
     const totalNoFunil = await page.evaluate(() => {
       const rotulo = [...document.querySelectorAll("p")].find((el) =>
-        el.textContent?.includes("retidos por envio recente não confirmado"),
+        el.textContent?.includes("em revisão (o aparelho não confirmou)"),
       );
       return Number(rotulo?.querySelector("span:last-child")?.textContent?.trim());
     });
-    if (totalNoFunil !== linhasRetidos) {
+    if (totalNoFunil !== linhasRevisao) {
       problemas.push(
-        `cheia/${sufixo}: funil diz ${totalNoFunil} retidos, a lista tem ${linhasRetidos}`,
+        `cheia/${sufixo}: funil diz ${totalNoFunil} em revisão, a lista tem ${linhasRevisao}`,
       );
     }
-    await capturarPainel("cheia (5 próximos + 2 bloqueados + 3 retidos)", "cheia");
+    await capturarPainel("cheia (5 próximos + 2 bloqueados + 3 em revisão)", "cheia");
 
-    // ── SEM RETIDOS: a fila continua CHEIA e só a retenção esvazia. É o
+    // ── SEM REVISÃO: a fila continua CHEIA e só a revisão esvazia. É o
     //    estado em que um bloco subordinado costuma deixar caixa quebrada
     //    ou espaço morto no meio de um painel que está cheio em volta —
     //    invisível no estado "vazia", onde tudo está vazio junto.
@@ -2811,33 +2832,33 @@ async function medirFila(browser, secret) {
         if (chave.startsWith("filaEnvios/fila-r")) delete mapa[chave];
       }
     });
-    await abrirPainel(`sem-retidos/${sufixo}`);
-    const semRetidos = await conferirPainelFila(
+    await abrirPainel(`sem-revisao/${sufixo}`);
+    const semRevisao = await conferirPainelFila(
       page,
-      `sem-retidos/${sufixo}`,
+      `sem-revisao/${sufixo}`,
       viewport.width,
       problemas,
     );
-    await exigirTextos(`sem-retidos/${sufixo}`, [
-      [/Nenhum lead retido/, "estado vazio dos retidos"],
+    await exigirTextos(`sem-revisao/${sufixo}`, [
+      [/Nenhum lead em revisão/, "estado vazio da revisão"],
       [/Pet Center Ipiranga/, "a fila em volta continua cheia"],
     ]);
-    const sobrouRetido = await page.locator('[data-lista="retidos"] li').count();
-    if (sobrouRetido > 0) {
-      problemas.push(`sem-retidos/${sufixo}: sobrou linha de retido com a lista vazia`);
+    const sobrouRevisao = await page.locator('[data-lista="revisao"] li').count();
+    if (sobrouRevisao > 0) {
+      problemas.push(`sem-revisao/${sufixo}: sobrou linha da revisão com a lista vazia`);
     }
-    if (cheia && semRetidos) {
-      const encolheu = cheia.altura - semRetidos.altura;
+    if (cheia && semRevisao) {
+      const encolheu = cheia.altura - semRevisao.altura;
       console.log(
-        `  [fila] ${sufixo}: painel ${cheia.altura}px com retidos → ${semRetidos.altura}px sem (−${encolheu}px)`,
+        `  [fila] ${sufixo}: painel ${cheia.altura}px com revisão → ${semRevisao.altura}px sem (−${encolheu}px)`,
       );
       if (encolheu <= 0) {
         problemas.push(
-          `sem-retidos/${sufixo}: painel não encolheu sem retidos (${cheia.altura} → ${semRetidos.altura})`,
+          `sem-revisao/${sufixo}: painel não encolheu sem revisão (${cheia.altura} → ${semRevisao.altura})`,
         );
       }
     }
-    await capturarPainel("sem retidos (fila cheia em volta)", "sem-retidos");
+    await capturarPainel("sem revisão (fila cheia em volta)", "sem-revisao");
 
     // ── VAZIA: fila ATIVA, pool sem candidato nenhum e contador zerado — os
     //    três estados vazios de uma vez.
@@ -2853,9 +2874,9 @@ async function medirFila(browser, secret) {
       [/0 de 20 hoje/, "contador zerado"],
       [/Nenhum lead elegível agora/, "estado vazio dos próximos"],
       [/Ninguém parado na janela/, "estado vazio dos bloqueados"],
-      // Os retidos saíram no passo acima e continuam fora: aqui as TRÊS
+      // A revisão saiu no passo acima e continua fora: aqui as TRÊS
       // listas estão vazias ao mesmo tempo, que é o piso do painel.
-      [/Nenhum lead retido/, "estado vazio dos retidos"],
+      [/Nenhum lead em revisão/, "estado vazio da revisão"],
     ]);
     const sobrou = await page.locator('[data-lista="proximos"] li, [data-lista="bloqueados"] li').count();
     if (sobrou > 0) {
@@ -2908,7 +2929,7 @@ async function medirFila(browser, secret) {
     throw new Error(`[fila] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
   }
   console.log(
-    "[fila] ok — cheia, SEM RETIDOS, vazia e sem pool, sem vazamento nem caixa zerada.",
+    "[fila] ok — cheia, SEM REVISÃO, vazia e sem pool, sem vazamento nem caixa zerada.",
   );
   return gerados;
 }

@@ -29,7 +29,7 @@ export type MotivoInelegivel =
  * - **vestígio** são os mesmos três campos que `motivoEstrutural` lê em
  *   `contactadoForaDaFila` MAIS um doc em `/filaEnvios` (`temDocFila`): toda
  *   claim nasce de uma reserva, e a claim que expirou sem confirmação é
- *   tratada pela retenção como "provavelmente saiu". A lição é do bloco
+ *   tratada pela revisão como "provavelmente saiu". A lição é do bloco
  *   "sem vestígio", e vale igual aqui.
  * - **reprovado**: o operador reprovou uma demo automática deste lead — a
  *   marca é do LEAD (`automacaoReprovada`), então apagar a demo não o traz

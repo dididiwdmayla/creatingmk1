@@ -22,7 +22,7 @@ import type {
   FilaTesteDoc,
   LinhaFilaPainel,
   LinhaPendenteManual,
-  LinhaRetido,
+  LinhaRevisao,
   MotivoFisico,
   PendenciaEnvio,
   RespostaPendente,
@@ -202,15 +202,6 @@ export interface FilaDiagnosticoResponse {
 }
 
 /**
- * `GET /api/config/fila/retidos` e a resposta do DELETE que libera um deles.
- *
- * `total` é o número que o funil mostra e `linhas` é a lista logo abaixo: a
- * MESMA varredura produz os dois, então eles não têm como discordar. A lista
- * não tem teto — o volume é limitado pela própria fila (`metaDiaria` reservas
- * por dia), e um teto esconderia justamente o lead que o operador quer
- * liberar.
- */
-/**
  * `GET /api/config/fila/balao` — o BALÃO da fila, nos seus dois estados.
  *
  * Uma forma só para os dois, com TODAS as chaves sempre presentes: o estado
@@ -240,11 +231,18 @@ export interface FilaBalaoResponse {
   poolGeradoEm: string | null;
 }
 
-export interface FilaRetidosResponse {
+/**
+ * `GET /api/config/fila/revisao` e a resposta das duas ações sobre um lead
+ * em revisão (liberar, marcar contactado).
+ *
+ * `total` é o número que o funil mostra e `linhas` é a lista logo abaixo: a
+ * MESMA varredura produz os dois, então eles não têm como discordar. A lista
+ * não tem teto — o volume é limitado pela própria fila, e um teto esconderia
+ * justamente o lead sobre o qual o operador quer decidir.
+ */
+export interface FilaRevisaoResponse {
   total: number;
-  linhas: LinhaRetido[];
-  /** `retencaoEnvioHoras` em vigor — 0 quer dizer retenção DESLIGADA. */
-  retencaoHoras: number;
+  linhas: LinhaRevisao[];
 }
 
 /**
@@ -530,34 +528,31 @@ export const api = {
     ),
 
   /**
-   * Os leads que a RETENÇÃO POR CLAIM NÃO CONFIRMADA está segurando — o
-   * aparelho levou a tarefa e não disse o que houve, então o lead fica fora
-   * da fila pela janela de `retencaoEnvioHoras` (ver `lib/fila/retidos.ts`).
-   *
-   * `total` e `linhas` vêm da MESMA varredura de propósito: é o número que o
-   * funil do painel mostra, e ele não pode discordar da lista logo abaixo
-   * dele. `retencaoHoras` viaja junto porque "0 retidos" com a retenção
-   * ligada e "0 retidos" com ela desligada são fatos diferentes.
-   *
-   * Sob `/api/config/` e não `/api/fila/`, pelo mesmo motivo das pendências
-   * de print, e restrita ao admin como todo o painel.
+   * Os leads EM REVISÃO — o aparelho levou a tarefa e não disse o que houve,
+   * e o lead fica fora da fila sem prazo até o operador decidir (ver
+   * `lib/fila/revisao.ts`). Sob `/api/config/`, restrita ao admin.
    */
-  getFilaRetidos: () => request<FilaRetidosResponse>("/api/config/fila/retidos"),
+  getFilaRevisao: () => request<FilaRevisaoResponse>("/api/config/fila/revisao"),
 
   /**
-   * LIBERA um retido: o operador conferiu que a mensagem não saiu e devolve
-   * o lead à fila antes de a janela vencer. Devolve a lista NOVA (quem
-   * continua retido é decisão do servidor, não da tela).
-   *
-   * DELETE porque o que se apaga é a retenção, e a ação é de mão única — não
-   * há "re-reter". 409 `claim_ativa` quando o aparelho está com o lead
-   * reservado NESTE momento: liberar ali produziria a segunda reserva do
-   * mesmo lead, que é a duplicata que a retenção existe para evitar.
+   * "Conferi, NÃO saiu": devolve o lead à fila. Devolve a lista NOVA. 409
+   * `claim_ativa` quando o aparelho está com o lead reservado NESTE momento.
    */
-  deleteFilaRetido: (leadId: string) =>
-    request<FilaRetidosResponse>(`/api/config/fila/retidos/${encodeURIComponent(leadId)}`, {
+  liberarFilaRevisao: (leadId: string) =>
+    request<FilaRevisaoResponse>(`/api/config/fila/revisao/${encodeURIComponent(leadId)}`, {
       method: "DELETE",
     }),
+
+  /**
+   * "Conferi, SAIU": a claim fecha como enviada, o lead vira contactado com a
+   * data da reserva e o contador do dia soma 1 (a rotação não gira). Devolve
+   * a lista NOVA; mesmas recusas do liberar.
+   */
+  marcarContactadoFilaRevisao: (leadId: string) =>
+    request<FilaRevisaoResponse>(
+      `/api/config/fila/revisao/${encodeURIComponent(leadId)}/contactado`,
+      { method: "POST" },
+    ),
 
   /**
    * OS LEADS ANTIGOS SEM VESTÍGIO NENHUM DE CONTATO — a tela de revisão da
@@ -745,7 +740,7 @@ export const api = {
   /**
    * Cancela as repetições que ainda restam do disparo de teste, a qualquer
    * momento — inclusive com uma tarefa em voo (ela segue o curso normal, só
-   * não rearma ao confirmar). Mão única, mesmo espírito de `deleteFilaRetido`.
+   * não rearma ao confirmar). Mão única, mesmo espírito de `liberarFilaRevisao`.
    */
   deleteFilaTesteRepeticoes: () =>
     request<{ teste: FilaTesteDoc }>("/api/fila/teste/repeticoes", { method: "DELETE" }),

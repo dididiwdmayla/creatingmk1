@@ -185,8 +185,8 @@ export type RemocaoDaFila =
  * ATIVA não cancela o envio em andamento — o aparelho pode estar com o
  * WhatsApp aberto neste segundo, e nada do lado do servidor alcança a tela
  * dele. Então a ação é RECUSADA, com o motivo e a hora visíveis, que é a
- * mesma regra (e a mesma função, `claimAtiva`) da liberação manual de um
- * retido. Recusa sem explicação faz o operador clicar de novo.
+ * mesma regra (e a mesma função, `claimAtiva`) das ações da revisão.
+ * Recusa sem explicação faz o operador clicar de novo.
  *
  * Note o que a guarda NÃO promete: ela recusa o caso ÓBVIO, não é atômica
  * entre coleções. Se `/proximo` reservar o lead entre esta leitura e a

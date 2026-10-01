@@ -124,7 +124,14 @@ describe("candidatoEstavel", () => {
     });
 
     it("claim viva NÃO barra aqui — quem decide isso é a transação da reserva", () => {
-      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "reservado" }), { corteLegado: SEM_CORTE })).toBe(true);
+      // 9h02: a claim de 9h00 ainda vive até 9h05.
+      const now = new Date("2026-03-10T09:02:00Z");
+      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "reservado" }), { corteLegado: SEM_CORTE, now })).toBe(true);
+    });
+
+    it("claim vencida em SILÊNCIO barra: o lead está em revisão (sem prazo)", () => {
+      const now = new Date("2027-03-10T09:00:00Z"); // um ano depois
+      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "reservado" }), { corteLegado: SEM_CORTE, now })).toBe(false);
     });
   });
 });

@@ -2,8 +2,6 @@ import { capturasDisponiveis } from "@/lib/github/dispatch";
 import { estadoVisivel, type LeadCapturas } from "@/lib/demos/capturas/estado";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { lerPool, reconstruirPool, type PoolCandidatos } from "@/lib/fila/candidatos";
-import { loadFilaConfig } from "@/lib/fila/config";
-import { retencaoMsDeHoras } from "@/lib/fila/estado";
 import type { AppDb } from "@/lib/firestore-like";
 import { getLead } from "@/lib/leads/repo";
 import { opcaoDoLead } from "@/lib/leads/selecao";
@@ -87,11 +85,10 @@ export async function poolDoPainel(
   now: Date,
   ultimaEm: string | undefined,
 ): Promise<PoolCandidatos> {
-  const retencaoMs = retencaoMsDeHoras((await loadFilaConfig(db)).retencaoEnvioHoras);
   const corteLegado = (await loadAutomacaoConfig(db)).corteLegado;
-  const pool = await lerPool(db, now, { retencaoMs, corteLegado });
+  const pool = await lerPool(db, now, { corteLegado });
   const anterior = ultimaEm !== undefined && pool.geradoEm < ultimaEm;
-  if (!pool.estoque || anterior) return reconstruirPool(db, now, { retencaoMs, corteLegado });
+  if (!pool.estoque || anterior) return reconstruirPool(db, now, { corteLegado });
   return pool;
 }
 

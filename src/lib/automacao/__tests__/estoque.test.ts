@@ -57,15 +57,15 @@ const capturaGerando = (estado: "enfileirado" | "rodando"): Lead["capturas"] => 
 
 describe("classificarEstoque — um balde por lead", () => {
   it("lead que passa nos filtros estruturais é PRONTO", () => {
-    expect(classificarEstoque(lead("a"), undefined, AGORA, 0, SEM_CORTE)).toBe("pronto");
+    expect(classificarEstoque(lead("a"), undefined, AGORA, SEM_CORTE)).toBe("pronto");
   });
 
   it("demo automática PENDENTE conta como aguardando aprovação (captura pronta ou não pedida)", () => {
-    expect(classificarEstoque(lead("a", { demo: demoAuto("pendente") }), undefined, AGORA, 0, SEM_CORTE)).toBe(
+    expect(classificarEstoque(lead("a", { demo: demoAuto("pendente") }), undefined, AGORA, SEM_CORTE)).toBe(
       "aguardandoAprovacao",
     );
     // aprovação ausente numa demo automática vale pendente
-    expect(classificarEstoque(lead("b", { demo: demoAuto() }), undefined, AGORA, 0, SEM_CORTE)).toBe(
+    expect(classificarEstoque(lead("b", { demo: demoAuto() }), undefined, AGORA, SEM_CORTE)).toBe(
       "aguardandoAprovacao",
     );
     expect(
@@ -73,13 +73,13 @@ describe("classificarEstoque — um balde por lead", () => {
         lead("c", { demo: demoAuto("pendente"), capturas: undefined }),
         undefined,
         AGORA,
-        0, SEM_CORTE,
+        SEM_CORTE,
       ),
     ).toBe("aguardandoAprovacao");
   });
 
   it("captura enfileirada ou gerando conta como a caminho — manual ou automática, uma vez só", () => {
-    expect(classificarEstoque(lead("a", { capturas: capturaGerando("enfileirado") }), undefined, AGORA, 0, SEM_CORTE)).toBe(
+    expect(classificarEstoque(lead("a", { capturas: capturaGerando("enfileirado") }), undefined, AGORA, SEM_CORTE)).toBe(
       "capturaEmAndamento",
     );
     expect(
@@ -87,14 +87,14 @@ describe("classificarEstoque — um balde por lead", () => {
         lead("b", { demo: demoAuto("pendente"), capturas: capturaGerando("rodando") }),
         undefined,
         AGORA,
-        0, SEM_CORTE,
+        SEM_CORTE,
       ),
     ).toBe("capturaEmAndamento");
   });
 
   it("automática APROVADA com captura pronta é pronta; REPROVADA não é estoque", () => {
-    expect(classificarEstoque(lead("a", { demo: demoAuto("aprovada") }), undefined, AGORA, 0, SEM_CORTE)).toBe("pronto");
-    expect(classificarEstoque(lead("b", { demo: demoAuto("reprovada") }), undefined, AGORA, 0, SEM_CORTE)).toBeUndefined();
+    expect(classificarEstoque(lead("a", { demo: demoAuto("aprovada") }), undefined, AGORA, SEM_CORTE)).toBe("pronto");
+    expect(classificarEstoque(lead("b", { demo: demoAuto("reprovada") }), undefined, AGORA, SEM_CORTE)).toBeUndefined();
   });
 
   it("fica FORA: sem demo, contactado, descartado, captura que falhou, lead de teste", () => {
@@ -106,11 +106,11 @@ describe("classificarEstoque — um balde por lead", () => {
       lead("e", { capturas: { estado: "falhou", execucaoId: "x", pedidoEm: "x", erro: "boom" } }),
       lead("f", { leadDeTeste: true }),
     ];
-    for (const l of fora) expect(classificarEstoque(l, undefined, AGORA, 0, SEM_CORTE)).toBeUndefined();
+    for (const l of fora) expect(classificarEstoque(l, undefined, AGORA, SEM_CORTE)).toBeUndefined();
   });
 
-  it("lead RETIDO por claim silenciosa não é pronto (o mesmo critério do pool)", () => {
-    const retido: FilaEnvioDoc = {
+  it("lead EM REVISÃO (claim silenciosa) não é pronto (o mesmo critério do pool)", () => {
+    const emRevisao: FilaEnvioDoc = {
       leadId: "a",
       estado: "reservado",
       claimId: "c",
@@ -121,7 +121,7 @@ describe("classificarEstoque — um balde por lead", () => {
       ultimoErro: null,
       enviadoEm: null,
     };
-    expect(classificarEstoque(lead("a"), retido, AGORA, 12 * 3600_000, SEM_CORTE)).toBeUndefined();
+    expect(classificarEstoque(lead("a"), emRevisao, AGORA, SEM_CORTE)).toBeUndefined();
   });
 });
 

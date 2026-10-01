@@ -37,7 +37,7 @@ import { LEADS_COLLECTION } from "./types";
  *    ficar certo na próxima vez que a busca rodar.
  * 4. **O doc em `filaEnvios` é removido junto**, senão fica lixo apontando
  *    para lead inexistente — um doc de claim órfão que a varredura dos
- *    retidos e a das pendências de print continuariam lendo para sempre,
+ *    revisão e a das pendências de print continuariam lendo para sempre,
  *    com nome vazio.
  *
  * **POR QUE O STORAGE VAI JUNTO, aqui e não no "Excluir demo".** As rotas

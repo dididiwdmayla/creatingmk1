@@ -15,7 +15,6 @@ import {
   TENTATIVAS_MAX,
   anotarRotacao,
   liberarClaim,
-  retencaoMsDeHoras,
   reservarLead,
 } from "@/lib/fila/envios";
 import type { TipoTarefaFila } from "@/lib/fila/estado";
@@ -185,18 +184,16 @@ async function tentarEntregar(
   leadId: string,
   dispositivo: string,
   now: Date,
-  retencaoMs: number,
   corteLegado: string,
 ): Promise<TarefaFila | undefined> {
   const reserva = await reservarLead(db, leadId, dispositivo, now, {
     tentativasMax: TENTATIVAS_MAX,
-    retencaoMs,
   });
   // Reserva viva de outro ciclo, estado terminal que o pool não viu, ou lead
-  // RETIDO por claim não confirmada. Este último é o caso que o pool sozinho
-  // não pega: ele dura 10 min e a claim 5, então nos ~4 minutos seguintes a
-  // uma expiração o pool ainda oferece o lead — e é aqui, no doc fresco, que
-  // a retenção o recusa. Ver `leadDisponivel`.
+  // EM REVISÃO (claim que venceu sem confirmação). Este último é o caso que o
+  // pool sozinho não pega: ele dura 10 min e a claim 5, então nos ~4 minutos
+  // seguintes a uma expiração o pool ainda oferece o lead — e é aqui, no doc
+  // fresco, que a revisão o recusa. Ver `leadDisponivel`.
   if (!reserva) return undefined;
 
   const lead = await getLead(db, leadId);
@@ -362,9 +359,8 @@ export async function GET(req: Request) {
     const ritmo = motivoDeRitmo(config, contador);
     if (ritmo) return semTarefa(ritmo);
 
-    const retencaoMs = retencaoMsDeHoras(config.retencaoEnvioHoras);
     const corteLegado = await corteLegadoAtual(db);
-    const pool = await lerPool(db, now, { retencaoMs, corteLegado });
+    const pool = await lerPool(db, now, { corteLegado });
     const { escolhido, diagnostico } = ordenarCandidatos(
       pool.candidatos,
       config,
@@ -373,7 +369,7 @@ export async function GET(req: Request) {
     );
 
     for (const candidato of escolhido) {
-      const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now, retencaoMs, corteLegado);
+      const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now, corteLegado);
       if (tarefa) return respostaComTarefa(tarefa);
     }
 

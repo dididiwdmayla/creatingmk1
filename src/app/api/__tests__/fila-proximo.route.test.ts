@@ -8,6 +8,7 @@ import {
   listarTarefasResposta,
 } from "@/lib/fila/respostaAutomatica";
 import { adicionarMensagemAoGrupo, listarGruposPendentes } from "@/lib/fila/respostasPendentes";
+import { liberarRevisao } from "@/lib/fila/revisao";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import type { Lead } from "@/lib/leads/types";
 import { GET } from "../fila/proximo/route";
@@ -209,12 +210,13 @@ describe("GET /api/fila/proximo — a tarefa", () => {
    * A REGRA INVERTIDA. Este teste dizia "claim expirada volta a ser
    * entregue" — o comportamento que mandou a MESMA mensagem duas vezes
    * quando `/confirmar` respondeu 503 e a macro não repetiu a chamada. A
-   * retenção por claim não confirmada (`retencaoEnvioHoras`, padrão 12h)
-   * inverte isso de propósito: ver o bloco em `lib/fila/estado.ts`. O que
-   * o teste antigo protegia — a re-reserva funcionando, com claimId NOVO —
-   * continua coberto abaixo, nos dois caminhos em que ela é permitida.
+   * REVISÃO de claim não confirmada inverte isso de propósito, e sem prazo:
+   * ver o bloco em `lib/fila/estado.ts`. O que o teste antigo protegia — a
+   * re-reserva funcionando, com claimId NOVO — continua coberto abaixo, nos
+   * dois caminhos em que ela é permitida (liberação pelo operador e falha
+   * reportada).
    */
-  it("claim expirada SEM CONFIRMAÇÃO não volta a ser entregue (retenção)", async () => {
+  it("claim expirada SEM CONFIRMAÇÃO não volta a ser entregue (revisão)", async () => {
     semear(lead("ChIJa"));
     const primeira = await (await proximo()).json();
     expect(primeira.leadId).toBe("ChIJa");
@@ -228,13 +230,12 @@ describe("GET /api/fila/proximo — a tarefa", () => {
     expect(segunda).toEqual(semTarefaEsperado("sem_leads_elegiveis"));
   });
 
-  it("vencida a retenção, o mesmo lead volta com claimId NOVO", async () => {
-    // Janela curta para o cenário caber dentro da faixa boa do lead (9h–11h30).
-    db.seed("config/fila", { retencaoEnvioHoras: 1 });
+  it("liberado da revisão pelo operador, o mesmo lead volta com claimId NOVO", async () => {
     semear(lead("ChIJa"));
     const primeira = await (await proximo()).json();
 
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 61 * 60 * 1000));
+    await liberarRevisao(db, "ChIJa", new Date());
     esquecerPool();
     const segunda = await (await proximo()).json();
 
@@ -242,21 +243,9 @@ describe("GET /api/fila/proximo — a tarefa", () => {
     expect(segunda.id).not.toBe(primeira.id);
   });
 
-  it("com a retenção desligada (0), a regra antiga volta tal como era", async () => {
-    db.seed("config/fila", { retencaoEnvioHoras: 0 });
-    semear(lead("ChIJa"));
-    const primeira = await (await proximo()).json();
-
-    vi.setSystemTime(new Date(TERCA_10H.getTime() + 6 * 60 * 1000));
-    const segunda = await (await proximo()).json();
-
-    expect(segunda.leadId).toBe("ChIJa");
-    expect(segunda.id).not.toBe(primeira.id);
-  });
-
-  it("claim confirmada como FALHA não retém: o lead volta na mesma hora", async () => {
-    // A política de 3 tentativas segue intacta — o que retém é o silêncio,
-    // não a falha reportada.
+  it("claim confirmada como FALHA não vai para revisão: o lead volta na mesma hora", async () => {
+    // A política de 3 tentativas segue intacta — o que vai para revisão é o
+    // silêncio, não a falha reportada.
     semear(lead("ChIJa"));
     const primeira = await (await proximo()).json();
 

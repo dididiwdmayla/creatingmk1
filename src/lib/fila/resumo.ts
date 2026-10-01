@@ -5,7 +5,6 @@ import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 import { corteLegadoAtual, lerPool, type CandidatoFila } from "./candidatos";
 import { loadFilaConfig, type FilaConfig } from "./config";
 import { motivoDeSaude } from "./saude";
-import { retencaoMsDeHoras } from "./envios";
 import {
   lerContadorFilaCompleto,
   momentoFimIntervalo,
@@ -179,10 +178,10 @@ export async function montarResumoFila(db: AppDb, now: Date = new Date()): Promi
   ]);
   const [contadorDoc, pool] = await Promise.all([
     lerContadorFilaCompleto(db, now, config.inicioDiaOperacionalHora),
-    // A MESMA retenção que `/proximo` passa — o doc do pool é compartilhado,
-    // e dois valores diferentes fariam quem reconstrói primeiro decidir pelo
+    // O MESMO corte que `/proximo` passa — o doc do pool é compartilhado, e
+    // dois valores diferentes fariam quem reconstrói primeiro decidir pelo
     // outro. Ver `lerPool`.
-    lerPool(db, now, { retencaoMs: retencaoMsDeHoras(config.retencaoEnvioHoras), corteLegado }),
+    lerPool(db, now, { corteLegado }),
   ]);
 
   const decisao = decidirFila(
