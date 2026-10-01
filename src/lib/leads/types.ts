@@ -137,6 +137,13 @@ export interface Lead {
   seloContato?: {
     userId: string;
     em: string;
+    /**
+     * De onde o selo veio quando NÃO foi um clique nem uma confirmação da
+     * fila: `"reconciliacao"` = marcado pela reconciliação do painel "Fila
+     * de envio" (envio provável, nunca confirmado — ver
+     * `lib/fila/reconciliacao.ts`). Ausente = o caminho normal.
+     */
+    origem?: "reconciliacao";
   };
   /**
    * Histórico de disparos pelo WhatsApp (ficha e /hoje) — cada clique no
@@ -205,6 +212,8 @@ export interface RegistroEnvioContato {
   horaLocalLead?: string;
   /** Dia da semana local do lead no disparo (0=domingo…6=sábado). */
   diaSemanaLocalLead?: number;
+  /** Mesmo sentido de `seloContato.origem`: ausente = clique ou confirmação da fila. */
+  origem?: "reconciliacao";
 }
 
 /** Uma visita registrada à demo pública do lead — ver `Lead.demoVisitas`. */

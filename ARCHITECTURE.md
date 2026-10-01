@@ -3338,6 +3338,29 @@ Duas regras específicas do envio pela fila:
 
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=saude`. O estado vem do AMBIENTE do servidor, não do banco, então a leva são duas rodadas (`--marca=bloqueada` com `RADAR_DEVICE_USER_ID`/`APP_PUBLIC_URL` vazias; `--marca=ok --sem-build` com tudo presente); o passo lê o próprio `process.env` para saber o que esperar. Cobra: 3 variáveis, faixa presente só quando falta exigida, cabeçalho nunca "Ativa" com bloqueio, nenhum VALOR de variável no texto da página, e nada vazando da viewport. Medido: o bloco encolhe sem a faixa (317→219px no celular, 256→190px no desktop).
 
+### Reconciliação — o que a fila mandou e não registrou (`src/lib/fila/reconciliacao.ts`)
+
+O conserto do estrago descrito em "Saúde da fila": enquanto `RADAR_DEVICE_USER_ID` faltava, todo lead que a fila de fato mandou continuou "novo", sem selo nem registro — e voltou a receber a mesma mensagem. A saúde impede que aconteça de novo; esta ação corrige o que já aconteceu.
+
+**Na dúvida, bloqueia: reservado conta como enviado.** Com o 503, nenhum estado gravado em `/filaEnvios` prova que nada saiu — "falhou" e "inválido" nunca chegaram a ser gravados por confirmação, e uma claim devolvida pode ter sobrescrito o doc de um envio anterior (é um doc só por lead). Por isso a prévia lista TODO lead com doc na fila cujo status ainda é "novo", em qualquer estado, e mostra o estado só como informação. Marcar contactado quem não recebeu custa um envio; deixar "novo" quem recebeu manda de novo.
+
+**Duas etapas, as duas admin only** (`/api/config/fila/reconciliacao`, sob `/api/config/` pelo motivo de sempre):
+
+- **`GET` — a prévia, somente leitura.** Varre `/filaEnvios` (aceitável aqui, como a lista de pendência: /config é admin e aberta esporadicamente) e lê POR ID só os leads desses docs, nunca `/leads` inteira. Devolve `{ linhas, total, leadsExcluidos, autorPresente, loteMax }`; cada linha tem nome, `reservadoEm`, estado e tentativas, da reserva mais recente para a mais antiga. Doc de lead excluído não vira linha, só é contado. `autorPresente` deixa a tela desabilitar o botão e dizer por quê, em vez de o clique bater num 503.
+- **`POST { leadIds, confirmar: true }` — aplica.** `confirmar` precisa ser literalmente `true` (400 senão): é a confirmação explícita que a tela pede. Lotes de até `RECONCILIACAO_LOTE_MAX` (50), mesmo motivo de `SEM_VESTIGIO_LOTE_MAX`; a tela manda em levas sequenciais e cada uma que passou já está gravada. Sem `RADAR_DEVICE_USER_ID`, 503 — o autor seria inventado.
+
+**O que o aplicar faz, por lead, numa transação**: relê lead e claim (a decisão é sobre o doc relido, não sobre a prévia) e, se o lead continua "novo", aplica `aplicarTransicao` → "contactado" (a MESMA regra de `VALID_TRANSITIONS`; nunca rebaixa) e `aplicarSeloContato`, com:
+
+- **a data da RESERVA**, não a do clique — é o instante provável do envio, e o registro guarda a hora local do lead para análise por janela: reconciliar tudo "agora" criaria um pico falso naquela hora. `atualizadoEm` é o agora (a escrita é agora);
+- **autor `RADAR_DEVICE_USER_ID`** — o que a fila teria gravado se o confirmar tivesse passado;
+- **`origem: "reconciliacao"`** no selo (quando ele é criado agora — o selo de um clique manual anterior prevalece, como sempre) e no registro somado. Campo opcional novo em `seloContato` e `RegistroEnvioContato`; ausente = clique ou confirmação da fila.
+
+**Não toca** contador do dia (a meta de hoje não pode ser gasta por envios de outros dias), rotação de frases (girar agora não muda o que já saiu) nem `/filaEnvios` (o doc é o rastro do que houve). Pulos, devolvidos na resposta: `nao_novo` (o lead avançou — inclui rodar de novo, que é idempotente), `sem_reserva` (lead sem doc na fila: a reconciliação só vale para quem a fila reservou), `lead_excluido` (nada é plantado).
+
+**No painel** (`ReconciliacaoBloco`, bloco subordinado do painel "Fila de envio", depois do "Print pendente"): a prévia com rolagem própria (pode ser longa), a contagem de reservas de lead excluído, e o botão "Marcar N como contactados…" que abre uma CONFIRMAÇÃO dizendo o que vai acontecer antes de mandar. Ao fim relê a prévia — é o servidor que diz o que sobrou.
+
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=reconciliacao` (com `RADAR_DEVICE_USER_ID` no ambiente — o passo cobra o botão habilitado coerente com isso): prévia cheia (4 estados de claim, um nome longo, uma reserva de lead excluído, um lead já contactado que NÃO pode aparecer), a confirmação aberta (o laço nunca clica "Confirmar") e VAZIA, celular e desktop, escuro e claro, sem vazamento nem rolagem horizontal. Medido: o bloco encolhe sem reservas (−269px no celular, −215px no desktop).
+
 ### `detalheEnvio` — o texto saiu, o print não
 
 A macro manda DUAS coisas por lead: o texto da prospecção e o print da demo. Quando o texto sai e o **anexo falha**, ela reporta `"enviado"` — não `"falhou"` — com o `detalhe` preenchido. O motivo é evitar duplicata: reportar falha depois de o texto ter saído devolveria o lead à fila e a pessoa receberia a mesma mensagem duas vezes, que é o padrão que mais gera denúncia no WhatsApp.

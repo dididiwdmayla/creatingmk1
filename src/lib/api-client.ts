@@ -28,6 +28,7 @@ import type {
   RespostaPendente,
 } from "@/lib/fila/estado";
 import type { GrupoComErro } from "@/lib/fila/respostasPainel";
+import type { PreviaReconciliacao, ResultadoReconciliacao } from "@/lib/fila/reconciliacao";
 import type { SaudeFila } from "@/lib/fila/saude";
 import type { SimulacaoResposta } from "@/lib/fila/simularResposta";
 import type {
@@ -500,6 +501,21 @@ export const api = {
    * exigida ausente, `/proximo` responde `pausado` e não entrega lead.
    */
   getFilaSaude: () => request<SaudeFila>("/api/config/fila/saude"),
+
+  /**
+   * A RECONCILIAÇÃO (ver `lib/fila/reconciliacao.ts`): a prévia dos leads que
+   * a fila reservou e que continuam "novo", e o aplicar — em lotes de até
+   * `loteMax`, sempre com `confirmar: true` explícito.
+   */
+  getFilaReconciliacao: () =>
+    request<PreviaReconciliacao & { autorPresente: boolean; loteMax: number }>(
+      "/api/config/fila/reconciliacao",
+    ),
+  aplicarFilaReconciliacao: (leadIds: string[]) =>
+    request<ResultadoReconciliacao>("/api/config/fila/reconciliacao", {
+      method: "POST",
+      body: JSON.stringify({ leadIds, confirmar: true }),
+    }),
 
   getFilaPendencias: (resolvidas = false) =>
     request<{ pendencias: PendenciaEnvio[] }>(

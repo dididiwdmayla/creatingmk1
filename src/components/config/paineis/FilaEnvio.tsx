@@ -13,6 +13,7 @@ import {
 import { SeletorLead } from "@/components/config/SeletorLead";
 import { DisparoTeste } from "@/components/config/paineis/DisparoTeste";
 import { PrintPendenteLista } from "@/components/config/paineis/PrintPendente";
+import { ReconciliacaoBloco } from "@/components/config/paineis/Reconciliacao";
 import { RespostaAutomaticaBloco } from "@/components/config/paineis/RespostaAutomatica";
 import { SaudeFilaBloco } from "@/components/config/paineis/SaudeFila";
 import { VisaoFila } from "@/components/config/paineis/VisaoFila";
@@ -272,6 +273,7 @@ export function FilaEnvioSection() {
       <VisaoFila versao={versaoConfig} onContador={setContador} />
       <DisparoTeste versao={versaoConfig} />
       <PrintPendenteLista />
+      <ReconciliacaoBloco />
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </PainelColapsavel>
