@@ -808,6 +808,10 @@ function semear() {
     truncado: false,
     estrutural: {
       status: 180,
+      contactadoForaDaFila: 6,
+      // O CORTE DO LEGADO na fila: criados antes de `corteLegado`, sem
+      // vestígio de contato — a etiqueta mostra a data.
+      legado: 14,
       descartado: 4,
       telefoneInvalido: 9,
       semTelefone: 21,
@@ -2738,6 +2742,7 @@ async function medirFila(browser, secret) {
       [/Retrato do pool/, "data do retrato do pool, ao lado das contagens estruturais"],
       [/print da demo não pronto/, "linha estrutural do funil"],
       [/demo automática aguardando aprovação/, "peneira da aprovação da automação no funil"],
+      [/legado sem vestígio \(criado antes de 10\/08\/2026\)/, "peneira do legado, com a data de corte"],
       [/fora dos nichos permitidos/, "etapa de nicho"],
       [/elegíveis agora/, "total de elegíveis"],
       [/Pet Center Ipiranga/, "primeiro lead elegível"],

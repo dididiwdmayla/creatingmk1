@@ -32,7 +32,7 @@ const RITMO_LABEL: Record<string, string> = {
 };
 
 /**
- * As nove peneiras ESTRUTURAIS na ordem real de avaliação (`motivoEstrutural`,
+ * As dez peneiras ESTRUTURAIS na ordem real de avaliação (`motivoEstrutural`,
  * lib/fila/candidatos.ts) — um lead que falha em várias conta só na
  * primeira, então a ordem é o que torna a coluna de números legível.
  *
@@ -45,6 +45,9 @@ const RITMO_LABEL: Record<string, string> = {
 const FUNIL_ESTRUTURAL: Array<{ chave: string; label: string }> = [
   { chave: "status", label: "já não está em “novo”" },
   { chave: "contactadoForaDaFila", label: "já contactado fora da fila (selo/registro manual)" },
+  // O rótulo ganha a DATA na renderização (ver `rotuloFunil`): "legado" sem
+  // dizer o corte faria o operador adivinhar por que o número é aquele.
+  { chave: "legado", label: "legado sem vestígio (criado antes do corte)" },
   { chave: "descartado", label: "descartado à mão" },
   { chave: "telefoneInvalido", label: "número sem WhatsApp" },
   { chave: "semTelefone", label: "sem telefone" },
@@ -53,6 +56,18 @@ const FUNIL_ESTRUTURAL: Array<{ chave: string; label: string }> = [
   { chave: "aguardandoAprovacao", label: "demo automática aguardando aprovação" },
   { chave: "semFuso", label: "sem fuso conhecido" },
 ];
+
+/** "YYYY-MM-DD" → "DD/MM/AAAA" — o corte é um dia de calendário, não um instante. */
+function dataDoCorte(corte: string): string {
+  const [ano, mes, dia] = corte.split("-");
+  return ano && mes && dia ? `${dia}/${mes}/${ano}` : corte;
+}
+
+/** O rótulo da peneira, com a data de corte quando é a do legado. */
+function rotuloFunil(chave: string, label: string, corteLegado: string | undefined): string {
+  if (chave !== "legado" || !corteLegado) return label;
+  return `legado sem vestígio (criado antes de ${dataDoCorte(corteLegado)})`;
+}
 
 /** Uma linha do funil: rótulo à esquerda, quantos pararam ali à direita. */
 function LinhaFunil({ label, valor }: { label: string; valor: number }) {
@@ -437,7 +452,11 @@ export function VisaoFila({
           </p>
           <ul className="mt-1 flex flex-col gap-0.5 text-xs">
             {FUNIL_ESTRUTURAL.map(({ chave, label }) => (
-              <LinhaFunil key={chave} label={label} valor={dados.pool.estrutural[chave] ?? 0} />
+              <LinhaFunil
+                key={chave}
+                label={rotuloFunil(chave, label, dados.corteLegado)}
+                valor={dados.pool.estrutural[chave] ?? 0}
+              />
             ))}
           </ul>
 

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { loadConfig } from "@/lib/config";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { getDb } from "@/lib/firebase/admin";
+import { corteLegadoAtual } from "@/lib/fila/candidatos";
 import { loadFilaConfig } from "@/lib/fila/config";
 import { lerContadorFila } from "@/lib/fila/contadores";
 import { LEAD_TESTE_ID, garantirLeadDeTeste } from "@/lib/fila/leadTeste";
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
     const now = new Date();
     const config = await loadFilaConfig(db);
     const contador = await lerContadorFila(db, now, config.inicioDiaOperacionalHora);
-    const app = await loadConfig(db);
+    const [app, corteLegado] = await Promise.all([loadConfig(db), corteLegadoAtual(db)]);
 
     const barreira = avaliarTeste({
       lead,
@@ -130,6 +131,7 @@ export async function POST(req: Request) {
       janelas: app.janelasContato,
       now,
       pular: etapas,
+      corteLegado,
     });
     if (barreira) {
       return NextResponse.json({ injetada: false, leadId: lead.placeId, nome: lead.nome, ...barreira });

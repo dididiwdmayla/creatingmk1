@@ -74,6 +74,9 @@ async function resumo() {
 
 beforeEach(() => {
   db = new FakeFirestore();
+  // Os leads deste arquivo são de março; o corte do legado tem testes
+  // próprios (fila-legado.route.test.ts) — aqui ele fica antes deles.
+  db.seed("config/automacao", { corteLegado: "2000-01-01" });
   vi.stubEnv("RADAR_DEVICE_KEY", CHAVE);
   vi.stubEnv("RADAR_DEVICE_USER_ID", "admin");
   vi.stubEnv("APP_PUBLIC_URL", "https://radar.exemplo.com");

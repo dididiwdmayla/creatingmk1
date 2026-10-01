@@ -2,7 +2,7 @@ import { loadConfig } from "@/lib/config";
 import type { AppDb } from "@/lib/firestore-like";
 import { updateLeadExtras } from "@/lib/leads/repo";
 
-import { lerPoolBruto } from "./candidatos";
+import { corteLegadoAtual, lerPoolBruto } from "./candidatos";
 import { loadFilaConfig } from "./config";
 import { lerContadorFila } from "./contadores";
 import { FILA_ENVIOS_COLLECTION } from "./envios";
@@ -134,7 +134,7 @@ export async function montarBalaoFila(db: AppDb, now: Date): Promise<BalaoFila> 
     };
   }
 
-  const app = await loadConfig(db);
+  const [app, corteLegado] = await Promise.all([loadConfig(db), corteLegadoAtual(db)]);
   // A MESMA função de `/proximo` e do painel. `coletarBloqueados` fica
   // desligado: o balão mostra quem VAI SAIR, e montar a lista de quem está
   // parado na janela custaria memória para ninguém ler.
@@ -148,6 +148,7 @@ export async function montarBalaoFila(db: AppDb, now: Date): Promise<BalaoFila> 
       // Todo mundo desta lista está em janela AGORA; "quando entra" é
       // pergunta de quem está bloqueado, e o balão não mostra bloqueados.
       comProximaFaixa: false,
+      corteLegado,
     }),
     linhasPendentesManuais(db, pool.manuaisPendentes.slice(0, BALAO_PENDENTES)),
   ]);

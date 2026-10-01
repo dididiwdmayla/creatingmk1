@@ -1,5 +1,5 @@
-import { saoPauloDateKey } from "@/lib/costs/periodoUsuario";
 import { skinsDoNicho } from "@/lib/demos/nicho";
+import { ehLegado } from "@/lib/leads/legado";
 import type { Lead } from "@/lib/leads/types";
 
 /**
@@ -61,8 +61,7 @@ export function motivoInelegivelAutomacao(
   if (lead.automacaoReprovada) return "reprovado";
   if (lead.demo) return "temDemo";
   if (!lead.busca?.nicho || skinsDoNicho(lead.busca.nicho).length === 0) return "nichoSemSkin";
-  const criado = new Date(lead.criadoEm);
-  if (Number.isNaN(criado.getTime()) || saoPauloDateKey(criado) < corteLegado) return "legado";
+  if (ehLegado(lead, corteLegado)) return "legado";
   return undefined;
 }
 

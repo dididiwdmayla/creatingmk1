@@ -182,6 +182,8 @@ export interface GeocodeResponse {
 export interface FilaDiagnosticoResponse {
   /** Portão de ritmo ativo agora (`pausado`, `meta_atingida`…), ou null. */
   ritmo: string | null;
+  /** Data de corte do legado em vigor ("YYYY-MM-DD", `config/automacao.corteLegado`) — a etiqueta do funil a mostra. */
+  corteLegado: string;
   contador: ContadorPainel;
   pool: {
     /** ISO do último rebuild, ou null se ninguém bateu em /proximo ainda. */

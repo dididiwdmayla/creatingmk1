@@ -90,6 +90,9 @@ async function disparar(corpo: unknown = {}) {
 
 beforeEach(() => {
   db = new FakeFirestore();
+  // Os leads deste arquivo são de março; o corte do legado tem testes
+  // próprios (fila-legado.route.test.ts) — aqui ele fica antes deles.
+  db.seed("config/automacao", { corteLegado: "2000-01-01" });
   vi.stubEnv("APP_PASSWORD", "segredo123");
   vi.useFakeTimers();
   vi.setSystemTime(TERCA_10H);

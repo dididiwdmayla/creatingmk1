@@ -47,6 +47,8 @@ const MOTIVO_TESTE_LABEL: Record<string, string> = {
   teto_hora: "o teto por hora foi atingido",
   intervalo: "ainda não passou o intervalo mínimo entre envios",
   status: "o lead já não está em “novo”",
+  contactadoForaDaFila: "o lead já foi contactado fora da fila (selo ou registro manual)",
+  legado: "o lead é legado: criado antes da data de corte, sem vestígio de contato",
   descartado: "o lead foi descartado à mão",
   telefoneInvalido: "o número do lead está marcado como sem WhatsApp",
   semTelefone: "o lead não tem telefone",

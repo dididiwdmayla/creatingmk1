@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/firebase/admin";
 import { autenticarDispositivo } from "@/lib/fila/auth";
-import { candidatoEstavel, lerPool } from "@/lib/fila/candidatos";
+import { candidatoEstavel, corteLegadoAtual, lerPool } from "@/lib/fila/candidatos";
 import { loadFilaConfig } from "@/lib/fila/config";
 import {
   lerContadorFila,
@@ -186,6 +186,7 @@ async function tentarEntregar(
   dispositivo: string,
   now: Date,
   retencaoMs: number,
+  corteLegado: string,
 ): Promise<TarefaFila | undefined> {
   const reserva = await reservarLead(db, leadId, dispositivo, now, {
     tentativasMax: TENTATIVAS_MAX,
@@ -202,7 +203,11 @@ async function tentarEntregar(
   // `candidatoEstavel` com `undefined` no envio: o estado da fila já foi
   // decidido pela reserva acima (que é transacional); aqui o que se reconfere
   // é o LEAD — status, telefone, demo, capturas, descarte, número inválido.
-  const printUrl = lead && candidatoEstavel(lead, undefined) ? printUrlDoLead(lead.capturas) : undefined;
+  // O corte do legado vale AQUI também, sobre o doc fresco e o corte lido
+  // nesta chamada: um pool construído antes de o corte mudar continua
+  // oferecendo o lead até o TTL, e é esta releitura que não o entrega.
+  const printUrl =
+    lead && candidatoEstavel(lead, undefined, { corteLegado }) ? printUrlDoLead(lead.capturas) : undefined;
   if (!lead || !printUrl) {
     await liberarClaim(db, leadId, reserva.claimId);
     return undefined;
@@ -358,7 +363,8 @@ export async function GET(req: Request) {
     if (ritmo) return semTarefa(ritmo);
 
     const retencaoMs = retencaoMsDeHoras(config.retencaoEnvioHoras);
-    const pool = await lerPool(db, now, { retencaoMs });
+    const corteLegado = await corteLegadoAtual(db);
+    const pool = await lerPool(db, now, { retencaoMs, corteLegado });
     const { escolhido, diagnostico } = ordenarCandidatos(
       pool.candidatos,
       config,
@@ -367,7 +373,7 @@ export async function GET(req: Request) {
     );
 
     for (const candidato of escolhido) {
-      const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now, retencaoMs);
+      const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now, retencaoMs, corteLegado);
       if (tarefa) return respostaComTarefa(tarefa);
     }
 

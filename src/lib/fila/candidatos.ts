@@ -5,8 +5,10 @@ import {
   somarBalde,
   type Estoque,
 } from "@/lib/automacao/balde";
+import { loadAutomacaoConfig } from "@/lib/automacao/config";
 import type { AppDb } from "@/lib/firestore-like";
 import { utcOffsetDoLead } from "@/lib/leads/janelaContato";
+import { ehLegado } from "@/lib/leads/legado";
 import { LEADS_COLLECTION, type Lead } from "@/lib/leads/types";
 import type { FaixaHorario } from "@/lib/places/client";
 import { normalizaNicho } from "@/lib/precificacao/calc";
@@ -105,6 +107,7 @@ export interface CandidatoFila {
 export const MOTIVOS_ESTRUTURAIS = [
   "status",
   "contactadoForaDaFila",
+  "legado",
   "descartado",
   "telefoneInvalido",
   "semTelefone",
@@ -134,6 +137,7 @@ export function estruturalVazio(): DiagnosticoEstrutural {
   return {
     status: 0,
     contactadoForaDaFila: 0,
+    legado: 0,
     descartado: 0,
     telefoneInvalido: 0,
     semTelefone: 0,
@@ -225,6 +229,15 @@ export interface PendenteManual {
  */
 export const MANUAIS_PENDENTES_MAX = 20;
 
+/**
+ * A data de corte do legado EM VIGOR — `config/automacao.corteLegado`, o
+ * mesmo campo que o planejador da automação lê. Uma leitura de doc; quem
+ * chama a fila a faz uma vez por requisição e passa adiante.
+ */
+export async function corteLegadoAtual(db: AppDb): Promise<string> {
+  return (await loadAutomacaoConfig(db)).corteLegado;
+}
+
 function poolRef(db: AppDb) {
   return db.collection(FILA_CANDIDATOS_COLLECTION).doc(FILA_CANDIDATOS_DOC);
 }
@@ -264,7 +277,7 @@ function poolRef(db: AppDb) {
  * `contactadoForaDaFila`. Checar na ordem inversa rotularia o envio
  * automático como "contactado fora da fila", o que seria falso.
  */
-export function motivoEstrutural(lead: Lead): MotivoEstrutural | undefined {
+export function motivoEstrutural(lead: Lead, corteLegado: string): MotivoEstrutural | undefined {
   if (lead.status !== "novo") return "status";
   if (
     lead.seloContato !== undefined ||
@@ -273,6 +286,20 @@ export function motivoEstrutural(lead: Lead): MotivoEstrutural | undefined {
   ) {
     return "contactadoForaDaFila";
   }
+  // O CORTE DO LEGADO — o mesmo campo e a mesma função do planejador da
+  // automação (`ehLegado`, lib/leads/legado.ts): lead criado antes da data
+  // de corte pode ter sido abordado à mão sem deixar rastro, e a ordem da
+  // fila (mais antigo primeiro) o poria no topo. Vem DEPOIS do vestígio, e
+  // a ordem importa: o legado COM selo/registro já está explicado pela
+  // peneira de cima; esta conta só o que não tem rastro nenhum. O lead
+  // marcado à mão (`filaManual`) passa: foi o operador que olhou a ficha e
+  // decidiu — é exatamente a dúvida que o corte aproxima quando ninguém
+  // está olhando. `corteLegado` é obrigatório de propósito: todo chamador
+  // decide de onde ele vem (`config/automacao`, via `corteLegadoAtual`),
+  // em vez de cair num default calado. `""` desliga o corte — só para quem
+  // avalia exclusivamente lead MANUAL (que passa de qualquer jeito) e não
+  // deve pagar uma leitura à toa.
+  if (lead.filaManual !== true && ehLegado(lead, corteLegado)) return "legado";
   if (lead.descartado === true) return "descartado";
   if (lead.telefoneInvalido === true) return "telefoneInvalido";
   if (!(lead.detalhes?.telefoneIntl ?? lead.telefoneIntl)) return "semTelefone";
@@ -359,10 +386,12 @@ function envioImpedePool(
 export function candidatoEstavel(
   lead: Lead,
   envio: FilaEnvioDoc | undefined,
-  now: Date = new Date(),
-  retencaoMs = 0,
+  opcoes: { corteLegado: string; now?: Date; retencaoMs?: number },
 ): boolean {
-  return motivoEstrutural(lead) === undefined && !envioImpedePool(envio, now, retencaoMs);
+  return (
+    motivoEstrutural(lead, opcoes.corteLegado) === undefined &&
+    !envioImpedePool(envio, opcoes.now ?? new Date(), opcoes.retencaoMs ?? 0)
+  );
 }
 
 function paraCandidato(lead: Lead): CandidatoFila {
@@ -372,7 +401,9 @@ function paraCandidato(lead: Lead): CandidatoFila {
     // `candidatoEstavel` já garantiu que não é undefined.
     offset: utcOffsetDoLead(lead) as number,
     faixas: lead.horarios?.faixas ?? [],
-    criadoEm: lead.criadoEm,
+    // Só o manual chega aqui sem `criadoEm` (o legado é barrado antes): ""
+    // o põe na frente dos naturais, que é onde o manual já fica.
+    criadoEm: lead.criadoEm ?? "",
     // Chave OMITIDA quando não é manual (e não `manual: false`): são até
     // POOL_MAX entradas no mesmo doc de 1 MiB, e a ausência já significa
     // exatamente isso em todo mundo que a lê.
@@ -394,7 +425,7 @@ function paraCandidato(lead: Lead): CandidatoFila {
 export async function construirPool(
   db: AppDb,
   now: Date = new Date(),
-  opcoes: { retencaoMs?: number } = {},
+  opcoes: { retencaoMs?: number; corteLegado: string },
 ): Promise<PoolCandidatos> {
   const [leadsSnap, enviosSnap] = await Promise.all([
     db.collection(LEADS_COLLECTION).get(),
@@ -422,7 +453,7 @@ export async function construirPool(
     // `lib/fila/leadTeste.ts`).
     if (lead.leadDeTeste === true) continue;
     lidos += 1;
-    const motivo = motivoEstrutural(lead);
+    const motivo = motivoEstrutural(lead, opcoes.corteLegado);
     const envio = envios.get(lead.placeId);
     // O balde do estoque da automação, na MESMA passada (ver `estoque` em
     // `PoolCandidatos`). `envioImpedePool` só é avaliado quando não há
@@ -431,7 +462,7 @@ export async function construirPool(
     const balde = baldeEstoque(lead, motivo, passa);
     somarBalde(estoque, balde);
     if (naFilaDeAprovacao(lead, balde)) {
-      aprovacao.push({ id: lead.placeId, criadoEm: lead.criadoEm });
+      aprovacao.push({ id: lead.placeId, criadoEm: lead.criadoEm ?? "" });
     }
     if (motivo) {
       estrutural[motivo] += 1;
@@ -442,7 +473,7 @@ export async function construirPool(
       // (status, contactado fora da fila, descartado, número sem WhatsApp)
       // não entram: ali não falta peça, houve decisão.
       if (lead.filaManual === true && motivoEhFisico(motivo)) {
-        pendentes.push({ id: lead.placeId, motivo, criadoEm: lead.criadoEm });
+        pendentes.push({ id: lead.placeId, motivo, criadoEm: lead.criadoEm ?? "" });
       }
       continue;
     }
@@ -501,7 +532,7 @@ function poolValido(data: Record<string, unknown> | undefined, now: Date): PoolC
 export async function lerPool(
   db: AppDb,
   now: Date = new Date(),
-  opcoes: { retencaoMs?: number } = {},
+  opcoes: { retencaoMs?: number; corteLegado: string },
 ): Promise<PoolCandidatos> {
   const snap = await poolRef(db).get();
   const valido = poolValido(snap.exists ? snap.data() : undefined, now);
@@ -520,7 +551,7 @@ export async function lerPool(
 export async function reconstruirPool(
   db: AppDb,
   now: Date = new Date(),
-  opcoes: { retencaoMs?: number } = {},
+  opcoes: { retencaoMs?: number; corteLegado: string },
 ): Promise<PoolCandidatos> {
   const novo = await construirPool(db, now, opcoes);
   await poolRef(db).set(novo as unknown as Record<string, unknown>);
