@@ -62,6 +62,8 @@ export async function linhasDoPainel(
     niveisAceitos: readonly NivelContato[];
     now: Date;
     comProximaFaixa: boolean;
+    /** O corte do legado em vigor — a tela não mostra quem a entrega recusaria. */
+    corteLegado: string;
   },
 ): Promise<LinhaFilaPainel[]> {
   const porId = new Map(pool.map((candidato) => [candidato.id, candidato]));
@@ -73,7 +75,7 @@ export async function linhasDoPainel(
 
       const lead = await getLead(db, id);
       // Pool velho pode OFERECER quem não serve mais; a tela não mostra.
-      if (!lead || motivoEstrutural(lead) !== undefined) return undefined;
+      if (!lead || motivoEstrutural(lead, opcoes.corteLegado) !== undefined) return undefined;
 
       const proxima =
         opcoes.comProximaFaixa
@@ -131,7 +133,9 @@ export async function linhasPendentesManuais(
     pendentes.map(async ({ id }): Promise<LinhaPendenteManual | undefined> => {
       const lead = await getLead(db, id);
       if (!lead || lead.filaManual !== true) return undefined;
-      const motivo = motivoEstrutural(lead);
+      // `""`: só lead MANUAL chega aqui, e o manual passa pelo corte do
+      // legado — nenhuma leitura de config à toa.
+      const motivo = motivoEstrutural(lead, "");
       // Não é mais ausência de peça: ou virou candidato de verdade (motivo
       // nenhum), ou parou numa DECISÃO (descarte, status, número sem
       // WhatsApp) — e decisão não é pendência.

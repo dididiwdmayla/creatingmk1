@@ -18,6 +18,13 @@ import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import type { AppDb } from "@/lib/firestore-like";
 import type { Lead } from "@/lib/leads/types";
 
+/**
+ * Sem corte do legado (`""`): este arquivo testa OUTRAS regras, e os leads
+ * dele são de março — antes do corte padrão. O corte tem testes próprios
+ * (`fila-legado.route.test.ts`).
+ */
+const SEM_CORTE = "";
+
 const AGORA = new Date("2026-03-10T10:00:00Z");
 
 function lead(id: string, overrides: Partial<Lead> = {}): Lead {
@@ -79,7 +86,7 @@ function comContador(db: FakeFirestore): { db: AppDb; varreduras: Record<string,
 
 describe("candidatoEstavel", () => {
   it("aceita o lead pronto para prospecção", () => {
-    expect(candidatoEstavel(lead("ChIJa"), undefined)).toBe(true);
+    expect(candidatoEstavel(lead("ChIJa"), undefined, { corteLegado: SEM_CORTE })).toBe(true);
   });
 
   const recusas: Array<[string, Partial<Lead>]> = [
@@ -93,7 +100,7 @@ describe("candidatoEstavel", () => {
   ];
   for (const [nome, override] of recusas) {
     it(`recusa: ${nome}`, () => {
-      expect(candidatoEstavel(lead("ChIJa", override), undefined)).toBe(false);
+      expect(candidatoEstavel(lead("ChIJa", override), undefined, { corteLegado: SEM_CORTE })).toBe(false);
     });
   }
 
@@ -102,29 +109,29 @@ describe("candidatoEstavel", () => {
       telefoneIntl: undefined,
       detalhes: { telefoneIntl: "+55 44 90000-0000", enriquecidoEm: "x" } as Lead["detalhes"],
     });
-    expect(candidatoEstavel(l, undefined)).toBe(true);
+    expect(candidatoEstavel(l, undefined, { corteLegado: SEM_CORTE })).toBe(true);
   });
 
   describe("contra o estado da fila", () => {
     it("enviado e invalido são terminais", () => {
-      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "enviado" }))).toBe(false);
-      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "invalido" }))).toBe(false);
+      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "enviado" }), { corteLegado: SEM_CORTE })).toBe(false);
+      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "invalido" }), { corteLegado: SEM_CORTE })).toBe(false);
     });
 
     it("falhou volta enquanto houver tentativa, e para ao esgotar", () => {
-      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "falhou", tentativas: 2 }))).toBe(true);
-      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "falhou", tentativas: 3 }))).toBe(false);
+      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "falhou", tentativas: 2 }), { corteLegado: SEM_CORTE })).toBe(true);
+      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "falhou", tentativas: 3 }), { corteLegado: SEM_CORTE })).toBe(false);
     });
 
     it("claim viva NÃO barra aqui — quem decide isso é a transação da reserva", () => {
-      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "reservado" }))).toBe(true);
+      expect(candidatoEstavel(lead("ChIJa"), envio({ estado: "reservado" }), { corteLegado: SEM_CORTE })).toBe(true);
     });
   });
 });
 
 describe("motivoEstrutural — o diagnóstico por trás de candidatoEstavel", () => {
   it("lead pronto: undefined (nenhum motivo)", () => {
-    expect(motivoEstrutural(lead("ChIJa"))).toBeUndefined();
+    expect(motivoEstrutural(lead("ChIJa"), SEM_CORTE)).toBeUndefined();
   });
 
   const casos: Array<[string, Partial<Lead>, (typeof MOTIVOS_ESTRUTURAIS)[number]]> = [
@@ -173,14 +180,14 @@ describe("motivoEstrutural — o diagnóstico por trás de candidatoEstavel", ()
   ];
   for (const [nome, override, esperado] of casos) {
     it(`${nome} → "${esperado}"`, () => {
-      expect(motivoEstrutural(lead("ChIJa", override))).toBe(esperado);
+      expect(motivoEstrutural(lead("ChIJa", override), SEM_CORTE)).toBe(esperado);
     });
   }
 
   it("quando vários filtros falham ao mesmo tempo, conta pelo PRIMEIRO da ordem de avaliação", () => {
     // descartado E telefoneInvalido juntos: "descartado" é checado antes.
     expect(
-      motivoEstrutural(lead("ChIJa", { descartado: true, telefoneInvalido: true })),
+      motivoEstrutural(lead("ChIJa", { descartado: true, telefoneInvalido: true }), SEM_CORTE),
     ).toBe("descartado");
   });
 
@@ -188,7 +195,7 @@ describe("motivoEstrutural — o diagnóstico por trás de candidatoEstavel", ()
     it("lead com seloContato e status ainda 'novo' é excluído, com a razão nova", () => {
       const l = lead("ChIJa", { seloContato: { userId: "u1", em: "2026-03-05T12:00:00.000Z" } });
       expect(l.status).toBe("novo"); // a premissa do buraco: o clique não mudou status
-      expect(motivoEstrutural(l)).toBe("contactadoForaDaFila");
+      expect(motivoEstrutural(l, SEM_CORTE)).toBe("contactadoForaDaFila");
     });
 
     it("lead enviado PELA fila (status e selo mudam juntos, na confirmação) retorna \"status\" — não a razão nova", () => {
@@ -204,7 +211,7 @@ describe("motivoEstrutural — o diagnóstico por trás de candidatoEstavel", ()
         ],
         contato: { primeiroContatoEm: "2026-03-05T12:00:00.000Z" },
       });
-      expect(motivoEstrutural(l)).toBe("status");
+      expect(motivoEstrutural(l, SEM_CORTE)).toBe("status");
     });
   });
 
@@ -213,12 +220,12 @@ describe("motivoEstrutural — o diagnóstico por trás de candidatoEstavel", ()
       telefoneIntl: undefined,
       detalhes: { telefoneIntl: "+55 44 90000-0000", enriquecidoEm: "x" } as Lead["detalhes"],
     });
-    expect(motivoEstrutural(l)).toBeUndefined();
+    expect(motivoEstrutural(l, SEM_CORTE)).toBeUndefined();
   });
 
   it("tentativas esgotadas não é um motivo ESTRUTURAL — motivoEstrutural nem olha o envio", () => {
     // O lead em si está limpo; só a fila (envio) o exclui — ver candidatoEstavel.
-    expect(motivoEstrutural(lead("ChIJa"))).toBeUndefined();
+    expect(motivoEstrutural(lead("ChIJa"), SEM_CORTE)).toBeUndefined();
   });
 });
 
@@ -227,7 +234,7 @@ describe("construirPool", () => {
     const db = new FakeFirestore();
     db.seed("leads/ChIJa", lead("ChIJa") as unknown as Record<string, unknown>);
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.candidatos).toEqual([
       {
@@ -247,7 +254,7 @@ describe("construirPool", () => {
     db.seed("leads/ChIJa", lead("ChIJa", { criadoEm: "2026-01-01T00:00:00.000Z" }) as unknown as Record<string, unknown>);
     db.seed("leads/ChIJz", lead("ChIJz", { status: "fechado" }) as unknown as Record<string, unknown>);
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.candidatos.map((c) => c.id)).toEqual(["ChIJa", "ChIJb"]);
     expect(pool.lidos).toBe(3); // leu os 3, guardou 2
@@ -257,7 +264,7 @@ describe("construirPool", () => {
     const db = new FakeFirestore();
     db.seed("leads/ChIJa", lead("ChIJa", { busca: undefined }) as unknown as Record<string, unknown>);
 
-    expect((await construirPool(db, AGORA)).candidatos[0].nicho).toBe("");
+    expect((await construirPool(db, AGORA, { corteLegado: SEM_CORTE })).candidatos[0].nicho).toBe("");
   });
 
   it("conta o diagnóstico estrutural na MESMA passada — cada lead barrado cai no balde certo", async () => {
@@ -297,12 +304,14 @@ describe("construirPool", () => {
       } as Partial<Lead>) as unknown as Record<string, unknown>,
     );
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.candidatos.map((c) => c.id)).toEqual(["ok"]);
     expect(pool.estrutural).toEqual({
       status: 1,
       contactadoForaDaFila: 1,
+      // Sem corte neste arquivo (SEM_CORTE): a peneira existe e conta zero.
+      legado: 0,
       descartado: 1,
       telefoneInvalido: 1,
       semTelefone: 1,
@@ -323,7 +332,7 @@ describe("construirPool", () => {
       envio({ estado: "falhou", tentativas: 3 }) as unknown as Record<string, unknown>,
     );
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.candidatos).toEqual([]);
     expect(pool.estrutural).toEqual(estruturalVazio());
@@ -336,12 +345,12 @@ describe("lerPool — o pool é o que evita varrer /leads a cada chamada", () =>
     base.seed("leads/ChIJa", lead("ChIJa") as unknown as Record<string, unknown>);
     const { db, varreduras } = comContador(base);
 
-    await lerPool(db, AGORA);
+    await lerPool(db, AGORA, { corteLegado: SEM_CORTE });
     expect(varreduras.leads).toBe(1);
 
     // Nove minutos e cinquenta e nove chamadas depois: nenhuma varredura nova.
     for (let i = 1; i <= 59; i++) {
-      await lerPool(db, new Date(AGORA.getTime() + i * 10_000));
+      await lerPool(db, new Date(AGORA.getTime() + i * 10_000), { corteLegado: SEM_CORTE });
     }
     expect(varreduras.leads).toBe(1);
   });
@@ -351,8 +360,8 @@ describe("lerPool — o pool é o que evita varrer /leads a cada chamada", () =>
     base.seed("leads/ChIJa", lead("ChIJa") as unknown as Record<string, unknown>);
     const { db, varreduras } = comContador(base);
 
-    await lerPool(db, AGORA);
-    await lerPool(db, new Date(AGORA.getTime() + POOL_TTL_MS + 1));
+    await lerPool(db, AGORA, { corteLegado: SEM_CORTE });
+    await lerPool(db, new Date(AGORA.getTime() + POOL_TTL_MS + 1), { corteLegado: SEM_CORTE });
 
     expect(varreduras.leads).toBe(2);
   });
@@ -368,7 +377,7 @@ describe("lerPool — o pool é o que evita varrer /leads a cada chamada", () =>
     });
     const { db, varreduras } = comContador(base);
 
-    const pool = await lerPool(db, AGORA);
+    const pool = await lerPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(varreduras.leads).toBe(1);
     expect(pool.candidatos).toHaveLength(1);
@@ -379,7 +388,7 @@ describe("lerPool — o pool é o que evita varrer /leads a cada chamada", () =>
     base.seed("filaCandidatos/pool", { lixo: true });
     const { db, varreduras } = comContador(base);
 
-    await expect(lerPool(db, AGORA)).resolves.toMatchObject({ candidatos: [] });
+    await expect(lerPool(db, AGORA, { corteLegado: SEM_CORTE })).resolves.toMatchObject({ candidatos: [] });
     expect(varreduras.leads).toBe(1);
   });
 
@@ -395,7 +404,7 @@ describe("lerPool — o pool é o que evita varrer /leads a cada chamada", () =>
       );
     }
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.candidatos).toHaveLength(POOL_MAX);
     expect(pool.lidos).toBe(POOL_MAX + 1);
@@ -476,7 +485,7 @@ describe("a SELEÇÃO MANUAL no pool (`Lead.filaManual`)", () => {
     db.seed("leads/manual", lead("manual", { filaManual: true }) as unknown as Record<string, unknown>);
     db.seed("leads/natural", lead("natural") as unknown as Record<string, unknown>);
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     const manual = pool.candidatos.find((c) => c.id === "manual");
     const natural = pool.candidatos.find((c) => c.id === "natural");
@@ -492,7 +501,7 @@ describe("a SELEÇÃO MANUAL no pool (`Lead.filaManual`)", () => {
       lead("pendente", { filaManual: true, demo: undefined }) as unknown as Record<string, unknown>,
     );
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.candidatos).toEqual([]);
     expect(pool.manuaisPendentes).toEqual([{ id: "pendente", motivo: "semDemo" }]);
@@ -519,7 +528,7 @@ describe("a SELEÇÃO MANUAL no pool (`Lead.filaManual`)", () => {
       lead("sem-fuso", { filaManual: true, horarios: undefined, endereco: undefined }) as unknown as Record<string, unknown>,
     );
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.manuaisPendentes).toEqual([
       { id: "sem-fuso", motivo: "semFuso" },
@@ -543,7 +552,7 @@ describe("a SELEÇÃO MANUAL no pool (`Lead.filaManual`)", () => {
       lead("invalido", { filaManual: true, telefoneInvalido: true }) as unknown as Record<string, unknown>,
     );
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.manuaisPendentes).toEqual([]);
     expect(pool.manuaisPendentesTotal).toBe(0);
@@ -553,7 +562,7 @@ describe("a SELEÇÃO MANUAL no pool (`Lead.filaManual`)", () => {
     const db = new FakeFirestore();
     db.seed("leads/x", lead("x", { demo: undefined }) as unknown as Record<string, unknown>);
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.manuaisPendentes).toEqual([]);
     expect(pool.estrutural.semDemo).toBe(1);
@@ -569,7 +578,7 @@ describe("a SELEÇÃO MANUAL no pool (`Lead.filaManual`)", () => {
       );
     }
 
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.manuaisPendentes).toHaveLength(MANUAIS_PENDENTES_MAX);
     expect(pool.manuaisPendentesTotal).toBe(MANUAIS_PENDENTES_MAX + 3);

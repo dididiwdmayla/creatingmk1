@@ -10,6 +10,13 @@ import { montarPainelAutomacao, resumirExecucao } from "../painel";
 import { execucaoMorta, resumoCabecalho, type PainelAutomacao } from "../painelTipos";
 import type { ExecucaoAutomacao } from "../execucao";
 
+/**
+ * Sem corte do legado (`""`): este arquivo testa OUTRAS regras, e os leads
+ * dele são de março — antes do corte padrão. O corte tem testes próprios
+ * (`fila-legado.route.test.ts`).
+ */
+const SEM_CORTE = "";
+
 const AGORA = new Date("2026-09-20T12:00:00Z");
 
 function lead(id: string, overrides: Partial<Lead> = {}): Lead {
@@ -81,7 +88,7 @@ describe("pool da fila apura o estoque e a fila de aprovação na mesma passada"
   it("o estoque do pool é o MESMO de calcularEstoque", async () => {
     const db = new FakeFirestore();
     base(db);
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
     expect(pool.estoque).toEqual(await calcularEstoque(db, AGORA));
     expect(pool.estoque).toEqual({ prontos: 3, aguardandoAprovacao: 1, capturasEmAndamento: 2, total: 6 });
   });
@@ -89,7 +96,7 @@ describe("pool da fila apura o estoque e a fila de aprovação na mesma passada"
   it("fila de aprovação: só demo automática pendente no funil, ordem justa, sem o lead de teste", async () => {
     const db = new FakeFirestore();
     base(db);
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
     // pendente-gerando é mais antigo (criadoEm 25/08) que pendente-print (01/09).
     expect(pool.aprovacaoPendentes).toEqual(["pendente-gerando", "pendente-print"]);
     expect(pool.aprovacaoPendentesTotal).toBe(2);
@@ -98,7 +105,7 @@ describe("pool da fila apura o estoque e a fila de aprovação na mesma passada"
   it("os candidatos não mudaram: o pool continua só com quem passa em candidatoEstavel", async () => {
     const db = new FakeFirestore();
     base(db);
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
     expect(pool.candidatos.map((c) => c.id).sort()).toEqual(["aprovada", "pronto-1", "pronto-2"]);
   });
 });

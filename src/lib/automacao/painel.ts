@@ -88,9 +88,10 @@ export async function poolDoPainel(
   ultimaEm: string | undefined,
 ): Promise<PoolCandidatos> {
   const retencaoMs = retencaoMsDeHoras((await loadFilaConfig(db)).retencaoEnvioHoras);
-  const pool = await lerPool(db, now, { retencaoMs });
+  const corteLegado = (await loadAutomacaoConfig(db)).corteLegado;
+  const pool = await lerPool(db, now, { retencaoMs, corteLegado });
   const anterior = ultimaEm !== undefined && pool.geradoEm < ultimaEm;
-  if (!pool.estoque || anterior) return reconstruirPool(db, now, { retencaoMs });
+  if (!pool.estoque || anterior) return reconstruirPool(db, now, { retencaoMs, corteLegado });
   return pool;
 }
 

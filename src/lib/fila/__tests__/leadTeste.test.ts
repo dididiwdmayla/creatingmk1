@@ -11,6 +11,13 @@ import { LEAD_TESTE_ID, ehLeadDeTeste, garantirLeadDeTeste, leadDeTesteInicial }
 import { confirmarTeste, injetarTeste, lerTesteAtual } from "../teste";
 
 /**
+ * Sem corte do legado (`""`): este arquivo testa OUTRAS regras, e os leads
+ * dele são de março — antes do corte padrão. O corte tem testes próprios
+ * (`fila-legado.route.test.ts`).
+ */
+const SEM_CORTE = "";
+
+/**
  * O INVENTÁRIO — o trabalho central do lead fixo de teste não é criá-lo, é
  * garantir que ele não vaze para lugar nenhum.
  *
@@ -174,7 +181,7 @@ describe("lead fixo de teste — fora de toda listagem e agregado", () => {
     // REALMENTE candidato da fila não teria esse carimbo (ver
     // `contactadoForaDaFila` em `candidatos.ts`).
     const db = comLeads(lead("ChIJa", { contato: undefined }), leadTeste());
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
 
     expect(pool.candidatos.map((c) => c.id)).toEqual(["ChIJa"]);
     expect(pool.lidos).toBe(1);
@@ -185,7 +192,7 @@ describe("lead fixo de teste — fora de toda listagem e agregado", () => {
     // Descartado à mão: contaria em `estrutural.descartado` e mexeria no
     // funil da tela — o lead de teste não existe para aquela contagem.
     const db = comLeads(leadTeste(), lead(LEAD_TESTE_ID + "-2", { leadDeTeste: true, descartado: true }));
-    const pool = await construirPool(db, AGORA);
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
     expect(pool.lidos).toBe(0);
     expect(pool.estrutural.descartado).toBe(0);
   });
@@ -216,8 +223,8 @@ describe("disparo de teste — nunca grava selo de contato no lead", () => {
     };
     db.seed(`leads/${LEAD_TESTE_ID}`, leadCompleto as unknown as Record<string, unknown>);
 
-    expect(motivoEstrutural(leadCompleto)).toBeUndefined();
-    expect(candidatoEstavel(leadCompleto, undefined)).toBe(true);
+    expect(motivoEstrutural(leadCompleto, SEM_CORTE)).toBeUndefined();
+    expect(candidatoEstavel(leadCompleto, undefined, { corteLegado: SEM_CORTE })).toBe(true);
 
     await injetarTeste(
       db,
@@ -248,7 +255,7 @@ describe("disparo de teste — nunca grava selo de contato no lead", () => {
 
     // A trava em si: nenhum sinal novo em `motivoEstrutural`, então o lead
     // continua tão elegível quanto antes do primeiro disparo de teste.
-    expect(motivoEstrutural(depoisDeDezTestes!)).toBeUndefined();
-    expect(candidatoEstavel(depoisDeDezTestes!, undefined)).toBe(true);
+    expect(motivoEstrutural(depoisDeDezTestes!, SEM_CORTE)).toBeUndefined();
+    expect(candidatoEstavel(depoisDeDezTestes!, undefined, { corteLegado: SEM_CORTE })).toBe(true);
   });
 });

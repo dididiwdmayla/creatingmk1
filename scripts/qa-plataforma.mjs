@@ -49,6 +49,12 @@
  *   node scripts/qa-plataforma.mjs --so=fila      # a VISÃO da fila em /config: funil (com a peneira
  *                                                 # da aprovação da automação), próximos,
  *                                                 # bloqueados, RETIDOS (com e sem)
+ *   node scripts/qa-plataforma.mjs --so=saude     # SAÚDE DA FILA em /config: bloqueada (config ausente) e
+ *                                                 # ok — o estado vem do AMBIENTE, então são duas rodadas
+ *                                                 # (ver `medirSaude`)
+ *   node scripts/qa-plataforma.mjs --so=reconciliacao # RECONCILIAÇÃO em /config: prévia cheia, a confirmação
+ *                                                 # aberta (nunca confirmada) e VAZIA; rodar com
+ *                                                 # RADAR_DEVICE_USER_ID no ambiente (botão habilitado)
  *   node scripts/qa-plataforma.mjs --so=balao     # o BALÃO da fila (em toda tela): fechado e aberto,
  *                                                 # cheia/vazia/pausada/pendente, e a VARREDURA DE
  *                                                 # COLISÃO em todas as abas
@@ -802,6 +808,10 @@ function semear() {
     truncado: false,
     estrutural: {
       status: 180,
+      contactadoForaDaFila: 6,
+      // O CORTE DO LEGADO na fila: criados antes de `corteLegado`, sem
+      // vestígio de contato — a etiqueta mostra a data.
+      legado: 14,
       descartado: 4,
       telefoneInvalido: 9,
       semTelefone: 21,
@@ -2345,6 +2355,331 @@ function editarBanco(fn) {
  * de aba não o cobrem — o painel fica muito abaixo da dobra de /config.
  */
 /** Ver `PAINEIS_PENDENCIAS`: o painel e o bloco que este passo mede. */
+/* ── Item: saúde da fila (`--so=saude`) ───────────────────────────────── */
+
+/**
+ * O bloco "Saúde da fila" no topo do painel "Fila de envio" — as variáveis
+ * de ambiente de que o ciclo depende, presente/ausente (ver
+ * `lib/fila/saude.ts`).
+ *
+ * O estado deste bloco vem do AMBIENTE DO SERVIDOR, não do banco: não dá para
+ * trocá-lo no meio da rodada. Por isso o passo lê o próprio `process.env`
+ * (que `main` repassa ao `next start`) para saber o que ESPERAR, e a leva
+ * completa são duas rodadas:
+ *
+ *   RADAR_DEVICE_KEY=x RADAR_DEVICE_USER_ID= APP_PUBLIC_URL= \
+ *     node scripts/qa-plataforma.mjs --so=saude --marca=bloqueada
+ *   RADAR_DEVICE_KEY=x RADAR_DEVICE_USER_ID=admin APP_PUBLIC_URL=https://exemplo \
+ *     node scripts/qa-plataforma.mjs --so=saude --marca=ok --sem-build
+ *
+ * "Bloqueada" é o estado CHEIO (faixa vermelha + ausentes); "ok" é o VAZIO
+ * (sem faixa, tudo verde) — e o passo cobra que o bloco ENCOLHA sem a faixa.
+ */
+async function medirSaude(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+  const exigidas = ["RADAR_DEVICE_KEY", "RADAR_DEVICE_USER_ID"];
+  const presente = (nome) => (process.env[nome] ?? "").trim() !== "";
+  const esperaBloqueada = exigidas.some((nome) => !presente(nome));
+  const estado = esperaBloqueada ? "bloqueada" : "ok";
+  const segredos = ["RADAR_DEVICE_KEY", "RADAR_DEVICE_USER_ID", "APP_PUBLIC_URL"]
+    .map((nome) => (process.env[nome] ?? "").trim())
+    .filter((valor) => valor.length >= 4);
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    definirTemaNoDoc("admin", tema);
+    definirPaineisAbertosNoDoc("admin", ["fila-envio"]);
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+    const onde = `saude/${estado}/${sufixo}`;
+
+    await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+    await assentar(page);
+    await exigirLogado(page, onde);
+    const bloco = page.locator('[data-bloco="saude"]');
+    await bloco.scrollIntoViewIfNeeded();
+    await page.locator('[data-bloco="saude"] [data-variavel]').first().waitFor({ timeout: 10_000 });
+
+    const caixa = await bloco.boundingBox();
+    if (!caixa) {
+      problemas.push(`${onde}: bloco de saúde não apareceu`);
+    } else if (caixa.x + caixa.width > viewport.width + 1) {
+      problemas.push(`${onde}: bloco vaza da viewport (direita=${caixa.x + caixa.width})`);
+    }
+
+    const variaveis = await page.locator('[data-bloco="saude"] [data-variavel]').count();
+    if (variaveis !== 3) problemas.push(`${onde}: esperava 3 variáveis, achei ${variaveis}`);
+
+    const faixa = await page.locator('[data-saude="bloqueada"]').count();
+    if (esperaBloqueada && faixa !== 1) problemas.push(`${onde}: faixa de entrega bloqueada não apareceu`);
+    if (!esperaBloqueada && faixa !== 0) problemas.push(`${onde}: faixa de bloqueio apareceu com tudo presente`);
+
+    // O cabeçalho do painel não pode dizer "Ativa" quando nada sai (a
+    // semente deixa a fila PAUSADA, e "Pausada" tem precedência — também é
+    // verdade). Sem bloqueio, "Bloqueada" não pode aparecer.
+    const resumoCabecalho = (await page.locator('[data-painel="fila-envio"] h2').first().innerText()).slice(0, 120);
+    if (esperaBloqueada && /Ativa ·|^Ativa$/m.test(resumoCabecalho)) {
+      problemas.push(`${onde}: o cabeçalho diz "Ativa" com a entrega bloqueada — ${JSON.stringify(resumoCabecalho)}`);
+    }
+    if (!esperaBloqueada && /Bloqueada/.test(resumoCabecalho)) {
+      problemas.push(`${onde}: o cabeçalho diz "Bloqueada" com tudo presente`);
+    }
+
+    // Nenhum VALOR de variável na página — só nomes.
+    const texto = await page.locator("body").innerText();
+    for (const valor of segredos) {
+      if (texto.includes(valor)) problemas.push(`${onde}: o valor de uma variável vazou na tela`);
+    }
+
+    const png = path.join(SAIDA, `saude-${estado}-${sufixo}${marca}.png`);
+    const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+    await bloco.screenshot({ path: png });
+    await semNav.evaluate((no) => no.remove());
+    itens.push({ rotulo: `${estado} (${Math.round(caixa?.height ?? 0)}px) · ${sufixo}`, png });
+    console.log(`  [saude] ${onde}: bloco ${Math.round(caixa?.height ?? 0)}px`);
+
+    await ctx.close();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, `Saúde da fila — ${estado} (/config)`, `saude-${estado}`, [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+  gerados.push(...itens.map((i) => i.png));
+
+  if (problemas.length > 0) {
+    throw new Error(`[saude] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log(`[saude] ok — estado "${estado}", 3 variáveis, sem valor na tela, sem vazamento.`);
+  return gerados;
+}
+
+/* ── Item: reconciliação (`--so=reconciliacao`) ──────────────────────── */
+
+/**
+ * A PRÉVIA da reconciliação no painel "Fila de envio" (ver
+ * `lib/fila/reconciliacao.ts`): cheia (estados variados da claim, um nome
+ * longo, uma reserva de lead excluído), a CONFIRMAÇÃO aberta, e VAZIA. O
+ * laço nunca clica "Confirmar" — só abre a confirmação para capturá-la.
+ *
+ * O botão só fica habilitado com `RADAR_DEVICE_USER_ID` no ambiente do
+ * servidor (que `main` repassa do próprio `process.env`); o passo cobra o
+ * estado coerente com o que recebeu.
+ */
+let filaEnviosGuardados = null;
+
+function semearReconciliacao({ vazia }) {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  if (filaEnviosGuardados === null) {
+    filaEnviosGuardados = {};
+    for (const chave of Object.keys(mapa)) {
+      if (chave.startsWith("filaEnvios/")) filaEnviosGuardados[chave] = mapa[chave];
+    }
+  }
+  for (const chave of Object.keys(mapa)) if (chave.startsWith("filaEnvios/")) delete mapa[chave];
+  if (!vazia) {
+    const agora = Date.now();
+    const reserva = (horas, extra = {}) => {
+      const reservadoEm = new Date(agora - horas * 3_600_000).toISOString();
+      return {
+        estado: "reservado",
+        claimId: `qa-${horas}`,
+        reservadoEm,
+        expiraEm: new Date(new Date(reservadoEm).getTime() + 5 * 60_000).toISOString(),
+        dispositivo: "android",
+        tentativas: 0,
+        ultimoErro: null,
+        enviadoEm: null,
+        ...extra,
+      };
+    };
+    const leads = [
+      ["recon-a", "Barbearia Navalha de Ouro", reserva(14)],
+      ["recon-b", "Estúdio de Tatuagem Agulha Fina & Pigmento Vivo — Unidade Centro Histórico", reserva(38, { estado: "falhou", tentativas: 2 })],
+      ["recon-c", "Pet Shop Bicho Feliz", reserva(62, { expiraEm: new Date(0).toISOString() })],
+      ["recon-d", "Multimarcas Vitrine", reserva(86, { estado: "invalido" })],
+    ];
+    for (const [id, nome, envio] of leads) {
+      mapa[`leads/${id}`] = {
+        placeId: id,
+        nome,
+        status: "novo",
+        enriquecido: false,
+        criadoEm: "2026-06-01T00:00:00.000Z",
+        atualizadoEm: "2026-06-01T00:00:00.000Z",
+      };
+      mapa[`filaEnvios/${id}`] = { leadId: id, ...envio };
+    }
+    // Reserva de lead que já foi contactado: NÃO entra na prévia.
+    mapa["leads/recon-contactado"] = {
+      placeId: "recon-contactado",
+      nome: "Já Contactado Ltda",
+      status: "contactado",
+      enriquecido: false,
+      criadoEm: "2026-06-01T00:00:00.000Z",
+      atualizadoEm: "2026-06-01T00:00:00.000Z",
+    };
+    mapa["filaEnvios/recon-contactado"] = { leadId: "recon-contactado", ...reserva(20) };
+    // Reserva de lead EXCLUÍDO: só contada.
+    mapa["filaEnvios/recon-excluido"] = { leadId: "recon-excluido", ...reserva(100) };
+  }
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+function restaurarReconciliacao() {
+  if (filaEnviosGuardados === null) return;
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  for (const chave of Object.keys(mapa)) {
+    if (chave.startsWith("filaEnvios/") || chave.startsWith("leads/recon-")) delete mapa[chave];
+  }
+  Object.assign(mapa, filaEnviosGuardados);
+  fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+  filaEnviosGuardados = null;
+}
+
+async function medirReconciliacao(browser, secret) {
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+  const autorPresente = (process.env.RADAR_DEVICE_USER_ID ?? "").trim() !== "";
+
+  try {
+    for (const [viewport, sufixo, tema] of [
+      [VIEWPORT_CELULAR, "celular", "escuro"],
+      [VIEWPORT_DESKTOP, "desktop", "escuro"],
+      [VIEWPORT_CELULAR, "celular-claro", "claro"],
+      [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+    ]) {
+      definirTemaNoDoc("admin", tema);
+      definirPaineisAbertosNoDoc("admin", ["fila-envio", "fila-reconciliacao"]);
+      const ctx = await contextoLogado(browser, { viewport, secret, tema });
+      const page = await ctx.newPage();
+      const bloco = page.locator('[data-painel="fila-reconciliacao"]');
+
+      const abrir = async (onde, esperar) => {
+        await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+        await assentar(page);
+        await exigirLogado(page, onde);
+        await bloco.scrollIntoViewIfNeeded();
+        await esperar();
+        await page.waitForTimeout(300);
+      };
+
+      const medir = async (onde) => {
+        const caixa = await bloco.boundingBox();
+        if (!caixa) {
+          problemas.push(`${onde}: bloco da reconciliação não apareceu`);
+          return null;
+        }
+        if (caixa.x + caixa.width > viewport.width + 1) {
+          problemas.push(`${onde}: bloco vaza da viewport (direita=${Math.round(caixa.x + caixa.width)})`);
+        }
+        const larguraRolavel = await page.evaluate(() => document.documentElement.scrollWidth);
+        if (larguraRolavel > viewport.width + 1) {
+          problemas.push(`${onde}: a página ganhou rolagem horizontal (${larguraRolavel}px)`);
+        }
+        return caixa;
+      };
+
+      const capturar = async (rotulo, arquivo) => {
+        const png = path.join(SAIDA, `reconciliacao-${arquivo}-${sufixo}${marca}.png`);
+        const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+        await bloco.screenshot({ path: png });
+        await semNav.evaluate((no) => no.remove());
+        itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+      };
+
+      // ── CHEIA: 4 a marcar (estados variados), 1 excluído, o contactado fora.
+      semearReconciliacao({ vazia: false });
+      await abrir(`cheia/${sufixo}`, () =>
+        page.locator('[data-lista="reconciliacao"] li').first().waitFor({ timeout: 10_000 }),
+      );
+      const cheia = await medir(`cheia/${sufixo}`);
+      const linhas = await page.locator('[data-lista="reconciliacao"] li').count();
+      if (linhas !== 4) problemas.push(`cheia/${sufixo}: esperava 4 linhas, achei ${linhas}`);
+      if ((await page.getByText("Já Contactado Ltda").count()) > 0) {
+        problemas.push(`cheia/${sufixo}: lead já contactado apareceu na prévia`);
+      }
+      for (const [alvo, oque] of [
+        [/reserva é de lead excluído/, "contagem do lead excluído"],
+        [/falhou · 2 tent\./, "estado com tentativas"],
+        [/inválido/, "estado inválido"],
+      ]) {
+        if ((await bloco.getByText(alvo).count()) === 0) problemas.push(`cheia/${sufixo}: ${oque} não apareceu`);
+      }
+      const botao = page.getByRole("button", { name: /Marcar 4 como contactados/ });
+      if ((await botao.count()) !== 1) {
+        problemas.push(`cheia/${sufixo}: botão "Marcar 4 como contactados" não apareceu`);
+      } else if ((await botao.isEnabled()) !== autorPresente) {
+        problemas.push(`cheia/${sufixo}: botão ${autorPresente ? "desabilitado" : "habilitado"} com a variável ${autorPresente ? "presente" : "ausente"}`);
+      }
+      await capturar("prévia cheia (4 a marcar, 1 excluído)", "cheia");
+
+      // ── CONFIRMAÇÃO aberta (nunca confirmada pelo laço).
+      if (autorPresente && (await botao.count()) === 1) {
+        await botao.click();
+        await page.locator('[data-reconciliacao="confirmacao"]').waitFor({ timeout: 5_000 });
+        await medir(`confirmacao/${sufixo}`);
+        await capturar("confirmação aberta", "confirmacao");
+        await page.getByRole("button", { name: "Cancelar" }).click();
+      }
+
+      // ── VAZIA: nenhuma reserva — o bloco ENCOLHE, sem caixa vazia.
+      semearReconciliacao({ vazia: true });
+      await abrir(`vazia/${sufixo}`, () =>
+        page.getByText("Nenhum lead reservado continua em “novo”.").waitFor({ timeout: 10_000 }),
+      );
+      const vazia = await medir(`vazia/${sufixo}`);
+      if ((await page.locator('[data-lista="reconciliacao"] li').count()) > 0) {
+        problemas.push(`vazia/${sufixo}: sobrou linha com a prévia vazia`);
+      }
+      if ((await page.getByRole("button", { name: /como contactados/ }).count()) > 0) {
+        problemas.push(`vazia/${sufixo}: botão de marcar apareceu sem nada a marcar`);
+      }
+      if (cheia && vazia) {
+        const encolheu = Math.round(cheia.height - vazia.height);
+        console.log(`  [reconciliacao] ${sufixo}: ${Math.round(cheia.height)}px cheia → ${Math.round(vazia.height)}px vazia (−${encolheu}px)`);
+        if (encolheu <= 0) problemas.push(`vazia/${sufixo}: o bloco não encolheu sem reservas`);
+      }
+      await capturar("prévia vazia", "vazia");
+
+      await ctx.close();
+    }
+  } finally {
+    restaurarReconciliacao();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, 'Reconciliação — painel "Fila de envio" (/config)', "reconciliacao", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+  gerados.push(...itens.map((i) => i.png));
+
+  if (problemas.length > 0) {
+    throw new Error(`[reconciliacao] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[reconciliacao] ok — prévia cheia, confirmação aberta e VAZIA, sem vazamento.");
+  return gerados;
+}
+
 const PAINEIS_FILA = ["fila-envio", "fila-visao"];
 
 async function medirFila(browser, secret) {
@@ -2407,6 +2742,7 @@ async function medirFila(browser, secret) {
       [/Retrato do pool/, "data do retrato do pool, ao lado das contagens estruturais"],
       [/print da demo não pronto/, "linha estrutural do funil"],
       [/demo automática aguardando aprovação/, "peneira da aprovação da automação no funil"],
+      [/legado sem vestígio \(criado antes de 10\/08\/2026\)/, "peneira do legado, com a data de corte"],
       [/fora dos nichos permitidos/, "etapa de nicho"],
       [/elegíveis agora/, "total de elegíveis"],
       [/Pet Center Ipiranga/, "primeiro lead elegível"],
@@ -6218,6 +6554,8 @@ async function main() {
     if (querido("listas")) gerados.push(...(await medirListas(browser, secret)));
     if (querido("pendencias")) gerados.push(...(await medirPendencias(browser, secret)));
     if (querido("fila")) gerados.push(...(await medirFila(browser, secret)));
+    if (querido("saude")) gerados.push(...(await medirSaude(browser, secret)));
+    if (querido("reconciliacao")) gerados.push(...(await medirReconciliacao(browser, secret)));
     if (querido("balao")) gerados.push(...(await medirBalao(browser, secret)));
     if (querido("comercial")) gerados.push(...(await medirContextoComercial(browser, secret)));
     if (querido("respostas")) gerados.push(...(await medirRespostas(browser, secret)));

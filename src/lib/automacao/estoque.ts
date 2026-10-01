@@ -6,6 +6,7 @@ import type { AppDb } from "@/lib/firestore-like";
 import { LEADS_COLLECTION, type Lead } from "@/lib/leads/types";
 
 import { baldeEstoque, estoqueVazio, somarBalde, type BaldeEstoque, type Estoque } from "./balde";
+import { loadAutomacaoConfig } from "./config";
 
 /**
  * O ESTOQUE de leads prontos — o número que decide se a automação trabalha.
@@ -50,9 +51,14 @@ export function classificarEstoque(
   envio: FilaEnvioDoc | undefined,
   now: Date,
   retencaoMs: number,
+  corteLegado: string,
 ): BaldeEstoque | undefined {
-  const motivo = motivoEstrutural(lead);
-  return baldeEstoque(lead, motivo, motivo === undefined && candidatoEstavel(lead, envio, now, retencaoMs));
+  const motivo = motivoEstrutural(lead, corteLegado);
+  return baldeEstoque(
+    lead,
+    motivo,
+    motivo === undefined && candidatoEstavel(lead, envio, { corteLegado, now, retencaoMs }),
+  );
 }
 
 /** Soma pura dos baldes — separada para o teste não precisar de banco. */
@@ -67,6 +73,8 @@ export interface BaseEstoque {
   leads: Lead[];
   envios: Map<string, FilaEnvioDoc>;
   retencaoMs: number;
+  /** `config/automacao.corteLegado` — o mesmo corte que o pool da fila aplica. */
+  corteLegado: string;
 }
 
 /**
@@ -76,21 +84,25 @@ export interface BaseEstoque {
  * config da fila, a mesma que o pool usa.
  */
 export async function lerBaseEstoque(db: AppDb): Promise<BaseEstoque> {
-  const [leadsSnap, enviosSnap, filaConfig] = await Promise.all([
+  const [leadsSnap, enviosSnap, filaConfig, automacaoConfig] = await Promise.all([
     db.collection(LEADS_COLLECTION).get(),
     db.collection(FILA_ENVIOS_COLLECTION).get(),
     loadFilaConfig(db),
+    loadAutomacaoConfig(db),
   ]);
   return {
     leads: leadsSnap.docs.map((doc) => ({ ...(doc.data() as unknown as Lead), placeId: doc.id })),
     envios: new Map(enviosSnap.docs.map((doc) => [doc.id, doc.data() as unknown as FilaEnvioDoc])),
     retencaoMs: retencaoMsDeHoras(filaConfig.retencaoEnvioHoras),
+    // O MESMO corte que o pool da fila aplica: lead legado com demo não é
+    // estoque pronto — a fila não o entrega.
+    corteLegado: automacaoConfig.corteLegado,
   };
 }
 
 export function estoqueDaBase(base: BaseEstoque, now: Date): Estoque {
   return somarEstoque(
-    base.leads.map((lead) => classificarEstoque(lead, base.envios.get(lead.placeId), now, base.retencaoMs)),
+    base.leads.map((lead) => classificarEstoque(lead, base.envios.get(lead.placeId), now, base.retencaoMs, base.corteLegado)),
   );
 }
 

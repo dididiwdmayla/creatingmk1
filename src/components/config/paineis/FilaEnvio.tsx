@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { SkeletonRows } from "@/components/Skeleton";
 import { PainelColapsavel } from "@/components/config/PainelColapsavel";
@@ -13,7 +13,9 @@ import {
 import { SeletorLead } from "@/components/config/SeletorLead";
 import { DisparoTeste } from "@/components/config/paineis/DisparoTeste";
 import { PrintPendenteLista } from "@/components/config/paineis/PrintPendente";
+import { ReconciliacaoBloco } from "@/components/config/paineis/Reconciliacao";
 import { RespostaAutomaticaBloco } from "@/components/config/paineis/RespostaAutomatica";
+import { SaudeFilaBloco } from "@/components/config/paineis/SaudeFila";
 import { VisaoFila } from "@/components/config/paineis/VisaoFila";
 import { ApiError, api, type FilaDiagnosticoResponse } from "@/lib/api-client";
 import type { FilaConfig } from "@/lib/fila/config";
@@ -64,6 +66,13 @@ export function FilaEnvioSection() {
    * novo aqui seriam duas respostas capazes de discordar entre si.
    */
   const [contador, setContador] = useState<FilaDiagnosticoResponse["contador"] | null>(null);
+  /**
+   * Config exigida ausente (ver `SaudeFilaBloco`): o cabeçalho FECHADO não
+   * pode dizer "Ativa" quando nenhum lead sai — é a mesma mentira que fez o
+   * incidente passar despercebido.
+   */
+  const [bloqueada, setBloqueada] = useState(false);
+  const aoSaber = useCallback((valor: boolean) => setBloqueada(valor), []);
 
   useEffect(() => {
     let ignore = false;
@@ -108,7 +117,7 @@ export function FilaEnvioSection() {
   const resumo =
     config === null
       ? undefined
-      : `${config.ativo ? "Ativa" : "Pausada"}${
+      : `${!config.ativo ? "Pausada" : bloqueada ? "Bloqueada — config ausente" : "Ativa"}${
           contador
             ? ` · ${formatInt(contador.enviados)}/${formatInt(contador.meta)} hoje`
             : ""
@@ -151,6 +160,8 @@ export function FilaEnvioSection() {
         Estado e tetos que o celular consulta antes de puxar o próximo lead. Com a fila pausada,
         nenhum envio sai.
       </p>
+
+      <SaudeFilaBloco onBloqueada={aoSaber} />
 
       {config === null && !erro && (
         <SkeletonRows count={1} className="mt-3 h-32 rounded border border-line" />
@@ -262,6 +273,7 @@ export function FilaEnvioSection() {
       <VisaoFila versao={versaoConfig} onContador={setContador} />
       <DisparoTeste versao={versaoConfig} />
       <PrintPendenteLista />
+      <ReconciliacaoBloco />
 
       {erro && <p className="mt-2 text-sm text-critical">{erro}</p>}
     </PainelColapsavel>

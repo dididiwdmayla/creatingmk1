@@ -10,6 +10,13 @@ import { POST as CONFIRMAR } from "../fila/confirmar/route";
 import { GET as PROXIMO } from "../fila/proximo/route";
 
 /**
+ * Sem corte do legado (`""`): este arquivo testa OUTRAS regras, e os leads
+ * dele são de março — antes do corte padrão. O corte tem testes próprios
+ * (`fila-legado.route.test.ts`).
+ */
+const SEM_CORTE = "";
+
+/**
  * A fila de aprovação do painel "Automação": aprovar/reprovar um ou vários
  * pela rota de config, e o efeito disso onde importa — a fila de envio e o
  * planejador da automação. E o contrato do celular (`/proximo`,
@@ -111,6 +118,9 @@ let admin: string;
 
 beforeEach(async () => {
   db = new FakeFirestore();
+  // Os leads deste arquivo são de março; o corte do legado tem testes
+  // próprios (fila-legado.route.test.ts) — aqui ele fica antes deles.
+  db.seed("config/automacao", { corteLegado: "2000-01-01" });
   vi.stubEnv("APP_PASSWORD", "segredo123");
   vi.stubEnv("RADAR_DEVICE_KEY", CHAVE);
   vi.stubEnv("RADAR_DEVICE_USER_ID", "admin");
@@ -128,7 +138,7 @@ describe("aprovar", () => {
   it("torna a demo elegível na fila (captura pronta) — e /proximo a entrega, contrato intacto", async () => {
     semear(lead("ChIJa"));
     // Pendente: o portão segura.
-    expect(motivoEstrutural(ler("ChIJa"))).toBe("aguardandoAprovacao");
+    expect(motivoEstrutural(ler("ChIJa"), SEM_CORTE)).toBe("aguardandoAprovacao");
     const antes = await (await proximo()).json();
     expect(antes.temTarefa).toBe(false);
     expect(Object.keys(antes).sort()).toEqual(CHAVES_PROXIMO);
@@ -137,7 +147,7 @@ describe("aprovar", () => {
     expect(res.status).toBe(200);
     expect((await res.json()).resultados).toEqual([{ leadId: "ChIJa", ok: true }]);
     expect(ler("ChIJa").demo).toMatchObject({ aprovacao: "aprovada", aprovacaoPor: "admin" });
-    expect(candidatoEstavel(ler("ChIJa"), undefined, TERCA_10H)).toBe(true);
+    expect(candidatoEstavel(ler("ChIJa"), undefined, { corteLegado: SEM_CORTE, now: TERCA_10H })).toBe(true);
 
     esquecerPool(); // o pool é cache de 10 min; o próximo rebuild já o vê
     const tarefa = await (await proximo()).json();
@@ -153,7 +163,7 @@ describe("aprovar", () => {
     semear(lead("ChIJg", { capturas: { estado: "rodando", execucaoId: "e2", pedidoEm: "2026-03-10T09:55:00.000Z" } }));
     const res = await decidir(admin, { leadIds: ["ChIJg"], aprovacao: "aprovada" });
     expect((await res.json()).resultados[0].ok).toBe(true);
-    expect(motivoEstrutural(ler("ChIJg"))).toBe("capturaNaoPronta");
+    expect(motivoEstrutural(ler("ChIJg"), SEM_CORTE)).toBe("capturaNaoPronta");
     expect((await (await proximo()).json()).temTarefa).toBe(false);
 
     // O workflow de capturas termina: nada mais precisa acontecer.
@@ -173,7 +183,7 @@ describe("reprovar", () => {
     expect(reprovado.demo?.aprovacao).toBe("reprovada");
     expect(reprovado.automacaoReprovada).toMatchObject({ por: "admin" });
     // Fora da fila…
-    expect(candidatoEstavel(reprovado, undefined, TERCA_10H)).toBe(false);
+    expect(candidatoEstavel(reprovado, undefined, { corteLegado: SEM_CORTE, now: TERCA_10H })).toBe(false);
     // …e fora da automação, mesmo que alguém apague a demo depois.
     const semDemo = { ...reprovado, demo: undefined };
     const controle = lead("ChIJc", { demo: undefined, criadoEm: "2026-09-01T00:00:00.000Z" });

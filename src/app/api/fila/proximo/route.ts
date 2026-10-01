@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/firebase/admin";
 import { autenticarDispositivo } from "@/lib/fila/auth";
-import { candidatoEstavel, lerPool } from "@/lib/fila/candidatos";
+import { candidatoEstavel, corteLegadoAtual, lerPool } from "@/lib/fila/candidatos";
 import { loadFilaConfig } from "@/lib/fila/config";
 import {
   lerContadorFila,
@@ -26,6 +26,7 @@ import {
   proximaTarefaResposta,
 } from "@/lib/fila/respostaAutomatica";
 import { printUrlDoLead } from "@/lib/fila/print";
+import { marcadorSemResolver, motivoDeSaude } from "@/lib/fila/saude";
 import {
   motivoDeRitmo,
   motivoSemTarefaAgora,
@@ -185,6 +186,7 @@ async function tentarEntregar(
   dispositivo: string,
   now: Date,
   retencaoMs: number,
+  corteLegado: string,
 ): Promise<TarefaFila | undefined> {
   const reserva = await reservarLead(db, leadId, dispositivo, now, {
     tentativasMax: TENTATIVAS_MAX,
@@ -201,7 +203,11 @@ async function tentarEntregar(
   // `candidatoEstavel` com `undefined` no envio: o estado da fila já foi
   // decidido pela reserva acima (que é transacional); aqui o que se reconfere
   // é o LEAD — status, telefone, demo, capturas, descarte, número inválido.
-  const printUrl = lead && candidatoEstavel(lead, undefined) ? printUrlDoLead(lead.capturas) : undefined;
+  // O corte do legado vale AQUI também, sobre o doc fresco e o corte lido
+  // nesta chamada: um pool construído antes de o corte mudar continua
+  // oferecendo o lead até o TTL, e é esta releitura que não o entrega.
+  const printUrl =
+    lead && candidatoEstavel(lead, undefined, { corteLegado }) ? printUrlDoLead(lead.capturas) : undefined;
   if (!lead || !printUrl) {
     await liberarClaim(db, leadId, reserva.claimId);
     return undefined;
@@ -209,6 +215,17 @@ async function tentarEntregar(
 
   const mensagem = await montarMensagemParaLead(db, lead);
   if (!mensagem.telefone) {
+    await liberarClaim(db, leadId, reserva.claimId);
+    return undefined;
+  }
+  // REDE DE SEGURANÇA dos marcadores (ver `marcadorSemResolver` em
+  // lib/fila/saude.ts): qualquer `{marcador}` que sobrou no texto — dado
+  // faltando ou marcador digitado errado na frase — sairia literal para um
+  // negócio real, e isso é pior do que não mandar. A claim volta devolvida
+  // (nada saiu, e o servidor sabe) e a rota cai no próximo candidato.
+  const sobrou = marcadorSemResolver(mensagem.texto);
+  if (sobrou) {
+    console.warn(`[fila] marcador ${sobrou} sem resolver para o lead ${leadId}: tarefa não entregue`);
     await liberarClaim(db, leadId, reserva.claimId);
     return undefined;
   }
@@ -328,6 +345,17 @@ export async function GET(req: Request) {
     // O contador do dia já pode ter sido lido pelo bloco acima — é o MESMO
     // doc que o portão de ritmo precisa, e lê-lo duas vezes na mesma chamada
     // seria pagar de novo por nada.
+    // ── SAÚDE ─────────────────────────────────────────────────────────
+    // Faltando config que o confirmar exige, NENHUM lead é reservado nem
+    // entregue: o envio sairia e não seria registrado (ver
+    // lib/fila/saude.ts). Vem DEPOIS do teste e da resposta automática de
+    // propósito — o confirmar daquelas duas não precisa da variável, e o
+    // teste é justamente como se ensaia o aparelho — e ANTES do ritmo, que
+    // é onde a cadeia de portões da prospecção começa. `pausado` é o motivo
+    // que já existe e que a macro já sabe esperar: o contrato não muda.
+    const saude = motivoDeSaude();
+    if (saude) return semTarefa(saude);
+
     const contador = contadorCompleto
       ? snapshotDoContador(contadorCompleto)
       : await lerContadorFila(db, now, config.inicioDiaOperacionalHora);
@@ -335,7 +363,8 @@ export async function GET(req: Request) {
     if (ritmo) return semTarefa(ritmo);
 
     const retencaoMs = retencaoMsDeHoras(config.retencaoEnvioHoras);
-    const pool = await lerPool(db, now, { retencaoMs });
+    const corteLegado = await corteLegadoAtual(db);
+    const pool = await lerPool(db, now, { retencaoMs, corteLegado });
     const { escolhido, diagnostico } = ordenarCandidatos(
       pool.candidatos,
       config,
@@ -344,7 +373,7 @@ export async function GET(req: Request) {
     );
 
     for (const candidato of escolhido) {
-      const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now, retencaoMs);
+      const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now, retencaoMs, corteLegado);
       if (tarefa) return respostaComTarefa(tarefa);
     }
 

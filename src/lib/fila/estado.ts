@@ -299,6 +299,22 @@ export interface LinhaRetido {
  * Firestore. `pendencias.ts` reexporta, para ninguém precisar saber da
  * divisão.
  */
+/**
+ * Uma linha da PRÉVIA da reconciliação (ver `lib/fila/reconciliacao.ts`):
+ * lead que a fila reservou e que continua "novo". Mora aqui, e não no módulo
+ * que a monta, pelo mesmo motivo de `PendenciaEnvio`: quem desenha é
+ * componente client.
+ */
+export interface LinhaReconciliacao {
+  leadId: string;
+  nome: string;
+  /** Quando a fila reservou — o instante provável do envio, que vira a data do contato. */
+  reservadoEm: string;
+  /** Estado gravado da claim — mostrado, nunca usado para decidir (com o 503, nenhum é confiável). */
+  estado: FilaEnvioEstado;
+  tentativas: number;
+}
+
 export interface PendenciaEnvio {
   leadId: string;
   /** Nome do lead, ou "" se o lead não existe mais (a pendência sobrevive). */

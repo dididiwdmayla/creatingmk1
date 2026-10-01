@@ -24,6 +24,13 @@ import { confirmarTeste, injetarTeste, marcarTesteEntregue } from "../teste";
 import { LEAD_TESTE_ID, leadDeTesteInicial } from "../leadTeste";
 
 /**
+ * Sem corte do legado (`""`): este arquivo testa OUTRAS regras, e os leads
+ * dele são de março — antes do corte padrão. O corte tem testes próprios
+ * (`fila-legado.route.test.ts`).
+ */
+const SEM_CORTE = "";
+
+/**
  * A RETENÇÃO POR CLAIM NÃO CONFIRMADA — a proteção contra mensagem repetida
  * que não depende do aparelho (ver o bloco em `lib/fila/estado.ts`).
  *
@@ -122,10 +129,10 @@ describe("claim expirada SEM CONFIRMAÇÃO retém o lead pela janela configurada
     db.seed("leads/ChIJa", lead("ChIJa") as unknown as Record<string, unknown>);
     db.seed("filaEnvios/ChIJa", { ...envio() } as unknown as Record<string, unknown>);
 
-    const sem = await construirPool(db, AGORA);
+    const sem = await construirPool(db, AGORA, { corteLegado: SEM_CORTE });
     expect(sem.candidatos.map((c) => c.id)).toEqual(["ChIJa"]);
 
-    const com = await construirPool(db, AGORA, { retencaoMs: RETENCAO_MS });
+    const com = await construirPool(db, AGORA, { corteLegado: SEM_CORTE, retencaoMs: RETENCAO_MS });
     expect(com.candidatos).toEqual([]);
     // Retenção NÃO é motivo estrutural: o lead passou na peneira do lead.
     expect(com.estrutural.status).toBe(0);
@@ -151,6 +158,7 @@ describe("claim expirada SEM CONFIRMAÇÃO retém o lead pela janela configurada
     // aqui; quem decide é a transação da reserva"). É justamente isso que
     // deixa o pool oferecer, depois, um lead cuja claim já morreu.
     const poolCedo = await construirPool(db, new Date("2026-03-10T12:03:00Z"), {
+      corteLegado: SEM_CORTE,
       retencaoMs: RETENCAO_MS,
     });
     expect(poolCedo.candidatos.map((c) => c.id)).toEqual(["ChIJa"]);
@@ -204,7 +212,7 @@ describe("o RECORTE: claim confirmada como falha NÃO retém", () => {
     // seguinte — nenhuma espera de 12h.
     const depois = new Date(AGORA.getTime() + 1000);
     expect(retidoPorEnvio(db.getDoc("filaEnvios/ChIJa") as unknown as FilaEnvioDoc, depois, RETENCAO_MS)).toBe(false);
-    const pool = await construirPool(db, depois, { retencaoMs: RETENCAO_MS });
+    const pool = await construirPool(db, depois, { corteLegado: SEM_CORTE, retencaoMs: RETENCAO_MS });
     expect(pool.candidatos.map((c) => c.id)).toEqual(["ChIJa"]);
     expect(
       await reservarLead(db, "ChIJa", "android", depois, {
@@ -277,7 +285,7 @@ describe("retenção VENCIDA devolve o lead ao pool", () => {
     db.seed("filaEnvios/ChIJa", { ...envio() } as unknown as Record<string, unknown>);
 
     const depois = new Date("2026-03-10T21:00:01Z"); // 12h01 depois da reserva
-    const pool = await construirPool(db, depois, { retencaoMs: RETENCAO_MS });
+    const pool = await construirPool(db, depois, { corteLegado: SEM_CORTE, retencaoMs: RETENCAO_MS });
     expect(pool.candidatos.map((c) => c.id)).toEqual(["ChIJa"]);
 
     const reserva = await reservarLead(db, "ChIJa", "android", depois, {
@@ -360,7 +368,7 @@ describe("CLAIM DE TESTE não retém o lead fixo de teste", () => {
     db.seed("filaEnvios/" + LEAD_TESTE_ID, {
       ...envio({ leadId: LEAD_TESTE_ID }),
     } as unknown as Record<string, unknown>);
-    const pool = await construirPool(db, AGORA, { retencaoMs: RETENCAO_MS });
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE, retencaoMs: RETENCAO_MS });
     expect(pool.candidatos.map((c) => c.id)).toEqual(["ChIJa"]);
     expect(pool.lidos).toBe(1); // o lead de teste não entra em contagem nenhuma
   });
@@ -421,12 +429,12 @@ describe("liberação manual devolve o lead à fila de verdade", () => {
     db.seed("filaEnvios/ChIJa", { ...envio() } as unknown as Record<string, unknown>);
 
     expect((await listarRetidos(db, AGORA, RETENCAO_MS)).total).toBe(1);
-    expect((await construirPool(db, AGORA, { retencaoMs: RETENCAO_MS })).candidatos).toEqual([]);
+    expect((await construirPool(db, AGORA, { corteLegado: SEM_CORTE, retencaoMs: RETENCAO_MS })).candidatos).toEqual([]);
 
     expect(await liberarRetido(db, "ChIJa", AGORA, RETENCAO_MS)).toEqual({ ok: true });
 
     expect((await listarRetidos(db, AGORA, RETENCAO_MS)).total).toBe(0);
-    const pool = await construirPool(db, AGORA, { retencaoMs: RETENCAO_MS });
+    const pool = await construirPool(db, AGORA, { corteLegado: SEM_CORTE, retencaoMs: RETENCAO_MS });
     expect(pool.candidatos.map((c) => c.id)).toEqual(["ChIJa"]);
     expect(
       await reservarLead(db, "ChIJa", "android", AGORA, {

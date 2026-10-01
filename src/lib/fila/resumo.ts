@@ -2,8 +2,9 @@ import { proximoMomentoAceito } from "@/lib/leads/barraDoDia";
 import { MIN_DIA, minutoDaSemanaLocal } from "@/lib/leads/horarios";
 import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 
-import { lerPool, type CandidatoFila } from "./candidatos";
+import { corteLegadoAtual, lerPool, type CandidatoFila } from "./candidatos";
 import { loadFilaConfig, type FilaConfig } from "./config";
+import { motivoDeSaude } from "./saude";
 import { retencaoMsDeHoras } from "./envios";
 import {
   lerContadorFilaCompleto,
@@ -171,16 +172,20 @@ function calcularProximaJanela(
  * 1 leitura, não a varredura de `/leads`.
  */
 export async function montarResumoFila(db: AppDb, now: Date = new Date()): Promise<ResumoFila> {
-  const [config, app] = await Promise.all([loadFilaConfig(db), loadConfig(db)]);
+  const [config, app, corteLegado] = await Promise.all([
+    loadFilaConfig(db),
+    loadConfig(db),
+    corteLegadoAtual(db),
+  ]);
   const [contadorDoc, pool] = await Promise.all([
     lerContadorFilaCompleto(db, now, config.inicioDiaOperacionalHora),
     // A MESMA retenção que `/proximo` passa — o doc do pool é compartilhado,
     // e dois valores diferentes fariam quem reconstrói primeiro decidir pelo
     // outro. Ver `lerPool`.
-    lerPool(db, now, { retencaoMs: retencaoMsDeHoras(config.retencaoEnvioHoras) }),
+    lerPool(db, now, { retencaoMs: retencaoMsDeHoras(config.retencaoEnvioHoras), corteLegado }),
   ]);
 
-  const { escolhido, diagnostico, motivo } = decidirFila(
+  const decisao = decidirFila(
     pool.candidatos,
     config,
     app.janelasContato,
@@ -188,6 +193,11 @@ export async function montarResumoFila(db: AppDb, now: Date = new Date()): Promi
     now,
     { coletarBloqueados: true },
   );
+  const { escolhido, diagnostico } = decisao;
+  // A MESMA regra de `/proximo`: faltando config que o confirmar exige, a
+  // fila não entrega — e o resumo não pode dizer que há tarefa disponível
+  // quando a rota de entrega diria `pausado`. Ver lib/fila/saude.ts.
+  const motivo = motivoDeSaude() ?? decisao.motivo;
 
   const proximaJanela = calcularProximaJanela(motivo, {
     contadorDoc,

@@ -47,7 +47,9 @@ export async function GET(_req: Request, { params }: Params) {
     // navegador divergiria da que de fato decide quem entra na fila. Só sai
     // quando é manual E o motivo é ausência de peça — decisão (descarte,
     // status, número sem WhatsApp) já tem vitrine própria na ficha.
-    const motivo = lead.filaManual === true ? motivoEstrutural(lead) : undefined;
+    // `""` desliga o corte do legado: só lead MANUAL é avaliado aqui, e o
+    // manual passa pelo corte de qualquer jeito — zero leitura a mais.
+    const motivo = lead.filaManual === true ? motivoEstrutural(lead, "") : undefined;
     const filaPendencia = motivoEhFisico(motivo) ? motivo : undefined;
     return NextResponse.json({
       lead,

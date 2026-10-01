@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { loadConfig } from "@/lib/config";
-import { estruturalVazio, lerPoolBruto, type DiagnosticoEstrutural } from "@/lib/fila/candidatos";
+import {
+  corteLegadoAtual,
+  estruturalVazio,
+  lerPoolBruto,
+  type DiagnosticoEstrutural,
+} from "@/lib/fila/candidatos";
 import { loadFilaConfig } from "@/lib/fila/config";
 import { lerContadorFila } from "@/lib/fila/contadores";
 import type { LinhaFilaPainel } from "@/lib/fila/estado";
@@ -13,6 +18,7 @@ import {
   type DiagnosticoJanela,
   type MotivoSemTarefa,
 } from "@/lib/fila/selecao";
+import { motivoDeSaude } from "@/lib/fila/saude";
 import { getDb } from "@/lib/firebase/admin";
 import { handleRouteError } from "@/lib/http";
 import { requireAdmin } from "@/lib/usuarios";
@@ -63,9 +69,14 @@ export async function GET(req: Request) {
     const now = new Date();
     const config = await loadFilaConfig(db);
     const contador = await lerContadorFila(db, now, config.inicioDiaOperacionalHora);
-    const ritmo: MotivoSemTarefa | null = motivoDeRitmo(config, contador) ?? null;
+    // Saúde antes do ritmo, como em `/proximo`: faltando config que o
+    // confirmar exige, o portão que vale é `pausado` (ver lib/fila/saude.ts).
+    const ritmo: MotivoSemTarefa | null = motivoDeSaude() ?? motivoDeRitmo(config, contador) ?? null;
 
     const pool = await lerPoolBruto(db);
+    // O corte do legado em vigor: as listas abaixo não mostram quem a
+    // entrega recusaria, e a etiqueta do funil mostra a data.
+    const corteLegado = await corteLegadoAtual(db);
 
     let nichoBarrado = 0;
     let janela: DiagnosticoJanela = { razoavel: 0, ruim: 0, semNivel: 0 };
@@ -86,6 +97,7 @@ export async function GET(req: Request) {
         janelas: app.janelasContato,
         niveisAceitos: aceitos,
         now,
+        corteLegado,
       };
       [proximos, bloqueados] = await Promise.all([
         linhasDoPainel(db, pool.candidatos, resultado.escolhido.slice(0, PAINEL_LINHAS), {
@@ -105,6 +117,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ritmo,
+      corteLegado,
       contador: contadorDoPainel(config, contador, now),
       pool: {
         geradoEm: pool?.geradoEm ?? null,

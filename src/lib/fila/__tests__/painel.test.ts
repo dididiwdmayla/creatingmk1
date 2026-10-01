@@ -11,6 +11,13 @@ import { diaOperacionalKey, proximaViradaDiaOperacional, type FilaContadorSnapsh
 import { contadorDoPainel, linhasDoPainel } from "../painel";
 
 /**
+ * Sem corte do legado (`""`): este arquivo testa OUTRAS regras, e os leads
+ * dele são de março — antes do corte padrão. O corte tem testes próprios
+ * (`fila-legado.route.test.ts`).
+ */
+const SEM_CORTE = "";
+
+/**
  * As linhas do painel "Fila de envio". O que estes testes protegem: o
  * painel lê lead POR ID (nunca varre /leads), e RECONFERE cada linha contra
  * o doc fresco — o pool é cache, pode oferecer quem não serve mais, e uma
@@ -86,6 +93,7 @@ const OPCOES = {
   niveisAceitos: ["bom"] as const,
   now: TERCA_13H_UTC,
   comProximaFaixa: false,
+  corteLegado: SEM_CORTE,
 };
 
 describe("linhasDoPainel", () => {

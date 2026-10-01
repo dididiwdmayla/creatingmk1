@@ -135,6 +135,9 @@ const comoAdmin = () => cookieDeSessao(db, { id: "admin", papel: "admin" });
 
 beforeEach(() => {
   db = new FakeFirestore();
+  // Os leads deste arquivo são de março; o corte do legado tem testes
+  // próprios (fila-legado.route.test.ts) — aqui ele fica antes deles.
+  db.seed("config/automacao", { corteLegado: "2000-01-01" });
   vi.stubEnv("APP_PASSWORD", "segredo123");
   vi.useFakeTimers();
   vi.setSystemTime(AGORA);
@@ -349,6 +352,8 @@ describe("GET /api/config/fila/balao?lista=1 — o estado ABERTO", () => {
       "filaContadores/2026-03-10",
       "filaCandidatos/pool",
       "config/app",
+      // O corte do legado em vigor: um doc a mais, nunca uma varredura.
+      "config/automacao",
       "leads/a",
       "leads/b",
       "leads/p",

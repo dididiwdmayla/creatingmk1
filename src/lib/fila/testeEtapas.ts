@@ -60,6 +60,8 @@ export interface EntradaAvaliacaoTeste {
   now: Date;
   /** Etapas que o operador mandou pular — só as quatro de `ETAPAS_TESTE`. */
   pular: readonly EtapaTeste[];
+  /** O corte do legado em vigor (`config/automacao.corteLegado`) — a etapa estrutural o aplica como a fila real. */
+  corteLegado: string;
 }
 
 /** Valida e normaliza a lista de etapas puláveis vinda do corpo da requisição. */
@@ -96,7 +98,7 @@ export function avaliarTeste(entrada: EntradaAvaliacaoTeste): BarreiraTeste | un
   }
 
   if (!pular.has("estruturais")) {
-    const estrutural = motivoEstrutural(lead);
+    const estrutural = motivoEstrutural(lead, entrada.corteLegado);
     if (estrutural) return { etapa: "estruturais", motivo: estrutural };
   }
 
