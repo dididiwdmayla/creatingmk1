@@ -362,6 +362,100 @@ export interface ContadorPainel {
   tetoPorHora: number;
 }
 
+/* ── A AGENDA DA FILA (`lib/fila/agenda.ts`) ───────────────────────────
+ *
+ * A forma mora aqui, e não junto da simulação, pelo motivo de sempre: quem
+ * desenha é o painel da /config (componente client), e `agenda.ts` lê o
+ * Firestore e arrasta `node:crypto` por `envios.ts`.
+ */
+
+/**
+ * Por que a linha tem AQUELE horário — o último portão que segurou a fila
+ * antes dela (`SaidaFila.segurou`), ou nenhum:
+ *
+ * - `agora` — a primeira linha, entregável já;
+ * - `em_seguida` — logo depois da anterior, sem portão nenhum no meio;
+ * - `janela` — a faixa de contato do lead abre nesse instante;
+ * - `intervalo`, `teto_hora`, `meta` — o ritmo da fila libera nesse instante.
+ */
+export type MotivoHorarioAgenda = "agora" | "em_seguida" | "janela" | "intervalo" | "teto_hora" | "meta";
+
+/** Uma linha da agenda: quem sai, a partir de quando, e por quê. */
+export interface LinhaAgenda {
+  leadId: string;
+  nome: string;
+  /**
+   * ISO do instante a partir do qual a fila ENTREGA este lead. "A partir
+   * de": o aparelho só pega a tarefa quando chamar `/proximo`, e não há
+   * cadência configurada no Radar para dizer quando isso acontece.
+   */
+  em: string;
+  motivo: MotivoHorarioAgenda;
+  /**
+   * A meta do dia já estava batida quando a vez dele chegou: ele sai no
+   * dia operacional seguinte — o "por quê" que `motivo` sozinho (o ÚLTIMO
+   * portão, em geral a janela da manhã seguinte) não conta.
+   */
+  depoisDaMeta: boolean;
+  /** Deslocamento UTC do lead, em minutos — a tela mostra a hora DELE quando difere da do operador. */
+  offsetLead: number;
+  /** Cidade do endereço do lead, ou "" — o rótulo da hora local ("13:00 em Lisboa"). */
+  cidade: string;
+  /** Nível da janela no instante previsto. */
+  nivel: NivelContato;
+  manual: boolean;
+}
+
+/** Um lead que chega à vez dele e a guarda da mensagem barra — não ocupa vaga. */
+export interface BarradoAgenda {
+  leadId: string;
+  nome: string;
+  motivo: "marcador" | "sem_telefone";
+  /** O marcador que sobrou no texto (`{penetracao}`, `{link}`…); "" sem telefone. */
+  marcador: string;
+}
+
+/**
+ * Um lead que chegaria à vez dele DEPOIS de a varredura das demos
+ * automáticas apagar a demo — a fila real não o manda, então ele sai da
+ * sequência e os seguintes sobem.
+ */
+export interface VencidoAgenda {
+  leadId: string;
+  nome: string;
+  /** ISO de quando a demo vence (`demo.criadoEm` + prazo). */
+  venceEm: string;
+  /** ISO da varredura agendada que a apaga. */
+  varreduraEm: string;
+  /** ISO de quando ele sairia, se a demo ainda existisse. */
+  sairiaEm: string;
+}
+
+/** `GET /api/config/fila/agenda`. */
+export interface AgendaFila {
+  /** O instante da simulação ("agora" do servidor). */
+  geradoEm: string;
+  /** O fim do PRÓXIMO dia operacional — até onde a simulação anda. */
+  horizonte: string;
+  /** Quantos leads a agenda procura (o estoque alvo da automação). */
+  alvo: number;
+  /** A fila está pausada: a agenda é a de quando ela voltar, e nada sai enquanto isso. */
+  pausada: boolean;
+  /** Falta config que o confirmar exige (`motivoDeSaude`): nada sai até ela existir. */
+  bloqueada: boolean;
+  /** O retrato do pool usado — o persistido, ou uma varredura em memória (nunca gravada). */
+  pool: { geradoEm: string; reconstruido: boolean; truncado: boolean };
+  linhas: LinhaAgenda[];
+  barrados: BarradoAgenda[];
+  vencidos: VencidoAgenda[];
+  /** Elegíveis que sobraram — não cabem na agenda (ver `parouPor`). */
+  fora: number;
+  /** `alvo`: a agenda encheu e ainda há elegíveis; `horizonte`: o tempo acabou antes. */
+  parouPor: "alvo" | "horizonte";
+  /** Os parâmetros do ritmo, para a tela dizer o motivo com o número. */
+  ritmo: { metaDiaria: number; tetoPorHora: number; intervaloMinimoSegundos: number };
+}
+
 /* ── A TAREFA DE TESTE (`lib/fila/teste.ts`) ───────────────────────────
  *
  * Mesma divisão do resto deste módulo: a FORMA fica aqui porque o painel

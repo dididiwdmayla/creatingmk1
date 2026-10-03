@@ -3863,6 +3863,49 @@ A revisão tira o lead da fila **sem que nada no lead mude**: o doc continua `st
 
 **Verificação visual:** `node scripts/qa-plataforma.mjs --so=fila` com dois estados de revisão — **com** (um recém reservado 1×, um de dias atrás reservado 3×, um doc anterior ao contador "1× ou mais", e um lead já contactado que NÃO pode aparecer) e **sem, com a fila cheia em volta** —, celular e desktop, escuro e claro. O passo confronta o número do funil com as linhas da lista e cobra as duas ações por linha. **Achado na rodada**: no celular, as duas ações lado a lado com o texto passavam POR CIMA do nome e espremiam a linha numa coluna de uma palavra — os aferidores de vazamento e caixa zerada não pegavam isso. A linha virou coluna no celular (ações numa linha própria abaixo do texto, lado a lado do `sm` para cima), e o passo ganhou um aferidor de geometria: o nome não pode cruzar com as ações e o texto da linha tem de ter ≥ 160px. Medido: o painel encolhe sem revisão (−235px no celular, −228px no desktop).
 
+## Agenda da fila — quem sai, a partir de quando, e quem não sai (`lib/fila/agenda.ts` + `GET /api/config/fila/agenda`)
+
+O painel da fila mostrava só o que pode sair AGORA: fora da janela de contato (às 06:40, digamos) ele aparecia vazio, e com a fila pausada também. A agenda responde a outra pergunta — **os próximos leads na ordem em que vão sair, com o horário a partir do qual cada um sai** —, visível antes de a janela abrir e com a fila pausada.
+
+### Uma SIMULAÇÃO com as funções da fila, nunca uma segunda fila
+
+A regra que decide tudo: se a agenda e a fila pudessem discordar, a agenda não serviria para nada. Então `simularAgenda` não tem regra própria nenhuma — ela roda as funções de `/api/fila/proximo` e de `/api/fila/confirmar` com um relógio que anda:
+
+1. `proximaSaida(estado, cursor, { ate: horizonte })` — quem sai e QUANDO (ver "Quem sai e QUANDO" acima): o primeiro instante em que a cadeia ritmo → nicho → janela entrega alguém, e a ordem naquele instante.
+2. Para cada candidato daquela ordem, o que `tentarEntregar` faria, sem reservar: a RESERVA é `leadDisponivel(envio, instante, TENTATIVAS_MAX)` — a regra da transação de `reservarLead` (claim viva agora vira revisão quando vence, e o lead não sai mais sozinho); o doc fresco passa por `printParaEntrega`; a mensagem é montada por `montarMensagemParaLead` (com as fontes carregadas uma vez) e conferida por `vereditoDaMensagem`. O primeiro que passa ganha o horário.
+3. Os efeitos de um envio CONFIRMADO, com as funções do `/confirmar`, em memória: `contadorComEnvio` no contador do dia operacional DAQUELE instante (o dia seguinte começa vazio, como o doc real) e o giro da rotação de frases (`patchAvancoRotacao` na skin da frase que saiu). A rotação entra porque é a frase que decide se sobra marcador: um lead barrado pela frase 1 pode sair com a frase 2.
+4. Repete, até `alvo` linhas ou o horizonte.
+
+**Horizonte: o fim do PRÓXIMO dia operacional** (`horizonteDaAgenda` — a virada de hoje e a seguinte, de 24 a 48h). A meta é diária: quem olha às 06:40 vê hoje e amanhã; quem olha às 22h vê o amanhã inteiro. **Alvo: `config/automacao.alvoEstoque`** (o estoque que a automação mantém pronto), padrão 15, teto 50.
+
+**"A partir de", sempre.** O aparelho só pega a tarefa quando chamar `/proximo`, e não há cadência configurada no Radar (os 180 s da macro vivem no MacroDroid, não aqui) — então o horário é o instante em que o lead fica ENTREGÁVEL, e a tela diz "a partir de". Pelo mesmo motivo os portões de ritmo da simulação contam do instante entregável, não do confirmar real (que vem segundos ou minutos depois): a agenda é o limite inferior.
+
+**`melhorMomento` não entra**: a fila decide por `barraDoDia` (faixas da família × horário de funcionamento × fuso), e usar outra noção de "hora boa" na agenda seria exatamente a lógica paralela proibida.
+
+### O que sai da sequência — e não ocupa vaga
+
+- **Vão ser barrados** (`barrados`) — chegam à vez e a guarda da mensagem os barra: marcador sem resolver (com o marcador) ou sem telefone. Como na fila real, não ocupam vaga: a vez passa ao seguinte. São **reavaliados a cada envio simulado** — a rotação girou, a frase pode ser outra —, e quem passa sai da lista e entra na sequência; a lista final é o último veredito de quem nunca saiu.
+- **Demo vence antes** (`vencidos`) — o lead chegaria à vez DEPOIS de a varredura das demos automáticas apagar a demo. Conferido com a função da varredura, `motivoNaoExpira`, no instante de cada varredura agendada (`proximaVarreduraAgendada`, 06:30 UTC) entre agora e o horário dele, com os sinais que o pool passa (doc na fila; ciclos não são lidos — ciclo sem doc principal não existe por construção). Na fila real o lead relido não tem mais demo e não sai, então ele **sai da sequência** e os seguintes sobem; a linha diz quando a demo vence, qual varredura a apaga e quando ele sairia. Só com a automação ligada (desligada, a varredura não roda). A agenda supõe a fila ATIVA, então a regra de não varrer com a fila parada (`motivoParaNaoVarrer`) não entra. **Aproximação aceita**: o teto de 40 exclusões por varredura (`VARREDURA_MAX`) não é simulado — com mais de 40 vencidas na mesma noite, a agenda pode dar como apagada uma que fica para a noite seguinte.
+- **Fora** — elegíveis que sobraram (nicho permitido ou manual, sem os barrados): além do alvo (`parouPor: "alvo"`) ou sem horário até o horizonte (`parouPor: "horizonte"`), por exemplo além da meta de amanhã. Uma contagem, sem lista.
+
+Um candidato que o doc fresco já não sustenta (o pool é cache) ou com claim viva some da simulação em silêncio, como some da fila.
+
+### O motivo do horário (`LinhaAgenda.motivo`)
+
+É o ÚLTIMO portão que segurou a fila antes daquela linha (`SaidaFila.segurou`): `janela` (a faixa do lead abre ali), `intervalo`, `teto_hora`, `meta` — ou nenhum: `agora` (a primeira linha, entregável já) e `em_seguida` (logo depois da anterior). `depoisDaMeta` acrescenta o que o último portão sozinho não conta: a meta segurou a fila no caminho, e o lead sai no dia operacional seguinte (o último portão costuma ser a janela da manhã de amanhã).
+
+### Pausada, bloqueada
+
+A simulação roda com `ativo: true` e a resposta leva `pausada` (config) e `bloqueada` (`motivoDeSaude`, config que o confirmar exige ausente): a agenda é a de quando a fila voltar, e a tela avisa que nada sai enquanto isso.
+
+### A rota — SOMENTE LEITURA
+
+`GET /api/config/fila/agenda`, `requireAdmin` (401/403), sob `/api/config/` pelo motivo de sempre. **Nunca reserva, nunca grava, nunca chama API paga.** Leituras: `config/fila`, `config/app`, `config/automacao`, o contador do dia, o pool, as fontes da mensagem uma vez (`/buscas` e as frases — a mesma montagem de `/proximo`, que a paga a cada entrega) e, por id, o lead e o doc da fila de quem a simulação percorre (cacheados por id). **O pool**: o persistido quando ainda vale (`lerPoolSemGravar`, o mesmo `poolValido` de `lerPool`); vencido, uma varredura em memória que NÃO é gravada. Com a fila pausada o `/proximo` para no portão do ritmo e não reconstrói o pool, e uma agenda do pool de ontem mostraria a fila de ontem — a resposta diz qual foi usado (`pool.reconstruido`, `pool.geradoEm`).
+
+### Testes (`fila-agenda.route.test.ts`, FakeFirestore + relógio congelado)
+
+O central é a CONCORDÂNCIA: roda a agenda e leva o relógio a cada horário previsto — um segundo antes `/proximo` não entrega nada (exceto nas linhas `agora`/`em_seguida`, que não têm "antes"), no horário entrega o MESMO lead com o contrato achatado de sempre (`Object.keys`), e o `/confirmar` real fecha o envio, de modo que contador e rotação andam pelo caminho de produção, não pelo da simulação. Cobre: janela por lead e lead em outro fuso (UTC-3), intervalo, teto por hora e meta na mesma sequência; meta e horizonte cortando, com o resto contado; o alvo; "agora"; o barrado por marcador fora da sequência e a fila pulando-o igual; o barrado que a rotação libera na vez seguinte, igual na fila; a demo que vence antes (fora da sequência, os seguintes sobem), a mesma antes da varredura e com a automação desligada; pausada e bloqueada com o aviso; nenhuma escrita (`applyWrite`, `deleteDoc` e `runTransaction` espionados, e o pool vencido refeito em memória continua ausente do banco); o pool em cache reaproveitado; o estado vazio; e 401/403. Conferido por mutação: tirar o giro da rotação ou a guarda do marcador da simulação derruba os testes — e, só com o percurso (sem as asserções explícitas da agenda), a divergência aparece sozinha: a agenda mutada dizia G às 09:00, e a fila entregou A.
+
 ## Fila de respostas — captura, agrupamento e rascunho por IA (`POST /api/fila/mensagem-recebida`)
 
 O terceiro pilar da fila do celular: depois de captar o lead (busca) e disparar a mensagem (fila de envio acima), este bloco capta a RESPOSTA do lead e prepara um rascunho para o operador revisar. Mesma macro do MacroDroid, mesmo aparelho pessoal do operador — mas agora observando notificações em vez de disparando.
