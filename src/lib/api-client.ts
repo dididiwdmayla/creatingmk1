@@ -212,7 +212,8 @@ export interface FilaDiagnosticoResponse {
  * Quem diz qual é qual é `lista`.
  *
  * O custo de cada estado está no cabeçalho de `lib/fila/balao.ts`: 2
- * leituras fechado, 4 + uma por linha aberto.
+ * leituras fechado, 3 + uma por pendente aberto. Quem sai e quando não
+ * vem daqui: é a AGENDA (`getFilaAgenda(5)`), pedida no mesmo clique.
  */
 export interface FilaBalaoResponse {
   /** A resposta trouxe as listas (`?lista=1`), ou só o resumo barato? */
@@ -222,10 +223,6 @@ export interface FilaBalaoResponse {
   /** Portão de ritmo agora (`pausado`, `meta_atingida`, `teto_hora`…), ou null. */
   ritmo: string | null;
   contador: ContadorPainel;
-  /** A sequência na ordem em que os leads SERÃO entregues. Vazia no estado fechado. */
-  fila: LinhaFilaPainel[];
-  /** Quantos elegíveis ao todo — `fila` é uma janela sobre ela. */
-  elegiveis: number;
   /** Marcados à mão sem a peça que o envio exige, com o motivo visível. */
   pendentes: LinhaPendenteManual[];
   pendentesTotal: number;
@@ -514,8 +511,13 @@ export const api = {
    * A AGENDA da fila (ver `lib/fila/agenda.ts`): os próximos leads na ordem
    * em que vão sair, a partir de quando, e quem não sai — uma simulação
    * somente-leitura com as funções de `/api/fila/proximo`.
+   *
+   * `limite` é o modo do BALÃO: só os N primeiros (o mesmo prefixo da
+   * agenda inteira) e só sobre o retrato persistido do pool, sem nunca
+   * varrer `/leads` — o painel "Fila de envio" chama sem ele.
    */
-  getFilaAgenda: () => request<AgendaFila>("/api/config/fila/agenda"),
+  getFilaAgenda: (limite?: number) =>
+    request<AgendaFila>(`/api/config/fila/agenda${limite ? `?limite=${limite}` : ""}`),
 
   /**
    * A RECONCILIAÇÃO (ver `lib/fila/reconciliacao.ts`): a prévia dos leads que
@@ -723,8 +725,8 @@ export const api = {
   /**
    * O BALÃO da fila (admin). `comLista` é a diferença entre os dois custos:
    * sem ela são 2 leituras de doc (o que o balão FECHADO mostra), com ela
-   * são 4 mais uma por linha — e por isso ela só é pedida quando o operador
-   * ABRE o balão, nunca na navegação.
+   * são 3 mais uma por pendente — e por isso ela só é pedida quando o
+   * operador ABRE o balão, nunca na navegação.
    */
   getFilaBalao: (comLista = false) =>
     request<FilaBalaoResponse>(`/api/config/fila/balao${comLista ? "?lista=1" : ""}`),

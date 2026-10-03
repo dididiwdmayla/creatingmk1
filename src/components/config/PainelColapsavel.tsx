@@ -187,6 +187,10 @@ export function PainelColapsavel({
     <section
       {...(dataBloco && { "data-bloco": dataBloco })}
       data-painel={id}
+      // Âncora de link (`/config?abrir=fila-envio#painel-fila-envio`, o
+      // "ver agenda completa" do balão); a margem desconta o cabeçalho fixo.
+      id={`painel-${id}`}
+      style={{ scrollMarginTop: "calc(var(--app-header-h) + 0.5rem)" }}
       className="rounded-lg border border-line bg-surface p-4"
     >
       <h2>{cabecalho}</h2>

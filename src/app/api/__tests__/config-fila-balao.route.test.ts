@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BALAO_LINHAS, BALAO_PENDENTES } from "@/lib/fila/balao";
+import { BALAO_PENDENTES } from "@/lib/fila/balao";
 import { estruturalVazio } from "@/lib/fila/candidatos";
 import type { AppDb } from "@/lib/firestore-like";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
@@ -14,9 +14,11 @@ import { DELETE } from "../config/fila/balao/[leadId]/route";
  * O que estes testes protegem, acima de tudo, é o CUSTO: o estado fechado
  * (o que a navegação normal paga) não pode encostar no pool nem em `/leads`,
  * e nem o aberto pode disparar a varredura cara que o pool existe para
- * evitar. Depois disso, a ordem — que é a de `ordenarCandidatos` e de mais
- * ninguém — e a guarda da única ação: remover um lead com claim ativa é
- * recusado, porque remover NÃO cancela envio em andamento.
+ * evitar. Depois disso, os pendentes e a guarda da única ação: remover um
+ * lead com claim ativa é recusado, porque remover NÃO cancela envio em
+ * andamento. Quem sai e quando — os próximos do balão aberto — é a AGENDA,
+ * com o custo dela travado em `fila-agenda.route.test.ts` ("o modo do
+ * balão").
  */
 
 /**
@@ -213,9 +215,7 @@ describe("GET /api/config/fila/balao — o estado FECHADO custa 2 leituras", () 
 
     const corpo = await (await balao(await comoAdmin())).json();
 
-    expect(corpo.fila).toEqual([]);
     expect(corpo.pendentes).toEqual([]);
-    expect(corpo.elegiveis).toBe(0);
     expect(corpo.poolGeradoEm).toBeNull();
   });
 
@@ -241,56 +241,19 @@ describe("GET /api/config/fila/balao — o estado FECHADO custa 2 leituras", () 
 });
 
 describe("GET /api/config/fila/balao?lista=1 — o estado ABERTO", () => {
-  it("a sequência sai na ORDEM DA SELEÇÃO, com nome, nicho cru e hora local", async () => {
-    semearPool([
-      { id: "velho", criadoEm: "2026-03-01T00:00:00.000Z" },
-      { id: "novo", criadoEm: "2026-03-05T00:00:00.000Z" },
-    ]);
-    semearLead("velho", "Primeiro da fila");
-    semearLead("novo", "Chegou depois");
+  it("não monta mais a sequência: quem sai e quando é a AGENDA", async () => {
+    semearPool([{ id: "a" }]);
+    semearLead("a", "Barbearia do Zé");
 
     const corpo = await (await balao(await comoAdmin(), true)).json();
 
     expect(corpo.lista).toBe(true);
-    expect(corpo.fila).toEqual([
-      {
-        leadId: "velho",
-        nome: "Primeiro da fila",
-        nicho: "Barbearia Masculina",
-        nivel: "bom",
-        horaLocal: "10h",
-        manual: false,
-        proximaFaixa: null,
-      },
-      {
-        leadId: "novo",
-        nome: "Chegou depois",
-        nicho: "Barbearia Masculina",
-        nivel: "bom",
-        horaLocal: "10h",
-        manual: false,
-        proximaFaixa: null,
-      },
-    ]);
-    expect(corpo.elegiveis).toBe(2);
+    expect(corpo).not.toHaveProperty("fila");
+    expect(corpo).not.toHaveProperty("elegiveis");
+    expect(corpo.poolGeradoEm).toBe(AGORA.toISOString());
   });
 
-  it("o MANUAL vem na frente e vem marcado — a mesma ordem de /proximo", async () => {
-    semearPool([
-      { id: "velho", criadoEm: "2020-01-01T00:00:00.000Z" },
-      { id: "manual", criadoEm: "2026-03-09T00:00:00.000Z", manual: true },
-    ]);
-    semearLead("velho", "Esperando há anos");
-    semearLead("manual", "Escolhido à mão");
-
-    const { fila } = await (await balao(await comoAdmin(), true)).json();
-
-    expect(fila.map((l: { leadId: string }) => l.leadId)).toEqual(["manual", "velho"]);
-    expect(fila[0].manual).toBe(true);
-    expect(fila[1].manual).toBe(false);
-  });
-
-  it("os PENDENTES vêm com o motivo, e não entram na fila de entrega", async () => {
+  it("os PENDENTES vêm com o motivo", async () => {
     semearPool([{ id: "ok" }], {
       manuaisPendentes: [{ id: "pendente", motivo: "semDemo" }],
       manuaisPendentesTotal: 1,
@@ -300,7 +263,6 @@ describe("GET /api/config/fila/balao?lista=1 — o estado ABERTO", () => {
 
     const corpo = await (await balao(await comoAdmin(), true)).json();
 
-    expect(corpo.fila.map((l: { leadId: string }) => l.leadId)).toEqual(["ok"]);
     expect(corpo.pendentes).toEqual([
       { leadId: "pendente", nome: "Falta a demo", nicho: "Barbearia Masculina", motivo: "semDemo" },
     ]);
@@ -329,7 +291,7 @@ describe("GET /api/config/fila/balao?lista=1 — o estado ABERTO", () => {
     expect((await (await balao(await comoAdmin(), true)).json()).pendentes).toEqual([]);
   });
 
-  it("NUNCA varre /leads: lê por id, e só das linhas que a tela mostra", async () => {
+  it("NUNCA varre /leads: lê por id, e só dos pendentes que a tela mostra", async () => {
     semearPool([{ id: "a" }, { id: "b" }], {
       manuaisPendentes: [{ id: "p", motivo: "semDemo" }],
       manuaisPendentesTotal: 1,
@@ -345,30 +307,14 @@ describe("GET /api/config/fila/balao?lista=1 — o estado ABERTO", () => {
     await balao(cookie, true);
 
     expect(varreduras().leads ?? 0).toBe(0);
-    // 4 docs de estado + UMA leitura por linha mostrada. O lead que não
-    // aparece em lista nenhuma não é lido.
+    // 3 docs de estado + UMA leitura por pendente mostrado. Os candidatos
+    // da fila não são lidos aqui: os próximos vêm da agenda.
     expect(docs()).toEqual([
       "config/fila",
       "filaContadores/2026-03-10",
       "filaCandidatos/pool",
-      "config/app",
-      // O corte do legado em vigor: um doc a mais, nunca uma varredura.
-      "config/automacao",
-      "leads/a",
-      "leads/b",
       "leads/p",
     ]);
-  });
-
-  it("a lista é uma JANELA: corta em BALAO_LINHAS, mas `elegiveis` conta todos", async () => {
-    const ids = Array.from({ length: BALAO_LINHAS + 3 }, (_, i) => `l${String(i).padStart(2, "0")}`);
-    semearPool(ids.map((id, i) => ({ id, criadoEm: `2026-03-10T00:0${i % 10}:00.000Z` })));
-    for (const id of ids) semearLead(id, `Lead ${id}`);
-
-    const corpo = await (await balao(await comoAdmin(), true)).json();
-
-    expect(corpo.fila).toHaveLength(BALAO_LINHAS);
-    expect(corpo.elegiveis).toBe(BALAO_LINHAS + 3);
   });
 
   it("os pendentes também são cortados, com o total inteiro ao lado", async () => {
@@ -394,34 +340,13 @@ describe("GET /api/config/fila/balao?lista=1 — o estado ABERTO", () => {
     const corpo = await (await balao(cookie, true)).json();
 
     expect(corpo.poolGeradoEm).toBeNull();
-    expect(corpo.fila).toEqual([]);
+    expect(corpo.pendentes).toEqual([]);
     expect(varreduras().leads ?? 0).toBe(0);
-  });
-
-  it("fila PAUSADA continua mostrando quem sairia — pausada-e-vazia é outra coisa", async () => {
-    db.seed("config/fila", { ativo: false });
-    semearPool([{ id: "a" }]);
-    semearLead("a", "Barbearia do Zé");
-
-    const corpo = await (await balao(await comoAdmin(), true)).json();
-
-    expect(corpo.ritmo).toBe("pausado");
-    expect(corpo.fila).toHaveLength(1);
-  });
-
-  it("o pool é cache: quem não passa mais na peneira não vira linha", async () => {
-    semearPool([{ id: "a" }, { id: "descartado" }]);
-    semearLead("a", "Continua valendo");
-    semearLead("descartado", "Saiu da fila agora", { descartado: true });
-
-    const { fila } = await (await balao(await comoAdmin(), true)).json();
-
-    expect(fila.map((l: { leadId: string }) => l.leadId)).toEqual(["a"]);
   });
 });
 
 describe("DELETE /api/config/fila/balao/[leadId] — remover da fila", () => {
-  it("descarta o lead e devolve o balão já relido, sem ele", async () => {
+  it("descarta o lead e devolve o balão já relido", async () => {
     semearPool([{ id: "a" }, { id: "b" }]);
     semearLead("a", "Sai da fila");
     semearLead("b", "Fica");
@@ -430,8 +355,8 @@ describe("DELETE /api/config/fila/balao/[leadId] — remover da fila", () => {
 
     expect(res.status).toBe(200);
     expect(db.getDoc("leads/a")?.descartado).toBe(true);
-    const corpo = await res.json();
-    expect(corpo.fila.map((l: { leadId: string }) => l.leadId)).toEqual(["b"]);
+    expect(db.getDoc("leads/b")?.descartado).toBeUndefined();
+    expect(await res.json()).toMatchObject({ lista: true, pendentes: [] });
   });
 
   it("é o `descartado` de sempre: nenhum campo novo, e `filaManual` fica intacto", async () => {

@@ -36,6 +36,21 @@ async function paineisIniciais(): Promise<PaineisConfigAbertos> {
   }
 }
 
-export default async function ConfigPage() {
-  return <ConfigClient paineisIniciais={await paineisIniciais()} />;
+/**
+ * `?abrir={id do painel}` abre aquele painel NESTA visita, além dos
+ * guardados — é o "ver agenda completa" do balão da fila
+ * (`/config?abrir=fila-envio#painel-fila-envio`). Não grava a preferência:
+ * quem segue um link quer ver, não mudar como a página abre amanhã. Resolvido
+ * aqui, junto da preferência, pelo mesmo motivo dela: o painel já chega
+ * aberto no primeiro desenho, e o `#` cai no lugar certo.
+ */
+export default async function ConfigPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [chave: string]: string | string[] | undefined }>;
+}) {
+  const [guardados, { abrir }] = await Promise.all([paineisIniciais(), searchParams]);
+  const pedido = typeof abrir === "string" && abrir.length > 0 && abrir.length <= 64 ? abrir : undefined;
+  const iniciais = pedido && !guardados.includes(pedido) ? [...guardados, pedido] : guardados;
+  return <ConfigClient paineisIniciais={iniciais} />;
 }

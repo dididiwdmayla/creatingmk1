@@ -435,16 +435,27 @@ export interface VencidoAgenda {
 export interface AgendaFila {
   /** O instante da simulação ("agora" do servidor). */
   geradoEm: string;
-  /** O fim do PRÓXIMO dia operacional — até onde a simulação anda. */
+  /**
+   * Até onde a simulação andou: o fim do dia operacional da primeira saída
+   * (nunca antes do fim de amanhã), ou o teto de 7 dias quando nada sai.
+   */
   horizonte: string;
+  /** O dia operacional (`YYYY-MM-DD`) que termina no horizonte — "até o fim de segunda". */
+  horizonteDia: string;
+  /** O dia operacional de `geradoEm` — a referência de "amanhã" no rótulo do horizonte. */
+  diaOperacional: string;
   /** Quantos leads a agenda procura (o estoque alvo da automação). */
   alvo: number;
   /** A fila está pausada: a agenda é a de quando ela voltar, e nada sai enquanto isso. */
   pausada: boolean;
   /** Falta config que o confirmar exige (`motivoDeSaude`): nada sai até ela existir. */
   bloqueada: boolean;
-  /** O retrato do pool usado — o persistido, ou uma varredura em memória (nunca gravada). */
-  pool: { geradoEm: string; reconstruido: boolean; truncado: boolean };
+  /**
+   * O retrato do pool usado — o persistido, ou uma varredura em memória
+   * (nunca gravada). `geradoEm` null só no modo do balão (`?limite=`), que
+   * não varre: o celular nunca pediu tarefa e não há retrato.
+   */
+  pool: { geradoEm: string | null; reconstruido: boolean; truncado: boolean };
   linhas: LinhaAgenda[];
   barrados: BarradoAgenda[];
   vencidos: VencidoAgenda[];

@@ -7,27 +7,16 @@ import { usePainelAberto } from "@/components/config/PainelColapsavel";
 import { mensagemErroFila } from "@/components/config/comum";
 import { ApiError, api } from "@/lib/api-client";
 import {
+  agruparPorDia,
   complementoDeFuso,
-  diaDoOperador,
   horaDoOperador,
   textoDoBarrado,
   textoDoFora,
+  textoDoHorizonte,
   textoDoMotivo,
   textoDoVencido,
 } from "@/lib/fila/agendaTexto";
-import type { AgendaFila, LinhaAgenda } from "@/lib/fila/estado";
-
-/** As linhas agrupadas pelo dia do OPERADOR, na ordem da agenda. */
-function porDia(agenda: AgendaFila): Array<{ dia: string; linhas: LinhaAgenda[] }> {
-  const grupos: Array<{ dia: string; linhas: LinhaAgenda[] }> = [];
-  for (const linha of agenda.linhas) {
-    const dia = diaDoOperador(linha.em, agenda.geradoEm);
-    const ultimo = grupos.at(-1);
-    if (ultimo?.dia === dia) ultimo.linhas.push(linha);
-    else grupos.push({ dia, linhas: [linha] });
-  }
-  return grupos;
-}
+import type { AgendaFila } from "@/lib/fila/estado";
 
 /** O nome do lead, sempre link para a ficha. */
 function NomeLead({ leadId, nome }: { leadId: string; nome: string }) {
@@ -106,8 +95,9 @@ export function AgendaFilaBloco({ painelId, versao }: { painelId: string; versao
           {calculando ? "calculando…" : "↻ Atualizar"}
         </button>
       </div>
-      <p className="mt-0.5 text-[11px] text-ink-muted">
-        Quem sai, na ordem, com as regras da fila — horário de São Paulo, até o fim de amanhã.
+      <p data-agenda-horizonte className="mt-0.5 text-[11px] text-ink-muted">
+        Quem sai, na ordem, com as regras da fila — horário de São Paulo
+        {agenda ? `, ${textoDoHorizonte(agenda)}` : ""}.
       </p>
 
       {agenda?.pausada && (
@@ -131,12 +121,12 @@ export function AgendaFilaBloco({ painelId, versao }: { painelId: string; versao
 
       {agenda && agenda.linhas.length === 0 && (
         <p data-agenda-vazia className="mt-2 text-xs text-ink-muted">
-          Nenhum lead sai até o fim de amanhã.
+          Nenhum lead sai {textoDoHorizonte(agenda)}.
         </p>
       )}
 
       {agenda &&
-        porDia(agenda).map((grupo) => (
+        agruparPorDia(agenda.linhas, agenda.geradoEm).map((grupo) => (
           <div key={grupo.dia} data-dia-agenda={grupo.dia} className="mt-2.5">
             <p className="text-[10px] text-ink-muted">
               <span className="font-semibold uppercase tracking-wide">{grupo.dia}</span> · a partir de
@@ -220,7 +210,7 @@ export function AgendaFilaBloco({ painelId, versao }: { painelId: string; versao
               {" · "}
             </>
           )}
-          {agenda.pool.reconstruido
+          {agenda.pool.reconstruido || !agenda.pool.geradoEm
             ? "candidatos lidos agora"
             : `candidatos do retrato das ${horaDoOperador(agenda.pool.geradoEm)}`}
         </p>

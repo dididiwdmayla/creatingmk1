@@ -7,6 +7,7 @@ import {
   horaDoOperador,
   textoDoBarrado,
   textoDoFora,
+  textoDoHorizonte,
   textoDoMotivo,
   textoDoVencido,
 } from "../agendaTexto";
@@ -112,9 +113,25 @@ describe("barrados, vencidos e o que sobrou", () => {
     ).toBe("demo apagada na varredura de amanhã 03:30 (venceu amanhã 03:00) · sairia amanhã 09:00");
   });
 
-  it("o que sobrou depende de onde a agenda parou", () => {
-    expect(textoDoFora({ fora: 0, parouPor: "alvo", alvo: 15 })).toBeUndefined();
-    expect(textoDoFora({ fora: 3, parouPor: "alvo", alvo: 15 })).toBe("+ 3 elegíveis depois destes 15");
-    expect(textoDoFora({ fora: 1, parouPor: "horizonte", alvo: 15 })).toBe("1 elegível sem vez até o fim de amanhã");
+  it("o que sobrou depende de onde a agenda parou — e de até onde ela foi", () => {
+    const amanha = { alvo: 15, horizonteDia: "2026-03-11", diaOperacional: "2026-03-10" };
+    expect(textoDoFora({ ...amanha, fora: 0, parouPor: "alvo" })).toBeUndefined();
+    expect(textoDoFora({ ...amanha, fora: 3, parouPor: "alvo" })).toBe("+ 3 elegíveis depois destes 15");
+    expect(textoDoFora({ ...amanha, fora: 1, parouPor: "horizonte" })).toBe("1 elegível sem vez até o fim de amanhã");
+    expect(textoDoFora({ ...amanha, horizonteDia: "2026-03-16", fora: 2, parouPor: "horizonte" })).toBe(
+      "2 elegíveis sem vez até o fim de segunda",
+    );
+  });
+});
+
+describe("até onde a agenda vai", () => {
+  it("amanhã, e depois o NOME do dia", () => {
+    expect(textoDoHorizonte({ horizonteDia: "2026-03-10", diaOperacional: "2026-03-10" })).toBe("até o fim de hoje");
+    expect(textoDoHorizonte({ horizonteDia: "2026-03-11", diaOperacional: "2026-03-10" })).toBe("até o fim de amanhã");
+    expect(textoDoHorizonte({ horizonteDia: "2026-03-12", diaOperacional: "2026-03-10" })).toBe("até o fim de quinta");
+    // Sábado à tarde, tudo abrindo segunda: "até o fim de segunda".
+    expect(textoDoHorizonte({ horizonteDia: "2026-03-16", diaOperacional: "2026-03-14" })).toBe("até o fim de segunda");
+    // O teto (hoje e os seis seguintes): sábado → sexta, nunca "sábado" de novo.
+    expect(textoDoHorizonte({ horizonteDia: "2026-03-20", diaOperacional: "2026-03-14" })).toBe("até o fim de sexta");
   });
 });

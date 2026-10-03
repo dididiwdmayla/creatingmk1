@@ -52,6 +52,24 @@ export function diaDoOperador(iso: string, referenciaIso: string): string {
   return `${SEMANA_OPERADOR.format(data).replace(".", "")} ${DATA_OPERADOR.format(data)}`;
 }
 
+/**
+ * As linhas agrupadas pelo dia do OPERADOR, na ordem da agenda — os grupos
+ * "hoje" / "amanhã" / "seg 05/10" do painel e do balão.
+ */
+export function agruparPorDia(
+  linhas: LinhaAgenda[],
+  referenciaIso: string,
+): Array<{ dia: string; linhas: LinhaAgenda[] }> {
+  const grupos: Array<{ dia: string; linhas: LinhaAgenda[] }> = [];
+  for (const linha of linhas) {
+    const dia = diaDoOperador(linha.em, referenciaIso);
+    const ultimo = grupos.at(-1);
+    if (ultimo?.dia === dia) ultimo.linhas.push(linha);
+    else grupos.push({ dia, linhas: [linha] });
+  }
+  return grupos;
+}
+
 /** "13:00" — a hora do instante no fuso do LEAD (deslocamento em minutos). */
 export function horaNoFusoDoLead(iso: string, offsetMinutos: number): string {
   const local = new Date(new Date(iso).getTime() + offsetMinutos * 60_000);
@@ -128,11 +146,32 @@ export function textoDoVencido(vencido: VencidoAgenda, referenciaIso: string): s
   return `demo apagada na varredura de ${quando(vencido.varreduraEm)} (venceu ${quando(vencido.venceEm)}) · sairia ${quando(vencido.sairiaEm)}`;
 }
 
+const NOME_DO_DIA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+
+/**
+ * Até onde a agenda vai: "até o fim de amanhã", "até o fim de segunda" —
+ * o dia operacional do horizonte (`horizonteDia`) contra o de quando a
+ * agenda foi gerada (`diaOperacional`), os dois do servidor: com o dia
+ * virando fora da meia-noite, o calendário diria "hoje" para um horizonte
+ * que é amanhã. O teto é de sete dias contando hoje, então o nome do dia
+ * nunca é o de hoje outra vez.
+ */
+export function textoDoHorizonte(agenda: Pick<AgendaFila, "horizonteDia" | "diaOperacional">): string {
+  const hoje = Date.parse(`${agenda.diaOperacional}T00:00:00Z`);
+  const dia = Date.parse(`${agenda.horizonteDia}T00:00:00Z`);
+  const dias = Math.round((dia - hoje) / DIA_MS);
+  if (dias <= 0) return "até o fim de hoje";
+  if (dias === 1) return "até o fim de amanhã";
+  return `até o fim de ${NOME_DO_DIA[new Date(dia).getUTCDay()]}`;
+}
+
 /** A linha do que sobrou — `undefined` quando não sobrou nada. */
-export function textoDoFora(agenda: Pick<AgendaFila, "fora" | "parouPor" | "alvo">): string | undefined {
+export function textoDoFora(
+  agenda: Pick<AgendaFila, "fora" | "parouPor" | "alvo" | "horizonteDia" | "diaOperacional">,
+): string | undefined {
   if (agenda.fora === 0) return undefined;
   const elegiveis = `${agenda.fora} ${agenda.fora === 1 ? "elegível" : "elegíveis"}`;
   return agenda.parouPor === "alvo"
     ? `+ ${elegiveis} depois destes ${agenda.alvo}`
-    : `${elegiveis} sem vez até o fim de amanhã`;
+    : `${elegiveis} sem vez ${textoDoHorizonte(agenda)}`;
 }
