@@ -45,8 +45,8 @@ const CHAVES_PROXIMO = [
   "expiraEm",
   "motivo",
 ].sort();
-/** E o de `/confirmar` — as seis de `fila-confirmar.route.test.ts`. */
-const CHAVES_CONFIRMAR = ["ok", "teste", "estado", "repetida", "tentativas", "parado"].sort();
+/** E o de `/confirmar` — as mesmas de `fila-confirmar.route.test.ts`. */
+const CHAVES_CONFIRMAR = ["ok", "teste", "estado", "repetida", "tentativas", "parado", "foraDaClaim"].sort();
 
 function lead(id: string, overrides: Partial<Lead> = {}): Lead {
   return {

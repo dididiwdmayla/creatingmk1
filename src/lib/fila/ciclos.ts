@@ -57,6 +57,16 @@ export interface CicloEnvio {
   detalhe: string | null;
   /** Quando o desfecho chegou (ISO), ou `null` enquanto aberto. */
   fechadoEm: string | null;
+  /**
+   * Quando chegou um "enviado" desta claim DEPOIS de ela deixar de ser a
+   * atual (o confirmar tardio — ver `confirmarEnvio`). Anotação AO LADO do
+   * desfecho: `resultado` guarda o que se decidiu na hora (ex.:
+   * `liberado_revisao`), isto guarda que a mensagem saiu mesmo assim. Ausente
+   * em ciclo sem confirmar tardio.
+   */
+  envioTardioEm?: string | null;
+  /** O `detalhe` que veio junto do confirmar tardio. */
+  detalheTardio?: string | null;
 }
 
 function ciclosCol(db: AppDb, leadId: string) {
@@ -96,6 +106,31 @@ export function cicloFechado(
   if (atual && atual.resultado) return undefined;
   const base = (atual as CicloEnvio | undefined) ?? cicloAberto(envio);
   return { ...base, resultado, detalhe: detalhe ?? null, fechadoEm: now.toISOString() };
+}
+
+/**
+ * O envio desta claim JÁ foi contado (contador do dia, selo no lead)? Sim se
+ * o ciclo fechou como enviado — pelo aparelho ou pelo operador na revisão —
+ * ou se um confirmar tardio já passou por ele. É o que torna o confirmar
+ * tardio idempotente.
+ */
+export function envioJaContado(ciclo: CicloEnvio): boolean {
+  return ciclo.resultado === "enviado" || ciclo.resultado === "contactado_revisao" || Boolean(ciclo.envioTardioEm);
+}
+
+/**
+ * O ciclo com o confirmar tardio anotado, puro. O desfecho original fica
+ * (o primeiro fechamento vale); um ciclo ainda aberto fecha como "enviado".
+ */
+export function cicloComEnvioTardio(ciclo: CicloEnvio, detalhe: string | null, now: Date): CicloEnvio {
+  const em = now.toISOString();
+  return {
+    ...ciclo,
+    resultado: ciclo.resultado ?? "enviado",
+    fechadoEm: ciclo.fechadoEm ?? em,
+    envioTardioEm: em,
+    detalheTardio: detalhe ?? null,
+  };
 }
 
 /**

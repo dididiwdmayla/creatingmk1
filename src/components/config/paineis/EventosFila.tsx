@@ -15,6 +15,8 @@ export const PAINEL_EVENTOS_FILA = "fila-eventos";
 /** O que cada código costuma querer dizer, em linguagem de operador. */
 const MOTIVO_LABEL: Record<string, string> = {
   claim_invalida: "a tarefa já não era desse aparelho (claim que não bate)",
+  confirmado_fora_da_claim:
+    "a mensagem de uma tarefa já liberada SAIU — o lead foi marcado como contactado e o envio contado agora",
   corpo_invalido: "a macro mandou um corpo malformado",
   config_error: "falta configuração no servidor",
   internal_error: "erro inesperado no servidor",
@@ -24,7 +26,8 @@ const MOTIVO_LABEL: Record<string, string> = {
 /**
  * "Erros do aparelho", subordinado ao painel "Fila de envio" (ver
  * `lib/fila/eventos.ts`): toda resposta não-200 de `/api/fila/proximo` e
- * `/api/fila/confirmar`. Fica logo abaixo da saúde da fila porque responde a
+ * `/api/fila/confirmar` — e o confirmar TARDIO, que responde 200 mas é o
+ * aviso de que uma tarefa liberada tinha saído (ver `confirmarEnvio`). Fica logo abaixo da saúde da fila porque responde a
  * mesma pergunta pelo outro lado — a saúde diz o que FALTA, isto diz o que
  * de fato DEU ERRADO.
  *
@@ -61,8 +64,8 @@ export function EventosFilaBloco() {
       resumo={dados === null ? (erro ? "—" : undefined) : total === 0 ? "nenhum hoje" : `${formatInt(total)} hoje`}
     >
       <p className="mt-1 text-xs text-ink-muted">
-        Respostas de erro que o celular recebeu ao pedir tarefa ou confirmar envio. Sem a chave do aparelho
-        nada é gravado aqui.
+        Respostas de erro que o celular recebeu ao pedir tarefa ou confirmar envio, e envios confirmados
+        depois de a tarefa ter sido liberada. Sem a chave do aparelho nada é gravado aqui.
       </p>
 
       {dados === null && !erro && <SkeletonRows count={1} className="mt-2 h-14 rounded border border-line" />}

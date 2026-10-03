@@ -4,7 +4,7 @@ import { getDb } from "@/lib/firebase/admin";
 import { autenticarDispositivo } from "@/lib/fila/auth";
 import { loadFilaConfig } from "@/lib/fila/config";
 import { confirmarEnvio } from "@/lib/fila/confirmar";
-import { comRastroFila } from "@/lib/fila/eventos";
+import { comRastroFila, registrarEventoFila } from "@/lib/fila/eventos";
 import { ClaimInvalidoError, type FilaEnvioResultado } from "@/lib/fila/envios";
 import {
   confirmarTarefaResposta,
@@ -105,6 +105,7 @@ async function tratar(req: Request) {
         // tem tentativas nem lead parado — daí os valores fixos.
         tentativas: 0,
         parado: false,
+        foraDaClaim: false,
       });
     }
 
@@ -132,7 +133,7 @@ async function tratar(req: Request) {
       }
       // As MESMAS chaves do caminho real, com os mesmos significados:
       // `parado` aqui é "saiu do automático e voltou para o painel".
-      return NextResponse.json({ ok: true, teste: false, ...confirmacao });
+      return NextResponse.json({ ok: true, teste: false, ...confirmacao, foraDaClaim: false });
     }
 
     // O usuário sob o qual as ações do celular são atribuídas — mantém
@@ -148,6 +149,7 @@ async function tratar(req: Request) {
     }
 
     const config = await loadFilaConfig(db);
+    const now = new Date();
     const confirmacao = await confirmarEnvio(
       db,
       leadId as string,
@@ -157,8 +159,33 @@ async function tratar(req: Request) {
         detalhe: typeof detalhe === "string" ? detalhe.slice(0, DETALHE_MAX) : null,
         userId,
         inicioDiaOperacionalHora: config.inicioDiaOperacionalHora,
+        now,
       },
     );
+
+    // O confirmar TARDIO responde 200 (a mensagem saiu e foi registrada),
+    // então `comRastroFila` não o veria — mas é exatamente o tipo de coisa
+    // que o operador precisa enxergar: uma claim que ele liberou tinha, sim,
+    // saído. Um evento só na primeira vez (a repetição não muda nada), e
+    // falhar aqui nunca muda a resposta.
+    if (confirmacao.foraDaClaim && !confirmacao.repetida) {
+      try {
+        await registrarEventoFila(
+          db,
+          {
+            rota: "confirmar",
+            status: 200,
+            leadId: leadId as string,
+            claimId: id as string,
+            motivo: "confirmado_fora_da_claim",
+            em: now.toISOString(),
+          },
+          now,
+        );
+      } catch (error) {
+        console.error("[fila] falha ao gravar o evento do confirmar tardio:", error);
+      }
+    }
 
     return NextResponse.json({ ok: true, teste: false, ...confirmacao });
   } catch (error) {

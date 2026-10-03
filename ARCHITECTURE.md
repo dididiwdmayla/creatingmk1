@@ -3330,7 +3330,7 @@ Autenticação de **sessão de admin**, mesmo mecanismo de `PUT /api/config/fila
 
 Corpo `{ id, leadId, resultado, detalhe }`, onde `id` é o claimId da tarefa e `resultado` é `enviado | invalido | falhou`.
 
-**O contrato desta rota nunca mudou, e não muda com a resposta automática**: os mesmos três resultados, a mesma idempotência, o mesmo 409, as mesmas chaves na resposta. O que varia é para ONDE a confirmação vai, e isso é decidido pelo PREFIXO do claimId — `teste-` (adiante) e `resp-` (ver "Resposta automática") —, cada um com desvio de custo zero e ANTES da transação real. A posição não é estilo: uma resposta que passasse por `confirmarEnvio` moveria o status do lead, gravaria selo, giraria a rotação de frases e gastaria a meta do dia.
+**O contrato desta rota nunca mudou, e não muda com a resposta automática**: os mesmos três resultados, a mesma idempotência, o mesmo 409, as mesmas chaves na resposta (a única acrescentada desde então é `foraDaClaim`, sempre presente — ver o confirmar tardio adiante). O que varia é para ONDE a confirmação vai, e isso é decidido pelo PREFIXO do claimId — `teste-` (adiante) e `resp-` (ver "Resposta automática") —, cada um com desvio de custo zero e ANTES da transação real. A posição não é estilo: uma resposta que passasse por `confirmarEnvio` moveria o status do lead, gravaria selo, giraria a rotação de frases e gastaria a meta do dia.
 
 **"enviado" move QUATRO docs em coleções diferentes, ou nenhum** (`src/lib/fila/confirmar.ts`, uma `runTransaction` só): a claim (`estado`/`enviadoEm`), o lead (`novo → contactado` + selo + `registrosEnvio` com a hora e o dia local DO LEAD), a rotação de frases e o contador do dia operacional (`enviados++`, push do ISO em `envios`, poda para 24h). Uma confirmação pela metade seria contador que não bate com lead que não bate com o que o negócio recebeu no WhatsApp.
 
@@ -3415,7 +3415,9 @@ A consequência aceita é que passam a existir **leads contactados com o texto m
 
 **Duas garantias de que o executor no celular depende:**
 
-- **409 `{ erro: "claim_invalida" }` para claim que não bate, sem alterar NADA.** Cenário real: o celular trava, a claim expira, o lead é re-reservado, e só então o aparelho volta e tenta confirmar a claim velha — sem isto viraria envio duplicado ou contador errado.
+- **409 `{ erro: "claim_invalida" }` para claim que não bate, sem alterar NADA** — para "falhou" e "invalido" de claim velha, para claimId sem ciclo neste lead (não há como saber que ele existiu) e para lead sem doc em `filaEnvios`. Cenário real: o celular trava, a claim expira, o lead é re-reservado, e só então o aparelho volta e tenta confirmar a claim velha — sem isto viraria envio duplicado ou contador errado.
+- **A exceção: o confirmar TARDIO.** "enviado" de uma claim velha DESTE lead (há `filaEnvios/{lead}/ciclos/{claimId}`) é aceito com 200 e `foraDaClaim: true`. O caso que o criou: o operador liberou o lead da revisão, ele foi re-reservado, e só então chegou o "enviado" antigo. A mensagem SAIU; o 409 de antes deixava o lead "novo", pronto para receber de novo. Numa transação: lead `novo → contactado` (nunca rebaixa) com selo e registro do aparelho na data da RESERVA velha; +1 em `enviados` no dia operacional de agora, sem tocar `envios`/`ultimoEventoEm` (`contadorComEnvioTardio` — os portões de ritmo não podem ver uma mensagem "de agora" que saiu antes); a rotação NÃO gira; a claim atual não é tocada; o ciclo velho ganha `envioTardioEm`/`detalheTardio` ao lado do desfecho original. Repetir devolve `repetida: true` sem mexer em nada (`envioJaContado`: ciclo fechado como `enviado`/`contactado_revisao`, ou já com `envioTardioEm`). A primeira vez grava um evento visível no painel (`confirmado_fora_da_claim`, status 200 — ver "Eventos da fila"), gravado explicitamente pela rota porque `comRastroFila` só vê não-200.
+- **`foraDaClaim` é a única chave acrescentada à resposta** — booleano, SEMPRE presente em todo 200 (`false` no caminho normal, no de teste e no de resposta automática). Resposta plana como sempre; a macro lê por marcador e ignora a chave, e recebe 200 onde recebia 409 — nenhuma mudança nela.
 - **Confirmação repetida da MESMA claim já confirmada devolve sucesso (`repetida: true`) sem duplicar nada** — nem contador, nem rotação, nem registro de envio. A rede pode cair DEPOIS de a mensagem ter saído, e aí o celular reenvia o confirmar.
 
 **Todas as leituras antes de todas as escritas**, dentro da transação: o Firestore real recusa `get` depois de `set`, e o fake dos testes deixaria passar calado — um confirmar que violasse isso passaria na suíte inteira e quebraria só em produção, na primeira mensagem da noite. Há teste que vigia a ordem, e ele foi verificado quebrando a ordem de propósito.
@@ -3676,7 +3678,7 @@ As rotas da REVISÃO (`GET /api/config/fila/revisao`, `DELETE .../{leadId}`, `PO
 
 **Por que existe.** Durante semanas TODO `POST /api/fila/confirmar` de prospecção respondeu 503 (ver "Saúde da fila"). O aparelho recebia o erro, o servidor não guardava nada, e o painel não mostrava nada. Um 409 de claim que não bate, um 400 de corpo malformado pela macro e um 500 somem do mesmo jeito.
 
-**A regra: toda resposta não-200 de `/api/fila/proximo` e `/api/fila/confirmar` grava um evento** — `{ rota, status, leadId, claimId, motivo, em }` — em `filaEventos/{dia operacional}/itens/{id}`, e soma no total do dia em `filaEventos/{dia}` (`{ total, porStatus }`), os dois na mesma transação. "Sem tarefa" é 200 com motivo e NÃO é evento: só o que a macro recebe como falha HTTP.
+**A regra: toda resposta não-200 de `/api/fila/proximo` e `/api/fila/confirmar` grava um evento** — `{ rota, status, leadId, claimId, motivo, em }` — em `filaEventos/{dia operacional}/itens/{id}`, e soma no total do dia em `filaEventos/{dia}` (`{ total, porStatus }`), os dois na mesma transação. "Sem tarefa" é 200 com motivo e NÃO é evento: só o que a macro recebe como falha HTTP — com UMA exceção, o confirmar tardio (200, motivo `confirmado_fora_da_claim`, ver `POST /api/fila/confirmar`): responde sucesso, mas é o aviso de que uma tarefa que o operador liberou tinha saído, e a rota o grava explicitamente.
 
 - **`comRastroFila(rota, req, handler, getDb)`** embrulha as duas rotas: roda o handler e, se a resposta não for 200, grava o evento. `leadId`/`claimId` saem do CORPO da requisição (o confirmar manda os dois; JSON quebrado dá nulos), lido de um clone feito antes de o handler consumir o original; o `motivo` sai do corpo da RESPOSTA (`erro` no dialeto da fila, `error.code` no do resto do app).
 - **Nunca muda a resposta.** A gravação vem DEPOIS de a resposta estar pronta, e qualquer falha nela vira `console.error` (log da Vercel). Há teste com a coleção de eventos explodindo: a rota responde o mesmo 409, byte a byte.
@@ -3685,7 +3687,7 @@ As rotas da REVISÃO (`GET /api/config/fila/revisao`, `DELETE .../{leadId}`, `PO
 
 **No painel** (`EventosFilaBloco`, "Erros do aparelho", logo abaixo da saúde: a saúde diz o que FALTA, este diz o que de fato DEU ERRADO; `GET /api/config/fila/eventos`, admin only): o total do dia no cabeçalho (do doc do dia — a lista tem teto, o número não) e os últimos `EVENTOS_PAINEL_MAX` (20) de hoje e ontem, mais recente primeiro, com status colorido (5xx crítico, 4xx aviso), rota, hora, o código e uma explicação em linguagem de operador. **O lead aparece pelo NOME**, lido por id só para os leads da lista — o placeId não aparece cru na /config (ver "O id, onde ele PODE aparecer"); lead que não existe mais aparece como "lead excluído ou desconhecido".
 
-**Verificação visual:** `node scripts/qa-plataforma.mjs --so=eventos` — cheio (503 de config, 409, 400 e 500 hoje + um 409 de ontem, um lead de nome longo e um excluído) e vazio, celular e desktop, escuro e claro; cobra o total no cabeçalho, as cinco linhas, o nome no lugar do id (e nenhum id cru no texto do bloco) e que o bloco encolha sem eventos (−360px no celular, −298px no desktop).
+**Verificação visual:** `node scripts/qa-plataforma.mjs --so=eventos` — cheio (503 de config, 409, 400, 500 e um 200 tardio hoje + um 409 de ontem, um lead de nome longo e um excluído) e vazio, celular e desktop, escuro e claro; cobra o total no cabeçalho, as seis linhas, a explicação do confirmar tardio, o nome no lugar do id (e nenhum id cru no texto do bloco) e que o bloco encolha sem eventos (−464px no celular, −388px no desktop).
 
 ### Ciclos — o histórico de cada reserva (`filaEnvios/{leadId}/ciclos/{claimId}`, `src/lib/fila/ciclos.ts`)
 
@@ -3697,11 +3699,14 @@ O doc principal de `/filaEnvios` é UM por lead e cada reserva o sobrescreve: s�
   "rotacaoSkinId": "barbearia-editorial",  // ou null
   "resultado": "enviado",                  // null enquanto aberto
   "detalhe": "print não anexou",           // o que o aparelho mandou, ou null
-  "fechadoEm": "<ISO>" }                   // null enquanto aberto
+  "fechadoEm": "<ISO>",                    // null enquanto aberto
+  "envioTardioEm": "<ISO>",                // só se chegou um "enviado" depois de a claim deixar de ser a atual
+  "detalheTardio": null }                  // o detalhe desse confirmar tardio
 ```
 
 - **Abre** na transação de `reservarLead` (o claimId é único por reserva, daí a chave); a skin entra em `anotarRotacao` (merge).
 - **Fecha UMA vez, na mesma transação de quem decide o desfecho**: o confirmar (`enviado`/`falhou`/`invalido`, com o detalhe), `liberarClaim` (`devolvida` — a rota desistiu antes de montar a tarefa), e as duas ações da revisão (`liberado_revisao`, `contactado_revisao`). O primeiro fechamento vale: ciclo fechado não é reaberto nem sobrescrito (confirmação repetida não muda `fechadoEm` nem `detalhe`), e é isso que o torna registro, não estado. O fechamento LÊ o ciclo antes de escrever, respeitando "todas as leituras antes de todas as escritas".
+- **O confirmar tardio ANOTA, não reabre**: `envioTardioEm`/`detalheTardio` ficam ao lado do desfecho original (ex.: `liberado_revisao` — o que se decidiu na hora), e um ciclo ainda aberto fecha como `enviado`. É essa anotação que torna a repetição idempotente.
 - **Claim de antes dos ciclos** não tem registro aberto: o fechamento o cria com o que o doc principal sabe (reserva, aparelho, skin), em vez de perder o desfecho.
 - **Subcoleção, e não coleção solta**: o acesso é sempre "os ciclos DESTE lead" (`lerCiclos`, do mais antigo para o mais novo — a história na ordem), e a varredura de `/filaEnvios` que o pool, a revisão e as pendências fazem não enxerga subcoleção — nada do que já lia a coleção muda.
 - **A exclusão definitiva leva os ciclos junto** (`excluirLeadDefinitivo`): o Firestore não apaga subcoleção em cascata, e registro de envio de lead que não existe mais é o lixo que a exclusão existe para não deixar.
@@ -3714,7 +3719,7 @@ Os ciclos ainda não têm tela: são dado para o diagnóstico (console do Firest
 
 **A regra hoje: claim que venceu sem NENHUMA confirmação nunca volta sozinha à fila.** Ela vai para REVISÃO, listada no painel com nome, reserva e quantas vezes o lead foi reservado, e só sai por:
 
-- **ação explícita do operador** — "conferi, NÃO saiu" (liberar: o lead volta à fila) ou "conferi, SAIU" (marcar como contactado); ou
+- **ação explícita do operador** — "conferi, NÃO saiu" (liberar: o lead volta à fila; se o "enviado" daquela claim chegar DEPOIS, o confirmar tardio ainda marca o lead como contactado — ver `POST /api/fila/confirmar`) ou "conferi, SAIU" (marcar como contactado); ou
 - **o próprio aparelho falando**: confirmar com o claimId ATUAL segue o caminho normal ("enviado" → contactado, selo, registro, contador, rotação; "falhou" → 3 tentativas; "invalido" → como sempre), porque o confirmar não olha `expiraEm`.
 
 **A assimetria que decide**, a mesma de antes e agora sem prazo: bloquear um lead que não recebeu custa um envio, recuperável pelo botão de liberar; liberar um lead que já recebeu manda duas vezes, e isso não tem volta. **O servidor nunca depende de o aparelho reportar.**

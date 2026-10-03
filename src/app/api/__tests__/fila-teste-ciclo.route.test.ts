@@ -422,7 +422,7 @@ describe("auto-repeat — o servidor rearma sozinho a cada confirmação", () =>
       ].sort(),
     );
     expect(Object.keys(corpoConfirmar).sort()).toEqual(
-      ["ok", "teste", "estado", "repetida", "tentativas", "parado"].sort(),
+      ["ok", "teste", "estado", "repetida", "tentativas", "parado", "foraDaClaim"].sort(),
     );
   });
 });

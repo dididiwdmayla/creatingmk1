@@ -55,7 +55,7 @@
  *   node scripts/qa-plataforma.mjs --so=reconciliacao # RECONCILIAÇÃO em /config: prévia cheia, a confirmação
  *                                                 # aberta (nunca confirmada) e VAZIA; rodar com
  *                                                 # RADAR_DEVICE_USER_ID no ambiente (botão habilitado)
- *   node scripts/qa-plataforma.mjs --so=eventos   # ERROS DO APARELHO em /config: cheio (503/409/400/500,
+ *   node scripts/qa-plataforma.mjs --so=eventos   # ERROS DO APARELHO em /config: cheio (503/409/400/500/200 tardio,
  *                                                 # hoje e ontem, nome longo, lead excluído) e VAZIO
  *   node scripts/qa-plataforma.mjs --so=balao     # o BALÃO da fila (em toda tela): fechado e aberto,
  *                                                 # cheia/vazia/pausada/pendente, e a VARREDURA DE
@@ -2686,9 +2686,9 @@ async function medirReconciliacao(browser, secret) {
 /**
  * O bloco "Erros do aparelho" do painel "Fila de envio" (ver
  * `lib/fila/eventos.ts`): toda resposta não-200 de `/api/fila/proximo` e
- * `/api/fila/confirmar`. Dois estados: CHEIO (503 de config, 409, 400 e 500,
- * de hoje e de ontem, um com lead de nome longo, um com lead excluído) e
- * VAZIO. Celular e desktop, escuro e claro.
+ * `/api/fila/confirmar`, e o confirmar tardio (200). Dois estados: CHEIO (503
+ * de config, 409, 400, 500 e um 200 tardio, de hoje e de ontem, um com lead
+ * de nome longo, um com lead excluído) e VAZIO. Celular e desktop, escuro e claro.
  *
  * O dia operacional é recalculado aqui do mesmo jeito que o servidor faz
  * (`diaOperacionalKey`): São Paulo é UTC−3, e a semente usa
@@ -2711,6 +2711,7 @@ function semearEventos({ vazio }) {
       [hoje, 40, { rota: "confirmar", status: 409, leadId: "lead-ev-longo", claimId: "c-409", motivo: "claim_invalida" }],
       [hoje, 95, { rota: "confirmar", status: 400, leadId: null, claimId: null, motivo: "corpo_invalido" }],
       [hoje, 130, { rota: "proximo", status: 500, leadId: null, claimId: null, motivo: "internal_error" }],
+      [hoje, 150, { rota: "confirmar", status: 200, leadId: "lead-ev-longo", claimId: "c-tardio", motivo: "confirmado_fora_da_claim" }],
       [ontem, 26 * 60, { rota: "confirmar", status: 409, leadId: "lead-ev-excluido", claimId: "c-x", motivo: "claim_invalida" }],
     ];
     const totais = {};
@@ -2787,14 +2788,15 @@ async function medirEventos(browser, secret) {
         itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
       };
 
-      // ── CHEIO: 4 de hoje + 1 de ontem.
+      // ── CHEIO: 5 de hoje (um deles o confirmar tardio, 200) + 1 de ontem.
       semearEventos({ vazio: false });
       await abrir(`cheio/${sufixo}`, () => page.locator('[data-lista="eventos"] li').first().waitFor({ timeout: 10_000 }));
       const cheio = await medir(`cheio/${sufixo}`);
       const linhas = await page.locator('[data-lista="eventos"] li').count();
-      if (linhas !== 5) problemas.push(`cheio/${sufixo}: esperava 5 eventos, achei ${linhas}`);
+      if (linhas !== 6) problemas.push(`cheio/${sufixo}: esperava 6 eventos, achei ${linhas}`);
       for (const [alvo, oque] of [
-        [/4 hoje/, "total do dia no cabeçalho"],
+        [/5 hoje/, "total do dia no cabeçalho"],
+        [/tarefa já liberada SAIU/, "explicação do confirmar tardio (200)"],
         [/config_error/, "o 503 de configuração"],
         [/Clínica Veterinária e Pet Shop Amigo Fiel/, "nome do lead (não o id)"],
         [/lead excluído ou desconhecido/, "lead que não existe mais"],
@@ -2807,7 +2809,7 @@ async function medirEventos(browser, secret) {
       for (const id of ["lead-ev-longo", "lead-ev-excluido", "fila-p1"]) {
         if (textoBloco.includes(id)) problemas.push(`cheio/${sufixo}: o id cru "${id}" apareceu no bloco`);
       }
-      await capturar("cheio (503, 409, 400, 500 hoje + 409 ontem)", "cheio");
+      await capturar("cheio (503, 409, 400, 500, 200 tardio hoje + 409 ontem)", "cheio");
 
       // ── VAZIO.
       semearEventos({ vazio: true });

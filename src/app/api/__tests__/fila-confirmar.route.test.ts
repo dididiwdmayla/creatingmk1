@@ -47,6 +47,11 @@ function lead(id: string, overrides: Partial<Lead> = {}): Lead {
   } as Lead;
 }
 
+/** Os eventos de hoje gravados em `filaEventos` (ver `lib/fila/eventos.ts`). */
+async function itensDeEvento() {
+  return (await db.collection("filaEventos/2026-03-10/itens").get()).docs.map((d) => d.data());
+}
+
 function semear(...leads: Lead[]) {
   for (const l of leads) db.seed(`leads/${l.placeId}`, l as unknown as Record<string, unknown>);
 }
@@ -88,14 +93,16 @@ afterEach(() => {
 /**
  * CONTRATO INALTERADO: os itens de contadores/resumo/pausar acrescentados
  * nesta mesma leva não podem mexer no que o celular já lê hoje. Trava a
- * FORMA da resposta de sucesso — as mesmas seis chaves de sempre, nada a
+ * FORMA da resposta de sucesso — as mesmas chaves de sempre, nada a
  * mais (os contadores novos são gravados no Firestore, nunca devolvidos
- * aqui).
+ * aqui). A única chave acrescentada depois é `foraDaClaim` (booleano,
+ * SEMPRE presente — ver o confirmar tardio abaixo): a macro lê por marcador
+ * e ignora chave que não usa.
  */
 describe("POST /api/fila/confirmar — contrato inalterado", () => {
-  const CHAVES_RESPOSTA = ["ok", "teste", "estado", "repetida", "tentativas", "parado"] as const;
+  const CHAVES_RESPOSTA = ["ok", "teste", "estado", "repetida", "tentativas", "parado", "foraDaClaim"] as const;
 
-  it("'enviado' devolve exatamente as seis chaves de sempre", async () => {
+  it("'enviado' devolve exatamente as chaves do contrato", async () => {
     semear(lead("ChIJa"));
     const tarefa = await pegarTarefa();
 
@@ -393,27 +400,111 @@ describe("POST /api/fila/confirmar — 'falhou'", () => {
 });
 
 describe("POST /api/fila/confirmar — claim que não bate", () => {
-  it("claimId velho devolve 409 e NÃO mexe no contador", async () => {
-    // A claim silenciosa vai para REVISÃO e nunca volta sozinha (ver
-    // `lib/fila/estado.ts`); o único caminho que produz um claimId velho é o
-    // operador LIBERAR da revisão e o aparelho re-reservar antes de a
-    // confirmação antiga chegar. O caso oposto — claim velha que AINDA é a
-    // atual porque a revisão segurou o lead — está logo abaixo.
+  /**
+   * O CONFIRMAR TARDIO. A claim silenciosa vai para REVISÃO e nunca volta
+   * sozinha (ver `lib/fila/estado.ts`); o único caminho que produz um claimId
+   * velho é o operador LIBERAR da revisão e o aparelho re-reservar antes de
+   * a confirmação antiga chegar. Se ela diz "enviado", a mensagem SAIU — e
+   * recusar com 409 deixava o lead "novo", pronto para receber de novo.
+   */
+  async function claimVelhaLiberadaEReReservada() {
     semear(lead("ChIJa"));
-    const tarefa = await pegarTarefa();
+    db.seed("frasesProspeccao/barbearia-editorial", { frases: ["primeira", "segunda"], indice: 0 });
+    const velha = await pegarTarefa();
     vi.setSystemTime(new Date(TERCA_10H.getTime() + 20 * 60 * 1000));
     await liberarRevisao(db, "ChIJa", new Date());
     db.deleteDoc("filaCandidatos/pool");
     const nova = await pegarTarefa();
-    expect(nova.id).not.toBe(tarefa.id);
+    expect(nova.leadId).toBe("ChIJa");
+    expect(nova.id).not.toBe(velha.id);
+    const indiceAntes = db.getDoc("frasesProspeccao/barbearia-editorial")?.indice;
+    const contadorAntes = db.getDoc(DIA);
+    vi.setSystemTime(new Date(TERCA_10H.getTime() + 30 * 60 * 1000));
+    return { velha, nova, indiceAntes, contadorAntes };
+  }
 
-    const res = await confirmar({ id: tarefa.id, leadId: "ChIJa", resultado: "enviado" });
+  it("REPRODUÇÃO: 'enviado' com claim velha marca contactado, conta 1 e não gira a rotação", async () => {
+    const { velha, nova, indiceAntes, contadorAntes } = await claimVelhaLiberadaEReReservada();
+
+    const res = await confirmar({ id: velha.id, leadId: "ChIJa", resultado: "enviado" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      teste: false,
+      estado: "enviado",
+      repetida: false,
+      tentativas: 0,
+      parado: false,
+      foraDaClaim: true,
+    });
+    // O lead: contactado, com selo e registro do aparelho na data da RESERVA
+    // velha (quando a mensagem de fato saiu).
+    const salvo = db.getDoc("leads/ChIJa") as unknown as Lead;
+    expect(salvo.status).toBe("contactado");
+    expect(salvo.seloContato).toEqual({ userId: USER, em: TERCA_10H.toISOString() });
+    expect(salvo.registrosEnvio).toHaveLength(1);
+    expect(salvo.registrosEnvio?.[0].em).toBe(TERCA_10H.toISOString());
+    // O contador: +1 em `enviados`, SEM tocar a janela de ritmo.
+    const contador = db.getDoc(DIA) as Record<string, unknown>;
+    expect(contador.enviados).toBe(((contadorAntes?.enviados as number | undefined) ?? 0) + 1);
+    expect(contador.envios).toEqual(contadorAntes?.envios ?? []);
+    expect(contador.ultimoEventoEm ?? null).toBe(contadorAntes?.ultimoEventoEm ?? null);
+    // A rotação NÃO girou.
+    expect(db.getDoc("frasesProspeccao/barbearia-editorial")?.indice).toBe(indiceAntes);
+    // A reserva NOVA continua intacta.
+    expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({ estado: "reservado", claimId: nova.id });
+    // O ciclo velho guarda o envio tardio sem perder o desfecho original.
+    expect(db.getDoc(`filaEnvios/ChIJa/ciclos/${velha.id}`)).toMatchObject({
+      resultado: "liberado_revisao",
+      envioTardioEm: new Date(TERCA_10H.getTime() + 30 * 60 * 1000).toISOString(),
+    });
+    // E um evento visível no painel.
+    const itens = (await itensDeEvento());
+    expect(itens).toHaveLength(1);
+    expect(itens[0]).toMatchObject({
+      rota: "confirmar",
+      status: 200,
+      leadId: "ChIJa",
+      claimId: velha.id,
+      motivo: "confirmado_fora_da_claim",
+    });
+  });
+
+  it("repetir o confirmar tardio não conta de novo", async () => {
+    const { velha } = await claimVelhaLiberadaEReReservada();
+    await confirmar({ id: velha.id, leadId: "ChIJa", resultado: "enviado" });
+    const contador = db.getDoc(DIA);
+
+    const res = await confirmar({ id: velha.id, leadId: "ChIJa", resultado: "enviado" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ estado: "enviado", repetida: true, foraDaClaim: true });
+    expect(db.getDoc(DIA)).toEqual(contador);
+    expect((db.getDoc("leads/ChIJa") as unknown as Lead).registrosEnvio).toHaveLength(1);
+    expect((await itensDeEvento())).toHaveLength(1);
+  });
+
+  it.each(["falhou", "invalido"] as const)("'%s' com claim velha continua 409, sem mexer em nada", async (resultado) => {
+    const { velha, nova, contadorAntes } = await claimVelhaLiberadaEReReservada();
+
+    const res = await confirmar({ id: velha.id, leadId: "ChIJa", resultado });
 
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ erro: "claim_invalida" });
-    expect(db.getDoc(DIA)).toBeUndefined();
-    // A reserva NOVA continua intacta.
+    expect(db.getDoc(DIA)).toEqual(contadorAntes);
     expect(db.getDoc("filaEnvios/ChIJa")).toMatchObject({ estado: "reservado", claimId: nova.id });
+    expect((db.getDoc("leads/ChIJa") as unknown as Lead).status).toBe("novo");
+    expect((db.getDoc("leads/ChIJa") as unknown as Lead).telefoneInvalido).toBeUndefined();
+  });
+
+  it("'enviado' com claimId que NUNCA existiu neste lead continua 409", async () => {
+    const { contadorAntes } = await claimVelhaLiberadaEReReservada();
+
+    const res = await confirmar({ id: "claim-inventada", leadId: "ChIJa", resultado: "enviado" });
+
+    expect(res.status).toBe(409);
+    expect(db.getDoc(DIA)).toEqual(contadorAntes);
     expect((db.getDoc("leads/ChIJa") as unknown as Lead).status).toBe("novo");
   });
 
@@ -552,6 +643,7 @@ describe("POST /api/fila/confirmar — a claim de resposta", () => {
       repetida: false,
       tentativas: 0,
       parado: false,
+      foraDaClaim: false,
     });
     expect(db.getDoc(DIA)).toMatchObject({
       respostasEnviadas: 1,
@@ -650,7 +742,7 @@ describe("POST /api/fila/confirmar — a claim de resposta", () => {
     expect(db.getDoc("leads/ChIJresp")?.telefoneInvalido).toBeUndefined();
   });
 
-  it("o contrato é o MESMO do caminho de prospecção — as seis chaves, nada a mais", async () => {
+  it("o contrato é o MESMO do caminho de prospecção — as mesmas chaves, nada a mais", async () => {
     const tarefa = await pegarResposta();
 
     const corpo = await (
@@ -658,8 +750,9 @@ describe("POST /api/fila/confirmar — a claim de resposta", () => {
     ).json();
 
     expect(Object.keys(corpo).sort()).toEqual(
-      ["ok", "teste", "estado", "repetida", "tentativas", "parado"].sort(),
+      ["ok", "teste", "estado", "repetida", "tentativas", "parado", "foraDaClaim"].sort(),
     );
+    expect(corpo.foraDaClaim).toBe(false);
   });
 
   it("corpo inválido continua sendo 400, antes de qualquer desvio", async () => {
