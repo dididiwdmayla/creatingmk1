@@ -29,7 +29,7 @@ import { requireAdmin } from "@/lib/usuarios";
  * caminhos, dois nomes, nenhuma chance de confundir um pelo outro.
  *
  * Devolve a LISTA NOVA, no mesmo corte: quem decide quem continua na
- * revisão é o servidor, não a tela (mesmo padrão de `liberarRetido`).
+ * revisão é o servidor, não a tela (mesmo padrão de `liberarRevisao`).
  *
  * Admin: 401 sem sessão, 403 para membro.
  */

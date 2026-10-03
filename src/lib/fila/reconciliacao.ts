@@ -96,26 +96,37 @@ export async function previaReconciliacao(db: AppDb): Promise<PreviaReconciliaca
 }
 
 /** A data do contato: `reservadoEm` quando é uma data válida, senão `now`. */
-function instanteDaReserva(envio: FilaEnvioDoc, now: Date): Date {
+export function instanteDaReserva(envio: FilaEnvioDoc, now: Date): Date {
   const reservado = new Date(envio.reservadoEm);
   return Number.isNaN(reservado.getTime()) ? now : reservado;
 }
 
 /**
- * O lead reconciliado, puro: transição + selo + registro com a data da
- * reserva e a origem marcada. O selo que já existia (um clique manual
- * anterior) prevalece, como em `aplicarSeloContato`; o registro é somado.
+ * O lead marcado como CONTACTADO POR UM ENVIO PROVÁVEL, puro: transição +
+ * selo + registro com a data da reserva e a origem marcada. O selo que já
+ * existia (um clique manual anterior) prevalece, como em
+ * `aplicarSeloContato`; o registro é somado. Transição só de quem ainda está
+ * em "novo" (nunca rebaixa). Dois chamadores: a reconciliação (aqui) e a
+ * revisão marcada como contactado (`revisao.ts`).
  */
-export function leadReconciliado(lead: Lead, envio: FilaEnvioDoc, userId: string, now: Date): Lead {
+export function leadComEnvioProvavel(
+  lead: Lead,
+  envio: FilaEnvioDoc,
+  userId: string,
+  now: Date,
+  origem: "reconciliacao" | "revisao",
+): Lead {
   const quando = instanteDaReserva(envio, now);
-  const comStatus = aplicarTransicao(lead, "contactado", quando, userId);
+  const comStatus = VALID_TRANSITIONS[lead.status].includes("contactado")
+    ? aplicarTransicao(lead, "contactado", quando, userId)
+    : lead;
   const comSelo = aplicarSeloContato(comStatus, userId, quando);
   const registros = [...(comSelo.registrosEnvio ?? [])];
   const ultimo = registros.length - 1;
-  registros[ultimo] = { ...registros[ultimo], origem: "reconciliacao" };
+  registros[ultimo] = { ...registros[ultimo], origem };
   return {
     ...comSelo,
-    ...(lead.seloContato ? {} : { seloContato: { userId, em: quando.toISOString(), origem: "reconciliacao" } }),
+    ...(lead.seloContato ? {} : { seloContato: { userId, em: quando.toISOString(), origem } }),
     registrosEnvio: registros,
     // A ESCRITA é agora; a data do contato é a da reserva.
     atualizadoEm: now.toISOString(),
@@ -149,7 +160,7 @@ export async function aplicarReconciliacao(
         return "nao_novo";
       }
 
-      tx.set(refLead, leadToDoc(leadReconciliado(lead, envio, userId, now)));
+      tx.set(refLead, leadToDoc(leadComEnvioProvavel(lead, envio, userId, now, "reconciliacao")));
       return undefined;
     });
 

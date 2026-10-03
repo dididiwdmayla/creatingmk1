@@ -1,5 +1,5 @@
 import type { AppDb } from "@/lib/firestore-like";
-import { aplicarTransicao, toDoc as leadToDoc } from "@/lib/leads/repo";
+import { aplicarTransicao, modificarLead } from "@/lib/leads/repo";
 import { LEADS_COLLECTION, VALID_TRANSITIONS, type Lead } from "@/lib/leads/types";
 import { digitosTelefone } from "@/lib/wa";
 
@@ -166,10 +166,18 @@ async function encontrarLeadPorTelefone(
  * Fora desse caso (novo, respondeu, fechado), a mensagem é registrada sem
  * mexer no status.
  */
-async function avancarParaRespondeuSeAplicavel(db: AppDb, lead: Lead, now: Date): Promise<void> {
-  if (!VALID_TRANSITIONS[lead.status].includes("respondeu")) return;
-  const atualizado = aplicarTransicao(lead, "respondeu", now);
-  await db.collection(LEADS_COLLECTION).doc(lead.placeId).set(leadToDoc(atualizado));
+async function avancarParaRespondeuSeAplicavel(db: AppDb, placeId: string, now: Date): Promise<void> {
+  // Decide sobre o doc lido DENTRO da transação, nunca sobre o da varredura
+  // de /leads: entre as duas leituras o operador pode ter editado o lead (ou
+  // a fila confirmado um envio), e gravar o doc da varredura apagaria isso —
+  // ver "Escritas transacionais no lead" em ARCHITECTURE.md.
+  await modificarLead(
+    db,
+    placeId,
+    (atual) =>
+      VALID_TRANSITIONS[atual.status].includes("respondeu") ? aplicarTransicao(atual, "respondeu", now) : undefined,
+    { opcional: true },
+  );
 }
 
 /**
@@ -246,7 +254,7 @@ export async function processarMensagemRecebida(
   }
 
   await gravarResposta(db, lead.placeId, corpo, now);
-  await avancarParaRespondeuSeAplicavel(db, lead, now);
+  await avancarParaRespondeuSeAplicavel(db, lead.placeId, now);
   await adicionarMensagemAoGrupo(
     db,
     lead.placeId,

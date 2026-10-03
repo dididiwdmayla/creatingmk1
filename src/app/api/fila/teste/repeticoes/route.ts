@@ -10,7 +10,7 @@ import { requireAdmin } from "@/lib/usuarios";
  * restam do disparo de teste, a qualquer momento (inclusive com uma tarefa
  * "em voo": ela segue o curso normal, só não rearma ao confirmar).
  *
- * DELETE pelo mesmo motivo de `DELETE /api/config/fila/retidos/{leadId}`: o
+ * DELETE pelo mesmo motivo de `DELETE /api/config/fila/revisao/{leadId}`: o
  * que se apaga é a CONTAGEM restante, não o teste em si, e a ação é de mão
  * única — não há "re-armar" por esta rota. Zera `repeticoesRestantes` sem
  * tocar em mais nada do doc (`lib/fila/teste.ts#cancelarRepeticoesTeste`).

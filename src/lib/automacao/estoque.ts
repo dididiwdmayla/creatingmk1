@@ -1,7 +1,6 @@
 import { candidatoEstavel, motivoEstrutural } from "@/lib/fila/candidatos";
-import { loadFilaConfig } from "@/lib/fila/config";
 import { FILA_ENVIOS_COLLECTION } from "@/lib/fila/envios";
-import { retencaoMsDeHoras, type FilaEnvioDoc } from "@/lib/fila/estado";
+import type { FilaEnvioDoc } from "@/lib/fila/estado";
 import type { AppDb } from "@/lib/firestore-like";
 import { LEADS_COLLECTION, type Lead } from "@/lib/leads/types";
 
@@ -34,8 +33,8 @@ export { demoAutomaticaPendente, type BaldeEstoque, type Estoque } from "./balde
  * envio.
  *
  * - **pronto**: passa em `candidatoEstavel`, exatamente o critério do pool
- *   da fila (inclusive a retenção por claim silenciosa e as tentativas
- *   esgotadas: lead retido não é estoque, provavelmente já recebeu).
+ *   da fila (inclusive a revisão da claim silenciosa e as tentativas
+ *   esgotadas: lead em revisão não é estoque, provavelmente já recebeu).
  * - **capturaEmAndamento**: só falta o print, e ele está na fila ou
  *   gerando. Vem ANTES da aprovação quando as duas coisas faltam — a
  *   ordem do funil da fila, que também para primeiro na captura.
@@ -50,14 +49,13 @@ export function classificarEstoque(
   lead: Lead,
   envio: FilaEnvioDoc | undefined,
   now: Date,
-  retencaoMs: number,
   corteLegado: string,
 ): BaldeEstoque | undefined {
   const motivo = motivoEstrutural(lead, corteLegado);
   return baldeEstoque(
     lead,
     motivo,
-    motivo === undefined && candidatoEstavel(lead, envio, { corteLegado, now, retencaoMs }),
+    motivo === undefined && candidatoEstavel(lead, envio, { corteLegado, now }),
   );
 }
 
@@ -72,7 +70,6 @@ export function somarEstoque(baldes: Array<BaldeEstoque | undefined>): Estoque {
 export interface BaseEstoque {
   leads: Lead[];
   envios: Map<string, FilaEnvioDoc>;
-  retencaoMs: number;
   /** `config/automacao.corteLegado` — o mesmo corte que o pool da fila aplica. */
   corteLegado: string;
 }
@@ -80,20 +77,18 @@ export interface BaseEstoque {
 /**
  * Lê `/leads` e `/filaEnvios` inteiras UMA vez — a mesma varredura que o
  * pool da fila faz a cada 10 minutos, aqui uma vez por execução da
- * automação (duas: antes e depois). A retenção é a política em vigor na
- * config da fila, a mesma que o pool usa.
+ * automação (duas: antes e depois). Lead em revisão (claim que venceu sem
+ * confirmação) não é estoque: o pool também o barra.
  */
 export async function lerBaseEstoque(db: AppDb): Promise<BaseEstoque> {
-  const [leadsSnap, enviosSnap, filaConfig, automacaoConfig] = await Promise.all([
+  const [leadsSnap, enviosSnap, automacaoConfig] = await Promise.all([
     db.collection(LEADS_COLLECTION).get(),
     db.collection(FILA_ENVIOS_COLLECTION).get(),
-    loadFilaConfig(db),
     loadAutomacaoConfig(db),
   ]);
   return {
     leads: leadsSnap.docs.map((doc) => ({ ...(doc.data() as unknown as Lead), placeId: doc.id })),
     envios: new Map(enviosSnap.docs.map((doc) => [doc.id, doc.data() as unknown as FilaEnvioDoc])),
-    retencaoMs: retencaoMsDeHoras(filaConfig.retencaoEnvioHoras),
     // O MESMO corte que o pool da fila aplica: lead legado com demo não é
     // estoque pronto — a fila não o entrega.
     corteLegado: automacaoConfig.corteLegado,
@@ -102,7 +97,7 @@ export async function lerBaseEstoque(db: AppDb): Promise<BaseEstoque> {
 
 export function estoqueDaBase(base: BaseEstoque, now: Date): Estoque {
   return somarEstoque(
-    base.leads.map((lead) => classificarEstoque(lead, base.envios.get(lead.placeId), now, base.retencaoMs, base.corteLegado)),
+    base.leads.map((lead) => classificarEstoque(lead, base.envios.get(lead.placeId), now, base.corteLegado)),
   );
 }
 

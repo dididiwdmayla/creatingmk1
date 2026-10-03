@@ -17,10 +17,17 @@ import {
 } from "./types";
 
 /**
- * Repositório de /leads. Single-user: leitura-modificação-escrita simples
- * (sem transação) e filtros em memória — centenas de docs, não milhões.
+ * Repositório de /leads. Filtros em memória — centenas de docs, não milhões.
  * Docs completos são sempre reescritos por inteiro, nunca via merge do
  * Firestore, para o comportamento ser idêntico no fake dos testes.
+ *
+ * **Toda escrita que regrava o doc inteiro é TRANSACIONAL** (`modificarLead`):
+ * lê e grava o lead na mesma transação. Antes era leitura-modificação-escrita
+ * simples, e uma escrita concorrente entre a leitura e a gravação — o
+ * confirmar da fila movendo o lead para "contactado" com selo e registro,
+ * por exemplo — era APAGADA pela gravação do doc velho: o lead voltava a
+ * "novo" e a fila podia mandar de novo. Ver "Escritas transacionais no lead"
+ * em ARCHITECTURE.md.
  */
 
 function docRef(db: AppDb, placeId: string) {
@@ -68,12 +75,48 @@ export async function getLead(db: AppDb, placeId: string): Promise<Lead | undefi
   return data ? asLead(data) : undefined;
 }
 
-async function requireLead(db: AppDb, placeId: string): Promise<Lead> {
-  const lead = await getLead(db, placeId);
-  if (!lead) {
-    throw new NotFoundError(`Lead "${placeId}" não encontrado.`);
-  }
-  return lead;
+/**
+ * O NÚCLEO de toda escrita deste repositório: lê o lead DENTRO de uma
+ * transação, aplica `modificar` (PURA — nada de I/O aqui dentro, porque a
+ * transação pode rodar de novo) e grava o doc inteiro na mesma transação.
+ * Se outra escrita tocar o lead entre a leitura e o commit, o Firestore roda
+ * `modificar` de novo sobre o doc novo — nenhuma atualização se perde.
+ *
+ * `modificar` devolve `undefined` quando não há o que gravar (e aí volta o
+ * lead lido, sem escrita nenhuma). Lead ausente: `NotFoundError`, ou
+ * `undefined` com `{ opcional: true }`.
+ */
+export async function modificarLead(
+  db: AppDb,
+  placeId: string,
+  modificar: (lead: Lead) => Lead | undefined,
+): Promise<Lead>;
+export async function modificarLead(
+  db: AppDb,
+  placeId: string,
+  modificar: (lead: Lead) => Lead | undefined,
+  opcoes: { opcional: true },
+): Promise<Lead | undefined>;
+export async function modificarLead(
+  db: AppDb,
+  placeId: string,
+  modificar: (lead: Lead) => Lead | undefined,
+  opcoes: { opcional?: boolean } = {},
+): Promise<Lead | undefined> {
+  return db.runTransaction(async (tx) => {
+    const ref = docRef(db, placeId);
+    const snap = await tx.get(ref);
+    const data = snap.exists ? snap.data() : undefined;
+    if (!data) {
+      if (opcoes.opcional) return undefined;
+      throw new NotFoundError(`Lead "${placeId}" não encontrado.`);
+    }
+    const lead = asLead(data);
+    const atualizado = modificar(lead);
+    if (!atualizado) return lead;
+    tx.set(ref, toDoc(atualizado));
+    return atualizado;
+  });
 }
 
 export interface UpsertResult {
@@ -99,52 +142,79 @@ export async function upsertLeads(
   const result: UpsertResult = { criados: 0, existentes: 0, leads: [] };
 
   for (const place of places) {
-    const existing = await getLead(db, place.placeId);
-    let lead: Lead;
-    if (existing) {
-      result.existentes += 1;
-      lead = {
-        ...existing,
-        nome: place.nome,
-        endereco: place.endereco ?? existing.endereco,
-        location: place.location ?? existing.location,
-        busca: { ...busca, em },
-        buscaId: [...new Set([...(existing.buscaId ?? []), buscaId])],
-        // Busca qualificada traz informação fresca de site/telefone; nunca remove.
-        temSite: place.temSite ?? existing.temSite,
-        siteUrl: place.siteUrl ?? existing.siteUrl,
-        siteProprio: place.siteProprio ?? existing.siteProprio,
-        temTelefone: place.temTelefone ?? existing.temTelefone,
-        telefone: place.telefone ?? existing.telefone,
-        telefoneIntl: place.telefoneIntl ?? existing.telefoneIntl,
-        atualizadoEm: em,
-      };
-    } else {
-      result.criados += 1;
-      lead = {
-        placeId: place.placeId,
-        nome: place.nome,
-        endereco: place.endereco,
-        location: place.location,
-        status: "novo",
-        busca: { ...busca, em },
-        buscaId: [buscaId],
-        temSite: place.temSite,
-        siteUrl: place.siteUrl,
-        siteProprio: place.siteProprio,
-        temTelefone: place.temTelefone,
-        telefone: place.telefone,
-        telefoneIntl: place.telefoneIntl,
-        enriquecido: false,
-        criadoEm: em,
-        atualizadoEm: em,
-      };
-    }
-    await docRef(db, place.placeId).set(toDoc(lead));
+    // Um lead por transação: o que já existe é relido e regravado
+    // atomicamente — o upsert de uma busca rodando junto da fila não pode
+    // devolver a "novo" um lead que acabou de ser contactado.
+    const { lead, existia } = await db.runTransaction(async (tx) => {
+      const ref = docRef(db, place.placeId);
+      const snap = await tx.get(ref);
+      const data = snap.exists ? snap.data() : undefined;
+      const existing = data ? asLead(data) : undefined;
+      const gravado = existing
+        ? leadAtualizadoPelaBusca(existing, place, busca, buscaId, em)
+        : leadNovoDaBusca(place, busca, buscaId, em);
+      tx.set(ref, toDoc(gravado));
+      return { lead: gravado, existia: existing !== undefined };
+    });
+    if (existia) result.existentes += 1;
+    else result.criados += 1;
     result.leads.push(lead);
   }
 
   return result;
+}
+
+/** Lead que a busca reencontrou: só nome/endereço/location/busca e o que é fresco. */
+function leadAtualizadoPelaBusca(
+  existing: Lead,
+  place: PlaceBasico,
+  busca: { nicho: string; subNicho?: string; regiao: string; idioma?: string },
+  buscaId: string,
+  em: string,
+): Lead {
+  return {
+    ...existing,
+    nome: place.nome,
+    endereco: place.endereco ?? existing.endereco,
+    location: place.location ?? existing.location,
+    busca: { ...busca, em },
+    buscaId: [...new Set([...(existing.buscaId ?? []), buscaId])],
+    // Busca qualificada traz informação fresca de site/telefone; nunca remove.
+    temSite: place.temSite ?? existing.temSite,
+    siteUrl: place.siteUrl ?? existing.siteUrl,
+    siteProprio: place.siteProprio ?? existing.siteProprio,
+    temTelefone: place.temTelefone ?? existing.temTelefone,
+    telefone: place.telefone ?? existing.telefone,
+    telefoneIntl: place.telefoneIntl ?? existing.telefoneIntl,
+    atualizadoEm: em,
+  };
+}
+
+/** Lead que a busca encontrou pela primeira vez. */
+function leadNovoDaBusca(
+  place: PlaceBasico,
+  busca: { nicho: string; subNicho?: string; regiao: string; idioma?: string },
+  buscaId: string,
+  em: string,
+): Lead {
+  return {
+    placeId: place.placeId,
+    nome: place.nome,
+    endereco: place.endereco,
+    location: place.location,
+    status: "novo",
+    busca: { ...busca, em },
+    buscaId: [buscaId],
+    temSite: place.temSite,
+    siteUrl: place.siteUrl,
+    siteProprio: place.siteProprio,
+    temTelefone: place.temTelefone,
+    telefone: place.telefone,
+    telefoneIntl: place.telefoneIntl,
+    enriquecido: false,
+    criadoEm: em,
+    atualizadoEm: em,
+  };
 }
 
 export interface LeadFilters {
@@ -278,10 +348,10 @@ export async function changeStatus(
   now: Date = new Date(),
   userId?: string,
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  const updated = aplicarTransicao(lead, para, now, userId);
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    const updated = aplicarTransicao(lead, para, now, userId);
+    return updated;
+  });
 }
 
 /**
@@ -315,10 +385,10 @@ export async function registrarSeloContato(
   userId: string,
   now: Date = new Date(),
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  const updated = aplicarSeloContato(lead, userId, now);
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    const updated = aplicarSeloContato(lead, userId, now);
+    return updated;
+  });
 }
 
 /**
@@ -332,14 +402,14 @@ export async function ajustarVendidoPor(
   vendidoPor: string,
   now: Date = new Date(),
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  const updated: Lead = {
-    ...lead,
-    contato: { ...lead.contato, fechadoPor: vendidoPor },
-    atualizadoEm: now.toISOString(),
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    const updated: Lead = {
+      ...lead,
+      contato: { ...lead.contato, fechadoPor: vendidoPor },
+      atualizadoEm: now.toISOString(),
+    };
+    return updated;
+  });
 }
 
 /**
@@ -361,18 +431,18 @@ export async function updateLeadExtras(
   },
   now: Date = new Date(),
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  const updated: Lead = {
-    ...lead,
-    ...(extras.notas !== undefined && { notas: extras.notas }),
-    ...(extras.favorito !== undefined && { favorito: extras.favorito }),
-    ...(extras.descartado !== undefined && { descartado: extras.descartado }),
-    ...(extras.telefoneInvalido !== undefined && { telefoneInvalido: extras.telefoneInvalido }),
-    ...(extras.filaManual !== undefined && { filaManual: extras.filaManual }),
-    atualizadoEm: now.toISOString(),
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    const updated: Lead = {
+      ...lead,
+      ...(extras.notas !== undefined && { notas: extras.notas }),
+      ...(extras.favorito !== undefined && { favorito: extras.favorito }),
+      ...(extras.descartado !== undefined && { descartado: extras.descartado }),
+      ...(extras.telefoneInvalido !== undefined && { telefoneInvalido: extras.telefoneInvalido }),
+      ...(extras.filaManual !== undefined && { filaManual: extras.filaManual }),
+      atualizadoEm: now.toISOString(),
+    };
+    return updated;
+  });
 }
 
 /** True quando falta o token vigente de algum canal — dispara self-heal na leitura. */
@@ -421,28 +491,28 @@ export async function saveDemo(
   userId?: string,
   meta: MetaDemo = {},
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  const em = now.toISOString();
-  // criadoEm/criadoPor são do PRIMEIRO save; edições seguintes preservam.
-  const criadoPor = lead.demo?.criadoEm ? lead.demo.criadoPor : userId;
-  // Os tokens de envio (um por canal) nascem junto da demo (self-heal se
-  // por algum motivo uma demo antiga chegasse aqui sem algum — ver envio.ts).
-  const envios = garantirEnviosCanais(lead.demo?.envios ?? [], em);
-  const updated: Lead = {
-    ...lead,
-    demo: {
-      ...demo,
-      criadoEm: lead.demo?.criadoEm ?? em,
-      ...(criadoPor && { criadoPor }),
-      envios,
-      ...metaPreservada(lead.demo),
-      ...meta,
+  return modificarLead(db, placeId, (lead) => {
+    const em = now.toISOString();
+    // criadoEm/criadoPor são do PRIMEIRO save; edições seguintes preservam.
+    const criadoPor = lead.demo?.criadoEm ? lead.demo.criadoPor : userId;
+    // Os tokens de envio (um por canal) nascem junto da demo (self-heal se
+    // por algum motivo uma demo antiga chegasse aqui sem algum — ver envio.ts).
+    const envios = garantirEnviosCanais(lead.demo?.envios ?? [], em);
+    const updated: Lead = {
+      ...lead,
+      demo: {
+        ...demo,
+        criadoEm: lead.demo?.criadoEm ?? em,
+        ...(criadoPor && { criadoPor }),
+        envios,
+        ...metaPreservada(lead.demo),
+        ...meta,
+        atualizadoEm: em,
+      },
       atualizadoEm: em,
-    },
-    atualizadoEm: em,
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+    };
+    return updated;
+  });
 }
 
 /**
@@ -464,27 +534,27 @@ export async function decidirAprovacaoDemo(
   por: string | undefined,
   now: Date = new Date(),
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  if (lead.demo?.origem !== "automacao") {
-    throw new ValidationError(["só demo criada pela automação passa por aprovação"]);
-  }
-  const em = now.toISOString();
-  const updated: Lead = {
-    ...lead,
-    demo: {
-      ...lead.demo,
-      aprovacao,
-      aprovacaoEm: em,
-      ...(por ? { aprovacaoPor: por } : {}),
-    },
-    ...(aprovacao === "reprovada" &&
-      !lead.automacaoReprovada && {
-        automacaoReprovada: { em, ...(por ? { por } : {}) },
-      }),
-    atualizadoEm: em,
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    if (lead.demo?.origem !== "automacao") {
+      throw new ValidationError(["só demo criada pela automação passa por aprovação"]);
+    }
+    const em = now.toISOString();
+    const updated: Lead = {
+      ...lead,
+      demo: {
+        ...lead.demo,
+        aprovacao,
+        aprovacaoEm: em,
+        ...(por ? { aprovacaoPor: por } : {}),
+      },
+      ...(aprovacao === "reprovada" &&
+        !lead.automacaoReprovada && {
+          automacaoReprovada: { em, ...(por ? { por } : {}) },
+        }),
+      atualizadoEm: em,
+    };
+    return updated;
+  });
 }
 
 /**
@@ -500,17 +570,17 @@ export async function garantirEnvioToken(
   placeId: string,
   now: Date = new Date(),
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  if (!lead.demo || !envioTokenIncompleto(lead)) return lead;
-  const updated: Lead = {
-    ...lead,
-    demo: {
-      ...lead.demo,
-      envios: garantirEnviosCanais(lead.demo.envios ?? [], now.toISOString()),
-    },
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    if (!lead.demo || !envioTokenIncompleto(lead)) return undefined;
+    const updated: Lead = {
+      ...lead,
+      demo: {
+        ...lead.demo,
+        envios: garantirEnviosCanais(lead.demo.envios ?? [], now.toISOString()),
+      },
+    };
+    return updated;
+  });
 }
 
 /**
@@ -536,20 +606,23 @@ export async function registrarVisitaDemo(
   },
   now: Date = new Date(),
 ): Promise<{ lead: Lead; visitaId?: string }> {
-  const lead = await requireLead(db, placeId);
-  if (!lead.demo || !opts.token) return { lead };
-
-  // A regra (montar a entrada, decidir se o token vigente é consumido) é a
-  // mesma da demo avulsa e vive em lib/demos/visitas.ts — aqui fica só a
-  // leitura-escrita do doc do lead.
-  const { envios, visita } = aplicarVisita(lead.demo, opts, now.toISOString());
-  const updated: Lead = {
-    ...lead,
-    demo: { ...lead.demo, envios },
-    demoVisitas: [...(lead.demoVisitas ?? []), visita],
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return { lead: updated, visitaId: visita.id };
+  // A transação pode rodar `modificar` mais de uma vez: vale o id da última.
+  let visitaId: string | undefined;
+  const lead = await modificarLead(db, placeId, (atual) => {
+    visitaId = undefined;
+    if (!atual.demo || !opts.token) return undefined;
+    // A regra (montar a entrada, decidir se o token vigente é consumido) é a
+    // mesma da demo avulsa e vive em lib/demos/visitas.ts — aqui fica só a
+    // leitura-escrita do doc do lead.
+    const { envios, visita } = aplicarVisita(atual.demo, opts, now.toISOString());
+    visitaId = visita.id;
+    return {
+      ...atual,
+      demo: { ...atual.demo, envios },
+      demoVisitas: [...(atual.demoVisitas ?? []), visita],
+    };
+  });
+  return visitaId ? { lead, visitaId } : { lead };
 }
 
 /**
@@ -567,14 +640,17 @@ export async function atualizarVisitaDemo(
   visitaId: string,
   dados: { duracaoSegundos?: number; scrollPercent?: number; marcadorDispositivo?: boolean },
 ): Promise<Lead | undefined> {
-  const lead = await getLead(db, placeId);
-  if (!lead?.demoVisitas) return lead;
-
-  const visitas = completarVisita(lead.demoVisitas, visitaId, dados);
-  if (visitas === lead.demoVisitas) return lead;
-  const updated: Lead = { ...lead, demoVisitas: visitas };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(
+    db,
+    placeId,
+    (lead) => {
+      if (!lead.demoVisitas) return undefined;
+      const visitas = completarVisita(lead.demoVisitas, visitaId, dados);
+      if (visitas === lead.demoVisitas) return undefined;
+      return { ...lead, demoVisitas: visitas };
+    },
+    { opcional: true },
+  );
 }
 
 /** Apaga a configuração da demo (o lead continua; /demo/{id} volta a 404). */
@@ -583,12 +659,12 @@ export async function deleteDemo(
   placeId: string,
   now: Date = new Date(),
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  const semDemo = { ...lead };
-  delete semDemo.demo;
-  const updated: Lead = { ...semDemo, atualizadoEm: now.toISOString() };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    const semDemo = { ...lead };
+    delete semDemo.demo;
+    const updated: Lead = { ...semDemo, atualizadoEm: now.toISOString() };
+    return updated;
+  });
 }
 
 /**
@@ -602,17 +678,17 @@ export async function removeDemoImagem(
   slot: string,
   now: Date = new Date(),
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  if (!lead.demo?.dados.imagens?.[slot]) return lead;
-  const imagens = { ...lead.demo.dados.imagens };
-  delete imagens[slot];
-  const updated: Lead = {
-    ...lead,
-    demo: { ...lead.demo, dados: { ...lead.demo.dados, imagens } },
-    atualizadoEm: now.toISOString(),
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    if (!lead.demo?.dados.imagens?.[slot]) return undefined;
+    const imagens = { ...lead.demo.dados.imagens };
+    delete imagens[slot];
+    const updated: Lead = {
+      ...lead,
+      demo: { ...lead.demo, dados: { ...lead.demo.dados, imagens } },
+      atualizadoEm: now.toISOString(),
+    };
+    return updated;
+  });
 }
 
 /** Mesma lógica de removeDemoImagem, pro override de dados.videos[slot]. */
@@ -622,17 +698,17 @@ export async function removeDemoVideo(
   slot: string,
   now: Date = new Date(),
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  if (!lead.demo?.dados.videos?.[slot]) return lead;
-  const videos = { ...lead.demo.dados.videos };
-  delete videos[slot];
-  const updated: Lead = {
-    ...lead,
-    demo: { ...lead.demo, dados: { ...lead.demo.dados, videos } },
-    atualizadoEm: now.toISOString(),
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    if (!lead.demo?.dados.videos?.[slot]) return undefined;
+    const videos = { ...lead.demo.dados.videos };
+    delete videos[slot];
+    const updated: Lead = {
+      ...lead,
+      demo: { ...lead.demo, dados: { ...lead.demo.dados, videos } },
+      atualizadoEm: now.toISOString(),
+    };
+    return updated;
+  });
 }
 
 export async function saveDetails(
@@ -642,20 +718,20 @@ export async function saveDetails(
   now: Date = new Date(),
   userId?: string,
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  const em = now.toISOString();
-  const updated: Lead = {
-    ...lead,
-    enriquecido: true,
-    detalhes: { ...detalhes, enriquecidoEm: em, ...(userId && { enriquecidoPor: userId }) },
-    // O enriquecimento também pediu websiteUri no mask → resposta definitiva.
-    temSite: Boolean(detalhes.site),
-    siteUrl: detalhes.site ?? lead.siteUrl,
-    siteProprio: Boolean(detalhes.site) && isSiteProprio(detalhes.site ?? ""),
-    atualizadoEm: em,
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    const em = now.toISOString();
+    const updated: Lead = {
+      ...lead,
+      enriquecido: true,
+      detalhes: { ...detalhes, enriquecidoEm: em, ...(userId && { enriquecidoPor: userId }) },
+      // O enriquecimento também pediu websiteUri no mask → resposta definitiva.
+      temSite: Boolean(detalhes.site),
+      siteUrl: detalhes.site ?? lead.siteUrl,
+      siteProprio: Boolean(detalhes.site) && isSiteProprio(detalhes.site ?? ""),
+      atualizadoEm: em,
+    };
+    return updated;
+  });
 }
 
 /**
@@ -669,13 +745,13 @@ export async function saveHorarios(
   horarios: HorariosLugar,
   now: Date = new Date(),
 ): Promise<Lead> {
-  const lead = await requireLead(db, placeId);
-  const em = now.toISOString();
-  const updated: Lead = {
-    ...lead,
-    horarios: { ...horarios, obtidoEm: em },
-    atualizadoEm: em,
-  };
-  await docRef(db, placeId).set(toDoc(updated));
-  return updated;
+  return modificarLead(db, placeId, (lead) => {
+    const em = now.toISOString();
+    const updated: Lead = {
+      ...lead,
+      horarios: { ...horarios, obtidoEm: em },
+      atualizadoEm: em,
+    };
+    return updated;
+  });
 }

@@ -57,6 +57,15 @@ export interface FilaEnvioDoc {
    * frase que estaria valendo agora.
    */
   rotacaoSkinId?: string | null;
+  /**
+   * Quantas vezes este lead foi RESERVADO pela fila — soma 1 a cada
+   * `reservarLead` e sobrevive à re-reserva, como `tentativas` (é o
+   * histórico DO LEAD, não da claim). É o número que a lista de revisão
+   * mostra: "reservado 3×" diz ao operador que talvez já tenham saído três
+   * mensagens. Ausente = doc gravado antes do contador existir (pelo menos
+   * uma reserva, quantas exatamente não se sabe).
+   */
+  reservas?: number;
 }
 
 /**
@@ -76,39 +85,41 @@ export function filaParado(envio: FilaEnvioDoc | undefined | null): boolean {
 }
 
 /**
- * RETENÇÃO POR CLAIM NÃO CONFIRMADA — a proteção contra mensagem repetida
- * que NÃO depende do aparelho.
+ * REVISÃO DE CLAIM NÃO CONFIRMADA — a proteção contra mensagem repetida que
+ * NÃO depende do aparelho.
  *
- * O caso que a criou, reconstituído pelo log do celular: o ciclo rodou
- * inteiro (texto enviado, print anexado), o `POST /api/fila/confirmar`
- * respondeu 503, a macro não repetiu a chamada, a claim expirou, o lead
- * voltou ao pool e recebeu a MESMA mensagem de novo. O lado do aparelho já
- * repete a confirmação 3 vezes, o que reduz a probabilidade e não elimina a
- * classe: aparelho reiniciado, macro morta pelo sistema, rede caindo ou
- * servidor indisponível de novo produzem o mesmo resultado.
+ * **A regra: claim que venceu sem NENHUMA confirmação nunca volta sozinha à
+ * fila.** Ela vai para REVISÃO, listada no painel, e só sai por ação
+ * explícita do operador — liberar (conferiu no WhatsApp que não saiu) ou
+ * marcar como contactado (conferiu que saiu) — ou quando o próprio aparelho
+ * finalmente fala (confirmar com a claim atual segue o caminho normal).
  *
- * **Isto INVERTE deliberadamente a regra original** de que claim expirada
- * volta livre (ver `reservarLead`). Aquela regra existia para o lead não
- * ficar preso quando o celular trava; o fato novo é que "o aparelho pegou e
- * não disse o que houve" é mais provavelmente "mandou" do que "não mandou".
- * A reserva já é evidência suficiente.
+ * **Por que sem prazo.** A versão anterior (a "retenção", `retencaoEnvioHoras`)
+ * segurava o lead por 12h e o LIBERAVA ao vencer. O silêncio não conta
+ * tentativa (só "falhou" conta) e não gira a frase (só "enviado" gira),
+ * então um lead cujo confirmar nunca chega saía com o MESMO texto cerca de
+ * uma vez por dia, indefinidamente — e foi o que aconteceu enquanto
+ * `RADAR_DEVICE_USER_ID` faltava e todo confirmar respondia 503 (ver "Saúde
+ * da fila"). Qualquer prazo reabre a mesma classe: o servidor nunca pode
+ * depender de o aparelho reportar.
  *
  * **A assimetria que justifica:** bloquear um lead que não recebeu nada
- * custa um envio, recuperável a qualquer momento (pela liberação manual do
- * painel, ou sozinho quando a janela vence). Liberar um lead que já recebeu
- * manda duas vezes, e isso não tem volta — mensagem repetida é o padrão que
- * mais gera denúncia no WhatsApp, e denúncia derruba número. Na dúvida,
- * bloqueia.
+ * custa um envio, recuperável a qualquer momento pela liberação do painel.
+ * Liberar um lead que já recebeu manda duas vezes, e isso não tem volta —
+ * mensagem repetida é o padrão que mais gera denúncia no WhatsApp, e
+ * denúncia derruba número. Na dúvida, bloqueia.
  *
- * **O que retém é o SILÊNCIO, não a falha reportada.** Claim confirmada com
- * resultado "falhou" NÃO entra aqui: confirmação de falha é evidência
- * POSITIVA de que nada saiu — é exatamente o caso em que o aparelho falou.
- * Sai de graça, por construção: confirmar move `estado` para
- * `enviado`/`invalido`/`falhou` na mesma transação, então só uma claim NUNCA
- * confirmada continua em `"reservado"`, e a política de 3 tentativas
- * (`TENTATIVAS_MAX`) segue valendo intacta para aquele caminho. Ler o pedido
- * ao pé da letra ("claim reservada nas últimas horas") mataria a
- * retentativa; não é isso que se quer.
+ * **O que vai para revisão é o SILÊNCIO, não a falha reportada.** Claim
+ * confirmada como "falhou" NÃO entra: é evidência POSITIVA de que nada saiu,
+ * e a política de 3 tentativas (`TENTATIVAS_MAX`) segue intacta. Sai de
+ * graça, por construção: confirmar move `estado` para
+ * `enviado`/`invalido`/`falhou` na mesma transação, então só uma claim
+ * NUNCA confirmada continua em `"reservado"`.
+ *
+ * **Estado DERIVADO, não gravado.** Não existe job rodando no instante em
+ * que a claim vence, então um estado "revisao" gravado precisaria de alguém
+ * para gravá-lo. A derivação (`emRevisao`) vale por construção nos três
+ * lugares que a leem — o pool, a reserva e a lista do painel.
  */
 
 /**
@@ -137,41 +148,15 @@ export function claimExpiradaSemConfirmacao(doc: FilaEnvioDoc, now: Date): boole
 }
 
 /**
- * Instante em que a retenção deste doc vence — `reservadoEm + janela`, e não
- * `expiraEm + janela`: a âncora é quando a mensagem PROVAVELMENTE saiu, não
- * cinco minutos depois. `undefined` quando o doc não está sob retenção
- * nenhuma (não é claim silenciosa, ou a janela está desligada).
+ * O lead está EM REVISÃO: claim morta em silêncio. Sem prazo — sai só por
+ * ação do operador (`liberarRevisao`/`marcarContactadoRevisao`, em
+ * `revisao.ts`) ou por uma confirmação do aparelho com a claim atual.
  *
- * `reservadoEm` é sobrescrito a cada nova reserva, e isso NÃO atrapalha:
- * enquanto a retenção vale, o lead está fora do pool E o portão de
- * `leadDisponivel` recusa a reserva, então nada re-reserva — logo nada
- * reescreve o carimbo. Vencida a janela, uma reserva nova reinicia a
- * contagem do carimbo novo, que é o correto: é evidência nova de um envio
- * novo.
+ * `reservadoEm` não é sobrescrito enquanto o lead está aqui: ele está fora
+ * do pool E a reserva o recusa, então nada o re-reserva.
  */
-export function retencaoVenceEm(
-  doc: FilaEnvioDoc,
-  now: Date,
-  retencaoMs: number,
-): string | undefined {
-  if (retencaoMs <= 0 || !claimExpiradaSemConfirmacao(doc, now)) return undefined;
-  return new Date(new Date(doc.reservadoEm).getTime() + retencaoMs).toISOString();
-}
-
-/**
- * O lead está RETIDO agora — claim morta em silêncio e a janela ainda
- * correndo. `retencaoMs <= 0` desliga a retenção inteira (é o
- * `retencaoEnvioHoras: 0` da config), e aí a regra antiga volta a valer tal
- * como era.
- */
-export function retidoPorEnvio(doc: FilaEnvioDoc, now: Date, retencaoMs: number): boolean {
-  const venceEm = retencaoVenceEm(doc, now, retencaoMs);
-  return venceEm !== undefined && now.getTime() < new Date(venceEm).getTime();
-}
-
-/** Horas da config (`retencaoEnvioHoras`) em milissegundos, sem negativo. */
-export function retencaoMsDeHoras(horas: number): number {
-  return Number.isFinite(horas) && horas > 0 ? horas * 60 * 60 * 1000 : 0;
+export function emRevisao(doc: FilaEnvioDoc, now: Date): boolean {
+  return claimExpiradaSemConfirmacao(doc, now);
 }
 
 /**
@@ -179,7 +164,7 @@ export function retencaoMsDeHoras(horas: number): number {
  * ele pode estar com o WhatsApp aberto NESTE segundo.
  *
  * Existe como função e não inline porque DUAS ações do painel a consultam
- * para a mesma decisão — liberar um retido (`liberarRetido`) e remover um
+ * para a mesma decisão — as ações da revisão (`revisao.ts`) e remover um
  * lead da fila pelo balão —, e as duas recusam pelo mesmo motivo: nenhuma
  * delas cancela um envio em andamento, e mexer num lead reservado produziria
  * exatamente a mensagem duplicada que a fila inteira existe para evitar.
@@ -269,24 +254,23 @@ export interface LinhaPendenteManual {
 }
 
 /**
- * Uma linha da lista "Retidos por envio recente não confirmado" do painel
- * "Fila de envio" (/config). Mora aqui, e não em `retidos.ts`, pelo mesmo
- * motivo de `PendenciaEnvio`: quem desenha a lista é componente client e o
- * módulo que a MONTA lê o Firestore.
+ * Uma linha da lista "Em revisão" do painel "Fila de envio" (/config). Mora
+ * aqui, e não em `revisao.ts`, pelo mesmo motivo de `PendenciaEnvio`: quem
+ * desenha a lista é componente client e o módulo que a MONTA lê o Firestore.
  *
- * Traz as três coisas que a decisão de liberar exige — quem é, QUANDO foi a
- * reserva (é o instante em que a mensagem provavelmente saiu, o que o
- * operador vai conferir no WhatsApp) e QUANDO a retenção vence sozinha. Só o
- * número não bastaria: sem lista não há como liberar um específico.
+ * Traz o que a decisão exige — quem é, QUANDO foi a reserva (o instante em
+ * que a mensagem provavelmente saiu, o que o operador vai conferir no
+ * WhatsApp) e QUANTAS VEZES o lead já foi reservado (quantas mensagens
+ * podem ter saído). Só o número não bastaria: sem lista não há como decidir
+ * um específico.
  */
-export interface LinhaRetido {
+export interface LinhaRevisao {
   leadId: string;
-  /** Nome do lead, ou "" se o lead não existe mais (a retenção sobrevive). */
   nome: string;
-  /** Quando a claim silenciosa foi reservada (ISO). */
+  /** Quando a claim silenciosa foi reservada (ISO) — o envio provável, o que o operador confere no WhatsApp. */
   reservadoEm: string;
-  /** Quando a retenção vence e o lead volta ao pool sozinho (ISO). */
-  venceEm: string;
+  /** `FilaEnvioDoc.reservas`, ou `null` em doc anterior ao contador ("1 ou mais"). */
+  reservas: number | null;
   /** Aparelho que levou a tarefa e não disse o que houve. */
   dispositivo: string;
 }

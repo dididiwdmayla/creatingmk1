@@ -261,6 +261,20 @@ export function contadorComEnvio(
 }
 
 /**
+ * O doc do contador depois de um envio contado TARDE — a revisão marcada
+ * como contactado pelo operador, ou (item seguinte) a confirmação que chega
+ * fora da claim. A mensagem SAIU e nunca foi contada, então `enviados` anda
+ * uma vez, no dia operacional em que se fica sabendo. Mas ela não saiu
+ * AGORA: `envios`/`ultimoEventoEm` não são tocados, senão os portões de
+ * RITMO (`teto_hora`, `intervalo`) segurariam a fila por um envio de horas
+ * ou dias atrás. Gasta a meta do dia — é o preço aceito de contar.
+ */
+export function contadorComEnvioTardio(data: Record<string, unknown> | undefined): FilaContadorDoc {
+  const atual = readContadorDoc(data);
+  return { ...atual, enviados: atual.enviados + 1 };
+}
+
+/**
  * O doc do contador depois de uma confirmação "falhou", puro — mesmo espírito
  * de `contadorComEnvio`. NÃO toca `envios`/`ultimoEventoEm`: uma tentativa que
  * falhou não é uma mensagem que saiu, e sujar a janela deslizante de 1h (ou o

@@ -128,7 +128,7 @@ export interface InjecaoTeste {
    * rearme) — nunca 0, que sumiria o disparo por acidente. Quem valida o
    * teto (`REPETICOES_TESTE_MAX`) contra o corpo da requisição é
    * `repeticoesValidas`, não aqui: a fundação não decide política de limite,
-   * mesmo padrão de `tentativasMax`/`retencaoMs` em `envios.ts`.
+   * mesmo padrão de `tentativasMax` em `envios.ts`.
    */
   repeticoes?: number;
 }
@@ -310,8 +310,8 @@ export async function confirmarTeste(
  * com uma tarefa "em voo" (`entregue`, ainda sem confirmação): ela segue o
  * curso normal, só não rearma quando confirmar. Zera `repeticoesRestantes`
  * e grava `repeticoesCanceladasEm`, sem tocar em mais nada do doc — não há
- * "re-armar", mesma mão única da liberação de retidos
- * (`DELETE /api/config/fila/retidos/{leadId}`). `null` quando não há teste
+ * "re-armar", mesma mão única da liberação da revisão
+ * (`DELETE /api/config/fila/revisao/{leadId}`). `null` quando não há teste
  * nenhum para cancelar.
  */
 export async function cancelarRepeticoesTeste(

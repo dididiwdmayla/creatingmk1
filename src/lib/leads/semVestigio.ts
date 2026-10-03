@@ -179,12 +179,12 @@ function linhaDoLead(lead: Lead): LinhaSemVestigio {
  * **DOC EM `filaEnvios` É VESTÍGIO.** Todo doc daquela coleção nasce de uma
  * RESERVA da fila (`reservadoEm` + `dispositivo` são obrigatórios). O envio
  * confirmado carimba `seloContato` na mesma transação — mas a claim que
- * expira SEM confirmação não carimba nada, e a retenção trata exatamente
+ * expira SEM confirmação não carimba nada, e a revisão trata exatamente
  * esse caso como "provavelmente a mensagem saiu" (ver
  * `claimExpiradaSemConfirmacao` em `lib/fila/estado.ts`). Pelo recorte dos
  * três campos do lead, esse lead entraria aqui como "sem vestígio nenhum" e
  * poderia ser destruído — sendo justamente um que provavelmente recebeu
- * mensagem. Lead que a fila já trabalhou tem vitrine própria (retidos,
+ * mensagem. Lead que a fila já trabalhou tem vitrine própria (revisão,
  * print pendente, `filaParado` na ficha) e não é assunto desta tela.
  *
  * Ordem: do mais ANTIGO para o mais novo. O conjunto que motivou a tela é o

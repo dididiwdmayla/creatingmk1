@@ -33,7 +33,11 @@ class FakeDocRef implements AppDocRef {
   ) {}
 
   async get(): Promise<UsageDocSnapshot> {
-    return new FakeSnapshot(this.db.readDoc(this.path));
+    const snap = new FakeSnapshot(this.db.readDoc(this.path));
+    // Depois de LER, antes de devolver: é aqui que um teste de corrida
+    // intercala a escrita concorrente (ver `aoLer`).
+    await this.db.notificarLeitura(this.path);
+    return snap;
   }
 
   set(data: Record<string, unknown>, options?: { merge?: boolean }): void {
@@ -45,17 +49,33 @@ class FakeDocRef implements AppDocRef {
   }
 }
 
+/**
+ * Conflito detectado no commit: um doc LIDO nesta transação foi escrito por
+ * outra pessoa antes de ela terminar. `runTransaction` roda a função de novo,
+ * como o Firestore real faz.
+ */
+class ConflitoTransacao extends Error {}
+
+/** Mesmo teto de tentativas do SDK real (`maxAttempts` padrão = 5). */
+export const FAKE_TENTATIVAS_TRANSACAO = 5;
+
 class FakeTransaction implements UsageTransaction {
   private readonly writes: Array<{
     path: string;
     data: Record<string, unknown>;
     merge: boolean;
   }> = [];
+  /** Versão de cada doc no instante em que esta transação o LEU. */
+  private readonly lidas = new Map<string, number>();
 
   constructor(private readonly db: FakeFirestore) {}
 
   async get(ref: { get(): Promise<UsageDocSnapshot> }): Promise<UsageDocSnapshot> {
-    return new FakeSnapshot(this.db.readDoc((ref as FakeDocRef).path));
+    const path = (ref as FakeDocRef).path;
+    if (!this.lidas.has(path)) this.lidas.set(path, this.db.versao(path));
+    const snap = new FakeSnapshot(this.db.readDoc(path));
+    await this.db.notificarLeitura(path);
+    return snap;
   }
 
   set(
@@ -71,6 +91,13 @@ class FakeTransaction implements UsageTransaction {
   }
 
   commit(): void {
+    // A garantia que o Firestore real dá e que o fake não dava: se um doc
+    // que esta transação LEU mudou antes do commit, nada é escrito e a
+    // função roda de novo sobre o estado novo. Sem isto, um teste de
+    // "isto agora é transacional" passaria sem provar nada.
+    for (const [path, versao] of this.lidas) {
+      if (this.db.versao(path) !== versao) throw new ConflitoTransacao(path);
+    }
     for (const write of this.writes) {
       this.db.applyWrite(write.path, write.data, write.merge);
     }
@@ -79,6 +106,10 @@ class FakeTransaction implements UsageTransaction {
 
 export class FakeFirestore implements AppDb {
   private readonly docs = new Map<string, Record<string, unknown>>();
+  /** Sobe a cada escrita de um doc — o que a detecção de conflito compara. */
+  private readonly versoes = new Map<string, number>();
+  /** Ganchos de corrida, um por path, disparados UMA vez depois de uma leitura. */
+  private readonly ganchosLeitura = new Map<string, () => Promise<unknown>>();
 
   /**
    * Toda coleção do Firestore real tem um número ÍMPAR de segmentos no
@@ -103,15 +134,51 @@ export class FakeFirestore implements AppDb {
   }
 
   async runTransaction<T>(fn: (tx: UsageTransaction) => Promise<T>): Promise<T> {
-    const tx = new FakeTransaction(this);
-    const result = await fn(tx);
-    tx.commit();
-    return result;
+    for (let tentativa = 1; ; tentativa += 1) {
+      const tx = new FakeTransaction(this);
+      const result = await fn(tx);
+      try {
+        tx.commit();
+        return result;
+      } catch (error) {
+        if (!(error instanceof ConflitoTransacao) || tentativa >= FAKE_TENTATIVAS_TRANSACAO) {
+          throw error instanceof ConflitoTransacao
+            ? new Error(`ABORTED: contenção em ${error.message} (${tentativa} tentativas)`)
+            : error;
+        }
+      }
+    }
+  }
+
+  /**
+   * GANCHO DE CORRIDA para testes: `fn` roda UMA vez, logo depois da próxima
+   * leitura de `path` (por `doc.get()` ou `tx.get()`), antes de o leitor
+   * receber o snapshot. É como se escreve "outra requisição gravou este doc
+   * entre a leitura e a escrita desta" sem depender de relógio.
+   */
+  aoLer(path: string, fn: () => Promise<unknown>): void {
+    this.ganchosLeitura.set(path, fn);
+  }
+
+  async notificarLeitura(path: string): Promise<void> {
+    const fn = this.ganchosLeitura.get(path);
+    if (!fn) return;
+    this.ganchosLeitura.delete(path);
+    await fn();
+  }
+
+  versao(path: string): number {
+    return this.versoes.get(path) ?? 0;
+  }
+
+  private tocar(path: string): void {
+    this.versoes.set(path, this.versao(path) + 1);
   }
 
   /** Pré-carrega um doc para o teste ("dado sujo", mês anterior etc.). */
   seed(path: string, data: Record<string, unknown>): void {
     this.docs.set(path, structuredClone(data));
+    this.tocar(path);
   }
 
   /** Estado persistido do doc, para asserções. */
@@ -127,10 +194,12 @@ export class FakeFirestore implements AppDb {
   applyWrite(path: string, data: Record<string, unknown>, merge: boolean): void {
     const current = merge ? (this.docs.get(path) ?? {}) : {};
     this.docs.set(path, { ...current, ...structuredClone(data) });
+    this.tocar(path);
   }
 
   deleteDoc(path: string): void {
     this.docs.delete(path);
+    this.tocar(path);
   }
 
   private listDocs(collection: string): AppQueryDocSnapshot[] {

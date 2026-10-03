@@ -9,9 +9,9 @@ import {
   ApiError,
   api,
   type FilaDiagnosticoResponse,
-  type FilaRetidosResponse,
+  type FilaRevisaoResponse,
 } from "@/lib/api-client";
-import type { LinhaFilaPainel, LinhaRetido } from "@/lib/fila/estado";
+import type { LinhaFilaPainel, LinhaRevisao } from "@/lib/fila/estado";
 import { formatDateTime, formatInt, formatTempoAte, formatTempoRelativo } from "@/lib/format";
 import type { NivelContato } from "@/lib/leads/janelaContato";
 
@@ -168,58 +168,86 @@ function LinhaLeadFila({
 }
 
 /**
- * Uma linha da lista de RETIDOS. Mostra as três coisas que a decisão de
- * liberar exige — quem é, quando foi a reserva (o instante em que a mensagem
- * provavelmente saiu, o que o operador confere no WhatsApp) e quando a
- * retenção vence sozinha. Só o número não bastaria: sem isso não há como
- * liberar um ESPECÍFICO.
+ * Uma linha da lista EM REVISÃO. Mostra o que a decisão exige — quem é,
+ * quando foi a reserva (o instante em que a mensagem provavelmente saiu, o
+ * que o operador confere no WhatsApp) e quantas vezes o lead já foi
+ * reservado (quantas mensagens podem ter saído).
  *
- * A ação é de mão única e não é o `descartar` das outras listas: aqui o
- * operador afirma um fato que o servidor não tem como saber ("conferi, não
- * saiu"), e o lead volta à fila. Recusa por claim ativa aparece NA LINHA, com
- * a hora — recusa sem explicação faz clicar de novo.
+ * Duas ações, as duas de mão única e as duas afirmando um fato que o
+ * servidor não tem como saber: "conferi, NÃO saiu" (liberar — o lead volta à
+ * fila) e "conferi, SAIU" (contactado — o lead sai da fila para sempre).
+ * Recusa por claim ativa aparece NA LINHA, com a hora — recusa sem
+ * explicação faz clicar de novo.
  */
-function LinhaRetidoFila({
+function LinhaRevisaoFila({
   linha,
   agora,
   ocupado,
   erro,
   onLiberar,
+  onContactado,
 }: {
-  linha: LinhaRetido;
+  linha: LinhaRevisao;
   agora: number;
   ocupado: boolean;
   erro: string | null;
   onLiberar: () => void;
+  onContactado: () => void;
 }) {
+  const vezes =
+    linha.reservas === null ? "reservado 1× ou mais" : `reservado ${formatInt(linha.reservas)}×`;
+  // Duas ações largas: no celular elas vão para uma linha PRÓPRIA abaixo do
+  // texto (lado a lado, elas espremiam o nome numa coluna de uma palavra e
+  // passavam por cima dele); do `sm` para cima, à direita, como as outras
+  // listas da visão.
   return (
-    <li className="flex flex-wrap items-start justify-between gap-2 rounded border border-line p-2">
-      <div className="min-w-0 flex-1">
+    <li
+      data-linha-revisao
+      className="flex flex-col gap-2 rounded border border-line p-2 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div className="min-w-0 sm:flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <a
             href={`/leads/${linha.leadId}`}
-            className="text-xs text-foreground underline decoration-line underline-offset-2"
+            data-nome-revisao
+            className="break-words text-xs text-foreground underline decoration-line underline-offset-2"
           >
             {linha.nome || linha.leadId}
           </a>
-          <span className="text-[10px] text-ink-muted">{linha.dispositivo}</span>
+          <span
+            className={`text-[10px] ${
+              linha.reservas !== null && linha.reservas > 1 ? "text-warning" : "text-ink-muted"
+            }`}
+          >
+            {vezes}
+          </span>
         </div>
         <p className="mt-0.5 text-[10px] text-ink-muted">
-          reservado {formatDateTime(linha.reservadoEm)} (
-          {formatTempoRelativo(linha.reservadoEm, agora)}) · volta à fila{" "}
-          {formatTempoAte(linha.venceEm, agora)}
+          última reserva {formatDateTime(linha.reservadoEm)} (
+          {formatTempoRelativo(linha.reservadoEm, agora)}) · {linha.dispositivo}
         </p>
         {erro && <p className="mt-0.5 text-[10px] text-critical">{erro}</p>}
       </div>
-      <button
-        type="button"
-        onClick={onLiberar}
-        disabled={ocupado}
-        title="Só se você conferiu no WhatsApp que a mensagem NÃO saiu: devolve o lead à fila agora."
-        className="shrink-0 rounded border border-line bg-surface-2 px-2 py-1 text-xs text-ink-muted hover:border-accent/60 hover:text-accent disabled:opacity-50"
-      >
-        liberar
-      </button>
+      <div data-acoes-revisao className="flex shrink-0 flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={onContactado}
+          disabled={ocupado}
+          title="Conferi no WhatsApp que a mensagem SAIU: marca contactado com a data da reserva e conta no dia."
+          className="rounded border border-line bg-surface-2 px-2 py-1 text-xs text-ink-muted hover:border-good/60 hover:text-good disabled:opacity-50"
+        >
+          saiu · contactado
+        </button>
+        <button
+          type="button"
+          onClick={onLiberar}
+          disabled={ocupado}
+          title="Conferi no WhatsApp que a mensagem NÃO saiu: devolve o lead à fila agora."
+          className="rounded border border-line bg-surface-2 px-2 py-1 text-xs text-ink-muted hover:border-accent/60 hover:text-accent disabled:opacity-50"
+        >
+          não saiu · liberar
+        </button>
+      </div>
     </li>
   );
 }
@@ -257,14 +285,14 @@ export function VisaoFila({
   // Instante FIXO do carregamento — nunca Date.now() no render.
   const [agora, setAgora] = useState(() => Date.now());
   /**
-   * Os RETIDOS vêm de rota própria (`/api/config/fila/retidos`), e não do
+   * A REVISÃO vem de rota própria (`/api/config/fila/revisao`), e não do
    * diagnóstico: achá-los exige varrer `filaEnvios`, que é exatamente o custo
    * que `/api/fila/diagnostico` existe para não pagar (ele lê UM doc, o
    * pool). O que importa é que a contagem do funil e a lista saiam do MESMO
    * payload — aí não têm como discordar.
    */
-  const [retidos, setRetidos] = useState<FilaRetidosResponse | null>(null);
-  const [erroRetidos, setErroRetidos] = useState<string | null>(null);
+  const [revisao, setRevisao] = useState<FilaRevisaoResponse | null>(null);
+  const [erroRevisao, setErroRevisao] = useState<string | null>(null);
   /** Recusa por claim ativa, por linha: o motivo aparece ONDE se clicou. */
   const [erroLinha, setErroLinha] = useState<Record<string, string>>({});
 
@@ -299,18 +327,18 @@ export function VisaoFila({
   useEffect(() => {
     let ignore = false;
     api
-      .getFilaRetidos()
+      .getFilaRevisao()
       .then((resposta) => {
         if (ignore) return;
-        setRetidos(resposta);
-        setErroRetidos(null);
+        setRevisao(resposta);
+        setErroRevisao(null);
       })
       .catch((error) => {
         if (ignore) return;
-        setErroRetidos(
+        setErroRevisao(
           error instanceof ApiError && error.status === 403
-            ? "A lista de retidos é restrita ao admin."
-            : mensagemErroFila(error, "Falha ao carregar os leads retidos"),
+            ? "A lista de revisão é restrita ao admin."
+            : mensagemErroFila(error, "Falha ao carregar os leads em revisão"),
         );
       });
     return () => {
@@ -318,7 +346,7 @@ export function VisaoFila({
     };
   }, [versao, recarga]);
 
-  async function liberarRetido(leadId: string) {
+  async function decidirRevisao(leadId: string, acao: "liberar" | "contactado") {
     setOcupado(leadId);
     setErroLinha((atual) => {
       const resto = { ...atual };
@@ -326,16 +354,23 @@ export function VisaoFila({
       return resto;
     });
     try {
-      // A resposta JÁ traz a lista nova: quem continua retido é decisão do
-      // servidor, não da tela.
-      setRetidos(await api.deleteFilaRetido(leadId));
+      // A resposta JÁ traz a lista nova: quem continua em revisão é decisão
+      // do servidor, não da tela.
+      setRevisao(
+        acao === "liberar"
+          ? await api.liberarFilaRevisao(leadId)
+          : await api.marcarContactadoFilaRevisao(leadId),
+      );
+      // Liberar devolve o lead à fila e "contactado" anda o contador do dia:
+      // o funil e as listas de cima também mudaram.
+      setRecarga((n) => n + 1);
     } catch (error) {
       setErroLinha((atual) => ({
         ...atual,
         [leadId]:
           error instanceof ApiError && error.status === 409
             ? "O aparelho está com esse lead reservado agora — pode estar enviando. Tente em alguns minutos."
-            : mensagemErroFila(error, "Falha ao liberar"),
+            : mensagemErroFila(error, acao === "liberar" ? "Falha ao liberar" : "Falha ao marcar"),
       }));
     } finally {
       setOcupado(null);
@@ -361,13 +396,13 @@ export function VisaoFila({
 
   /**
    * Quem está na fila agora, nas três contagens que a visão inteira
-   * detalha. Os retidos dizem "—" quando a rota deles caiu, pelo mesmo
-   * motivo do funil: zero seria mentira.
+   * detalha. A revisão diz "—" quando a rota dela caiu, pelo mesmo motivo
+   * do funil: zero seria mentira.
    */
   const resumo = dados
     ? `${dados.proximos.length} próximos · ${dados.bloqueados.length} bloqueados · ${
-        erroRetidos ? "—" : (retidos?.linhas.length ?? 0)
-      } retidos`
+        erroRevisao ? "—" : (revisao?.linhas.length ?? 0)
+      } em revisão`
     : undefined;
 
   return (
@@ -460,7 +495,7 @@ export function VisaoFila({
             ))}
           </ul>
 
-          {/* A RETENÇÃO entra no funil — e é a exceção deliberada ao
+          {/* A REVISÃO entra no funil — e é a exceção deliberada ao
               precedente de `filaParado`, que fica fora do diagnóstico
               estrutural por já ter vitrine na ficha do lead. Esta não tem
               vitrine em lugar nenhum: sem a linha, o lead pararia em
@@ -468,21 +503,20 @@ export function VisaoFila({
               não do retrato do pool — daí a linha separada, com a lista
               inteira logo abaixo. */}
           <p className="mt-2 flex items-baseline justify-between gap-2 border-t border-line pt-1 text-xs">
-            <span className={retidos && retidos.total > 0 ? "text-ink-secondary" : "text-ink-muted"}>
-              retidos por envio recente não confirmado
+            <span className={revisao && revisao.total > 0 ? "text-ink-secondary" : "text-ink-muted"}>
+              em revisão (o aparelho não confirmou)
             </span>
             <span
               className={`shrink-0 font-mono ${
-                retidos && retidos.total > 0 ? "text-foreground" : "text-ink-muted"
+                revisao && revisao.total > 0 ? "text-foreground" : "text-ink-muted"
               }`}
             >
-              {retidos ? formatInt(retidos.total) : "—"}
+              {revisao ? formatInt(revisao.total) : "—"}
             </span>
           </p>
           <p className="mt-0.5 text-[10px] text-ink-muted">
-            {retidos?.retencaoHoras === 0
-              ? "Retenção desligada: claim que expira sem confirmação devolve o lead na hora."
-              : `Contado agora, direto da fila de envio — não é do retrato do pool. Janela de ${formatInt(retidos?.retencaoHoras ?? 0)}h a partir da reserva.`}
+            Contado agora, direto da fila de envio — não é do retrato do pool. Sem prazo: só sai
+            pela sua decisão abaixo.
           </p>
 
           <p className="mt-2 text-[10px] text-ink-muted">
@@ -557,35 +591,32 @@ export function VisaoFila({
             </>
           )}
 
-          {/* ── Retidos por envio não confirmado ─────────────────────── */}
-          <h4 className="mt-3 text-xs font-medium text-ink-secondary">
-            Retidos por envio recente não confirmado
-          </h4>
+          {/* ── Em revisão: claim que venceu sem confirmação ─────────── */}
+          <h4 className="mt-3 text-xs font-medium text-ink-secondary">Em revisão</h4>
           <p className="mt-1 text-[10px] text-ink-muted">
             O aparelho levou a tarefa e não disse o que houve. Na dúvida entre não mandar e mandar
-            duas vezes, o lead fica fora da fila — libere só depois de conferir no WhatsApp que a
-            mensagem não saiu.
+            duas vezes, o lead fica fora da fila até você conferir no WhatsApp: se a mensagem saiu,
+            marque contactado; se não saiu, libere.
           </p>
-          {erroRetidos ? (
-            <p className="mt-1 text-xs text-critical">{erroRetidos}</p>
-          ) : retidos === null ? (
+          {erroRevisao ? (
+            <p className="mt-1 text-xs text-critical">{erroRevisao}</p>
+          ) : revisao === null ? (
             <SkeletonRows count={1} className="mt-1 h-10 rounded border border-line" />
-          ) : retidos.linhas.length === 0 ? (
+          ) : revisao.linhas.length === 0 ? (
             <p className="mt-1 text-xs text-ink-muted">
-              {retidos.retencaoHoras === 0
-                ? "Retenção desligada."
-                : "Nenhum lead retido — toda tarefa entregue foi confirmada."}
+              Nenhum lead em revisão — toda tarefa entregue foi confirmada.
             </p>
           ) : (
-            <ul data-lista="retidos" className="mt-1 flex flex-col gap-1.5">
-              {retidos.linhas.map((linha) => (
-                <LinhaRetidoFila
+            <ul data-lista="revisao" className="mt-1 flex flex-col gap-1.5">
+              {revisao.linhas.map((linha) => (
+                <LinhaRevisaoFila
                   key={linha.leadId}
                   linha={linha}
                   agora={agora}
                   ocupado={ocupado === linha.leadId}
                   erro={erroLinha[linha.leadId] ?? null}
-                  onLiberar={() => liberarRetido(linha.leadId)}
+                  onLiberar={() => decidirRevisao(linha.leadId, "liberar")}
+                  onContactado={() => decidirRevisao(linha.leadId, "contactado")}
                 />
               ))}
             </ul>

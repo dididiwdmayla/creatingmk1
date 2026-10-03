@@ -6,10 +6,20 @@ import { LEADS_COLLECTION, VALID_TRANSITIONS, type Lead } from "@/lib/leads/type
 import {
   FILA_CONTADORES_COLLECTION,
   contadorComEnvio,
+  contadorComEnvioTardio,
   contadorComFalha,
   contadorComInvalido,
   diaOperacionalKey,
 } from "./contadores";
+import {
+  cicloComEnvioTardio,
+  cicloFechado,
+  cicloRef,
+  envioJaContado,
+  gravarFechamentoTx,
+  lerCicloTx,
+  type CicloEnvio,
+} from "./ciclos";
 import {
   ClaimInvalidoError,
   FILA_ENVIOS_COLLECTION,
@@ -48,6 +58,12 @@ export interface ConfirmacaoResultado {
   tentativas: number;
   /** Tentativas esgotadas: o lead para para inspeção manual. */
   parado: boolean;
+  /**
+   * "enviado" de uma claim que JÁ NÃO ERA a atual, aceito mesmo assim (o
+   * confirmar tardio — ver `confirmarEnvio`). Sempre presente na resposta da
+   * rota: `false` em todo o resto.
+   */
+  foraDaClaim: boolean;
 }
 
 function envioRef(db: AppDb, leadId: string) {
@@ -72,7 +88,27 @@ function envioRef(db: AppDb, leadId: string) {
  *   só deixa de ser elegível, e a ficha mostra por quê.
  *
  * `claimId` que não bate com o ATUAL é rejeitado com `ClaimInvalidoError` e
- * NADA é alterado.
+ * NADA é alterado — com UMA exceção, o **confirmar tardio**: "enviado" de
+ * uma claim velha DESTE lead (há um ciclo dela em `filaEnvios/{lead}/ciclos`).
+ * O caso: o operador liberou o lead da revisão, ele foi re-reservado, e só
+ * então chegou o "enviado" antigo. A mensagem SAIU; recusar deixaria o lead
+ * "novo", pronto para receber de novo. Então, na mesma transação:
+ *
+ * - lead `novo → contactado` (nunca rebaixa), selo + registro do aparelho na
+ *   data da RESERVA velha (quando a mensagem de fato saiu);
+ * - +1 em `enviados` no dia operacional de AGORA, sem tocar `envios`/
+ *   `ultimoEventoEm` (`contadorComEnvioTardio` — o ritmo não viu esse envio
+ *   e não pode passar a ver uma mensagem "de agora" que não saiu agora);
+ * - a rotação NÃO gira (girar agora não muda o que já saiu, e pularia a
+ *   frase da vez do próximo lead);
+ * - o ciclo velho ganha `envioTardioEm` — e é isso que torna a repetição
+ *   idempotente (`envioJaContado`), inclusive quando o operador já tinha
+ *   marcado aquele envio como contactado na revisão;
+ * - a claim ATUAL não é tocada.
+ *
+ * "falhou"/"invalido" de claim velha continuam recusados (a decisão sobre a
+ * claim atual já é mais nova que eles), e claimId sem ciclo neste lead
+ * também — não há como saber que ele existiu.
  */
 export async function confirmarEnvio(
   db: AppDb,
@@ -93,8 +129,25 @@ export async function confirmarEnvio(
     // ── Leituras ──────────────────────────────────────────────────────────
     const refEnvio = envioRef(db, leadId);
     const envio = (await tx.get(refEnvio)).data() as FilaEnvioDoc | undefined;
-    if (!envio || envio.claimId !== claimId) {
-      throw new ClaimInvalidoError(leadId);
+    if (!envio) throw new ClaimInvalidoError(leadId);
+    if (envio.claimId !== claimId) {
+      if (resultado !== "enviado") throw new ClaimInvalidoError(leadId);
+      const cicloVelho = (await lerCicloTx(tx, db, leadId, claimId)) as CicloEnvio | undefined;
+      if (!cicloVelho) throw new ClaimInvalidoError(leadId);
+      const base = { estado: "enviado" as const, tentativas: envio.tentativas, parado: false, foraDaClaim: true };
+      if (envioJaContado(cicloVelho)) return { ...base, repetida: true };
+
+      const refLead = db.collection(LEADS_COLLECTION).doc(leadId);
+      const lead = (await tx.get(refLead)).data() as Lead | undefined;
+      const refContador = db
+        .collection(FILA_CONTADORES_COLLECTION)
+        .doc(diaOperacionalKey(now, opcoes.inicioDiaOperacionalHora));
+      const contador = (await tx.get(refContador)).data();
+
+      if (lead) tx.set(refLead, leadToDoc(leadComEnvioTardio(lead, cicloVelho, opcoes.userId, now)));
+      tx.set(refContador, contadorComEnvioTardio(contador) as unknown as Record<string, unknown>);
+      tx.set(cicloRef(db, leadId, claimId), { ...cicloComEnvioTardio(cicloVelho, detalhe, now) });
+      return { ...base, repetida: false };
     }
 
     // Repetição da MESMA claim já confirmada: sucesso sem reescrever nada.
@@ -104,8 +157,12 @@ export async function confirmarEnvio(
         repetida: true,
         tentativas: envio.tentativas,
         parado: envio.estado === "falhou" && envio.tentativas >= TENTATIVAS_MAX,
+        foraDaClaim: false,
       };
     }
+
+    // O ciclo desta claim fecha nesta MESMA transação (ver lib/fila/ciclos.ts).
+    const ciclo = await lerCicloTx(tx, db, leadId, claimId);
 
     const refLead = db.collection(LEADS_COLLECTION).doc(leadId);
     const precisaDoLead = resultado === "enviado" || resultado === "invalido";
@@ -175,12 +232,29 @@ export async function confirmarEnvio(
           ? contadorComFalha(contador)
           : contadorComInvalido(contador);
     tx.set(refContador, proximoContador as unknown as Record<string, unknown>);
+    gravarFechamentoTx(tx, db, cicloFechado(ciclo, envio, resultado, detalhe, now));
 
     return {
       estado: resultado,
       repetida: false,
       tentativas,
       parado: resultado === "falhou" && tentativas >= TENTATIVAS_MAX,
+      foraDaClaim: false,
     };
   });
+}
+
+/**
+ * O lead depois de um confirmar TARDIO, puro: transição (nunca rebaixa),
+ * selo e registro com a data da reserva velha — quando a mensagem saiu —,
+ * escrita carimbada agora. Sem `origem`: é confirmação do aparelho, como no
+ * caminho normal.
+ */
+function leadComEnvioTardio(lead: Lead, ciclo: CicloEnvio, userId: string, now: Date): Lead {
+  const reservadoEm = Date.parse(ciclo.reservadoEm);
+  const quando = Number.isFinite(reservadoEm) ? new Date(reservadoEm) : now;
+  const comStatus = VALID_TRANSITIONS[lead.status].includes("contactado")
+    ? aplicarTransicao(lead, "contactado", quando, userId)
+    : lead;
+  return { ...aplicarSeloContato(comStatus, userId, quando), atualizadoEm: now.toISOString() };
 }

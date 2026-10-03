@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import {
   ClaimInvalidoError,
+  EPOCH_ISO,
   TENTATIVAS_MAX,
   anotarRotacao,
   confirmarClaim,
@@ -46,14 +47,32 @@ describe("reservarLead", () => {
     expect(db.getDoc(DOC)?.claimId).toBe(primeira?.claimId); // a reserva original não foi tocada
   });
 
-  it("claim expirada é re-reservável (e ganha um claimId novo)", async () => {
+  it("claim expirada em SILÊNCIO não é re-reservável — vai para revisão (ver revisao.test.ts)", async () => {
     const db = new FakeFirestore();
     db.seed("filaEnvios/ChIJlead1", {
       leadId: "ChIJlead1",
       estado: "reservado",
       claimId: "claim-velho",
       reservadoEm: "2026-03-10T11:00:00.000Z",
-      expiraEm: "2026-03-10T11:05:00.000Z", // expirou há muito
+      expiraEm: "2026-03-10T11:05:00.000Z", // expirou há muito, sem confirmação
+      dispositivo: "celular-1",
+      tentativas: 2,
+      ultimoErro: "timeout",
+      enviadoEm: null,
+    });
+
+    expect(await reservarLead(db, "ChIJlead1", "celular-2", new Date("2026-03-10T12:00:00Z"))).toBeNull();
+    expect(db.getDoc(DOC)).toMatchObject({ claimId: "claim-velho", dispositivo: "celular-1" });
+  });
+
+  it("claim DEVOLVIDA é re-reservável (e ganha um claimId novo)", async () => {
+    const db = new FakeFirestore();
+    db.seed("filaEnvios/ChIJlead1", {
+      leadId: "ChIJlead1",
+      estado: "reservado",
+      claimId: "claim-velho",
+      reservadoEm: "2026-03-10T11:00:00.000Z",
+      expiraEm: EPOCH_ISO, // devolvida de propósito: nada saiu
       dispositivo: "celular-1",
       tentativas: 2,
       ultimoErro: "timeout",
@@ -227,8 +246,9 @@ describe("confirmarClaim", () => {
   it("claimId velho é REJEITADO (não ignorado em silêncio) quando o lead já foi re-reservado", async () => {
     const db = new FakeFirestore();
     const claimVelho = await reservarLead(db, "ChIJlead1", "celular-1", new Date("2026-03-10T11:00:00Z"));
-    // Expira e é re-reservada por outro ciclo antes do celular travado voltar.
-    db.seed(DOC, { ...db.getDoc(DOC), expiraEm: "2026-03-10T11:01:00.000Z" });
+    // Devolvida (o operador liberou da revisão) e re-reservada por outro
+    // ciclo antes do celular travado voltar.
+    await liberarClaim(db, "ChIJlead1", claimVelho!.claimId);
     await reservarLead(db, "ChIJlead1", "celular-2", new Date("2026-03-10T12:00:00Z"));
 
     await expect(
@@ -261,7 +281,7 @@ describe("liberarClaim", () => {
   it("claimId velho também é rejeitado em liberarClaim", async () => {
     const db = new FakeFirestore();
     const claimVelho = await reservarLead(db, "ChIJlead1", "celular-1", new Date("2026-03-10T11:00:00Z"));
-    db.seed(DOC, { ...db.getDoc(DOC), expiraEm: "2026-03-10T11:01:00.000Z" });
+    await liberarClaim(db, "ChIJlead1", claimVelho!.claimId);
     await reservarLead(db, "ChIJlead1", "celular-2", new Date("2026-03-10T12:00:00Z"));
 
     await expect(liberarClaim(db, "ChIJlead1", claimVelho!.claimId)).rejects.toThrow(

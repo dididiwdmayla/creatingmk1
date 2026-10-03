@@ -16,7 +16,7 @@ import { normalizaNicho } from "@/lib/precificacao/calc";
 import {
   FILA_ENVIOS_COLLECTION,
   TENTATIVAS_MAX,
-  retidoPorEnvio,
+  emRevisao,
   type FilaEnvioDoc,
 } from "./envios";
 import { MOTIVOS_FISICOS, motivoEhFisico, type MotivoFisico } from "./estado";
@@ -330,22 +330,17 @@ export function motivoEstrutural(lead: Lead, corteLegado: string): MotivoEstrutu
 }
 
 /**
- * Só o que é PERMANENTE barra aqui (já enviado, número inválido, tentativas
- * esgotadas) — mais a RETENÇÃO, que é temporária mas datada. Claim VIVA não
- * barra: ela dura 5 min e o pool dura 10, então quem decide isso é a
+ * Só o que barra até alguém agir fica aqui (já enviado, número inválido,
+ * tentativas esgotadas) — mais a REVISÃO, a claim que venceu sem
+ * confirmação nenhuma (ver o bloco da revisão em `estado.ts`). Claim VIVA
+ * não barra: ela dura 5 min e o pool dura 10, então quem decide isso é a
  * transação de `reservarLead`, na hora, sem cache.
  *
- * `retencaoMs` (0 = desligada) barra o lead cuja claim expirou SEM
- * CONFIRMAÇÃO enquanto a janela corre — ver o bloco da retenção em
- * `estado.ts`. Aqui ela é PRÉ-FILTRO, não a proteção: quem impede a
- * mensagem repetida é `leadDisponivel`, na transação da reserva, porque o
- * pool é cache e pode estar até `POOL_TTL_MS` atrasado. O papel deste filtro
- * é outro, e também necessário: manter o funil e as listas do painel
+ * Aqui a revisão é PRÉ-FILTRO, não a proteção: quem impede a mensagem
+ * repetida é `leadDisponivel`, na transação da reserva, porque o pool é
+ * cache e pode estar até `POOL_TTL_MS` atrasado. O papel deste filtro é
+ * outro, e também necessário: manter o funil e as listas do painel
  * honestos, e não dar a vaga de candidato a quem não pode receber nada.
- *
- * Que o cache atrase é seguro justamente por causa dessa divisão — o portão
- * duro relê o doc fresco, então nem um pool velho nem uma janela recém
- * aumentada no painel conseguem liberar um lead retido.
  *
  * O resto fica FORA do diagnóstico estrutural de propósito: por construção,
  * "enviado" já reprova antes em `status` (a confirmação move
@@ -353,10 +348,10 @@ export function motivoEstrutural(lead: Lead, corteLegado: string): MotivoEstrutu
  * "inválido" já reprova antes em `telefoneInvalido` (mesma transação). O
  * único caso que sobra — tentativas esgotadas — já tem vitrine própria
  * (`filaParado`, na ficha do lead); duplicá-lo no pool confundiria duas
- * fontes da mesma informação. A RETENÇÃO é a exceção deliberada a esse
+ * fontes da mesma informação. A REVISÃO é a exceção deliberada a esse
  * precedente: ela não tem vitrine em lugar nenhum, e um lead que para por
  * ela pararia em silêncio — por isso ela é contada e listada no painel (ver
- * `lib/fila/retidos.ts`).
+ * `lib/fila/revisao.ts`).
  *
  * Essa garantia (selo e registro sempre vêm com `status` já mudado) só vale
  * para quem passou pela CONFIRMAÇÃO da fila — as duas escritas são atômicas,
@@ -366,31 +361,27 @@ export function motivoEstrutural(lead: Lead, corteLegado: string): MotivoEstrutu
  * pega esse caso é `motivoEstrutural` (`contactadoForaDaFila`), na etapa
  * anterior.
  */
-function envioImpedePool(
-  envio: FilaEnvioDoc | undefined,
-  now: Date,
-  retencaoMs: number,
-): boolean {
+function envioImpedePool(envio: FilaEnvioDoc | undefined, now: Date): boolean {
   if (!envio) return false;
-  if (envio.estado === "reservado") return retidoPorEnvio(envio, now, retencaoMs);
+  if (envio.estado === "reservado") return emRevisao(envio, now);
   if (envio.estado === "falhou") return envio.tentativas >= TENTATIVAS_MAX;
   return true;
 }
 
 /**
- * `now`/`retencaoMs` são opcionais porque o chamador de `/proximo` usa esta
- * função para reconferir só o LEAD (o estado da fila já foi decidido pela
- * transação da reserva, e ele passa `undefined` no envio). Sem envio, os
- * dois não têm o que fazer.
+ * `now` é opcional porque o chamador de `/proximo` usa esta função para
+ * reconferir só o LEAD (o estado da fila já foi decidido pela transação da
+ * reserva, e ele passa `undefined` no envio). Sem envio, ele não tem o que
+ * fazer.
  */
 export function candidatoEstavel(
   lead: Lead,
   envio: FilaEnvioDoc | undefined,
-  opcoes: { corteLegado: string; now?: Date; retencaoMs?: number },
+  opcoes: { corteLegado: string; now?: Date },
 ): boolean {
   return (
     motivoEstrutural(lead, opcoes.corteLegado) === undefined &&
-    !envioImpedePool(envio, opcoes.now ?? new Date(), opcoes.retencaoMs ?? 0)
+    !envioImpedePool(envio, opcoes.now ?? new Date())
   );
 }
 
@@ -425,7 +416,7 @@ function paraCandidato(lead: Lead): CandidatoFila {
 export async function construirPool(
   db: AppDb,
   now: Date = new Date(),
-  opcoes: { retencaoMs?: number; corteLegado: string },
+  opcoes: { corteLegado: string },
 ): Promise<PoolCandidatos> {
   const [leadsSnap, enviosSnap] = await Promise.all([
     db.collection(LEADS_COLLECTION).get(),
@@ -458,7 +449,7 @@ export async function construirPool(
     // O balde do estoque da automação, na MESMA passada (ver `estoque` em
     // `PoolCandidatos`). `envioImpedePool` só é avaliado quando não há
     // motivo estrutural — é o mesmo curto-circuito de `candidatoEstavel`.
-    const passa = motivo === undefined && !envioImpedePool(envio, now, opcoes.retencaoMs ?? 0);
+    const passa = motivo === undefined && !envioImpedePool(envio, now);
     const balde = baldeEstoque(lead, motivo, passa);
     somarBalde(estoque, balde);
     if (naFilaDeAprovacao(lead, balde)) {
@@ -520,19 +511,17 @@ function poolValido(data: Record<string, unknown> | undefined, now: Date): PoolC
  * chega na seleção depois do pool vencer, e as chamadas barradas pelos
  * portões baratos (pausa, meta, teto, intervalo) nunca chegam aqui.
  *
- * `retencaoMs` é a política em vigor NA HORA DA RECONSTRUÇÃO — o doc é
- * compartilhado, então os dois chamadores (`/api/fila/proximo` e
- * `montarResumoFila`) passam o mesmo valor da config, senão quem
+ * `corteLegado` é a política em vigor NA HORA DA RECONSTRUÇÃO — o doc é
+ * compartilhado, então todo chamador passa o valor da config, senão quem
  * reconstruísse primeiro decidiria pelo outro. Que o valor fique congelado
  * até o TTL vencer é aceitável pela mesma razão de sempre: o pool só
- * OFERECE, e quem ENTREGA (`reservarLead`) relê o doc fresco com a política
- * fresca. Uma janela recém aumentada no painel vale na reserva no mesmo
- * segundo, mesmo que o pool ainda não saiba dela.
+ * OFERECE, e quem ENTREGA (`tentarEntregar`) relê o lead fresco com o corte
+ * fresco.
  */
 export async function lerPool(
   db: AppDb,
   now: Date = new Date(),
-  opcoes: { retencaoMs?: number; corteLegado: string },
+  opcoes: { corteLegado: string },
 ): Promise<PoolCandidatos> {
   const snap = await poolRef(db).get();
   const valido = poolValido(snap.exists ? snap.data() : undefined, now);
@@ -551,7 +540,7 @@ export async function lerPool(
 export async function reconstruirPool(
   db: AppDb,
   now: Date = new Date(),
-  opcoes: { retencaoMs?: number; corteLegado: string },
+  opcoes: { corteLegado: string },
 ): Promise<PoolCandidatos> {
   const novo = await construirPool(db, now, opcoes);
   await poolRef(db).set(novo as unknown as Record<string, unknown>);

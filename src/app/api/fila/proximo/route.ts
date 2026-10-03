@@ -15,10 +15,10 @@ import {
   TENTATIVAS_MAX,
   anotarRotacao,
   liberarClaim,
-  retencaoMsDeHoras,
   reservarLead,
 } from "@/lib/fila/envios";
 import type { TipoTarefaFila } from "@/lib/fila/estado";
+import { comRastroFila } from "@/lib/fila/eventos";
 import { flushGruposMaduros } from "@/lib/fila/flushRespostas";
 import { montarMensagemParaLead } from "@/lib/fila/mensagem";
 import {
@@ -185,18 +185,16 @@ async function tentarEntregar(
   leadId: string,
   dispositivo: string,
   now: Date,
-  retencaoMs: number,
   corteLegado: string,
 ): Promise<TarefaFila | undefined> {
   const reserva = await reservarLead(db, leadId, dispositivo, now, {
     tentativasMax: TENTATIVAS_MAX,
-    retencaoMs,
   });
   // Reserva viva de outro ciclo, estado terminal que o pool não viu, ou lead
-  // RETIDO por claim não confirmada. Este último é o caso que o pool sozinho
-  // não pega: ele dura 10 min e a claim 5, então nos ~4 minutos seguintes a
-  // uma expiração o pool ainda oferece o lead — e é aqui, no doc fresco, que
-  // a retenção o recusa. Ver `leadDisponivel`.
+  // EM REVISÃO (claim que venceu sem confirmação). Este último é o caso que o
+  // pool sozinho não pega: ele dura 10 min e a claim 5, então nos ~4 minutos
+  // seguintes a uma expiração o pool ainda oferece o lead — e é aqui, no doc
+  // fresco, que a revisão o recusa. Ver `leadDisponivel`.
   if (!reserva) return undefined;
 
   const lead = await getLead(db, leadId);
@@ -209,13 +207,13 @@ async function tentarEntregar(
   const printUrl =
     lead && candidatoEstavel(lead, undefined, { corteLegado }) ? printUrlDoLead(lead.capturas) : undefined;
   if (!lead || !printUrl) {
-    await liberarClaim(db, leadId, reserva.claimId);
+    await liberarClaim(db, leadId, reserva.claimId, now);
     return undefined;
   }
 
   const mensagem = await montarMensagemParaLead(db, lead);
   if (!mensagem.telefone) {
-    await liberarClaim(db, leadId, reserva.claimId);
+    await liberarClaim(db, leadId, reserva.claimId, now);
     return undefined;
   }
   // REDE DE SEGURANÇA dos marcadores (ver `marcadorSemResolver` em
@@ -226,7 +224,7 @@ async function tentarEntregar(
   const sobrou = marcadorSemResolver(mensagem.texto);
   if (sobrou) {
     console.warn(`[fila] marcador ${sobrou} sem resolver para o lead ${leadId}: tarefa não entregue`);
-    await liberarClaim(db, leadId, reserva.claimId);
+    await liberarClaim(db, leadId, reserva.claimId, now);
     return undefined;
   }
 
@@ -246,7 +244,16 @@ async function tentarEntregar(
   };
 }
 
+/**
+ * Toda resposta não-200 desta rota vira um evento em `filaEventos` (ver
+ * `comRastroFila`). "Sem tarefa" é 200 com motivo, e não é erro — só o que
+ * a macro recebe como falha HTTP entra. O embrulho nunca muda a resposta.
+ */
 export async function GET(req: Request) {
+  return comRastroFila("proximo", req, tratar, getDb);
+}
+
+async function tratar(req: Request) {
   const barrado = autenticarDispositivo(req);
   if (barrado) return barrado;
 
@@ -362,9 +369,8 @@ export async function GET(req: Request) {
     const ritmo = motivoDeRitmo(config, contador);
     if (ritmo) return semTarefa(ritmo);
 
-    const retencaoMs = retencaoMsDeHoras(config.retencaoEnvioHoras);
     const corteLegado = await corteLegadoAtual(db);
-    const pool = await lerPool(db, now, { retencaoMs, corteLegado });
+    const pool = await lerPool(db, now, { corteLegado });
     const { escolhido, diagnostico } = ordenarCandidatos(
       pool.candidatos,
       config,
@@ -373,7 +379,7 @@ export async function GET(req: Request) {
     );
 
     for (const candidato of escolhido) {
-      const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now, retencaoMs, corteLegado);
+      const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now, corteLegado);
       if (tarefa) return respostaComTarefa(tarefa);
     }
 

@@ -2,7 +2,8 @@ import { randomBytes } from "node:crypto";
 
 import type { AppDb } from "@/lib/firestore-like";
 
-import { retidoPorEnvio, type FilaEnvioDoc, type FilaEnvioResultado } from "./estado";
+import { cicloAberto, cicloFechado, cicloRef, gravarFechamentoTx, lerCicloTx } from "./ciclos";
+import { emRevisao, type FilaEnvioDoc, type FilaEnvioResultado } from "./estado";
 
 /**
  * `/filaEnvios/{leadId}` — um doc por LEAD (mesmo id do doc em `/leads`,
@@ -28,20 +29,13 @@ export const RESERVA_DURACAO_MS = 5 * 60 * 1000;
  * Exportado porque virou INVARIANTE observável: `expiraEm <= reservadoEm` é
  * o que distingue claim devolvida de propósito (nada saiu) de claim morta em
  * silêncio (provavelmente saiu) — ver `claimExpiradaSemConfirmacao` em
- * `estado.ts`. O teste da retenção precisa poder pinar este valor contra o
+ * `estado.ts`. O teste da revisão precisa poder pinar este valor contra o
  * doc que `liberarClaim` de fato grava.
  */
 export const EPOCH_ISO = new Date(0).toISOString();
 
-export type { FilaEnvioDoc, FilaEnvioEstado, FilaEnvioResultado, LinhaRetido } from "./estado";
-export {
-  TENTATIVAS_MAX,
-  claimExpiradaSemConfirmacao,
-  filaParado,
-  retencaoMsDeHoras,
-  retencaoVenceEm,
-  retidoPorEnvio,
-} from "./estado";
+export type { FilaEnvioDoc, FilaEnvioEstado, FilaEnvioResultado, LinhaRevisao } from "./estado";
+export { TENTATIVAS_MAX, claimExpiradaSemConfirmacao, emRevisao, filaParado } from "./estado";
 
 /** Resultado de uma reserva bem-sucedida. */
 export interface FilaReserva {
@@ -95,17 +89,18 @@ function reservaExpirada(doc: FilaEnvioDoc, now: Date): boolean {
  * virgem; a rota `/api/fila/proximo` passa `TENTATIVAS_MAX` e com isso um
  * lead que falhou volta à fila até esgotar as tentativas.
  *
- * `retencaoMs` é a RETENÇÃO POR CLAIM NÃO CONFIRMADA (ver o bloco em
- * `estado.ts`), explícita no chamador pelo mesmo motivo — 0, o default,
- * mantém a regra antiga ("reservado expirado = livre") intacta.
+ * **Claim vencida em SILÊNCIO nunca libera** (`emRevisao`, ver o bloco da
+ * revisão em `estado.ts`): o lead vai para revisão e só sai por ação do
+ * operador. "Reservado expirado = livre" agora vale só para a claim
+ * DEVOLVIDA de propósito (`liberarClaim`, ou a liberação da revisão —
+ * `expiraEm` no EPOCH), em que nada saiu e o servidor sabe.
  *
  * **Este é o portão que de fato impede a mensagem repetida**, e não o
  * pré-filtro do pool. O pool dura `POOL_TTL_MS` (10 min) e a claim dura
  * `RESERVA_DURACAO_MS` (5 min): um pool construído antes da expiração
  * continua OFERECENDO o lead por até ~4 minutos depois de ela acontecer, e
  * quem é consultado nesse intervalo é esta função — transacional, sobre o
- * doc fresco. Filtrar só na construção do pool deixaria a janela aberta em
- * TODA expiração, que é exatamente o caso que a retenção existe para matar.
+ * doc fresco.
  *
  * `enviado` e `invalido` são terminais em qualquer política: um já foi, o
  * outro é número que não existe.
@@ -114,11 +109,10 @@ export function leadDisponivel(
   doc: FilaEnvioDoc | undefined,
   now: Date,
   tentativasMax = 0,
-  retencaoMs = 0,
 ): boolean {
   if (!doc) return true;
   if (doc.estado === "reservado") {
-    if (retidoPorEnvio(doc, now, retencaoMs)) return false;
+    if (emRevisao(doc, now)) return false;
     return reservaExpirada(doc, now);
   }
   if (doc.estado === "falhou") return doc.tentativas < tentativasMax;
@@ -127,20 +121,14 @@ export function leadDisponivel(
 
 /**
  * Reserva um lead para `dispositivo`. Sucede quando o lead nunca foi
- * reservado OU a reserva anterior já expirou (regra central: reserva
- * "reservado" com `expiraEm` no passado é livre — é o que devolve o lead à
- * fila sozinho quando o celular trava ou a execução morre no meio).
- * Devolve `{ claimId, expiraEm }` novos, ou `null` quando o lead está com
- * reserva viva de outro ciclo ou num estado que a política em vigor trata
- * como terminal — ver `leadDisponivel`.
+ * reservado, falhou dentro da política de reenvio, ou teve a claim anterior
+ * DEVOLVIDA de propósito. Devolve `{ claimId, expiraEm }` novos, ou `null`
+ * quando o lead está com reserva viva de outro ciclo, EM REVISÃO (claim que
+ * venceu em silêncio — ver `leadDisponivel`) ou num estado que a política em
+ * vigor trata como terminal.
  *
- * **`opcoes.retencaoMs` INVERTE essa regra central**, de propósito: com ela,
- * a claim que expirou SEM CONFIRMAÇÃO prende o lead pela janela configurada
- * em vez de devolvê-lo livre. A regra antiga existia para o lead não ficar
- * preso quando o celular trava; a retenção existe porque "o aparelho pegou e
- * não disse o que houve" é mais provavelmente "mandou" do que "não mandou",
- * e mandar duas vezes não tem volta. Ver o bloco da retenção em `estado.ts`
- * para a assimetria inteira. Sem a opção (default 0), nada muda.
+ * Soma 1 em `reservas` — o histórico de quantas vezes este lead foi levado
+ * por um aparelho, que a lista de revisão mostra.
  *
  * O `expiraEm` volta daqui em vez de ser recalculado por quem chama porque a
  * resposta ao celular carrega esse instante: recomputá-lo do lado de fora
@@ -151,13 +139,13 @@ export async function reservarLead(
   leadId: string,
   dispositivo: string,
   now: Date = new Date(),
-  opcoes: { tentativasMax?: number; retencaoMs?: number } = {},
+  opcoes: { tentativasMax?: number } = {},
 ): Promise<FilaReserva | null> {
   return db.runTransaction(async (tx) => {
     const ref = docRef(db, leadId);
     const atual = asDoc((await tx.get(ref)).data());
 
-    if (!leadDisponivel(atual, now, opcoes.tentativasMax ?? 0, opcoes.retencaoMs ?? 0)) {
+    if (!leadDisponivel(atual, now, opcoes.tentativasMax ?? 0)) {
       return null;
     }
 
@@ -175,8 +163,14 @@ export async function reservarLead(
       ultimoErro: atual?.ultimoErro ?? null,
       enviadoEm: null,
       rotacaoSkinId: null,
+      // Sobrevive à re-reserva, como `tentativas`; doc anterior ao contador
+      // conta a partir de 1 (pelo menos a reserva anterior existiu).
+      reservas: (atual ? (atual.reservas ?? 1) : 0) + 1,
     };
     tx.set(ref, toDoc(doc));
+    // O CICLO desta reserva, na mesma transação: um registro próprio que
+    // nenhuma reserva seguinte toca (ver lib/fila/ciclos.ts).
+    tx.set(cicloRef(db, leadId, claimId), { ...cicloAberto(doc) });
     return { claimId, expiraEm };
   });
 }
@@ -222,15 +216,24 @@ export async function confirmarClaim(
  * mesmo motivo: liberar com uma claim velha não pode derrubar a reserva
  * NOVA de outro ciclo.
  */
-export async function liberarClaim(db: AppDb, leadId: string, claimId: string): Promise<void> {
+export async function liberarClaim(
+  db: AppDb,
+  leadId: string,
+  claimId: string,
+  now: Date = new Date(),
+): Promise<void> {
   await db.runTransaction(async (tx) => {
     const ref = docRef(db, leadId);
     const atual = asDoc((await tx.get(ref)).data());
     if (!atual || atual.claimId !== claimId) {
       throw new ClaimInvalidoError(leadId);
     }
+    const ciclo = await lerCicloTx(tx, db, leadId, claimId);
 
     tx.set(ref, { ...atual, expiraEm: EPOCH_ISO });
+    // A rota desistiu antes de montar a tarefa: o ciclo fecha como
+    // "devolvida" (nada saiu, e o servidor sabe).
+    gravarFechamentoTx(tx, db, cicloFechado(ciclo, atual, "devolvida", null, now));
   });
 }
 
@@ -254,6 +257,7 @@ export async function anotarRotacao(
       throw new ClaimInvalidoError(leadId);
     }
     tx.set(ref, toDoc({ ...atual, rotacaoSkinId }));
+    tx.set(cicloRef(db, leadId, claimId), { rotacaoSkinId }, { merge: true });
   });
 }
 

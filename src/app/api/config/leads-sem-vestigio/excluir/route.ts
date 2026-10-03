@@ -33,7 +33,7 @@ import { requireAdmin } from "@/lib/usuarios";
  * terreno em que proxy e cliente se comportam de formas diferentes demais
  * para uma ação que não tem desfazer. O `DELETE` continua sendo a forma das
  * exclusões de UM recurso identificado pela URL (ver
- * `/api/config/fila/retidos/{leadId}`).
+ * `/api/config/fila/revisao/{leadId}`).
  *
  * Devolve o que de fato aconteceu (`excluidos`, `filaEnviosRemovidos`,
  * `storageFalhou`) e a lista nova — nada é deduzido pela tela.
