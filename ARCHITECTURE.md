@@ -231,6 +231,7 @@ src/
       disparo.ts                    #    execução ATIVA (trava viva ou pedido pendente) e o registro do "rodar agora" (/automacao/disparo)
       aprovacaoLote.ts              #    aprovar/reprovar em lote pelo mesmo decidirAprovacaoDemo da rota por lead
       operador.ts                   #    nichos sem skin + pares saturados ("O que falta" do painel)
+      expiracao.ts                  #    quem PODE ser apagado: demo automática não enviada passado o prazo (puro, sem dependência da fila)
     demos/                          # ✅ Forja de Demos (ver seção própria)
       types.ts                      # DemoData, Theme, SkinDefinition (+secoes), LeadDemo (+tema), TemaPatch
       montar.ts                     # montarDemoData: exemplo ← lead ← edições
@@ -3071,6 +3072,39 @@ A rota do painel lê o pool com `lerPool` (varre só se venceu — e aí adianta
 **O que falta** (`GET /api/config/automacao/operador`): os nichos sem skin (`nichosSemSkin`, a função do bloco de skins) com contagem de buscas e leads — o template a fazer em seguida e o sinônimo que falta — e os pares (nicho, região) saturados pela régua da config, com os leads novos das últimas noites. Só os pares com doc da automação podem estar saturados, então só as execuções deles são lidas. **Busca na primeira abertura** do bloco com o painel aberto (`usePainelAberto` dos dois ids): a exceção de "Cotas"/"Metas" — custa uma varredura de `/buscas` e nada disso entra no resumo.
 
 **Verificação visual**: `node scripts/qa-plataforma.mjs --so=automacao` (com `GITHUB_CAPTURAS_TOKEN`/`GITHUB_CAPTURAS_REPO` no ambiente o botão aparece habilitado; o laço nunca clica nele). Fechado (resumo exato e sem truncar), desligada sem execução com a fila CHEIA (captura pronta com o print, gerando, enfileirada e falhou) e "O que falta", ligada com última concluída, e ligada com última FALHA e fila VAZIA — celular e desktop, escuro e claro. O print do hero é um print REAL do hero da demo do lead, tirado no começo do passo e servido por `ctx.route` na URL do Storage. O passo apaga o pool para a rota do painel refazê-lo dos leads (o caminho real), e devolve o banco como estava no fim. Cobra: o resumo fechado EXATO e sem truncar nas duas formas; a moldura da falha com cor computada DIFERENTE da do sucesso, o selo e o erro por extenso; nenhum slot com caixa zerada (a forma do resumo com `display:none` próprio é escondida de propósito e fica de fora, como um corpo fechado); nada vazando do CARTÃO — não só da viewport: na primeira rodada os sufixos "páginas"/"chamadas" e o campo de data passavam da borda do cartão no celular sem sair da tela, e só a captura mostrou (os rótulos passaram a `w-32 sm:w-44`, a data a `w-40`).
+
+### Expiração das demos automáticas não enviadas (`lib/automacao/expiracao.ts`)
+
+Demo que a automação criou e a fila nunca mandou é apagada de fato depois de um prazo (padrão **72h a partir de `demo.criadoEm`**). Sem isso o estoque envelhece parado: a demo de uma semana atrás ocupa a vaga de uma nova, e o Storage acumula capturas de quem nunca vai receber nada.
+
+**O princípio, que decide todo caso de borda: apagar não tem volta; manter custa só armazenamento. Na dúvida, NÃO apaga.** Por isso a regra é escrita ao contrário — tudo o que PROTEGE a demo vem primeiro, cada coisa com o próprio motivo (`MotivoProtecaoDemo`), e só sobra para apagar a demo sem rastro nenhum de ter saído. `motivoNaoExpira(lead, sinais, { now, prazoHoras })` devolve o motivo, ou `undefined` quando pode apagar; `protecaoDaDemo` é a mesma coisa sem o prazo (o que a contagem do painel precisa) e `vencimentoDaDemo` é `criadoEm + prazo`. Puro e sem dependência da fila, pelo mesmo motivo de `balde.ts`: a varredura do pool o chama.
+
+**Só demo automática, e com a origem PROVADA.** `LeadDemo.origem` existe desde a automação (ausente = manual) e o `saveDemo` o preserva entre edições — mas sozinho não basta: `origemAutomaticaComprovada` exige as **três marcas** que a unidade "demo" grava no mesmo primeiro save, `origem: "automacao"`, `criadoPor: "automacao"` e `execucaoAutomacao`. Faltou qualquer uma, a demo conta como manual (`origemNaoComprovada`) e nunca é apagada. Toda demo de antes da automação cai aqui.
+
+**Só demo NÃO enviada. Conta como enviada — e protege — qualquer um destes, cada um sozinho:**
+
+| motivo | o rastro |
+|---|---|
+| `status` | lead além de "novo" |
+| `contato` | `seloContato`, `registrosEnvio` ou `contato.primeiroContatoEm` (os três de `contactadoForaDaFila`) |
+| `visita` | qualquer entrada em `demoVisitas` — **interna também**: só abre com `?t=` quem tem o link, e quem tem o link copiou |
+| `tokenConsumido` | mais de um token do mesmo canal em `demo.envios` |
+| `filaEnvios` | doc em `filaEnvios/{leadId}` em QUALQUER estado — reservado, claim em revisão, devolvida, terminal |
+| `ciclo` | algum `filaEnvios/{leadId}/ciclos/*` |
+
+- **O token: `leads/{id}/envios` não existe**, e "ter token" não prova nada. Os tokens moram em `demo.envios[]`, e toda demo nasce com um por canal (`garantirEnviosCanais` no `saveDemo`) — usar a presença deles protegeria 100% das demos e a expiração nunca apagaria nada. O que fica gravado quando um link é USADO é a visita e a rotação: a visita não interna que bate o token vigente de um canal empurra um token novo do mesmo canal (`aplicarVisita`). Os dois rastros entram.
+- **A lacuna aceita: "Copiar link" não grava nada.** Um link copiado e colado num canal sem prévia (e-mail, SMS) e nunca aberto fica invisível para a expiração. No WhatsApp e no Instagram o buscador de prévia abre a URL e acende `visita`. Decidido não fechar agora (fechar seria gravar `linkCopiadoEm` no clique, mexendo na ficha, em `/demos` e no editor).
+- **Reserva conta como enviada mesmo sem confirmação** — a lição de "sem vestígio" e da revisão: a claim que venceu calada provavelmente saiu. **Ciclo sem doc principal não existe por construção** (`reservarLead` cria os dois na mesma transação; só a exclusão definitiva apaga o principal, e leva os ciclos junto). Quem APAGA lê os ciclos mesmo assim; a varredura do pool não lê subcoleção e passa `temCiclo: undefined`.
+
+**Três proteções além do pedido, todas "na dúvida":**
+
+- `filaManual` — o operador escolheu mandar para este lead.
+- `midiaDoOperador` — foto ou vídeo que o operador subiu. A automação nunca sobe mídia, mas o `montarPatch` do texto por IA PODE gravar em `dados.imagens` a foto da variante da skin — caminho RELATIVO do app (`/demos/<skin>/foto/<slot>.webp`). Por isso o critério não é "tem `dados.imagens`" (protegeria toda demo de skin com variante, para sempre) e sim **URL no prefixo de upload do lead (`demos/{leadId}/`) ou qualquer URL absoluta** — nada que a automação produz é uma. Edição só de texto não deixa rastro distinguível e vence normalmente.
+- `capturaEmAndamento` — captura `enfileirado`/`rodando` e AINDA VIVA (`semNoticia` falso). O motor sobe os arquivos antes de gravar o estado: apagar no meio deixaria arquivo órfão no Storage (o `escritaAindaVale` do workflow recusa a escrita no lead, mas o upload já saiu). A que estourou o limite de silêncio morreu e não protege.
+
+E `criadoEmInvalido`: sem data não há como provar a idade. Aprovação **não** protege — aprovada e não enviada vence igual (é exatamente o caso do estoque maior do que a fila consegue mandar); reprovada também vence (já está fora da automação). `descartado` e `telefoneInvalido` marcado à mão não protegem.
+
+**Demo automática JÁ enviada — decidido 180 dias, NÃO implementado.** Contados da ÚLTIMA atividade (envio, registro, visita, transição de status), não da criação, e nunca para lead em `respondeu`/`fechado`. Por quê: negócio local volta semanas ou meses depois, e link morto na hora em que ele quer comprar é a perda mais cara do funil; manter custa ~3 MB de capturas por lead (centavos por mês a cada mil leads). Seis meses cobrem várias rodadas de follow-up e o ciclo sazonal; depois disso a conversa morreu, e a página neutra trata o link. Fica registrado aqui para quando for implementado — hoje, **demo enviada nunca é apagada**.
 
 ## Fila de envio ao WhatsApp — fundação (celular Android + MacroDroid)
 
