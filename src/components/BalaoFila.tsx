@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { NIVEL_CLS, NIVEL_LABEL } from "@/components/config/comum";
 import { ApiError, api, type FilaBalaoResponse } from "@/lib/api-client";
-import { MOTIVO_FISICO_LABEL, type LinhaFilaPainel, type LinhaPendenteManual } from "@/lib/fila/estado";
+import {
+  agruparPorDia,
+  horaDoOperador,
+  textoDoFora,
+  textoDoHorizonte,
+  textoDoMotivo,
+} from "@/lib/fila/agendaTexto";
+import { MOTIVO_FISICO_LABEL, type AgendaFila, type LinhaAgenda, type LinhaPendenteManual } from "@/lib/fila/estado";
 import { formatDateTime, formatInt, formatTempoRelativo } from "@/lib/format";
 
 /**
@@ -21,15 +27,21 @@ import { formatDateTime, formatInt, formatTempoRelativo } from "@/lib/format";
  *   componente vive no layout do app, ele NÃO remonta ao trocar de aba —
  *   são 2 leituras por carregamento de página, não por navegação. E **não há
  *   polling**: o número muda quando o aparelho envia, não a cada segundo.
- * - **aberto**: a lista completa, buscada só no clique que abre (4 leituras
- *   de doc + uma por linha). Fechar e abrir de novo relê; navegar não.
+ * - **aberto**: no clique que abre, duas buscas em paralelo — o balão com
+ *   os pendentes (3 leituras de doc + uma por pendente) e os 5 primeiros da
+ *   AGENDA (`/api/config/fila/agenda?limite=5`, a mesma rota e a mesma
+ *   simulação do painel "Fila de envio", sobre o retrato persistido do
+ *   pool — nunca varre `/leads`). Fechar e abrir de novo relê; navegar não.
+ *   Nenhum horário é calculado aqui: tudo vem pronto da agenda.
  *
  * **NADA aqui dispara envio.** Quem entrega é o ciclo do aparelho pedindo
  * `GET /api/fila/proximo`; isto mostra o que ele vai encontrar quando pedir.
  *
  * **Arrastar para reordenar não existe, e não é esquecimento:** a ordem muda
  * sozinha conforme as janelas de horário abrem e fecham, então uma ordem
- * arrastada à mão seria uma promessa que a rota não consegue honrar.
+ * arrastada à mão seria uma promessa que a rota não consegue honrar. E as
+ * linhas da agenda não têm "remover": remover muda a agenda inteira, e
+ * isso é da ficha (o link do nome) e do painel — aqui só os pendentes têm.
  *
  * **Sem animação contínua e sem desfoque**, como todo o cromo que fica na
  * tela o dia inteiro (ver "Custo" em ARCHITECTURE.md e
@@ -44,63 +56,36 @@ const RITMO_LABEL: Record<string, string> = {
   intervalo: "ainda não passou o intervalo mínimo entre envios",
 };
 
+/** Quantos leads da agenda o balão mostra — o `?limite=` da rota. */
+const BALAO_AGENDA = 5;
+
 /**
- * Uma linha da sequência. Traz os parâmetros que explicam a POSIÇÃO dela —
- * nicho, nível da janela, hora local do lead e o selo "manual", que é a
- * resposta visível a "por que esse está na frente de quem chegou antes".
+ * Uma linha da AGENDA: a hora a partir da qual sai (São Paulo), o nome, o
+ * selo "manual" e o motivo curto — os textos são os do painel
+ * (`agendaTexto.ts`), não uma segunda redação.
  */
-function LinhaFila({
-  posicao,
-  linha,
-  ocupado,
-  erro,
-  onRemover,
-}: {
-  posicao: number;
-  linha: LinhaFilaPainel;
-  ocupado: boolean;
-  erro: string | null;
-  onRemover: () => void;
-}) {
+function LinhaAgendaBalao({ linha, ritmo }: { linha: LinhaAgenda; ritmo: AgendaFila["ritmo"] }) {
   return (
-    <li className="flex items-start gap-2 rounded border border-line p-2">
-      <span className="mt-0.5 w-4 shrink-0 text-right font-mono text-[10px] text-ink-muted">
-        {posicao}
+    <li data-linha-agenda-balao={linha.leadId} className="flex items-start gap-2 rounded border border-line px-2 py-1.5">
+      <span className="w-10 shrink-0 pt-px font-mono text-xs tabular-nums text-foreground">
+        {horaDoOperador(linha.em)}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <a
             href={`/leads/${linha.leadId}`}
-            className="text-xs text-foreground underline decoration-line underline-offset-2"
+            className="break-words text-xs text-foreground underline decoration-line underline-offset-2"
           >
             {linha.nome || linha.leadId}
           </a>
-          {linha.nivel && (
-            <span className={`rounded border px-1 text-[10px] ${NIVEL_CLS[linha.nivel]}`}>
-              {NIVEL_LABEL[linha.nivel]}
-            </span>
-          )}
           {linha.manual && (
             <span className="rounded border border-accent/40 bg-accent/10 px-1 text-[10px] text-accent">
               manual
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-[10px] text-ink-muted">
-          {linha.nicho && `${linha.nicho} · `}
-          {linha.horaLocal} na hora do lead
-        </p>
-        {erro && <p className="mt-0.5 text-[10px] text-critical">{erro}</p>}
+        <p className="mt-0.5 text-[10px] text-ink-muted">{textoDoMotivo(linha, ritmo)}</p>
       </div>
-      <button
-        type="button"
-        onClick={onRemover}
-        disabled={ocupado}
-        title="Descarta o lead: sai da fila. Reversível na ficha. Não cancela um envio já em andamento."
-        className="shrink-0 rounded border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-muted hover:border-critical/60 hover:text-critical disabled:opacity-50"
-      >
-        remover
-      </button>
     </li>
   );
 }
@@ -156,6 +141,9 @@ function LinhaPendente({
 
 export function BalaoFila() {
   const [dados, setDados] = useState<FilaBalaoResponse | null>(null);
+  /** Os primeiros da agenda — só buscados no clique que abre. */
+  const [agenda, setAgenda] = useState<AgendaFila | null>(null);
+  const [erroAgenda, setErroAgenda] = useState<string | null>(null);
   const [aberto, setAberto] = useState(false);
   const [carregandoLista, setCarregandoLista] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -185,6 +173,21 @@ export function BalaoFila() {
     }
   }, []);
 
+  const buscarAgenda = useCallback(async () => {
+    try {
+      setAgenda(await api.getFilaAgenda(BALAO_AGENDA));
+      setErroAgenda(null);
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        setSemAcesso(true);
+        return;
+      }
+      // A de antes não fica na tela fingindo ser a de agora.
+      setAgenda(null);
+      setErroAgenda("Falha ao calcular a agenda.");
+    }
+  }, []);
+
   // UMA carga, na montagem. Sem refetch por rota e sem polling: o componente
   // vive no layout, então trocar de aba não remonta nada — e o custo de um
   // indicador global é justamente o que este desenho existe para conter.
@@ -204,10 +207,10 @@ export function BalaoFila() {
 
   async function abrir() {
     setAberto(true);
-    // A lista só é buscada AQUI — é a chamada cara, e ela acontece no
-    // clique, nunca na navegação.
+    // As listas só são buscadas AQUI — são as chamadas caras, e acontecem
+    // no clique, nunca na navegação. Sem polling: aberto, fica o que veio.
     setCarregandoLista(true);
-    await buscar(true);
+    await Promise.all([buscar(true), buscarAgenda()]);
     setCarregandoLista(false);
   }
 
@@ -311,8 +314,8 @@ export function BalaoFila() {
                 {/* Dito na tela, e não só na documentação: esta lista é o
                     que o aparelho VAI encontrar, não um comando. */}
                 <p className="mt-2 text-[10px] text-ink-muted">
-                  Só leitura: nada aqui dispara envio. A ordem muda sozinha conforme as janelas de
-                  horário abrem e fecham.
+                  Só leitura: nada aqui dispara envio. Horário de São Paulo, a partir de quando cada
+                  um pode sair pelas regras da fila.
                 </p>
                 {/* O retrato é DATADO, e a data fica AQUI — no alto, junto do
                     contador. Ela nasceu no rodapé e a captura do celular
@@ -327,40 +330,61 @@ export function BalaoFila() {
                   </p>
                 )}
 
-                <h3 className="mt-3 text-[10px] font-medium uppercase tracking-wide text-ink-secondary">
-                  Nesta ordem
-                </h3>
-                {carregandoLista && dados.fila.length === 0 && !dados.lista ? (
-                  <p className="mt-1 text-xs text-ink-muted">Carregando…</p>
-                ) : dados.poolGeradoEm === null ? (
-                  <p className="mt-1 text-xs text-ink-muted">
-                    O celular ainda não pediu tarefa nenhuma — não há fila montada.
-                  </p>
-                ) : dados.fila.length === 0 ? (
-                  <p className="mt-1 text-xs text-ink-muted">
-                    {motivoRitmo ? `Ninguém sai enquanto ${motivoRitmo}.` : "Nenhum lead elegível agora."}
-                  </p>
-                ) : (
-                  <>
-                    <ul data-lista="balao-fila" className="mt-1 flex flex-col gap-1.5">
-                      {dados.fila.map((linha, i) => (
-                        <LinhaFila
-                          key={linha.leadId}
-                          posicao={i + 1}
-                          linha={linha}
-                          ocupado={ocupado === linha.leadId}
-                          erro={erroLinha[linha.leadId] ?? null}
-                          onRemover={() => remover(linha.leadId)}
-                        />
-                      ))}
-                    </ul>
-                    {dados.elegiveis > dados.fila.length && (
-                      <p className="mt-1 text-[10px] text-ink-muted">
-                        e mais {formatInt(dados.elegiveis - dados.fila.length)} na fila, nesta ordem.
-                      </p>
-                    )}
-                  </>
-                )}
+                {/* OS PRÓXIMOS: os primeiros da AGENDA — quem sai, em que
+                    ordem e a partir de quando, com as regras da fila. Era
+                    "Nesta ordem", só quem sai NESTE minuto: quase sempre
+                    vazio fora da janela, que é quando a pergunta aparece. */}
+                <div data-balao-agenda className="mt-3">
+                  <h3 className="text-[10px] font-medium uppercase tracking-wide text-ink-secondary">
+                    Próximos{agenda?.pausada ? " · quando a fila voltar" : ""}
+                  </h3>
+                  {agenda === null ? (
+                    <p className="mt-1 text-xs text-ink-muted">
+                      {erroAgenda ?? (carregandoLista ? "Calculando…" : "")}
+                    </p>
+                  ) : agenda.pool.geradoEm === null ? (
+                    <p className="mt-1 text-xs text-ink-muted">
+                      O celular ainda não pediu tarefa nenhuma — não há fila montada.
+                    </p>
+                  ) : (
+                    <>
+                      {agenda.bloqueada && (
+                        <p className="mt-1 text-[10px] text-critical">
+                          Entrega bloqueada por config ausente: nada sai até ela existir.
+                        </p>
+                      )}
+                      {agenda.linhas.length === 0 ? (
+                        <p data-balao-agenda-vazia className="mt-1 text-xs text-ink-muted">
+                          Nenhum lead sai {textoDoHorizonte(agenda)}.
+                        </p>
+                      ) : (
+                        agruparPorDia(agenda.linhas, agenda.geradoEm).map((grupo) => (
+                          <div key={grupo.dia} className="mt-1.5">
+                            <p className="text-[10px] text-ink-muted">
+                              <span className="font-semibold uppercase tracking-wide">{grupo.dia}</span> · a
+                              partir de
+                            </p>
+                            <ol className="mt-1 flex flex-col gap-1">
+                              {grupo.linhas.map((linha) => (
+                                <LinhaAgendaBalao key={linha.leadId} linha={linha} ritmo={agenda.ritmo} />
+                              ))}
+                            </ol>
+                          </div>
+                        ))
+                      )}
+                      {textoDoFora(agenda) && (
+                        <p className="mt-1 text-[10px] text-ink-muted">{textoDoFora(agenda)}</p>
+                      )}
+                    </>
+                  )}
+                  <a
+                    href="/config?abrir=fila-envio#painel-fila-envio"
+                    data-balao-agenda-completa
+                    className="mt-1.5 inline-block text-[10px] text-ink-secondary underline underline-offset-2 hover:text-foreground"
+                  >
+                    ver agenda completa
+                  </a>
+                </div>
 
                 {/* Os PENDENTES ao final: escolhidos à mão, sem a peça que o
                     envio exige. Sem esta seção eles ficariam marcados e

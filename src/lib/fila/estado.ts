@@ -450,8 +450,12 @@ export interface AgendaFila {
   pausada: boolean;
   /** Falta config que o confirmar exige (`motivoDeSaude`): nada sai até ela existir. */
   bloqueada: boolean;
-  /** O retrato do pool usado — o persistido, ou uma varredura em memória (nunca gravada). */
-  pool: { geradoEm: string; reconstruido: boolean; truncado: boolean };
+  /**
+   * O retrato do pool usado — o persistido, ou uma varredura em memória
+   * (nunca gravada). `geradoEm` null só no modo do balão (`?limite=`), que
+   * não varre: o celular nunca pediu tarefa e não há retrato.
+   */
+  pool: { geradoEm: string | null; reconstruido: boolean; truncado: boolean };
   linhas: LinhaAgenda[];
   barrados: BarradoAgenda[];
   vencidos: VencidoAgenda[];

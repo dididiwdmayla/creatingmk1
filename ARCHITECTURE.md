@@ -3683,7 +3683,7 @@ Quatro partes:
 
 ### O BALÃO da fila — indicador fixo, em toda tela (`src/components/BalaoFila.tsx`)
 
-O painel acima responde tudo, e só existe na /config. O balão responde as duas perguntas que o operador faz o dia inteiro, de qualquer tela: **quantas mensagens ainda saem hoje** e **se a fila está ativa ou pausada** — e, quando ele abre, **quem sai, nesta ordem**. ADMIN ONLY, como todo o resto da fila.
+O painel acima responde tudo, e só existe na /config. O balão responde as duas perguntas que o operador faz o dia inteiro, de qualquer tela: **quantas mensagens ainda saem hoje** e **se a fila está ativa ou pausada** — e, quando ele abre, **os próximos 5 da AGENDA, com o horário previsto e o motivo** (ver "Os próximos são a AGENDA" abaixo). ADMIN ONLY, como todo o resto da fila.
 
 **Nada nele dispara envio.** Quem entrega continua sendo o ciclo do aparelho consumindo `GET /api/fila/proximo`; o balão mostra o que ele vai encontrar quando pedir.
 
@@ -3694,29 +3694,39 @@ Um indicador que existe em TODA tela não pode buscar a fila inteira a cada nave
 | estado | leituras |
 |---|---|
 | **fechado** | **2 docs** — `config/fila` + `filaContadores/{dia operacional}` |
-| **aberto** | **4 docs + 1 por linha mostrada** — as 2 acima, mais `config/app` (as janelas) e `filaCandidatos/pool`, mais uma leitura POR ID de cada lead exibido (`BALAO_LINHAS` 10 + `BALAO_PENDENTES` 5) → **teto de 19** |
+| **aberto** | duas buscas no clique, em paralelo: **o balão** (`?lista=1`) — **3 docs + 1 por pendente** (as 2 acima, mais `filaCandidatos/pool`, e uma leitura POR ID de cada pendente exibido, `BALAO_PENDENTES` 5) → **teto de 8**; e **a agenda** (`GET /api/config/fila/agenda?limite=5`) — `config/fila`, `config/app`, `config/automacao`, o contador, o pool, `/buscas` e as frases (as fontes da mensagem, uma vez), e o lead e o doc da fila POR ID de quem a simulação percorre (2 por linha, mais os barrados e vencidos que ela atravessa). **Nunca `/leads`.** |
 
 Duas coisas tornam o número de cima o que a navegação normal paga: o componente mora no **layout** do app (`(app)/layout.tsx`), então não remonta ao trocar de aba — são 2 leituras por CARREGAMENTO de página, não por navegação —, e **não há polling** (o número muda quando o aparelho envia, não a cada segundo). Fechar e reabrir relê; navegar não.
 
-Os dois custos estão travados por teste, **nomeando cada doc lido** (`config-fila-balao.route.test.ts`): um balão que passasse a varrer `/leads` reprova na hora, e não daqui a três meses numa fatura.
+Os custos estão travados por teste, **nomeando cada doc lido** (`config-fila-balao.route.test.ts` para o balão, "o modo do BALÃO" em `fila-agenda.route.test.ts` para a agenda dele): um balão que passasse a varrer `/leads` reprova na hora, e não daqui a três meses numa fatura. O aberto ficou mais caro que o teto de 19 de antes — `/buscas` e as frases são coleções lidas inteiras, e a simulação lê 2 docs por linha —, e isso é consciente: é o preço de responder "quem sai e quando" em vez de "quem sai neste minuto", pago só no clique que abre.
 
-**Nunca reconstrói o pool** (`lerPoolBruto`, sem TTL): a varredura de `/leads` é justamente o custo que o pool existe para evitar, e um indicador global não pode ser quem a paga. A consequência é assumida e fica NA TELA — a fila vem com a data do retrato ao lado, no alto do painel.
+**Nunca reconstrói o pool** (`lerPoolBruto`, sem TTL): a varredura de `/leads` é justamente o custo que o pool existe para evitar, e um indicador global não pode ser quem a paga. **A agenda do balão segue a mesma regra** — o `?limite=` usa o retrato persistido mesmo vencido, e sem retrato nenhum sai vazia sem ler mais nada ("O celular ainda não pediu tarefa nenhuma"). Foi a opção escolhida contra a alternativa de ler como o painel (que refaz o pool vencido em memória): painel e balão concordam sempre que o retrato está dentro do TTL; vencido, o balão pode mostrar a fila do retrato e o painel a de agora. A consequência é assumida e fica NA TELA — a data do retrato no alto do painel.
 
 **Uma rota, e não duas**: "ativa/pausada" e "faltam N hoje" aparecem nos dois estados, e duas rotas calculando o mesmo par poderiam discordar no mesmo segundo. As chaves da resposta são as mesmas nos dois casos (as listas vêm vazias no fechado), então a tela nunca precisa checar a forma do que recebeu.
 
 **Sob `/api/config/`, e não sob `/api/fila/`**, mesmo o balão não sendo um painel da /config: aquele prefixo INTEIRO passa pelo proxy sem sessão (é onde o celular bate com a `RADAR_DEVICE_KEY`), e ali a rota dependeria só da própria checagem. Aqui a sessão é cobrada duas vezes — no proxy e no `requireAdmin`. `/api/fila/diagnostico` é a exceção que já existia, não o precedente a seguir.
 
-#### A ordem é a de `ordenarCandidatos`, e o balão não ordena nada
+#### Os próximos são a AGENDA — a mesma rota, a mesma simulação
 
-A sequência é `ordenarCandidatos(...).escolhido`, a MESMA função de `/proximo` e do painel da /config. Três telas com três ordenações seriam três verdades sobre quem é o próximo. Cada linha traz os parâmetros que explicam a POSIÇÃO dela — nicho, nível da janela, hora local do lead e o selo **manual**, que é a resposta visível a "por que esse está na frente de quem chegou antes".
+Até aqui o balão aberto mostrava "Nesta ordem": `ordenarCandidatos` no instante da abertura, ou seja, só quem sai NESTE minuto — quase sempre vazio, porque o operador abre o balão justamente fora da janela ("por que nada sai?"). Agora a seção é **"Próximos"**: os 5 primeiros da agenda da fila (`GET /api/config/fila/agenda?limite=5`), com a hora a partir da qual cada um sai (São Paulo, agrupada por dia — "hoje", "seg 05/10"), o selo **manual** e o motivo curto ("abre às 09:00", "intervalo de 10 min", "meta de 7 batida · dia novo"). Embaixo, o que sobrou ("+ 4 elegíveis depois destes 5") e **"ver agenda completa"**, que leva a `/config?abrir=fila-envio#painel-fila-envio`.
+
+**Nenhum cálculo no cliente.** A rota é a do painel, a função é `montarAgendaFila` → `simularAgenda` (as funções de `/proximo` com o relógio andando), e os textos são os de `agendaTexto.ts` — inclusive o agrupamento por dia (`agruparPorDia`, que saiu do componente do painel para os dois usarem). `limite` só para a simulação no N-ésimo: como ela é sequencial, as 5 linhas do balão são EXATAMENTE as 5 primeiras da agenda inteira (teste). Pausada, a agenda é a de quando a fila voltar, e o título diz isso ("Próximos · quando a fila voltar"), abaixo do "Nada sai agora: a fila está pausada" de sempre; bloqueada por config ausente, uma linha vermelha.
+
+**Permissão**: o balão só é renderizado para admin (o layout decide no servidor), e a rota da agenda já é `requireAdmin` — nada mudou. Um 401/403 na agenda faz o balão sumir, como na rota dele.
+
+**`?abrir=` na /config**: o `page.tsx` acrescenta o painel pedido aos abertos guardados NAQUELA visita, resolvido no servidor como a preferência (o painel chega aberto no primeiro desenho, e o `#painel-fila-envio` — `id` novo na `<section>` do `PainelColapsavel`, com `scroll-margin` do cabeçalho fixo — cai no lugar certo). Não grava a preferência: quem segue um link quer ver, não mudar como a página abre amanhã.
+
+**Sem polling**: as duas buscas acontecem no clique que abre; aberto, fica o que veio. Fechar e abrir de novo recalcula.
 
 Os **pendentes de demo** vêm ao final, com o motivo visível, e são reconferidos contra o doc FRESCO (`linhasPendentesManuais`): quem ganhou demo entre o último rebuild e agora some da lista em vez de continuar listado como pendente, e um motivo que mudou (o pool viu "sem demo", o doc fresco já tem demo e agora falta o print) aparece atualizado — quem manda é o doc, nunca o retrato.
 
-#### ARRASTAR PARA REORDENAR ESTÁ CORTADO
+#### ARRASTAR PARA REORDENAR ESTÁ CORTADO — e as linhas da agenda não têm "remover"
 
-Decisão tomada, e escrita na própria tela: **a ordem muda sozinha conforme as janelas de horário abrem e fecham**, então uma ordem arrastada à mão seria uma promessa que a rota não consegue honrar — o lead que o operador pôs em primeiro sairia em terceiro quinze minutos depois, sem ninguém ter mexido em nada. Não implementado, e sem alternativa de arrastar.
+Decisão tomada: **a ordem muda sozinha conforme as janelas de horário abrem e fecham**, então uma ordem arrastada à mão seria uma promessa que a rota não consegue honrar — o lead que o operador pôs em primeiro sairia em terceiro quinze minutos depois, sem ninguém ter mexido em nada. Não implementado, e sem alternativa de arrastar.
 
-#### A única ação: remover da fila, e a guarda da claim
+As linhas da agenda também **não têm "remover"** (cortado junto com "Nesta ordem"): remover muda a agenda inteira — exigiria recalculá-la a cada clique —, e a ficha (o link do nome) e o painel já fazem isso. A ação continua nos **pendentes de demo**, que não estão na agenda.
+
+#### A única ação: remover da fila (nos pendentes), e a guarda da claim
 
 `DELETE /api/config/fila/balao/{leadId}` é o `descartado` que já existe (o mesmo do card, da ficha e da visão da /config) — nenhum campo novo, reversível pela ficha como sempre. O que ela acrescenta é a **guarda: 409 quando há claim ATIVA no lead**, com a hora em que a reserva morre sozinha.
 
@@ -3742,11 +3752,12 @@ Cobrir botão não é aceitável, e a única forma de PROMETER que isso não aco
 
 #### Verificação visual (`--so=balao`)
 
-`node scripts/qa-plataforma.mjs --so=balao` — celular e desktop × escuro e claro, com:
+`RADAR_DEVICE_KEY=… RADAR_DEVICE_USER_ID=… APP_PUBLIC_URL=… node scripts/qa-plataforma.mjs --so=balao` (as três variáveis pelo mesmo motivo do `--so=agenda`: sem elas a agenda do balão aberto viria bloqueada ou toda barrada; patch `RADAR_FAKE_DB` aplicado e revertido na mesma sessão) — celular e desktop × escuro e claro, com:
 
-- **fechado** (fila ativa) e **aberto** (7 na sequência, o manual em primeiro com o selo, 1 pendente com "sem demo", a data do retrato do pool);
-- **pausada**, fechado e aberto — a pílula muda de forma e de cor, e o nome acessível diz "pausada";
-- **vazia** (sem elegível, sem pendente, contador zerado) e **sem pool** (o celular nunca pediu tarefa, que tem texto próprio);
+- **fechado** (fila ativa) e **aberto com a agenda CHEIA** — a fixture do `--so=agenda` (`semearAgenda`) mais o que o balão precisa a mais (`semearAgendaNoBalao`): o POOL PERSISTIDO montado dos mesmos leads (o modo do balão não varre) e um pendente de demo. Cobra os 5 próximos IGUAIS aos 5 primeiros da agenda do painel, nome a nome, o manual com o selo em primeiro, os motivos (já pode sair, intervalo, teto), "elegíveis depois destes 5", nenhum botão dentro de linha da agenda, o pendente com "sem demo" e a data do retrato;
+- **"ver agenda completa"** clicado: a /config com o painel "Fila de envio" ABERTO, a agenda na tela, o painel no alto da viewport — e a preferência de painéis do usuário NÃO gravada;
+- **pausada**, fechado e aberto — a pílula muda de forma e de cor, o nome acessível diz "pausada", e o aberto diz "Próximos · quando a fila voltar" com os mesmos 5 (os barrados e a demo vencida da fixture não ocupam vaga);
+- **vazia** (pool gravado sem candidato, sem pendente, contador zerado): "Nenhum lead sai até o fim de {o 7º dia}" — o teto — e o link; e **sem pool** (o celular nunca pediu tarefa, que tem texto próprio);
 - as duas **fichas** da seleção manual: a tarja normal e a de PENDENTE com o motivo;
 - **membro comum**: o balão não existe no HTML (não é `display:none` — o layout resolve o papel no servidor).
 
@@ -3902,7 +3913,7 @@ A simulação roda com `ativo: true` e a resposta leva `pausada` (config) e `blo
 
 ### A rota — SOMENTE LEITURA
 
-`GET /api/config/fila/agenda`, `requireAdmin` (401/403), sob `/api/config/` pelo motivo de sempre. **Nunca reserva, nunca grava, nunca chama API paga.** Leituras: `config/fila`, `config/app`, `config/automacao`, o contador do dia, o pool, as fontes da mensagem uma vez (`/buscas` e as frases — a mesma montagem de `/proximo`, que a paga a cada entrega) e, por id, o lead e o doc da fila de quem a simulação percorre (cacheados por id). **O pool**: o persistido quando ainda vale (`lerPoolSemGravar`, o mesmo `poolValido` de `lerPool`); vencido, uma varredura em memória que NÃO é gravada. Com a fila pausada o `/proximo` para no portão do ritmo e não reconstrói o pool, e uma agenda do pool de ontem mostraria a fila de ontem — a resposta diz qual foi usado (`pool.reconstruido`, `pool.geradoEm`).
+`GET /api/config/fila/agenda`, `requireAdmin` (401/403), sob `/api/config/` pelo motivo de sempre. **Nunca reserva, nunca grava, nunca chama API paga.** `?limite=N` (1 a 50; inválido é ignorado) é o **modo do balão**: a mesma simulação parada nos N primeiros, sobre o retrato persistido do pool, sem TTL e sem nunca varrer `/leads` — e, sem retrato, vazia sem ler `/buscas` nem as frases (`pool.geradoEm: null`). Ver "Os próximos são a AGENDA" no balão. Leituras: `config/fila`, `config/app`, `config/automacao`, o contador do dia, o pool, as fontes da mensagem uma vez (`/buscas` e as frases — a mesma montagem de `/proximo`, que a paga a cada entrega) e, por id, o lead e o doc da fila de quem a simulação percorre (cacheados por id). **O pool**: o persistido quando ainda vale (`lerPoolSemGravar`, o mesmo `poolValido` de `lerPool`); vencido, uma varredura em memória que NÃO é gravada. Com a fila pausada o `/proximo` para no portão do ritmo e não reconstrói o pool, e uma agenda do pool de ontem mostraria a fila de ontem — a resposta diz qual foi usado (`pool.reconstruido`, `pool.geradoEm`).
 
 ### No painel — o topo de "Fila de envio" (`components/config/paineis/AgendaFila.tsx` + `lib/fila/agendaTexto.ts`)
 

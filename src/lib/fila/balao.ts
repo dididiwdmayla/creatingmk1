@@ -1,20 +1,13 @@
-import { loadConfig } from "@/lib/config";
 import type { AppDb } from "@/lib/firestore-like";
 import { updateLeadExtras } from "@/lib/leads/repo";
 
-import { corteLegadoAtual, lerPoolBruto } from "./candidatos";
+import { lerPoolBruto } from "./candidatos";
 import { loadFilaConfig } from "./config";
 import { lerContadorFila } from "./contadores";
 import { FILA_ENVIOS_COLLECTION } from "./envios";
-import {
-  claimAtiva,
-  type ContadorPainel,
-  type FilaEnvioDoc,
-  type LinhaFilaPainel,
-  type LinhaPendenteManual,
-} from "./estado";
-import { contadorDoPainel, linhasDoPainel, linhasPendentesManuais } from "./painel";
-import { motivoDeRitmo, niveisAceitos, ordenarCandidatos, type MotivoSemTarefa } from "./selecao";
+import { claimAtiva, type ContadorPainel, type FilaEnvioDoc, type LinhaPendenteManual } from "./estado";
+import { contadorDoPainel, linhasPendentesManuais } from "./painel";
+import { motivoDeRitmo, type MotivoSemTarefa } from "./selecao";
 
 /**
  * O BALÃO DA FILA — o indicador fixo que fica em TODA tela do app, e por
@@ -33,30 +26,27 @@ import { motivoDeRitmo, niveisAceitos, ordenarCandidatos, type MotivoSemTarefa }
  *   layout do app, então nem remonta ao trocar de aba: são 2 leituras por
  *   CARREGAMENTO de página, não por navegação, e não há polling.
  *
- * - **ABERTO (`montarBalaoFila`) — 4 leituras de doc + 1 por linha
- *   mostrada**: as 2 acima, mais `config/app` (as janelas de contato, que a
- *   seleção precisa) e o doc do pool. Depois, uma leitura POR ID de cada
- *   lead que a tela mostra — no máximo `BALAO_LINHAS` da fila mais
- *   `BALAO_PENDENTES` — pelo mesmo motivo do painel da /config: as entradas
- *   do pool são compactas de propósito e não carregam nome. Teto de 19
- *   leituras, e só no clique que abre.
+ * - **ABERTO (`montarBalaoFila`) — 3 leituras de doc + 1 por pendente**:
+ *   as 2 acima, mais o doc do pool, e uma leitura POR ID de cada pendente
+ *   mostrado (no máximo `BALAO_PENDENTES`) — as entradas do pool são
+ *   compactas de propósito e não carregam nome. Só no clique que abre.
+ *
+ * **Quem sai, e quando, NÃO é daqui.** Os próximos do balão aberto são os
+ * primeiros da AGENDA (`GET /api/config/fila/agenda?limite=5`, a mesma
+ * rota e a mesma simulação do painel "Fila de envio"), buscados em paralelo
+ * com esta rota. Antes este módulo montava "Nesta ordem" com
+ * `ordenarCandidatos` — só quem sai NESTE minuto, quase sempre vazio fora
+ * da janela.
  *
  * **Nunca reconstrói o pool** (`lerPoolBruto`, sem TTL): a varredura de
  * `/leads` é o custo que o pool existe para evitar, e um indicador global
- * não pode ser quem o paga. A consequência é assumida e fica NA TELA — o
- * retrato do pool vem datado.
+ * não pode ser quem o paga. A agenda do balão segue a mesma regra. A
+ * consequência é assumida e fica NA TELA — o retrato do pool vem datado.
  *
  * **NADA aqui dispara envio.** Quem entrega continua sendo o ciclo do
  * aparelho consumindo `GET /api/fila/proximo`; o balão só mostra o que ele
  * vai encontrar quando pedir.
- *
- * **A ordem é a de `ordenarCandidatos`**, nunca uma reimplementação: é a
- * mesma função que `/proximo` e o painel da /config usam. Três telas com
- * três ordenações seriam três verdades sobre quem é o próximo.
  */
-
-/** Quantos leads da fila o balão aberto mostra — e, portanto, quantos docs lê. */
-export const BALAO_LINHAS = 10;
 
 /** Quantos pendentes o balão aberto mostra, pela mesma conta. */
 export const BALAO_PENDENTES = 5;
@@ -70,15 +60,8 @@ export interface ResumoBalao {
   contador: ContadorPainel;
 }
 
-/** O estado ABERTO: o resumo mais as duas listas. */
+/** O estado ABERTO: o resumo mais os pendentes e a data do retrato. */
 export interface BalaoFila extends ResumoBalao {
-  /**
-   * A sequência na ordem em que os leads SERÃO ENTREGUES — o que o aparelho
-   * vai encontrar quando pedir a próxima tarefa.
-   */
-  fila: LinhaFilaPainel[];
-  /** Quantos elegíveis existem ao todo (a lista acima é uma janela sobre a fila). */
-  elegiveis: number;
   /** Os marcados à mão a que falta a peça que o envio exige, com o motivo. */
   pendentes: LinhaPendenteManual[];
   /** Quantos pendentes ao todo — ver `manuaisPendentesTotal` no pool. */
@@ -102,13 +85,8 @@ export async function montarResumoBalao(db: AppDb, now: Date): Promise<ResumoBal
 }
 
 /**
- * O estado ABERTO. Acrescenta ao resumo as duas listas que o operador abriu
- * o balão para ver.
- *
- * O ritmo NÃO impede de calcular a fila, de propósito: "pausada e com 6 na
- * fila" e "pausada e vazia" são situações diferentes, e quem abre o balão
- * com a fila pausada está justamente perguntando o que vai sair quando ela
- * voltar. Mesma escolha deliberada de `decidirFila`.
+ * O estado ABERTO. Acrescenta ao resumo os pendentes de demo e a data do
+ * retrato do pool — quem sai e quando vem da agenda (ver o topo).
  */
 export async function montarBalaoFila(db: AppDb, now: Date): Promise<BalaoFila> {
   const config = await loadFilaConfig(db);
@@ -124,40 +102,12 @@ export async function montarBalaoFila(db: AppDb, now: Date): Promise<BalaoFila> 
     // O celular nunca pediu tarefa: não há pool, e inventar listas vazias
     // sem dizer isso faria "fila vazia" e "nunca varrido" parecerem a mesma
     // coisa. `poolGeradoEm: null` é o que a tela lê para ter texto próprio.
-    return {
-      ...resumo,
-      fila: [],
-      elegiveis: 0,
-      pendentes: [],
-      pendentesTotal: 0,
-      poolGeradoEm: null,
-    };
+    return { ...resumo, pendentes: [], pendentesTotal: 0, poolGeradoEm: null };
   }
-
-  const [app, corteLegado] = await Promise.all([loadConfig(db), corteLegadoAtual(db)]);
-  // A MESMA função de `/proximo` e do painel. `coletarBloqueados` fica
-  // desligado: o balão mostra quem VAI SAIR, e montar a lista de quem está
-  // parado na janela custaria memória para ninguém ler.
-  const { escolhido } = ordenarCandidatos(pool.candidatos, config, app.janelasContato, now);
-
-  const [fila, pendentes] = await Promise.all([
-    linhasDoPainel(db, pool.candidatos, escolhido.slice(0, BALAO_LINHAS), {
-      janelas: app.janelasContato,
-      niveisAceitos: niveisAceitos(config),
-      now,
-      // Todo mundo desta lista está em janela AGORA; "quando entra" é
-      // pergunta de quem está bloqueado, e o balão não mostra bloqueados.
-      comProximaFaixa: false,
-      corteLegado,
-    }),
-    linhasPendentesManuais(db, pool.manuaisPendentes.slice(0, BALAO_PENDENTES)),
-  ]);
 
   return {
     ...resumo,
-    fila,
-    elegiveis: escolhido.length,
-    pendentes,
+    pendentes: await linhasPendentesManuais(db, pool.manuaisPendentes.slice(0, BALAO_PENDENTES)),
     pendentesTotal: pool.manuaisPendentesTotal,
     poolGeradoEm: pool.geradoEm,
   };

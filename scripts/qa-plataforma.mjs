@@ -57,8 +57,10 @@
  *                                                 # RADAR_DEVICE_USER_ID no ambiente (botão habilitado)
  *   node scripts/qa-plataforma.mjs --so=eventos   # ERROS DO APARELHO em /config: cheio (503/409/400/500/200 tardio,
  *                                                 # hoje e ontem, nome longo, lead excluído) e VAZIO
+ *   RADAR_DEVICE_KEY=x RADAR_DEVICE_USER_ID=admin APP_PUBLIC_URL=https://radar.exemplo \
  *   node scripts/qa-plataforma.mjs --so=balao     # o BALÃO da fila (em toda tela): fechado e aberto,
- *                                                 # cheia/vazia/pausada/pendente, e a VARREDURA DE
+ *                                                 # agenda cheia/vazia/pausada + pendente, o link
+ *                                                 # "ver agenda completa", e a VARREDURA DE
  *                                                 # COLISÃO em todas as abas
  *   node scripts/qa-plataforma.mjs --so=comercial # CONTEXTO COMERCIAL em /config: documento preenchido
  *                                                 # e VAZIO, celular e desktop, escuro e claro
@@ -1248,6 +1250,12 @@ function definirPaineisAbertosNoDoc(userId, ids) {
   const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
   mapa[`usuarios/${userId}`] = { ...mapa[`usuarios/${userId}`], paineisConfigAbertos: ids };
   fsSync.writeFileSync(BANCO, JSON.stringify(mapa));
+}
+
+/** Os painéis guardados como abertos — para provar que um link NÃO gravou. */
+function paineisAbertosNoDoc(userId) {
+  const mapa = JSON.parse(fsSync.readFileSync(BANCO, "utf8"));
+  return mapa[`usuarios/${userId}`]?.paineisConfigAbertos ?? [];
 }
 
 /**
@@ -3230,7 +3238,64 @@ const colisoesDoBalao = (page) =>
     };
   });
 
+/**
+ * A fixture da AGENDA (`semearAgenda`) com o que o balão precisa a mais: o
+ * POOL PERSISTIDO (o modo do balão nunca varre `/leads` — sem pool gravado
+ * a agenda dele sai vazia), montado dos mesmos leads, e um PENDENTE de demo
+ * (manual sem demo), que continua na seção própria do balão.
+ */
+function semearAgendaNoBalao(estado) {
+  const esperado = semearAgenda(estado);
+  editarBanco((mapa) => {
+    const pendente = {
+      placeId: "agenda-pend",
+      nome: "Pet Vila Nova",
+      endereco: "Av. Ipiranga, 500 - Azenha, Porto Alegre - RS, 90160-091, Brasil",
+      status: "novo",
+      busca: { nicho: "petshop", regiao: "Porto Alegre RS", em: iso(1) },
+      temTelefone: true,
+      telefoneIntl: "5551966660001",
+      filaManual: true,
+      criadoEm: iso(1),
+      atualizadoEm: iso(1),
+      enriquecido: true,
+    };
+    if (estado !== "vazia") mapa["leads/agenda-pend"] = pendente;
+    const candidatos = Object.entries(mapa)
+      .filter(([chave]) => chave.startsWith("leads/agenda-") && chave !== "leads/agenda-pend")
+      .map(([, l]) => ({
+        id: l.placeId,
+        nicho: "petshop",
+        offset: l.horarios?.utcOffsetMinutes ?? 0,
+        faixas: l.horarios?.faixas ?? [],
+        criadoEm: l.criadoEm,
+        ...(l.filaManual === true && { manual: true }),
+      }));
+    mapa["filaCandidatos/pool"] = {
+      geradoEm: new Date().toISOString(),
+      candidatos,
+      lidos: candidatos.length,
+      truncado: false,
+      manuaisPendentes: estado === "vazia" ? [] : [{ id: "agenda-pend", motivo: "semDemo" }],
+      manuaisPendentesTotal: estado === "vazia" ? 0 : 1,
+    };
+  });
+  return esperado;
+}
+
 async function medirBalao(browser, secret) {
+  // Os estados ABERTOS mostram a agenda, e ela exige o mesmo ambiente do
+  // `--so=agenda`: sem as duas da fila a entrega está bloqueada, sem
+  // `APP_PUBLIC_URL` a guarda de marcadores barra todo lead.
+  if (
+    !process.env.RADAR_DEVICE_KEY?.trim() ||
+    !process.env.RADAR_DEVICE_USER_ID?.trim() ||
+    !process.env.APP_PUBLIC_URL?.trim()
+  ) {
+    throw new Error(
+      "[balao] rodar com RADAR_DEVICE_KEY, RADAR_DEVICE_USER_ID e APP_PUBLIC_URL no ambiente (a agenda do balão aberto)",
+    );
+  }
   const gerados = [];
   const problemas = [];
   const itens = [];
@@ -3337,34 +3402,46 @@ async function medirBalao(browser, secret) {
     }
     console.log(`  [balao] ${sufixo}: colisão conferida nas ${ABAS.length} abas`);
 
-    // ── ABERTO, fila cheia: a sequência, o selo manual em primeiro, e os
-    //    PENDENTES DE DEMO ao final com o motivo visível.
+    // ── ABERTO, agenda CHEIA: os 5 primeiros da agenda — a mesma ordem e
+    //    os mesmos textos do painel —, o selo manual em primeiro, o que
+    //    sobrou, o link para a agenda completa, e os PENDENTES DE DEMO com
+    //    o motivo visível.
+    const linhasDoBalao = () =>
+      page.$$eval("[data-linha-agenda-balao] a", (as) => as.map((a) => (a.textContent ?? "").trim()));
+    let esperado = semearAgendaNoBalao("cheia");
+    // Nenhum painel guardado: o painel da fila só abre se o LINK o abrir.
+    definirPaineisAbertosNoDoc("admin", []);
     await irPara("/leads", `aberto/${sufixo}`);
     await abrirBalao(`aberto/${sufixo}`);
+    await page.waitForSelector("[data-linha-agenda-balao]", { timeout: 20000 }).catch(() => {});
     await exigirTextos(`aberto/${sufixo}`, [
-      [/de 20 hoje/, "contador do dia"],
+      [/de 7 hoje/, "contador do dia"],
       [/Ritmo liberado/, "linha de ritmo"],
       [/nada aqui dispara envio/, "o aviso de que a tela é só leitura"],
-      [/A ordem muda sozinha/, "por que não há arrastar"],
-      [/Nesta ordem/, "título da sequência"],
-      [/Casa do Pet Moinhos/, "o lead manual"],
+      [/^Próximos$/, "título dos próximos (a agenda)"],
+      [/já pode sair/, "o motivo da primeira linha"],
+      [/intervalo de 10 min/, "o motivo do intervalo"],
+      [/teto de 3 por hora/, "o motivo do teto"],
+      [/elegíve(l|is) depois destes 5/, "o que sobrou além dos 5"],
+      [/ver agenda completa/, "o link para o painel"],
       [/Pendentes de demo/, "título da lista de pendentes"],
       [/Pet Vila Nova/, "o lead pendente"],
       [/sem demo/, "o MOTIVO visível da pendência"],
       [/Fila montada sobre o pool de/, "a data do retrato do pool"],
     ]);
-    const naFila = await page.locator('[data-lista="balao-fila"] li').count();
-    if (naFila !== 7) {
-      problemas.push(`aberto/${sufixo}: esperava 7 na sequência, achei ${naFila}`);
-    }
-    const primeiro = (await page.locator('[data-lista="balao-fila"] li').first().textContent()) ?? "";
-    // O manual é o MAIS NOVO da base: em primeiro só porque foi escolhido à
-    // mão. É a prova visual de que a ordem é a de `ordenarCandidatos`.
-    if (!primeiro.includes("Casa do Pet Moinhos") || !primeiro.includes("manual")) {
+    const nomesBalao = await linhasDoBalao();
+    if (JSON.stringify(nomesBalao) !== JSON.stringify(esperado.ordem.slice(0, 5))) {
       problemas.push(
-        `aberto/${sufixo}: o primeiro da sequência devia ser o manual com o selo, veio "${primeiro.trim().slice(0, 60)}"`,
+        `aberto/${sufixo}: os próximos ${JSON.stringify(nomesBalao)} ≠ os 5 primeiros da agenda ${JSON.stringify(esperado.ordem.slice(0, 5))}`,
       );
     }
+    const primeiro = (await page.locator("[data-linha-agenda-balao]").first().textContent()) ?? "";
+    if (!primeiro.includes("manual")) {
+      problemas.push(`aberto/${sufixo}: o primeiro dos próximos devia ter o selo manual`);
+    }
+    // As linhas da agenda NÃO têm "remover" (decisão do item 2); só o pendente.
+    const removerNaAgenda = await page.locator("[data-linha-agenda-balao] button").count();
+    if (removerNaAgenda > 0) problemas.push(`aberto/${sufixo}: botão dentro de linha da agenda (${removerNaAgenda})`);
     const pendentes = await page.locator('[data-lista="balao-pendentes"] li').count();
     if (pendentes !== 1) {
       problemas.push(`aberto/${sufixo}: esperava 1 pendente, achei ${pendentes}`);
@@ -3374,14 +3451,41 @@ async function medirBalao(browser, secret) {
     if (arrastaveis > 0) {
       problemas.push(`aberto/${sufixo}: apareceu elemento arrastável no balão (${arrastaveis})`);
     }
-    await capturar("aberto, fila cheia + pendente de demo", "aberto", '[data-balao]');
-    await fecharBalao();
+    await capturar("aberto, agenda cheia + pendente de demo", "aberto", '[data-balao]');
 
-    // ── PAUSADA: a pílula muda de cor e de palavra, e o painel diz que nada
-    //    sai. É o estado que o operador precisa reconhecer de relance.
-    editarBanco((mapa) => {
-      mapa["config/fila"] = { ...mapa["config/fila"], ativo: false };
+    // "ver agenda completa": a /config com o painel da fila ABERTO e a
+    // agenda na tela — sem gravar a preferência.
+    await page.locator("[data-balao-agenda-completa]").click();
+    await page.waitForURL(/\/config\?abrir=fila-envio/, { timeout: 20000 });
+    await assentar(page);
+    await page
+      .waitForFunction(() => document.querySelector('[data-bloco="agenda"] [data-linha-agenda]'), null, { timeout: 20000 })
+      .catch(() => {});
+    const noPainel = await page.evaluate(() => {
+      const painel = document.querySelector('[data-painel="fila-envio"]');
+      const corpo = painel?.querySelector("[data-corpo]");
+      const agendaEl = document.querySelector('[data-bloco="agenda"]');
+      const r = painel?.getBoundingClientRect();
+      return {
+        aberto: corpo?.getAttribute("data-corpo") === "aberto",
+        agenda: Boolean(agendaEl && agendaEl.getBoundingClientRect().height > 0),
+        topoDoPainel: r ? Math.round(r.top) : null,
+        alturaDaTela: window.innerHeight,
+      };
     });
+    if (!noPainel.aberto) problemas.push(`agenda-completa/${sufixo}: o painel "Fila de envio" não abriu`);
+    if (!noPainel.agenda) problemas.push(`agenda-completa/${sufixo}: a agenda não apareceu no painel`);
+    if (noPainel.topoDoPainel === null || noPainel.topoDoPainel < 0 || noPainel.topoDoPainel > noPainel.alturaDaTela / 2) {
+      problemas.push(`agenda-completa/${sufixo}: o painel não ficou no alto da tela (topo=${noPainel.topoDoPainel})`);
+    }
+    if (paineisAbertosNoDoc("admin").includes("fila-envio")) {
+      problemas.push(`agenda-completa/${sufixo}: o link gravou a preferência do painel`);
+    }
+    await capturar("ver agenda completa → /config, painel aberto", "agenda-completa");
+
+    // ── PAUSADA: a pílula muda de cor e de forma, o painel diz que nada
+    //    sai — e os próximos continuam, "quando a fila voltar".
+    esperado = semearAgendaNoBalao("pausada");
     await irPara("/hoje", `pausada/${sufixo}`);
     // A pílula tem 36px: "pausada" por extenso ali custaria largura que sai
     // da coluna de conteúdo do app inteiro (ver a goteira no layout). Então
@@ -3402,43 +3506,42 @@ async function medirBalao(browser, secret) {
     }
     await capturar("pausada, fechado (tela inteira)", "pausada-fechado");
     await abrirBalao(`pausada/${sufixo}`);
+    await page.waitForSelector("[data-linha-agenda-balao]", { timeout: 20000 }).catch(() => {});
     await exigirTextos(`pausada/${sufixo}`, [
       [/Nada sai agora: a fila está pausada/, "o motivo do ritmo — a PALAVRA, onde ela cabe"],
-      // Pausada e CHEIA é diferente de pausada e vazia: a fila continua ali.
-      [/Casa do Pet Moinhos/, "a fila continua visível com a fila pausada"],
+      [/Próximos · quando a fila voltar/, "os próximos de quando ela voltar"],
     ]);
+    // Os barrados e a demo vencida da fixture não ocupam vaga: os mesmos 5.
+    const nomesPausada = await linhasDoBalao();
+    if (JSON.stringify(nomesPausada) !== JSON.stringify(esperado.ordem.slice(0, 5))) {
+      problemas.push(`pausada/${sufixo}: os próximos ${JSON.stringify(nomesPausada)} ≠ os 5 primeiros da agenda`);
+    }
     await capturar("pausada, aberto", "pausada-aberto", '[data-balao]');
     await fecharBalao();
 
-    // ── VAZIA: fila ativa, pool sem candidato nenhum, sem pendente e
-    //    contador zerado — os estados vazios todos de uma vez, que é onde um
-    //    painel costuma deixar caixa quebrada ou espaço morto.
-    editarBanco((mapa) => {
-      mapa["config/fila"] = { ...mapa["config/fila"], ativo: true };
-      mapa["filaCandidatos/pool"] = {
-        ...mapa["filaCandidatos/pool"],
-        candidatos: [],
-        manuaisPendentes: [],
-        manuaisPendentesTotal: 0,
-      };
-      for (const chave of Object.keys(mapa)) {
-        if (chave.startsWith("filaContadores/")) delete mapa[chave];
-      }
-    });
+    // ── VAZIA: fila ativa, pool gravado sem candidato nenhum, sem pendente
+    //    e contador zerado — a agenda vazia diz até onde olhou (o teto).
+    esperado = semearAgendaNoBalao("vazia");
     await irPara("/leads", `vazia/${sufixo}`);
     await abrirBalao(`vazia/${sufixo}`);
+    await page.waitForSelector("[data-balao-agenda-vazia]", { timeout: 20000 }).catch(() => {});
     await exigirTextos(`vazia/${sufixo}`, [
-      [/0 de 20 hoje/, "contador zerado"],
-      [/Nenhum lead elegível agora/, "estado vazio da sequência"],
+      [/0 de 7 hoje/, "contador zerado"],
+      [`Nenhum lead sai ${esperado.horizonteVazia}.`, `a agenda vazia até o teto ("${esperado.horizonteVazia}")`],
+      [/ver agenda completa/, "o link para o painel, também vazio"],
     ]);
     const sobrou = await page
-      .locator('[data-lista="balao-fila"] li, [data-lista="balao-pendentes"] li')
+      .locator('[data-linha-agenda-balao], [data-lista="balao-pendentes"] li')
       .count();
     if (sobrou > 0) {
       problemas.push(`vazia/${sufixo}: sobrou linha de lead com as listas vazias`);
     }
-    await capturar("vazia (sem elegível, sem pendente, contador zerado)", "vazia", '[data-balao]');
+    await capturar("vazia (agenda vazia, sem pendente, contador zerado)", "vazia", '[data-balao]');
     await fecharBalao();
+
+    // As fichas e o "sem pool" usam o banco semeado de sempre.
+    semear();
+    definirTemaNoDoc("admin", tema);
 
     // ── A FICHA, os dois lados da seleção manual. A tarja é a única
     //    vitrine do estado no lugar onde ele é LIGADO: sem ela, marcar um
@@ -3465,6 +3568,7 @@ async function medirBalao(browser, secret) {
     });
     await irPara("/leads", `sem-pool/${sufixo}`);
     await abrirBalao(`sem-pool/${sufixo}`);
+    await page.waitForTimeout(800);
     await exigirTextos(`sem-pool/${sufixo}`, [
       [/O celular ainda não pediu tarefa nenhuma/, "texto próprio do pool inexistente"],
     ]);
@@ -3514,7 +3618,7 @@ async function medirBalao(browser, secret) {
     throw new Error(`[balao] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
   }
   console.log(
-    "[balao] ok — fechado, aberto, pausada, vazia e sem pool; nenhuma colisão em nenhuma aba; membro não vê.",
+    "[balao] ok — fechado, aberto (agenda cheia + link para o painel), pausada, vazia e sem pool; nenhuma colisão em nenhuma aba; membro não vê.",
   );
   return gerados;
 }

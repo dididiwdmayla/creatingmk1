@@ -86,9 +86,9 @@ function configFila(campos: Record<string, unknown>) {
   db.seed("config/fila", campos);
 }
 
-async function agenda(cookie?: string) {
+async function agenda(cookie?: string, consulta = "") {
   return agendaGET(
-    new Request("http://localhost/api/config/fila/agenda", { headers: cookie ? { cookie } : {} }),
+    new Request(`http://localhost/api/config/fila/agenda${consulta}`, { headers: cookie ? { cookie } : {} }),
   );
 }
 
@@ -577,6 +577,131 @@ describe("SOMENTE LEITURA", () => {
 
     expect(a.pool).toMatchObject({ reconstruido: false, geradoEm: "2026-03-10T06:39:00.000Z" });
     expect(a.linhas.map((l) => l.leadId)).toEqual(["B"]);
+  });
+});
+
+describe("o modo do BALÃO (`?limite=5`): os mesmos primeiros, sem varrer /leads", () => {
+  /** Conta varredura de coleção e leitura de doc (sem `usuarios/*`, que é da sessão). */
+  function contando(base: FakeFirestore) {
+    const varreduras: Record<string, number> = {};
+    const docs: string[] = [];
+    const espiao = {
+      collection(name: string) {
+        const real = base.collection(name);
+        return {
+          ...real,
+          doc: (id: string) => {
+            const ref = real.doc(id);
+            return {
+              ...ref,
+              get: async () => {
+                if (name !== "usuarios") docs.push(`${name}/${id}`);
+                return ref.get();
+              },
+            };
+          },
+          get: async () => {
+            varreduras[name] = (varreduras[name] ?? 0) + 1;
+            return real.get();
+          },
+        };
+      },
+      runTransaction: base.runTransaction.bind(base),
+    };
+    return { espiao: espiao as unknown as FakeFirestore, varreduras, docs };
+  }
+
+  function semearPool(ids: string[], geradoEm: string) {
+    db.seed("filaCandidatos/pool", {
+      geradoEm,
+      candidatos: ids.map((id, i) => ({
+        id,
+        nicho: "barbearia",
+        offset: 0,
+        faixas: [],
+        criadoEm: `2026-03-0${i + 1}T00:00:00.000Z`,
+      })),
+      lidos: ids.length,
+      truncado: false,
+    });
+  }
+
+  const IDS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+
+  it("as 5 linhas são EXATAMENTE as 5 primeiras da agenda inteira", async () => {
+    configFila({ metaDiaria: 6, tetoPorHora: 3, intervaloMinimoSegundos: 600 });
+    semear(...IDS.map((id, i) => lead(id, { criadoEm: `2026-03-0${i + 1}T00:00:00.000Z` })));
+    semearPool(IDS, new Date(TERCA_0640.getTime() - 60_000).toISOString());
+    const cookie = await comoAdmin();
+
+    const inteira: AgendaFila = await (await agenda(cookie)).json();
+    const balao: AgendaFila = await (await agenda(cookie, "?limite=5")).json();
+
+    expect(inteira.linhas.length).toBeGreaterThan(5);
+    expect(balao.alvo).toBe(5);
+    expect(balao.linhas).toEqual(inteira.linhas.slice(0, 5));
+    expect(balao).toMatchObject({ parouPor: "alvo", fora: IDS.length - 5 });
+  });
+
+  it("sem pool persistido: agenda vazia, sem varrer /leads nem ler as fontes da mensagem", async () => {
+    semear(lead("A"));
+    const cookie = await comoAdmin();
+    const { espiao, varreduras, docs } = contando(db);
+    const real = db;
+    db = espiao;
+
+    const a: AgendaFila = await (await agenda(cookie, "?limite=5")).json();
+    db = real;
+
+    expect(a.linhas).toEqual([]);
+    expect(a.pool).toEqual({ geradoEm: null, reconstruido: false, truncado: false });
+    // NENHUMA varredura: nem /leads (o pool), nem /buscas e as frases (não
+    // há quem simular).
+    expect(varreduras).toEqual({});
+    expect(docs).toEqual(["config/fila", "config/app", "config/automacao", "filaContadores/2026-03-10", "filaCandidatos/pool"]);
+    expect(real.getDoc("filaCandidatos/pool")).toBeUndefined();
+  });
+
+  it("pool VENCIDO: usa o retrato assim mesmo, datado — e nunca varre /leads", async () => {
+    semear(lead("A"), lead("B", { criadoEm: "2026-03-02T00:00:00.000Z" }), lead("NOVO", { criadoEm: "2026-03-03T00:00:00.000Z" }));
+    // Retrato de ontem, só com A e B: o NOVO não está nele.
+    const ontem = "2026-03-09T12:00:00.000Z";
+    semearPool(["A", "B"], ontem);
+    const cookie = await comoAdmin();
+    const { espiao, varreduras, docs } = contando(db);
+    const real = db;
+    db = espiao;
+
+    const a: AgendaFila = await (await agenda(cookie, "?limite=5")).json();
+    db = real;
+
+    expect(a.pool).toEqual({ geradoEm: ontem, reconstruido: false, truncado: false });
+    expect(a.linhas.map((l) => l.leadId)).toEqual(["A", "B"]);
+    // As fontes da mensagem são lidas (é a mesma montagem de /proximo), e o
+    // lead e o doc da fila por id de quem a simulação percorre — /leads nunca.
+    expect(varreduras.leads ?? 0).toBe(0);
+    expect(Object.keys(varreduras).sort()).toEqual(["buscas", "frasesProspeccao"]);
+    expect(docs.filter((d) => d.startsWith("leads/")).sort()).toEqual(["leads/A", "leads/B"]);
+    // E nada foi gravado: o retrato continua o de ontem.
+    expect(real.getDoc("filaCandidatos/pool")?.geradoEm).toBe(ontem);
+  });
+
+  it("limite inválido é ignorado: vale a agenda inteira", async () => {
+    semear(lead("A"));
+    const cookie = await comoAdmin();
+
+    for (const consulta of ["?limite=0", "?limite=abc", "?limite=51", "?limite=2.5"]) {
+      const a: AgendaFila = await (await agenda(cookie, consulta)).json();
+      expect(a.alvo, consulta).toBe(15);
+      expect(a.pool.reconstruido, consulta).toBe(true);
+    }
+  });
+
+  it("membro → 403 também com limite (o balão só existe para admin)", async () => {
+    const res = await agenda(await cookieDeSessao(db, { id: "m1", papel: "membro" }), "?limite=5");
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).not.toHaveProperty("linhas");
   });
 });
 

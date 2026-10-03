@@ -13,8 +13,10 @@ import { requireAdmin } from "@/lib/usuarios";
  *   contador do dia. É o único custo que a navegação normal paga, e ele
  *   existe porque o balão está em TODA tela do app: buscar a fila inteira a
  *   cada página aberta multiplicaria leitura por navegação.
- * - **com `lista=1`** (balão ABERTO, no clique): 4 leituras de doc mais uma
- *   POR ID de cada linha mostrada (teto de 19). Ver `lib/fila/balao.ts`.
+ * - **com `lista=1`** (balão ABERTO, no clique): 3 leituras de doc mais uma
+ *   POR ID de cada pendente mostrado (teto de 8). Ver `lib/fila/balao.ts`.
+ *   Quem sai e quando vem da AGENDA (`GET /api/config/fila/agenda?limite=5`),
+ *   que o balão busca em paralelo no mesmo clique.
  *
  * Uma rota só, e não duas: "ativa/pausada" e "faltam N hoje" aparecem nos
  * dois estados, e duas rotas calculando o mesmo par poderiam discordar no
@@ -49,8 +51,6 @@ export async function GET(req: Request) {
         ...resumo,
         // Chaves SEMPRE presentes: o estado fechado não pagou por elas, e
         // ausência obrigaria a tela a distinguir "não pedi" de "está vazio".
-        fila: [],
-        elegiveis: 0,
         pendentes: [],
         pendentesTotal: 0,
         poolGeradoEm: null,

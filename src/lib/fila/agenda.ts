@@ -10,7 +10,7 @@ import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 import { getLead } from "@/lib/leads/repo";
 import type { Lead } from "@/lib/leads/types";
 
-import { lerPoolSemGravar, type CandidatoFila } from "./candidatos";
+import { lerPoolBruto, lerPoolSemGravar, type CandidatoFila, type PoolCandidatos } from "./candidatos";
 import { loadFilaConfig, type FilaConfig } from "./config";
 import {
   contadorComEnvio,
@@ -365,24 +365,42 @@ export function limiteDepoisDe(
  * memória que NÃO é gravada — `lerPoolSemGravar`), as fontes da mensagem
  * uma vez (`/buscas` e as frases — a mesma montagem de `/proximo`) e, por
  * id, o lead e o doc da fila de quem a simulação percorre.
+ *
+ * **`limite` é o modo do BALÃO** (`?limite=5`): a MESMA simulação, parada
+ * nos N primeiros — que são exatamente os N primeiros da agenda inteira,
+ * porque ela é sequencial —, e sobre o RETRATO persistido do pool, sem TTL
+ * (`lerPoolBruto`, a regra do balão): um indicador que existe em toda tela
+ * nunca paga a varredura de `/leads`. Sem pool persistido (o celular nunca
+ * pediu tarefa), a agenda sai vazia sem ler mais nada. A resposta diz qual
+ * retrato foi usado (`pool.geradoEm`), e o balão o mostra datado.
  */
-export async function montarAgendaFila(db: AppDb, now: Date = new Date()): Promise<AgendaFila> {
+export async function montarAgendaFila(
+  db: AppDb,
+  now: Date = new Date(),
+  opcoes: { limite?: number } = {},
+): Promise<AgendaFila> {
   const [config, app, automacao] = await Promise.all([
     loadFilaConfig(db),
     loadConfig(db),
     loadAutomacaoConfig(db),
   ]);
-  const [contadorCompleto, { pool, reconstruido }, buscas, conjuntos] = await Promise.all([
+  const doBalao = opcoes.limite !== undefined;
+  const lerPool = async (): Promise<{ pool: PoolCandidatos | undefined; reconstruido: boolean }> =>
+    doBalao
+      ? { pool: await lerPoolBruto(db), reconstruido: false }
+      : lerPoolSemGravar(db, now, { corteLegado: automacao.corteLegado });
+  const [contadorCompleto, { pool, reconstruido }] = await Promise.all([
     lerContadorFilaCompleto(db, now, config.inicioDiaOperacionalHora),
-    lerPoolSemGravar(db, now, { corteLegado: automacao.corteLegado }),
-    listBuscas(db),
-    listConjuntos(db),
+    lerPool(),
   ]);
+  // As fontes da mensagem só quando há quem simular.
+  const [buscas, conjuntos] = pool ? await Promise.all([listBuscas(db), listConjuntos(db)]) : [[], []];
 
-  const alvo =
+  const alvoDoEstoque =
     Number.isInteger(automacao.alvoEstoque) && automacao.alvoEstoque > 0
       ? Math.min(automacao.alvoEstoque, AGENDA_ALVO_MAX)
       : AGENDA_ALVO_PADRAO;
+  const alvo = doBalao ? Math.min(alvoDoEstoque, opcoes.limite as number) : alvoDoEstoque;
   const resultado = await simularAgenda(db, {
     now,
     horizonte: limitesDaAgenda(now, config.inicioDiaOperacionalHora),
@@ -391,7 +409,7 @@ export async function montarAgendaFila(db: AppDb, now: Date = new Date()): Promi
     janelas: app.janelasContato,
     corteLegado: automacao.corteLegado,
     contadorHoje: contadorDoDoc(contadorCompleto as unknown as Record<string, unknown>),
-    pool: pool.candidatos,
+    pool: pool?.candidatos ?? [],
     fontes: { config: app, buscas, conjuntos },
     expiracao: { varreduraRoda: automacao.ativo, prazoHoras: automacao.expiracaoDemoHoras },
   });
@@ -406,7 +424,7 @@ export async function montarAgendaFila(db: AppDb, now: Date = new Date()): Promi
     alvo,
     pausada: !config.ativo,
     bloqueada: motivoDeSaude() !== undefined,
-    pool: { geradoEm: pool.geradoEm, reconstruido, truncado: pool.truncado === true },
+    pool: { geradoEm: pool?.geradoEm ?? null, reconstruido, truncado: pool?.truncado === true },
     ...resto,
     ritmo: {
       metaDiaria: config.metaDiaria,

@@ -52,6 +52,24 @@ export function diaDoOperador(iso: string, referenciaIso: string): string {
   return `${SEMANA_OPERADOR.format(data).replace(".", "")} ${DATA_OPERADOR.format(data)}`;
 }
 
+/**
+ * As linhas agrupadas pelo dia do OPERADOR, na ordem da agenda — os grupos
+ * "hoje" / "amanhã" / "seg 05/10" do painel e do balão.
+ */
+export function agruparPorDia(
+  linhas: LinhaAgenda[],
+  referenciaIso: string,
+): Array<{ dia: string; linhas: LinhaAgenda[] }> {
+  const grupos: Array<{ dia: string; linhas: LinhaAgenda[] }> = [];
+  for (const linha of linhas) {
+    const dia = diaDoOperador(linha.em, referenciaIso);
+    const ultimo = grupos.at(-1);
+    if (ultimo?.dia === dia) ultimo.linhas.push(linha);
+    else grupos.push({ dia, linhas: [linha] });
+  }
+  return grupos;
+}
+
 /** "13:00" — a hora do instante no fuso do LEAD (deslocamento em minutos). */
 export function horaNoFusoDoLead(iso: string, offsetMinutos: number): string {
   const local = new Date(new Date(iso).getTime() + offsetMinutos * 60_000);
