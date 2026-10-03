@@ -7109,6 +7109,8 @@ async function medirExpiracao(browser, secret) {
  *   manual (agora) · A +10 · B +20 · C +60 (teto) · D +70 ·
  *   W +90 ("abre às", SP) · L +150 ("abre às … (hora dele)", Lisboa) ·
  *   [meta 7] · N na virada ("meta de 7 batida · dia novo") · O +10 · P fora.
+ * FIM DE SEMANA: quatro que só abrem 3h depois do fim de AMANHÃ — a agenda
+ * lista os quatro com horário e diz até que dia vai ("até o fim de segunda").
  * COM BARRADOS: a mesma, mais G (o mais antigo, frase do grupo com
  * `{link}`) e V (demo automática que a próxima varredura apaga antes da vez
  * dele) — e as NOVE linhas continuam as mesmas: não ocupam vaga. PAUSADA:
@@ -7177,6 +7179,17 @@ function semearAgenda(estado) {
     }
   })();
   const proxima = proximaVarreduraQa(agora);
+  // O FIM DE SEMANA, generalizado para qualquer hora de rodada: nada sai
+  // hoje nem amanhã (operacionais), e tudo abre 3h depois do fim de
+  // amanhã — como sábado à tarde com tudo abrindo segunda. A agenda tem de
+  // ir até o fim DAQUELE dia, não parar vazia no fim de amanhã.
+  const DIA = 24 * 3600000;
+  const fimDeAmanha = viradaMs + DIA;
+  const fdsAbre = minuto(fimDeAmanha + 3 * 3600000);
+  // O nome do dia operacional que começa no instante (a chave dele é a data
+  // de São Paulo da virada que o abre).
+  const nomeDoDia = (ms) =>
+    new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "long" }).format(ms).split("-")[0];
   // Os de AMANHÃ abrem na virada — ou, se ela vier antes, 2h depois da
   // próxima varredura: a vez de V (que abre 1h depois dela) tem de cair
   // DENTRO das 9 linhas, senão ele nunca chega à vez e vira só "fora".
@@ -7224,6 +7237,12 @@ function semearAgenda(estado) {
       ["agenda-p", "Ração & Cia Partenon", 1],
     ].map(([id, nome, dias]) => lead(id, nome, dias, [faixaUnica(-180, amanhaAbre, 720)])),
   ];
+  const fimDeSemana = [
+    ["agenda-s1", "Pet Feliz Cristal", 4],
+    ["agenda-s2", "Bicho Bom Camaquã", 3],
+    ["agenda-s3", "Toca do Pet Ipanema", 2],
+    ["agenda-s4", "Pet & Cia Belém Novo", 1],
+  ].map(([id, nome, dias]) => lead(id, nome, dias, [faixaUnica(-180, fdsAbre, 360)]));
   const barrados = [
     // O mais antigo: sem as frases, a mensagem é a do GRUPO, com o marcador errado.
     lead("agenda-g", "Petshop Glória (frase com {link})", 10, FAIXAS_24H, { buscaId: ["busca-agenda-erro"] }),
@@ -7272,6 +7291,10 @@ function semearAgenda(estado) {
       mensagemPadrao: "Oi {nome}! Fiz uma demo do site de vocês: {link}",
     };
     if (estado === "vazia") return;
+    if (estado === "fimdesemana") {
+      for (const l of fimDeSemana) mapa[`leads/${l.placeId}`] = l;
+      return;
+    }
     for (const l of [...cheia, ...(estado === "cheia" ? [] : barrados)]) mapa[`leads/${l.placeId}`] = l;
   });
 
@@ -7301,6 +7324,17 @@ function semearAgenda(estado) {
       amanhaAbre === viradaMs
         ? "meta de 7 batida · dia novo"
         : `meta de 7 batida · abre às ${HORA_SP_QA.format(amanhaAbre)}`,
+    // Até onde a agenda vai. Com alguém saindo hoje: o fim de amanhã. Sem
+    // ninguém: o teto, o sétimo dia (hoje e os seis seguintes) — o que
+    // começa na virada de daqui a cinco dias. No fim de semana: o dia em
+    // que o primeiro sai.
+    horizonteCheia: "até o fim de amanhã",
+    horizonteVazia: `até o fim de ${nomeDoDia(viradaMs + 5 * DIA)}`,
+    fds: {
+      ordem: ["Pet Feliz Cristal", "Bicho Bom Camaquã", "Toca do Pet Ipanema", "Pet & Cia Belém Novo"],
+      hora: HORA_SP_QA.format(fdsAbre),
+      horizonte: `até o fim de ${nomeDoDia(fimDeAmanha)}`,
+    },
   };
 }
 
@@ -7409,6 +7443,7 @@ async function medirAgenda(browser, secret) {
       [esperado.textoMeta, `a linha depois da meta ("${esperado.textoMeta}")`],
       [/\+ 1 elegível depois destes 9/, "o que sobrou além do alvo"],
       [/candidatos lidos agora/, "o rodapé do pool refeito em memória"],
+      [`horário de São Paulo, ${esperado.horizonteCheia}.`, `o horizonte no subtítulo ("${esperado.horizonteCheia}")`],
     ]);
     // A hora de Lisboa aparece UMA vez na linha dele (o motivo já a diz).
     const linhaLisboa = (await page.locator('[data-linha-agenda="agenda-l"]').innerText()) ?? "";
@@ -7454,9 +7489,12 @@ async function medirAgenda(browser, secret) {
     await capturar("pausada", "pausada");
 
     // ── VAZIA ──────────────────────────────────────────────────────────
-    await abrir("vazia");
+    esperado = await abrir("vazia");
     await conferirPainelFila(page, `vazia/${sufixo}`, viewport.width, problemas);
-    await exigir(`vazia/${sufixo}`, [[/Nenhum lead sai até o fim de amanhã/, "o estado vazio"]]);
+    await exigir(`vazia/${sufixo}`, [
+      [`Nenhum lead sai ${esperado.horizonteVazia}.`, `o estado vazio, até o teto ("${esperado.horizonteVazia}")`],
+      [`horário de São Paulo, ${esperado.horizonteVazia}.`, "o teto no subtítulo"],
+    ]);
     if ((await page.locator("[data-linha-agenda], [data-barrado-agenda], [data-vencido-agenda]").count()) > 0) {
       problemas.push(`vazia/${sufixo}: sobrou linha com a agenda vazia`);
     }
@@ -7464,6 +7502,25 @@ async function medirAgenda(browser, secret) {
     console.log(`  [agenda] ${sufixo}: bloco ${alturaCheia}px cheio → ${alturaVazia}px vazio`);
     if (alturaVazia >= alturaCheia) problemas.push(`vazia/${sufixo}: o bloco não encolheu sem linhas`);
     await capturar("vazia", "vazia");
+
+    // ── FIM DE SEMANA: nada até depois de amanhã — a agenda vai até lá ──
+    esperado = await abrir("fimdesemana");
+    await conferirPainelFila(page, `fimdesemana/${sufixo}`, viewport.width, problemas);
+    await conferirLinhas(`fimdesemana/${sufixo}`);
+    const nomesF = await nomesDasLinhas();
+    if (JSON.stringify(nomesF) !== JSON.stringify(esperado.fds.ordem)) {
+      problemas.push(`fimdesemana/${sufixo}: ordem ${JSON.stringify(nomesF)} ≠ ${JSON.stringify(esperado.fds.ordem)}`);
+    }
+    await exigir(`fimdesemana/${sufixo}`, [
+      [`abre às ${esperado.fds.hora}`, `a primeira linha, na abertura (${esperado.fds.hora})`],
+      [/intervalo de 10 min/, "o intervalo"],
+      [/teto de 3 por hora/, "o teto"],
+      [`horário de São Paulo, ${esperado.fds.horizonte}.`, `o horizonte no subtítulo ("${esperado.fds.horizonte}")`],
+    ]);
+    if ((await page.locator("[data-agenda-vazia]").count()) > 0) {
+      problemas.push(`fimdesemana/${sufixo}: a agenda disse "nenhum lead" com saídas depois de amanhã`);
+    }
+    await capturar("fim de semana (tudo depois de amanhã)", "fimdesemana");
 
     await ctx.close();
   }

@@ -67,6 +67,11 @@ import { nichoPermitido, proximaSaida, type MotivoSemTarefa } from "./selecao";
  *   saem da sequência e os seguintes sobem.
  * - **fora** — elegíveis que sobraram: além do alvo, ou sem horário até o
  *   horizonte.
+ *
+ * O HORIZONTE não é fixo (`limitesDaAgenda`): a simulação anda até o alvo
+ * ou até o fim do dia operacional da primeira saída — nunca antes do fim de
+ * amanhã, nunca depois do sétimo dia. Sábado à tarde, com tudo abrindo
+ * segunda às 9h, a agenda vai até o fim de segunda.
  */
 
 /** Quantos leads a agenda procura quando o estoque alvo da automação não diz. */
@@ -75,11 +80,23 @@ export const AGENDA_ALVO_PADRAO = 15;
 /** Teto da agenda, qualquer que seja o alvo — cada linha custa leituras por id. */
 export const AGENDA_ALVO_MAX = 50;
 
+/**
+ * Teto do HORIZONTE, em viradas do dia operacional: hoje e os seis dias
+ * seguintes. Sete viradas nunca passam de 7×24h, e o último dia nunca tem o
+ * mesmo dia da semana de hoje — "até o fim de sexta" não é ambíguo.
+ */
+export const AGENDA_DIAS_MAX = 7;
+
 /** O que a simulação precisa, já lido. */
 export interface EntradaAgenda {
   now: Date;
-  /** Até onde o relógio anda (inclusive). */
-  horizonte: Date;
+  /**
+   * Até onde o relógio anda (inclusive) — ver `limitesDaAgenda`: `minimo`
+   * é o fim do PRÓXIMO dia operacional, `teto` o fim do sétimo. A agenda
+   * vai até o fim do dia da PRIMEIRA saída (nunca antes de `minimo`, nunca
+   * depois de `teto`); sem saída nenhuma, até o teto.
+   */
+  horizonte: { minimo: Date; teto: Date };
   /** Quantos leads procurar. */
   alvo: number;
   config: FilaConfig;
@@ -104,6 +121,8 @@ export interface ResultadoAgenda {
   vencidos: VencidoAgenda[];
   fora: number;
   parouPor: "alvo" | "horizonte";
+  /** Até onde a agenda foi, de fato (ver `EntradaAgenda.horizonte`). */
+  horizonte: Date;
 }
 
 interface FichaAgenda {
@@ -194,6 +213,12 @@ export async function simularAgenda(db: AppDb, entrada: EntradaAgenda): Promise<
   const linhas: LinhaAgenda[] = [];
 
   let cursor = entrada.now;
+  /**
+   * Até a primeira saída, o teto — no fim de semana a primeira saída é
+   * segunda de manhã, e um horizonte fixo em "amanhã" deixava a agenda
+   * vazia. Depois dela, o fim do dia operacional dela (ver `limiteDepoisDe`).
+   */
+  let limite = entrada.horizonte.teto;
   /** O portão que trouxe o relógio até `cursor`, quando quem chegou lá não saiu. */
   let segurouNoCursor: MotivoSemTarefa | undefined;
   /** A meta segurou a fila em algum ponto desde o último envio simulado. */
@@ -208,7 +233,7 @@ export async function simularAgenda(db: AppDb, entrada: EntradaAgenda): Promise<
         contadores,
       },
       cursor,
-      { ate: entrada.horizonte },
+      { ate: limite },
     );
     if (!saida.em) break;
     const em = saida.em;
@@ -260,6 +285,7 @@ export async function simularAgenda(db: AppDb, entrada: EntradaAgenda): Promise<
         nivel: candidato.nivel,
         manual: doPool.get(candidato.id)?.manual === true,
       });
+      if (linhas.length === 1) limite = limiteDepoisDe(em, entrada.horizonte, config.inicioDiaOperacionalHora);
       barrados.delete(candidato.id);
       remover(candidato.id);
 
@@ -297,15 +323,38 @@ export async function simularAgenda(db: AppDb, entrada: EntradaAgenda): Promise<
     vencidos,
     fora,
     parouPor: linhas.length >= entrada.alvo ? "alvo" : "horizonte",
+    horizonte: limite,
   };
 }
 
-/** O fim do PRÓXIMO dia operacional: a virada de hoje, e a seguinte. */
-export function horizonteDaAgenda(now: Date, inicioDiaOperacionalHora: number): Date {
-  return proximaViradaDiaOperacional(
-    proximaViradaDiaOperacional(now, inicioDiaOperacionalHora),
-    inicioDiaOperacionalHora,
-  );
+/**
+ * Os limites do horizonte: `minimo`, o fim do PRÓXIMO dia operacional (a
+ * virada de hoje e a seguinte — quem olha às 06:40 vê hoje e amanhã), e
+ * `teto`, o fim do `AGENDA_DIAS_MAX`-ésimo (hoje e os seis seguintes).
+ */
+export function limitesDaAgenda(now: Date, inicioDiaOperacionalHora: number): { minimo: Date; teto: Date } {
+  let virada = now;
+  let minimo = now;
+  for (let dia = 1; dia <= AGENDA_DIAS_MAX; dia++) {
+    virada = proximaViradaDiaOperacional(virada, inicioDiaOperacionalHora);
+    if (dia === 2) minimo = virada;
+  }
+  return { minimo, teto: virada };
+}
+
+/**
+ * O horizonte depois da PRIMEIRA saída, em `em`: o fim do dia operacional
+ * dela, mas nunca antes de `minimo` (com alguém saindo hoje, amanhã
+ * continua na agenda — a meta de hoje empurra o resto para lá) e nunca
+ * depois do `teto`.
+ */
+export function limiteDepoisDe(
+  em: Date,
+  limites: { minimo: Date; teto: Date },
+  inicioDiaOperacionalHora: number,
+): Date {
+  const fimDoDia = proximaViradaDiaOperacional(em, inicioDiaOperacionalHora).getTime();
+  return new Date(Math.min(limites.teto.getTime(), Math.max(limites.minimo.getTime(), fimDoDia)));
 }
 
 /**
@@ -334,11 +383,9 @@ export async function montarAgendaFila(db: AppDb, now: Date = new Date()): Promi
     Number.isInteger(automacao.alvoEstoque) && automacao.alvoEstoque > 0
       ? Math.min(automacao.alvoEstoque, AGENDA_ALVO_MAX)
       : AGENDA_ALVO_PADRAO;
-  const horizonte = horizonteDaAgenda(now, config.inicioDiaOperacionalHora);
-
   const resultado = await simularAgenda(db, {
     now,
-    horizonte,
+    horizonte: limitesDaAgenda(now, config.inicioDiaOperacionalHora),
     alvo,
     config,
     janelas: app.janelasContato,
@@ -349,14 +396,18 @@ export async function montarAgendaFila(db: AppDb, now: Date = new Date()): Promi
     expiracao: { varreduraRoda: automacao.ativo, prazoHoras: automacao.expiracaoDemoHoras },
   });
 
+  const { horizonte, ...resto } = resultado;
   return {
     geradoEm: now.toISOString(),
     horizonte: horizonte.toISOString(),
+    // O DIA operacional em que a agenda termina — o da véspera da virada.
+    horizonteDia: diaOperacionalKey(new Date(horizonte.getTime() - 1), config.inicioDiaOperacionalHora),
+    diaOperacional: diaOperacionalKey(now, config.inicioDiaOperacionalHora),
     alvo,
     pausada: !config.ativo,
     bloqueada: motivoDeSaude() !== undefined,
     pool: { geradoEm: pool.geradoEm, reconstruido, truncado: pool.truncado === true },
-    ...resultado,
+    ...resto,
     ritmo: {
       metaDiaria: config.metaDiaria,
       tetoPorHora: config.tetoPorHora,

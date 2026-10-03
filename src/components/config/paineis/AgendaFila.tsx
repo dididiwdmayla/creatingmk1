@@ -12,6 +12,7 @@ import {
   horaDoOperador,
   textoDoBarrado,
   textoDoFora,
+  textoDoHorizonte,
   textoDoMotivo,
   textoDoVencido,
 } from "@/lib/fila/agendaTexto";
@@ -106,8 +107,9 @@ export function AgendaFilaBloco({ painelId, versao }: { painelId: string; versao
           {calculando ? "calculando…" : "↻ Atualizar"}
         </button>
       </div>
-      <p className="mt-0.5 text-[11px] text-ink-muted">
-        Quem sai, na ordem, com as regras da fila — horário de São Paulo, até o fim de amanhã.
+      <p data-agenda-horizonte className="mt-0.5 text-[11px] text-ink-muted">
+        Quem sai, na ordem, com as regras da fila — horário de São Paulo
+        {agenda ? `, ${textoDoHorizonte(agenda)}` : ""}.
       </p>
 
       {agenda?.pausada && (
@@ -131,7 +133,7 @@ export function AgendaFilaBloco({ painelId, versao }: { painelId: string; versao
 
       {agenda && agenda.linhas.length === 0 && (
         <p data-agenda-vazia className="mt-2 text-xs text-ink-muted">
-          Nenhum lead sai até o fim de amanhã.
+          Nenhum lead sai {textoDoHorizonte(agenda)}.
         </p>
       )}
 

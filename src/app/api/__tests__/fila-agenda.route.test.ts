@@ -230,8 +230,10 @@ describe("agenda e fila CONCORDAM", () => {
       ["C", "2026-03-11T09:00:00.000Z", "janela"],
       ["D", "2026-03-11T09:10:00.000Z", "intervalo"],
     ]);
-    // O horizonte é o fim do PRÓXIMO dia operacional (quinta, 00h em São Paulo).
+    // Alguém sai HOJE: o horizonte é o fim do PRÓXIMO dia operacional
+    // (quinta, 00h em São Paulo) — o mínimo, que a meta de hoje precisa.
     expect(a.horizonte).toBe("2026-03-12T03:00:00.000Z");
+    expect(a.horizonteDia).toBe("2026-03-11");
     expect(a).toMatchObject({ fora: 1, parouPor: "horizonte" });
 
     await percorrer(a.linhas);
@@ -261,6 +263,122 @@ describe("agenda e fila CONCORDAM", () => {
       ["B", "2026-03-10T10:03:00.000Z", "intervalo"],
     ]);
     await percorrer(a.linhas);
+  });
+});
+
+describe("o HORIZONTE vai até o dia da primeira saída — com teto de 7 dias", () => {
+  /** Sábado, 14/03/2026, 16h em São Paulo. */
+  const SABADO_16H = new Date("2026-03-14T19:00:00Z");
+
+  /** Aberto o dia inteiro, nos 7 dias: quem decide é a janela da família. */
+  const SEMPRE_ABERTO = Array.from({ length: 7 }, (_, dia) => ({
+    diaAbre: dia,
+    horaAbre: 0,
+    minAbre: 0,
+    diaFecha: dia,
+    horaFecha: 23,
+    minFecha: 59,
+  }));
+
+  /** A família com UMA faixa "bom" (9h–11h30), num dia da semana só. */
+  function soNoDia(dia: number) {
+    const faixa = { inicio: { hora: 9, minuto: 0 }, fim: { hora: 11, minuto: 30 }, nivel: "bom" };
+    return { dias: Object.fromEntries(Array.from({ length: 7 }, (_, d) => [d, d === dia ? [faixa] : []])) };
+  }
+
+  it("sábado à tarde, tudo abrindo segunda 9h: a agenda lista os de segunda com horário — e a fila concorda", async () => {
+    vi.setSystemTime(SABADO_16H);
+    // O caso de produção: 15 prontos, todos barbearia em São Paulo — sábado
+    // é "ruim" para a barbearia, domingo não tem faixa, segunda abre às 9h.
+    semear(
+      ...Array.from({ length: 15 }, (_, i) =>
+        leadSP(`L${String(i + 1).padStart(2, "0")}`, {
+          criadoEm: `2026-03-01T${String(i).padStart(2, "0")}:00:00.000Z`,
+        }),
+      ),
+    );
+
+    const a = await lerAgenda();
+
+    // Segunda, 9h em São Paulo: a faixa "bom" (9h–11h30) com o teto de 4
+    // por hora e o intervalo de 3 min — doze envios, todos na segunda. Da
+    // segunda hora em diante quem segura é o teto (janela DESLIZANTE: às
+    // 13h03 o envio das 12h03 ainda está na última hora).
+    const horas = ["12:00", "12:03", "12:06", "12:09", "13:00", "13:03", "13:06", "13:09", "14:00", "14:03", "14:06", "14:09"];
+    expect(resumo(a)).toEqual(
+      horas.map((hora, i) => [
+        `L${String(i + 1).padStart(2, "0")}`,
+        `2026-03-16T${hora}:00.000Z`,
+        i === 0 ? "janela" : i < 4 ? "intervalo" : "teto_hora",
+      ]),
+    );
+    // Até onde ela foi: o fim de segunda. Os três que só saem terça ficam
+    // contados à parte, "sem vez até o fim de segunda".
+    expect(a).toMatchObject({
+      horizonte: "2026-03-17T03:00:00.000Z",
+      horizonteDia: "2026-03-16",
+      diaOperacional: "2026-03-14",
+      parouPor: "horizonte",
+      fora: 3,
+    });
+
+    await percorrer(a.linhas);
+    expect((await proximo()).temTarefa).toBe(false);
+  });
+
+  it("o teto: hoje e os seis dias seguintes, nunca mais que 7×24h — quem só abre depois fica de fora", async () => {
+    vi.setSystemTime(SABADO_16H);
+    db.seed("config/app", {
+      // Barbearia só no SÁBADO (o próximo é depois do teto); pet shop só na
+      // SEXTA (o sexto dia — dentro).
+      janelasContato: { barbearia: soNoDia(6), petshop: soNoDia(5) },
+    });
+    const sempreAberto = { horarios: { faixas: SEMPRE_ABERTO, utcOffsetMinutes: -180, obtidoEm: "2026-03-01T00:00:00.000Z" } };
+    semear(
+      leadSP("SAB", { criadoEm: "2026-03-01T00:00:00.000Z", ...sempreAberto }),
+      leadSP("SEX", {
+        criadoEm: "2026-03-02T00:00:00.000Z",
+        busca: { nicho: "petshop", regiao: "Maringá", em: "2026-03-01T00:00:00.000Z" },
+        ...sempreAberto,
+      }),
+    );
+
+    const a = await lerAgenda();
+
+    // Sexta, 9h em São Paulo: seis dias à frente, ainda na agenda.
+    expect(resumo(a)).toEqual([["SEX", "2026-03-20T12:00:00.000Z", "janela"]]);
+    // O teto: a virada de sexta para sábado — sábado 9h fica de fora.
+    expect(a).toMatchObject({
+      horizonte: "2026-03-21T03:00:00.000Z",
+      horizonteDia: "2026-03-20",
+      parouPor: "horizonte",
+      fora: 1,
+    });
+    expect(Date.parse(a.horizonte) - SABADO_16H.getTime()).toBeLessThanOrEqual(7 * 24 * 60 * 60 * 1000);
+
+    await percorrer(a.linhas);
+    // A fila confirma o corte: o sábado do lado de lá do teto é quando ele
+    // sai de verdade — e nem um minuto antes do teto ele saía.
+    vi.setSystemTime(new Date("2026-03-21T03:00:00Z"));
+    expect((await proximo()).temTarefa).toBe(false);
+    vi.setSystemTime(new Date("2026-03-21T12:00:00Z"));
+    expect((await proximo()).leadId).toBe("SAB");
+  });
+
+  it("nada sai em sete dias: a agenda vazia vai até o teto", async () => {
+    vi.setSystemTime(SABADO_16H);
+    db.seed("config/app", { janelasContato: { barbearia: soNoDia(6) } });
+    semear(leadSP("SAB", { horarios: { faixas: SEMPRE_ABERTO, utcOffsetMinutes: -180, obtidoEm: "2026-03-01T00:00:00.000Z" } }));
+
+    const a = await lerAgenda();
+
+    expect(a).toMatchObject({
+      linhas: [],
+      horizonte: "2026-03-21T03:00:00.000Z",
+      horizonteDia: "2026-03-20",
+      parouPor: "horizonte",
+      fora: 1,
+    });
   });
 });
 
@@ -463,7 +581,7 @@ describe("SOMENTE LEITURA", () => {
 });
 
 describe("estado vazio", () => {
-  it("sem lead nenhum: listas vazias, nada fora, e o horizonte de sempre", async () => {
+  it("sem lead nenhum: listas vazias, nada fora, e o horizonte no teto (hoje e os seis seguintes)", async () => {
     const a = await lerAgenda();
 
     expect(a).toMatchObject({
@@ -473,7 +591,9 @@ describe("estado vazio", () => {
       fora: 0,
       parouPor: "horizonte",
       alvo: 15,
-      horizonte: "2026-03-12T03:00:00.000Z",
+      // Terça 03h40: o teto é a virada de segunda para terça que vem.
+      horizonte: "2026-03-17T03:00:00.000Z",
+      horizonteDia: "2026-03-16",
     });
   });
 });
