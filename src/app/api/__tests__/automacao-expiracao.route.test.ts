@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { motivoInelegivelAutomacao } from "@/lib/automacao/elegivel";
 import { motivoNaoExpira } from "@/lib/automacao/expiracao";
 import type { ExecucaoAutomacao } from "@/lib/automacao/execucao";
+import { contarAApagar, type PainelAutomacao } from "@/lib/automacao/painelTipos";
 import { VARREDURA_MAX } from "@/lib/automacao/varredura";
 import type { DemoStorage } from "@/lib/demos/imagens";
 import type { LeadDemo } from "@/lib/demos/types";
@@ -10,6 +11,8 @@ import type { FilaEnvioDoc } from "@/lib/fila/estado";
 import type { Lead } from "@/lib/leads/types";
 import { FakeFirestore } from "@/lib/testing/fake-firestore";
 import { FakeDemoStorage } from "@/lib/testing/fake-storage";
+import { cookieDeSessao } from "@/lib/testing/sessao";
+import { GET as PAINEL } from "../config/automacao/painel/route";
 import { POST as FINALIZAR } from "../automacao/finalizar/route";
 import { POST as PLANEJAR } from "../automacao/planejar/route";
 
@@ -516,5 +519,105 @@ describe("teto por execução", () => {
     // Sobrou a mais nova.
     expect(leadSalvo("l00").demo).toBeDefined();
     expect(leadSalvo(`l${VARREDURA_MAX}`).demo).toBeUndefined();
+  });
+});
+
+describe("o painel conta o que a varredura apaga — sem apagar nada", () => {
+  /** O painel no instante `quando` (relógio congelado), pela rota de verdade. */
+  async function painelEm(quando: Date): Promise<PainelAutomacao> {
+    vi.setSystemTime(quando);
+    vi.stubEnv("APP_PASSWORD", "segredo123");
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    const res = await PAINEL(new Request("http://localhost/api/config/automacao/painel", { headers: { cookie } }));
+    expect(res.status).toBe(200);
+    return res.json();
+  }
+
+  function aApagar(painel: PainelAutomacao): number {
+    const exp = painel.expiracao!;
+    return contarAApagar(exp, painel.config.expiracaoDemoHoras, Date.parse(exp.proximaVarreduraEm)).aApagar;
+  }
+
+  /** Um pouco de tudo: vencidas, vencendo ATÉ a próxima varredura, novas e protegidas. */
+  function base() {
+    semear(lead("vencida"));
+    // 75h antes da varredura: ainda não venceu quando o painel abre (63h),
+    // vence até a varredura — o painel conta pelo horário DELA, não pelo de agora.
+    semear(lead("vence-ate-la", { demo: demoAuto({ criadoEm: horasAtras(75) }) }));
+    semear(lead("ainda-nao", { demo: demoAuto({ criadoEm: horasAtras(60) }) }));
+    semear(lead("contactado", { status: "contactado" }));
+    semear(lead("reservado"));
+    db.seed("filaEnvios/reservado", envio("reservado"));
+    semear(lead("visitado", { demoVisitas: [{ id: "v", em: horasAtras(30), interna: false }] }));
+    semear(lead("manual", { demo: demoAuto({ origem: undefined, criadoPor: "admin", execucaoAutomacao: undefined }) }));
+    semear(
+      lead("com-foto", {
+        demo: demoAuto({ dados: { imagens: { hero: "https://storage.googleapis.com/b/demos/com-foto/hero-1.webp" } } }),
+      }),
+    );
+  }
+
+  it("a contagem bate com a exclusão", async () => {
+    config();
+    base();
+    const painel = await painelEm(new Date(AGORA.getTime() - 12 * HORA));
+
+    // A próxima agendada é 06:30 UTC — o instante da varredura deste teste.
+    expect(painel.expiracao?.proximaVarreduraEm).toBe(AGORA.toISOString());
+    expect(painel.expiracao?.criadas).toHaveLength(3);
+    const contados = aApagar(painel);
+    expect(contados).toBe(2);
+    // O painel não apagou nada.
+    expect(leadSalvo("vencida").demo).toBeDefined();
+
+    vi.setSystemTime(AGORA);
+    const corpo = await planejar();
+    expect(corpo.varredura.apagadas).toBe(contados);
+    expect(corpo.varredura.apagados).toEqual(["vencida", "vence-ate-la"]);
+  });
+
+  it("com outro prazo na config, a contagem e a varredura mudam juntas", async () => {
+    config({ expiracaoDemoHoras: 78 });
+    base();
+    const painel = await painelEm(new Date(AGORA.getTime() - 12 * HORA));
+    expect(aApagar(painel)).toBe(1);
+
+    vi.setSystemTime(AGORA);
+    expect((await planejar()).varredura.apagadas).toBe(1);
+  });
+
+  it("fila pausada: a contagem diz zero e por quê, e a varredura não apaga", async () => {
+    config();
+    db.seed("config/fila", { ativo: false });
+    base();
+    const painel = await painelEm(new Date(AGORA.getTime() - 12 * HORA));
+    expect(painel.expiracao?.naoRodaria).toMatch(/pausada/);
+    expect(aApagar(painel)).toBe(0);
+
+    vi.setSystemTime(AGORA);
+    expect((await planejar()).varredura.apagadas).toBe(0);
+  });
+
+  it("acima do teto, o painel conta o teto e a varredura apaga o teto", async () => {
+    config({ alvoEstoque: 0 });
+    for (let i = 0; i <= VARREDURA_MAX; i++) semear(lead(`l${String(i).padStart(2, "0")}`));
+    const painel = await painelEm(new Date(AGORA.getTime() - HORA));
+    const exp = painel.expiracao!;
+    expect(contarAApagar(exp, 72, Date.parse(exp.proximaVarreduraEm))).toEqual({
+      vencidas: VARREDURA_MAX + 1,
+      aApagar: VARREDURA_MAX,
+      ficam: 1,
+    });
+
+    vi.setSystemTime(AGORA);
+    expect((await planejar()).varredura).toMatchObject({ apagadas: VARREDURA_MAX, restantes: 1 });
+  });
+
+  it("o aviso: meta diária da fila na resposta, para comparar com o alvo", async () => {
+    config({ alvoEstoque: 20 });
+    db.seed("config/fila", { metaDiaria: 15 });
+    const painel = await painelEm(AGORA);
+    expect(painel.expiracao?.metaDiaria).toBe(15);
+    expect(painel.config.alvoEstoque).toBe(20);
   });
 });

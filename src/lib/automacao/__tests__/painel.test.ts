@@ -265,6 +265,7 @@ describe("linha do cabeçalho fechado", () => {
       saturacaoMinNovos: 3,
       expiracaoDemoHoras: 72,
     },
+    expiracao: null,
     estoque: { prontos: 9, aguardandoAprovacao: 3, capturasEmAndamento: 0, total: 12, geradoEm: "x" },
     ultima: null,
     ativa: null,

@@ -73,6 +73,14 @@
  *                                                 # VAZIA, e "o que falta". Com GITHUB_CAPTURAS_TOKEN
  *                                                 # e GITHUB_CAPTURAS_REPO no ambiente, "Rodar agora"
  *                                                 # aparece habilitado (o laço nunca clica nele)
+ *   RADAR_DEVICE_KEY=x RADAR_DEVICE_USER_ID=admin \
+ *   node scripts/qa-plataforma.mjs --so=expiracao # EXPIRAÇÃO das demos automáticas: o bloco do painel
+ *                                                 # "Automação" CHEIO (contagem + aviso do estoque maior
+ *                                                 # que a fila + o prazo editado ao vivo), VAZIO e com a
+ *                                                 # fila PAUSADA; e a PÁGINA NEUTRA de /demo/{id} da demo
+ *                                                 # apagada (200, claro/escuro do sistema). As duas
+ *                                                 # variáveis da fila no ambiente: sem elas a varredura
+ *                                                 # "não rodaria" e o estado cheio não existe
  *   node scripts/qa-plataforma.mjs --so=paineis   # PORTÃO dos blocos colapsáveis de /config: tudo fechado,
  *                                                 # um aberto e o estado PERSISTIDO entre recargas
  *   node scripts/qa-plataforma.mjs --so=lote      # diálogo "Gerar demos em lote" (/leads?buscaId=): a skin
@@ -1272,10 +1280,12 @@ function lerTemaDoDoc(userId) {
 
 async function contextoLogado(
   browser,
-  { viewport, userId = "admin", papel = "admin", secret, tema, userAgent },
+  { viewport, userId = "admin", papel = "admin", secret, tema, userAgent, timezoneId },
 ) {
   const ctx = await browser.newContext({
     viewport,
+    // O fuso do OPERADOR, para quem a tela mostra hora do navegador (ver --so=expiracao).
+    ...(timezoneId && { timezoneId }),
     ...(viewport === VIEWPORT_CELULAR && { deviceScaleFactor: 2, isMobile: true, hasTouch: true }),
     // O agente importa em UM lugar só: o painel de respostas pendentes
     // mostra o botão do Business apenas no ANDROID (ver `podeAbrirBusiness`
@@ -6695,6 +6705,382 @@ async function medirAutomacao(browser, secret) {
   return gerados;
 }
 
+/* ── Item: EXPIRAÇÃO das demos automáticas (`--so=expiracao`) ─────────── */
+
+/**
+ * O horário agendado da execução — `AGENDA_UTC` de `lib/automacao/
+ * painelTipos.ts` (o script não compila TS). As fixtures são datadas a
+ * partir da PRÓXIMA varredura, que é o instante pelo qual o painel conta:
+ * uma fixture relativa a "agora" mudaria de lado com a hora da rodada.
+ */
+function proximaVarreduraQa(agoraMs) {
+  const a = new Date(agoraMs);
+  const hoje = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate(), 6, 30);
+  return hoje > agoraMs ? hoje : hoje + 86400000;
+}
+
+let expiracaoGuardado = null;
+const chaveDaExpiracao = (chave) =>
+  chaveDaAutomacao(chave) ||
+  chave === "config/fila" ||
+  chave.startsWith("leads/exp-") ||
+  chave.startsWith("filaEnvios/exp-");
+
+function guardarExpiracao() {
+  editarBanco((mapa) => {
+    expiracaoGuardado = {};
+    for (const chave of Object.keys(mapa)) if (chaveDaExpiracao(chave)) expiracaoGuardado[chave] = mapa[chave];
+  });
+}
+
+function restaurarExpiracao() {
+  if (!expiracaoGuardado) return;
+  editarBanco((mapa) => {
+    for (const chave of Object.keys(mapa)) if (chaveDaExpiracao(chave)) delete mapa[chave];
+    Object.assign(mapa, expiracaoGuardado);
+  });
+  expiracaoGuardado = null;
+}
+
+/** A demo como a automação a grava (as três marcas da origem), criada `horas` antes da próxima varredura. */
+function demoAutoQa(horas, proxima, extra = {}) {
+  const criadoEm = new Date(proxima - horas * 3600000).toISOString();
+  return {
+    skinId: "barbearia-editorial",
+    themeId: "creme",
+    dados: {},
+    criadoEm,
+    atualizadoEm: criadoEm,
+    criadoPor: "automacao",
+    origem: "automacao",
+    aprovacao: "aprovada",
+    aprovacaoEm: criadoEm,
+    execucaoAutomacao: "qa-exec-exp",
+    envios: [
+      { token: "qa-link", geradoEm: criadoEm, canal: "link" },
+      { token: "qa-wa", geradoEm: criadoEm, canal: "whatsapp" },
+    ],
+    ...extra,
+  };
+}
+
+function leadExpQa(placeId, nome, demo, extra = {}) {
+  return {
+    placeId,
+    nome,
+    status: "novo",
+    enriquecido: false,
+    telefoneIntl: "+55 44 99154-3803",
+    endereco: "Av. Brasil, 200 - Zona 1, Maringá - PR, 87013-000, Brasil",
+    busca: { nicho: "barbearia", regiao: "Maringá PR", em: iso(10) },
+    horarios: { faixas: [], utcOffsetMinutes: -180, obtidoEm: iso(10) },
+    ...(demo && { demo }),
+    criadoEm: iso(10),
+    atualizadoEm: iso(3),
+    ...extra,
+  };
+}
+
+/** A varredura que a "última execução" mostra, nos três estados. */
+const VARREDURA_QA = {
+  cheio: { prazoHoras: 72, candidatas: 4, apagadas: 3, puladas: 1, porMotivo: { filaEnvios: 1 }, restantes: 0, storageFalhou: 0, storageConcluido: 0, apagados: ["x1", "x2", "x3"] },
+  vazio: { prazoHoras: 72, candidatas: 0, apagadas: 0, puladas: 0, porMotivo: {}, restantes: 0, storageFalhou: 0, storageConcluido: 0, apagados: [] },
+  pausada: { prazoHoras: 72, naoRodou: "fila de envio pausada (sem chance de mandar, nada vence)", candidatas: 0, apagadas: 0, puladas: 0, porMotivo: {}, restantes: 0, storageFalhou: 0, storageConcluido: 0, apagados: [] },
+};
+
+/**
+ * CHEIO: três demos vencem até a próxima varredura (80h, 90h e 75h), uma
+ * não (60h), e três estão protegidas (contactado, manual de 200h, reserva
+ * na fila) — o painel tem de dizer 3. Estoque alvo 15 contra a meta 10 da
+ * fila: o aviso aparece. VAZIO: só a de 60h e a contactada, alvo 8 (sem
+ * aviso). PAUSADA: o cheio com a fila pausada. Em todos, o lead da demo
+ * APAGADA (como a varredura o deixa) para a página neutra.
+ */
+function semearExpiracao(estado) {
+  const proxima = proximaVarreduraQa(Date.now());
+  editarBanco((mapa) => {
+    for (const chave of Object.keys(mapa)) if (chaveDaExpiracao(chave)) delete mapa[chave];
+    mapa["config/automacao"] = {
+      ativo: true, alvoEstoque: estado === "vazio" ? 8 : 15, textoIA: true, aprovacaoAutomatica: false,
+      corteLegado: "2026-08-10", tetoBuscasNoite: 6, tetoIANoite: 20, expiracaoDemoHoras: 72,
+    };
+    mapa["config/fila"] = { ...(expiracaoGuardado?.["config/fila"] ?? {}), ativo: estado !== "pausada", metaDiaria: 10 };
+    if (estado !== "vazio") {
+      mapa["leads/exp-1"] = leadExpQa("exp-1", "Barbearia Navalha Velha", demoAutoQa(80, proxima));
+      mapa["leads/exp-2"] = leadExpQa("exp-2", "Barbearia do Porto", demoAutoQa(90, proxima));
+      mapa["leads/exp-3"] = leadExpQa("exp-3", "Barbearia Três Irmãos", demoAutoQa(75, proxima, { aprovacao: "pendente" }));
+      mapa["leads/exp-6"] = leadExpQa("exp-6", "Barbearia Manual", demoAutoQa(200, proxima, { origem: undefined, criadoPor: "admin", execucaoAutomacao: undefined }));
+      mapa["leads/exp-7"] = leadExpQa("exp-7", "Barbearia Reservada", demoAutoQa(80, proxima));
+      mapa["filaEnvios/exp-7"] = {
+        leadId: "exp-7", estado: "reservado", claimId: "qa-claim", reservadoEm: iso(1),
+        expiraEm: new Date(AGORA.getTime() - 86400000 + 300000).toISOString(), reservas: 1,
+        dispositivo: "android", tentativas: 0, ultimoErro: null, enviadoEm: null,
+      };
+    }
+    mapa["leads/exp-4"] = leadExpQa("exp-4", "Barbearia Recente", demoAutoQa(60, proxima));
+    mapa["leads/exp-5"] = leadExpQa("exp-5", "Barbearia Contactada", demoAutoQa(100, proxima), { status: "contactado" });
+    // A demo APAGADA: sem `demo`, sem `capturas`, com a marca — como a varredura deixa.
+    mapa["leads/exp-apagada"] = leadExpQa("exp-apagada", "Barbearia Que Venceu", undefined, {
+      automacaoExpirada: { em: iso(0.1), demoCriadaEm: iso(3.4), skinId: "barbearia-editorial", aprovacao: "aprovada", execucaoId: "qa-exec-exp" },
+    });
+    const execucao = { ...execucaoQa("ok"), id: "qa-exec-exp", varredura: VARREDURA_QA[estado] };
+    mapa[`automacaoExecucoes/${execucao.id}`] = execucao;
+    mapa["automacao/ultima"] = { execucaoId: execucao.id, estado: execucao.estado, em: execucao.finalizadaEm };
+    mapa["automacao/trava"] = { execucaoId: "", expiraEm: execucao.finalizadaEm, liberadaEm: execucao.finalizadaEm };
+  });
+}
+
+/** Luminância relativa e contraste WCAG de "rgb(r, g, b)". */
+function luminanciaQa(cor) {
+  const [r, g, b] = (cor.match(/\d+(\.\d+)?/g) ?? []).slice(0, 3).map(Number).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrasteQa(a, b) {
+  const [l1, l2] = [luminanciaQa(a), luminanciaQa(b)].sort((x, y) => y - x);
+  return (l1 + 0.05) / (l2 + 0.05);
+}
+
+async function medirExpiracao(browser, secret) {
+  if (!process.env.RADAR_DEVICE_KEY || !process.env.RADAR_DEVICE_USER_ID) {
+    throw new Error(
+      "[expiracao] rode com RADAR_DEVICE_KEY e RADAR_DEVICE_USER_ID no ambiente — sem elas a fila está bloqueada e a varredura não rodaria (o estado CHEIO não existe)",
+    );
+  }
+  const gerados = [];
+  const problemas = [];
+  const itensPainel = [];
+  const itensPagina = [];
+  const alturas = {};
+  guardarExpiracao();
+
+  try {
+    for (const [viewport, sufixo, tema] of [
+      [VIEWPORT_CELULAR, "celular", "escuro"],
+      [VIEWPORT_DESKTOP, "desktop", "escuro"],
+      [VIEWPORT_CELULAR, "celular-claro", "claro"],
+      [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+    ]) {
+      definirTemaNoDoc("admin", tema);
+      // No fuso de quem opera: a próxima varredura (06:30 UTC) aparece como 03:30.
+      const ctx = await contextoLogado(browser, { viewport, secret, tema, timezoneId: "America/Sao_Paulo" });
+      const page = await ctx.newPage();
+      const bloco = page.locator('[data-bloco="automacao-expiracao"]');
+      const contagem = page.locator('[data-expiracao="contagem"]');
+      const aviso = page.locator('[data-aviso="estoque-excede-fila"]');
+
+      const abrir = async (estado) => {
+        semearExpiracao(estado);
+        definirPaineisAbertosNoDoc("admin", ["automacao"]);
+        await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+        await assentar(page);
+        await exigirLogado(page, `expiracao/${estado}/${sufixo}`);
+        await exigirTema(page, tema, `expiracao/${estado}/${sufixo}`);
+        await bloco.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(300);
+      };
+
+      const capturar = async (rotulo, arquivo) => {
+        const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+        const pngBloco = path.join(SAIDA, `expiracao-${arquivo}-${sufixo}${marca}.png`);
+        // O bloco e a última execução (onde a varredura aparece), juntos.
+        const caixaBloco = await bloco.boundingBox();
+        const caixaUltima = await page.locator('[data-bloco="automacao-ultima"]').boundingBox();
+        await page.screenshot({
+          path: pngBloco,
+          fullPage: true,
+          clip: {
+            x: Math.max(caixaBloco.x - 12, 0),
+            y: caixaBloco.y + (await page.evaluate(() => window.scrollY)) - 8,
+            width: Math.min(caixaBloco.width + 24, viewport.width),
+            height: caixaUltima.y + caixaUltima.height - caixaBloco.y + 16,
+          },
+        });
+        await semNav.evaluate((no) => no.remove());
+        itensPainel.push({ rotulo: `${rotulo} · ${sufixo}`, png: pngBloco });
+      };
+
+      const textoContagem = async () => ((await contagem.innerText()) ?? "").trim();
+
+      // ── CHEIO.
+      await abrir("cheio");
+      await conferirPainelAutomacao(page, `cheio/${sufixo}`, viewport.width, problemas);
+      const tc = await textoContagem();
+      if (!/^3 demos automáticas não enviadas serão apagadas na próxima varredura \(.+\)\.$/.test(tc)) {
+        problemas.push(`cheio/${sufixo}: contagem inesperada "${tc}"`);
+      }
+      if ((await contagem.getAttribute("data-tom")) !== "apaga") problemas.push(`cheio/${sufixo}: contagem sem o tom "apaga"`);
+      if (!(await aviso.isVisible())) problemas.push(`cheio/${sufixo}: o aviso do estoque maior que a fila não apareceu`);
+      else {
+        const ta = await aviso.innerText();
+        if (!ta.includes("(15)") || !ta.includes("meta 10")) problemas.push(`cheio/${sufixo}: aviso sem os números ("${ta}")`);
+        const corAviso = await aviso.evaluate((el) => getComputedStyle(el).color);
+        const corContagem = await contagem.evaluate((el) => getComputedStyle(el).color);
+        if (corAviso === corContagem) problemas.push(`cheio/${sufixo}: aviso na mesma cor da contagem — não se destaca`);
+      }
+      const prazoInput = bloco.locator("input[type=number]");
+      if ((await prazoInput.inputValue()) !== "72") problemas.push(`cheio/${sufixo}: prazo não mostra 72`);
+      if ((await prazoInput.getAttribute("min")) !== "24") problemas.push(`cheio/${sufixo}: prazo sem o mínimo 24`);
+      const explicacao = await bloco.innerText();
+      if (!explicacao.includes("primeira varredura depois de 72h") || !explicacao.includes("entre 72h e 96h")) {
+        problemas.push(`cheio/${sufixo}: a tela não diz que o prazo efetivo depende da varredura diária`);
+      }
+      // A hora do texto e a da contagem saem do MESMO instante agendado.
+      if (!explicacao.includes("execução das 03:30") || !tc.includes(", 03:30)")) {
+        problemas.push(`cheio/${sufixo}: a hora da varredura não é 03:30 no fuso do operador nos dois lugares`);
+      }
+      // O espaço depois da hora: o build o comia quando a frase era texto JSX.
+      if (!explicacao.includes('03:30 (ou no "Rodar agora")')) {
+        problemas.push(`cheio/${sufixo}: a frase do agendamento saiu colada ("03:30(ou")`);
+      }
+      const varr = await page.locator('[data-ultima="varredura"]').innerText().catch(() => "");
+      if (!varr.includes("3 demos apagadas · 1 pulada")) problemas.push(`cheio/${sufixo}: última execução sem a varredura ("${varr}")`);
+      alturas[`cheio-${sufixo}`] = Math.round((await bloco.boundingBox()).height);
+      await capturar("CHEIO (3 a apagar + aviso)", "cheio");
+
+      // O PRAZO editado ao vivo: 85h deixa só a de 90h; "7" é recusado na tela.
+      await prazoInput.fill("85");
+      await prazoInput.press("Tab");
+      await page.waitForResponse((r) => r.url().endsWith("/api/config/automacao") && r.request().method() === "PUT").catch(() => {});
+      await page.waitForTimeout(400);
+      const tc85 = await textoContagem();
+      if (!/^1 demo automática não enviada será apagada na próxima varredura/.test(tc85)) {
+        problemas.push(`cheio/${sufixo}: com 85h a contagem não acompanhou ("${tc85}")`);
+      }
+      await prazoInput.fill("7");
+      await prazoInput.press("Tab");
+      await page.waitForTimeout(400);
+      if ((await prazoInput.inputValue()) !== "85") problemas.push(`cheio/${sufixo}: "7" (abaixo do mínimo) não foi revertido`);
+
+      // ── VAZIO.
+      await abrir("vazio");
+      await conferirPainelAutomacao(page, `vazio/${sufixo}`, viewport.width, problemas);
+      const tv = await textoContagem();
+      if (!/^Nenhuma demo será apagada na próxima varredura \(.+\)\.$/.test(tv)) problemas.push(`vazio/${sufixo}: contagem inesperada "${tv}"`);
+      if (await aviso.count()) problemas.push(`vazio/${sufixo}: o aviso apareceu com alvo 8 e meta 10`);
+      const varrV = await page.locator('[data-ultima="varredura"]').innerText().catch(() => "");
+      if (!varrV.includes("0 demos apagadas · 0 puladas")) problemas.push(`vazio/${sufixo}: última execução sem a varredura vazia ("${varrV}")`);
+      alturas[`vazio-${sufixo}`] = Math.round((await bloco.boundingBox()).height);
+      await capturar("VAZIO (nada a apagar, sem aviso)", "vazio");
+
+      // ── FILA PAUSADA.
+      await abrir("pausada");
+      await conferirPainelAutomacao(page, `pausada/${sufixo}`, viewport.width, problemas);
+      const tp = await textoContagem();
+      if (!tp.includes("não apaga nada: fila de envio pausada") || !tp.includes("3 demos já estariam vencidas")) {
+        problemas.push(`pausada/${sufixo}: contagem inesperada "${tp}"`);
+      }
+      const varrP = await page.locator('[data-ultima="varredura"]').innerText().catch(() => "");
+      if (!varrP.includes("não rodou — fila de envio pausada")) problemas.push(`pausada/${sufixo}: última execução não diz que não rodou ("${varrP}")`);
+      await capturar("FILA PAUSADA (não apaga)", "pausada");
+
+      await ctx.close();
+    }
+
+    // ── A PÁGINA NEUTRA da demo apagada: pública, sem sessão nenhuma.
+    semearExpiracao("vazio");
+    for (const [viewport, rotuloTela] of [
+      [VIEWPORT_CELULAR, "celular"],
+      [VIEWPORT_DESKTOP, "desktop"],
+    ]) {
+      for (const esquema of ["dark", "light"]) {
+        const ctx = await browser.newContext({
+          viewport,
+          colorScheme: esquema,
+          ...(viewport === VIEWPORT_CELULAR && { deviceScaleFactor: 2, isMobile: true, hasTouch: true }),
+        });
+        const page = await ctx.newPage();
+        const onde = `pagina/${rotuloTela}/${esquema}`;
+        const resp = await page.goto(`${BASE}/demo/exp-apagada?t=qa-link`, { waitUntil: "networkidle" });
+        if (resp?.status() !== 200) problemas.push(`${onde}: status ${resp?.status()}, esperava 200`);
+        const r = await page.evaluate(() => {
+          const main = document.querySelector('[data-demo="indisponivel"]');
+          const h1 = main?.querySelector("h1");
+          const p = main?.querySelector("p");
+          const robots = document.querySelector('meta[name="robots"]')?.getAttribute("content") ?? "";
+          const temas = [...document.querySelectorAll('meta[name="theme-color"]')].map((m) => m.getAttribute("media") ?? "");
+          const caixaH1 = h1?.getBoundingClientRect();
+          return {
+            existe: Boolean(main),
+            titulo: h1?.textContent ?? "",
+            texto: p?.textContent ?? "",
+            fundoMain: main ? getComputedStyle(main).backgroundColor : "",
+            fundoBody: getComputedStyle(document.body).backgroundColor,
+            corH1: h1 ? getComputedStyle(h1).color : "",
+            corP: p ? getComputedStyle(p).color : "",
+            robots,
+            temas,
+            cromo: document.querySelectorAll("nav, header").length,
+            rolagemX: document.documentElement.scrollWidth - window.innerWidth,
+            h1Topo: caixaH1?.top ?? -1,
+            h1Base: caixaH1?.bottom ?? -1,
+            altura: window.innerHeight,
+            corpo: document.body.innerText,
+          };
+        });
+        if (!r.existe) problemas.push(`${onde}: página neutra não renderizou`);
+        if (r.titulo !== "Esta demonstração não está mais disponível.") problemas.push(`${onde}: título "${r.titulo}"`);
+        if (r.corpo.includes("Barbearia Que Venceu")) problemas.push(`${onde}: o nome do negócio apareceu na página neutra`);
+        if (!r.robots.includes("noindex")) problemas.push(`${onde}: sem noindex ("${r.robots}")`);
+        if (!(r.temas.includes("(prefers-color-scheme: light)") && r.temas.includes("(prefers-color-scheme: dark)"))) {
+          problemas.push(`${onde}: theme-color sem os dois esquemas (${r.temas.join(", ")})`);
+        }
+        if (r.cromo > 0) problemas.push(`${onde}: cromo da plataforma (nav/header) na página pública`);
+        if (r.rolagemX > 0) problemas.push(`${onde}: rolagem horizontal de ${r.rolagemX}px`);
+        if (r.fundoBody !== r.fundoMain) problemas.push(`${onde}: fundo do body (${r.fundoBody}) diferente do da página (${r.fundoMain})`);
+        const lum = luminanciaQa(r.fundoMain);
+        if (esquema === "dark" ? lum > 0.05 : lum < 0.8) problemas.push(`${onde}: fundo ${r.fundoMain} não é ${esquema}`);
+        const cTitulo = contrasteQa(r.corH1, r.fundoMain);
+        const cTexto = contrasteQa(r.corP, r.fundoMain);
+        if (cTitulo < 7) problemas.push(`${onde}: contraste do título ${cTitulo.toFixed(1)} < 7`);
+        if (cTexto < 4.5) problemas.push(`${onde}: contraste do texto ${cTexto.toFixed(1)} < 4.5`);
+        if (r.h1Topo < 0 || r.h1Base > r.altura) problemas.push(`${onde}: título fora da tela`);
+        console.log(`[expiracao] ${onde}: 200, fundo ${r.fundoMain}, contraste título ${cTitulo.toFixed(1)} / texto ${cTexto.toFixed(1)}`);
+        const png = path.join(SAIDA, `expiracao-pagina-${rotuloTela}-${esquema === "dark" ? "escuro" : "claro"}${marca}.png`);
+        await page.screenshot({ path: png });
+        itensPagina.push({ rotulo: `${rotuloTela} · ${esquema === "dark" ? "escuro" : "claro"}`, png });
+        await ctx.close();
+      }
+    }
+    {
+      const ctx = await browser.newContext({ viewport: VIEWPORT_DESKTOP });
+      const page = await ctx.newPage();
+      const resp = await page.goto(`${BASE}/demo/exp-nao-existe`);
+      if (resp?.status() !== 404) problemas.push(`pagina: lead inexistente deu ${resp?.status()}, esperava 404`);
+      await ctx.close();
+    }
+  } finally {
+    restaurarExpiracao();
+  }
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, 'Expiração — bloco do painel "Automação"', "expiracao-painel", [
+      { rotulo: "celular · escuro", itens: itensPainel.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itensPainel.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itensPainel.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itensPainel.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  gerados.push(
+    await folhaDeContato(folha, "Expiração — página neutra de /demo/{id} (demo apagada)", "expiracao-pagina", [
+      { rotulo: "celular", itens: itensPagina.filter((i) => i.rotulo.startsWith("celular")) },
+      { rotulo: "desktop", itens: itensPagina.filter((i) => i.rotulo.startsWith("desktop")) },
+    ]),
+  );
+  await folha.close();
+  gerados.push(...itensPainel.map((i) => i.png), ...itensPagina.map((i) => i.png));
+
+  console.log(`[expiracao] altura do bloco (px): ${JSON.stringify(alturas)}`);
+  if (problemas.length > 0) {
+    throw new Error(`[expiracao] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[expiracao] ok — cheio (contagem, aviso, prazo ao vivo), vazio, fila pausada; página neutra 200 nos dois esquemas; inexistente 404.");
+  return gerados;
+}
+
 /* ── main ────────────────────────────────────────────────────────────── */
 
 async function main() {
@@ -6759,6 +7145,7 @@ async function main() {
     if (querido("seletor")) gerados.push(...(await medirSeletorLead(browser, secret)));
     if (querido("vestigio")) gerados.push(...(await medirSemVestigio(browser, secret)));
     if (querido("automacao")) gerados.push(...(await medirAutomacao(browser, secret)));
+    if (querido("expiracao")) gerados.push(...(await medirExpiracao(browser, secret)));
     if (querido("paineis")) gerados.push(...(await medirPaineisConfig(browser, secret)));
     if (querido("lote")) gerados.push(...(await medirLote(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));

@@ -86,8 +86,8 @@ export function motivoParaNaoVarrer(
   filaConfig: Pick<FilaConfig, "ativo">,
   env: Ambiente = process.env,
 ): string | undefined {
-  if (!filaConfig.ativo) return "fila de envio pausada — sem chance de mandar, nada vence";
-  if (motivoDeSaude(env)) return "fila de envio bloqueada por config ausente — sem chance de mandar, nada vence";
+  if (!filaConfig.ativo) return "fila de envio pausada (sem chance de mandar, nada vence)";
+  if (motivoDeSaude(env)) return "fila de envio bloqueada por config ausente (sem chance de mandar, nada vence)";
   return undefined;
 }
 

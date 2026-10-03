@@ -5,6 +5,7 @@ import type { LeadDemo } from "@/lib/demos/types";
 import type { Lead } from "@/lib/leads/types";
 
 import { AUTOMACAO_USER_ID } from "./autor";
+import { vencimentoMs } from "./painelTipos";
 
 /**
  * EXPIRAÇÃO das demos que a automação criou e a fila nunca mandou — QUEM
@@ -119,11 +120,6 @@ export function midiaDoOperador(lead: Lead): boolean {
   );
 }
 
-/** `demo.criadoEm` em ms, ou `undefined` quando não é uma data. */
-function criadoEmMs(demo: LeadDemo): number | undefined {
-  const ms = Date.parse(demo.criadoEm);
-  return Number.isFinite(ms) ? ms : undefined;
-}
 
 /**
  * O que protege a demo, INDEPENDENTE do prazo — ou `undefined` quando nada
@@ -160,7 +156,7 @@ export function protecaoDaDemo(lead: Lead, sinais: SinaisFila, now: Date): Motiv
   if (emAndamento(lead.capturas?.estado) && !semNoticia(lead.capturas, now.getTime())) {
     return "capturaEmAndamento";
   }
-  if (criadoEmMs(demo) === undefined) return "criadoEmInvalido";
+  if (vencimentoMs(demo.criadoEm, 0) === undefined) return "criadoEmInvalido";
   return undefined;
 }
 
@@ -169,9 +165,7 @@ export function protecaoDaDemo(lead: Lead, sinais: SinaisFila, now: Date): Motiv
  * demo ou com data inválida (que nunca vence).
  */
 export function vencimentoDaDemo(demo: LeadDemo | undefined, prazoHoras: number): number | undefined {
-  if (!demo) return undefined;
-  const criado = criadoEmMs(demo);
-  return criado === undefined ? undefined : criado + prazoHoras * 3_600_000;
+  return demo ? vencimentoMs(demo.criadoEm, prazoHoras) : undefined;
 }
 
 /**

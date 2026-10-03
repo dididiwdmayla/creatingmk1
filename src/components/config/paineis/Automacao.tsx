@@ -12,6 +12,9 @@ import { ApiError, api } from "@/lib/api-client";
 import type { AutomacaoConfig } from "@/lib/automacao/config";
 import type { ExecucaoAtiva } from "@/lib/automacao/disparo";
 import {
+  EXPIRACAO_MIN_HORAS,
+  contarAApagar,
+  estoqueExcedeFila,
   execucaoMorta,
   resumoCabecalho,
   type PainelAutomacao,
@@ -234,6 +237,11 @@ export function AutomacaoSection() {
           </div>
 
           <EstoqueBloco painel={painel} />
+          <ExpiracaoBloco
+            painel={painel}
+            ocupado={ocupado === "expiracaoDemoHoras"}
+            onSalvar={(valor) => salvar({ expiracaoDemoHoras: valor }, "expiracaoDemoHoras")}
+          />
           <UltimaExecucao ultima={painel.ultima} ativa={painel.ativa} tetos={config} />
 
           <div className="mt-4 flex flex-col gap-1 border-t border-line pt-3">
@@ -359,6 +367,115 @@ function EstoqueBloco({ painel }: { painel: PainelAutomacao }) {
   );
 }
 
+function plural(n: number, um: string, varios: string): string {
+  return `${formatInt(n)} ${n === 1 ? um : varios}`;
+}
+
+/**
+ * EXPIRAÇÃO das demos automáticas não enviadas (ver "Expiração das demos
+ * automáticas" no ARCHITECTURE.md): o prazo, quantas a próxima varredura
+ * apaga — contadas aqui, sobre a lista do retrato, para acompanhar o campo
+ * enquanto ele é editado — e o aviso do estoque maior do que a fila manda.
+ */
+function ExpiracaoBloco({
+  painel,
+  ocupado,
+  onSalvar,
+}: {
+  painel: PainelAutomacao;
+  ocupado: boolean;
+  onSalvar: (valor: number) => void;
+}) {
+  const { config, expiracao } = painel;
+  const prazo = config.expiracaoDemoHoras;
+  const excede = expiracao !== null && estoqueExcedeFila(config.alvoEstoque, expiracao.metaDiaria);
+  // A hora do agendamento no fuso de quem olha — a mesma régua da data da
+  // contagem, que `formatDateTime` também formata no fuso do navegador.
+  const horaAgendada = expiracao
+    ? new Date(expiracao.proximaVarreduraEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : undefined;
+
+  let contagem: { texto: string; tom: "neutro" | "apaga" };
+  if (!config.ativo) {
+    contagem = { texto: "Automação desligada: a varredura não roda e nada é apagado.", tom: "neutro" };
+  } else if (!expiracao) {
+    contagem = { texto: "Contagem ainda sem retrato (a fila nunca foi varrida).", tom: "neutro" };
+  } else {
+    const quando = formatDateTime(expiracao.proximaVarreduraEm);
+    const { vencidas, aApagar, ficam } = contarAApagar(expiracao, prazo, Date.parse(expiracao.proximaVarreduraEm));
+    if (expiracao.naoRodaria) {
+      contagem = {
+        texto: `A próxima varredura (${quando}) não apaga nada: ${expiracao.naoRodaria}.${
+          vencidas > 0 ? ` ${plural(vencidas, "demo já estaria", "demos já estariam")} vencida${vencidas === 1 ? "" : "s"}.` : ""
+        }`,
+        tom: "neutro",
+      };
+    } else if (aApagar === 0) {
+      contagem = { texto: `Nenhuma demo será apagada na próxima varredura (${quando}).`, tom: "neutro" };
+    } else {
+      contagem = {
+        texto: `${plural(aApagar, "demo automática não enviada será apagada", "demos automáticas não enviadas serão apagadas")} na próxima varredura (${quando}).${
+          ficam > 0 ? ` Outras ${formatInt(ficam)} passam do teto de ${expiracao.teto} por execução e ficam para a seguinte.` : ""
+        }`,
+        tom: "apaga",
+      };
+    }
+  }
+
+  return (
+    <div data-bloco="automacao-expiracao" className="mt-4 flex flex-col gap-1 border-t border-line pt-3">
+      <span className="text-xs font-medium text-ink-secondary">Expiração das demos não enviadas</span>
+      <div className="flex items-center gap-2 text-xs text-ink-secondary">
+        <span className="w-32 shrink-0 sm:w-44">Prazo</span>
+        <FilaNumeroInput
+          valor={prazo}
+          min={EXPIRACAO_MIN_HORAS}
+          rotulo="Prazo da demo não enviada, em horas"
+          disabled={ocupado}
+          onSalvar={onSalvar}
+        />
+        <span className="text-ink-muted">horas</span>
+      </div>
+      {/* Uma string só, e não texto JSX: o espaço logo depois de uma
+          expressão `{…}` sumia no build ("03:30(ou no") — a captura mostrou. */}
+      <p className="text-xs text-ink-muted">
+        {`Apagada na primeira varredura depois de ${prazo}h da criação. A varredura roda uma vez por dia, na execução ${
+          horaAgendada ? `das ${horaAgendada}` : "da madrugada"
+        } (ou no "Rodar agora") — na prática, entre ${prazo}h e ${prazo + 24}h. Mínimo de ${EXPIRACAO_MIN_HORAS}h. Só demo automática que nunca saiu: envio, reserva da fila, visita, contato ou foto subida à mão a protegem.`}
+      </p>
+      <p
+        data-expiracao="contagem"
+        data-tom={contagem.tom}
+        className={`text-xs ${contagem.tom === "apaga" ? "font-medium text-foreground" : "text-ink-secondary"}`}
+      >
+        {contagem.texto}
+      </p>
+      {excede && expiracao && (
+        <p
+          data-aviso="estoque-excede-fila"
+          role="note"
+          className="mt-1 rounded border border-warning/50 bg-warning/10 px-2 py-1.5 text-xs text-warning"
+        >
+          ⚠ O estoque alvo ({formatInt(config.alvoEstoque)}) é maior do que a fila manda por dia
+          (meta {formatInt(expiracao.metaDiaria)}). A sobra espera — e a demo que passar de {prazo}h
+          sem sair vence antes de sair e é apagada.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function textoVarredura(v: NonNullable<ResumoExecucao["varredura"]>): string {
+  if (v.naoRodou) return `varredura (prazo ${v.prazoHoras}h): não rodou — ${v.naoRodou}`;
+  const partes = [
+    `varredura (prazo ${v.prazoHoras}h): ${plural(v.apagadas, "demo apagada", "demos apagadas")}`,
+    plural(v.puladas, "pulada", "puladas"),
+  ];
+  if (v.restantes > 0) partes.push(`${formatInt(v.restantes)} para a próxima`);
+  if (v.storageFalhou > 0) partes.push(`${plural(v.storageFalhou, "limpeza", "limpezas")} de Storage pendente${v.storageFalhou === 1 ? "" : "s"}`);
+  return partes.join(" · ");
+}
+
 const ROTULO_DISPARO: Record<string, string> = {
   schedule: "agendada",
   workflow_dispatch: "manual no GitHub",
@@ -426,6 +543,11 @@ function UltimaExecucao({
           estoque {ultima.estoqueAntes.total}
           {ultima.estoqueDepois ? ` → ${ultima.estoqueDepois.total}` : ""} (alvo {ultima.alvo}
           {ultima.falta > 0 ? `, faltavam ${ultima.falta}` : ""})
+        </p>
+      )}
+      {ultima.varredura && (
+        <p data-ultima="varredura" className="text-xs text-ink-muted">
+          {textoVarredura(ultima.varredura)}
         </p>
       )}
       {ultima.falhas > 0 && (

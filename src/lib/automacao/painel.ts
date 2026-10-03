@@ -2,6 +2,7 @@ import { capturasDisponiveis } from "@/lib/github/dispatch";
 import { estadoVisivel, type LeadCapturas } from "@/lib/demos/capturas/estado";
 import { getSkin, getTheme } from "@/lib/demos/registry";
 import { lerPool, reconstruirPool, type PoolCandidatos } from "@/lib/fila/candidatos";
+import { loadFilaConfig } from "@/lib/fila/config";
 import type { AppDb } from "@/lib/firestore-like";
 import { getLead } from "@/lib/leads/repo";
 import { opcaoDoLead } from "@/lib/leads/selecao";
@@ -11,7 +12,14 @@ import { demoAutomaticaPendente } from "./balde";
 import { loadAutomacaoConfig } from "./config";
 import { execucaoAtiva } from "./disparo";
 import { execucaoRef, ultimaRef, type EstadoUnidade, type ExecucaoAutomacao } from "./execucao";
-import type { ItemAprovacao, PainelAutomacao, ResumoExecucao } from "./painelTipos";
+import {
+  proximaVarreduraAgendada,
+  type ExpiracaoPainel,
+  type ItemAprovacao,
+  type PainelAutomacao,
+  type ResumoExecucao,
+} from "./painelTipos";
+import { VARREDURA_MAX, motivoParaNaoVarrer } from "./varredura";
 
 /**
  * Monta o painel "Automação" da /config numa chamada — config, estoque,
@@ -60,6 +68,16 @@ export function resumirExecucao(execucao: ExecucaoAutomacao): ResumoExecucao {
     falhas: falhas.length,
     ...(falhas[0] && { primeiraFalha: falhas[0].motivo }),
     unidades,
+    ...(execucao.varredura && {
+      varredura: {
+        prazoHoras: execucao.varredura.prazoHoras,
+        ...(execucao.varredura.naoRodou && { naoRodou: execucao.varredura.naoRodou }),
+        apagadas: execucao.varredura.apagadas,
+        puladas: execucao.varredura.puladas,
+        restantes: execucao.varredura.restantes,
+        storageFalhou: execucao.varredura.storageFalhou,
+      },
+    }),
     ...(execucao.motivo && { motivo: execucao.motivo }),
     ...(execucao.erro && { erro: execucao.erro }),
   };
@@ -77,8 +95,8 @@ async function lerUltima(db: AppDb): Promise<{ em?: string; execucao?: ExecucaoA
 
 /**
  * O pool para o painel: o do TTL, refeito se for anterior à última
- * execução ou se não tiver o retrato do estoque (doc gravado antes deste
- * campo existir).
+ * execução ou se não tiver o retrato do estoque ou o da expiração (doc
+ * gravado antes desses campos existirem).
  */
 export async function poolDoPainel(
   db: AppDb,
@@ -88,7 +106,7 @@ export async function poolDoPainel(
   const corteLegado = (await loadAutomacaoConfig(db)).corteLegado;
   const pool = await lerPool(db, now, { corteLegado });
   const anterior = ultimaEm !== undefined && pool.geradoEm < ultimaEm;
-  if (!pool.estoque || anterior) return reconstruirPool(db, now, { corteLegado });
+  if (!pool.estoque || !pool.expiraveis || anterior) return reconstruirPool(db, now, { corteLegado });
   return pool;
 }
 
@@ -130,11 +148,37 @@ export function itemDeAprovacao(lead: Lead, now: Date): ItemAprovacao | undefine
   };
 }
 
+/**
+ * A expiração para a tela: a lista do retrato do pool (o critério da
+ * varredura, sem o prazo), o motivo de a próxima varredura não apagar nada
+ * (a MESMA regra dela — fila pausada ou bloqueada) e a meta diária da fila,
+ * para o aviso do estoque maior do que a fila manda.
+ */
+export function expiracaoDoPainel(
+  pool: PoolCandidatos,
+  filaConfig: { ativo: boolean; metaDiaria: number },
+  now: Date,
+  env: Record<string, string | undefined> = process.env,
+): ExpiracaoPainel | null {
+  if (!pool.expiraveis) return null;
+  const naoRodaria = motivoParaNaoVarrer(filaConfig, env);
+  return {
+    criadas: pool.expiraveis,
+    total: pool.expiraveisTotal ?? pool.expiraveis.length,
+    geradoEm: pool.geradoEm,
+    proximaVarreduraEm: new Date(proximaVarreduraAgendada(now.getTime())).toISOString(),
+    ...(naoRodaria && { naoRodaria }),
+    teto: VARREDURA_MAX,
+    metaDiaria: filaConfig.metaDiaria,
+  };
+}
+
 export async function montarPainelAutomacao(db: AppDb, now: Date = new Date()): Promise<PainelAutomacao> {
-  const [config, ultima, ativa] = await Promise.all([
+  const [config, ultima, ativa, filaConfig] = await Promise.all([
     loadAutomacaoConfig(db),
     lerUltima(db),
     execucaoAtiva(db, now),
+    loadFilaConfig(db),
   ]);
   const pool = await poolDoPainel(db, now, ultima.em);
 
@@ -149,6 +193,7 @@ export async function montarPainelAutomacao(db: AppDb, now: Date = new Date()): 
 
   return {
     config,
+    expiracao: expiracaoDoPainel(pool, filaConfig, now),
     estoque: pool.estoque ? { ...pool.estoque, geradoEm: pool.geradoEm } : null,
     ultima: ultima.execucao ? resumirExecucao(ultima.execucao) : null,
     ativa,
