@@ -21,15 +21,6 @@ import { AUTOMACAO_USER_ID } from "./autor";
  * Ver "Expiração das demos automáticas não enviadas" em ARCHITECTURE.md.
  */
 
-/** Prazo padrão, em horas a partir de `demo.criadoEm`. */
-export const EXPIRACAO_PADRAO_HORAS = 72;
-
-/**
- * Prazo mínimo aceito na config. Um "7" digitado no lugar de "72" apagaria
- * a noite anterior inteira antes de o operador aprovar qualquer coisa.
- */
-export const EXPIRACAO_MIN_HORAS = 24;
-
 /**
  * Por que a demo NÃO pode ser apagada — qualquer prazo. A ordem é a da
  * avaliação, e o primeiro que casar é o que vale:

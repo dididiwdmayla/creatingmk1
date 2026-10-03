@@ -2,6 +2,7 @@ import { ConflictError, NotFoundError } from "@/lib/errors";
 import type { AppDb, UsageTransaction } from "@/lib/firestore-like";
 
 import type { Estoque } from "./estoque";
+import type { ResultadoVarredura } from "./varredura";
 
 /**
  * O PLANO DA NOITE e o REGISTRO da execução — o mesmo doc,
@@ -127,6 +128,12 @@ export interface ExecucaoAutomacao {
   capturas?: LoteCapturas[];
   /** O último bloqueio que impediu mais trabalho (teto, par) — vira o motivo de parada. */
   bloqueio?: string;
+  /**
+   * A varredura das demos automáticas vencidas, feita no `planejar` antes
+   * do estoque (ver `varredura.ts`). Ausente = a execução não chegou a
+   * varrer (desligada, recusada, falha antes do plano).
+   */
+  varredura?: ResultadoVarredura;
   /** Nada a fazer / recusada / motivo de parada. */
   motivo?: string;
   erro?: string;

@@ -51,6 +51,24 @@ describe("/api/config/automacao", () => {
     expect(automacao.ativo).toBe(true);
   });
 
+  it("prazo da demo não enviada: padrão 72h, editável, mínimo 24h", async () => {
+    const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
+    expect((await (await GET(req("GET", cookie))).json()).automacao.expiracaoDemoHoras).toBe(72);
+
+    expect((await PUT(req("PUT", cookie, { expiracaoDemoHoras: 96 }))).status).toBe(200);
+    expect((await (await GET(req("GET", cookie))).json()).automacao.expiracaoDemoHoras).toBe(96);
+
+    // Um "7" digitado no lugar de "72" apagaria a noite anterior inteira.
+    for (const valor of [7, 23, 0, 24.5, "72"]) {
+      expect((await PUT(req("PUT", cookie, { expiracaoDemoHoras: valor }))).status).toBe(400);
+    }
+    expect((await PUT(req("PUT", cookie, { expiracaoDemoHoras: 24 }))).status).toBe(200);
+
+    // Gravado à mão abaixo do mínimo, o doc cai no valor anterior (o padrão).
+    db.seed("config/automacao", { expiracaoDemoHoras: 5 });
+    expect((await (await GET(req("GET", cookie))).json()).automacao.expiracaoDemoHoras).toBe(72);
+  });
+
   it("valida: chave desconhecida, inteiro negativo e data malformada são 400", async () => {
     const cookie = await cookieDeSessao(db, { id: "admin", papel: "admin" });
     for (const corpo of [{ foo: 1 }, { alvoEstoque: -1 }, { corteLegado: "10/08/2026" }]) {

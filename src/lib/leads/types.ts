@@ -197,6 +197,32 @@ export interface Lead {
    * toda noite. Ausente = nunca reprovado.
    */
   automacaoReprovada?: { em: string; por?: string };
+  /**
+   * A demo que a automação fez para este lead VENCEU sem ser enviada e foi
+   * apagada pela varredura da execução diária (`lib/automacao/varredura.ts`).
+   * Mesma ideia de `automacaoReprovada`: marca do LEAD, para o planejador
+   * nunca mais escolhê-lo — sem isto ele voltaria a "sem demo" e a
+   * automação refaria a demo na noite seguinte, para sempre. O lead
+   * continua disponível para demo manual. Ausente = nunca expirou.
+   */
+  automacaoExpirada?: {
+    /** Quando a demo foi apagada. */
+    em: string;
+    /** `demo.criadoEm` da demo apagada — o relógio do prazo. */
+    demoCriadaEm: string;
+    skinId: string;
+    /** A aprovação no instante da exclusão (aprovada e não enviada também vence). */
+    aprovacao?: "pendente" | "aprovada" | "reprovada";
+    /** A execução da automação cuja varredura apagou. */
+    execucaoId: string;
+    /**
+     * A limpeza do Storage (capturas e uploads da demo) ainda não terminou.
+     * Gravado NA MESMA transação que apaga a demo e limpo depois que os
+     * arquivos saem — se a função morrer ou o Storage falhar no meio, a
+     * próxima varredura tenta de novo. Nada pago ou órfão sobra.
+     */
+    storagePendente?: boolean;
+  };
   criadoEm: string;
   atualizadoEm: string;
 }

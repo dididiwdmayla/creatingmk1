@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { LeadDemo } from "@/lib/demos/types";
 import type { Lead } from "@/lib/leads/types";
 import {
-  EXPIRACAO_PADRAO_HORAS,
   midiaDoOperador,
   motivoNaoExpira,
   origemAutomaticaComprovada,
@@ -12,6 +11,7 @@ import {
   vencimentoDaDemo,
   type SinaisFila,
 } from "../expiracao";
+import { EXPIRACAO_PADRAO_HORAS } from "../painelTipos";
 
 /** Relógio congelado: a varredura das 06:30 UTC. */
 const AGORA = new Date("2026-10-03T06:30:00.000Z");

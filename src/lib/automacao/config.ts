@@ -2,6 +2,8 @@ import { ValidationError } from "@/lib/errors";
 import type { AppDb } from "@/lib/firestore-like";
 import { CORTE_PADRAO, corteValido } from "@/lib/leads/semVestigio";
 
+import { EXPIRACAO_MIN_HORAS, EXPIRACAO_PADRAO_HORAS } from "./painelTipos";
+
 /**
  * `/config/automacao` — documento único da automação do estoque de leads
  * prontos (ver "Automação do estoque" em ARCHITECTURE.md). Doc PRÓPRIO,
@@ -61,6 +63,13 @@ export interface AutomacaoConfig {
    * menos que isto de leads novos sai do rodízio de pares.
    */
   saturacaoMinNovos: number;
+  /**
+   * Prazo da demo automática NÃO ENVIADA, em horas a partir da criação:
+   * vencida, a varredura da execução diária a apaga (ver
+   * `lib/automacao/expiracao.ts` e `varredura.ts`). Mínimo
+   * `EXPIRACAO_MIN_HORAS` — abaixo dele o PUT é 400 e o doc cai no padrão.
+   */
+  expiracaoDemoHoras: number;
 }
 
 export const DEFAULT_AUTOMACAO_CONFIG: AutomacaoConfig = {
@@ -74,6 +83,7 @@ export const DEFAULT_AUTOMACAO_CONFIG: AutomacaoConfig = {
   intervaloParHoras: 20,
   saturacaoExecucoes: 3,
   saturacaoMinNovos: 3,
+  expiracaoDemoHoras: EXPIRACAO_PADRAO_HORAS,
 };
 
 const BOOLEANOS = ["ativo", "aprovacaoAutomatica", "textoIA"] as const;
@@ -84,6 +94,7 @@ const INTEIROS = [
   "intervaloParHoras",
   "saturacaoExecucoes",
   "saturacaoMinNovos",
+  "expiracaoDemoHoras",
 ] as const;
 
 const CHAVES = new Set<string>([...BOOLEANOS, ...INTEIROS, "corteLegado"]);
@@ -111,6 +122,13 @@ export function validateAutomacaoConfigPatch(
     if (v !== undefined && (typeof v !== "number" || !Number.isInteger(v) || v < 0)) {
       problemas.push(`${campo} deve ser inteiro ≥ 0`);
     }
+  }
+  if (
+    typeof patch.expiracaoDemoHoras === "number" &&
+    Number.isInteger(patch.expiracaoDemoHoras) &&
+    patch.expiracaoDemoHoras < EXPIRACAO_MIN_HORAS
+  ) {
+    problemas.push(`expiracaoDemoHoras deve ser ≥ ${EXPIRACAO_MIN_HORAS} (horas)`);
   }
   if (
     patch.corteLegado !== undefined &&
@@ -152,6 +170,12 @@ export function mergeAutomacaoConfig(
     intervaloParHoras: inteiro(patch.intervaloParHoras, base.intervaloParHoras),
     saturacaoExecucoes: inteiro(patch.saturacaoExecucoes, base.saturacaoExecucoes),
     saturacaoMinNovos: inteiro(patch.saturacaoMinNovos, base.saturacaoMinNovos),
+    // Abaixo do mínimo, gravado à mão no doc, cai no anterior: um prazo
+    // curto demais apaga o que o operador ainda nem viu.
+    expiracaoDemoHoras:
+      inteiro(patch.expiracaoDemoHoras, base.expiracaoDemoHoras) >= EXPIRACAO_MIN_HORAS
+        ? inteiro(patch.expiracaoDemoHoras, base.expiracaoDemoHoras)
+        : base.expiracaoDemoHoras,
   };
 }
 

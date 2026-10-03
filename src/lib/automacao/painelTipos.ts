@@ -73,6 +73,19 @@ export interface PainelAutomacao {
   disparoDisponivel: boolean;
 }
 
+/**
+ * Prazo PADRÃO da expiração da demo automática não enviada, em horas a
+ * partir de `demo.criadoEm` (ver `lib/automacao/expiracao.ts`). Mora aqui,
+ * no módulo client-safe, porque a config valida e a tela mostra.
+ */
+export const EXPIRACAO_PADRAO_HORAS = 72;
+
+/**
+ * Prazo MÍNIMO aceito. Um "7" digitado no lugar de "72" apagaria a noite
+ * anterior inteira antes de o operador aprovar qualquer coisa.
+ */
+export const EXPIRACAO_MIN_HORAS = 24;
+
 /** Teto por chamada da aprovação em lote — cada lead é uma leitura e uma escrita. */
 export const APROVACAO_LOTE_MAX = 50;
 

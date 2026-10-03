@@ -19,6 +19,7 @@ export type MotivoInelegivel =
   | "telefoneInvalido"
   | "semTelefone"
   | "reprovado"
+  | "expirada"
   | "temDemo"
   | "nichoSemSkin"
   | "legado";
@@ -34,6 +35,10 @@ export type MotivoInelegivel =
  * - **reprovado**: o operador reprovou uma demo automática deste lead — a
  *   marca é do LEAD (`automacaoReprovada`), então apagar a demo não o traz
  *   de volta.
+ * - **expirada**: a demo automática deste lead venceu sem ser enviada e a
+ *   varredura a apagou (`automacaoExpirada`) — do mesmo jeito que o
+ *   reprovado, senão a automação refaria a demo na noite seguinte, para
+ *   sempre.
  * - **legado**: criado ANTES da data de corte (dia em São Paulo). Sem
  *   vestígio não quer dizer sem contato: antes de `registrosEnvio` existir,
  *   quem foi abordado à mão não deixou rastro. Demo para ele é mensagem
@@ -59,6 +64,7 @@ export function motivoInelegivelAutomacao(
   if (lead.telefoneInvalido === true) return "telefoneInvalido";
   if (!(lead.detalhes?.telefoneIntl ?? lead.telefoneIntl)) return "semTelefone";
   if (lead.automacaoReprovada) return "reprovado";
+  if (lead.automacaoExpirada) return "expirada";
   if (lead.demo) return "temDemo";
   if (!lead.busca?.nicho || skinsDoNicho(lead.busca.nicho).length === 0) return "nichoSemSkin";
   if (ehLegado(lead, corteLegado)) return "legado";

@@ -263,6 +263,7 @@ describe("linha do cabeçalho fechado", () => {
       intervaloParHoras: 20,
       saturacaoExecucoes: 3,
       saturacaoMinNovos: 3,
+      expiracaoDemoHoras: 72,
     },
     estoque: { prontos: 9, aguardandoAprovacao: 3, capturasEmAndamento: 0, total: 12, geradoEm: "x" },
     ultima: null,
