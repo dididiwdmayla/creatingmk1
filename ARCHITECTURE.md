@@ -702,6 +702,18 @@ Regras de escrita:
 - O enriquecimento também grava `temSite`/`siteUrl`/`siteProprio` (o mask Enterprise pede `websiteUri`, então a resposta é definitiva).
 - Transições válidas: `novo → contactado → respondeu → fechado` (e `contactado → fechado` direto). Cada transição carimba o timestamp correspondente em `contato`, que alimenta as métricas.
 
+### Escritas transacionais no lead (`modificarLead` em `src/lib/leads/repo.ts`)
+
+**O defeito.** Toda escrita de `leads/repo.ts` era leitura-modificação-escrita SEM transação, gravando o doc INTEIRO. Se outra escrita caísse entre a leitura e a gravação — o `POST /api/fila/confirmar` movendo o lead para "contactado" com selo e registro, por exemplo —, a gravação do doc velho a apagava: o lead voltava a "novo", o selo sumia, e a fila podia mandar de novo para quem já tinha recebido. O upsert de uma busca recorrente (cron) num lead que a fila acabava de confirmar era o caso concreto.
+
+**A regra agora.** Escrita que regrava o doc inteiro do lead passa por `modificarLead(db, placeId, modificar, { opcional? })`: lê o lead DENTRO de `runTransaction`, aplica `modificar` (PURA — a transação pode rodar de novo, então nada de I/O nem efeito colateral ali dentro) e grava na mesma transação. Se o lead mudou entre a leitura e o commit, o Firestore roda `modificar` de novo sobre o doc novo. `modificar` devolve `undefined` quando não há o que gravar (volta o lead lido, sem escrita). Lead ausente: `NotFoundError` (404 nas rotas), ou `undefined` com `{ opcional: true }`. Validação que depende do estado (ex.: transição inválida, aprovação de demo) lança DE DENTRO de `modificar`, então decide sobre o doc fresco.
+
+Passam por ela: `upsertLeads` (uma transação por lugar — o lead existente é atualizado sobre o doc lido na transação; o novo só nasce se ainda não existir), `changeStatus`, `registrarSeloContato`, `ajustarVendidoPor`, `updateLeadExtras`, `saveDemo`, `decidirAprovacaoDemo`, `garantirEnvioToken`, `registrarVisitaDemo`, `atualizarVisitaDemo`, `deleteDemo`, `removeDemoImagem`/`removeDemoVideo`, `saveDetails`, `saveHorarios`. E, fora do repo, a transição "contactado → respondeu" de `lib/fila/mensagemRecebida.ts`: antes ela gravava o doc achado na VARREDURA de `/leads` (que pode ter segundos de idade); agora relê o lead na transação e só transiciona se `VALID_TRANSITIONS` do status FRESCO permitir.
+
+Ficam como estão: as escritas da fila que já eram transacionais (`confirmarEnvio`, revisão, reconciliação) e as de UM campo com `merge` (`demos/capturas/enfileirar.ts`) — estas não regravam o doc, então não apagam nada.
+
+**Como se testa.** O `FakeFirestore` detecta conflito como o Firestore real: cada doc tem uma versão (sobe a cada `seed`/escrita/exclusão), a transação anota a versão de tudo que leu e o `commit` falha se alguma mudou — e `runTransaction` roda de novo (até 5 vezes; depois, "ABORTED: contenção", como o real). `fake.aoLer(path, fn)` intercala uma escrita concorrente exatamente depois da próxima leitura daquele path. `src/lib/leads/__tests__/repo-concorrencia.test.ts` usa isso para pôr um `confirmarEnvio` no meio de cada escrita e cobrar que as DUAS sobrevivem.
+
 ### Classificação de site próprio (`src/lib/site-proprio.ts`)
 
 `websiteUri` apontando para **rede social, WhatsApp ou agregador de links** (instagram.com, facebook.com, wa.me, api.whatsapp.com, linktr.ee, bio.link, tiktok.com etc. — lista fixa no módulo, comparada por hostname com subdomínios) **não conta como site próprio**: o lead recebe `siteProprio: false` e continua aparecendo no filtro "sem site próprio" — é prospect válido. A URL fica preservada em `siteUrl` (útil para contato). Estados de `siteProprio`: `true` = site próprio · `false` = sem site nenhum OU só rede social · ausente = desconhecido. Docs antigos sem o campo são derivados na leitura (de `detalhes.site` ou `temSite`/`siteUrl`); URL ilegível classifica como site próprio (lado conservador — não polui a lista de prospects).
@@ -3780,6 +3792,8 @@ O dedupe em si sai de graça: `chave` (encoded) É o ID do doc de log em `leads/
 Cada mensagem aceita (lead casado, canal individual, chave nova) grava um log PERMANENTE em `leads/{leadId}/respostas/{chave}` — mesmo espírito de subcoleção que `/buscas/{id}/execucoes`, e o mesmo motivo de o id ser a própria chave: dedupe de graça, sem coleção auxiliar para o log em si.
 
 Transição de status: reusa `VALID_TRANSITIONS` (`lib/leads/types.ts`) em vez de checar `lead.status === "contactado"` à mão — só "contactado" tem "respondeu" na própria lista de destinos válidos, e é essa checagem que automaticamente impede rebaixar "fechado" e regravar "respondeu" (ambos ficam de fora da lista de destinos de "respondeu"/"fechado"). Lead em "novo" (nunca deveria responder antes de ser contatado, mas a rota não assume isso) também só recebe a mensagem, sem virar "respondeu".
+
+A checagem e a gravação acontecem numa transação sobre o lead RELIDO, não sobre o doc achado na varredura de `/leads` — ver "Escritas transacionais no lead".
 
 ### Agrupamento — `/filaRespostasPendentes/{leadId}` (`lib/fila/respostasPendentes.ts`)
 

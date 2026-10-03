@@ -212,7 +212,7 @@ export async function removerDaFila(
   if (claimAtiva(envio, now)) {
     return { ok: false, motivo: "claim_ativa", expiraEm: (envio as FilaEnvioDoc).expiraEm };
   }
-  // `updateLeadExtras` já é 404 para lead inexistente (`requireLead`) — um
+  // `updateLeadExtras` já é 404 para lead inexistente (`modificarLead`) — um
   // leadId errado não pode plantar doc nenhum.
   await updateLeadExtras(db, leadId, { descartado: true }, now);
   return { ok: true };
