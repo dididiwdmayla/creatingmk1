@@ -11,6 +11,7 @@ import {
   mensagemErroFila,
 } from "@/components/config/comum";
 import { SeletorLead } from "@/components/config/SeletorLead";
+import { AgendaFilaBloco } from "@/components/config/paineis/AgendaFila";
 import { DisparoTeste } from "@/components/config/paineis/DisparoTeste";
 import { EventosFilaBloco } from "@/components/config/paineis/EventosFila";
 import { PrintPendenteLista } from "@/components/config/paineis/PrintPendente";
@@ -160,6 +161,10 @@ export function FilaEnvioSection() {
         nenhum envio sai.
       </p>
 
+      {/* A AGENDA no topo: é a pergunta que se faz ao abrir a fila — quem sai,
+          e a partir de quando. Antes da saúde de propósito: os avisos de
+          pausada/bloqueada vêm dentro dela, junto do que eles seguram. */}
+      <AgendaFilaBloco painelId={PAINEL_FILA} versao={versaoConfig} />
       <SaudeFilaBloco onBloqueada={aoSaber} />
       <EventosFilaBloco />
 

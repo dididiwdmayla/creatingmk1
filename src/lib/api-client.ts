@@ -17,6 +17,7 @@ import type { ImportacaoMaps } from "@/lib/demos/avulsas/googleMaps";
 import type { LeadCapturas } from "@/lib/demos/capturas/estado";
 import type { FilaConfig } from "@/lib/fila/config";
 import type {
+  AgendaFila,
   ContadorPainel,
   FilaEnvioDoc,
   FilaTesteDoc,
@@ -508,6 +509,13 @@ export const api = {
    * o total do dia e os últimos de hoje e ontem, com o nome do lead.
    */
   getFilaEventos: () => request<PainelEventos>("/api/config/fila/eventos"),
+
+  /**
+   * A AGENDA da fila (ver `lib/fila/agenda.ts`): os próximos leads na ordem
+   * em que vão sair, a partir de quando, e quem não sai — uma simulação
+   * somente-leitura com as funções de `/api/fila/proximo`.
+   */
+  getFilaAgenda: () => request<AgendaFila>("/api/config/fila/agenda"),
 
   /**
    * A RECONCILIAÇÃO (ver `lib/fila/reconciliacao.ts`): a prévia dos leads que
