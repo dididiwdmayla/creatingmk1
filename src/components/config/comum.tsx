@@ -91,14 +91,19 @@ export function LimiteInput({
 /** Inteiro ≥ 0 (e ≤ `max`, quando informado). Salva no blur, como LimiteInput. */
 export function FilaNumeroInput({
   valor,
+  min = 0,
   max,
   disabled,
   onSalvar,
+  rotulo,
 }: {
   valor: number;
+  /** Abaixo disto o valor digitado é revertido (o servidor recusaria com 400). */
+  min?: number;
   max?: number;
   disabled: boolean;
   onSalvar: (valor: number) => void;
+  rotulo?: string;
 }) {
   const [texto, setTexto] = useState(String(valor));
   const [ultimoValor, setUltimoValor] = useState(valor);
@@ -112,7 +117,7 @@ export function FilaNumeroInput({
     if (
       !Number.isFinite(n) ||
       !Number.isInteger(n) ||
-      n < 0 ||
+      n < min ||
       (max !== undefined && n > max)
     ) {
       setTexto(String(valor)); // inválido: reverte
@@ -124,10 +129,11 @@ export function FilaNumeroInput({
   return (
     <input
       type="number"
-      min={0}
+      min={min}
       max={max}
       step={1}
       inputMode="numeric"
+      aria-label={rotulo}
       value={texto}
       disabled={disabled}
       onChange={(event) => setTexto(event.target.value)}

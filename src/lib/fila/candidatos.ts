@@ -6,6 +6,7 @@ import {
   type Estoque,
 } from "@/lib/automacao/balde";
 import { loadAutomacaoConfig } from "@/lib/automacao/config";
+import { protecaoDaDemo } from "@/lib/automacao/expiracao";
 import type { AppDb } from "@/lib/firestore-like";
 import { utcOffsetDoLead } from "@/lib/leads/janelaContato";
 import { ehLegado } from "@/lib/leads/legado";
@@ -201,6 +202,18 @@ export interface PoolCandidatos {
   aprovacaoPendentes?: string[];
   /** O total real — `aprovacaoPendentes` é cortado e este número não. */
   aprovacaoPendentesTotal?: number;
+  /**
+   * A EXPIRAÇÃO das demos automáticas (`lib/automacao/expiracao.ts`), na
+   * MESMA passada: o `demo.criadoEm` de cada demo automática que nada
+   * protege (`protecaoDaDemo` — o critério da varredura, sem o prazo, que
+   * a tela aplica para a contagem acompanhar o campo). É o que deixa o
+   * painel "Automação" dizer quantas a próxima varredura apaga sem varrer
+   * `/leads`. Da mais velha para a mais nova, com teto — as que vencem
+   * primeiro ficam. Ausente = pool gravado antes do campo (o painel refaz).
+   */
+  expiraveis?: string[];
+  /** O total real — `expiraveis` é cortado e este número não. */
+  expiraveisTotal?: number;
 }
 
 /**
@@ -210,6 +223,9 @@ export interface PoolCandidatos {
  * semanas infle o doc que o celular lê a cada ciclo.
  */
 export const APROVACAO_PENDENTES_MAX = 100;
+
+/** Teto de `expiraveis` no doc (uma data ISO por entrada). */
+export const EXPIRAVEIS_MAX = 500;
 
 /**
  * Um lead marcado à mão que ainda não tem a peça que o envio exige. Só id e
@@ -434,6 +450,7 @@ export async function construirPool(
   let lidos = 0;
   const estoque = estoqueVazio();
   const aprovacao: Array<{ id: string; criadoEm: string }> = [];
+  const expiraveis: string[] = [];
   for (const doc of leadsSnap.docs) {
     const lead = doc.data() as unknown as Lead;
     // O LEAD FIXO DE TESTE não existe para esta varredura — nem como
@@ -454,6 +471,11 @@ export async function construirPool(
     somarBalde(estoque, balde);
     if (naFilaDeAprovacao(lead, balde)) {
       aprovacao.push({ id: lead.placeId, criadoEm: lead.criadoEm ?? "" });
+    }
+    // A expiração olha QUALQUER doc em `filaEnvios` (até a claim devolvida
+    // protege), não `envioImpedePool`: reserva é rastro de envio.
+    if (lead.demo?.origem === "automacao" && !protecaoDaDemo(lead, { temDocFila: envio !== undefined }, now)) {
+      expiraveis.push(lead.demo.criadoEm);
     }
     if (motivo) {
       estrutural[motivo] += 1;
@@ -491,6 +513,8 @@ export async function construirPool(
     estoque,
     aprovacaoPendentes: aprovacao.slice(0, APROVACAO_PENDENTES_MAX).map(({ id }) => id),
     aprovacaoPendentesTotal: aprovacao.length,
+    expiraveis: expiraveis.sort().slice(0, EXPIRAVEIS_MAX),
+    expiraveisTotal: expiraveis.length,
   };
 }
 

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 
 import { TOKEN_QUERY_PARAM } from "@/lib/demos/envio";
-import { idiomaEfetivoDemo } from "@/lib/demos/idioma";
+import { idiomaEfetivoDemo, idiomaPadraoDoLead } from "@/lib/demos/idioma";
 import { moedaDaDemo } from "@/lib/demos/moeda";
 import { getDb } from "@/lib/firebase/admin";
 import { getLead, registrarVisitaDemo } from "@/lib/leads/repo";
@@ -16,6 +16,7 @@ import {
   visitanteInterno,
   type DemoResolvida,
 } from "../comum";
+import { DemoIndisponivel, metadataIndisponivel, viewportIndisponivel } from "../Indisponivel";
 
 /**
  * Rota PÚBLICA da demo de um LEAD (a única fora da proteção por senha,
@@ -24,9 +25,13 @@ import {
  * dados do lead ← edições do editor). Nenhuma chamada ao Google acontece
  * aqui — só Firestore.
  *
- * A demo só existe DEPOIS de salva no editor (/leads/{id}/demo/editar):
- * lead sem `demo` responde 404 — mesma resposta de lead inexistente, e o
- * que "Excluir demo" restaura. Nada é publicado sem intenção explícita.
+ * A demo só existe DEPOIS de salva no editor (/leads/{id}/demo/editar).
+ * Lead inexistente responde 404. Lead SEM `demo` responde 200 com a página
+ * NEUTRA ("esta demonstração não está mais disponível", ../Indisponivel.tsx):
+ * a demo foi apagada — pela varredura das demos automáticas vencidas ou
+ * pelo "Excluir demo" — e o link pode estar numa conversa; quem o abre não
+ * cai num erro. Nada é publicado sem intenção explícita: a página neutra
+ * não mostra nada do negócio.
  *
  * Tudo o que não é "de onde vem o dado" mora em ../comum.tsx, dividido com
  * a rota da demo avulsa.
@@ -40,10 +45,14 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-async function carregar(leadId: string): Promise<DemoResolvida | undefined> {
+/** O que a rota serve: a demo, a página neutra (lead sem demo) ou nada (404). */
+type Carga = { tipo: "demo"; resolvida: DemoResolvida } | { tipo: "indisponivel"; idioma: string };
+
+async function carregar(leadId: string): Promise<Carga | undefined> {
   const lead = await getLead(getDb(), leadId);
-  if (!lead?.demo) return undefined;
-  return resolverDemo({
+  if (!lead) return undefined;
+  if (!lead.demo) return { tipo: "indisponivel", idioma: idiomaPadraoDoLead(lead) };
+  const resolvida = await resolverDemo({
     id: leadId,
     avulsa: false,
     demo: lead.demo,
@@ -53,23 +62,31 @@ async function carregar(leadId: string): Promise<DemoResolvida | undefined> {
     nome: lead.nome,
     previa: lead.capturas?.previa,
   });
+  // Demo que não resolve (skin fora do registro) continua 404, como antes.
+  return resolvida ? { tipo: "demo", resolvida } : undefined;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { leadId } = await params;
-  const resolvida = await carregar(leadId).catch(() => undefined);
-  return metadataDaDemo(resolvida, `/demo/${encodeURIComponent(leadId)}/previa`);
+  const carga = await carregar(leadId).catch(() => undefined);
+  if (carga?.tipo === "indisponivel") return metadataIndisponivel(carga.idioma);
+  return metadataDaDemo(carga?.resolvida, `/demo/${encodeURIComponent(leadId)}/previa`);
 }
 
 export async function generateViewport({ params }: Props): Promise<Viewport> {
   const { leadId } = await params;
-  return viewportDaDemo(await carregar(leadId).catch(() => undefined));
+  const carga = await carregar(leadId).catch(() => undefined);
+  if (carga?.tipo === "indisponivel") return viewportIndisponivel();
+  return viewportDaDemo(carga?.resolvida);
 }
 
 export default async function DemoPage({ params, searchParams }: Props) {
   const { leadId } = await params;
-  const resolvida = await carregar(leadId);
-  if (!resolvida) notFound();
+  const carga = await carregar(leadId);
+  if (!carga) notFound();
+  // Sem demo: nada a rastrear nem a estampar — só a página neutra.
+  if (carga.tipo === "indisponivel") return <DemoIndisponivel idioma={carga.idioma} />;
+  const { resolvida } = carga;
 
   const db = getDb();
   // Calculada uma vez, reaproveitada pelo tracking (abaixo, só com token) e

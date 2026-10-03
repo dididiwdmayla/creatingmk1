@@ -1,6 +1,8 @@
 import { loadConfig } from "@/lib/config";
 import { enfileirarCapturas } from "@/lib/demos/capturas/enfileirar";
+import type { DemoStorage } from "@/lib/demos/imagens";
 import { ValidationError } from "@/lib/errors";
+import { loadFilaConfig } from "@/lib/fila/config";
 import type { AppDb } from "@/lib/firestore-like";
 import { LEADS_COLLECTION, type Lead } from "@/lib/leads/types";
 
@@ -24,6 +26,7 @@ import {
   type LoteCapturas,
   type Unidade,
 } from "./execucao";
+import { varrerDemosExpiradas, type ResultadoVarredura } from "./varredura";
 import {
   faltaNaExecucao,
   processarUnidadeBusca,
@@ -45,6 +48,16 @@ export const LOTE_CAPTURAS = 60;
 export interface Opcoes {
   now?: Date;
   novoId?: () => string;
+  /**
+   * Fábrica do Storage para a varredura das demos vencidas (a rota passa
+   * `getDemoStorage`). Ausente, ou lançando: a varredura não roda — apagar
+   * sem limpar as capturas deixaria arquivo órfão.
+   */
+  storage?: () => DemoStorage;
+}
+
+function semStorage(): DemoStorage {
+  throw new Error("Storage não configurado nesta chamada");
 }
 
 function relogio(opcoes: Opcoes) {
@@ -97,6 +110,8 @@ export interface ResultadoPlanejar {
   falta?: number;
   unidades?: number;
   execucaoAtiva?: string;
+  /** A varredura das demos vencidas desta execução — vai para o log do workflow. */
+  varredura?: ResultadoVarredura;
 }
 
 export async function planejar(
@@ -116,14 +131,19 @@ export async function planejar(
     await execucaoRef(db, id).set(paraDoc(registro));
     return { acao: "recusada", execucaoId: id, motivo, execucaoAtiva };
   };
-  const nada = async (motivo: string, estoque?: Estoque): Promise<ResultadoPlanejar> => {
+  const nada = async (
+    motivo: string,
+    estoque?: Estoque,
+    varredura?: ResultadoVarredura,
+  ): Promise<ResultadoPlanejar> => {
     await gravarEncerrada(db, {
       ...registroVazio(id, "nada_a_fazer", config, disparo, entrada.runUrl, now),
       motivo,
       finalizadaEm: now.toISOString(),
       ...(estoque && { estoqueAntes: estoque }),
+      ...(varredura && { varredura }),
     });
-    return { acao: "nada", execucaoId: id, motivo, ...(estoque && { estoque }) };
+    return { acao: "nada", execucaoId: id, motivo, ...(estoque && { estoque }), ...(varredura && { varredura }) };
   };
 
   const trava = travaAtiva((await travaRef(db).get()).data(), now);
@@ -131,48 +151,86 @@ export async function planejar(
 
   if (!config.ativo) return nada("automação desligada em /config/automacao");
 
-  const base = await lerBaseEstoque(db);
-  const estoque = estoqueDaBase(base, now);
-  if (estoque.total >= config.alvoEstoque) {
-    return nada(`estoque ${estoque.total} ≥ alvo ${config.alvoEstoque}`, estoque);
-  }
-
-  const falta = config.alvoEstoque - estoque.total;
-  // Primeiro os leads que JÁ ESTÃO na base (nenhuma chamada paga); a busca
-  // só entra no plano se eles não bastarem.
-  const existentes = leadsParaDemo(base.leads, new Set(base.envios.keys()), config.corteLegado, falta);
-  const unidades: Unidade[] = existentes.map((lead) => ({
-    id: novoId(),
-    tipo: "demo",
-    leadId: lead.placeId,
-    fonte: "existente",
-    estado: "pendente",
-    tentativas: 0,
-  }));
-  if (existentes.length < falta) {
-    unidades.push({ id: novoId(), tipo: "busca", estado: "pendente", tentativas: 0 });
-  }
-
-  const plano: ExecucaoAutomacao = {
-    ...registroVazio(id, "rodando", config, disparo, entrada.runUrl, now),
-    estoqueAntes: estoque,
-    falta,
-    unidades,
-  };
-
-  // A trava de novo, agora na transação que a toma: entre a leitura acima e
-  // aqui, outro disparo pode ter planejado.
+  // A trava ANTES da varredura: duas execuções nunca apagam ao mesmo tempo.
+  // De novo na transação que a toma: entre a leitura acima e aqui, outro
+  // disparo pode ter planejado.
   const tomada = await db.runTransaction(async (tx) => {
     const atual = travaAtiva((await tx.get(travaRef(db))).data(), now);
     if (atual) return atual.execucaoId;
     tx.set(travaRef(db), { ...novaTrava(id, now) });
-    tx.set(execucaoRef(db, id), paraDoc(plano));
     return undefined;
   });
   if (tomada) return recusar(tomada);
 
-  await ultimaRef(db).set({ execucaoId: id, estado: "rodando", em: plano.iniciadaEm });
-  return { acao: "executar", execucaoId: id, estoque, falta, unidades: unidades.length };
+  try {
+    const lida = await lerBaseEstoque(db);
+    // A varredura das demos vencidas, ANTES do estoque: a demo apagada deixa
+    // de contar, e a mesma noite repõe. Ela devolve a lista de leads já com
+    // as exclusões — nenhuma segunda leitura de `/leads`.
+    const { resultado: varredura, leads } = await varrerDemosExpiradas(
+      db,
+      lida.leads,
+      new Set(lida.envios.keys()),
+      {
+        now,
+        prazoHoras: config.expiracaoDemoHoras,
+        execucaoId: id,
+        filaConfig: await loadFilaConfig(db),
+        storage: opcoes.storage ?? semStorage,
+      },
+    );
+    const base = { ...lida, leads };
+    const estoque = estoqueDaBase(base, now);
+    if (estoque.total >= config.alvoEstoque) {
+      const resposta = await nada(`estoque ${estoque.total} ≥ alvo ${config.alvoEstoque}`, estoque, varredura);
+      await liberarTrava(db, id, now);
+      return resposta;
+    }
+
+    const falta = config.alvoEstoque - estoque.total;
+    // Primeiro os leads que JÁ ESTÃO na base (nenhuma chamada paga); a busca
+    // só entra no plano se eles não bastarem.
+    const existentes = leadsParaDemo(base.leads, new Set(base.envios.keys()), config.corteLegado, falta);
+    const unidades: Unidade[] = existentes.map((lead) => ({
+      id: novoId(),
+      tipo: "demo",
+      leadId: lead.placeId,
+      fonte: "existente",
+      estado: "pendente",
+      tentativas: 0,
+    }));
+    if (existentes.length < falta) {
+      unidades.push({ id: novoId(), tipo: "busca", estado: "pendente", tentativas: 0 });
+    }
+
+    const plano: ExecucaoAutomacao = {
+      ...registroVazio(id, "rodando", config, disparo, entrada.runUrl, now),
+      estoqueAntes: estoque,
+      falta,
+      unidades,
+      varredura,
+    };
+    // A trava é desta execução desde antes da varredura: o plano é gravado
+    // sob ela.
+    await execucaoRef(db, id).set(paraDoc(plano));
+    await ultimaRef(db).set({ execucaoId: id, estado: "rodando", em: plano.iniciadaEm });
+    return { acao: "executar", execucaoId: id, estoque, falta, unidades: unidades.length, varredura };
+  } catch (erro) {
+    // Sem plano gravado, ninguém liberaria a trava antes de ela vencer — e
+    // um "rodar agora" logo depois seria recusado à toa.
+    await liberarTrava(db, id, now);
+    throw erro;
+  }
+}
+
+/** Libera a trava — só se ainda for desta execução. */
+async function liberarTrava(db: AppDb, execucaoId: string, now: Date): Promise<void> {
+  const em = now.toISOString();
+  await db.runTransaction(async (tx) => {
+    const trava = travaAtiva((await tx.get(travaRef(db))).data(), now);
+    if (trava && trava.execucaoId !== execucaoId) return;
+    tx.set(travaRef(db), { execucaoId: "", expiraEm: em, liberadaEm: em });
+  });
 }
 
 /* ── PASSO ────────────────────────────────────────────────────────────── */

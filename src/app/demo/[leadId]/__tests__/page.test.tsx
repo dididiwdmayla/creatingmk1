@@ -346,3 +346,111 @@ describe("/demo/[leadId] — <html lang> reflete o idioma efetivo da demo", () =
     expect(html).toContain('document.documentElement.lang="en-US"');
   });
 });
+
+/**
+ * DEMO APAGADA → página NEUTRA, com 200 (ver ../../Indisponivel.tsx e
+ * "Expiração das demos automáticas" no ARCHITECTURE.md). Renderizar um
+ * elemento, sem `notFound()` e sem lançar, é o 200 do App Router — o laço
+ * `qa-plataforma.mjs --so=expiracao` confere o status no servidor real.
+ */
+describe("/demo/[leadId] — demo apagada", () => {
+  /** O lead como a varredura o deixa: sem `demo`, sem `capturas`, com a marca. */
+  function seedApagada(extra: Record<string, unknown> = {}) {
+    db.seed("leads/A", {
+      placeId: "A",
+      nome: "Barbearia do Zé",
+      endereco: "Rua A, 1 - Maringá, PR, Brasil",
+      status: "novo",
+      enriquecido: false,
+      automacaoExpirada: {
+        em: "2026-10-03T06:30:00.000Z",
+        demoCriadaEm: "2026-09-30T06:40:00.000Z",
+        skinId: DEFAULT_SKIN.id,
+        aprovacao: "aprovada",
+        execucaoId: "exec-1",
+      },
+      criadoEm: "2026-09-01T00:00:00.000Z",
+      atualizadoEm: "2026-10-03T06:30:00.000Z",
+      ...extra,
+    });
+  }
+
+  it("responde com a página neutra — não é 404 nem 500", async () => {
+    seedApagada();
+    vi.resetModules();
+    const { default: DemoPage } = await import("../page");
+
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(elemento as never);
+
+    expect(html).toContain("Esta demonstração não está mais disponível.");
+    expect(html).toContain('data-demo="indisponivel"');
+    // Nada do negócio: a página neutra não mostra o que não existe mais.
+    expect(html).not.toContain("Barbearia do Zé");
+  });
+
+  it("com o ?t= do link que circulou: página neutra, e nenhuma visita registrada", async () => {
+    seedApagada();
+    vi.resetModules();
+    const { default: DemoPage } = await import("../page");
+
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({ t: "token-antigo" }),
+    });
+
+    expect(renderToStaticMarkup(elemento as never)).toContain("não está mais disponível");
+    expect(db.getDoc("leads/A")?.demoVisitas).toBeUndefined();
+  });
+
+  it("o 'Excluir demo' manual cai na mesma página", async () => {
+    // O lead do beforeEach: existe, sem demo, sem marca nenhuma.
+    vi.resetModules();
+    const { default: DemoPage } = await import("../page");
+    const elemento = await DemoPage({
+      params: Promise.resolve({ leadId: "A" }),
+      searchParams: Promise.resolve({}),
+    });
+    expect(renderToStaticMarkup(elemento as never)).toContain("não está mais disponível");
+  });
+
+  it("no idioma do país do lead", async () => {
+    seedApagada({ endereco: "Av. Corrientes 1234, C1043 Buenos Aires, Argentina" });
+    vi.resetModules();
+    const { default: DemoPage } = await import("../page");
+    const html = renderToStaticMarkup(
+      (await DemoPage({ params: Promise.resolve({ leadId: "A" }), searchParams: Promise.resolve({}) })) as never,
+    );
+    expect(html).toContain("Esta demostración ya no está disponible.");
+    expect(html).toContain('lang="es-AR"');
+  });
+
+  it("metadados: nunca indexada, sem imagem de prévia; barra do navegador nos dois esquemas", async () => {
+    seedApagada();
+    vi.resetModules();
+    const { generateMetadata, generateViewport } = await import("../page");
+    const props = { params: Promise.resolve({ leadId: "A" }), searchParams: Promise.resolve({}) };
+
+    const meta = await generateMetadata(props);
+    expect(meta.robots).toEqual({ index: false, follow: false });
+    expect(meta.openGraph).toBeUndefined();
+    expect(meta.title).toBe("Esta demonstração não está mais disponível");
+
+    const viewport = await generateViewport(props);
+    expect(viewport.themeColor).toEqual([
+      expect.objectContaining({ media: "(prefers-color-scheme: light)" }),
+      expect.objectContaining({ media: "(prefers-color-scheme: dark)" }),
+    ]);
+  });
+
+  it("lead que não existe continua 404", async () => {
+    vi.resetModules();
+    const { default: DemoPage } = await import("../page");
+    await expect(
+      DemoPage({ params: Promise.resolve({ leadId: "nao-existe" }), searchParams: Promise.resolve({}) }),
+    ).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+  });
+});

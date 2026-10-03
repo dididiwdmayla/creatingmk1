@@ -231,7 +231,9 @@ describe("planejar — nada a fazer", () => {
     expect(registro).toMatchObject({ estado: "nada_a_fazer", estoqueAntes: { prontos: 1, total: 1 } });
     expect(leadSalvo("candidato").demo).toBeUndefined();
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(db.getDoc("automacao/trava")).toBeUndefined();
+    // A trava é tomada ANTES da varredura das demos vencidas (que vem antes
+    // do estoque) e liberada no "nada a fazer": nunca fica presa.
+    expect(db.getDoc("automacao/trava")).toMatchObject({ execucaoId: "" });
   });
 });
 

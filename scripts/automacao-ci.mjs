@@ -101,6 +101,19 @@ function mensagem(erro) {
   return erro instanceof Error ? erro.message : String(erro);
 }
 
+/**
+ * A linha do log da VARREDURA das demos vencidas (feita no planejar — ver
+ * src/lib/automacao/varredura.ts). Só leitura do que o Radar devolveu.
+ */
+function resumoVarredura(v) {
+  if (v.naoRodou) return `varredura não rodou: ${v.naoRodou}`;
+  const partes = [`varredura (prazo ${v.prazoHoras}h): ${v.apagadas} apagada(s), ${v.puladas} pulada(s)`];
+  if (v.restantes) partes.push(`${v.restantes} para a próxima`);
+  if (v.storageFalhou) partes.push(`${v.storageFalhou} limpeza(s) de Storage falharam`);
+  if (v.erro) partes.push(`erro: ${v.erro}`);
+  return partes.join(" · ");
+}
+
 async function laco(arquivo) {
   const env = ambiente();
   if (!env.base || !env.segredo) {
@@ -123,6 +136,8 @@ async function laco(arquivo) {
     console.error(`[automacao] planejar falhou: ${mensagem(erro)}`);
     return 1;
   }
+
+  if (plano.varredura) console.log(`[automacao] ${resumoVarredura(plano.varredura)}`);
 
   if (plano.acao !== "executar") {
     console.log(`[automacao] nada a fazer: ${plano.motivo}`);
