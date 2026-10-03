@@ -150,7 +150,13 @@ function numeroOuZero(valor: unknown): number {
   return typeof valor === "number" && Number.isFinite(valor) ? valor : 0;
 }
 
-function readContadorDoc(data: Record<string, unknown> | undefined): FilaContadorDoc {
+/**
+ * O doc cru do Firestore normalizado — campo ausente ou corrompido vira zero
+ * (ou lista vazia), nunca `undefined`. Exportado para quem SIMULA o dia (a
+ * agenda da fila, `lib/fila/agenda.ts`), que parte do doc lido e aplica
+ * `contadorComEnvio` em memória: a mesma leitura que as escritas fazem.
+ */
+export function contadorDoDoc(data: Record<string, unknown> | undefined): FilaContadorDoc {
   const enviados = numeroOuZero(data?.enviados);
   const envios = Array.isArray(data?.envios)
     ? data.envios.filter((iso): iso is string => typeof iso === "string")
@@ -184,8 +190,18 @@ export async function lerContadorFilaCompleto(
 ): Promise<FilaContadorCompleto> {
   const chave = diaOperacionalKey(now, inicioDiaOperacionalHora);
   const snap = await db.collection(FILA_CONTADORES_COLLECTION).doc(chave).get();
-  const doc = readContadorDoc(snap.exists ? snap.data() : undefined);
+  return contadorNoInstante(contadorDoDoc(snap.exists ? snap.data() : undefined), now);
+}
 
+/**
+ * Os dois derivados que dependem do INSTANTE, sobre um doc já lido — puro.
+ * É a metade de `lerContadorFilaCompleto` que não toca o banco, separada
+ * para a seleção poder perguntar "e daqui a 40 minutos?" sem reler nada
+ * (`proximaSaida`, lib/fila/selecao.ts): envios na última hora deslizante
+ * (usa `envios`, não `enviados` — é a janela de 1h que precisa das marcas
+ * de tempo) e segundos desde o último evento (`null` = ainda não houve).
+ */
+export function contadorNoInstante(doc: FilaContadorDoc, now: Date): FilaContadorCompleto {
   const limiteHora = now.getTime() - UMA_HORA_MS;
   const ultimaHora = doc.envios.filter((iso) => {
     const t = new Date(iso).getTime();
@@ -244,7 +260,7 @@ export function contadorComEnvio(
   now: Date,
   opcoes: { semPrint?: boolean } = {},
 ): FilaContadorDoc {
-  const atual = readContadorDoc(data);
+  const atual = contadorDoDoc(data);
   const limite24h = now.getTime() - 24 * UMA_HORA_MS;
   const em = now.toISOString();
   const envios = atual.envios.filter((iso) => {
@@ -270,7 +286,7 @@ export function contadorComEnvio(
  * ou dias atrás. Gasta a meta do dia — é o preço aceito de contar.
  */
 export function contadorComEnvioTardio(data: Record<string, unknown> | undefined): FilaContadorDoc {
-  const atual = readContadorDoc(data);
+  const atual = contadorDoDoc(data);
   return { ...atual, enviados: atual.enviados + 1 };
 }
 
@@ -282,7 +298,7 @@ export function contadorComEnvioTardio(data: Record<string, unknown> | undefined
  * acabou de sair uma mensagem quando não saiu nenhuma.
  */
 export function contadorComFalha(data: Record<string, unknown> | undefined): FilaContadorDoc {
-  const atual = readContadorDoc(data);
+  const atual = contadorDoDoc(data);
   return { ...atual, falhas: atual.falhas + 1 };
 }
 
@@ -292,7 +308,7 @@ export function contadorComFalha(data: Record<string, unknown> | undefined): Fil
  * WhatsApp não é uma mensagem enviada.
  */
 export function contadorComInvalido(data: Record<string, unknown> | undefined): FilaContadorDoc {
-  const atual = readContadorDoc(data);
+  const atual = contadorDoDoc(data);
   return { ...atual, invalidos: atual.invalidos + 1 };
 }
 
@@ -308,7 +324,7 @@ export function contadorComInvalido(data: Record<string, unknown> | undefined): 
  * inteira nesta função de três linhas.
  */
 export function contadorComResposta(data: Record<string, unknown> | undefined): FilaContadorDoc {
-  const atual = readContadorDoc(data);
+  const atual = contadorDoDoc(data);
   return { ...atual, respostasEnviadas: atual.respostasEnviadas + 1 };
 }
 

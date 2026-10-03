@@ -1,5 +1,3 @@
-import { proximoMomentoAceito } from "@/lib/leads/barraDoDia";
-import { MIN_DIA, minutoDaSemanaLocal } from "@/lib/leads/horarios";
 import type { JanelasContatoConfig } from "@/lib/leads/janelaContato";
 
 import { corteLegadoAtual, lerPool, type CandidatoFila } from "./candidatos";
@@ -13,13 +11,7 @@ import {
   diaOperacionalKey,
   type FilaContadorCompleto,
 } from "./contadores";
-import {
-  decidirFila,
-  leadSinteticoDoCandidato,
-  niveisAceitos,
-  type CandidatoBloqueado,
-  type MotivoSemTarefa,
-} from "./selecao";
+import { decidirFila, proximaAberturaDeJanela, type MotivoSemTarefa } from "./selecao";
 import type { AppDb } from "@/lib/firestore-like";
 import { loadConfig } from "@/lib/config";
 
@@ -50,60 +42,6 @@ export interface ResumoFila {
 }
 
 /**
- * O próximo instante em que O CANDIDATO entra numa faixa aceita, como um
- * INSTANTE ABSOLUTO (não o par `{ offsetDias, inicioMin }` no calendário
- * LOCAL DO LEAD que `proximoMomentoAceito` devolve). A aritmética funciona
- * porque `offsetMinutos` é constante entre agora e o alvo (mesma simplificação
- * que o resto da fila já assume — o Brasil e a maioria dos fusos não mudam de
- * deslocamento de um dia para o outro): avançar N minutos no relógio de
- * parede local É avançar N minutos reais, então o delta calculado no fuso do
- * lead vale igual no relógio absoluto.
- */
-function instanteAbsolutoDoMomento(
-  momento: { offsetDias: number; inicioMin: number },
-  offsetMinutos: number,
-  now: Date,
-): Date {
-  const nowMin = minutoDaSemanaLocal(offsetMinutos, now);
-  const minutoDoDiaAgora = nowMin % MIN_DIA;
-  const deltaMin = momento.offsetDias * MIN_DIA + momento.inicioMin - minutoDoDiaAgora;
-  return new Date(now.getTime() + deltaMin * 60_000);
-}
-
-/**
- * O próximo instante enviável entre os candidatos BLOQUEADOS POR JANELA —
- * o mínimo entre eles, convertido para um instante absoluto e então, por
- * quem chama, para o fuso do OPERADOR (nunca o do lead: são fusos
- * diferentes, e quem lê esta rota está em São Paulo).
- *
- * Usa `proximoMomentoAceito` com os NÍVEIS ACEITOS da config — nunca
- * `proximoBom` direto: com `exigirJanelaBoa === false` o próximo aceito é
- * "bom" OU "razoável", que vem antes do próximo bom, e mostrar o bom
- * daria uma hora plausível e ERRADA (mesma armadilha já documentada na
- * "próxima faixa aceita" do painel — ver `lib/leads/barraDoDia.ts`).
- */
-function proximoInstanteDeJanela(
-  pool: CandidatoFila[],
-  bloqueados: CandidatoBloqueado[],
-  janelas: JanelasContatoConfig,
-  config: FilaConfig,
-  now: Date,
-): Date | undefined {
-  const porId = new Map(pool.map((candidato) => [candidato.id, candidato]));
-  const niveis = niveisAceitos(config);
-  let melhor: Date | undefined;
-  for (const bloqueado of bloqueados) {
-    const candidato = porId.get(bloqueado.id);
-    if (!candidato) continue;
-    const momento = proximoMomentoAceito(janelas, leadSinteticoDoCandidato(candidato), niveis, now);
-    if (!momento) continue;
-    const instante = instanteAbsolutoDoMomento(momento, candidato.offset, now);
-    if (!melhor || instante.getTime() < melhor.getTime()) melhor = instante;
-  }
-  return melhor;
-}
-
-/**
  * O próximo instante enviável, coerente com O PORTÃO que está bloqueando —
  * NUNCA a abertura da próxima faixa quando quem bloqueia é RITMO. Mostrar a
  * faixa nesse caso daria uma hora plausível e errada (o mesmo erro já visto
@@ -122,7 +60,6 @@ function calcularProximaJanela(
     config: FilaConfig;
     janelas: JanelasContatoConfig;
     pool: CandidatoFila[];
-    bloqueados: CandidatoBloqueado[];
     now: Date;
   },
 ): string {
@@ -138,11 +75,14 @@ function calcularProximaJanela(
       return instante ? instante.toISOString() : "";
     }
     case "fora_de_janela": {
-      const instante = proximoInstanteDeJanela(
+      // A MESMA conta que a seleção usa para saber quando a fila volta a
+      // andar (`proximaAberturaDeJanela`, lib/fila/selecao.ts): a menor das
+      // próximas faixas ACEITAS entre quem o nicho não barra — com todo
+      // mundo fora de janela, são exatamente os bloqueados por janela.
+      const instante = proximaAberturaDeJanela(
         contexto.pool,
-        contexto.bloqueados,
-        contexto.janelas,
         contexto.config,
+        contexto.janelas,
         contexto.now,
       );
       return instante ? instante.toISOString() : "";
@@ -190,9 +130,8 @@ export async function montarResumoFila(db: AppDb, now: Date = new Date()): Promi
     app.janelasContato,
     { totalDoDia: contadorDoc.enviados, ultimaHora: contadorDoc.ultimaHora, segundosDesdeUltimoEvento: contadorDoc.segundosDesdeUltimoEvento },
     now,
-    { coletarBloqueados: true },
   );
-  const { escolhido, diagnostico } = decisao;
+  const { escolhido } = decisao;
   // A MESMA regra de `/proximo`: faltando config que o confirmar exige, a
   // fila não entrega — e o resumo não pode dizer que há tarefa disponível
   // quando a rota de entrega diria `pausado`. Ver lib/fila/saude.ts.
@@ -203,7 +142,6 @@ export async function montarResumoFila(db: AppDb, now: Date = new Date()): Promi
     config,
     janelas: app.janelasContato,
     pool: pool.candidatos,
-    bloqueados: diagnostico.bloqueados,
     now,
   });
 
