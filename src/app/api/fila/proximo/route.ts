@@ -3,14 +3,15 @@ import { NextResponse } from "next/server";
 import { loadConfig } from "@/lib/config";
 import { getDb } from "@/lib/firebase/admin";
 import { autenticarDispositivo } from "@/lib/fila/auth";
-import { candidatoEstavel, corteLegadoAtual, lerPool } from "@/lib/fila/candidatos";
+import { corteLegadoAtual, lerPool } from "@/lib/fila/candidatos";
 import { loadFilaConfig } from "@/lib/fila/config";
 import {
-  lerContadorFila,
+  diaOperacionalKey,
   lerContadorFilaCompleto,
   snapshotDoContador,
   type FilaContadorCompleto,
 } from "@/lib/fila/contadores";
+import { printParaEntrega, vereditoDaMensagem } from "@/lib/fila/entrega";
 import {
   TENTATIVAS_MAX,
   anotarRotacao,
@@ -25,12 +26,11 @@ import {
   dentroDaJanelaResposta,
   proximaTarefaResposta,
 } from "@/lib/fila/respostaAutomatica";
-import { printUrlDoLead } from "@/lib/fila/print";
-import { marcadorSemResolver, motivoDeSaude } from "@/lib/fila/saude";
+import { motivoDeSaude } from "@/lib/fila/saude";
 import {
   motivoDeRitmo,
   motivoSemTarefaAgora,
-  ordenarCandidatos,
+  proximaSaida,
   type MotivoSemTarefa,
 } from "@/lib/fila/selecao";
 import { lerTestePendente, marcarTesteEntregue } from "@/lib/fila/teste";
@@ -198,32 +198,29 @@ async function tentarEntregar(
   if (!reserva) return undefined;
 
   const lead = await getLead(db, leadId);
-  // `candidatoEstavel` com `undefined` no envio: o estado da fila já foi
-  // decidido pela reserva acima (que é transacional); aqui o que se reconfere
-  // é o LEAD — status, telefone, demo, capturas, descarte, número inválido.
-  // O corte do legado vale AQUI também, sobre o doc fresco e o corte lido
-  // nesta chamada: um pool construído antes de o corte mudar continua
-  // oferecendo o lead até o TTL, e é esta releitura que não o entrega.
-  const printUrl =
-    lead && candidatoEstavel(lead, undefined, { corteLegado }) ? printUrlDoLead(lead.capturas) : undefined;
+  // O veredito sobre o doc FRESCO (lib/fila/entrega.ts) — as mesmas duas
+  // funções puras que a AGENDA da fila aplica, sem reservar. Aqui o que se
+  // reconfere é o LEAD (o estado da fila já foi decidido pela reserva acima,
+  // que é transacional). O corte do legado vale AQUI também, sobre o doc
+  // fresco e o corte lido nesta chamada: um pool construído antes de o
+  // corte mudar continua oferecendo o lead até o TTL, e é esta releitura
+  // que não o entrega.
+  const printUrl = printParaEntrega(lead, corteLegado);
   if (!lead || !printUrl) {
     await liberarClaim(db, leadId, reserva.claimId, now);
     return undefined;
   }
 
   const mensagem = await montarMensagemParaLead(db, lead);
-  if (!mensagem.telefone) {
-    await liberarClaim(db, leadId, reserva.claimId, now);
-    return undefined;
-  }
-  // REDE DE SEGURANÇA dos marcadores (ver `marcadorSemResolver` em
-  // lib/fila/saude.ts): qualquer `{marcador}` que sobrou no texto — dado
-  // faltando ou marcador digitado errado na frase — sairia literal para um
-  // negócio real, e isso é pior do que não mandar. A claim volta devolvida
-  // (nada saiu, e o servidor sabe) e a rota cai no próximo candidato.
-  const sobrou = marcadorSemResolver(mensagem.texto);
-  if (sobrou) {
-    console.warn(`[fila] marcador ${sobrou} sem resolver para o lead ${leadId}: tarefa não entregue`);
+  // Sem telefone, ou com `{marcador}` sobrando (REDE DE SEGURANÇA — um
+  // marcador literal numa mensagem para negócio real é pior do que não
+  // mandar): a claim volta devolvida (nada saiu, e o servidor sabe) e a rota
+  // cai no próximo candidato.
+  const veredito = vereditoDaMensagem(mensagem);
+  if ("barreira" in veredito) {
+    if (veredito.barreira === "marcador") {
+      console.warn(`[fila] marcador ${veredito.marcador} sem resolver para o lead ${leadId}: tarefa não entregue`);
+    }
     await liberarClaim(db, leadId, reserva.claimId, now);
     return undefined;
   }
@@ -237,7 +234,7 @@ async function tentarEntregar(
     id: reserva.claimId,
     leadId,
     nome: lead.nome,
-    numero: mensagem.telefone,
+    numero: veredito.telefone,
     texto: mensagem.texto,
     printUrl,
     expiraEm: reserva.expiraEm,
@@ -363,22 +360,32 @@ async function tratar(req: Request) {
     const saude = motivoDeSaude();
     if (saude) return semTarefa(saude);
 
-    const contador = contadorCompleto
-      ? snapshotDoContador(contadorCompleto)
-      : await lerContadorFila(db, now, config.inicioDiaOperacionalHora);
-    const ritmo = motivoDeRitmo(config, contador);
+    const contador =
+      contadorCompleto ?? (await lerContadorFilaCompleto(db, now, config.inicioDiaOperacionalHora));
+    // ATALHO DE CUSTO: o ritmo é o primeiro portão de `proximaSaida`, e
+    // perguntá-lo aqui antes evita ler o pool (e, vencido, varrer `/leads`)
+    // nas chamadas que ele já barra — a esmagadora maioria da noite.
+    const ritmo = motivoDeRitmo(config, snapshotDoContador(contador));
     if (ritmo) return semTarefa(ritmo);
 
     const corteLegado = await corteLegadoAtual(db);
     const pool = await lerPool(db, now, { corteLegado });
-    const { escolhido, diagnostico } = ordenarCandidatos(
-      pool.candidatos,
-      config,
-      app.janelasContato,
+    // QUEM SAI AGORA: a mesma função que a agenda da fila usa para dizer
+    // quem sai e QUANDO (lib/fila/selecao.ts) — aqui perguntada com o
+    // horizonte fechado em `now`. A ordem é a de `ordenarCandidatos`.
+    const saida = proximaSaida(
+      {
+        config,
+        janelas: app.janelasContato,
+        pool: pool.candidatos,
+        contadores: { [diaOperacionalKey(now, config.inicioDiaOperacionalHora)]: contador },
+      },
       now,
+      { ate: now },
     );
+    if (!saida.em) return semTarefa(saida.motivoEmDesde);
 
-    for (const candidato of escolhido) {
+    for (const candidato of saida.fila) {
       const tarefa = await tentarEntregar(db, candidato.id, dispositivo, now, corteLegado);
       if (tarefa) return respostaComTarefa(tarefa);
     }
@@ -390,7 +397,7 @@ async function tratar(req: Request) {
     // única informação que diz qual providência tomar. Extraído para
     // `motivoSemTarefaAgora` (lib/fila/selecao.ts) para `GET /api/fila/resumo`
     // reusar a mesma distinção sem duplicá-la.
-    return semTarefa(motivoSemTarefaAgora(escolhido.length, diagnostico));
+    return semTarefa(motivoSemTarefaAgora(saida.fila.length, saida.diagnostico));
   } catch (error) {
     return handleRouteError(error);
   }

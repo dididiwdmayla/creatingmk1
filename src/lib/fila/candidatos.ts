@@ -555,6 +555,26 @@ export async function lerPool(
 }
 
 /**
+ * O pool para quem só LÊ e não pode gravar nada — a agenda da fila
+ * (`lib/fila/agenda.ts`): o persistido quando ainda vale (o MESMO critério
+ * de `lerPool`, `poolValido`), senão uma varredura em memória, NUNCA
+ * gravada. Reaproveita o cache quando ele existe, e não serve um retrato
+ * velho quando ele venceu: com a fila pausada o `/proximo` para no portão do
+ * ritmo e não reconstrói o pool, e uma agenda do pool de ontem mostraria a
+ * fila de ontem.
+ */
+export async function lerPoolSemGravar(
+  db: AppDb,
+  now: Date,
+  opcoes: { corteLegado: string },
+): Promise<{ pool: PoolCandidatos; reconstruido: boolean }> {
+  const snap = await poolRef(db).get();
+  const valido = poolValido(snap.exists ? snap.data() : undefined, now);
+  if (valido) return { pool: valido, reconstruido: false };
+  return { pool: await construirPool(db, now, opcoes), reconstruido: true };
+}
+
+/**
  * Varre e GRAVA o pool agora, sem olhar o TTL — o que `lerPool` faz quando o
  * persistido venceu. Exportado para o painel "Automação" da /config, que
  * precisa de um retrato posterior à última execução da automação mesmo com

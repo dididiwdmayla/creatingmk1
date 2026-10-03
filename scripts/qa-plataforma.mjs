@@ -81,6 +81,11 @@
  *                                                 # apagada (200, claro/escuro do sistema). As duas
  *                                                 # variáveis da fila no ambiente: sem elas a varredura
  *                                                 # "não rodaria" e o estado cheio não existe
+ *   RADAR_DEVICE_KEY=x RADAR_DEVICE_USER_ID=admin APP_PUBLIC_URL=https://radar.exemplo \
+ *   node scripts/qa-plataforma.mjs --so=agenda    # a AGENDA da fila, no topo do painel "Fila de envio":
+ *                                                 # cheia (janela, outro fuso, intervalo, teto, meta,
+ *                                                 # o que sobra), com barrados e demo vencida, pausada
+ *                                                 # e VAZIA — fixtures datadas a partir da rodada
  *   node scripts/qa-plataforma.mjs --so=paineis   # PORTÃO dos blocos colapsáveis de /config: tudo fechado,
  *                                                 # um aberto e o estado PERSISTIDO entre recargas
  *   node scripts/qa-plataforma.mjs --so=lote      # diálogo "Gerar demos em lote" (/leads?buscaId=): a skin
@@ -7083,6 +7088,406 @@ async function medirExpiracao(browser, secret) {
 
 /* ── main ────────────────────────────────────────────────────────────── */
 
+/* ── Item: a AGENDA da fila (`--so=agenda`) ─────────────────────────── */
+
+/**
+ * A AGENDA — o primeiro bloco do painel "Fila de envio" (ver
+ * `lib/fila/agenda.ts`): quem sai, a partir de quando e por quê; quem vai
+ * ser barrado; quem perde a demo antes da vez; o que não coube.
+ *
+ * As fixtures são DATADAS A PARTIR DO INSTANTE DA RODADA, e não de hora
+ * fixa: a agenda é feita de horários, e uma fixture de hora fixa mudaria de
+ * lado sozinha conforme a hora em que o laço roda. Cada janela que abre
+ * "depois" é UMA faixa de funcionamento, num dia da semana só, começando no
+ * instante calculado (`faixaUnica`) — antes dele o lead está fechado, em
+ * qualquer hora de rodada. A família `petshop` é "bom" o dia inteiro (ver
+ * `janelasContato` em semear), então quem decide a hora é o funcionamento.
+ * O dia operacional vira 12h depois da rodada (`inicioDiaOperacionalHora`
+ * calculado), para a sequência de hoje nunca atravessar a virada.
+ *
+ * A sequência CHEIA (meta 7, teto 3/h, intervalo 10 min, alvo 9):
+ *   manual (agora) · A +10 · B +20 · C +60 (teto) · D +70 ·
+ *   W +90 ("abre às", SP) · L +150 ("abre às … (hora dele)", Lisboa) ·
+ *   [meta 7] · N na virada ("meta de 7 batida · dia novo") · O +10 · P fora.
+ * COM BARRADOS: a mesma, mais G (o mais antigo, frase do grupo com
+ * `{link}`) e V (demo automática que a próxima varredura apaga antes da vez
+ * dele) — e as NOVE linhas continuam as mesmas: não ocupam vaga. PAUSADA:
+ * a de barrados com a fila pausada. VAZIA: nenhum candidato.
+ *
+ * Rodar com `RADAR_DEVICE_KEY` e `RADAR_DEVICE_USER_ID` no ambiente — sem
+ * elas a fila está bloqueada (saúde) e a agenda leva o aviso vermelho em
+ * todo estado — e com `APP_PUBLIC_URL`: a mensagem global semeada usa
+ * `{demo}`, e sem a origem pública a guarda de marcadores barra TODO lead
+ * (a primeira rodada mostrou isso: "Vão ser barrados (10)", sequência vazia
+ * — o comportamento certo da fila, e o motivo de a variável ser exigida).
+ */
+const PAINEIS_AGENDA = ["fila-envio"];
+
+/** O fuso de São Paulo (fixo, -180) e a faixa única que abre em `inicioMs`. */
+function faixaUnica(offsetMin, inicioMs, duracaoMin) {
+  const local = (ms) => new Date(ms + offsetMin * 60000);
+  const a = local(inicioMs);
+  const f = local(inicioMs + duracaoMin * 60000);
+  return {
+    diaAbre: a.getUTCDay(),
+    horaAbre: a.getUTCHours(),
+    minAbre: a.getUTCMinutes(),
+    diaFecha: f.getUTCDay(),
+    horaFecha: f.getUTCHours(),
+    minFecha: f.getUTCMinutes(),
+  };
+}
+
+/** Aberto o dia inteiro, nos 7 dias. */
+const FAIXAS_24H = Array.from({ length: 7 }, (_, dia) => ({
+  diaAbre: dia,
+  horaAbre: 0,
+  minAbre: 0,
+  diaFecha: dia,
+  horaFecha: 23,
+  minFecha: 59,
+}));
+
+const HORA_SP_QA = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+function semearAgenda(estado) {
+  const agora = Date.now();
+  const minuto = (ms) => Math.ceil(ms / 60000) * 60000;
+  const W_ABRE = minuto(agora + 90 * 60000);
+  const L_ABRE = minuto(agora + 150 * 60000);
+  const horaSp = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", hour: "2-digit", hourCycle: "h23" }).format(agora),
+  );
+  const inicioDia = (horaSp + 12) % 24;
+  // A virada do dia operacional: a próxima vez que São Paulo marca `inicioDia`:00.
+  const viradaMs = (() => {
+    for (let t = minuto(agora); ; t += 60000) {
+      const partes = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Sao_Paulo",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(t);
+      if (partes === `${String(inicioDia).padStart(2, "0")}:00` && t > agora) return t;
+    }
+  })();
+  const proxima = proximaVarreduraQa(agora);
+  // Os de AMANHÃ abrem na virada — ou, se ela vier antes, 2h depois da
+  // próxima varredura: a vez de V (que abre 1h depois dela) tem de cair
+  // DENTRO das 9 linhas, senão ele nunca chega à vez e vira só "fora".
+  const amanhaAbre = Math.max(viradaMs, proxima + 2 * 3600000);
+  const capturaPronta = {
+    estado: "pronto",
+    execucaoId: "exec-qa-agenda",
+    pedidoEm: iso(2),
+    imagens: [{ ancora: "hero", tela: "celular", ordem: 1, url: "/qa.png", largura: 390, altura: 844 }],
+  };
+  const lead = (placeId, nome, criadoDiasAtras, faixas, extra = {}) => ({
+    placeId,
+    nome,
+    endereco: "Av. Ipiranga, 500 - Azenha, Porto Alegre - RS, 90160-091, Brasil",
+    status: "novo",
+    busca: { nicho: "petshop", regiao: "Porto Alegre RS", em: iso(criadoDiasAtras) },
+    temTelefone: true,
+    telefoneIntl: "5551966660000",
+    temSite: false,
+    siteProprio: false,
+    demo: { skinId: "barbearia-editorial", themeId: "norte", dados: {}, criadoEm: iso(criadoDiasAtras) },
+    capturas: capturaPronta,
+    criadoEm: iso(criadoDiasAtras),
+    atualizadoEm: iso(1),
+    enriquecido: true,
+    horarios: { faixas, utcOffsetMinutes: -180, obtidoEm: iso(1) },
+    ...extra,
+  });
+
+  const cheia = [
+    lead("agenda-m", "Mundo Animal Petrópolis", 0.5, FAIXAS_24H, { filaManual: true }),
+    lead("agenda-a", "Pet Center Ipiranga", 9, FAIXAS_24H),
+    lead("agenda-b", "Banho & Tosa Menino Deus", 8, FAIXAS_24H),
+    lead("agenda-c", "Clínica Veterinária Tristeza", 7, FAIXAS_24H),
+    lead("agenda-d", "Pet Shop Bom Fim", 6, FAIXAS_24H),
+    lead("agenda-w", "Agropet Cavalhada", 5, [faixaUnica(-180, W_ABRE, 360)]),
+    lead("agenda-l", "Pet Boutique Chiado — Cães & Gatos de Raça", 4, [faixaUnica(60, L_ABRE, 360)], {
+      endereco: "Rua Garrett 50, 1200-204 Lisboa, Portugal",
+      horarios: { faixas: [faixaUnica(60, L_ABRE, 360)], utcOffsetMinutes: 60, obtidoEm: iso(1) },
+    }),
+    // Os três de AMANHÃ: abrem em `amanhaAbre` (12h de faixa), com a meta já zerada.
+    ...[
+      ["agenda-n", "Casa do Pet Moinhos", 2],
+      ["agenda-o", "Aquário Floresta", 1.5],
+      ["agenda-p", "Ração & Cia Partenon", 1],
+    ].map(([id, nome, dias]) => lead(id, nome, dias, [faixaUnica(-180, amanhaAbre, 720)])),
+  ];
+  const barrados = [
+    // O mais antigo: sem as frases, a mensagem é a do GRUPO, com o marcador errado.
+    lead("agenda-g", "Petshop Glória (frase com {link})", 10, FAIXAS_24H, { buscaId: ["busca-agenda-erro"] }),
+    // Demo automática que vence 1h antes da próxima varredura, e abre 1h
+    // depois dela — antes dos de amanhã, e mais antiga que eles.
+    lead("agenda-v", "Pet Vila Assunção", 3, [faixaUnica(-180, proxima + 3600000, 720)], {
+      demo: demoAutoQa(73, proxima),
+    }),
+  ];
+
+  editarBanco((mapa) => {
+    for (const chave of Object.keys(mapa)) {
+      if (
+        chave.startsWith("leads/fila") ||
+        chave.startsWith("leads/agenda-") ||
+        chave.startsWith("filaContadores/") ||
+        chave === "filaCandidatos/pool"
+      ) {
+        delete mapa[chave];
+      }
+    }
+    mapa["config/fila"] = {
+      ...mapa["config/fila"],
+      ativo: estado !== "pausada",
+      metaDiaria: 7,
+      tetoPorHora: 3,
+      intervaloMinimoSegundos: 600,
+      exigirJanelaBoa: true,
+      nichosPermitidos: ["petshop"],
+      inicioDiaOperacionalHora: inicioDia,
+    };
+    mapa["config/automacao"] = {
+      ...mapa["config/automacao"],
+      ativo: true,
+      alvoEstoque: 9,
+      expiracaoDemoHoras: 72,
+      corteLegado: "2026-08-10",
+    };
+    mapa["buscas/busca-agenda-erro"] = {
+      id: "busca-agenda-erro",
+      nome: "Petshops — Glória",
+      nicho: "petshop",
+      regiao: "Porto Alegre RS",
+      criadaEm: iso(20),
+      cor: "#2f82e0",
+      mensagemPadrao: "Oi {nome}! Fiz uma demo do site de vocês: {link}",
+    };
+    if (estado === "vazia") return;
+    for (const l of [...cheia, ...(estado === "cheia" ? [] : barrados)]) mapa[`leads/${l.placeId}`] = l;
+  });
+
+  return {
+    ordem: [
+      "Mundo Animal Petrópolis",
+      "Pet Center Ipiranga",
+      "Banho & Tosa Menino Deus",
+      "Clínica Veterinária Tristeza",
+      "Pet Shop Bom Fim",
+      "Agropet Cavalhada",
+      "Pet Boutique Chiado — Cães & Gatos de Raça",
+      "Casa do Pet Moinhos",
+      "Aquário Floresta",
+    ],
+    horaW: HORA_SP_QA.format(W_ABRE),
+    horaL: HORA_SP_QA.format(L_ABRE),
+    horaLisboa: new Intl.DateTimeFormat("pt-BR", {
+      timeZone: "UTC",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(L_ABRE + 60 * 60000),
+    // A linha de N: abrindo NA virada, o último portão é a meta; abrindo
+    // depois, é a janela — com a meta dita antes.
+    textoMeta:
+      amanhaAbre === viradaMs
+        ? "meta de 7 batida · dia novo"
+        : `meta de 7 batida · abre às ${HORA_SP_QA.format(amanhaAbre)}`,
+  };
+}
+
+async function medirAgenda(browser, secret) {
+  if (
+    !process.env.RADAR_DEVICE_KEY?.trim() ||
+    !process.env.RADAR_DEVICE_USER_ID?.trim() ||
+    !process.env.APP_PUBLIC_URL?.trim()
+  ) {
+    throw new Error(
+      "[agenda] rodar com RADAR_DEVICE_KEY, RADAR_DEVICE_USER_ID e APP_PUBLIC_URL no ambiente (ver o comentário do passo)",
+    );
+  }
+  const gerados = [];
+  const problemas = [];
+  const itens = [];
+
+  for (const [viewport, sufixo, tema] of [
+    [VIEWPORT_CELULAR, "celular", "escuro"],
+    [VIEWPORT_DESKTOP, "desktop", "escuro"],
+    [VIEWPORT_CELULAR, "celular-claro", "claro"],
+    [VIEWPORT_DESKTOP, "desktop-claro", "claro"],
+  ]) {
+    const ctx = await contextoLogado(browser, { viewport, secret, tema });
+    const page = await ctx.newPage();
+
+    const abrir = async (estado) => {
+      definirTemaNoDoc("admin", tema);
+      definirPaineisAbertosNoDoc("admin", PAINEIS_AGENDA);
+      const esperado = semearAgenda(estado);
+      await page.goto(`${BASE}/config`, { waitUntil: "domcontentloaded" });
+      await assentar(page);
+      await exigirLogado(page, `agenda/${estado}/${sufixo}`);
+      await page.locator('[data-bloco="agenda"]').scrollIntoViewIfNeeded();
+      await page.waitForFunction(
+        () => !document.querySelector('[data-bloco="agenda"] .animate-pulse'),
+        null,
+        { timeout: 20000 },
+      );
+      await page.waitForTimeout(300);
+      return esperado;
+    };
+
+    const capturar = async (rotulo, arquivo) => {
+      const png = path.join(SAIDA, `agenda-${arquivo}-${sufixo}${marca}.png`);
+      const semNav = await page.addStyleTag({ content: "nav { display: none !important }" });
+      await page.locator('[data-bloco="agenda"]').screenshot({ path: png });
+      await semNav.evaluate((no) => no.remove());
+      itens.push({ rotulo: `${rotulo} · ${sufixo}`, png });
+    };
+
+    const texto = () => page.locator('[data-bloco="agenda"]').innerText();
+    const exigir = async (onde, alvos) => {
+      const t = await texto();
+      for (const [alvo, oque] of alvos) {
+        if (!(alvo instanceof RegExp ? alvo.test(t) : t.includes(alvo))) problemas.push(`${onde}: ${oque} não apareceu`);
+      }
+    };
+    const nomesDasLinhas = () =>
+      page.$$eval("[data-linha-agenda] a", (as) => as.map((a) => (a.textContent ?? "").trim()));
+    const altura = () =>
+      page.$eval('[data-bloco="agenda"]', (el) => Math.round(el.getBoundingClientRect().height));
+
+    // As linhas são LEGÍVEIS: a coluna da hora não cruza o nome, e o texto
+    // tem largura de gente (no celular a coluna é ~300px).
+    const conferirLinhas = async (onde) => {
+      const geometria = await page.$$eval("[data-linha-agenda]", (lis) =>
+        lis.map((li) => {
+          const hora = li.firstElementChild?.getBoundingClientRect();
+          const corpo = li.lastElementChild?.getBoundingClientRect();
+          if (!hora || !corpo) return { ok: false, motivo: "peça ausente" };
+          const cruza = hora.right > corpo.left;
+          return { ok: !cruza && corpo.width >= 160, motivo: cruza ? "hora sob o nome" : `texto com ${Math.round(corpo.width)}px` };
+        }),
+      );
+      geometria.forEach((g, i) => {
+        if (!g.ok) problemas.push(`${onde}: linha ${i + 1} quebrada (${g.motivo})`);
+      });
+      // A agenda é o TOPO do painel: antes da saúde.
+      const primeiro = await page.evaluate(() => {
+        const agenda = document.querySelector('[data-bloco="agenda"]');
+        const saude = document.querySelector('[data-bloco="saude"]');
+        return Boolean(agenda && saude && agenda.compareDocumentPosition(saude) & Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      if (!primeiro) problemas.push(`${onde}: a agenda não está no topo do painel (antes da saúde)`);
+    };
+
+    // ── CHEIA ──────────────────────────────────────────────────────────
+    let esperado = await abrir("cheia");
+    await conferirPainelFila(page, `cheia/${sufixo}`, viewport.width, problemas);
+    await conferirLinhas(`cheia/${sufixo}`);
+    const nomes = await nomesDasLinhas();
+    if (JSON.stringify(nomes) !== JSON.stringify(esperado.ordem)) {
+      problemas.push(`cheia/${sufixo}: ordem ${JSON.stringify(nomes)} ≠ ${JSON.stringify(esperado.ordem)}`);
+    }
+    await exigir(`cheia/${sufixo}`, [
+      [/a partir de/, "o rótulo \"a partir de\""],
+      [/já pode sair/, "a primeira linha, agora"],
+      [/manual/, "o selo do manual"],
+      [/intervalo de 10 min/, "o motivo do intervalo"],
+      [/teto de 3 por hora/, "o motivo do teto"],
+      [`${esperado.horaW}`, `a hora em que a janela de W abre (${esperado.horaW})`],
+      [`abre às ${esperado.horaW}`, "o motivo da janela, na hora do lead de São Paulo"],
+      [`abre às ${esperado.horaLisboa} em Lisboa`, "o motivo da janela do lead de Lisboa, na hora DELE"],
+      [esperado.horaL, `a hora do lead de Lisboa no fuso do operador (${esperado.horaL})`],
+      [esperado.textoMeta, `a linha depois da meta ("${esperado.textoMeta}")`],
+      [/\+ 1 elegível depois destes 9/, "o que sobrou além do alvo"],
+      [/candidatos lidos agora/, "o rodapé do pool refeito em memória"],
+    ]);
+    // A hora de Lisboa aparece UMA vez na linha dele (o motivo já a diz).
+    const linhaLisboa = (await page.locator('[data-linha-agenda="agenda-l"]').innerText()) ?? "";
+    if (linhaLisboa.split(esperado.horaLisboa).length - 1 !== 1) {
+      problemas.push(`cheia/${sufixo}: a hora de Lisboa repetida na linha ("${linhaLisboa.replace(/\s+/g, " ")}")`);
+    }
+    for (const seletor of ["[data-agenda-barrados]", "[data-agenda-vencidos]", "[data-agenda-aviso]"]) {
+      if ((await page.locator(seletor).count()) > 0) problemas.push(`cheia/${sufixo}: ${seletor} sem motivo`);
+    }
+    const alturaCheia = await altura();
+    await capturar("cheia (9 linhas, 1 fora)", "cheia");
+
+    // ── COM BARRADOS: G e V não ocupam vaga — as nove linhas são AS MESMAS.
+    esperado = await abrir("barrados");
+    await conferirPainelFila(page, `barrados/${sufixo}`, viewport.width, problemas);
+    await conferirLinhas(`barrados/${sufixo}`);
+    const nomesB = await nomesDasLinhas();
+    if (JSON.stringify(nomesB) !== JSON.stringify(esperado.ordem)) {
+      problemas.push(`barrados/${sufixo}: os barrados ocuparam vaga — ${JSON.stringify(nomesB)}`);
+    }
+    await exigir(`barrados/${sufixo}`, [
+      [/Vão ser barrados \(1\)/, "a seção dos barrados"],
+      [/a mensagem sairia com \{link\} sem resolver/, "o marcador que falta"],
+      [/Demo vence antes da vez \(1\)/, "a seção das demos vencidas"],
+      [/demo apagada na varredura de/, "a varredura que apaga"],
+      [/Pet Vila Assunção/, "o lead da demo vencida"],
+    ]);
+    if ((await page.locator("[data-linha-agenda]", { hasText: "Glória" }).count()) > 0) {
+      problemas.push(`barrados/${sufixo}: o barrado apareceu na sequência`);
+    }
+    await capturar("com barrados e demo vencida", "barrados");
+
+    // ── PAUSADA ────────────────────────────────────────────────────────
+    await abrir("pausada");
+    await conferirPainelFila(page, `pausada/${sufixo}`, viewport.width, problemas);
+    await exigir(`pausada/${sufixo}`, [
+      [/A fila está pausada: nada sai enquanto ela estiver assim/, "o aviso da pausa"],
+      [/já pode sair/, "a agenda calculada mesmo pausada"],
+    ]);
+    if ((await page.locator("[data-linha-agenda]").count()) !== 9) {
+      problemas.push(`pausada/${sufixo}: a agenda pausada não tem as 9 linhas`);
+    }
+    await capturar("pausada", "pausada");
+
+    // ── VAZIA ──────────────────────────────────────────────────────────
+    await abrir("vazia");
+    await conferirPainelFila(page, `vazia/${sufixo}`, viewport.width, problemas);
+    await exigir(`vazia/${sufixo}`, [[/Nenhum lead sai até o fim de amanhã/, "o estado vazio"]]);
+    if ((await page.locator("[data-linha-agenda], [data-barrado-agenda], [data-vencido-agenda]").count()) > 0) {
+      problemas.push(`vazia/${sufixo}: sobrou linha com a agenda vazia`);
+    }
+    const alturaVazia = await altura();
+    console.log(`  [agenda] ${sufixo}: bloco ${alturaCheia}px cheio → ${alturaVazia}px vazio`);
+    if (alturaVazia >= alturaCheia) problemas.push(`vazia/${sufixo}: o bloco não encolheu sem linhas`);
+    await capturar("vazia", "vazia");
+
+    await ctx.close();
+  }
+  semear();
+
+  const folha = await browser.newPage();
+  gerados.push(
+    await folhaDeContato(folha, 'Agenda da fila — painel "Fila de envio" (/config)', "agenda", [
+      { rotulo: "celular · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· celular")) },
+      { rotulo: "desktop · escuro", itens: itens.filter((i) => i.rotulo.endsWith("· desktop")) },
+      { rotulo: "celular · claro", itens: itens.filter((i) => i.rotulo.endsWith("celular-claro")) },
+      { rotulo: "desktop · claro", itens: itens.filter((i) => i.rotulo.endsWith("desktop-claro")) },
+    ]),
+  );
+  await folha.close();
+  gerados.push(...itens.map((i) => i.png));
+
+  if (problemas.length > 0) {
+    throw new Error(`[agenda] ${problemas.length} problema(s):\n  ${problemas.join("\n  ")}`);
+  }
+  console.log("[agenda] ok — cheia, com barrados, pausada e vazia, sem vazamento nem caixa zerada.");
+  return gerados;
+}
+
 async function main() {
   await fs.mkdir(SAIDA, { recursive: true });
   await exigirPortaLivre();
@@ -7146,6 +7551,7 @@ async function main() {
     if (querido("vestigio")) gerados.push(...(await medirSemVestigio(browser, secret)));
     if (querido("automacao")) gerados.push(...(await medirAutomacao(browser, secret)));
     if (querido("expiracao")) gerados.push(...(await medirExpiracao(browser, secret)));
+    if (querido("agenda")) gerados.push(...(await medirAgenda(browser, secret)));
     if (querido("paineis")) gerados.push(...(await medirPaineisConfig(browser, secret)));
     if (querido("lote")) gerados.push(...(await medirLote(browser, secret)));
     if (querido("usuario")) gerados.push(...(await provarPorUsuario(browser)));
